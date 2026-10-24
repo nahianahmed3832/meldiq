@@ -37,7 +37,7 @@ What the AI workforce can do today, honestly classified. Updated at each phase g
 | Capability | Status | Live | Evidence / gap |
 |---|---|---|---|
 | Console AI control center (overview, routes, models, jobs) | verified | yes | console tests; used in production |
-| Full System Check (one run, all subsystems, history) | not_implemented | — | Phase 2: per-route verification exists, no combined check |
+| Full System Check (one run, all subsystems, history, export) | verified | no | `ai_system_check.test.ts`; web and console e2e; API 0.41.0 not deployed |
 | Business control center / work center (one place for jobs, tasks, approvals, failures) | partial | yes | web has agents, jobs, tasks; not one view |
 | Cost accounting: quotas on requests, tokens and cost, usage per job | partial | yes | no cost per completed task, no monthly caps per agent in the UI |
 | Token efficiency: fast route for classification, context limits | partial | yes | no prompt caching, no batching |

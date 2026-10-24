@@ -5,8 +5,9 @@ Newest entries first within each phase. Capability statuses: `CAPABILITY_MATRIX.
 `../decisions/` (index there) and the earlier AI Workforce design in `../AI_WORKFORCE.md` and `../AI_WORKFORCE_2_PLAN.md`.
 
 **Rule for this work: no deploys.** Everything is committed locally on `internal-beta` (server, Android, shared) and
-`ai-workforce-web` (Meldiq Web worktree). Production stays at API 0.40.0, web 0.5.0-beta-08ba69d, console 0.5.0 until
-the owner approves a release.
+`ai-workforce-web` (Meldiq Web worktree); the console (`meldiq_central_admin`, not a git repository) is changed in place.
+Production stays at API 0.40.0, web 0.5.0-beta-08ba69d, console 0.5.0 until the owner approves a release. Prepared:
+API 0.41.0 (migration 054, additive), console 0.6.0.
 
 ## Where things are
 
@@ -71,3 +72,42 @@ can't post in (`ai_workforce_runtime.test.ts`, unchanged). Not deployed.
 messages; in a reading channel the server reader handles it). Android's change isn't on a device build yet.
 
 Commits: `8601242`, `6554bb5` (internal-beta); web: see the `ai-workforce-web` log.
+
+## Phase 2: unified health diagnostics (2026-10-25)
+
+**Outcome:** a community admin (AI agents › Health) or a console operator (AI Control Center › System check) runs one
+check and sees what is healthy, failed, needs attention, isn't set up or couldn't be tested, with evidence, cause,
+remediation, owner and links to the jobs, tasks, agent or triggers involved. History is stored; reports export as JSON.
+
+**Reused:** agent readiness (`readiness.ts`: the rules jobs run under), route status and last execution
+(`ai/routing.ts`), the runtime's tick stats, quota engine, trigger store, the shared invocation rule (phase 1).
+
+**Built** (`server/src/modules/workforce/health/`, migration 054 `ai_system_checks`, API 0.41.0):
+- Configuration: switches, each agent, channel assignments, triggers, model routes (all 7 for the platform; the ones
+  installed agents need for a community), catalog, secrets key, channel reading.
+- Runtime: worker heartbeat, due-job backlog, jobs whose lease expired, failures in 24 h by error code (with what to do),
+  approvals waiting over a day, overdue or blocked tasks, usage limits, readers falling behind, disk space.
+- Smoke (real, side-effect free): database write/read/rollback, AI file store round-trip with SHA-256 and delete,
+  `ffmpeg` start, the invocation rule (platform: fixed messages; community: every agent in every channel, which catches
+  two agents a channel can't tell apart). The end-to-end job path is proved only by a real completed job in the last 7
+  days; otherwise `not_tested` (a live test costs tokens and posts: use Configure › Test).
+- Never calls an AI model, sends, publishes or spends. A check that throws becomes a failed item; the rest run.
+- Platform check also runs every 6 hours from the worker's tick (one retry per 10 minutes if it fails). Newest 50
+  reports kept per scope. Running is rate-limited (6 per minute per person).
+- Web: `src/sync/systemCheck.ts`, `src/ui/agents/SystemCheckTab.tsx` (Health tab, managers only). Console:
+  `src/ui/pages/ai/AiSystemCheck.tsx` (System check tab, `ai.view`), schemas generated from `platformAdminWorkforce.ts`.
+
+**Found while building:** with the kill switch off, the first version reported all seven routes as failed with "set up
+a model"; now they're `not_tested` and the switch is reported once (test added).
+
+**Verified**
+- Server: `tsc` clean, lint clean, 1041 passed / 11 skipped; `ai_system_check.test.ts` 12 (real storage, database,
+  invocation; fake provider for the failure and circuit cases; console schemas validated against live answers).
+- Web: `tsc -b`, lint, 483 unit tests; agents e2e 11/11 including "Health"; contract test proven to catch a wrong path.
+- Console: `tsc -b`, lint, prettier, 17 unit tests, e2e 5/5 including the System check step and phone width.
+
+**Not done here:** event-driven checks beyond the schedule (e.g. on a burst of failures); automatic repair (only the
+runtime's existing lease recovery runs); community checks on a schedule. Integrations (social, ads, store) have no
+connection to check yet: their tools are reported through each agent's readiness as needing a connection.
+
+Commits: server `173b435`, `2a88c5b`; web `2b07d14`.
