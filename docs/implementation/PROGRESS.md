@@ -11,9 +11,14 @@ API 0.41.0 (migrations 054 and 055, both additive), console 0.6.0.
 
 ## Where things are
 
+*Correction (2026-10-25, phase 12):* entries before this one said "server lint clean". The server has no lint script
+(`npm run lint --silent` hid npm's "missing script" error), so no server lint ran; those lines are corrected below.
+Web and console lint did run (exit 0).
+
+
 | What | Where | Checks |
 |---|---|---|
-| Server (Fastify, TypeScript, better-sqlite3) | `meldiq_android/server` | `npx tsc --noEmit -p .`, `npm run lint`, `npx vitest run` |
+| Server (Fastify, TypeScript, better-sqlite3) | `meldiq_android/server` | `npm run typecheck` (or `npx tsc --noEmit -p .`), `npx vitest run`; **no linter is configured for the server** |
 | Shared contract and rule fixtures | `meldiq_android/shared/contracts/fixtures` | server `test/contracts.test.ts`; web and Android decode the same files |
 | Android (Kotlin, Compose) | `meldiq_android/android` | `JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradlew :app:testDebugUnitTest` |
 | Meldiq Web | `orbit_web/.claude/worktrees/ai-workforce-web` (branch `ai-workforce-web`, PR #20) | `npm run typecheck` (`tsc -b`; `tsc -p .` checks nothing), `npm run lint`, `npm test`; e2e: `ORBIT_SERVER_DIR=…/server npx playwright test e2e/agents.spec.ts --project=chromium` after `npm run build` in the server |
@@ -58,7 +63,7 @@ Production data store is SQLite; there is no MongoDB in Meldiq (MongoDB is Griip
 
 **Verified (commands run against this code)**
 
-- Server: `tsc` clean, lint clean, 1029 passed / 11 skipped.
+- Server: `tsc` clean, 1029 passed / 11 skipped.
 - Web: `tsc -b` clean, lint clean, 483 passed; agents e2e 10/10 (channel mention, commands, direct conversation with a
   reader).
 - Android: `AgentRulesTest` 8/8 (shared cases included), `ContractFixturesTest` 3/3.
@@ -101,7 +106,7 @@ remediation, owner and links to the jobs, tasks, agent or triggers involved. His
 a model"; now they're `not_tested` and the switch is reported once (test added).
 
 **Verified**
-- Server: `tsc` clean, lint clean, 1041 passed / 11 skipped; `ai_system_check.test.ts` 12 (real storage, database,
+- Server: `tsc` clean, 1041 passed / 11 skipped; `ai_system_check.test.ts` 12 (real storage, database,
   invocation; fake provider for the failure and circuit cases; console schemas validated against live answers).
 - Web: `tsc -b`, lint, 483 unit tests; agents e2e 11/11 including "Health"; contract test proven to catch a wrong path.
 - Console: `tsc -b`, lint, prettier, 17 unit tests, e2e 5/5 including the System check step and phone width.
@@ -163,3 +168,55 @@ is proven red without the runtime check); agent-view fixtures re-recorded; Andro
 web 484 unit, agents e2e 12/12 (the configure flow sets a $5 budget and readiness shows it).
 
 Commits: server `054367c`; web `0f42277`.
+
+## Phase 12: final regression and continuation report (2026-10-25)
+
+### Regression (all run against the committed code)
+
+| Check | Command | Result |
+|---|---|---|
+| Server types | `npm run typecheck` | exit 0 |
+| Server tests | `npx vitest run` | 1051 passed, 11 skipped (119 files) |
+| Server build | `npm run build` | exit 0 |
+| Server lint | (none configured) | not run: no linter exists |
+| Web types / lint / format | `npm run typecheck`, `npm run lint`, `prettier --check` | exit 0, exit 0, clean |
+| Web unit | `npm test` | 484 passed, 1 skipped |
+| Web contract copy | `scripts/sync-contract-fixtures.ts --check` | matches (421 files) |
+| Web e2e, all specs | `playwright test --project=chromium` | 52 passed, 2 skipped, **1 failed**: `accounts.spec.ts:42` (see below) |
+| Console | `tsc -b`, lint, prettier, `vitest run`, `playwright test` | clean; 17 unit; e2e 5/5 |
+| Android | `AgentRulesTest`, `ContractFixturesTest` | 8/8, 3/3 |
+
+**The one failure predates this session.** `e2e/accounts.spec.ts:85` waits for the "Bob Chen" conversation link while
+the page is still on Settings › Account (a step added in web commit `8e2ecd0`); the message did arrive ("DMs, 1
+unread"). It fails the same way on the pre-session web code `87c71aa` against the same server. Not fixed here (the
+account pages are another session's work); the fix is to go back to the conversations before that expectation.
+
+### Continuation report (§18)
+
+- **Repositories:** `meldiq_android` on `internal-beta` (10 commits from `8601242` to `27e3622`, not pushed); Meldiq Web
+  on `ai-workforce-web` (4 commits from `977571a` to `0f42277`, not pushed; PR #20 still open); console
+  `meldiq_central_admin` changed in place (0.6.0; not a git repository). Uncommitted in `meldiq_android`:
+  `android/app/build.gradle.kts`, another session's.
+- **Phases:** 0 audit (journal, matrix, ADR 0008); 1 invocation fixed (Manager self-report, mentions anywhere, one
+  shared rule on three platforms); 2 Full System Check; 3 work overview; 10 per-agent monthly budget; 4–9 and 11
+  recorded as waiting on outside accounts or owner decisions (table above).
+- **Root causes fixed:** the Manager excluded itself from discovery and reported "Answer questions: no agent here does
+  it"; the apps only recognised a mention at the start of a message; the server only accepted dashless commands.
+- **Live vs mocked:** nothing new is live. AI providers are faked in tests; storage, database, ffmpeg, end-to-end
+  encryption and the invocation rule are real. No social, ads, store or email integration exists to verify.
+- **Cost observations:** none measured in production this session; the work overview and budgets now record and show
+  cost per request from the usage records.
+- **Deployed:** nothing. Prepared for a release: API 0.41.0 (migrations 054 and 055, additive), web
+  `ai-workforce-web@0f42277`, console 0.6.0. A release needs the usual safeguards (diff production against the checkout,
+  backup, rehearsal of 054/055 on a backup copy, rollback images) and the owner's go-ahead.
+- **Blockers and the next safe step for each:**
+  - Social (Meta, TikTok, YouTube): the owner registers the developer apps; then build connectors behind the existing
+    `integration_not_configured` tools.
+  - Ads: Meta business verification and a Google Ads developer token; the per-agent budget is the enforcement to reuse.
+  - GriipBuddy store: a read-only MongoDB user and the server's location; then a read-only data connector.
+  - Mac companion: a separate signed macOS app; design first.
+  - SaaS billing: pricing, plans and a payment provider are the owner's decisions.
+  - Android: the System Check, work overview and budget have no Android screens (the Android session owns that app);
+    channel readers (stage C) are still unbuilt there.
+- **Next phase to continue from:** release preparation for API 0.41.0 (on the owner's go-ahead), or phase 4's
+  workspace knowledge base (needs a vector store decision), or fixing `accounts.spec.ts` in the web branch.
