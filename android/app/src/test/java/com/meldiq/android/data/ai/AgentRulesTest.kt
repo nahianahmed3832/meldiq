@@ -4,7 +4,14 @@ import com.meldiq.android.data.db.MessageEntity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Test
+import java.io.File
 
 /** The AI Workforce rules the app applies before the server (as Meldiq Web's agentRules). */
 class AgentRulesTest {
@@ -20,18 +27,35 @@ class AgentRulesTest {
         assertEquals("cafe-bot", AgentRules.commandName("Café  Bot!"))
     }
 
+    /** The server's cases (shared/contracts/fixtures/rules), which its channel readers and Meldiq Web pass too. */
     @Test
-    fun `a mention or command asks the agent and the longest name wins`() {
-        val agents = listOf(agent("a", "Reel"), agent("b", "Reel Maker"), agent("c", "Writer", "command"), agent("d", "Quiet", "explicit"))
-        assertEquals(AgentRules.Invocation("b", "Reel Maker", "cut a 30s clip", true), AgentRules.invocation("@reel maker, cut a 30s clip", agents))
-        assertEquals("a", AgentRules.invocation("@Reel do it", agents)?.installId)
-        assertEquals("c", AgentRules.invocation("/writer a post", agents)?.installId)
-        // The name must end there, a bare mention asks nothing, and "explicit" agents only answer the Ask sheet.
-        assertNull(AgentRules.invocation("@Reel Maker2 hi", agents.filter { it.id == "b" }))
-        assertNull(AgentRules.invocation("@Reel Maker   ", agents))
-        assertNull(AgentRules.invocation("@Quiet hello", agents))
-        assertNull(AgentRules.invocation("hello @Reel", agents))
+    fun `a message calls an agent as the server decides it`() {
+        val file = generateSequence(File("").absoluteFile) { it.parentFile }
+            .map { File(it, "shared/contracts/fixtures/rules/agent-invocation.json") }
+            .firstOrNull { it.isFile } ?: error("shared/contracts/fixtures/rules/agent-invocation.json not found")
+        val shared = Json.parseToJsonElement(file.readText()).jsonObject
+        val agents = shared.getValue("agents").jsonArray.map {
+            val o = it.jsonObject
+            agent(o.str("id"), o.str("displayName"), o.str("activation"))
+        }
+        val cases = shared.getValue("cases").jsonArray.map { it.jsonObject }
+        assertTrue(cases.isNotEmpty())
+        for (c in cases) {
+            val want = c["expect"]?.takeUnless { it is JsonNull }?.jsonObject
+            val got = AgentRules.invocation(c.str("text"), agents)
+            assertEquals(c.str("why"), want?.let { it.str("installId") to it.str("brief") }, got?.let { it.installId to it.brief })
+        }
     }
+
+    @Test
+    fun `an invocation keeps the agent's name and whether the person may ask`() {
+        val agents = listOf(agent("b", "Reel Maker"), agent("c", "Writer", "command", canInvoke = false))
+        assertEquals(AgentRules.Invocation("b", "Reel Maker", "cut a 30s clip", true), AgentRules.invocation("@reel maker, cut a 30s clip", agents))
+        assertEquals(AgentRules.Invocation("c", "Writer", "a post", false), AgentRules.invocation("/writer a post", agents))
+        assertNull(AgentRules.invocation("@Reel Maker2 hi", agents))
+    }
+
+    private fun JsonObject.str(key: String) = getValue(key).jsonPrimitive.content
 
     @Test
     fun `sharing takes the newest readable messages oldest first within the limits`() {

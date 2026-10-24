@@ -4,6 +4,7 @@ import { senderKeys } from "../../accounts/index.js";
 import { conversationMemberIds } from "../../messaging/index.js";
 import type { Deps } from "../access.js";
 import { findAgent } from "../catalog/index.js";
+import { callOf } from "../invocation.js";
 import { readsMessages, type SharedMessage } from "../sharedMessages.js";
 import type { Workforce } from "../service.js";
 import type { ChannelReaders, ReaderRow } from "./service.js";
@@ -104,16 +105,11 @@ export class ReaderWorker {
     if (r.mode === "direct") return { brief: m.text };
     const assignment = this.d.store.assignment(r.install_id, r.conversation_id);
     if (!assignment || assignment.activation === "explicit") return null;
-    const handle = name.toLowerCase().replace(/[^a-z0-9]+/g, "");
-    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const mention = new RegExp(`(^|\\s)@${escaped}(?=$|[\\s,.:;!?])`, "i");
-    const command = new RegExp(`^/${handle}(?=$|\\s)`, "i");
-    const strip = (t: string) => t.replace(mention, " ").replace(command, " ").trim();
+    const call = callOf(m.text, { id: r.install_id, displayName: name, activation: assignment.activation });
     const repliedTo = m.threadRoot !== null && this.d.ctx.db.prepare("SELECT 1 FROM ai_channel_posts WHERE id = ? AND install_id = ?").get(m.threadRoot, r.install_id) !== undefined;
-    const mentioned = m.mentions.includes(agentUserId) || mention.test(m.text);
-    const commanded = command.test(m.text);
-    const called = assignment.activation === "command" ? commanded || repliedTo : mentioned || commanded || repliedTo;
-    return called ? { brief: strip(m.text) || m.text } : null;
+    // A mention the app attached by the agent's identity counts like "@Name" in the text.
+    const mentionedById = assignment.activation === "mention" && m.mentions.includes(agentUserId);
+    return call || repliedTo || mentionedById ? { brief: call?.brief || m.text } : null;
   }
 
   /** Decides once per message; a job it starts is an ordinary job, as the person who wrote the message. */

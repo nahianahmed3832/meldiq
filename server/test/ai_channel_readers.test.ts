@@ -150,6 +150,18 @@ describe("a mention becomes one job, as its author, answered in its thread", () 
     expect(answer).toBeTruthy();
   });
 
+  it("answers the apps' command name and a mention at the end of a message, with the call left out of the brief", async () => {
+    a.member.aiReaders = "share";
+    const dashed = await say(a.member, a.channel, "/general-assistant what about Wednesday?");
+    const trailing = await say(a.member, a.channel, "can you work with fewer tokens @General Assistant?");
+    await work();
+    expect(jobFor(dashed)).toHaveLength(1);
+    expect(jobFor(trailing)).toHaveLength(1);
+    const brief = (id: string) => JSON.parse((h.ctx.db.prepare("SELECT input FROM ai_jobs WHERE id = ?").get(id) as { input: string }).input).brief;
+    expect(brief(jobFor(dashed)[0]!.id)).toBe("what about Wednesday?");
+    expect(brief(jobFor(trailing)[0]!.id)).toBe("can you work with fewer tokens?");
+  });
+
   it("the same message never acts twice, and a message from an agent identity never acts", async () => {
     a.member.aiReaders = "share";
     const asked = await say(a.member, a.channel, "@General Assistant once only");

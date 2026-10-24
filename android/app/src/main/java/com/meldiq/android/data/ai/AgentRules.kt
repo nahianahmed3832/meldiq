@@ -28,29 +28,45 @@ object AgentRules {
 
     data class Invocation(val installId: String, val displayName: String, val brief: String, val canInvoke: Boolean)
 
+    /** What may follow a name: the end, a space or punctuation. */
+    private const val NAME_END = "(?=\$|[\\s,:;.!?])"
+
     /**
-     * The agent [text] asks and what it asks ("@Name …" for agents asked by mention, "/name …" by command), or null for
-     * an ordinary message. The longest matching name wins; the name must end there ("@Reel Maker2" isn't "@Reel
-     * Maker"). Such a message isn't sent as an encrypted message: mentions live inside the encryption, so the server
-     * could never see them. The app opens the request, with its notice, instead.
+     * Where [t] calls [a], by the server's rule (server `src/modules/workforce/invocation.ts`, tested against the shared
+     * cases in `shared/contracts/fixtures/rules/agent-invocation.json`): "@Name" anywhere, at the start or after a
+     * space, ending where the name ends ("@Reel Maker2" isn't "@Reel Maker"), for agents activated by mention; "/name"
+     * (or the name without its dashes) at the start only, for agents activated by mention or command.
+     */
+    private fun callIn(t: String, a: AiChannelAgent): IntRange? {
+        if (a.activation != "mention" && a.activation != "command") return null
+        val slug = commandName(a.displayName)
+        if (slug.isNotEmpty()) {
+            Regex("^/(${slug}|${slug.replace("-", "")})$NAME_END", RegexOption.IGNORE_CASE).find(t)?.let { return it.range }
+        }
+        if (a.activation != "mention" || a.displayName.isBlank()) return null
+        val m = Regex("(^|\\s)@${Regex.escape(a.displayName)}$NAME_END", RegexOption.IGNORE_CASE).find(t) ?: return null
+        return (m.range.first + m.groupValues[1].length)..m.range.last
+    }
+
+    /**
+     * The agent [text] asks and what it asks (the text without the call: "fix this @Agent?" → "fix this?"), or null for
+     * an ordinary message or a call with nothing asked. The longest matching name wins. Such a message isn't sent as an
+     * encrypted message: mentions live inside the encryption, so the server could never see them. The app opens the
+     * request, with its notice, instead.
      */
     fun invocation(text: String, agents: List<AiChannelAgent>): Invocation? {
-        val t = text.trimStart()
-        var best: Triple<AiChannelAgent, String, Int>? = null
+        val t = text.trim()
+        var best: Pair<AiChannelAgent, IntRange>? = null
         for (a in agents) {
-            val prefix = when (a.activation) {
-                "mention" -> "@${a.displayName}"
-                "command" -> "/${commandName(a.displayName)}"
-                else -> null
-            } ?: continue
-            if (prefix.length < 2 || !t.regionMatches(0, prefix, 0, prefix.length, ignoreCase = true)) continue
-            val after = t.substring(prefix.length)
-            if (after.isNotEmpty() && !Regex("^[\\s,:;.!?]").containsMatchIn(after)) continue
-            if (best == null || prefix.length > best.third) best = Triple(a, after.replace(Regex("^[\\s,:;]+"), ""), prefix.length)
+            val at = callIn(t, a) ?: continue
+            if (best == null || at.count() > best.second.count()) best = a to at
         }
-        val (agent, rest, _) = best ?: return null
-        if (rest.isBlank()) return null
-        return Invocation(agent.id, agent.displayName, rest.trim(), agent.canInvoke)
+        val (agent, at) = best ?: return null
+        val before = t.substring(0, at.first).trimEnd()
+        val after = t.substring(at.last + 1)
+        val brief = (if (before.isNotEmpty()) before + after else after.replace(Regex("^[\\s,:;]+"), "")).trim()
+        if (brief.isEmpty()) return null
+        return Invocation(agent.id, agent.displayName, brief, agent.canInvoke)
     }
 
     /**
