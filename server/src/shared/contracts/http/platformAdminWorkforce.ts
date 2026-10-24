@@ -499,6 +499,7 @@ export const AdminJobs = z.strictObject({
   next: zTime.nullable(),
 });
 export const AdminJobParams = z.strictObject({ jobId: zRef });
+export const AdminSystemCheckParams = z.strictObject({ checkId: zRef });
 export const AdminJobDetail = z.strictObject({
   job: zAdminJob,
   /** For a failed job: where it stopped, why, and how it can be recovered (no content). */

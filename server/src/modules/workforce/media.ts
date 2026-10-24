@@ -113,6 +113,17 @@ export function mediaEngine(env: NodeJS.ProcessEnv = process.env): Promise<Media
 }
 
 /** For tests: detect again (e.g. after changing FFMPEG_PATH). */
+/** Runs ffmpeg now (not the cached detection): the System Check's proof that the engine still starts. */
+export async function mediaEngineAnswers(env: NodeJS.ProcessEnv = process.env): Promise<{ ok: boolean; detail: string }> {
+  try {
+    const v = await run(env.FFMPEG_PATH ?? "ffmpeg", ["-hide_banner", "-version"], { timeoutMs: 10_000 });
+    const version = /ffmpeg version (\S+)/.exec(v.stdout.toString("utf8"))?.[1];
+    return v.code === 0 ? { ok: true, detail: `ffmpeg ${version ?? "(version unknown)"} started` } : { ok: false, detail: `ffmpeg exited with ${v.code}` };
+  } catch (e) {
+    return { ok: false, detail: e instanceof Error ? e.message.slice(0, 200) : "ffmpeg couldn't start" };
+  }
+}
+
 export function resetMediaEngine(): void {
   detected = null;
 }

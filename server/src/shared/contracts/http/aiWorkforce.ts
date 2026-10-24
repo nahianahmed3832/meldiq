@@ -176,3 +176,7 @@ export const AiAnswerBody = z.strictObject({ text: z.string().trim().min(1).max(
 export const AiDecisionBody = z.strictObject({ decision: z.enum(["approved", "rejected"]), note: z.string().max(1000).nullable().default(null) });
 export const AiPostsQuery = z.strictObject({ since: z.coerce.number().int().nonnegative().optional(), before: z.coerce.number().int().positive().optional(), limit: z.coerce.number().int().min(1).max(200).default(100) });
 export const AiDeliverablesQuery = z.strictObject({ installId: id.optional(), before: z.coerce.number().int().positive().optional(), limit: z.coerce.number().int().min(1).max(100).default(50) });
+
+// ───────────── Full System Check (migration 054; docs/implementation/PROGRESS.md phase 2) ─────────────
+
+export const AiCheckParams = z.strictObject({ orgId: id, checkId: id });

@@ -41,6 +41,7 @@ import {
   AiTriggerParams,
   AiTriggerPatch,
   AiUploadQuery,
+  AiCheckParams,
 } from "./aiWorkforce.js";
 import { zCount, zTime } from "./primitives.js";
 import { route } from "./route.js";
@@ -371,6 +372,27 @@ const Agent = z.strictObject({ agent: AiInstallView });
 const Job = z.strictObject({ job: AiJobSummary });
 const Channels = z.strictObject({ channels: z.array(AiAssignment) });
 
+// Full System Check (modules/workforce/health/report.ts): statuses, counts and ids only, never content.
+const CheckStatus = z.enum(["healthy", "warning", "failed", "not_configured", "not_tested"]);
+export const AiCheckItem = z.strictObject({
+  key: str,
+  level: z.enum(["configuration", "runtime", "smoke"]),
+  title: str,
+  status: CheckStatus,
+  severity: z.enum(["critical", "high", "medium", "low", "info"]),
+  evidence: str,
+  at: zTime,
+  impacts: z.array(str),
+  cause: nstr,
+  remediation: nstr,
+  owner: z.enum(["platform_operator", "community_admin"]).nullable(),
+  verified: z.boolean(),
+  links: z.strictObject({ jobs: z.array(str).optional(), tasks: z.array(str).optional(), installId: str.optional(), triggers: z.array(str).optional() }),
+});
+const CheckCounts = z.strictObject({ healthy: zCount, warning: zCount, failed: zCount, not_configured: zCount, not_tested: zCount });
+export const AiCheckSummary = z.strictObject({ id: str, scope: z.enum(["community", "platform"]), requestedBy: str, startedAt: zTime, finishedAt: zTime, worst: CheckStatus, summary: CheckCounts });
+export const AiCheckReport = AiCheckSummary.extend({ orgId: nstr, items: z.array(AiCheckItem) });
+
 const tag = "ai-workforce";
 const COMMON: readonly ErrorCode[] = ["not_found", "forbidden", "ai_workforce_disabled"];
 const errs = (...codes: ErrorCode[]): readonly ErrorCode[] => [...COMMON, ...codes];
@@ -535,5 +557,8 @@ export const aiWorkforceRoutes = [
     status: 202,
     errors: ["not_found"],
   }),
+  route({ method: "POST", url: "/v1/orgs/:orgId/ai/system-check", tag, summary: "Run Full System Check for this community (Manage AI agents): configuration, runtime and safe smoke tests. Never calls an AI model, sends or publishes.", auth: true, params: AiOrgParams, response: z.strictObject({ report: AiCheckReport }), status: 201, errors: errs() }),
+  route({ method: "GET", url: "/v1/orgs/:orgId/ai/system-check", tag, summary: "This community's latest System Check and the history of runs (Manage AI agents).", auth: true, params: AiOrgParams, response: z.strictObject({ latest: AiCheckReport.nullable(), history: z.array(AiCheckSummary) }), errors: errs() }),
+  route({ method: "GET", url: "/v1/orgs/:orgId/ai/system-check/:checkId", tag, summary: "One System Check report of this community (Manage AI agents); also its export.", auth: true, params: AiCheckParams, response: z.strictObject({ report: AiCheckReport }), errors: errs() }),
   route({ method: "GET", url: "/v1/conversations/:id/ai/posts", tag, summary: "What agents posted in a channel (not end-to-end encrypted).", auth: true, params: AiConversationParams, query: AiPostsQuery, response: z.strictObject({ posts: z.array(AiPostView) }), errors: errs() }),
 ];

@@ -3,6 +3,7 @@ import type { Deps, WorkforceSettings } from "./access.js";
 import { Approvals } from "./approvals.js";
 import { findAgent } from "./catalog/index.js";
 import { AiFiles } from "./files.js";
+import { SystemCheck } from "./health/systemCheck.js";
 import { JobStore } from "./jobs.js";
 import { AgentPosts } from "./posts.js";
 import { Automation } from "./automation.js";
@@ -44,6 +45,8 @@ export class WorkforceModule implements Deps {
   readonly automation: Automation;
   /** What the Platform Admin Console may use: metadata and operations, never content. */
   readonly console: WorkforceConsoleView;
+  /** Run Full System Check, for a community or the platform (health/). */
+  readonly health: SystemCheck;
 
   constructor(
     readonly ctx: AppContext,
@@ -70,10 +73,12 @@ export class WorkforceModule implements Deps {
         void this.automation.fireDue();
         this.taskService.tick();
         void this.readerWorker.drain();
+        void this.health.scheduled();
       },
       onCompleted: (jobId) => this.automation.onCompleted(jobId),
     };
     this.console = new WorkforceConsoleView(this);
+    this.health = new SystemCheck(this, () => this.runtime.status());
   }
 
   /** Retention (runs with the server's cleanup): finished jobs, their files and posts after 30 days, shared messages after 7. */

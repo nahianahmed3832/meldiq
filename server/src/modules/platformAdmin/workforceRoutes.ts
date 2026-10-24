@@ -17,13 +17,18 @@ import {
   AdminToolParams,
   AdminVerifyBody,
   AdminWorkforceControlsBody,
+  AdminSystemCheckParams,
   AdminWorkforceQuery,
 } from "../../shared/contracts/http/platformAdminWorkforce.js";
+import { ApiError } from "../../shared/errors.js";
 import { parse } from "../../shared/validation/index.js";
 import type { AdminDeps } from "./dataRoutes.js";
 import { metaOf, principal, requirePermission } from "./guards.js";
 import type { Permission } from "./permissions.js";
 import { AdminWorkforce } from "./workforceAdmin.js";
+
+/** How many System Check runs the console lists. */
+const SYSTEM_CHECKS_SHOWN = 20;
 
 /** The AI Control Center (docs/AI_WORKFORCE.md). Reads need ai.view; every change needs ai.manage (a fresh passkey and a reason). */
 export default async function adminWorkforceRoutes(
@@ -155,6 +160,19 @@ export default async function adminWorkforceRoutes(
       b.reason,
       metaOf(req),
     );
+  });
+
+  // Run Full System Check: safe to run (it changes nothing but its own history), so ai.view.
+  app.post("/admin/v1/ai/system-check", needs("ai.view"), async (req, reply) => {
+    const report = await d.ctx.workforce.console.runSystemCheck(principal(req).account.id);
+    reply.code(201);
+    return { report };
+  });
+  app.get("/admin/v1/ai/system-check", needs("ai.view"), async () => d.ctx.workforce.console.systemChecks(SYSTEM_CHECKS_SHOWN));
+  app.get("/admin/v1/ai/system-check/:checkId", needs("ai.view"), async (req) => {
+    const report = d.ctx.workforce.console.systemCheck(parse(AdminSystemCheckParams, req.params).checkId);
+    if (!report) throw new ApiError(404, "not_found", "No such report.");
+    return { report };
   });
 
   app.get("/admin/v1/ai/jobs", needs("ai.view"), async (req) =>

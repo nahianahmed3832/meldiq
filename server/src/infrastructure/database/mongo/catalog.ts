@@ -209,6 +209,7 @@ export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
   ai_reader_choices: "platform",
   ai_channel_context: "platform",
   ai_reader_events: "platform",
+  ai_system_checks: "platform",
   ai_files: "platform",
   ai_approvals: "platform",
   ai_channel_posts: "platform",

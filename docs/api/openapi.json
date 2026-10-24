@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Meldiq API",
-    "version": "0.40.0",
+    "version": "0.41.0",
     "description": "The canonical contract of the Meldiq server (docs/architecture/ARCHITECTURE_1_0_PLAN.md §4), generated from src/shared/contracts. Fields are only ever added within a version; clients ignore unknown fields. Routes not listed here exist but aren't documented yet."
   },
   "servers": [
@@ -56950,6 +56950,971 @@
             }
           }
         }
+      }
+    },
+    "/v1/orgs/{orgId}/ai/system-check": {
+      "post": {
+        "tags": [
+          "ai-workforce"
+        ],
+        "summary": "Run Full System Check for this community (Manage AI agents): configuration, runtime and safe smoke tests. Never calls an AI model, sends or publishes.",
+        "operationId": "postV1OrgsOrgIdAiSystemCheck",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "scope": {
+                          "type": "string",
+                          "enum": [
+                            "community",
+                            "platform"
+                          ]
+                        },
+                        "requestedBy": {
+                          "type": "string"
+                        },
+                        "startedAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "finishedAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "worst": {
+                          "type": "string",
+                          "enum": [
+                            "healthy",
+                            "warning",
+                            "failed",
+                            "not_configured",
+                            "not_tested"
+                          ]
+                        },
+                        "summary": {
+                          "type": "object",
+                          "properties": {
+                            "healthy": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "warning": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "failed": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "not_configured": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "not_tested": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "healthy",
+                            "warning",
+                            "failed",
+                            "not_configured",
+                            "not_tested"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "orgId": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "level": {
+                                "type": "string",
+                                "enum": [
+                                  "configuration",
+                                  "runtime",
+                                  "smoke"
+                                ]
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string",
+                                "enum": [
+                                  "healthy",
+                                  "warning",
+                                  "failed",
+                                  "not_configured",
+                                  "not_tested"
+                                ]
+                              },
+                              "severity": {
+                                "type": "string",
+                                "enum": [
+                                  "critical",
+                                  "high",
+                                  "medium",
+                                  "low",
+                                  "info"
+                                ]
+                              },
+                              "evidence": {
+                                "type": "string"
+                              },
+                              "at": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "impacts": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "cause": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "remediation": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "owner": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "platform_operator",
+                                      "community_admin"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "verified": {
+                                "type": "boolean"
+                              },
+                              "links": {
+                                "type": "object",
+                                "properties": {
+                                  "jobs": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "tasks": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "installId": {
+                                    "type": "string"
+                                  },
+                                  "triggers": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  }
+                                },
+                                "additionalProperties": false
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "level",
+                              "title",
+                              "status",
+                              "severity",
+                              "evidence",
+                              "at",
+                              "impacts",
+                              "cause",
+                              "remediation",
+                              "owner",
+                              "verified",
+                              "links"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "scope",
+                        "requestedBy",
+                        "startedAt",
+                        "finishedAt",
+                        "worst",
+                        "summary",
+                        "orgId",
+                        "items"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "report"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, ai_workforce_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "get": {
+        "tags": [
+          "ai-workforce"
+        ],
+        "summary": "This community's latest System Check and the history of runs (Manage AI agents).",
+        "operationId": "getV1OrgsOrgIdAiSystemCheck",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "latest": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "scope": {
+                              "type": "string",
+                              "enum": [
+                                "community",
+                                "platform"
+                              ]
+                            },
+                            "requestedBy": {
+                              "type": "string"
+                            },
+                            "startedAt": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "finishedAt": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "worst": {
+                              "type": "string",
+                              "enum": [
+                                "healthy",
+                                "warning",
+                                "failed",
+                                "not_configured",
+                                "not_tested"
+                              ]
+                            },
+                            "summary": {
+                              "type": "object",
+                              "properties": {
+                                "healthy": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "warning": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "failed": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "not_configured": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "not_tested": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "healthy",
+                                "warning",
+                                "failed",
+                                "not_configured",
+                                "not_tested"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "orgId": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "items": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "key": {
+                                    "type": "string"
+                                  },
+                                  "level": {
+                                    "type": "string",
+                                    "enum": [
+                                      "configuration",
+                                      "runtime",
+                                      "smoke"
+                                    ]
+                                  },
+                                  "title": {
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "type": "string",
+                                    "enum": [
+                                      "healthy",
+                                      "warning",
+                                      "failed",
+                                      "not_configured",
+                                      "not_tested"
+                                    ]
+                                  },
+                                  "severity": {
+                                    "type": "string",
+                                    "enum": [
+                                      "critical",
+                                      "high",
+                                      "medium",
+                                      "low",
+                                      "info"
+                                    ]
+                                  },
+                                  "evidence": {
+                                    "type": "string"
+                                  },
+                                  "at": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991
+                                  },
+                                  "impacts": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "cause": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "remediation": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "owner": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "platform_operator",
+                                          "community_admin"
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "verified": {
+                                    "type": "boolean"
+                                  },
+                                  "links": {
+                                    "type": "object",
+                                    "properties": {
+                                      "jobs": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "tasks": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "installId": {
+                                        "type": "string"
+                                      },
+                                      "triggers": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      }
+                                    },
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "required": [
+                                  "key",
+                                  "level",
+                                  "title",
+                                  "status",
+                                  "severity",
+                                  "evidence",
+                                  "at",
+                                  "impacts",
+                                  "cause",
+                                  "remediation",
+                                  "owner",
+                                  "verified",
+                                  "links"
+                                ],
+                                "additionalProperties": false
+                              }
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "scope",
+                            "requestedBy",
+                            "startedAt",
+                            "finishedAt",
+                            "worst",
+                            "summary",
+                            "orgId",
+                            "items"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "history": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "scope": {
+                            "type": "string",
+                            "enum": [
+                              "community",
+                              "platform"
+                            ]
+                          },
+                          "requestedBy": {
+                            "type": "string"
+                          },
+                          "startedAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "finishedAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "worst": {
+                            "type": "string",
+                            "enum": [
+                              "healthy",
+                              "warning",
+                              "failed",
+                              "not_configured",
+                              "not_tested"
+                            ]
+                          },
+                          "summary": {
+                            "type": "object",
+                            "properties": {
+                              "healthy": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "warning": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "failed": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "not_configured": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "not_tested": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "healthy",
+                              "warning",
+                              "failed",
+                              "not_configured",
+                              "not_tested"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "scope",
+                          "requestedBy",
+                          "startedAt",
+                          "finishedAt",
+                          "worst",
+                          "summary"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "latest",
+                    "history"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, ai_workforce_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/orgs/{orgId}/ai/system-check/{checkId}": {
+      "get": {
+        "tags": [
+          "ai-workforce"
+        ],
+        "summary": "One System Check report of this community (Manage AI agents); also its export.",
+        "operationId": "getV1OrgsOrgIdAiSystemCheckCheckId",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            }
+          },
+          {
+            "name": "checkId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "scope": {
+                          "type": "string",
+                          "enum": [
+                            "community",
+                            "platform"
+                          ]
+                        },
+                        "requestedBy": {
+                          "type": "string"
+                        },
+                        "startedAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "finishedAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "worst": {
+                          "type": "string",
+                          "enum": [
+                            "healthy",
+                            "warning",
+                            "failed",
+                            "not_configured",
+                            "not_tested"
+                          ]
+                        },
+                        "summary": {
+                          "type": "object",
+                          "properties": {
+                            "healthy": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "warning": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "failed": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "not_configured": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "not_tested": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "healthy",
+                            "warning",
+                            "failed",
+                            "not_configured",
+                            "not_tested"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "orgId": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "level": {
+                                "type": "string",
+                                "enum": [
+                                  "configuration",
+                                  "runtime",
+                                  "smoke"
+                                ]
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string",
+                                "enum": [
+                                  "healthy",
+                                  "warning",
+                                  "failed",
+                                  "not_configured",
+                                  "not_tested"
+                                ]
+                              },
+                              "severity": {
+                                "type": "string",
+                                "enum": [
+                                  "critical",
+                                  "high",
+                                  "medium",
+                                  "low",
+                                  "info"
+                                ]
+                              },
+                              "evidence": {
+                                "type": "string"
+                              },
+                              "at": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "impacts": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "cause": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "remediation": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "owner": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "platform_operator",
+                                      "community_admin"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "verified": {
+                                "type": "boolean"
+                              },
+                              "links": {
+                                "type": "object",
+                                "properties": {
+                                  "jobs": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "tasks": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "installId": {
+                                    "type": "string"
+                                  },
+                                  "triggers": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  }
+                                },
+                                "additionalProperties": false
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "level",
+                              "title",
+                              "status",
+                              "severity",
+                              "evidence",
+                              "at",
+                              "impacts",
+                              "cause",
+                              "remediation",
+                              "owner",
+                              "verified",
+                              "links"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "scope",
+                        "requestedBy",
+                        "startedAt",
+                        "finishedAt",
+                        "worst",
+                        "summary",
+                        "orgId",
+                        "items"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "report"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, ai_workforce_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
       }
     },
     "/v1/conversations/{id}/ai/posts": {

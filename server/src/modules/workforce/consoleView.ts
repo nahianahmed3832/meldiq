@@ -175,6 +175,22 @@ export class WorkforceConsoleView {
     return this.w.runtime.status();
   }
 
+  /** Run Full System Check for the platform (health/): statuses, counts and ids, never content. */
+  runSystemCheck(accountId: string) {
+    return this.w.health.platform(accountId);
+  }
+
+  systemChecks(limit: number) {
+    const history = this.w.health.reports.history("platform", null, limit);
+    return { latest: history[0] ?? null, history: history.map(({ items: _items, orgId: _orgId, ...s }) => s) };
+  }
+
+  /** One platform report, or null (community reports stay with their community). */
+  systemCheck(id: string) {
+    const r = this.w.health.reports.get(id);
+    return r?.scope === "platform" ? r : null;
+  }
+
   jobStats(from: number) {
     return jobStats(this.w, from);
   }
