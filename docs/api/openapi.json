@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Meldiq API",
-    "version": "0.37.1",
+    "version": "0.38.0",
     "description": "The canonical contract of the Meldiq server (docs/architecture/ARCHITECTURE_1_0_PLAN.md §4), generated from src/shared/contracts. Fields are only ever added within a version; clients ignore unknown fields. Routes not listed here exist but aren't documented yet."
   },
   "servers": [
@@ -41101,7 +41101,7 @@
             }
           },
           "default": {
-            "description": "Error. Codes: not_found, forbidden, ai_workforce_disabled, agent_unavailable, agent_not_assigned, quota_exceeded, too_large, ai_paused, ai_disabled",
+            "description": "Error. Codes: not_found, forbidden, ai_workforce_disabled, agent_unavailable, agent_not_assigned, quota_exceeded, too_large, ai_paused, ai_disabled, ai_not_configured",
             "content": {
               "application/json": {
                 "schema": {
@@ -42529,7 +42529,7 @@
             }
           },
           "default": {
-            "description": "Error. Codes: not_found, forbidden, ai_workforce_disabled, conflict, job_not_retryable, quota_exceeded, ai_paused",
+            "description": "Error. Codes: not_found, forbidden, ai_workforce_disabled, conflict, job_not_retryable, quota_exceeded, ai_paused, ai_not_configured",
             "content": {
               "application/json": {
                 "schema": {
@@ -42784,7 +42784,7 @@
             }
           },
           "default": {
-            "description": "Error. Codes: not_found, forbidden, ai_workforce_disabled, conflict, job_not_retryable, quota_exceeded, ai_paused",
+            "description": "Error. Codes: not_found, forbidden, ai_workforce_disabled, conflict, job_not_retryable, quota_exceeded, ai_paused, ai_not_configured",
             "content": {
               "application/json": {
                 "schema": {
@@ -43039,7 +43039,7 @@
             }
           },
           "default": {
-            "description": "Error. Codes: not_found, forbidden, ai_workforce_disabled, conflict, job_not_retryable, quota_exceeded, ai_paused",
+            "description": "Error. Codes: not_found, forbidden, ai_workforce_disabled, conflict, job_not_retryable, quota_exceeded, ai_paused, ai_not_configured",
             "content": {
               "application/json": {
                 "schema": {
@@ -43315,7 +43315,7 @@
             }
           },
           "default": {
-            "description": "Error. Codes: not_found, forbidden, ai_workforce_disabled, conflict, job_not_retryable, quota_exceeded, ai_paused",
+            "description": "Error. Codes: not_found, forbidden, ai_workforce_disabled, conflict, job_not_retryable, quota_exceeded, ai_paused, ai_not_configured",
             "content": {
               "application/json": {
                 "schema": {
@@ -44451,6 +44451,500 @@
           },
           "default": {
             "description": "Error. Codes: not_found, forbidden, ai_workforce_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/orgs/{orgId}/ai/skills": {
+      "get": {
+        "tags": [
+          "ai-workforce"
+        ],
+        "summary": "The skill library, and which capabilities this community's agents can do now (with the exact blocker otherwise).",
+        "operationId": "getV1OrgsOrgIdAiSkills",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "skills": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "version": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "source": {
+                            "type": "string",
+                            "const": "platform"
+                          },
+                          "agents": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "name"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "provides": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "label": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "label"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "input": {},
+                          "output": {},
+                          "tools": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "key": {
+                                  "type": "string"
+                                },
+                                "label": {
+                                  "type": "string"
+                                },
+                                "risk": {
+                                  "type": "string"
+                                },
+                                "required": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "key",
+                                "label",
+                                "risk",
+                                "required"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "models": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "category": {
+                                  "type": "string"
+                                },
+                                "label": {
+                                  "type": "string"
+                                },
+                                "required": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "category",
+                                "label",
+                                "required"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "files": {
+                            "type": "object",
+                            "properties": {
+                              "min": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "max": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "maxBytes": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "mimes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "required": [
+                              "max",
+                              "maxBytes",
+                              "mimes"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "limits": {
+                            "type": "object",
+                            "properties": {
+                              "maxRuntimeSec": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "maxModelCalls": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "maxAttempts": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "maxOutputFiles": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "maxRuntimeSec",
+                              "maxModelCalls",
+                              "maxAttempts",
+                              "maxOutputFiles"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "approvals": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "errors": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "tests": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "version",
+                          "source",
+                          "agents",
+                          "provides",
+                          "input",
+                          "output",
+                          "tools",
+                          "models",
+                          "files",
+                          "limits",
+                          "approvals",
+                          "errors",
+                          "tests"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "capabilities": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "capability": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "ready",
+                              "blocked",
+                              "not_installed",
+                              "unavailable"
+                            ]
+                          },
+                          "providers": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "installId": {
+                                  "type": "string"
+                                },
+                                "agentId": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "ready": {
+                                  "type": "boolean"
+                                },
+                                "blockers": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "required": [
+                                "installId",
+                                "agentId",
+                                "name",
+                                "ready",
+                                "blockers"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "installable": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "agentId": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "agentId",
+                                "name"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "capability",
+                          "label",
+                          "status",
+                          "providers",
+                          "installable"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "skills",
+                    "capabilities"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, ai_workforce_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/orgs/{orgId}/ai/skills/discover": {
+      "get": {
+        "tags": [
+          "ai-workforce"
+        ],
+        "summary": "For the capabilities named (comma-separated ids), which agents here can do each now, or what's missing.",
+        "operationId": "getV1OrgsOrgIdAiSkillsDiscover",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            }
+          },
+          {
+            "name": "capabilities",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 600
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "capabilities": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "capability": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "ready",
+                              "blocked",
+                              "not_installed",
+                              "unavailable"
+                            ]
+                          },
+                          "providers": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "installId": {
+                                  "type": "string"
+                                },
+                                "agentId": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "ready": {
+                                  "type": "boolean"
+                                },
+                                "blockers": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "required": [
+                                "installId",
+                                "agentId",
+                                "name",
+                                "ready",
+                                "blockers"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "installable": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "agentId": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "agentId",
+                                "name"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "capability",
+                          "label",
+                          "status",
+                          "providers",
+                          "installable"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "capabilities"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, ai_workforce_disabled, bad_request",
             "content": {
               "application/json": {
                 "schema": {
@@ -45646,7 +46140,7 @@
             }
           },
           "default": {
-            "description": "Error. Codes: not_found, forbidden, ai_workforce_disabled, agent_unavailable, quota_exceeded, ai_paused, ai_disabled",
+            "description": "Error. Codes: not_found, forbidden, ai_workforce_disabled, agent_unavailable, quota_exceeded, ai_paused, ai_disabled, ai_not_configured",
             "content": {
               "application/json": {
                 "schema": {

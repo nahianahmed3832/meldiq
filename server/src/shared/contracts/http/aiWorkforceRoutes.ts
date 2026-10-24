@@ -22,6 +22,7 @@ import {
   AiOrgParams,
   AiPostsQuery,
   AiReviseBody,
+  AiDiscoverQuery,
   AiTriggerBody,
   AiTriggerKind,
   AiTriggerParams,
@@ -199,6 +200,33 @@ export const AiReadiness = z.strictObject({
   checks: z.array(z.strictObject({ key: str, label: str, status: z.enum(["ok", "missing", "advice"]), detail: str, fixBy: z.enum(["operator", "community"]).nullable() })),
 });
 
+/** A capability's availability in a community (skill library, docs/AI_WORKFORCE_2_PLAN.md phase 1). */
+export const AiDiscovered = z.strictObject({
+  capability: str,
+  label: str,
+  status: z.enum(["ready", "blocked", "not_installed", "unavailable"]),
+  providers: z.array(z.strictObject({ installId: str, agentId: str, name: str, ready: z.boolean(), blockers: z.array(str) })),
+  installable: z.array(z.strictObject({ agentId: str, name: str })),
+});
+
+/** A skill of the platform's library: what it provides, takes and gives (JSON Schema), its tools, models and limits. */
+export const AiSkillCard = z.strictObject({
+  id: str,
+  version: zCount,
+  source: z.literal("platform"),
+  agents: z.array(z.strictObject({ id: str, name: str })),
+  provides: z.array(z.strictObject({ id: str, label: str })),
+  input: z.unknown(),
+  output: z.unknown(),
+  tools: z.array(z.strictObject({ key: str, label: str, risk: str, required: z.boolean() })),
+  models: z.array(z.strictObject({ category: str, label: str, required: z.boolean() })),
+  files: z.strictObject({ min: zCount.optional(), max: zCount, maxBytes: zCount, mimes: z.array(str) }),
+  limits: z.strictObject({ maxRuntimeSec: zCount, maxModelCalls: zCount, maxAttempts: zCount, maxOutputFiles: zCount }),
+  approvals: z.array(str),
+  errors: z.array(str),
+  tests: z.array(str),
+});
+
 export const AiTriggerView = z.strictObject({
   id: str,
   installId: str,
@@ -239,7 +267,7 @@ const COMMON: readonly ErrorCode[] = ["not_found", "forbidden", "ai_workforce_di
 const errs = (...codes: ErrorCode[]): readonly ErrorCode[] => [...COMMON, ...codes];
 
 const jobAction = (action: "cancel" | "retry" | "revise" | "answer", summary: string, body?: z.ZodType) =>
-  route({ method: "POST", url: `/v1/orgs/:orgId/ai/jobs/:jobId/${action}`, tag, summary, auth: true, params: AiJobParams, body, response: Job, errors: errs("conflict", "job_not_retryable", "quota_exceeded", "ai_paused") });
+  route({ method: "POST", url: `/v1/orgs/:orgId/ai/jobs/:jobId/${action}`, tag, summary, auth: true, params: AiJobParams, body, response: Job, errors: errs("conflict", "job_not_retryable", "quota_exceeded", "ai_paused", "ai_not_configured") });
 
 export const aiWorkforceRoutes = [
   route({
@@ -317,7 +345,7 @@ export const aiWorkforceRoutes = [
     body: AiJobBody,
     response: z.strictObject({ job: AiJobDetail }),
     status: 202,
-    errors: errs("agent_unavailable", "agent_not_assigned", "quota_exceeded", "too_large", "ai_paused", "ai_disabled"),
+    errors: errs("agent_unavailable", "agent_not_assigned", "quota_exceeded", "too_large", "ai_paused", "ai_disabled", "ai_not_configured"),
   }),
   route({ method: "GET", url: "/v1/orgs/:orgId/ai/jobs", tag, summary: "Requests: the person's own, or all they may see (root jobs, newest first).", auth: true, params: AiOrgParams, query: AiJobsQuery, response: z.strictObject({ jobs: z.array(AiJobSummary), next: ntime }), errors: errs() }),
   route({ method: "GET", url: "/v1/orgs/:orgId/ai/jobs/:jobId", tag, summary: "One request with its input, output, files, approvals, steps and events.", auth: true, params: AiJobParams, response: z.strictObject({ job: AiJobDetail }), errors: errs() }),
@@ -339,9 +367,11 @@ export const aiWorkforceRoutes = [
     response: z.strictObject({ agents: z.array(AiInstallView.extend({ activation: Activation, canInvoke: z.boolean() })), permissions: AiPermissions }),
     errors: errs(),
   }),
+  route({ method: "GET", url: "/v1/orgs/:orgId/ai/skills", tag, summary: "The skill library, and which capabilities this community's agents can do now (with the exact blocker otherwise).", auth: true, params: AiOrgParams, response: z.strictObject({ skills: z.array(AiSkillCard), capabilities: z.array(AiDiscovered) }), errors: errs() }),
+  route({ method: "GET", url: "/v1/orgs/:orgId/ai/skills/discover", tag, summary: "For the capabilities named (comma-separated ids), which agents here can do each now, or what's missing.", auth: true, params: AiOrgParams, query: AiDiscoverQuery, response: z.strictObject({ capabilities: z.array(AiDiscovered) }), errors: errs("bad_request") }),
   route({ method: "GET", url: "/v1/orgs/:orgId/ai/agents/:installId/readiness", tag, summary: "Whether an agent can work now: each check, what's missing and who can fix it.", auth: true, params: AiInstallParams, response: z.strictObject({ readiness: AiReadiness }), errors: errs() }),
   route({ method: "GET", url: "/v1/orgs/:orgId/ai/agents/:installId/activity", tag, summary: "What an agent did lately and what's next (counts only).", auth: true, params: AiInstallParams, response: z.strictObject({ activity: AiActivity }), errors: errs() }),
-  route({ method: "POST", url: "/v1/orgs/:orgId/ai/agents/:installId/test", tag, summary: "Test an agent with a real short request through the normal path (ai.manage).", auth: true, params: AiInstallParams, response: z.strictObject({ job: AiJobDetail }), status: 202, errors: errs("agent_unavailable", "quota_exceeded", "ai_paused", "ai_disabled") }),
+  route({ method: "POST", url: "/v1/orgs/:orgId/ai/agents/:installId/test", tag, summary: "Test an agent with a real short request through the normal path (ai.manage).", auth: true, params: AiInstallParams, response: z.strictObject({ job: AiJobDetail }), status: 202, errors: errs("agent_unavailable", "quota_exceeded", "ai_paused", "ai_disabled", "ai_not_configured") }),
   route({ method: "GET", url: "/v1/orgs/:orgId/ai/agents/:installId/triggers", tag, summary: "An agent's triggers (ai.manage).", auth: true, params: AiInstallParams, response: z.strictObject({ triggers: z.array(AiTriggerView) }), errors: errs() }),
   route({
     method: "POST",

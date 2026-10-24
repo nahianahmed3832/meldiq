@@ -1,0 +1,82 @@
+{
+  "capabilities": [
+    {
+      "capability": "text.write",
+      "label": "Write articles, posts and marketing copy",
+      "status": "ready",
+      "providers": [
+        {
+          "installId": "agi_uZ_Lm-6rvlLPx2tEXnklPw",
+          "agentId": "content_writer",
+          "name": "Content Writer",
+          "ready": true,
+          "blockers": []
+        }
+      ],
+      "installable": []
+    },
+    {
+      "capability": "social.publish",
+      "label": "Publish to social media",
+      "status": "blocked",
+      "providers": [
+        {
+          "installId": "agi_g-gZfAqUzX6LyYriF09G9A",
+          "agentId": "social_media_manager",
+          "name": "Social Media Manager",
+          "ready": false,
+          "blockers": [
+            "Publish to social media: needs a Social media account connection, which isn't connected yet."
+          ]
+        }
+      ],
+      "installable": [
+        {
+          "agentId": "product_video_editor",
+          "name": "Product Video Editor"
+        }
+      ]
+    },
+    {
+      "capability": "image.generate",
+      "label": "Generate images",
+      "status": "blocked",
+      "providers": [
+        {
+          "installId": "agi_r9zwkcPZDk6z4W0_tx4stA",
+          "agentId": "graphic_designer",
+          "name": "Graphic and Image Designer",
+          "ready": false,
+          "blockers": [
+            "No verified model for image generation (a platform operator sets it up in the AI Control Center)."
+          ]
+        }
+      ],
+      "installable": []
+    },
+    {
+      "capability": "video.edit",
+      "label": "Edit video from submitted footage",
+      "status": "not_installed",
+      "providers": [],
+      "installable": [
+        {
+          "agentId": "product_video_editor",
+          "name": "Product Video Editor"
+        }
+      ]
+    },
+    {
+      "capability": "payments.execute",
+      "label": "Make payments",
+      "status": "not_installed",
+      "providers": [],
+      "installable": [
+        {
+          "agentId": "finance_operations",
+          "name": "Finance and Operations Analyst"
+        }
+      ]
+    }
+  ]
+}

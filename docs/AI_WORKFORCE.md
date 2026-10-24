@@ -290,6 +290,10 @@ Communities (`modules/workforce/routes.ts`, request shapes in `shared/contracts/
 Realtime frames: `ai.posts { conversationId }` and `ai.job { orgId, jobId }` (ids only; the fetch decides access).
 Console routes: `PLATFORM_ADMIN_CONSOLE.md` › AI Control Center routes.
 
+**Skill library (0.38.0):** `GET /v1/orgs/:orgId/ai/skills` (every skill's card, and each capability's availability
+in the community) and `GET /v1/orgs/:orgId/ai/skills/discover?capabilities=a,b` (members; see
+`AI_WORKFORCE_2_PLAN.md`, phase 1).
+
 ## 12. Security controls
 
 - Tenant isolation: every route resolves the community from the record and checks membership; unknown and invisible

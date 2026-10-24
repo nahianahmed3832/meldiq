@@ -1,5 +1,6 @@
 import type { z } from "zod/v4";
 import type { ChatImage, RoutingCategory, TranscriptSegment } from "../ai/index.js";
+import type { CapabilityId, Discovered } from "./capabilityCatalog.js";
 
 /**
  * The contracts of AI Workforce (docs/AI_WORKFORCE.md §3): tools, skills and agents. A skill is executable code with a
@@ -169,6 +170,11 @@ export interface SkillContext {
    * their required tools granted. Nothing about agents they can't use.
    */
   team(): { installId: string; agentId: string; name: string; roleTitle: string; description: string; capabilities: string[]; inputHint: string }[];
+  /**
+   * The skill library's answer for [needs]: which of the community's agents (not this one) can do each capability now
+   * for the person who asked, and the exact blocker otherwise (skillLibrary.ts).
+   */
+  discover(needs: readonly CapabilityId[]): Promise<Discovered[]>;
   /** Reads jobs this job delegated (the Agent Manager): their state and validated output, never anything else. */
   children(): { jobId: string; agentId: string; label: string; state: string; output: unknown; fileIds: string[]; error: string | null }[];
   progress(percent: number, note: string): void;

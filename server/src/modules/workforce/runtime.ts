@@ -6,6 +6,7 @@ import { z } from "zod/v4";
 import { ApiError } from "../../shared/errors.js";
 import { type CallContext, type Invocation, isMp3, type RoutingCategory, sniffImage } from "../ai/index.js";
 import { effectiveMode, type Deps, invokeRefusal } from "./access.js";
+import { discover } from "./skillLibrary.js";
 import { findAgent } from "./catalog/index.js";
 import { payloadHash } from "./approvals.js";
 import type { JobRow } from "./jobs.js";
@@ -392,6 +393,7 @@ export class WorkforceRuntime {
           if (st !== "published" && st !== "retired") return [];
           return [{ installId: i.id, agentId: def.id, name: i.displayName, roleTitle: i.roleTitle, description: i.description, capabilities: [...def.capabilities], inputHint: def.inputHint }];
         }),
+      discover: (needs) => discover(d, row.org_id, row.requested_by, needs, install.id),
       children: () =>
         d.jobs.children(row.id).map((c) => ({
           jobId: c.id,

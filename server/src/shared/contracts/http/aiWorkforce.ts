@@ -9,6 +9,8 @@ const id = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
 
 export const AiOrgParams = z.strictObject({ orgId: id });
 export const AiInstallParams = z.strictObject({ orgId: id, installId: id });
+/** Capability ids, comma-separated (skill library ids like "video.edit,social.publish"). */
+export const AiDiscoverQuery = z.strictObject({ capabilities: z.string().trim().min(1).max(600) });
 export const AiChannelParams = z.strictObject({ orgId: id, installId: id, conversationId: id });
 export const AiJobParams = z.strictObject({ orgId: id, jobId: id });
 export const AiApprovalParams = z.strictObject({ orgId: id, approvalId: id });

@@ -1,0 +1,4113 @@
+{
+  "skills": [
+    {
+      "id": "manager.orchestrate",
+      "version": 1,
+      "source": "platform",
+      "agents": [
+        {
+          "id": "agent_manager",
+          "name": "Agent Manager"
+        }
+      ],
+      "provides": [
+        {
+          "id": "orchestrate.plan",
+          "label": "Plan and coordinate work across agents"
+        },
+        {
+          "id": "text.answer",
+          "label": "Answer questions"
+        }
+      ],
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "brief": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          }
+        },
+        "required": [
+          "brief"
+        ],
+        "additionalProperties": false
+      },
+      "output": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "answer",
+              "delegate"
+            ]
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "agentId": {
+                  "type": "string"
+                },
+                "jobId": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string"
+                },
+                "fileIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "error": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "label",
+                "agentId",
+                "jobId",
+                "state",
+                "fileIds",
+                "error"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "answer": {
+            "type": "string"
+          },
+          "reportFileId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "missing": {
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "mode",
+          "steps",
+          "answer",
+          "reportFileId",
+          "missing",
+          "summary"
+        ],
+        "additionalProperties": false
+      },
+      "tools": [
+        {
+          "key": "files.read",
+          "label": "Read submitted files",
+          "risk": "internal",
+          "required": false
+        },
+        {
+          "key": "files.write",
+          "label": "Create deliverables",
+          "risk": "internal",
+          "required": true
+        },
+        {
+          "key": "channel.post",
+          "label": "Post in assigned channels",
+          "risk": "internal",
+          "required": false
+        },
+        {
+          "key": "agents.delegate",
+          "label": "Delegate to other agents",
+          "risk": "internal",
+          "required": true
+        }
+      ],
+      "models": [
+        {
+          "category": "reasoning",
+          "label": "Reasoning and long documents",
+          "required": true
+        },
+        {
+          "category": "fast",
+          "label": "Quick replies and classification",
+          "required": false
+        }
+      ],
+      "files": {
+        "max": 10,
+        "maxBytes": 524288000,
+        "mimes": [
+          "text/plain",
+          "text/markdown",
+          "text/csv",
+          "text/html",
+          "application/json",
+          "video/mp4",
+          "video/quicktime",
+          "video/webm",
+          "audio/mpeg",
+          "audio/wav",
+          "audio/x-wav",
+          "audio/mp4",
+          "audio/ogg",
+          "audio/webm",
+          "image/png",
+          "image/jpeg",
+          "image/webp",
+          "image/gif"
+        ]
+      },
+      "limits": {
+        "maxRuntimeSec": 300,
+        "maxModelCalls": 6,
+        "maxAttempts": 2,
+        "maxOutputFiles": 2
+      },
+      "approvals": [
+        "It can't approve anything: approvals its steps need go to people with ai.approve."
+      ],
+      "errors": [
+        "A plan naming an agent the person can't use, a forward dependency or too many steps is refused (the job retries once, then fails).",
+        "A step that fails is reported as failed; the others still report.",
+        "Delegation is one level deep: delegated agents can't delegate, so requests can't loop."
+      ],
+      "tests": [
+        "ai_workforce_manager.test.ts"
+      ]
+    },
+    {
+      "id": "general.assist",
+      "version": 1,
+      "source": "platform",
+      "agents": [
+        {
+          "id": "general_assistant",
+          "name": "General Assistant"
+        }
+      ],
+      "provides": [
+        {
+          "id": "text.answer",
+          "label": "Answer questions"
+        },
+        {
+          "id": "text.summarize",
+          "label": "Summarise text and documents"
+        }
+      ],
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "brief": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          }
+        },
+        "required": [
+          "brief"
+        ],
+        "additionalProperties": false
+      },
+      "output": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "answer": {
+            "type": "string"
+          },
+          "fileId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "answer",
+          "fileId",
+          "summary"
+        ],
+        "additionalProperties": false
+      },
+      "tools": [
+        {
+          "key": "files.read",
+          "label": "Read submitted files",
+          "risk": "internal",
+          "required": false
+        },
+        {
+          "key": "files.write",
+          "label": "Create deliverables",
+          "risk": "internal",
+          "required": false
+        },
+        {
+          "key": "channel.post",
+          "label": "Post in assigned channels",
+          "risk": "internal",
+          "required": false
+        }
+      ],
+      "models": [
+        {
+          "category": "fast",
+          "label": "Quick replies and classification",
+          "required": true
+        },
+        {
+          "category": "reasoning",
+          "label": "Reasoning and long documents",
+          "required": false
+        }
+      ],
+      "files": {
+        "max": 5,
+        "maxBytes": 5242880,
+        "mimes": [
+          "text/plain",
+          "text/markdown",
+          "text/csv",
+          "text/html",
+          "application/json"
+        ]
+      },
+      "limits": {
+        "maxRuntimeSec": 120,
+        "maxModelCalls": 2,
+        "maxAttempts": 2,
+        "maxOutputFiles": 1
+      },
+      "approvals": [
+        "None: it only answers."
+      ],
+      "errors": [
+        "No text model configured: the job fails with ai_not_configured."
+      ],
+      "tests": [
+        "ai_workforce_skills.test.ts"
+      ]
+    },
+    {
+      "id": "research.report",
+      "version": 1,
+      "source": "platform",
+      "agents": [
+        {
+          "id": "research_knowledge",
+          "name": "Research and Knowledge"
+        }
+      ],
+      "provides": [
+        {
+          "id": "research.report",
+          "label": "Research reports with checked citations"
+        },
+        {
+          "id": "knowledge.answer",
+          "label": "Answer from a knowledge base"
+        },
+        {
+          "id": "web.read",
+          "label": "Read public web pages"
+        }
+      ],
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "brief": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          },
+          "urls": {
+            "default": [],
+            "maxItems": 5,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 500,
+              "format": "uri"
+            }
+          }
+        },
+        "required": [
+          "brief",
+          "urls"
+        ],
+        "additionalProperties": false
+      },
+      "output": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "citations": {
+            "type": "object",
+            "properties": {
+              "verified": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "dropped": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "verified",
+              "dropped"
+            ],
+            "additionalProperties": false
+          },
+          "gaps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "reportFileId": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "title",
+          "sources",
+          "citations",
+          "gaps",
+          "reportFileId",
+          "summary"
+        ],
+        "additionalProperties": false
+      },
+      "tools": [
+        {
+          "key": "files.read",
+          "label": "Read submitted files",
+          "risk": "internal",
+          "required": true
+        },
+        {
+          "key": "files.write",
+          "label": "Create deliverables",
+          "risk": "internal",
+          "required": true
+        },
+        {
+          "key": "channel.post",
+          "label": "Post in assigned channels",
+          "risk": "internal",
+          "required": false
+        },
+        {
+          "key": "web.fetch",
+          "label": "Fetch public web pages",
+          "risk": "consequential",
+          "required": false
+        }
+      ],
+      "models": [
+        {
+          "category": "reasoning",
+          "label": "Reasoning and long documents",
+          "required": true
+        },
+        {
+          "category": "embeddings",
+          "label": "Embeddings",
+          "required": false
+        }
+      ],
+      "files": {
+        "max": 10,
+        "maxBytes": 10485760,
+        "mimes": [
+          "text/plain",
+          "text/markdown",
+          "text/csv",
+          "text/html",
+          "application/json"
+        ]
+      },
+      "limits": {
+        "maxRuntimeSec": 300,
+        "maxModelCalls": 3,
+        "maxAttempts": 2,
+        "maxOutputFiles": 1
+      },
+      "approvals": [
+        "None. Fetching public pages needs the web.fetch tool, which the platform turns on and the community grants."
+      ],
+      "errors": [
+        "No documents and no pages: refused.",
+        "A citation whose quote isn't in its source is dropped and counted; the report says how many."
+      ],
+      "tests": [
+        "ai_workforce_skills.test.ts"
+      ]
+    },
+    {
+      "id": "coding.engineer",
+      "version": 1,
+      "source": "platform",
+      "agents": [
+        {
+          "id": "coding_engineering",
+          "name": "Coding and Engineering"
+        }
+      ],
+      "provides": [
+        {
+          "id": "code.review",
+          "label": "Review and debug code"
+        },
+        {
+          "id": "code.patch",
+          "label": "Write code patches"
+        },
+        {
+          "id": "repository.write",
+          "label": "Push to code repositories"
+        },
+        {
+          "id": "deploy.production",
+          "label": "Deploy to production"
+        }
+      ],
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "brief": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          },
+          "task": {
+            "default": "review",
+            "type": "string",
+            "enum": [
+              "review",
+              "debug",
+              "patch",
+              "document"
+            ]
+          }
+        },
+        "required": [
+          "brief",
+          "task"
+        ],
+        "additionalProperties": false
+      },
+      "output": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "findings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "file": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "line": {
+                  "default": null,
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "critical",
+                    "high",
+                    "medium",
+                    "low"
+                  ]
+                },
+                "issue": {
+                  "type": "string",
+                  "maxLength": 1000
+                },
+                "fix": {
+                  "type": "string",
+                  "maxLength": 2000
+                }
+              },
+              "required": [
+                "file",
+                "line",
+                "severity",
+                "issue",
+                "fix"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "patch": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "fileId": {
+                    "type": "string"
+                  },
+                  "applies": {
+                    "type": "boolean"
+                  },
+                  "problems": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "fileId",
+                  "applies",
+                  "problems"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reportFileId": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "findings",
+          "patch",
+          "reportFileId",
+          "summary"
+        ],
+        "additionalProperties": false
+      },
+      "tools": [
+        {
+          "key": "files.read",
+          "label": "Read submitted files",
+          "risk": "internal",
+          "required": true
+        },
+        {
+          "key": "files.write",
+          "label": "Create deliverables",
+          "risk": "internal",
+          "required": true
+        },
+        {
+          "key": "channel.post",
+          "label": "Post in assigned channels",
+          "risk": "internal",
+          "required": false
+        },
+        {
+          "key": "repository.write",
+          "label": "Write to repositories",
+          "risk": "external",
+          "required": false
+        },
+        {
+          "key": "deploy.production",
+          "label": "Deploy to production",
+          "risk": "external",
+          "required": false
+        }
+      ],
+      "models": [
+        {
+          "category": "reasoning",
+          "label": "Reasoning and long documents",
+          "required": true
+        }
+      ],
+      "files": {
+        "min": 1,
+        "max": 20,
+        "maxBytes": 2097152,
+        "mimes": [
+          "text/plain",
+          "text/markdown",
+          "application/json",
+          "text/csv",
+          "text/html"
+        ]
+      },
+      "limits": {
+        "maxRuntimeSec": 300,
+        "maxModelCalls": 3,
+        "maxAttempts": 2,
+        "maxOutputFiles": 3
+      },
+      "approvals": [
+        "Writing to a repository or deploying needs its own approval and a connection that doesn't exist yet: it delivers a patch file instead."
+      ],
+      "errors": [
+        "No source files: refused.",
+        "A patch that doesn't apply to the files sent is delivered marked as not applying, with the reasons."
+      ],
+      "tests": [
+        "ai_workforce_skills.test.ts"
+      ]
+    },
+    {
+      "id": "qa.testing",
+      "version": 1,
+      "source": "platform",
+      "agents": [
+        {
+          "id": "qa_testing",
+          "name": "QA and Testing"
+        }
+      ],
+      "provides": [
+        {
+          "id": "qa.test_plan",
+          "label": "Test plans and bug reports"
+        }
+      ],
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "brief": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          },
+          "kind": {
+            "default": "test_plan",
+            "type": "string",
+            "enum": [
+              "test_plan",
+              "bug_report"
+            ]
+          }
+        },
+        "required": [
+          "brief",
+          "kind"
+        ],
+        "additionalProperties": false
+      },
+      "output": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "test_plan",
+              "bug_report"
+            ]
+          },
+          "cases": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "evidence": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "fileIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "kind",
+          "cases",
+          "evidence",
+          "fileIds",
+          "summary"
+        ],
+        "additionalProperties": false
+      },
+      "tools": [
+        {
+          "key": "files.read",
+          "label": "Read submitted files",
+          "risk": "internal",
+          "required": false
+        },
+        {
+          "key": "files.write",
+          "label": "Create deliverables",
+          "risk": "internal",
+          "required": true
+        },
+        {
+          "key": "channel.post",
+          "label": "Post in assigned channels",
+          "risk": "internal",
+          "required": false
+        }
+      ],
+      "models": [
+        {
+          "category": "reasoning",
+          "label": "Reasoning and long documents",
+          "required": true
+        }
+      ],
+      "files": {
+        "max": 10,
+        "maxBytes": 5242880,
+        "mimes": [
+          "text/plain",
+          "text/markdown",
+          "application/json",
+          "text/csv",
+          "text/html"
+        ]
+      },
+      "limits": {
+        "maxRuntimeSec": 240,
+        "maxModelCalls": 3,
+        "maxAttempts": 2,
+        "maxOutputFiles": 2
+      },
+      "approvals": [
+        "None: it writes documents."
+      ],
+      "errors": [
+        "A bug report needs logs or test output; evidence it cites must be real failure lines of those files, others are dropped."
+      ],
+      "tests": [
+        "ai_workforce_skills.test.ts"
+      ]
+    },
+    {
+      "id": "project.plan",
+      "version": 1,
+      "source": "platform",
+      "agents": [
+        {
+          "id": "project_manager",
+          "name": "Project Manager"
+        }
+      ],
+      "provides": [
+        {
+          "id": "project.plan",
+          "label": "Project plans, estimates and schedules"
+        }
+      ],
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "brief": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          },
+          "hoursPerDay": {
+            "default": 6,
+            "type": "number",
+            "minimum": 1,
+            "maximum": 12
+          }
+        },
+        "required": [
+          "brief",
+          "hoursPerDay"
+        ],
+        "additionalProperties": false
+      },
+      "output": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "tasks": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "criticalPath": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "totalHours": {
+            "type": "number"
+          },
+          "workingDays": {
+            "type": "number"
+          },
+          "removedDependencies": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "fileIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "tasks",
+          "criticalPath",
+          "totalHours",
+          "workingDays",
+          "removedDependencies",
+          "fileIds",
+          "summary"
+        ],
+        "additionalProperties": false
+      },
+      "tools": [
+        {
+          "key": "files.read",
+          "label": "Read submitted files",
+          "risk": "internal",
+          "required": false
+        },
+        {
+          "key": "files.write",
+          "label": "Create deliverables",
+          "risk": "internal",
+          "required": true
+        },
+        {
+          "key": "channel.post",
+          "label": "Post in assigned channels",
+          "risk": "internal",
+          "required": false
+        }
+      ],
+      "models": [
+        {
+          "category": "reasoning",
+          "label": "Reasoning and long documents",
+          "required": true
+        }
+      ],
+      "files": {
+        "max": 5,
+        "maxBytes": 5242880,
+        "mimes": [
+          "text/plain",
+          "text/markdown",
+          "text/csv",
+          "text/html",
+          "application/json"
+        ]
+      },
+      "limits": {
+        "maxRuntimeSec": 180,
+        "maxModelCalls": 2,
+        "maxAttempts": 2,
+        "maxOutputFiles": 2
+      },
+      "approvals": [
+        "None: it writes plans."
+      ],
+      "errors": [
+        "Dependencies on unknown tasks and dependency cycles are removed and listed in the plan."
+      ],
+      "tests": [
+        "ai_workforce_skills.test.ts"
+      ]
+    },
+    {
+      "id": "content.write",
+      "version": 1,
+      "source": "platform",
+      "agents": [
+        {
+          "id": "content_writer",
+          "name": "Content Writer"
+        }
+      ],
+      "provides": [
+        {
+          "id": "text.write",
+          "label": "Write articles, posts and marketing copy"
+        }
+      ],
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "brief": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          },
+          "format": {
+            "default": "article",
+            "type": "string",
+            "enum": [
+              "announcement",
+              "article",
+              "product_description",
+              "email",
+              "documentation",
+              "marketing_copy"
+            ]
+          },
+          "length": {
+            "default": "medium",
+            "type": "string",
+            "enum": [
+              "short",
+              "medium",
+              "long"
+            ]
+          },
+          "tone": {
+            "default": "clear and friendly",
+            "type": "string",
+            "maxLength": 60
+          },
+          "audience": {
+            "default": null,
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "brief",
+          "format",
+          "length",
+          "tone",
+          "audience"
+        ],
+        "additionalProperties": false
+      },
+      "output": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "words": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "withinLength": {
+            "type": "boolean"
+          },
+          "fileId": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "title",
+          "words",
+          "withinLength",
+          "fileId",
+          "summary"
+        ],
+        "additionalProperties": false
+      },
+      "tools": [
+        {
+          "key": "files.read",
+          "label": "Read submitted files",
+          "risk": "internal",
+          "required": false
+        },
+        {
+          "key": "files.write",
+          "label": "Create deliverables",
+          "risk": "internal",
+          "required": true
+        },
+        {
+          "key": "channel.post",
+          "label": "Post in assigned channels",
+          "risk": "internal",
+          "required": false
+        }
+      ],
+      "models": [
+        {
+          "category": "reasoning",
+          "label": "Reasoning and long documents",
+          "required": true
+        }
+      ],
+      "files": {
+        "max": 5,
+        "maxBytes": 5242880,
+        "mimes": [
+          "text/plain",
+          "text/markdown",
+          "text/csv",
+          "text/html",
+          "application/json"
+        ]
+      },
+      "limits": {
+        "maxRuntimeSec": 180,
+        "maxModelCalls": 3,
+        "maxAttempts": 2,
+        "maxOutputFiles": 1
+      },
+      "approvals": [
+        "None: it writes drafts; publishing them is a person's step."
+      ],
+      "errors": [
+        "A draft outside the requested length is rewritten once; if it's still outside, it's delivered and marked as such."
+      ],
+      "tests": [
+        "ai_workforce_skills.test.ts"
+      ]
+    },
+    {
+      "id": "design.image",
+      "version": 1,
+      "source": "platform",
+      "agents": [
+        {
+          "id": "graphic_designer",
+          "name": "Graphic and Image Designer"
+        }
+      ],
+      "provides": [
+        {
+          "id": "design.concept",
+          "label": "Design concepts and palettes"
+        },
+        {
+          "id": "image.generate",
+          "label": "Generate images"
+        },
+        {
+          "id": "image.understand",
+          "label": "Read images and screenshots"
+        }
+      ],
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "brief": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          },
+          "size": {
+            "default": "1024x1024",
+            "type": "string",
+            "enum": [
+              "1024x1024",
+              "1536x1024",
+              "1024x1536"
+            ]
+          },
+          "count": {
+            "default": 1,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3
+          }
+        },
+        "required": [
+          "brief",
+          "size",
+          "count"
+        ],
+        "additionalProperties": false
+      },
+      "output": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "images": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "fileId": {
+                  "type": "string"
+                },
+                "alt": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "fileId",
+                "alt"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "briefFileId": {
+            "type": "string"
+          },
+          "generated": {
+            "type": "boolean"
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "images",
+          "briefFileId",
+          "generated",
+          "summary"
+        ],
+        "additionalProperties": false
+      },
+      "tools": [
+        {
+          "key": "files.read",
+          "label": "Read submitted files",
+          "risk": "internal",
+          "required": false
+        },
+        {
+          "key": "files.write",
+          "label": "Create deliverables",
+          "risk": "internal",
+          "required": true
+        },
+        {
+          "key": "channel.post",
+          "label": "Post in assigned channels",
+          "risk": "internal",
+          "required": false
+        }
+      ],
+      "models": [
+        {
+          "category": "fast",
+          "label": "Quick replies and classification",
+          "required": true
+        },
+        {
+          "category": "vision",
+          "label": "Image understanding",
+          "required": false
+        },
+        {
+          "category": "image_generation",
+          "label": "Image generation",
+          "required": false
+        }
+      ],
+      "files": {
+        "max": 4,
+        "maxBytes": 5242880,
+        "mimes": [
+          "image/png",
+          "image/jpeg",
+          "image/webp",
+          "text/plain",
+          "text/markdown",
+          "text/csv",
+          "text/html",
+          "application/json"
+        ]
+      },
+      "limits": {
+        "maxRuntimeSec": 300,
+        "maxModelCalls": 6,
+        "maxAttempts": 2,
+        "maxOutputFiles": 4
+      },
+      "approvals": [
+        "None: images are delivered for people to use."
+      ],
+      "errors": [
+        "No image-generation model configured: it delivers the design brief and image prompts only, and says so.",
+        "A generated file that isn't a PNG, JPEG or WebP image is discarded."
+      ],
+      "tests": [
+        "ai_workforce_skills.test.ts"
+      ]
+    },
+    {
+      "id": "video.edit",
+      "version": 1,
+      "source": "platform",
+      "agents": [
+        {
+          "id": "product_video_editor",
+          "name": "Product Video Editor"
+        }
+      ],
+      "provides": [
+        {
+          "id": "video.edit",
+          "label": "Edit video from submitted footage"
+        },
+        {
+          "id": "audio.transcribe",
+          "label": "Transcribe speech in audio and video"
+        },
+        {
+          "id": "social.publish",
+          "label": "Publish to social media"
+        }
+      ],
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "brief": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          },
+          "targetSeconds": {
+            "default": 30,
+            "type": "integer",
+            "minimum": 5,
+            "maximum": 300
+          },
+          "captions": {
+            "default": true,
+            "type": "boolean"
+          },
+          "title": {
+            "default": null,
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "brandText": {
+            "default": null,
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 60
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "brief",
+          "targetSeconds",
+          "captions",
+          "title",
+          "brandText"
+        ],
+        "additionalProperties": false
+      },
+      "output": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "previewFileId": {
+            "type": "string"
+          },
+          "finalFileId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "captionsFileId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "planFileId": {
+            "type": "string"
+          },
+          "durationSec": {
+            "type": "number"
+          },
+          "clips": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "fileId": {
+                  "type": "string"
+                },
+                "startSec": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "endSec": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "reason": {
+                  "type": "string",
+                  "maxLength": 300
+                }
+              },
+              "required": [
+                "fileId",
+                "startSec",
+                "endSec",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "captions": {
+            "type": "string",
+            "enum": [
+              "burned",
+              "track",
+              "none"
+            ]
+          },
+          "transcription": {
+            "type": "string",
+            "enum": [
+              "provider",
+              "model",
+              "none",
+              "unavailable",
+              "not_requested"
+            ]
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "previewFileId",
+          "finalFileId",
+          "captionsFileId",
+          "planFileId",
+          "durationSec",
+          "clips",
+          "captions",
+          "transcription",
+          "notes",
+          "summary"
+        ],
+        "additionalProperties": false
+      },
+      "tools": [
+        {
+          "key": "files.read",
+          "label": "Read submitted files",
+          "risk": "internal",
+          "required": false
+        },
+        {
+          "key": "files.write",
+          "label": "Create deliverables",
+          "risk": "internal",
+          "required": true
+        },
+        {
+          "key": "channel.post",
+          "label": "Post in assigned channels",
+          "risk": "internal",
+          "required": false
+        },
+        {
+          "key": "media.probe",
+          "label": "Inspect media",
+          "risk": "internal",
+          "required": true
+        },
+        {
+          "key": "media.extract_audio",
+          "label": "Extract audio",
+          "risk": "internal",
+          "required": false
+        },
+        {
+          "key": "media.render",
+          "label": "Render video",
+          "risk": "internal",
+          "required": true
+        },
+        {
+          "key": "social.publish",
+          "label": "Publish to social media",
+          "risk": "external",
+          "required": false
+        }
+      ],
+      "models": [
+        {
+          "category": "reasoning",
+          "label": "Reasoning and long documents",
+          "required": true
+        },
+        {
+          "category": "transcription",
+          "label": "Speech to text",
+          "required": false
+        }
+      ],
+      "files": {
+        "min": 1,
+        "max": 10,
+        "maxBytes": 524288000,
+        "mimes": [
+          "video/mp4",
+          "video/quicktime",
+          "video/webm"
+        ]
+      },
+      "limits": {
+        "maxRuntimeSec": 1800,
+        "maxModelCalls": 16,
+        "maxAttempts": 2,
+        "maxOutputFiles": 40
+      },
+      "approvals": [
+        "In review mode the final export waits for approval of the exact preview (bound to its SHA-256); a revision makes a new preview and voids the old approval.",
+        "Publishing outside Meldiq (social.publish) always needs its own approval and a connection that doesn't exist yet."
+      ],
+      "errors": [
+        "No video file: refused before the job starts.",
+        "No media engine on the server: the job fails with media_engine_unavailable.",
+        "No speech-to-text model: the video is made without captions and says so.",
+        "A scene plan outside the footage: replaced by evenly spaced pieces, and the job says so."
+      ],
+      "tests": [
+        "ai_workforce_acceptance.test.ts",
+        "ai_workforce_skills.test.ts"
+      ]
+    },
+    {
+      "id": "social.plan",
+      "version": 1,
+      "source": "platform",
+      "agents": [
+        {
+          "id": "social_media_manager",
+          "name": "Social Media Manager"
+        }
+      ],
+      "provides": [
+        {
+          "id": "social.plan",
+          "label": "Social media posts and content calendars"
+        },
+        {
+          "id": "social.publish",
+          "label": "Publish to social media"
+        }
+      ],
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "brief": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          },
+          "platforms": {
+            "default": [
+              "linkedin",
+              "x"
+            ],
+            "minItems": 1,
+            "maxItems": 6,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "x",
+                "linkedin",
+                "instagram",
+                "facebook",
+                "tiktok",
+                "threads"
+              ]
+            }
+          },
+          "posts": {
+            "default": 5,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20
+          }
+        },
+        "required": [
+          "brief",
+          "platforms",
+          "posts"
+        ],
+        "additionalProperties": false
+      },
+      "output": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "posts": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "overLimit": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "fileIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "published": {
+            "type": "boolean",
+            "const": false
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "posts",
+          "overLimit",
+          "fileIds",
+          "published",
+          "summary"
+        ],
+        "additionalProperties": false
+      },
+      "tools": [
+        {
+          "key": "files.read",
+          "label": "Read submitted files",
+          "risk": "internal",
+          "required": false
+        },
+        {
+          "key": "files.write",
+          "label": "Create deliverables",
+          "risk": "internal",
+          "required": true
+        },
+        {
+          "key": "channel.post",
+          "label": "Post in assigned channels",
+          "risk": "internal",
+          "required": false
+        },
+        {
+          "key": "social.publish",
+          "label": "Publish to social media",
+          "risk": "external",
+          "required": false
+        }
+      ],
+      "models": [
+        {
+          "category": "reasoning",
+          "label": "Reasoning and long documents",
+          "required": true
+        }
+      ],
+      "files": {
+        "max": 5,
+        "maxBytes": 5242880,
+        "mimes": [
+          "text/plain",
+          "text/markdown",
+          "text/csv",
+          "text/html",
+          "application/json"
+        ]
+      },
+      "limits": {
+        "maxRuntimeSec": 180,
+        "maxModelCalls": 3,
+        "maxAttempts": 2,
+        "maxOutputFiles": 2
+      },
+      "approvals": [
+        "Publishing (social.publish) needs approval and a connected social account; no connection exists, so posts are delivered as a content calendar."
+      ],
+      "errors": [
+        "A post over its platform's limit is rewritten once; if still over, it's marked in the calendar."
+      ],
+      "tests": [
+        "ai_workforce_skills.test.ts"
+      ]
+    },
+    {
+      "id": "marketing.performance",
+      "version": 1,
+      "source": "platform",
+      "agents": [
+        {
+          "id": "performance_marketing",
+          "name": "Performance Marketing"
+        }
+      ],
+      "provides": [
+        {
+          "id": "ads.analyze",
+          "label": "Analyse ad campaign results"
+        },
+        {
+          "id": "ads.manage",
+          "label": "Launch and change ad campaigns"
+        }
+      ],
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "brief": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          }
+        },
+        "required": [
+          "brief"
+        ],
+        "additionalProperties": false
+      },
+      "output": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "campaigns": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "totals": {
+            "type": "object",
+            "properties": {
+              "spend": {
+                "type": "number"
+              },
+              "revenue": {
+                "type": "number"
+              },
+              "conversions": {
+                "type": "number"
+              },
+              "roas": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "spend",
+              "revenue",
+              "conversions",
+              "roas"
+            ],
+            "additionalProperties": false
+          },
+          "flags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "fileIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "campaigns",
+          "totals",
+          "flags",
+          "fileIds",
+          "summary"
+        ],
+        "additionalProperties": false
+      },
+      "tools": [
+        {
+          "key": "files.read",
+          "label": "Read submitted files",
+          "risk": "internal",
+          "required": true
+        },
+        {
+          "key": "files.write",
+          "label": "Create deliverables",
+          "risk": "internal",
+          "required": true
+        },
+        {
+          "key": "channel.post",
+          "label": "Post in assigned channels",
+          "risk": "internal",
+          "required": false
+        },
+        {
+          "key": "ads.manage",
+          "label": "Change ad campaigns",
+          "risk": "external",
+          "required": false
+        }
+      ],
+      "models": [
+        {
+          "category": "reasoning",
+          "label": "Reasoning and long documents",
+          "required": true
+        }
+      ],
+      "files": {
+        "min": 1,
+        "max": 3,
+        "maxBytes": 20971520,
+        "mimes": [
+          "text/csv"
+        ]
+      },
+      "limits": {
+        "maxRuntimeSec": 180,
+        "maxModelCalls": 2,
+        "maxAttempts": 2,
+        "maxOutputFiles": 2
+      },
+      "approvals": [
+        "Launching campaigns or changing budgets (ads.manage) needs approval and an ad account connection; none exists, so it recommends."
+      ],
+      "errors": [
+        "No CSV, or no campaign and spend columns: refused with the column names it looks for."
+      ],
+      "tests": [
+        "ai_workforce_skills.test.ts"
+      ]
+    },
+    {
+      "id": "seo.audit",
+      "version": 1,
+      "source": "platform",
+      "agents": [
+        {
+          "id": "seo_growth",
+          "name": "SEO and Website Growth"
+        }
+      ],
+      "provides": [
+        {
+          "id": "seo.audit",
+          "label": "SEO audits and fixes"
+        },
+        {
+          "id": "web.read",
+          "label": "Read public web pages"
+        },
+        {
+          "id": "website.update",
+          "label": "Change a live website"
+        }
+      ],
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "brief": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          },
+          "urls": {
+            "default": [],
+            "maxItems": 5,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 500,
+              "format": "uri"
+            }
+          }
+        },
+        "required": [
+          "brief",
+          "urls"
+        ],
+        "additionalProperties": false
+      },
+      "output": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "pages": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "issues": {
+            "type": "object",
+            "properties": {
+              "high": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "medium": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "low": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "high",
+              "medium",
+              "low"
+            ],
+            "additionalProperties": false
+          },
+          "fileIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "pages",
+          "issues",
+          "fileIds",
+          "summary"
+        ],
+        "additionalProperties": false
+      },
+      "tools": [
+        {
+          "key": "files.read",
+          "label": "Read submitted files",
+          "risk": "internal",
+          "required": false
+        },
+        {
+          "key": "files.write",
+          "label": "Create deliverables",
+          "risk": "internal",
+          "required": true
+        },
+        {
+          "key": "channel.post",
+          "label": "Post in assigned channels",
+          "risk": "internal",
+          "required": false
+        },
+        {
+          "key": "web.fetch",
+          "label": "Fetch public web pages",
+          "risk": "consequential",
+          "required": false
+        },
+        {
+          "key": "website.update",
+          "label": "Update websites",
+          "risk": "external",
+          "required": false
+        }
+      ],
+      "models": [
+        {
+          "category": "reasoning",
+          "label": "Reasoning and long documents",
+          "required": true
+        }
+      ],
+      "files": {
+        "max": 10,
+        "maxBytes": 5242880,
+        "mimes": [
+          "text/html",
+          "text/plain",
+          "text/csv"
+        ]
+      },
+      "limits": {
+        "maxRuntimeSec": 240,
+        "maxModelCalls": 2,
+        "maxAttempts": 2,
+        "maxOutputFiles": 2
+      },
+      "approvals": [
+        "Changing a live website (website.update) needs approval and a website connection; none exists, so it recommends."
+      ],
+      "errors": [
+        "No HTML pages and no fetchable addresses: refused. Pages that can't be fetched are listed and skipped."
+      ],
+      "tests": [
+        "ai_workforce_skills.test.ts"
+      ]
+    },
+    {
+      "id": "ecommerce.ops",
+      "version": 1,
+      "source": "platform",
+      "agents": [
+        {
+          "id": "ecommerce_operations",
+          "name": "E-commerce Operations"
+        }
+      ],
+      "provides": [
+        {
+          "id": "ecommerce.inventory",
+          "label": "Stock and inventory reports"
+        },
+        {
+          "id": "ecommerce.product_copy",
+          "label": "Product descriptions and launch checklists"
+        },
+        {
+          "id": "website.update",
+          "label": "Change a live website"
+        }
+      ],
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "brief": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          },
+          "task": {
+            "default": "inventory_report",
+            "type": "string",
+            "enum": [
+              "inventory_report",
+              "product_descriptions",
+              "launch_checklist"
+            ]
+          }
+        },
+        "required": [
+          "brief",
+          "task"
+        ],
+        "additionalProperties": false
+      },
+      "output": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "task": {
+            "default": "inventory_report",
+            "type": "string",
+            "enum": [
+              "inventory_report",
+              "product_descriptions",
+              "launch_checklist"
+            ]
+          },
+          "products": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "lowStock": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "outOfStock": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "fileIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "task",
+          "products",
+          "lowStock",
+          "outOfStock",
+          "fileIds",
+          "summary"
+        ],
+        "additionalProperties": false
+      },
+      "tools": [
+        {
+          "key": "files.read",
+          "label": "Read submitted files",
+          "risk": "internal",
+          "required": false
+        },
+        {
+          "key": "files.write",
+          "label": "Create deliverables",
+          "risk": "internal",
+          "required": true
+        },
+        {
+          "key": "channel.post",
+          "label": "Post in assigned channels",
+          "risk": "internal",
+          "required": false
+        },
+        {
+          "key": "website.update",
+          "label": "Update websites",
+          "risk": "external",
+          "required": false
+        }
+      ],
+      "models": [
+        {
+          "category": "reasoning",
+          "label": "Reasoning and long documents",
+          "required": true
+        }
+      ],
+      "files": {
+        "max": 5,
+        "maxBytes": 20971520,
+        "mimes": [
+          "text/plain",
+          "text/markdown",
+          "text/csv",
+          "text/html",
+          "application/json"
+        ]
+      },
+      "limits": {
+        "maxRuntimeSec": 300,
+        "maxModelCalls": 3,
+        "maxAttempts": 2,
+        "maxOutputFiles": 3
+      },
+      "approvals": [
+        "Changing a live store (website.update) needs approval and a store connection; none exists, so it delivers files to import."
+      ],
+      "errors": [
+        "An inventory report needs a product CSV with quantities; rows without a readable quantity are listed as unknown."
+      ],
+      "tests": [
+        "ai_workforce_skills.test.ts"
+      ]
+    },
+    {
+      "id": "support.assist",
+      "version": 1,
+      "source": "platform",
+      "agents": [
+        {
+          "id": "customer_support",
+          "name": "Customer Support"
+        }
+      ],
+      "provides": [
+        {
+          "id": "support.triage",
+          "label": "Sort customer messages by category and priority"
+        },
+        {
+          "id": "support.draft_reply",
+          "label": "Draft replies to customers"
+        },
+        {
+          "id": "knowledge.answer",
+          "label": "Answer from a knowledge base"
+        },
+        {
+          "id": "support.reply_external",
+          "label": "Send replies to customers outside Meldiq"
+        }
+      ],
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "brief": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          }
+        },
+        "required": [
+          "brief"
+        ],
+        "additionalProperties": false
+      },
+      "output": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string"
+          },
+          "escalate": {
+            "type": "boolean"
+          },
+          "verifiedCitations": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "sent": {
+            "type": "boolean",
+            "const": false
+          },
+          "draftFileId": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "category",
+          "priority",
+          "escalate",
+          "verifiedCitations",
+          "sent",
+          "draftFileId",
+          "summary"
+        ],
+        "additionalProperties": false
+      },
+      "tools": [
+        {
+          "key": "files.read",
+          "label": "Read submitted files",
+          "risk": "internal",
+          "required": false
+        },
+        {
+          "key": "files.write",
+          "label": "Create deliverables",
+          "risk": "internal",
+          "required": true
+        },
+        {
+          "key": "channel.post",
+          "label": "Post in assigned channels",
+          "risk": "internal",
+          "required": false
+        },
+        {
+          "key": "support.reply_external",
+          "label": "Reply to customers",
+          "risk": "external",
+          "required": false
+        }
+      ],
+      "models": [
+        {
+          "category": "reasoning",
+          "label": "Reasoning and long documents",
+          "required": true
+        },
+        {
+          "category": "fast",
+          "label": "Quick replies and classification",
+          "required": false
+        }
+      ],
+      "files": {
+        "max": 20,
+        "maxBytes": 10485760,
+        "mimes": [
+          "text/plain",
+          "text/markdown",
+          "text/csv",
+          "text/html",
+          "application/json"
+        ]
+      },
+      "limits": {
+        "maxRuntimeSec": 180,
+        "maxModelCalls": 2,
+        "maxAttempts": 2,
+        "maxOutputFiles": 1
+      },
+      "approvals": [
+        "Sending a reply to a customer (support.reply_external) needs approval and a help desk connection; none exists, so it drafts."
+      ],
+      "errors": [
+        "Without knowledge-base files the draft says it couldn't check the answer, and is marked for escalation.",
+        "A citation not found in the knowledge base is dropped."
+      ],
+      "tests": [
+        "ai_workforce_skills.test.ts"
+      ]
+    },
+    {
+      "id": "sales.crm",
+      "version": 1,
+      "source": "platform",
+      "agents": [
+        {
+          "id": "sales_crm",
+          "name": "Sales and CRM"
+        }
+      ],
+      "provides": [
+        {
+          "id": "sales.outreach",
+          "label": "Sales outreach drafts and pipeline summaries"
+        },
+        {
+          "id": "crm.write",
+          "label": "Update the CRM"
+        },
+        {
+          "id": "email.send",
+          "label": "Send email"
+        }
+      ],
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "brief": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          },
+          "task": {
+            "default": "outreach",
+            "type": "string",
+            "enum": [
+              "outreach",
+              "activity_summary"
+            ]
+          },
+          "drafts": {
+            "default": 3,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10
+          }
+        },
+        "required": [
+          "brief",
+          "task",
+          "drafts"
+        ],
+        "additionalProperties": false
+      },
+      "output": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "task": {
+            "default": "outreach",
+            "type": "string",
+            "enum": [
+              "outreach",
+              "activity_summary"
+            ]
+          },
+          "items": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "fileIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "task",
+          "items",
+          "fileIds",
+          "summary"
+        ],
+        "additionalProperties": false
+      },
+      "tools": [
+        {
+          "key": "files.read",
+          "label": "Read submitted files",
+          "risk": "internal",
+          "required": false
+        },
+        {
+          "key": "files.write",
+          "label": "Create deliverables",
+          "risk": "internal",
+          "required": true
+        },
+        {
+          "key": "channel.post",
+          "label": "Post in assigned channels",
+          "risk": "internal",
+          "required": false
+        },
+        {
+          "key": "crm.write",
+          "label": "Update the CRM",
+          "risk": "external",
+          "required": false
+        },
+        {
+          "key": "email.send",
+          "label": "Send email",
+          "risk": "external",
+          "required": false
+        }
+      ],
+      "models": [
+        {
+          "category": "reasoning",
+          "label": "Reasoning and long documents",
+          "required": true
+        }
+      ],
+      "files": {
+        "max": 5,
+        "maxBytes": 20971520,
+        "mimes": [
+          "text/plain",
+          "text/markdown",
+          "text/csv",
+          "text/html",
+          "application/json"
+        ]
+      },
+      "limits": {
+        "maxRuntimeSec": 180,
+        "maxModelCalls": 2,
+        "maxAttempts": 2,
+        "maxOutputFiles": 2
+      },
+      "approvals": [
+        "Updating a CRM or sending email needs approval and a connection; none exists, so it drafts and summarises."
+      ],
+      "errors": [
+        "An activity summary needs a CSV export of deals or activities with a stage or status column."
+      ],
+      "tests": [
+        "ai_workforce_skills.test.ts"
+      ]
+    },
+    {
+      "id": "data.analyze",
+      "version": 1,
+      "source": "platform",
+      "agents": [
+        {
+          "id": "data_analytics",
+          "name": "Data and Analytics"
+        }
+      ],
+      "provides": [
+        {
+          "id": "data.analyze",
+          "label": "Analyse data files"
+        }
+      ],
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "brief": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          }
+        },
+        "required": [
+          "brief"
+        ],
+        "additionalProperties": false
+      },
+      "output": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "rows": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "columns": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "aggregation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fileIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "rows",
+          "columns",
+          "aggregation",
+          "fileIds",
+          "summary"
+        ],
+        "additionalProperties": false
+      },
+      "tools": [
+        {
+          "key": "files.read",
+          "label": "Read submitted files",
+          "risk": "internal",
+          "required": true
+        },
+        {
+          "key": "files.write",
+          "label": "Create deliverables",
+          "risk": "internal",
+          "required": true
+        },
+        {
+          "key": "channel.post",
+          "label": "Post in assigned channels",
+          "risk": "internal",
+          "required": false
+        }
+      ],
+      "models": [
+        {
+          "category": "reasoning",
+          "label": "Reasoning and long documents",
+          "required": true
+        }
+      ],
+      "files": {
+        "min": 1,
+        "max": 3,
+        "maxBytes": 52428800,
+        "mimes": [
+          "text/csv"
+        ]
+      },
+      "limits": {
+        "maxRuntimeSec": 300,
+        "maxModelCalls": 3,
+        "maxAttempts": 2,
+        "maxOutputFiles": 3
+      },
+      "approvals": [
+        "None."
+      ],
+      "errors": [
+        "No CSV: refused. An aggregation naming a column that doesn't exist is skipped and reported."
+      ],
+      "tests": [
+        "ai_workforce_skills.test.ts"
+      ]
+    },
+    {
+      "id": "hr.ops",
+      "version": 1,
+      "source": "platform",
+      "agents": [
+        {
+          "id": "hr_workplace_ops",
+          "name": "HR and Workplace Operations"
+        }
+      ],
+      "provides": [
+        {
+          "id": "hr.docs",
+          "label": "Onboarding plans, policies and shift schedules"
+        }
+      ],
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "brief": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          },
+          "task": {
+            "default": "onboarding_plan",
+            "type": "string",
+            "enum": [
+              "onboarding_plan",
+              "shift_schedule",
+              "policy_document"
+            ]
+          },
+          "roster": {
+            "default": null,
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "people": {
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 80
+                        },
+                        "maxHours": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 80
+                        },
+                        "unavailable": {
+                          "default": [],
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "mon",
+                              "tue",
+                              "wed",
+                              "thu",
+                              "fri",
+                              "sat",
+                              "sun"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "maxHours",
+                        "unavailable"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "shifts": {
+                    "minItems": 1,
+                    "maxItems": 200,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "day": {
+                          "type": "string",
+                          "enum": [
+                            "mon",
+                            "tue",
+                            "wed",
+                            "thu",
+                            "fri",
+                            "sat",
+                            "sun"
+                          ]
+                        },
+                        "start": {
+                          "type": "string",
+                          "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                        },
+                        "end": {
+                          "type": "string",
+                          "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                        },
+                        "needed": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 20
+                        }
+                      },
+                      "required": [
+                        "day",
+                        "start",
+                        "end",
+                        "needed"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "people",
+                  "shifts"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "brief",
+          "task",
+          "roster"
+        ],
+        "additionalProperties": false
+      },
+      "output": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "task": {
+            "default": "onboarding_plan",
+            "type": "string",
+            "enum": [
+              "onboarding_plan",
+              "shift_schedule",
+              "policy_document"
+            ]
+          },
+          "gaps": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "fileIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "task",
+          "gaps",
+          "fileIds",
+          "summary"
+        ],
+        "additionalProperties": false
+      },
+      "tools": [
+        {
+          "key": "files.read",
+          "label": "Read submitted files",
+          "risk": "internal",
+          "required": false
+        },
+        {
+          "key": "files.write",
+          "label": "Create deliverables",
+          "risk": "internal",
+          "required": true
+        },
+        {
+          "key": "channel.post",
+          "label": "Post in assigned channels",
+          "risk": "internal",
+          "required": false
+        }
+      ],
+      "models": [
+        {
+          "category": "reasoning",
+          "label": "Reasoning and long documents",
+          "required": true
+        }
+      ],
+      "files": {
+        "max": 5,
+        "maxBytes": 5242880,
+        "mimes": [
+          "text/plain",
+          "text/markdown",
+          "text/csv",
+          "text/html",
+          "application/json"
+        ]
+      },
+      "limits": {
+        "maxRuntimeSec": 180,
+        "maxModelCalls": 2,
+        "maxAttempts": 2,
+        "maxOutputFiles": 3
+      },
+      "approvals": [
+        "None: it writes documents and schedules for people to use."
+      ],
+      "errors": [
+        "A shift schedule needs people and shifts (given, or found in the brief); shifts that can't be covered are listed as gaps, never filled with someone unavailable."
+      ],
+      "tests": [
+        "ai_workforce_skills.test.ts"
+      ]
+    },
+    {
+      "id": "finance.analyze",
+      "version": 1,
+      "source": "platform",
+      "agents": [
+        {
+          "id": "finance_operations",
+          "name": "Finance and Operations Analyst"
+        }
+      ],
+      "provides": [
+        {
+          "id": "finance.analyze",
+          "label": "Analyse transactions and spending"
+        },
+        {
+          "id": "payments.execute",
+          "label": "Make payments"
+        }
+      ],
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "brief": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          }
+        },
+        "required": [
+          "brief"
+        ],
+        "additionalProperties": false
+      },
+      "output": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "transactions": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "anomalies": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "months": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "fileIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "paymentsMade": {
+            "type": "number",
+            "const": 0
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "transactions",
+          "anomalies",
+          "months",
+          "fileIds",
+          "paymentsMade",
+          "summary"
+        ],
+        "additionalProperties": false
+      },
+      "tools": [
+        {
+          "key": "files.read",
+          "label": "Read submitted files",
+          "risk": "internal",
+          "required": true
+        },
+        {
+          "key": "files.write",
+          "label": "Create deliverables",
+          "risk": "internal",
+          "required": true
+        },
+        {
+          "key": "channel.post",
+          "label": "Post in assigned channels",
+          "risk": "internal",
+          "required": false
+        },
+        {
+          "key": "payments.execute",
+          "label": "Make payments",
+          "risk": "external",
+          "required": false
+        }
+      ],
+      "models": [
+        {
+          "category": "reasoning",
+          "label": "Reasoning and long documents",
+          "required": true
+        }
+      ],
+      "files": {
+        "min": 1,
+        "max": 3,
+        "maxBytes": 52428800,
+        "mimes": [
+          "text/csv"
+        ]
+      },
+      "limits": {
+        "maxRuntimeSec": 300,
+        "maxModelCalls": 2,
+        "maxAttempts": 2,
+        "maxOutputFiles": 3
+      },
+      "approvals": [
+        "Payments and transfers (payments.execute) are never allowed for agents on this platform."
+      ],
+      "errors": [
+        "No CSV, or no date and amount columns: refused with the names it looks for."
+      ],
+      "tests": [
+        "ai_workforce_skills.test.ts"
+      ]
+    },
+    {
+      "id": "meeting.docs",
+      "version": 1,
+      "source": "platform",
+      "agents": [
+        {
+          "id": "meeting_documentation",
+          "name": "Meeting and Documentation"
+        }
+      ],
+      "provides": [
+        {
+          "id": "meeting.minutes",
+          "label": "Meeting minutes and action items"
+        },
+        {
+          "id": "audio.transcribe",
+          "label": "Transcribe speech in audio and video"
+        }
+      ],
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "brief": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          }
+        },
+        "required": [
+          "brief"
+        ],
+        "additionalProperties": false
+      },
+      "output": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "transcribed": {
+            "type": "boolean"
+          },
+          "decisions": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "actionItems": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "fileIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "transcribed",
+          "decisions",
+          "actionItems",
+          "fileIds",
+          "summary"
+        ],
+        "additionalProperties": false
+      },
+      "tools": [
+        {
+          "key": "files.read",
+          "label": "Read submitted files",
+          "risk": "internal",
+          "required": true
+        },
+        {
+          "key": "files.write",
+          "label": "Create deliverables",
+          "risk": "internal",
+          "required": true
+        },
+        {
+          "key": "channel.post",
+          "label": "Post in assigned channels",
+          "risk": "internal",
+          "required": false
+        },
+        {
+          "key": "media.probe",
+          "label": "Inspect media",
+          "risk": "internal",
+          "required": false
+        },
+        {
+          "key": "media.extract_audio",
+          "label": "Extract audio",
+          "risk": "internal",
+          "required": false
+        }
+      ],
+      "models": [
+        {
+          "category": "reasoning",
+          "label": "Reasoning and long documents",
+          "required": true
+        },
+        {
+          "category": "transcription",
+          "label": "Speech to text",
+          "required": false
+        }
+      ],
+      "files": {
+        "min": 1,
+        "max": 5,
+        "maxBytes": 314572800,
+        "mimes": [
+          "text/plain",
+          "text/markdown",
+          "text/csv",
+          "text/html",
+          "application/json",
+          "audio/mpeg",
+          "audio/wav",
+          "audio/x-wav",
+          "audio/mp4",
+          "audio/ogg",
+          "audio/webm",
+          "video/mp4",
+          "video/quicktime",
+          "video/webm"
+        ]
+      },
+      "limits": {
+        "maxRuntimeSec": 900,
+        "maxModelCalls": 8,
+        "maxAttempts": 2,
+        "maxOutputFiles": 3
+      },
+      "approvals": [
+        "None: it writes minutes."
+      ],
+      "errors": [
+        "A recording without a speech-to-text model configured is refused; send a transcript instead.",
+        "Recordings need the media engine (their sound is extracted as a small MP3); over 25 MB of that MP3 (about 70 minutes) is refused by the gateway's limit."
+      ],
+      "tests": [
+        "ai_workforce_skills.test.ts"
+      ]
+    },
+    {
+      "id": "email.calendar",
+      "version": 1,
+      "source": "platform",
+      "agents": [
+        {
+          "id": "email_calendar",
+          "name": "Email and Calendar"
+        }
+      ],
+      "provides": [
+        {
+          "id": "email.draft",
+          "label": "Draft and summarise email"
+        },
+        {
+          "id": "calendar.invite",
+          "label": "Calendar invitations as files"
+        },
+        {
+          "id": "email.send",
+          "label": "Send email"
+        },
+        {
+          "id": "calendar.write",
+          "label": "Change calendars"
+        }
+      ],
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "brief": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          },
+          "task": {
+            "default": "draft_email",
+            "type": "string",
+            "enum": [
+              "draft_email",
+              "schedule_meeting",
+              "summarize"
+            ]
+          }
+        },
+        "required": [
+          "brief",
+          "task"
+        ],
+        "additionalProperties": false
+      },
+      "output": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "task": {
+            "default": "draft_email",
+            "type": "string",
+            "enum": [
+              "draft_email",
+              "schedule_meeting",
+              "summarize"
+            ]
+          },
+          "fileIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "sent": {
+            "type": "boolean",
+            "const": false
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "task",
+          "fileIds",
+          "sent",
+          "summary"
+        ],
+        "additionalProperties": false
+      },
+      "tools": [
+        {
+          "key": "files.read",
+          "label": "Read submitted files",
+          "risk": "internal",
+          "required": false
+        },
+        {
+          "key": "files.write",
+          "label": "Create deliverables",
+          "risk": "internal",
+          "required": true
+        },
+        {
+          "key": "channel.post",
+          "label": "Post in assigned channels",
+          "risk": "internal",
+          "required": false
+        },
+        {
+          "key": "email.send",
+          "label": "Send email",
+          "risk": "external",
+          "required": false
+        },
+        {
+          "key": "calendar.write",
+          "label": "Change calendars",
+          "risk": "external",
+          "required": false
+        }
+      ],
+      "models": [
+        {
+          "category": "reasoning",
+          "label": "Reasoning and long documents",
+          "required": true
+        },
+        {
+          "category": "fast",
+          "label": "Quick replies and classification",
+          "required": false
+        }
+      ],
+      "files": {
+        "max": 10,
+        "maxBytes": 10485760,
+        "mimes": [
+          "text/plain",
+          "text/markdown",
+          "text/csv",
+          "text/html",
+          "application/json"
+        ]
+      },
+      "limits": {
+        "maxRuntimeSec": 180,
+        "maxModelCalls": 2,
+        "maxAttempts": 2,
+        "maxOutputFiles": 2
+      },
+      "approvals": [
+        "Sending email or changing a calendar needs approval and a connection; none exists, so it delivers a draft or an .ics file to add by hand."
+      ],
+      "errors": [
+        "A meeting with an invalid start or a duration outside 5 minutes to 8 hours is refused."
+      ],
+      "tests": [
+        "ai_workforce_skills.test.ts"
+      ]
+    },
+    {
+      "id": "translation.localize",
+      "version": 1,
+      "source": "platform",
+      "agents": [
+        {
+          "id": "translation_localization",
+          "name": "Translation and Localization"
+        }
+      ],
+      "provides": [
+        {
+          "id": "translate.text",
+          "label": "Translate documents and subtitles"
+        }
+      ],
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "brief": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          },
+          "targetLanguage": {
+            "default": null,
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 2,
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "glossary": {
+            "default": [],
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "term": {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                "translation": {
+                  "type": "string",
+                  "maxLength": 100
+                }
+              },
+              "required": [
+                "term",
+                "translation"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "brief",
+          "targetLanguage",
+          "glossary"
+        ],
+        "additionalProperties": false
+      },
+      "output": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "language": {
+            "type": "string"
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "source": {
+                  "type": "string"
+                },
+                "fileId": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "subtitles",
+                    "text"
+                  ]
+                },
+                "units": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "source",
+                "fileId",
+                "kind",
+                "units"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "language",
+          "files",
+          "summary"
+        ],
+        "additionalProperties": false
+      },
+      "tools": [
+        {
+          "key": "files.read",
+          "label": "Read submitted files",
+          "risk": "internal",
+          "required": false
+        },
+        {
+          "key": "files.write",
+          "label": "Create deliverables",
+          "risk": "internal",
+          "required": true
+        },
+        {
+          "key": "channel.post",
+          "label": "Post in assigned channels",
+          "risk": "internal",
+          "required": false
+        }
+      ],
+      "models": [
+        {
+          "category": "reasoning",
+          "label": "Reasoning and long documents",
+          "required": true
+        },
+        {
+          "category": "fast",
+          "label": "Quick replies and classification",
+          "required": false
+        }
+      ],
+      "files": {
+        "max": 10,
+        "maxBytes": 5242880,
+        "mimes": [
+          "text/plain",
+          "text/markdown",
+          "application/json"
+        ]
+      },
+      "limits": {
+        "maxRuntimeSec": 600,
+        "maxModelCalls": 40,
+        "maxAttempts": 2,
+        "maxOutputFiles": 10
+      },
+      "approvals": [
+        "None."
+      ],
+      "errors": [
+        "Subtitles keep every cue and timing; a batch whose cues don't match is retried once, then the job fails.",
+        "Code, links and placeholders must survive translation unchanged, or that part is retried once and then fails."
+      ],
+      "tests": [
+        "ai_workforce_skills.test.ts"
+      ]
+    }
+  ],
+  "capabilities": [
+    {
+      "capability": "orchestrate.plan",
+      "label": "Plan and coordinate work across agents",
+      "status": "ready",
+      "providers": [
+        {
+          "installId": "agi_lIaThtf2SnDyuZtfWlR3Xw",
+          "agentId": "agent_manager",
+          "name": "Agent Manager",
+          "ready": true,
+          "blockers": []
+        }
+      ],
+      "installable": []
+    },
+    {
+      "capability": "text.answer",
+      "label": "Answer questions",
+      "status": "ready",
+      "providers": [
+        {
+          "installId": "agi_2EnMTE33hzjC2rfParV9aQ",
+          "agentId": "general_assistant",
+          "name": "General Assistant",
+          "ready": true,
+          "blockers": []
+        },
+        {
+          "installId": "agi_lIaThtf2SnDyuZtfWlR3Xw",
+          "agentId": "agent_manager",
+          "name": "Agent Manager",
+          "ready": true,
+          "blockers": []
+        }
+      ],
+      "installable": []
+    },
+    {
+      "capability": "text.summarize",
+      "label": "Summarise text and documents",
+      "status": "ready",
+      "providers": [
+        {
+          "installId": "agi_2EnMTE33hzjC2rfParV9aQ",
+          "agentId": "general_assistant",
+          "name": "General Assistant",
+          "ready": true,
+          "blockers": []
+        }
+      ],
+      "installable": []
+    },
+    {
+      "capability": "text.write",
+      "label": "Write articles, posts and marketing copy",
+      "status": "ready",
+      "providers": [
+        {
+          "installId": "agi_uZ_Lm-6rvlLPx2tEXnklPw",
+          "agentId": "content_writer",
+          "name": "Content Writer",
+          "ready": true,
+          "blockers": []
+        }
+      ],
+      "installable": []
+    },
+    {
+      "capability": "research.report",
+      "label": "Research reports with checked citations",
+      "status": "not_installed",
+      "providers": [],
+      "installable": [
+        {
+          "agentId": "research_knowledge",
+          "name": "Research and Knowledge"
+        }
+      ]
+    },
+    {
+      "capability": "web.read",
+      "label": "Read public web pages",
+      "status": "not_installed",
+      "providers": [],
+      "installable": [
+        {
+          "agentId": "research_knowledge",
+          "name": "Research and Knowledge"
+        },
+        {
+          "agentId": "seo_growth",
+          "name": "SEO and Website Growth"
+        }
+      ]
+    },
+    {
+      "capability": "knowledge.answer",
+      "label": "Answer from a knowledge base",
+      "status": "not_installed",
+      "providers": [],
+      "installable": [
+        {
+          "agentId": "research_knowledge",
+          "name": "Research and Knowledge"
+        },
+        {
+          "agentId": "customer_support",
+          "name": "Customer Support"
+        }
+      ]
+    },
+    {
+      "capability": "code.review",
+      "label": "Review and debug code",
+      "status": "not_installed",
+      "providers": [],
+      "installable": [
+        {
+          "agentId": "coding_engineering",
+          "name": "Coding and Engineering"
+        }
+      ]
+    },
+    {
+      "capability": "code.patch",
+      "label": "Write code patches",
+      "status": "not_installed",
+      "providers": [],
+      "installable": [
+        {
+          "agentId": "coding_engineering",
+          "name": "Coding and Engineering"
+        }
+      ]
+    },
+    {
+      "capability": "repository.write",
+      "label": "Push to code repositories",
+      "status": "not_installed",
+      "providers": [],
+      "installable": [
+        {
+          "agentId": "coding_engineering",
+          "name": "Coding and Engineering"
+        }
+      ]
+    },
+    {
+      "capability": "deploy.production",
+      "label": "Deploy to production",
+      "status": "not_installed",
+      "providers": [],
+      "installable": [
+        {
+          "agentId": "coding_engineering",
+          "name": "Coding and Engineering"
+        }
+      ]
+    },
+    {
+      "capability": "qa.test_plan",
+      "label": "Test plans and bug reports",
+      "status": "not_installed",
+      "providers": [],
+      "installable": [
+        {
+          "agentId": "qa_testing",
+          "name": "QA and Testing"
+        }
+      ]
+    },
+    {
+      "capability": "project.plan",
+      "label": "Project plans, estimates and schedules",
+      "status": "not_installed",
+      "providers": [],
+      "installable": [
+        {
+          "agentId": "project_manager",
+          "name": "Project Manager"
+        }
+      ]
+    },
+    {
+      "capability": "design.concept",
+      "label": "Design concepts and palettes",
+      "status": "ready",
+      "providers": [
+        {
+          "installId": "agi_r9zwkcPZDk6z4W0_tx4stA",
+          "agentId": "graphic_designer",
+          "name": "Graphic and Image Designer",
+          "ready": true,
+          "blockers": []
+        }
+      ],
+      "installable": []
+    },
+    {
+      "capability": "image.generate",
+      "label": "Generate images",
+      "status": "blocked",
+      "providers": [
+        {
+          "installId": "agi_r9zwkcPZDk6z4W0_tx4stA",
+          "agentId": "graphic_designer",
+          "name": "Graphic and Image Designer",
+          "ready": false,
+          "blockers": [
+            "No verified model for image generation (a platform operator sets it up in the AI Control Center)."
+          ]
+        }
+      ],
+      "installable": []
+    },
+    {
+      "capability": "image.understand",
+      "label": "Read images and screenshots",
+      "status": "blocked",
+      "providers": [
+        {
+          "installId": "agi_r9zwkcPZDk6z4W0_tx4stA",
+          "agentId": "graphic_designer",
+          "name": "Graphic and Image Designer",
+          "ready": false,
+          "blockers": [
+            "No verified model for image understanding (a platform operator sets it up in the AI Control Center)."
+          ]
+        }
+      ],
+      "installable": []
+    },
+    {
+      "capability": "video.edit",
+      "label": "Edit video from submitted footage",
+      "status": "not_installed",
+      "providers": [],
+      "installable": [
+        {
+          "agentId": "product_video_editor",
+          "name": "Product Video Editor"
+        }
+      ]
+    },
+    {
+      "capability": "audio.transcribe",
+      "label": "Transcribe speech in audio and video",
+      "status": "not_installed",
+      "providers": [],
+      "installable": [
+        {
+          "agentId": "product_video_editor",
+          "name": "Product Video Editor"
+        },
+        {
+          "agentId": "meeting_documentation",
+          "name": "Meeting and Documentation"
+        }
+      ]
+    },
+    {
+      "capability": "social.plan",
+      "label": "Social media posts and content calendars",
+      "status": "ready",
+      "providers": [
+        {
+          "installId": "agi_g-gZfAqUzX6LyYriF09G9A",
+          "agentId": "social_media_manager",
+          "name": "Social Media Manager",
+          "ready": true,
+          "blockers": []
+        }
+      ],
+      "installable": []
+    },
+    {
+      "capability": "social.publish",
+      "label": "Publish to social media",
+      "status": "blocked",
+      "providers": [
+        {
+          "installId": "agi_g-gZfAqUzX6LyYriF09G9A",
+          "agentId": "social_media_manager",
+          "name": "Social Media Manager",
+          "ready": false,
+          "blockers": [
+            "Publish to social media: needs a Social media account connection, which isn't connected yet."
+          ]
+        }
+      ],
+      "installable": [
+        {
+          "agentId": "product_video_editor",
+          "name": "Product Video Editor"
+        }
+      ]
+    },
+    {
+      "capability": "ads.analyze",
+      "label": "Analyse ad campaign results",
+      "status": "not_installed",
+      "providers": [],
+      "installable": [
+        {
+          "agentId": "performance_marketing",
+          "name": "Performance Marketing"
+        }
+      ]
+    },
+    {
+      "capability": "ads.manage",
+      "label": "Launch and change ad campaigns",
+      "status": "not_installed",
+      "providers": [],
+      "installable": [
+        {
+          "agentId": "performance_marketing",
+          "name": "Performance Marketing"
+        }
+      ]
+    },
+    {
+      "capability": "seo.audit",
+      "label": "SEO audits and fixes",
+      "status": "not_installed",
+      "providers": [],
+      "installable": [
+        {
+          "agentId": "seo_growth",
+          "name": "SEO and Website Growth"
+        }
+      ]
+    },
+    {
+      "capability": "website.update",
+      "label": "Change a live website",
+      "status": "not_installed",
+      "providers": [],
+      "installable": [
+        {
+          "agentId": "seo_growth",
+          "name": "SEO and Website Growth"
+        },
+        {
+          "agentId": "ecommerce_operations",
+          "name": "E-commerce Operations"
+        }
+      ]
+    },
+    {
+      "capability": "ecommerce.inventory",
+      "label": "Stock and inventory reports",
+      "status": "not_installed",
+      "providers": [],
+      "installable": [
+        {
+          "agentId": "ecommerce_operations",
+          "name": "E-commerce Operations"
+        }
+      ]
+    },
+    {
+      "capability": "ecommerce.product_copy",
+      "label": "Product descriptions and launch checklists",
+      "status": "not_installed",
+      "providers": [],
+      "installable": [
+        {
+          "agentId": "ecommerce_operations",
+          "name": "E-commerce Operations"
+        }
+      ]
+    },
+    {
+      "capability": "support.triage",
+      "label": "Sort customer messages by category and priority",
+      "status": "not_installed",
+      "providers": [],
+      "installable": [
+        {
+          "agentId": "customer_support",
+          "name": "Customer Support"
+        }
+      ]
+    },
+    {
+      "capability": "support.draft_reply",
+      "label": "Draft replies to customers",
+      "status": "not_installed",
+      "providers": [],
+      "installable": [
+        {
+          "agentId": "customer_support",
+          "name": "Customer Support"
+        }
+      ]
+    },
+    {
+      "capability": "support.reply_external",
+      "label": "Send replies to customers outside Meldiq",
+      "status": "not_installed",
+      "providers": [],
+      "installable": [
+        {
+          "agentId": "customer_support",
+          "name": "Customer Support"
+        }
+      ]
+    },
+    {
+      "capability": "sales.outreach",
+      "label": "Sales outreach drafts and pipeline summaries",
+      "status": "not_installed",
+      "providers": [],
+      "installable": [
+        {
+          "agentId": "sales_crm",
+          "name": "Sales and CRM"
+        }
+      ]
+    },
+    {
+      "capability": "crm.write",
+      "label": "Update the CRM",
+      "status": "not_installed",
+      "providers": [],
+      "installable": [
+        {
+          "agentId": "sales_crm",
+          "name": "Sales and CRM"
+        }
+      ]
+    },
+    {
+      "capability": "email.draft",
+      "label": "Draft and summarise email",
+      "status": "not_installed",
+      "providers": [],
+      "installable": [
+        {
+          "agentId": "email_calendar",
+          "name": "Email and Calendar"
+        }
+      ]
+    },
+    {
+      "capability": "email.send",
+      "label": "Send email",
+      "status": "not_installed",
+      "providers": [],
+      "installable": [
+        {
+          "agentId": "sales_crm",
+          "name": "Sales and CRM"
+        },
+        {
+          "agentId": "email_calendar",
+          "name": "Email and Calendar"
+        }
+      ]
+    },
+    {
+      "capability": "calendar.invite",
+      "label": "Calendar invitations as files",
+      "status": "not_installed",
+      "providers": [],
+      "installable": [
+        {
+          "agentId": "email_calendar",
+          "name": "Email and Calendar"
+        }
+      ]
+    },
+    {
+      "capability": "calendar.write",
+      "label": "Change calendars",
+      "status": "not_installed",
+      "providers": [],
+      "installable": [
+        {
+          "agentId": "email_calendar",
+          "name": "Email and Calendar"
+        }
+      ]
+    },
+    {
+      "capability": "data.analyze",
+      "label": "Analyse data files",
+      "status": "not_installed",
+      "providers": [],
+      "installable": [
+        {
+          "agentId": "data_analytics",
+          "name": "Data and Analytics"
+        }
+      ]
+    },
+    {
+      "capability": "hr.docs",
+      "label": "Onboarding plans, policies and shift schedules",
+      "status": "not_installed",
+      "providers": [],
+      "installable": [
+        {
+          "agentId": "hr_workplace_ops",
+          "name": "HR and Workplace Operations"
+        }
+      ]
+    },
+    {
+      "capability": "finance.analyze",
+      "label": "Analyse transactions and spending",
+      "status": "not_installed",
+      "providers": [],
+      "installable": [
+        {
+          "agentId": "finance_operations",
+          "name": "Finance and Operations Analyst"
+        }
+      ]
+    },
+    {
+      "capability": "payments.execute",
+      "label": "Make payments",
+      "status": "not_installed",
+      "providers": [],
+      "installable": [
+        {
+          "agentId": "finance_operations",
+          "name": "Finance and Operations Analyst"
+        }
+      ]
+    },
+    {
+      "capability": "meeting.minutes",
+      "label": "Meeting minutes and action items",
+      "status": "not_installed",
+      "providers": [],
+      "installable": [
+        {
+          "agentId": "meeting_documentation",
+          "name": "Meeting and Documentation"
+        }
+      ]
+    },
+    {
+      "capability": "translate.text",
+      "label": "Translate documents and subtitles",
+      "status": "not_installed",
+      "providers": [],
+      "installable": [
+        {
+          "agentId": "translation_localization",
+          "name": "Translation and Localization"
+        }
+      ]
+    }
+  ]
+}
