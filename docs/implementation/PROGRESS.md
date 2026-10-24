@@ -111,3 +111,27 @@ runtime's existing lease recovery runs); community checks on a schedule. Integra
 connection to check yet: their tools are reported through each agent's readiness as needing a connection.
 
 Commits: server `173b435`, `2a88c5b`; web `2b07d14`.
+
+## Phase 3: business control center and work center (2026-10-25)
+
+**Outcome:** AI agents now opens on **Overview**: what needs you first (approvals you may give, an agent's question,
+your new or overdue tasks, work handed in for you to review), then what agents and people are doing, what failed and
+finished in the last 7 days, deliverable counts and the estimated AI cost; managers also see the latest System Check
+with a link to Health. Every item opens its record (a request in place, with its approval or question; a task in Tasks).
+
+**Built:** server `workCenter.ts`, `GET /v1/orgs/:orgId/ai/work` (one query family over jobs, tasks, approvals, files
+and usage; managers see the community, others their own; approvals follow the Approvals tab's visibility rule). Web
+`src/sync/work.ts`, `src/ui/agents/WorkTab.tsx`; Tasks can open a given task.
+
+**Verified:** server 1046 passed (`ai_work_overview.test.ts` 5: costs from real usage records with a priced fake
+model, attention for assignee vs creator, retry-waiting shown with its error then failed, visibility between members,
+approvals only for approvers); web 484 unit, agents e2e 12/12 (new "Overview…" test; older flows open Agents).
+
+**Decision:** the overview is the first tab of the existing AI agents page, not a new app or navigation tree (§3.1 says
+adapt the existing UI). The master prompt's ten-section navigation (Marketing, Business Operations, Integrations…) is
+not built: those sections have no connected systems behind them yet, and empty sections would be decorative.
+
+**Not done:** Android shows none of this yet (the endpoint is shared; Android UI belongs to the Android session);
+objectives/goals as records (no goal model exists; the Agent Manager's plans are the closest thing).
+
+Commits: server `e70e0a6`; web `45fed81`.
