@@ -1,0 +1,19 @@
+{
+  "conversationId": "c_NwjQtSb5Q13XiUK7aTrBtw",
+  "reader": {
+    "readerId": "rdr_atDorH5FaM09X73cPoqufw",
+    "installId": "agi_bVy_LZm5GbT3WCGl6NAgzA",
+    "agentUserId": "u_vvjdHqawqyxpu5P60QNYFQ",
+    "name": "General Assistant",
+    "conversationId": "c_NwjQtSb5Q13XiUK7aTrBtw",
+    "conversationName": null,
+    "mode": "direct",
+    "state": "on",
+    "since": 1792861801623,
+    "turnedOnBy": {
+      "id": "u_HrgfEd8k_xS6Tw6ugBJ9iw",
+      "name": "Readersmember"
+    },
+    "reason": "direct conversation"
+  }
+}

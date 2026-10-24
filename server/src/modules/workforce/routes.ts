@@ -38,6 +38,7 @@ import type { WorkforceModule } from "./index.js";
 import { automationRoutes } from "./automationRoutes.js";
 import { skillRoutes } from "./skillRoutes.js";
 import { taskRoutes } from "./taskRoutes.js";
+import { readerRoutes } from "./reader/routes.js";
 
 /**
  * AI Workforce for communities (docs/AI_WORKFORCE.md): /v1/orgs/:orgId/ai/* and /v1/conversations/:id/ai/*. Who may
@@ -322,7 +323,9 @@ export default async function workforceRoutes(app: FastifyInstance, ctx: AppCont
     const { userId } = me(req);
     const { id } = parse(AiConversationParams, req.params);
     const conv = ctx.authz.conversation(id);
-    if (!conv?.org_id || channelRefusal(ctx, conv.org_id, id, userId)) throw new ApiError(404, "not_found", "Not found, or not visible to you.");
+    // A channel the person can see, or their own direct conversation with an agent.
+    const direct = conv?.type === "DM" && ctx.authz.isMember(id, userId) && w.readers.of(id).some((r) => r.mode === "direct");
+    if (!direct && (!conv?.org_id || channelRefusal(ctx, conv.org_id, id, userId))) throw new ApiError(404, "not_found", "Not found, or not visible to you.");
     const q = parse(AiPostsQuery, req.query);
     return { posts: w.posts.list(id, { since: q.since, before: q.before }, q.limit).map((p) => postView(w, p)) };
   });
@@ -330,6 +333,7 @@ export default async function workforceRoutes(app: FastifyInstance, ctx: AppCont
   automationRoutes(app, ctx, w);
   skillRoutes(app, ctx, w);
   taskRoutes(app, ctx, w);
+  readerRoutes(app, ctx, w);
 
   async function sendFile(reply: FastifyReply, f: AiFileRow, download: boolean, range: { start: number; end: number } | null = null) {
     reply.header("cache-control", "private, no-store");

@@ -7,7 +7,7 @@ import { ROUTING_CATEGORIES } from "../ai/index.js";
 import { conversationMemberIds } from "../messaging/index.js";
 import { orgMemberIds } from "../organizations/index.js";
 import { refusal, scopesFor } from "../quotas/index.js";
-import { channelRefusal, type Deps, effectiveMode, mayApprove, requireInvoke, reviewForced, useRefusal } from "./access.js";
+import { channelRefusal, type Deps, directWith, effectiveMode, mayApprove, requireInvoke, reviewForced, useRefusal } from "./access.js";
 import { AGENTS, findAgent } from "./catalog/index.js";
 import { type AiFileRow, INPUT_MIMES, MAX_INPUT_BYTES, sniffMatches } from "./files.js";
 import { type JobRow, JobStore, MAX_DEPTH, MAX_JOBS_PER_ROOT } from "./jobs.js";
@@ -51,7 +51,7 @@ export interface JobRequest {
   /** Messages of the channel the person's app decrypted and chose to share (AiJobBody.channelMessages). */
   channelMessages?: SharedMessage[] | null;
   /** Started by a trigger (automation.ts), not a person in the moment: which, what it hands on, handoffs deep. */
-  origin?: { triggerId: string; sourceJobId: string | null; chain: number } | null;
+  origin?: { triggerId?: string; sourceJobId?: string | null; chain?: number; readerId?: string } | null;
 }
 
 export class Workforce {
@@ -384,7 +384,8 @@ export class Workforce {
     const template = this.d.store.templateState(install.agentId, install.version);
     if (!def || (template.status !== "published" && template.status !== "retired")) throw new ApiError(409, "agent_unavailable", "This agent is turned off on the platform.");
     requireInvoke(this.ctx, install, r.userId);
-    if (r.conversationId) {
+    // A channel the agent is assigned to, or the person's own direct conversation with it.
+    if (r.conversationId && !directWith(this.d, install.id, r.conversationId, r.userId)) {
       const why = channelRefusal(this.ctx, r.orgId, r.conversationId, r.userId, true);
       if (why) throw new ApiError(403, "agent_not_assigned", why);
       if (!this.d.store.assignment(install.id, r.conversationId)) throw new ApiError(403, "agent_not_assigned", `${install.displayName} isn't assigned to that channel.`);
@@ -442,8 +443,9 @@ export class Workforce {
     })();
     this.ctx.audit({ actorId: r.userId, orgId: r.orgId, action: "ai.job_create", target: job.id, detail: `${install.id}:${def.id}${shared ? `:shared=${shared.length}` : ""}` });
     if (r.conversationId) {
-      // The channel sees that its messages went to the agent, not only the person who shared them.
-      const body = [r.requestText, shared ? sharedNote(shared.length) : null].filter(Boolean).join("\n\n");
+      // The channel sees that its messages went to the agent, not only the person who shared them (a reader's channel
+      // already knows the agent reads it).
+      const body = [r.requestText, shared && !r.origin?.readerId ? sharedNote(shared.length) : null].filter(Boolean).join("\n\n");
       if (body) this.d.posts.add({ orgId: r.orgId, conversationId: r.conversationId, threadRoot: r.threadRoot, installId: install.id, jobId: job.id, kind: "request", body, fileIds: r.fileIds, authorId: r.userId });
       this.ctx.hub.sendToUsers(conversationMemberIds(this.ctx, r.conversationId), { t: "ai.posts", conversationId: r.conversationId });
     }

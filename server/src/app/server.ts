@@ -72,7 +72,7 @@ import { ApiError } from "../shared/errors.js";
 import { now } from "../shared/utilities/util.js";
 import wsRoutes from "../modules/realtime/ws.js";
 
-export const VERSION = "0.39.0";
+export const VERSION = "0.40.0";
 /**
  * The client API this server speaks and the oldest client API it accepts. Clients refuse a server whose
  * minClientApi is newer than theirs; servers from before these fields existed count as API 1.
@@ -182,6 +182,7 @@ export async function buildApp(
     paused: () => platformSetting(db, "ai.workforce.paused"),
     maxConcurrency: () => platformSetting(db, "ai.workforce.max_concurrency"),
     approvalFloor: () => platformSetting(db, "ai.workforce.approval_floor"),
+    channelReading: () => platformSetting(db, "ai.workforce.channel_reading"),
   });
   ctx.workforce.runtime.start(config.aiWorkforceTickMs);
   app.addHook("onClose", async () => ctx.workforce.runtime.stop());

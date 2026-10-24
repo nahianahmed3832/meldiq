@@ -346,10 +346,12 @@ export class WorkforceRuntime {
     const inputJobs = [...new Set([row.id, root.id, ...(row.parent_job_id ? [row.parent_job_id] : [])])];
     // A handoff (automation.ts) also passes on the finished files of the job that triggered it: its latest versions.
     const handedOn = row.source_job_id ? d.files.ofJobs([row.source_job_id], "artifact").filter((f) => f.approval_state !== "superseded" && f.approval_state !== "rejected") : [];
-    // A step that waited for people's tasks reads what they submitted.
-    const taskDeps = (JSON.parse(row.depends_on) as string[]).filter((id) => id.startsWith("tsk_"));
-    const submitted = d.files.ofTasks(taskDeps);
-    const inputs = [...d.files.ofJobs(inputJobs, "input"), ...handedOn, ...submitted].map((f) => ({ id: f.id, name: f.name, mime: f.mime, size: f.size, sha256: f.sha256 }));
+    // A step that waited for people's tasks reads what they submitted, and one that waited for agent steps reads what
+    // they made (their latest versions, never a rejected one).
+    const deps = JSON.parse(row.depends_on) as string[];
+    const submitted = d.files.ofTasks(deps.filter((id) => id.startsWith("tsk_")));
+    const madeBefore = d.files.ofJobs(deps.filter((id) => !id.startsWith("tsk_")), "artifact").filter((f) => f.approval_state !== "superseded" && f.approval_state !== "rejected");
+    const inputs = [...d.files.ofJobs(inputJobs, "input"), ...handedOn, ...submitted, ...madeBefore].map((f) => ({ id: f.id, name: f.name, mime: f.mime, size: f.size, sha256: f.sha256 }));
     const checkpoint = row.checkpoint ? (JSON.parse(row.checkpoint) as unknown) : null;
     const revisionNote = checkpoint && typeof checkpoint === "object" && typeof (checkpoint as { revisionNote?: unknown }).revisionNote === "string" ? (checkpoint as { revisionNote: string }).revisionNote : null;
     return {
@@ -399,6 +401,12 @@ export class WorkforceRuntime {
         }),
       discover: (needs) => discover(d, row.org_id, row.requested_by, needs, install.id),
       people: () => d.taskService.people(row),
+      channels: () => readableChannels(d, install.id, row.requested_by),
+      readChannel: (conversationId, limit) => {
+        if (!readableChannels(d, install.id, row.requested_by).some((c) => c.conversationId === conversationId)) throw new ApiError(403, "ai_reading_not_allowed", "This agent doesn't read that channel for you.");
+        const r = d.readers.readerOf(install.id, conversationId)!;
+        return d.readers.context(r, Math.min(Math.max(1, limit), 100)).map((m) => ({ author: m.author, text: m.text, at: m.sentAt }));
+      },
       tasks: () => d.taskService.ofJob(row),
       children: () =>
         d.jobs.children(row.id).map((c) => ({
@@ -418,3 +426,17 @@ export class WorkforceRuntime {
     };
   }
 }
+
+/** Channels [installId] reads that [userId] can see themself (each checked live). */
+function readableChannels(d: Deps, installId: string, userId: string): { conversationId: string; name: string }[] {
+  if (!d.readers.enabled) return [];
+  return d.readers
+    .ofInstall(installId)
+    .filter((r) => r.mode === "channel")
+    .flatMap((r) => {
+      const conv = d.ctx.authz.conversation(r.conversation_id);
+      if (!conv || conv.archived_at || !d.ctx.authz.isMember(conv.id, userId) || !d.ctx.authz.canViewChannel(conv, userId)) return [];
+      return [{ conversationId: conv.id, name: conv.name ?? "channel" }];
+    });
+}
+

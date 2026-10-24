@@ -29,6 +29,13 @@ export const SETTINGS = {
     schema: z.boolean(),
     default: false,
   },
+  "ai.workforce.channel_reading": {
+    label: "AI agents may read channels",
+    description:
+      "Off: no agent reads any channel, and switching a reader on is refused; readers already on stop reading at once (their channels' managers switch them off to erase what they kept). On: a channel's managers may let an agent read new messages there, with a notice to every member and each member's own opt-out. Those messages are then readable by the server and the AI provider.",
+    schema: z.boolean(),
+    default: false,
+  },
   "ai.workforce.paused": {
     label: "New AI jobs paused",
     description: "An emergency pause: no new job is accepted or started. Running steps finish; jobs waiting in the queue stay there until it's lifted.",

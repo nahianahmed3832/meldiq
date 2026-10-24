@@ -125,7 +125,7 @@ const TABLE_OWNERS: Readonly<Record<string, string>> = {
   ...owned(
     "workforce",
     "ai_agent_templates ai_tool_policies ai_org_entitlements ai_agent_installs ai_agent_channels ai_jobs ai_job_events ai_files " +
-      "ai_approvals ai_channel_posts ai_shared_messages ai_triggers ai_tasks ai_task_events ai_task_settings",
+      "ai_approvals ai_channel_posts ai_shared_messages ai_triggers ai_tasks ai_task_events ai_task_settings ai_agent_identities ai_channel_readers ai_reader_choices ai_channel_context ai_reader_events",
   ),
 };
 

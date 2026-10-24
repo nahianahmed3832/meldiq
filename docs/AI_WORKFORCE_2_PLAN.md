@@ -92,6 +92,44 @@ The owner's "Autonomous AI Workforce 2.0" brief, checked against this repository
 - Not built: availability calendars (none exist in Meldiq; the employee-management app isn't deployed), push
   notifications for tasks (realtime and channel posts only), an agent reviewing a submission against its criteria.
 
+## Phase 5: agents as channel members (design, 2026-10-25)
+
+The owner's "native AI bots" brief, on top of decision 1 (opt-in AI reader). Design follows
+`AI_AGENT_CHANNEL_READ_PROPOSAL.md` with these choices:
+
+1. **One bot identity per installed agent** (a `users` row with `kind = 'agent'`, reserved username, the install's name
+   and avatar; no account, so it can't sign in, be searched, DMed by others or added anywhere), and **one reader device
+   per conversation** (`devices.reader_conversation_id`). A conversation's key list shows an agent only its own device
+   for that conversation, so one leaked device key opens one channel, as in the proposal, while members see one bot.
+2. **Keys** (identity seed, device signing and encryption keys) are generated on the server and sealed (AES-256-GCM)
+   under a random per-reader key, itself wrapped by a key derived (HKDF, own label) from `PLATFORM_SECRETS_KEY`: no new
+   production secret. Honest limit: the worker runs in the API process, so the separation the proposal wanted between
+   the HTTP process and the key holder doesn't exist; a database leak or a stolen backup still can't open them.
+   Switching off deletes the per-reader key (crypto-shred), revokes the device and erases the context.
+3. **Consent is enforced by senders' clients.** The server requires every human device and treats reader devices as
+   optional (§6.4). A conversation's key list includes reader devices only for clients that say they implement the
+   notice and the choice (`x-meldiq-ai-reader: 1`); older web and Android clients never see them, so they never share.
+   Each member's *share* / *keep* choice is stored per reader so their devices agree.
+4. **Replies stay agent posts** (server-stored, AI-badged, in the channel or thread), as since 1.0: agents never send
+   end-to-end encrypted messages, so no client has to trust an agent's signature, and an agent never reads another
+   agent's output (no loops through messages).
+5. **What triggers an agent** in a channel it reads and is assigned to: a mention of its bot account, a command
+   (`/name …`), a reply in the thread of one of its posts, or every message in a direct conversation with it. Each
+   message triggers at most one job per agent (`msg:<messageId>`), with a per-channel cooldown; messages from agents
+   are ignored.
+6. **Read and write are separate.** Reading needs a reader in that channel; posting needs the existing channel
+   assignment. "Read all channels" creates a reader, with its notice, in every channel of the community.
+7. **Direct conversations with an agent** are DMs between a person and the bot account; starting one is the person's
+   consent, so everything they write there is shared.
+8. Open questions of the proposal, defaults taken (owner can change): sharing is never required to post (members keep
+   their opt-out); context window 30 days / 2,000 messages; any verified provider (no "no retention" flag yet);
+   channel attachments are not read (files reach agents through requests and task hand-ins); the notice names the
+   provider of the route in use.
+
+Stages: (A) server: identities, reader devices, recipient rule, worker, triggers, grants, DMs, tests with real crypto;
+(B) web: notice and choice, wrap rule, commands, DMs, settings; (C) Android: the same; (D) staged rollout behind the
+platform setting `ai.workforce.channel_reading` (off by default).
+
 ## Order of work
 
 Phases follow the brief's order, starting with what no decision blocks: (1) shared skill library and discovery,

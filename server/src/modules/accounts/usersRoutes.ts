@@ -264,7 +264,7 @@ export default async function userRoutes(app: FastifyInstance, ctx: AppContext) 
     const rows = ctx.db
       .prepare(
         `SELECT DISTINCT u.* FROM users u
-         WHERE u.disabled_at IS NULL AND u.home_server_id IS NULL AND u.id != ? AND (
+         WHERE u.disabled_at IS NULL AND u.home_server_id IS NULL AND u.kind = 'person' AND u.id != ? AND (
            u.username = ? COLLATE NOCASE OR (
              (u.username LIKE ? ESCAPE '\\' OR lower(u.display_name) LIKE ? ESCAPE '\\' OR lower(u.display_name) LIKE ? ESCAPE '\\')
              AND EXISTS (

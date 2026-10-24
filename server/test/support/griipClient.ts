@@ -72,6 +72,8 @@ export interface UserKeys {
   devices: DeviceKeys[];
   /** Servers from 2026-10-17 (T1.5); older ones omit it. */
   revokedDevices?: RevokedDeviceKeys[];
+  /** An AI agent reading the conversation (servers from 0.40.0, for clients that ask): only its device there. */
+  agent?: { installId: string; readerId: string; name: string };
 }
 
 export interface DecryptedMessage {
@@ -148,6 +150,11 @@ export class GriipClient {
 
   /** Sent with every request, e.g. X-Forwarded-For to act as a client behind a trusted proxy (abuse-control tests). */
   extraHeaders: Record<string, string> = {};
+  /**
+   * AI readers (docs/AI_WORKFORCE_2_PLAN.md phase 5): null, like an older client, never sees one and never shares; "share"
+   * or "keep" asks for them (x-meldiq-ai-reader) and wraps to a reader only with "share", as the apps do per member.
+   */
+  aiReaders: "share" | "keep" | null = null;
 
   async req(method: string, path: string, body?: unknown, raw?: Buffer): Promise<any> {
     const headers: Record<string, string> = { ...this.extraHeaders };
@@ -290,7 +297,9 @@ export class GriipClient {
 
   // ───── keys ─────
   async conversationKeys(conversationId: string): Promise<UserKeys[]> {
-    const r = await this.req("GET", `/v1/conversations/${conversationId}/devices`);
+    const saved = this.extraHeaders;
+    if (this.aiReaders) this.extraHeaders = { ...saved, "x-meldiq-ai-reader": "1" };
+    const r = await this.req("GET", `/v1/conversations/${conversationId}/devices`).finally(() => (this.extraHeaders = saved));
     for (const u of r.users as UserKeys[]) this.keyCache.set(u.userId, u);
     return r.users;
   }
@@ -332,7 +341,10 @@ export class GriipClient {
       const users = await this.conversationKeys(conversationId);
       const changed = users.filter((u) => this.trustedKey(u) === null).map((u) => u.userId);
       if (changed.length) throw new IdentityChangedError(changed); // never encrypt to a substituted key
-      const devices = users.flatMap((u) => this.verifiedDevices(u)).filter((d) => d.id !== this.deviceId);
+      const devices = users
+        .filter((u) => !u.agent || this.aiReaders === "share")
+        .flatMap((u) => this.verifiedDevices(u))
+        .filter((d) => d.id !== this.deviceId);
       const env = await this.encrypt(conversationId, payload, cls, devices, id);
       try {
         return await this.req("POST", "/v1/messages", { ...env, ...extra });

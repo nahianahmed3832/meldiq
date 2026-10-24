@@ -134,6 +134,11 @@ export const DeviceDirectoryEntry = z.strictObject({
   devices: z.array(DirectoryDevice),
   /** Devices revoked within the queue lifetime: never encrypted to, but their earlier envelopes still verify. */
   revokedDevices: z.array(DirectoryDevice.extend({ revokedAt: zTime })),
+  /**
+   * An AI agent reading this conversation (docs/AI_WORKFORCE_2_PLAN.md phase 5): listed only for apps that send
+   * `x-meldiq-ai-reader: 1`, with only its device here. A sender wraps to it only if their person chose to share.
+   */
+  agent: z.strictObject({ installId: z.string(), readerId: z.string(), name: z.string() }).optional(),
 });
 
 export const Ok = z.strictObject({ ok: z.literal(true) });

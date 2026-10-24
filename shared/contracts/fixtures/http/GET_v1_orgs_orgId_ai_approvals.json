@@ -1,0 +1,17 @@
+{
+  "approvals": [
+    {
+      "id": "apr_en_GGtY1WGq6a8PFdEk-rQ",
+      "jobId": "job_9_uKpGa86G_p-M4YDdXy-w",
+      "action": "media.render",
+      "fileId": "aif_Yz1waBoClsA2DOi-flKQFQ",
+      "fileSha256": "6533c270485ba928be5848a60b4881b9db31ade8a3680597065fb70a4e8dc12e",
+      "summary": "Export the final video from preview v1 (1 scene, 3.5 s, 2 captions).",
+      "state": "pending",
+      "requestedAt": 1792861801954,
+      "decidedBy": null,
+      "decidedAt": null,
+      "note": null
+    }
+  ]
+}

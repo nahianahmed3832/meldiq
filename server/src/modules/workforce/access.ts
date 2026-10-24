@@ -1,3 +1,4 @@
+import type { ChannelReaders } from "./reader/service.js";
 import type { TaskService } from "./taskService.js";
 import type { TaskStore } from "./taskStore.js";
 import type { AppContext } from "../../app/context.js";
@@ -18,6 +19,8 @@ export interface WorkforceSettings {
   paused(): boolean;
   maxConcurrency(): number;
   approvalFloor(): "standard" | "strict";
+  /** Whether agents may read channels at all (platform setting ai.workforce.channel_reading). */
+  channelReading(): boolean;
 }
 
 export interface Deps {
@@ -32,6 +35,7 @@ export interface Deps {
   /** Human tasks (taskStore.ts) and their rules (taskService.ts). */
   tasks: TaskStore;
   taskService: TaskService;
+  readers: ChannelReaders;
   settings: WorkforceSettings;
   clock: () => number;
 }
@@ -61,6 +65,11 @@ export function invokeRefusal(ctx: AppContext, install: Install, userId: string)
 export function requireInvoke(ctx: AppContext, install: Install, userId: string): void {
   const why = invokeRefusal(ctx, install, userId);
   if (why) throw new ApiError(403, "agent_not_assigned", why);
+}
+
+/** Whether [conversationId] is [userId]'s direct conversation with [installId]'s agent (its reader is on there). */
+export function directWith(d: Pick<Deps, "readers" | "ctx">, installId: string, conversationId: string, userId: string): boolean {
+  return d.readers.readerOf(installId, conversationId)?.mode === "direct" && d.ctx.authz.isMember(conversationId, userId);
 }
 
 /**

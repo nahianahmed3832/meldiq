@@ -16,6 +16,8 @@ import { type KeyBackupStore, SqliteKeyBackupStore } from "./keyBackupStore.js";
 import { MongoKeyBackupStore } from "./mongoKeyBackupStore.js";
 import { PasskeyService } from "./passkeys.js";
 
+// AI agents' bot identities (modules/workforce/reader).
+export { addBotDevice, botDevice, createBotUser, identityKeyOf, isBot, revokeBotDevice, senderKeys } from "./botIdentities.js";
 // For the Platform Admin Console (modules/platformAdmin), which signs admins in with their account password.
 export type { AccountRow } from "./store.js";
 export { burnPasswordCheck, verifyPassword } from "./passwords.js";

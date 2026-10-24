@@ -195,6 +195,13 @@ export interface SkillContext {
    * need "Manage AI agents"); otherwise how many people are eligible and their roles' names (taskService.ts).
    */
   people(): { eligible: number; roles: string[] } | null;
+  /**
+   * Channels this agent reads (a reader is on there) that the person who asked can see themself, and their latest
+   * messages: never a channel the person couldn't read, never one without a reader (reader/, AI_WORKFORCE_2_PLAN.md
+   * phase 5). Rechecked on every call.
+   */
+  channels(): { conversationId: string; name: string }[];
+  readChannel(conversationId: string, limit: number): { author: string; text: string; at: number }[];
   /** Tasks this job created: their state, assignee's name, the note and files they submitted (never anything else). */
   tasks(): { taskId: string; title: string; state: string; assignee: string; note: string | null; fileIds: string[] }[];
   /** Reads jobs this job delegated (the Agent Manager): their state and validated output, never anything else. */

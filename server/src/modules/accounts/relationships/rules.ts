@@ -24,7 +24,8 @@ export function sharesCommunity(ctx: AppContext, x: string, y: string): boolean 
 
 /** A local, enabled account (people on other servers keep their own settings there). */
 export function availableUser(ctx: AppContext, id: string): { id: string; home_server_id: string | null } | null {
-  return (ctx.db.prepare("SELECT id, home_server_id FROM users WHERE id = ? AND disabled_at IS NULL").get(id) as { id: string; home_server_id: string | null } | undefined) ?? null;
+  // AI agents' bot identities (kind 'agent') are no one's to message: their direct conversations start from AI agents.
+  return (ctx.db.prepare("SELECT id, home_server_id FROM users WHERE id = ? AND disabled_at IS NULL AND kind = 'person'").get(id) as { id: string; home_server_id: string | null } | undefined) ?? null;
 }
 
 export type DmDecision = "direct" | "request" | "refused";

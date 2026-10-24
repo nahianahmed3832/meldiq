@@ -57,6 +57,7 @@ export const ERROR_CODES = {
   account_disabled: { status: [401, 403], meaning: "This account is disabled." },
   ai_disabled: { status: [503], meaning: "AI features are switched off on this server (an operator's kill switch)." },
   ai_not_configured: { status: [409, 503], meaning: "No AI provider is set up for this feature." },
+  ai_reading_not_allowed: { status: [403, 409], meaning: "An AI agent can't read this conversation: reading is switched off, the conversation can't have a reader, or the reader was switched off." },
   // AI Workforce (docs/AI_WORKFORCE.md).
   agent_not_assigned: { status: [403], meaning: "This agent isn't assigned to that channel, or you can't ask it there." },
   agent_unavailable: { status: [409], meaning: "This agent isn't available to this community (not published, disabled, or not included)." },

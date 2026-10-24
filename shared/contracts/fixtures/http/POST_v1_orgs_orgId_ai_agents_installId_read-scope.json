@@ -1,0 +1,132 @@
+{
+  "readers": [
+    {
+      "readerId": "rdr_VcAZiY3tO4T5nisBUgHtXA",
+      "installId": "agi_bVy_LZm5GbT3WCGl6NAgzA",
+      "agentUserId": "u_vvjdHqawqyxpu5P60QNYFQ",
+      "name": "General Assistant",
+      "conversationId": "c_ZmNd2App3Jg4Jh1DxhMrjw",
+      "conversationName": "welcome",
+      "mode": "channel",
+      "state": "on",
+      "since": 1792861801605,
+      "turnedOnBy": {
+        "id": "u_rXxlHGcR4vL3a4D2R31lAg",
+        "name": "Readersowner"
+      },
+      "reason": "AI Workforce test setup"
+    },
+    {
+      "readerId": "rdr_urZ45XIm4y55aeqafHC_Pg",
+      "installId": "agi_bVy_LZm5GbT3WCGl6NAgzA",
+      "agentUserId": "u_vvjdHqawqyxpu5P60QNYFQ",
+      "name": "General Assistant",
+      "conversationId": "c_pJuGfgFINJoVFdS84dYNOw",
+      "conversationName": "announcements",
+      "mode": "channel",
+      "state": "on",
+      "since": 1792861801607,
+      "turnedOnBy": {
+        "id": "u_rXxlHGcR4vL3a4D2R31lAg",
+        "name": "Readersowner"
+      },
+      "reason": "AI Workforce test setup"
+    },
+    {
+      "readerId": "rdr_DdRhHqBe9DjzVa4F4CavDQ",
+      "installId": "agi_bVy_LZm5GbT3WCGl6NAgzA",
+      "agentUserId": "u_vvjdHqawqyxpu5P60QNYFQ",
+      "name": "General Assistant",
+      "conversationId": "c_1moWUkgassMkmNCszXBGAg",
+      "conversationName": "general",
+      "mode": "channel",
+      "state": "on",
+      "since": 1792861801609,
+      "turnedOnBy": {
+        "id": "u_rXxlHGcR4vL3a4D2R31lAg",
+        "name": "Readersowner"
+      },
+      "reason": "AI Workforce test setup"
+    },
+    {
+      "readerId": "rdr_wZV65Vpgy0q3s-Uhmfz7ow",
+      "installId": "agi_bVy_LZm5GbT3WCGl6NAgzA",
+      "agentUserId": "u_vvjdHqawqyxpu5P60QNYFQ",
+      "name": "General Assistant",
+      "conversationId": "c_dzNQ3GqwNGaxZ7Sdrjc6jQ",
+      "conversationName": "introductions",
+      "mode": "channel",
+      "state": "on",
+      "since": 1792861801610,
+      "turnedOnBy": {
+        "id": "u_rXxlHGcR4vL3a4D2R31lAg",
+        "name": "Readersowner"
+      },
+      "reason": "AI Workforce test setup"
+    },
+    {
+      "readerId": "rdr_ISehiUXyFifZoeSszoOR9A",
+      "installId": "agi_bVy_LZm5GbT3WCGl6NAgzA",
+      "agentUserId": "u_vvjdHqawqyxpu5P60QNYFQ",
+      "name": "General Assistant",
+      "conversationId": "c_aoGyUfrFmHIJxCLRIGztAw",
+      "conversationName": "lounge",
+      "mode": "channel",
+      "state": "on",
+      "since": 1792861801613,
+      "turnedOnBy": {
+        "id": "u_rXxlHGcR4vL3a4D2R31lAg",
+        "name": "Readersowner"
+      },
+      "reason": "AI Workforce test setup"
+    },
+    {
+      "readerId": "rdr_1A1YxVv6p1tLBQcwJtTALw",
+      "installId": "agi_bVy_LZm5GbT3WCGl6NAgzA",
+      "agentUserId": "u_vvjdHqawqyxpu5P60QNYFQ",
+      "name": "General Assistant",
+      "conversationId": "c_0_ys_2iGlvoRPfDSWc2nSw",
+      "conversationName": "work",
+      "mode": "channel",
+      "state": "on",
+      "since": 1792861801280,
+      "turnedOnBy": {
+        "id": "u_rXxlHGcR4vL3a4D2R31lAg",
+        "name": "Readersowner"
+      },
+      "reason": "AI Workforce test setup"
+    },
+    {
+      "readerId": "rdr_zEHuw8ksbgFGI0bTP3mSVA",
+      "installId": "agi_bVy_LZm5GbT3WCGl6NAgzA",
+      "agentUserId": "u_vvjdHqawqyxpu5P60QNYFQ",
+      "name": "General Assistant",
+      "conversationId": "c_nsj94qKhy1ogA4HXFxLwuA",
+      "conversationName": "leadership",
+      "mode": "channel",
+      "state": "on",
+      "since": 1792861801616,
+      "turnedOnBy": {
+        "id": "u_rXxlHGcR4vL3a4D2R31lAg",
+        "name": "Readersowner"
+      },
+      "reason": "AI Workforce test setup"
+    },
+    {
+      "readerId": "rdr_IpZAR8E4mFV_NWYqO2vIDw",
+      "installId": "agi_bVy_LZm5GbT3WCGl6NAgzA",
+      "agentUserId": "u_vvjdHqawqyxpu5P60QNYFQ",
+      "name": "General Assistant",
+      "conversationId": "c_5GUggSNI_ZDpyvkcBZRlfQ",
+      "conversationName": "elsewhere",
+      "mode": "channel",
+      "state": "on",
+      "since": 1792861801330,
+      "turnedOnBy": {
+        "id": "u_rXxlHGcR4vL3a4D2R31lAg",
+        "name": "Readersowner"
+      },
+      "reason": "AI Workforce test setup"
+    }
+  ]
+}

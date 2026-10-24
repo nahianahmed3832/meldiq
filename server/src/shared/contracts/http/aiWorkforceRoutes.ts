@@ -23,6 +23,12 @@ import {
   AiPostsQuery,
   AiReviseBody,
   AiDiscoverQuery,
+  AiConversationReaderParams,
+  AiInstallReaderParams,
+  AiReadScopeBody,
+  AiReaderChoiceBody,
+  AiReaderOffBody,
+  AiReaderOnBody,
   AiTaskActionBody,
   AiTaskBody,
   AiTaskParams,
@@ -306,6 +312,28 @@ export const AiTaskSettings = z.strictObject({
   eligible: z.array(z.strictObject({ id: str, name: str, roles: z.array(str) })),
 });
 
+/** An agent reading a conversation: who switched it on, why and when (never what it read). */
+export const AiReaderView = z.strictObject({
+  readerId: str,
+  installId: str,
+  /** The agent's bot identity (it appears as this user in key lists, with only its device here). */
+  agentUserId: str,
+  name: str,
+  conversationId: str,
+  conversationName: nstr,
+  mode: z.enum(["channel", "direct"]),
+  state: z.enum(["on", "off"]),
+  since: zTime,
+  turnedOnBy: Person,
+  reason: str,
+});
+export const AiConversationReaders = z.strictObject({
+  /** Whether the platform lets agents read at all right now. */
+  readingEnabled: z.boolean(),
+  /** Readers on here, with the person's own choice for each (null: not chosen yet; their app pauses sending until they do). */
+  readers: z.array(AiReaderView.extend({ myChoice: z.enum(["share", "keep"]).nullable() })),
+});
+
 export const AiTriggerView = z.strictObject({
   id: str,
   installId: str,
@@ -465,6 +493,13 @@ export const aiWorkforceRoutes = [
   ...(["accept", "start", "block", "submit", "approve", "return", "cancel", "reassign"] as const).map((action) =>
     route({ method: "POST", url: `/v1/orgs/:orgId/ai/tasks/:taskId/${action}`, tag, summary: TASK_ACTION_SUMMARY[action], auth: true, params: AiTaskParams, body: AiTaskActionBody, response: z.strictObject({ task: AiTaskView }), errors: errs("conflict", "bad_request") }),
   ),
+  route({ method: "GET", url: "/v1/conversations/:id/ai/readers", tag, summary: "Agents reading this conversation, and the person's own choice for each.", auth: true, params: AiConversationParams, response: AiConversationReaders, errors: errs() }),
+  route({ method: "PUT", url: "/v1/conversations/:id/ai/readers/:readerId/choice", tag, summary: "Share your messages with a reader here, or keep them out (your apps then wrap, or don't).", auth: true, params: AiConversationReaderParams, body: AiReaderChoiceBody, response: AiConversationReaders, errors: errs() }),
+  route({ method: "GET", url: "/v1/orgs/:orgId/ai/agents/:installId/readers", tag, summary: "Where an agent reads (Manage AI agents).", auth: true, params: AiInstallParams, response: z.strictObject({ readingEnabled: z.boolean(), readers: z.array(AiReaderView) }), errors: errs() }),
+  route({ method: "POST", url: "/v1/orgs/:orgId/ai/agents/:installId/readers", tag, summary: "Let an agent read a channel from now on (Manage AI agents and managing that channel; members are told and choose).", auth: true, params: AiInstallParams, body: AiReaderOnBody, response: z.strictObject({ reader: AiReaderView }), status: 201, errors: errs("ai_reading_not_allowed", "agent_unavailable") }),
+  route({ method: "POST", url: "/v1/orgs/:orgId/ai/agents/:installId/read-scope", tag, summary: "Let an agent read its assigned channels, or every open channel of the community (each channel is told).", auth: true, params: AiInstallParams, body: AiReadScopeBody, response: z.strictObject({ readers: z.array(AiReaderView) }), errors: errs("ai_reading_not_allowed", "agent_unavailable") }),
+  route({ method: "POST", url: "/v1/orgs/:orgId/ai/agents/:installId/readers/:readerId/off", tag, summary: "Stop an agent reading a conversation: its key is deleted and what it kept is erased.", auth: true, params: AiInstallReaderParams, body: AiReaderOffBody, response: z.strictObject({ reader: AiReaderView }), errors: errs() }),
+  route({ method: "POST", url: "/v1/orgs/:orgId/ai/agents/:installId/direct", tag, summary: "The person's direct conversation with an agent (created on first use; what they write there is read by it).", auth: true, params: AiInstallParams, response: z.strictObject({ conversationId: str, reader: AiReaderView }), errors: errs("ai_reading_not_allowed", "agent_not_assigned") }),
   route({ method: "GET", url: "/v1/orgs/:orgId/ai/skills", tag, summary: "The skill library, and which capabilities this community's agents can do now (with the exact blocker otherwise).", auth: true, params: AiOrgParams, response: z.strictObject({ skills: z.array(AiSkillCard), capabilities: z.array(AiDiscovered) }), errors: errs() }),
   route({ method: "GET", url: "/v1/orgs/:orgId/ai/skills/discover", tag, summary: "For the capabilities named (comma-separated ids), which agents here can do each now, or what's missing.", auth: true, params: AiOrgParams, query: AiDiscoverQuery, response: z.strictObject({ capabilities: z.array(AiDiscovered) }), errors: errs("bad_request") }),
   route({ method: "GET", url: "/v1/orgs/:orgId/ai/agents/:installId/readiness", tag, summary: "Whether an agent can work now: each check, what's missing and who can fix it.", auth: true, params: AiInstallParams, response: z.strictObject({ readiness: AiReadiness }), errors: errs() }),

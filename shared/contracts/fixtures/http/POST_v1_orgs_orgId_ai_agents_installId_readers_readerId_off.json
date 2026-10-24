@@ -1,0 +1,18 @@
+{
+  "reader": {
+    "readerId": "rdr_1A1YxVv6p1tLBQcwJtTALw",
+    "installId": "agi_bVy_LZm5GbT3WCGl6NAgzA",
+    "agentUserId": "u_vvjdHqawqyxpu5P60QNYFQ",
+    "name": "General Assistant",
+    "conversationId": "c_0_ys_2iGlvoRPfDSWc2nSw",
+    "conversationName": "work",
+    "mode": "channel",
+    "state": "off",
+    "since": 1792861801280,
+    "turnedOnBy": {
+      "id": "u_rXxlHGcR4vL3a4D2R31lAg",
+      "name": "Readersowner"
+    },
+    "reason": "AI Workforce test setup"
+  }
+}

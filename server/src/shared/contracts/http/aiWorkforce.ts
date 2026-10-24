@@ -41,6 +41,18 @@ export const AiTasksQuery = z.strictObject({
 /** Who the Agent Manager may give work to: members of these roles, and these people. */
 export const AiTaskSettingsBody = z.strictObject({ roles: z.array(id).max(50), users: z.array(id).max(200) });
 
+// ───────────── Agents reading conversations (docs/AI_WORKFORCE_2_PLAN.md phase 5) ─────────────
+
+export const AiConversationReaderParams = z.strictObject({ id, readerId: id });
+export const AiInstallReaderParams = z.strictObject({ orgId: id, installId: id, readerId: id });
+export const AiReaderChoiceBody = z.strictObject({ choice: z.enum(["share", "keep"]) });
+const zReaderReason = z.string().trim().min(8, "Say why, in a few words (at least 8 characters)").max(500);
+/** Let the agent read one channel, from now on. */
+export const AiReaderOnBody = z.strictObject({ conversationId: id, reason: zReaderReason });
+/** Readers in every channel a scope covers: the agent's assigned channels, or every open channel of the community. */
+export const AiReadScopeBody = z.strictObject({ scope: z.enum(["assigned", "all"]), reason: zReaderReason });
+export const AiReaderOffBody = z.strictObject({ reason: zReaderReason });
+
 /** Capability ids, comma-separated (skill library ids like "video.edit,social.publish"). */
 export const AiDiscoverQuery = z.strictObject({ capabilities: z.string().trim().min(1).max(600) });
 export const AiChannelParams = z.strictObject({ orgId: id, installId: id, conversationId: id });

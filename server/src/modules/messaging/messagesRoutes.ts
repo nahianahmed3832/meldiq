@@ -92,15 +92,18 @@ export default async function messageRoutes(app: FastifyInstance, ctx: AppContex
       if (refusal) throw new ApiError(refusal === "mention_all_rate_limited" ? 429 : 403, refusal, MENTION_ALL_MESSAGES[refusal]);
     }
 
-    // The recipient set must equal the active devices of current members (minus this device).
+    // The recipient set must equal the active devices of current members (minus this device). An AI agent's reader
+    // device in this conversation may be in it too, never must: each sender's client decides, by their own choice, whether
+    // their messages reach it (docs/AI_WORKFORCE_2_PLAN.md phase 5). Agents' devices are never required.
     const expected = db
       .prepare(
         `SELECT d.id, d.user_id, u.home_server_id FROM devices d JOIN conversation_members m ON m.user_id = d.user_id
          JOIN users u ON u.id = d.user_id
-         WHERE m.conversation_id = ? AND d.revoked_at IS NULL AND u.disabled_at IS NULL AND d.id != ?`,
+         WHERE m.conversation_id = ? AND d.revoked_at IS NULL AND u.disabled_at IS NULL AND u.kind = 'person' AND d.id != ?`,
       )
       .all(conv.id, deviceId) as { id: string; user_id: string; home_server_id: string | null }[];
-    const expectedIds = new Map(expected.map((d) => [d.id, d.user_id]));
+    const readers = ctx.workforce.readers.optionalDevices(conv.id).map((r) => ({ id: r.deviceId, user_id: r.userId, home_server_id: null }));
+    const expectedIds = new Map([...expected, ...readers].map((d) => [d.id, d.user_id]));
     const provided = new Set(e.recipients.map((r) => r.deviceId));
     const missing = expected.filter((d) => !provided.has(d.id)).map((d) => ({ deviceId: d.id, userId: d.user_id }));
     const extra = [...provided].filter((id) => !expectedIds.has(id));
@@ -111,8 +114,8 @@ export default async function messageRoutes(app: FastifyInstance, ctx: AppContex
     const t = now();
     const expiresAt = t + ctx.config.queueTtlSeconds * 1000;
     // Devices of people on other servers go to the federation outbox (same ciphertext, same per-device key wrap).
-    const homeOf = new Map(expected.map((d) => [d.id, d.home_server_id]));
-    const ownerOf = new Map(expected.map((d) => [d.id, d.user_id]));
+    const homeOf = new Map([...expected, ...readers].map((d) => [d.id, d.home_server_id]));
+    const ownerOf = new Map([...expected, ...readers].map((d) => [d.id, d.user_id]));
     if ([...homeOf.values()].some((h) => h) && !ctx.federation) throw new ApiError(503, "federation_disabled", "This server no longer federates");
     // People who blocked the sender don't get the message (the sender isn't told).
     const blockedBy = new Set(

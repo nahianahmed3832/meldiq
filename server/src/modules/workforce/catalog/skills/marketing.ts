@@ -37,7 +37,8 @@ export const socialSkill = defineSkill<z.infer<typeof SocialInput>, z.infer<type
   errors: ["A post over its platform's limit is rewritten once; if still over, it's marked in the calendar."],
   tests: ["ai_workforce_skills.test.ts"],
   async run(ctx, input) {
-    const sources = await readTexts(ctx, TEXT_MIMES, 40_000);
+    // Captions of a video it's given (a video step it waited for) count as text: posts can quote what's said in it.
+    const sources = await readTexts(ctx, [...TEXT_MIMES, "application/x-subrip"], 40_000);
     const system = `Write ${input.posts} social posts for: ${input.platforms.join(", ")}. Limits in characters including hashtags: ${input.platforms.map((p) => `${p} ${PLATFORM_LIMITS[p]} (${HASHTAG_LIMITS[p]} hashtags max)`).join(", ")}. Only facts from the brief. JSON only: {"posts":[{"platform","text","hashtags","when","visual"}]}.`;
     const prompt = `${untrusted("brief", input.brief)}${sources.length ? `\n\n${sources.map((s) => untrusted(s.name, s.text)).join("\n\n")}` : ""}`;
     const Answer = z.object({ posts: z.array(SocialPost).min(1).max(40) });

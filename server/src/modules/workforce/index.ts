@@ -7,6 +7,9 @@ import { JobStore } from "./jobs.js";
 import { AgentPosts } from "./posts.js";
 import { Automation } from "./automation.js";
 import { SharedMessageStore } from "./sharedMessages.js";
+import { ReaderKeys } from "./reader/keys.js";
+import { ChannelReaders } from "./reader/service.js";
+import { ReaderWorker } from "./reader/worker.js";
 import { TaskService } from "./taskService.js";
 import { TaskStore } from "./taskStore.js";
 import { TriggerStore } from "./triggers.js";
@@ -31,6 +34,9 @@ export class WorkforceModule implements Deps {
   readonly triggers: TriggerStore;
   readonly tasks: TaskStore;
   readonly taskService: TaskService;
+  /** Agents reading conversations, opt-in (reader/, docs/AI_WORKFORCE_2_PLAN.md phase 5). */
+  readonly readers: ChannelReaders;
+  readonly readerWorker: ReaderWorker;
   readonly service: Workforce;
   readonly tools: ToolGateway;
   readonly runtime: WorkforceRuntime;
@@ -53,14 +59,17 @@ export class WorkforceModule implements Deps {
     this.triggers = new TriggerStore(ctx.db, clock);
     this.tasks = new TaskStore(ctx.db, clock);
     this.taskService = new TaskService(this);
+    this.readers = new ChannelReaders(this, new ReaderKeys(ctx.config.platformSecretsKey));
     this.service = new Workforce(this);
     this.tools = new ToolGateway(this, async (parent, installId, input, dependsOn, label) => this.service.createChild(parent, installId, input, dependsOn, label));
     this.runtime = new WorkforceRuntime(this, this.tools, (id, version) => findAgent(id, version));
     this.automation = new Automation(this, this.service);
+    this.readerWorker = new ReaderWorker(this, this.readers, this.service);
     this.runtime.hooks = {
       onTick: () => {
         void this.automation.fireDue();
         this.taskService.tick();
+        void this.readerWorker.drain();
       },
       onCompleted: (jobId) => this.automation.onCompleted(jobId),
     };

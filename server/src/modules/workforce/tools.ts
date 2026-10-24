@@ -4,7 +4,7 @@ import { pipeline } from "node:stream/promises";
 import { ApiError } from "../../shared/errors.js";
 import { conversationMemberIds } from "../messaging/index.js";
 import { refusal, scopesFor } from "../quotas/index.js";
-import { channelRefusal, type Deps, invokeRefusal, mayApprove, reviewForced } from "./access.js";
+import { channelRefusal, type Deps, directWith, invokeRefusal, mayApprove, reviewForced } from "./access.js";
 import { ARTIFACT_MIMES, type AiFileRow } from "./files.js";
 import type { JobRow } from "./jobs.js";
 import { checkPlan, extractAudio, probe, render } from "./media.js";
@@ -67,7 +67,7 @@ export class ToolGateway {
     if (!live.tools.includes(key)) this.deny(env, key, 403, "tool_not_allowed", `This community hasn't allowed ${env.install.displayName} to ${TOOL_INFO[key].label.toLowerCase()}.`);
     const who = invokeRefusal(this.d.ctx, live, env.job.requested_by);
     if (who) this.deny(env, key, 403, "agent_not_assigned", `The person who asked can't use this agent anymore: ${who}`);
-    if (env.job.conversation_id) {
+    if (env.job.conversation_id && !directWith(this.d, live.id, env.job.conversation_id, env.job.requested_by)) {
       // Posting in the channel needs the right to post there, as the person who asked.
       const ch = channelRefusal(this.d.ctx, env.job.org_id, env.job.conversation_id, env.job.requested_by, key === "channel.post");
       if (ch) this.deny(env, key, 403, "agent_not_assigned", `The person who asked lost access to the channel: ${ch}`);

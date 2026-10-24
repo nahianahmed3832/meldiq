@@ -16,6 +16,9 @@ const Input = z.strictObject({ brief: Brief });
 type Input = z.infer<typeof Input>;
 
 export const MAX_STEPS = 6;
+/** Channels named in a request whose latest messages it reads, and how many of each. */
+const MAX_NAMED_CHANNELS = 3;
+const CHANNEL_CONTEXT = 40;
 
 /** Longest a person step may take: the request waits for it (taskService.ts MAX_DUE_HOURS). */
 const MAX_TASK_HOURS = 168;
@@ -138,6 +141,16 @@ async function plan(ctx: SkillContext, input: Input, answer: string | null): Pro
   const files = ctx.inputs.map((f) => `${f.name} (${f.mime}, ${(f.size / MB).toFixed(1)} MB)`).join(", ");
   // Messages shared from the channel: the coordinator may answer from them, and every step gets them too.
   const shared = sharedSource(ctx, 30_000);
+  // Other channels it reads (for the person asking), and the latest messages of those the request names ("#marketing").
+  const readable = ctx.channels();
+  const brief = input.brief.toLowerCase();
+  const named = readable.filter((c) => brief.includes(`#${c.name.toLowerCase()}`)).slice(0, MAX_NAMED_CHANNELS);
+  const elsewhere = named
+    .map((c) => {
+      const lines = ctx.readChannel(c.conversationId, CHANNEL_CONTEXT).map((m) => `${new Date(m.at).toISOString().slice(0, 16)} ${m.author}: ${m.text}`);
+      return lines.length ? `\n\nLatest messages in #${c.name}:\n${untrusted(`#${c.name}`, lines.join("\n").slice(0, 20_000))}` : "";
+    })
+    .join("");
   const p = await ctx.models.json("reasoning", Plan, {
     system: [
       "You coordinate a team of AI agents. Use the smallest workflow that does the job:",
@@ -148,7 +161,7 @@ async function plan(ctx: SkillContext, input: Input, answer: string | null): Pro
       `At most ${MAX_STEPS} steps. Never invent agents or capabilities. Answer with JSON only.`,
       ...(missing.length ? ["Not available here (no agent can do these now; don't plan them, and don't claim they were done):", ...missing.map((m) => `- ${m}`)] : []),
     ].join("\n"),
-    prompt: `Team:\n${roster || "(no other agents you can use)"}\n\nFiles sent with the request: ${files || "none"}${shared ? `\n\nChannel messages shared with the request:\n${untrusted(shared.name, shared.text)}` : ""}\n\nRequest:\n${untrusted("request", input.brief)}${answer ? `\n\nThe person's answer to your question:\n${untrusted("answer", answer)}` : ""}`,
+    prompt: `Team:\n${roster || "(no other agents you can use)"}\n\nChannels you can read: ${readable.map((c) => `#${c.name}`).join(", ") || "none"}${elsewhere}\n\nFiles sent with the request: ${files || "none"}${shared ? `\n\nChannel messages shared with the request:\n${untrusted(shared.name, shared.text)}` : ""}\n\nRequest:\n${untrusted("request", input.brief)}${answer ? `\n\nThe person's answer to your question:\n${untrusted("answer", answer)}` : ""}`,
     maxOutputTokens: 2000,
   });
   if (p.mode === "ask" && p.question && !answer) {

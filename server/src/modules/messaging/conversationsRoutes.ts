@@ -251,7 +251,12 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     authz.requireMember(id, userId);
     const ids = (db.prepare("SELECT user_id FROM conversation_members WHERE conversation_id = ?").all(id) as { user_id: string }[]).map((r) => r.user_id);
     await ctx.federation?.refreshStale(ids); // remote members' keys come from their home server, refreshed when stale
-    return { users: deviceDirectory(ctx, ids) };
+    // AI agents: members' entries without their devices (a direct conversation's agent is a member, not a recipient
+    // anyone must include), and, for clients that show the notice and honour each member's choice, each reader with only
+    // its device here (docs/AI_WORKFORCE_2_PLAN.md phase 5). Other clients never see a reader, so never share with it.
+    const people = deviceDirectory(ctx, ids).map((u) => (ctx.workforce.readers.isAgent(u.userId) ? { ...u, devices: [], revokedDevices: [] } : u));
+    const readers = req.headers["x-meldiq-ai-reader"] === "1" ? ctx.workforce.readers.directory(id) : [];
+    return { users: [...people.filter((u) => !readers.some((r) => r.userId === u.userId)), ...readers] };
   });
 
   app.post("/v1/conversations/dm", auth, async (req) => {
