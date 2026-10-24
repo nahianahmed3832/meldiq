@@ -122,6 +122,13 @@ class AiWorkforceApi(private val api: ApiClient) {
     /** The person's direct conversation with an agent (created on first use); starting it is their choice to share. */
     suspend fun direct(orgId: String, installId: String): AiDirectRes = api.post("${agentPath(orgId, installId)}/direct")
 
+    // ───────────── Work overview and the Full System Check (API 0.41.0) ─────────────
+
+    suspend fun work(orgId: String): AiWorkOverview = api.get("${base(orgId)}/work")
+    suspend fun runSystemCheck(orgId: String): AiCheckReport = api.post<AiCheckRes>("${base(orgId)}/system-check").report
+    suspend fun systemChecks(orgId: String): AiChecksRes = api.get("${base(orgId)}/system-check")
+    suspend fun systemCheck(orgId: String, checkId: String): AiCheckReport = api.get<AiCheckRes>("${base(orgId)}/system-check/${enc(checkId)}").report
+
     suspend fun channelAgents(conversationId: String): AiChannelAgentsRes = api.get("/v1/conversations/${enc(conversationId)}/ai/agents")
     suspend fun channelPosts(conversationId: String): List<AiPost> = api.get<AiPostsRes>("/v1/conversations/${enc(conversationId)}/ai/posts").posts
 

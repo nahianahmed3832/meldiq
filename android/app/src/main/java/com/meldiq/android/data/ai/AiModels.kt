@@ -50,6 +50,9 @@ data class AiInstall(
     val maxAttempts: Int? = null,
     /** When triggers may run (continuous autonomy); null: any time. */
     val activeHours: AiActiveHours? = null,
+    /** Monthly AI budget here in micro-USD (null: none of its own), and what it cost this month (API 0.41.0). */
+    val maxCostMicroPerMonth: Long? = null,
+    val costMicroThisMonth: Long = 0,
     val rev: Int,
     val skill: AiSkillRef? = null,
     /** Always shown with the name, so an agent can't pass for a person. */

@@ -102,3 +102,24 @@ Dependencies before release:
 Tests: `AgentRulesTest`, `SkillFormTest`, `AiModelsTest` (answers shaped as `views.ts` writes them). With the AI
 server's generated files: 719 of 720 Android tests pass (the route contract above). Not tried against a running AI
 server or on a phone: production has no AI Workforce yet, and no provider is configured anywhere.
+
+## 6. Matching Meldiq Web's AI agents to API 0.41.0 (2026-10-25)
+
+Meldiq Web (`ai-workforce-web`, up to `0f42277`) and the server (API 0.36.0–0.41.0) moved on after §5. Android now
+has the same features:
+
+| Web feature | API | Android |
+|---|---|---|
+| Configure an agent step by step: identity, models, skills, channels, permissions, autonomy, triggers, limits, test and activate (readiness, a real test, activity) | 0.36.0–0.37.0 | `AgentSettingsScreen.kt`, `AgentAutomation.kt` |
+| Remove an agent from the list | 0.35.0 | `AgentsScreen.kt` |
+| Agents like bots in channels: posts among the messages, `@Agent`/`/agent` sent straight to them (notice once), suggestions while typing; agents in the member list | 0.35.0 | `ChannelAgents.kt`, `AgentTimeline`, `ConversationScreen`, `DmDetails` |
+| Tasks for people: lists, report, actions the server allows, hand-in with files, who the Agent Manager may give work to | 0.39.0 | `TasksTab.kt` |
+| Agents reading conversations, opt-in: reader devices only with `x-meldiq-ai-reader: 1`; a message goes to a reader only when its sender chose to share (text, edits, deletes; no choice is keep); the notice and the choice in place of the composer; reading settings; direct conversations | 0.40.0 | `Directory.kt`, `MessageRepository.readersFor`, `ChannelAgents.kt`, `AgentAutomation.ReadingCard` |
+| Overview first: what needs you, in progress, failed, finished, estimated cost, the last system check | 0.41.0 | `WorkTabs.WorkTab` |
+| Health: Run Full System Check, grouped results, earlier runs, export | 0.41.0 | `WorkTabs.SystemCheckTab` |
+| Monthly AI budget per agent, with this month's cost | 0.41.0 | `LimitsStep` |
+
+Tests: 736 Android tests pass, including `KeyDirectoryReadersTest` (a reader is never an ordinary recipient; shared only
+on "share"; a changed agent key is dropped without pausing the conversation), `AgentTimelineTest`, `AiOperationsTest`,
+`AiWorkRulesTest`, and every AI golden fixture the server records (48 routes) decoded normally and strictly. Lint: 0
+errors. Not tried on a phone: AI Workforce is switched off in production, and reading channels is off there too.

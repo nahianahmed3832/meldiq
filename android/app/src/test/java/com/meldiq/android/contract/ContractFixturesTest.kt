@@ -158,6 +158,11 @@ class ContractFixturesTest {
         "POST_v1_orgs_orgId_ai_tasks_taskId_submit" to serializer<com.meldiq.android.data.ai.AiTaskRes>(),
         "PUT_v1_conversations_id_ai_readers_readerId_choice" to serializer<com.meldiq.android.data.ai.AiConversationReaders>(),
         "PUT_v1_orgs_orgId_ai_tasks_settings" to serializer<com.meldiq.android.data.ai.AiTaskSettingsRes>(),
+        // API 0.41.0: the work overview and the Full System Check.
+        "GET_v1_orgs_orgId_ai_work" to serializer<com.meldiq.android.data.ai.AiWorkOverview>(),
+        "GET_v1_orgs_orgId_ai_system-check" to serializer<com.meldiq.android.data.ai.AiChecksRes>(),
+        "GET_v1_orgs_orgId_ai_system-check_checkId" to serializer<com.meldiq.android.data.ai.AiCheckRes>(),
+        "POST_v1_orgs_orgId_ai_system-check" to serializer<com.meldiq.android.data.ai.AiCheckRes>(),
         "GET_v1_conversations_id_ai_agents" to serializer<com.meldiq.android.data.ai.AiChannelAgentsRes>(),
         "GET_v1_conversations_id_ai_posts" to serializer<com.meldiq.android.data.ai.AiPostsRes>(),
         "GET_v1_orgs_orgId_ai_agents_installId" to serializer<com.meldiq.android.data.ai.AiAgentDetail>(),

@@ -291,6 +291,7 @@ fun LimitsStep(a: AiInstall, d: AiAgentDetail, manage: Boolean, busy: Boolean, p
     var from by remember(a.rev) { mutableStateOf(a.activeHours?.from ?: "09:00") }
     var to by remember(a.rev) { mutableStateOf(a.activeHours?.to ?: "18:00") }
     var tz by remember(a.rev) { mutableStateOf(a.activeHours?.timeZone ?: java.util.TimeZone.getDefault().id) }
+    var budget by remember(a.rev) { mutableStateOf(a.maxCostMicroPerMonth?.let { "%.2f".format(java.util.Locale.ROOT, it / 1_000_000.0) }.orEmpty()) }
     val num = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
     Text(stringResource(R.string.aw_limits_sub), style = Griip.type.bodySmall, color = c.textSecondary)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -301,6 +302,12 @@ fun LimitsStep(a: AiInstall, d: AiAgentDetail, manage: Boolean, busy: Boolean, p
         GriipTextField(runtime, { runtime = it.filter(Char::isDigit).take(6) }, stringResource(R.string.aw_longest_run), Modifier.weight(1f), placeholder = skillLimits?.let { stringResource(R.string.aw_skills_n, it.first) } ?: "", enabled = manage, keyboardOptions = num)
         GriipTextField(tries, { tries = it.filter(Char::isDigit).take(2) }, stringResource(R.string.aw_tries), Modifier.weight(1f), placeholder = skillLimits?.let { stringResource(R.string.aw_skills_n, it.second) } ?: "", enabled = manage, keyboardOptions = num)
     }
+    // API 0.41.0: a monthly AI budget of its own, enforced by the server; what it cost this month.
+    GriipTextField(
+        budget, { budget = it.filter { ch -> ch.isDigit() || ch == '.' || ch == ',' }.take(10) }, stringResource(R.string.aw_budget), placeholder = stringResource(R.string.aw_budget_none),
+        helper = stringResource(R.string.aw_budget_spent, com.meldiq.android.data.ai.AiWorkRules.cost(a.costMicroThisMonth)), enabled = manage,
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal),
+    )
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(stringResource(R.string.aw_active_hours), style = Griip.type.body, color = c.textPrimary, modifier = Modifier.weight(1f))
         GriipSwitch(hours, { hours = it }, enabled = manage)
@@ -319,6 +326,7 @@ fun LimitsStep(a: AiInstall, d: AiAgentDetail, manage: Boolean, busy: Boolean, p
             mapOf(
                 "maxJobsPerDay" to n(perDay), "maxConcurrent" to (atOnce.toIntOrNull()?.coerceIn(1, 16)?.let(::JsonPrimitive) ?: JsonNull),
                 "maxRuntimeSec" to n(runtime), "maxAttempts" to n(tries),
+                "maxCostMicroPerMonth" to (com.meldiq.android.data.ai.AiWorkRules.budgetMicro(budget)?.let(::JsonPrimitive) ?: JsonNull),
                 "activeHours" to if (hours) JsonObject(mapOf("from" to JsonPrimitive(from), "to" to JsonPrimitive(to), "timeZone" to JsonPrimitive(tz.trim()))) else JsonNull,
             ),
             saved,

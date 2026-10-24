@@ -52,7 +52,6 @@ import com.meldiq.android.ui.components.GriipTopBar
 import com.meldiq.android.ui.components.ListCard
 import com.meldiq.android.ui.components.PillButton
 import com.meldiq.android.ui.components.PillChip
-import com.meldiq.android.ui.components.SegmentedPills
 import com.meldiq.android.ui.components.ShimmerList
 import com.meldiq.android.ui.components.StatusBanner
 import com.meldiq.android.ui.friendly
@@ -66,7 +65,7 @@ object AiRoutes {
     fun agent(orgId: String, installId: String) = "ai/$orgId/agent/$installId"
 }
 
-private enum class AiTab { Agents, Manager, Tasks, Requests, Approvals, Files }
+private enum class AiTab { Overview, Agents, Manager, Tasks, Requests, Approvals, Files, Health }
 
 /**
  * Community › AI agents (server docs/AI_WORKFORCE.md, as Meldiq Web's AgentsPage): the installed agents and the catalog,
@@ -84,20 +83,25 @@ fun AgentsScreen(nav: NavHostController, orgId: String) {
     LaunchedEffect(orgId, rev, reload) {
         runCatching { container.ai.overview(orgId) }.onSuccess { overview = it; error = null }.onFailure { error = it.friendly() }
     }
-    var tab by rememberSaveable { mutableStateOf(AiTab.Agents) }
+    var tab by rememberSaveable { mutableStateOf(AiTab.Overview) }
+    // A task the overview asked to open in Tasks.
+    var openTask by remember { mutableStateOf<String?>(null) }
     var asking by remember { mutableStateOf<String?>(null) }
     var openJob by remember { mutableStateOf<String?>(null) }
     var browsing by remember { mutableStateOf(false) }
     var removing by remember { mutableStateOf<AiInstall?>(null) }
     val o = overview
     val tabs = buildList {
-        add(AiTab.Agents); add(AiTab.Manager); add(AiTab.Tasks); add(AiTab.Requests)
+        add(AiTab.Overview); add(AiTab.Agents); add(AiTab.Manager); add(AiTab.Tasks); add(AiTab.Requests)
         if (o?.permissions?.canApprove == true) add(AiTab.Approvals)
         add(AiTab.Files)
+        if (o?.permissions?.canManage == true) add(AiTab.Health)
     }
     val labels = tabs.map {
         stringResource(
             when (it) {
+                AiTab.Overview -> R.string.aw_tab_overview
+                AiTab.Health -> R.string.aw_tab_health
                 AiTab.Agents -> R.string.aw_tab_agents
                 AiTab.Manager -> R.string.aw_tab_manager
                 AiTab.Tasks -> R.string.aw_tab_tasks
@@ -120,13 +124,16 @@ fun AgentsScreen(nav: NavHostController, orgId: String) {
                 if (o.paused) StatusBanner(stringResource(R.string.aw_paused), BannerKind.Warning)
                 if (!o.aiRequestsOn) StatusBanner(stringResource(R.string.aw_requests_off), BannerKind.Warning)
                 AiNotice(text = o.notice)
-                SegmentedPills(labels, tabs.indexOf(tab).coerceAtLeast(0), { tab = tabs[it] }, Modifier.padding(top = 4.dp))
             }
         }
+        // Eight tabs don't fit a segmented control on a phone: they scroll as chips.
+        item { com.meldiq.android.ui.components.ChipRow { tabs.forEachIndexed { i, t -> PillChip(labels[i], tab == t, { openTask = null; tab = t }) } } }
         when (tab) {
             AiTab.Agents -> agentsTab(o, orgId, onAsk = { asking = it }, onSettings = { nav.navigate(AiRoutes.agent(orgId, it)) }, onBrowse = { browsing = true }, onRemove = { removing = it })
             AiTab.Manager -> item { ManagerTab(orgId, o, onAsk = { asking = it }, onOpen = { openJob = it }) }
-            AiTab.Tasks -> item { TasksTab(orgId, o) }
+            AiTab.Tasks -> item { androidx.compose.runtime.key(openTask) { TasksTab(orgId, o, open = openTask) } }
+            AiTab.Overview -> item { WorkTab(orgId, o, onOpenTask = { openTask = it; tab = AiTab.Tasks }, onOpenHealth = { tab = AiTab.Health }) }
+            AiTab.Health -> item { SystemCheckTab(orgId, o) }
             AiTab.Requests -> item { RequestsTab(orgId, o, rev, onOpen = { openJob = it }) }
             AiTab.Approvals -> item { ApprovalsTab(orgId, rev, onOpen = { openJob = it }) }
             AiTab.Files -> item { FilesTab(orgId, rev) }

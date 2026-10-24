@@ -117,13 +117,13 @@ private fun dueText(dueAt: Long?, overdue: Boolean): String = when {
  * The server says what this person may do with each task; this only shows those actions. Not end-to-end encrypted.
  */
 @Composable
-fun TasksTab(orgId: String, o: AiOverview) {
+fun TasksTab(orgId: String, o: AiOverview, open: String? = null) {
     val container = LocalContainer.current
     val rev by container.aiSignals.jobs.collectAsStateWithLifecycle()
     var scope by rememberSaveable { mutableStateOf("mine") }
     var page by remember { mutableStateOf<AiTasksPage?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
-    var opened by remember { mutableStateOf<String?>(null) }
+    var opened by remember { mutableStateOf(open) }
     var creating by remember { mutableStateOf(false) }
     var reload by remember { mutableStateOf(0) }
     LaunchedEffect(orgId, scope, rev, reload) {
