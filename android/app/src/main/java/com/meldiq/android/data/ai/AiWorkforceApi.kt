@@ -69,6 +69,59 @@ class AiWorkforceApi(private val api: ApiClient) {
 
     suspend fun downloadAvatar(orgId: String, installId: String, dest: File) = api.downloadTo("${base(orgId)}/agents/${enc(installId)}/avatar", dest) {}
 
+    // ───────────── Operations: readiness, activity, test, triggers (API 0.36.0) ─────────────
+
+    private fun agentPath(orgId: String, installId: String) = "${base(orgId)}/agents/${enc(installId)}"
+
+    suspend fun readiness(orgId: String, installId: String): AiReadiness = api.get<AiReadinessRes>("${agentPath(orgId, installId)}/readiness").readiness
+    suspend fun activity(orgId: String, installId: String): AiActivity = api.get<AiActivityRes>("${agentPath(orgId, installId)}/activity").activity
+
+    /** One real short request through the normal path (model, quotas, its skill); the job shows the outcome. */
+    suspend fun test(orgId: String, installId: String): AiJobDetail = api.post<AiJobRes>("${agentPath(orgId, installId)}/test").job
+
+    suspend fun triggers(orgId: String, installId: String): List<AiTrigger> = api.get<AiTriggersRes>("${agentPath(orgId, installId)}/triggers").triggers
+    suspend fun addTrigger(orgId: String, installId: String, t: AiNewTrigger): AiTriggerAdded = api.post("${agentPath(orgId, installId)}/triggers", t)
+    suspend fun updateTrigger(orgId: String, installId: String, triggerId: String, patch: JsonObject): AiTrigger =
+        api.patch<JsonObject, AiTriggerRes>("${agentPath(orgId, installId)}/triggers/${enc(triggerId)}", patch).trigger
+    suspend fun removeTrigger(orgId: String, installId: String, triggerId: String) { api.delete<AiOkPlain>("${agentPath(orgId, installId)}/triggers/${enc(triggerId)}") }
+    suspend fun runTrigger(orgId: String, installId: String, triggerId: String): AiJobDetail = api.post<AiJobRes>("${agentPath(orgId, installId)}/triggers/${enc(triggerId)}/run").job
+
+    // ───────────── Tasks for people (API 0.39.0) ─────────────
+
+    private fun tasksPath(orgId: String) = "${base(orgId)}/tasks"
+
+    /** [scope]: mine (assigned to me), created (by me) or all (people who manage agents; with the report). */
+    suspend fun tasks(orgId: String, scope: String): AiTasksPage = api.get("${tasksPath(orgId)}?scope=${enc(scope)}")
+    suspend fun task(orgId: String, taskId: String): AiTaskRes = api.get("${tasksPath(orgId)}/${enc(taskId)}")
+    suspend fun createTask(orgId: String, t: AiNewTask): AiTask = api.post<AiNewTask, AiTaskRes>(tasksPath(orgId), t).task
+    suspend fun taskAction(orgId: String, taskId: String, action: String, body: AiTaskActionReq): AiTask = when (action) {
+        AiTaskStates.ACCEPT -> api.post<AiTaskActionReq, AiTaskRes>("/v1/orgs/${enc(orgId)}/ai/tasks/${enc(taskId)}/accept", body)
+        AiTaskStates.START -> api.post<AiTaskActionReq, AiTaskRes>("/v1/orgs/${enc(orgId)}/ai/tasks/${enc(taskId)}/start", body)
+        AiTaskStates.BLOCK -> api.post<AiTaskActionReq, AiTaskRes>("/v1/orgs/${enc(orgId)}/ai/tasks/${enc(taskId)}/block", body)
+        AiTaskStates.SUBMIT -> api.post<AiTaskActionReq, AiTaskRes>("/v1/orgs/${enc(orgId)}/ai/tasks/${enc(taskId)}/submit", body)
+        AiTaskStates.APPROVE -> api.post<AiTaskActionReq, AiTaskRes>("/v1/orgs/${enc(orgId)}/ai/tasks/${enc(taskId)}/approve", body)
+        AiTaskStates.RETURN -> api.post<AiTaskActionReq, AiTaskRes>("/v1/orgs/${enc(orgId)}/ai/tasks/${enc(taskId)}/return", body)
+        AiTaskStates.CANCEL -> api.post<AiTaskActionReq, AiTaskRes>("/v1/orgs/${enc(orgId)}/ai/tasks/${enc(taskId)}/cancel", body)
+        AiTaskStates.REASSIGN -> api.post<AiTaskActionReq, AiTaskRes>("/v1/orgs/${enc(orgId)}/ai/tasks/${enc(taskId)}/reassign", body)
+        else -> throw IllegalArgumentException("unknown task action $action")
+    }.task
+    suspend fun taskSettings(orgId: String): AiTaskSettings = api.get<AiTaskSettingsRes>("${tasksPath(orgId)}/settings").settings
+    suspend fun setTaskSettings(orgId: String, roles: List<String>, users: List<String>): AiTaskSettings =
+        api.put<AiTaskSettingsReq, AiTaskSettingsRes>("${tasksPath(orgId)}/settings", AiTaskSettingsReq(roles, users)).settings
+
+    // ───────────── Agents reading conversations (API 0.40.0) ─────────────
+
+    suspend fun installReaders(orgId: String, installId: String): AiInstallReaders = api.get("${agentPath(orgId, installId)}/readers")
+    suspend fun turnOnReader(orgId: String, installId: String, conversationId: String, reason: String): AiReaderView =
+        api.post<AiReaderOnReq, AiReaderRes>("${agentPath(orgId, installId)}/readers", AiReaderOnReq(conversationId, reason)).reader
+    suspend fun readEverywhere(orgId: String, installId: String, reason: String): List<AiReaderView> =
+        api.post<AiReadScopeReq, AiReadersRes>("${agentPath(orgId, installId)}/read-scope", AiReadScopeReq("all", reason)).readers
+    suspend fun turnOffReader(orgId: String, installId: String, readerId: String, reason: String): AiReaderView =
+        api.post<AiReasonReq, AiReaderRes>("${agentPath(orgId, installId)}/readers/${enc(readerId)}/off", AiReasonReq(reason)).reader
+
+    /** The person's direct conversation with an agent (created on first use); starting it is their choice to share. */
+    suspend fun direct(orgId: String, installId: String): AiDirectRes = api.post("${agentPath(orgId, installId)}/direct")
+
     suspend fun channelAgents(conversationId: String): AiChannelAgentsRes = api.get("/v1/conversations/${enc(conversationId)}/ai/agents")
     suspend fun channelPosts(conversationId: String): List<AiPost> = api.get<AiPostsRes>("/v1/conversations/${enc(conversationId)}/ai/posts").posts
 

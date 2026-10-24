@@ -155,3 +155,80 @@ object AgentRules {
     /** An agent's "#RRGGBB" colour as an ARGB value, or null when it isn't one. */
     fun hexColor(hex: String?): Long? = hex?.takeIf { Regex("^#[0-9A-Fa-f]{6}$").matches(it) }?.let { 0xFF000000 or it.substring(1).toLong(16) }
 }
+
+/**
+ * AI agents in a conversation's chat, like bots (as Meldiq Web's AgentChat): their posts and the requests to them sit
+ * among the messages in time order. Unit-tested in `AgentTimelineTest`.
+ */
+object AgentTimeline {
+    sealed interface Entry {
+        val key: String
+        val at: Long
+        data class Msg(val m: MessageEntity) : Entry {
+            override val key get() = m.id
+            override val at get() = m.sortTs
+        }
+        data class Post(val p: AiPost) : Entry {
+            override val key get() = "x-" + p.id
+            override val at get() = p.createdAt
+        }
+    }
+
+    /** A progress note is dropped once its request has an answer (result, error or approval): it reads as question and answer. */
+    fun chatPosts(posts: List<AiPost>): List<AiPost> {
+        val answered = posts.filter { it.jobId != null && it.kind in setOf("result", "error", "approval") }.mapNotNull { it.jobId }.toSet()
+        return posts.filterNot { it.kind == "progress" && it.jobId != null && it.jobId in answered }
+    }
+
+    /** [newestFirst] messages (as the list shows them) with [posts] merged in by time, newest first; messages keep their order. */
+    fun merge(newestFirst: List<MessageEntity>, posts: List<AiPost>): List<Entry> {
+        val msgs = newestFirst.map { Entry.Msg(it) }
+        if (posts.isEmpty()) return msgs
+        // Only posts from the loaded stretch: older ones wait until older messages are loaded (a long list stays in order).
+        val oldest = newestFirst.lastOrNull()?.sortTs ?: Long.MIN_VALUE
+        val extra = chatPosts(posts).filter { newestFirst.isEmpty() || it.createdAt >= oldest }.sortedByDescending { it.createdAt }.map { Entry.Post(it) }
+        val out = ArrayList<Entry>(msgs.size + extra.size)
+        var i = 0
+        var j = 0
+        while (i < msgs.size || j < extra.size) {
+            out += when {
+                j >= extra.size -> msgs[i++]
+                i >= msgs.size -> extra[j++]
+                extra[j].at > msgs[i].at -> extra[j++]
+                else -> msgs[i++]
+            }
+        }
+        return out
+    }
+
+    fun indexOfMessage(entries: List<Entry>, id: String) = entries.indexOfFirst { it is Entry.Msg && it.m.id == id }
+
+    data class Suggest(val start: Int, val command: Boolean, val agents: List<AiChannelAgent>)
+
+    /**
+     * Agents to suggest while typing: after "@" (by name), or, as commands, after a leading "/". [cursor] is the caret.
+     * Only agents this person may ask.
+     */
+    fun suggest(text: String, cursor: Int, agents: List<AiChannelAgent>): Suggest? {
+        val usable = agents.filter { it.canInvoke }
+        if (usable.isEmpty() || cursor < 1 || cursor > text.length) return null
+        val before = text.substring(0, cursor)
+        Regex("^/([a-z0-9-]*)$", RegexOption.IGNORE_CASE).find(before)?.let { m ->
+            val q = m.groupValues[1].lowercase()
+            return usable.filter { AgentRules.commandName(it.displayName).startsWith(q) }.take(8).takeIf { it.isNotEmpty() }?.let { Suggest(0, true, it) }
+        }
+        val at = before.lastIndexOf('@')
+        if (at < 0 || (at > 0 && !before[at - 1].isWhitespace())) return null
+        val q = before.substring(at + 1)
+        if (q.contains('\n') || q.length > 40) return null
+        return usable.filter { it.displayName.startsWith(q, ignoreCase = true) || AgentRules.commandName(it.displayName).startsWith(q.lowercase()) }
+            .take(8).takeIf { it.isNotEmpty() }?.let { Suggest(at, false, it) }
+    }
+
+    /** [text] with the suggestion at [s] replaced by [agent]'s mention or command; the caret goes after it. */
+    fun insert(text: String, cursor: Int, s: Suggest, agent: AiChannelAgent): Pair<String, Int> {
+        val token = if (s.command) "/" + AgentRules.commandName(agent.displayName) else "@" + agent.displayName
+        val next = text.substring(0, s.start) + token + " " + text.substring(cursor)
+        return next to s.start + token.length + 1
+    }
+}

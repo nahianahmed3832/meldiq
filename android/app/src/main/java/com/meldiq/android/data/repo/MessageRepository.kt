@@ -698,12 +698,25 @@ class MessageRepository(
         for (item in db.outbox().due(System.currentTimeMillis())) sendOne(item)
     }
 
+    /**
+     * The AI readers [item] goes to (API 0.40.0): only text messages and their edits and deletes, and only readers this
+     * person chose to share with here. No choice yet counts as keep, so nothing is shared before the notice was answered.
+     */
+    private suspend fun readersFor(item: OutboxEntity, force: Boolean): List<com.meldiq.android.crypto.RecipientDevice> {
+        val type = runCatching { json.decodeFromString(Payload.serializer(), item.payloadJson).type }.getOrNull()
+        if (!com.meldiq.android.data.ai.ReaderRules.shareable(item.cls, type)) return emptyList()
+        val readers = directory.conversationReaders(item.conversationId, force)
+        if (readers.isEmpty()) return emptyList()
+        val choices = directory.readerChoices(item.conversationId, force)
+        return com.meldiq.android.data.ai.ReaderRules.pick(readers, { it.readerId }, choices).map { it.device }
+    }
+
     private suspend fun sendOne(item: OutboxEntity) {
         val s = session.session ?: return
         var force = item.attempts > 0
         for (pass in 0..1) {
             try {
-                val recips = directory.conversationRecipients(item.conversationId, s.deviceId, force)
+                val recips = directory.conversationRecipients(item.conversationId, s.deviceId, force) + readersFor(item, force)
                 val now = System.currentTimeMillis()
                 val sentAt = if (now - item.createdAt > 20 * 3600_000L) now else item.createdAt
                 val sealed = crypto.seal(EnvelopeHeader(item.messageId, item.conversationId, s.userId, s.deviceId, sentAt, item.cls), item.payloadJson.toByteArray(), recips)

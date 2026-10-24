@@ -4,6 +4,8 @@ import com.meldiq.android.crypto.Canonical
 import com.meldiq.android.crypto.Ed25519
 import com.meldiq.android.crypto.RecipientDevice
 import com.meldiq.android.crypto.unb64
+import com.meldiq.android.data.ai.AiChoiceReq
+import com.meldiq.android.data.ai.AiConversationReaders
 import com.meldiq.android.data.api.ApiClient
 import com.meldiq.android.data.model.PresenceRules
 import com.meldiq.android.data.api.KeysRes
@@ -21,6 +23,10 @@ import java.util.concurrent.ConcurrentHashMap
 interface KeySource {
     suspend fun conversationKeys(conversationId: String): List<UserKeysDto>
     suspend fun userKeys(userId: String): UserKeysDto?
+
+    /** This person's choice per AI reader in a conversation (API 0.40.0); none on a server without readers. */
+    suspend fun readerChoices(conversationId: String): AiConversationReaders = AiConversationReaders()
+    suspend fun chooseReader(conversationId: String, readerId: String, choice: String): AiConversationReaders = AiConversationReaders()
 }
 
 /** Where pinned identity keys live (the `users` table); a fake replaces Room in unit tests. */
@@ -30,7 +36,13 @@ interface PinStore {
 }
 
 private class ApiKeySource(private val api: ApiClient) : KeySource {
-    override suspend fun conversationKeys(conversationId: String) = api.get<KeysRes>("/v1/conversations/$conversationId/devices").users
+    // This app shows the readers' notice and honours each member's choice, so it asks for readers too.
+    override suspend fun conversationKeys(conversationId: String) = api.get<KeysRes>("/v1/conversations/$conversationId/devices", mapOf(AI_READER_HEADER to "1")).users
+    override suspend fun readerChoices(conversationId: String) = api.get<AiConversationReaders>("/v1/conversations/$conversationId/ai/readers")
+    override suspend fun chooseReader(conversationId: String, readerId: String, choice: String): AiConversationReaders {
+        val reader = java.net.URLEncoder.encode(readerId, "UTF-8")
+        return api.put<AiChoiceReq, AiConversationReaders>("/v1/conversations/$conversationId/ai/readers/$reader/choice", AiChoiceReq(choice))
+    }
     override suspend fun userKeys(userId: String) = api.post<UserIdsReq, KeysRes>("/v1/users/devices", UserIdsReq(listOf(userId))).users.firstOrNull()
 }
 
@@ -38,6 +50,12 @@ private class RoomPinStore(private val db: GriipDatabase) : PinStore {
     override suspend fun get(userId: String) = db.users().get(userId)
     override suspend fun upsert(u: UserEntity) = db.users().upsert(u)
 }
+
+/** Asks the server to list AI readers' devices too (only clients that show the notice and honour choices send it). */
+const val AI_READER_HEADER = "x-meldiq-ai-reader"
+
+/** An AI agent's device in one conversation, certified like anyone's; a message goes to it only when shared. */
+data class ReaderDevice(val device: RecipientDevice, val readerId: String, val installId: String, val name: String)
 
 /** Sending is paused: these members' identity keys differ from the ones pinned on first contact. */
 class IdentityChangedException(val userIds: Set<String>) : Exception("identity key changed for ${userIds.size} member(s)")
@@ -68,6 +86,7 @@ class KeyDirectory(private val source: KeySource, private val pins: PinStore) {
     private data class Cached(val keys: UserKeysDto, val at: Long)
     private val cache = ConcurrentHashMap<String, Cached>()
     private val convCache = ConcurrentHashMap<String, Pair<List<UserKeysDto>, Long>>()
+    private val choiceCache = ConcurrentHashMap<String, Pair<AiConversationReaders, Long>>()
 
     /** Pins on first contact; returns the identity key to trust, or null when it differs from the pinned key. */
     private suspend fun trustedKey(u: UserKeysDto): String? {
@@ -104,6 +123,7 @@ class KeyDirectory(private val source: KeySource, private val pins: PinStore) {
         val changed = LinkedHashSet<String>()
         val out = ArrayList<RecipientDevice>()
         for (u in conversationUsers(conversationId, force)) {
+            if (u.agent != null) continue // an AI reader is never a recipient by default ([conversationReaders])
             val key = trustedKey(u)
             if (key == null) {
                 changed += u.userId
@@ -115,11 +135,45 @@ class KeyDirectory(private val source: KeySource, private val pins: PinStore) {
         return out
     }
 
-    /** Member ids of a conversation (cached for a minute), e.g. to show which of them changed keys. */
-    suspend fun conversationMemberIds(conversationId: String): List<String> = conversationUsers(conversationId, false).map { it.userId }
+    /**
+     * AI agents reading [conversationId] (API 0.40.0), certified against their pinned identity like anyone's devices.
+     * An agent whose identity key changed is left out (never shared with), without pausing the conversation.
+     */
+    suspend fun conversationReaders(conversationId: String, force: Boolean): List<ReaderDevice> {
+        val out = ArrayList<ReaderDevice>()
+        for (u in conversationUsers(conversationId, force)) {
+            val agent = u.agent ?: continue
+            val key = trustedKey(u) ?: continue
+            certified(u, key).forEach { out += ReaderDevice(RecipientDevice(it.id, it.encryptionKey.unb64()), agent.readerId, agent.installId, agent.name) }
+        }
+        return out
+    }
+
+    /** This person's choice per reader here (cached a minute; [force] refetches). Failing to ask counts as no readers. */
+    suspend fun readerChoices(conversationId: String, force: Boolean = false): AiConversationReaders {
+        val now = System.currentTimeMillis()
+        val hit = choiceCache[conversationId]
+        if (!force && hit != null && now - hit.second < 60_000) return hit.first
+        val value = runCatching { source.readerChoices(conversationId) }.getOrDefault(AiConversationReaders())
+        choiceCache[conversationId] = value to now
+        return value
+    }
+
+    /** Shares this person's messages here with a reader, or keeps them out; the send path uses the answer at once. */
+    suspend fun chooseReader(conversationId: String, readerId: String, choice: String): AiConversationReaders =
+        source.chooseReader(conversationId, readerId, choice).also { choiceCache[conversationId] = it to System.currentTimeMillis() }
+
+    /** Member ids of a conversation (cached for a minute), e.g. to show which of them changed keys. AI readers aren't members. */
+    suspend fun conversationMemberIds(conversationId: String): List<String> = conversationUsers(conversationId, false).filter { it.agent == null }.map { it.userId }
 
     fun invalidate(conversationId: String? = null) {
-        if (conversationId == null) convCache.clear() else convCache.remove(conversationId)
+        if (conversationId == null) {
+            convCache.clear()
+            choiceCache.clear()
+        } else {
+            convCache.remove(conversationId)
+            choiceCache.remove(conversationId)
+        }
     }
 
     fun invalidateUser(userId: String) {

@@ -132,8 +132,9 @@ class AppContainer(
         scope.launch {
             messages.aiEvents.collect { e ->
                 when (e) {
-                    is com.meldiq.android.data.api.ServerEvent.AiPosts -> aiSignals.postsChanged(e.conversationId)
-                    is com.meldiq.android.data.api.ServerEvent.AiJob -> aiSignals.jobChanged()
+                    // A reader switched on or off posts its notice here: the choices and devices are asked again.
+                    is com.meldiq.android.data.api.ServerEvent.AiPosts -> { directory.invalidate(e.conversationId); aiSignals.postsChanged(e.conversationId) }
+                    is com.meldiq.android.data.api.ServerEvent.AiJob, is com.meldiq.android.data.api.ServerEvent.AiTask -> aiSignals.jobChanged()
                     else -> {}
                 }
             }

@@ -440,6 +440,8 @@ internal fun ConversationDetailsList(
             DetailsRules.Tab.MEMBERS -> {
                 onManageAccess?.let { manage -> item(key = "manage-access") { ManageAccessRow(manage) } }
                 memberItems(members)
+                // A channel's AI agents under its people, with the AI badge (API 0.40.0, as Meldiq Web).
+                if (cv.type == "CHANNEL") item(key = "ai-agents") { com.meldiq.android.ui.screens.ai.AgentMembersSection(nav, cv) }
             }
             DetailsRules.Tab.MEDIA -> mediaGrid(media, { container.messages.localAttachment(it) }, open)
             DetailsRules.Tab.PINS -> pinRows(pinned, senderName, preview, open)

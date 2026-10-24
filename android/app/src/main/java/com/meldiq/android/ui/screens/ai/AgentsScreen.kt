@@ -14,6 +14,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.HowToReg
 import androidx.compose.material.icons.outlined.ListAlt
@@ -65,7 +66,7 @@ object AiRoutes {
     fun agent(orgId: String, installId: String) = "ai/$orgId/agent/$installId"
 }
 
-private enum class AiTab { Agents, Manager, Requests, Approvals, Files }
+private enum class AiTab { Agents, Manager, Tasks, Requests, Approvals, Files }
 
 /**
  * Community › AI agents (server docs/AI_WORKFORCE.md, as Meldiq Web's AgentsPage): the installed agents and the catalog,
@@ -87,9 +88,10 @@ fun AgentsScreen(nav: NavHostController, orgId: String) {
     var asking by remember { mutableStateOf<String?>(null) }
     var openJob by remember { mutableStateOf<String?>(null) }
     var browsing by remember { mutableStateOf(false) }
+    var removing by remember { mutableStateOf<AiInstall?>(null) }
     val o = overview
     val tabs = buildList {
-        add(AiTab.Agents); add(AiTab.Manager); add(AiTab.Requests)
+        add(AiTab.Agents); add(AiTab.Manager); add(AiTab.Tasks); add(AiTab.Requests)
         if (o?.permissions?.canApprove == true) add(AiTab.Approvals)
         add(AiTab.Files)
     }
@@ -98,6 +100,7 @@ fun AgentsScreen(nav: NavHostController, orgId: String) {
             when (it) {
                 AiTab.Agents -> R.string.aw_tab_agents
                 AiTab.Manager -> R.string.aw_tab_manager
+                AiTab.Tasks -> R.string.aw_tab_tasks
                 AiTab.Requests -> R.string.aw_tab_requests
                 AiTab.Approvals -> R.string.aw_tab_approvals
                 AiTab.Files -> R.string.aw_tab_files
@@ -121,8 +124,9 @@ fun AgentsScreen(nav: NavHostController, orgId: String) {
             }
         }
         when (tab) {
-            AiTab.Agents -> agentsTab(o, orgId, onAsk = { asking = it }, onSettings = { nav.navigate(AiRoutes.agent(orgId, it)) }, onBrowse = { browsing = true })
+            AiTab.Agents -> agentsTab(o, orgId, onAsk = { asking = it }, onSettings = { nav.navigate(AiRoutes.agent(orgId, it)) }, onBrowse = { browsing = true }, onRemove = { removing = it })
             AiTab.Manager -> item { ManagerTab(orgId, o, onAsk = { asking = it }, onOpen = { openJob = it }) }
+            AiTab.Tasks -> item { TasksTab(orgId, o) }
             AiTab.Requests -> item { RequestsTab(orgId, o, rev, onOpen = { openJob = it }) }
             AiTab.Approvals -> item { ApprovalsTab(orgId, rev, onOpen = { openJob = it }) }
             AiTab.Files -> item { FilesTab(orgId, rev) }
@@ -135,10 +139,11 @@ fun AgentsScreen(nav: NavHostController, orgId: String) {
         )
     }
     openJob?.let { id -> JobSheet(orgId, id, o?.permissions ?: com.meldiq.android.data.ai.AiPermissions(), onDismiss = { openJob = null }) }
+    removing?.let { a -> RemoveAgentDialog(orgId, a.id, a.displayName, onDismiss = { removing = null }, onRemoved = { removing = null; reload++ }) }
     if (browsing) CatalogSheet(orgId, onDismiss = { browsing = false }, onInstalled = { browsing = false; reload++; nav.navigate(AiRoutes.agent(orgId, it)) })
 }
 
-private fun androidx.compose.foundation.lazy.LazyListScope.agentsTab(o: AiOverview, orgId: String, onAsk: (String) -> Unit, onSettings: (String) -> Unit, onBrowse: () -> Unit) {
+private fun androidx.compose.foundation.lazy.LazyListScope.agentsTab(o: AiOverview, orgId: String, onAsk: (String) -> Unit, onSettings: (String) -> Unit, onBrowse: () -> Unit, onRemove: (AiInstall) -> Unit) {
     item {
         Row(Modifier.fillMaxWidth().padding(horizontal = Space.gutter, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(R.string.aw_installed), style = Griip.type.section, color = Griip.colors.textSecondary, modifier = Modifier.weight(1f))
@@ -146,11 +151,11 @@ private fun androidx.compose.foundation.lazy.LazyListScope.agentsTab(o: AiOvervi
         }
     }
     if (o.agents.isEmpty()) item { EmptyState(Icons.Outlined.SmartToy, stringResource(R.string.aw_none_title), stringResource(if (o.permissions.canManage) R.string.aw_none_manage else R.string.aw_none_member)) }
-    items(o.agents, key = { it.id }) { a -> AgentRow(orgId, a, o, onAsk, onSettings) }
+    items(o.agents, key = { it.id }) { a -> AgentRow(orgId, a, o, onAsk, onSettings, onRemove) }
 }
 
 @Composable
-private fun AgentRow(orgId: String, a: AiInstall, o: AiOverview, onAsk: (String) -> Unit, onSettings: (String) -> Unit) {
+private fun AgentRow(orgId: String, a: AiInstall, o: AiOverview, onAsk: (String) -> Unit, onSettings: (String) -> Unit, onRemove: (AiInstall) -> Unit) {
     val mode = stringResource(if (a.effectiveMode == "review") R.string.aw_mode_review_short else R.string.aw_mode_auto_short)
     ListCard(
         a.displayName, Modifier.padding(horizontal = 8.dp, vertical = 1.dp),
@@ -159,6 +164,10 @@ private fun AgentRow(orgId: String, a: AiInstall, o: AiOverview, onAsk: (String)
         trailing = {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (o.permissions.canUse && a.active) PillButton(stringResource(R.string.aw_ask), { onAsk(a.id) }, tone = ButtonTone.Glass, height = 36.dp)
+                if (o.permissions.canManage) com.meldiq.android.ui.components.CircleIconButton(
+                    androidx.compose.material.icons.Icons.Outlined.DeleteOutline, stringResource(R.string.aw_remove_title, a.displayName), { onRemove(a) },
+                    size = 36.dp, tint = Griip.colors.danger,
+                )
             }
         },
         onClick = if (o.permissions.canManage) ({ onSettings(a.id) }) else null,

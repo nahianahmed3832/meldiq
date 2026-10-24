@@ -69,11 +69,14 @@ class ApiClient(
     suspend inline fun <reified T> delete(path: String): T = request("DELETE", path, null, serializer<T>())
     suspend inline fun <reified B, reified T> delete(path: String, body: B): T = request("DELETE", path, encodeBody(serializer<B>(), body), serializer<T>())
 
-    suspend fun <T> request(method: String, path: String, body: String?, de: kotlinx.serialization.KSerializer<T>, auth: Boolean = true): T {
-        val first = execute(method, path, body?.toRequestBody(jsonType), auth)
+    /** A GET with extra request headers (e.g. what this app supports, `x-meldiq-ai-reader`). */
+    suspend inline fun <reified T> get(path: String, headers: Map<String, String>): T = request("GET", path, null, serializer<T>(), headers = headers)
+
+    suspend fun <T> request(method: String, path: String, body: String?, de: kotlinx.serialization.KSerializer<T>, auth: Boolean = true, headers: Map<String, String> = emptyMap()): T {
+        val first = execute(method, path, body?.toRequestBody(jsonType), auth, headers)
         val res = if (first.first == 401 && auth && !path.startsWith("/v1/auth/")) {
             val ok = reauthLock.withLock { reauth() }
-            if (ok) execute(method, path, body?.toRequestBody(jsonType), auth) else first
+            if (ok) execute(method, path, body?.toRequestBody(jsonType), auth, headers) else first
         } else first
         return decode(res, de)
     }
@@ -209,8 +212,9 @@ class ApiClient(
         }
     }
 
-    private suspend fun execute(method: String, path: String, body: RequestBody?, auth: Boolean): Pair<Int, String> = withContext(Dispatchers.IO) {
+    private suspend fun execute(method: String, path: String, body: RequestBody?, auth: Boolean, headers: Map<String, String> = emptyMap()): Pair<Int, String> = withContext(Dispatchers.IO) {
         val b = Request.Builder().url(baseUrl().trimEnd('/') + path)
+        headers.forEach { (k, v) -> b.header(k, v) }
         if (auth) token()?.let { b.header("Authorization", "Bearer $it") }
         when (method) {
             "GET" -> b.get()

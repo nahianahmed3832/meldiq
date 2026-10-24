@@ -127,7 +127,13 @@ import kotlinx.serialization.json.JsonObject
     val userId: String, val identityKey: String, val devices: List<DeviceKeyDto>,
     /** Servers with the T1.5 fix list devices revoked within the queue lifetime; older ones omit it. */
     val revokedDevices: List<RevokedDeviceKeyDto> = emptyList(),
+    /**
+     * An AI agent reading the conversation (API 0.40.0, only when asked with `x-meldiq-ai-reader: 1`): its one device
+     * here. Never a recipient by default: a message goes to it only when its sender chose to share ([KeyDirectory]).
+     */
+    val agent: AgentReaderKey? = null,
 )
+@Serializable data class AgentReaderKey(val installId: String, val readerId: String, val name: String)
 @Serializable data class KeysRes(val users: List<UserKeysDto>)
 @Serializable data class UserIdsReq(val userIds: List<String>)
 @Serializable data class MyDeviceDto(

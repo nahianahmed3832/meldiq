@@ -98,7 +98,7 @@ class MessageSignals(
             is ServerEvent.MeetingSoon -> _meetingSoon.tryEmit(e.meetingId)
             is ServerEvent.MeetingUpdated -> _meetingUpdates.tryEmit(e.orgId)
             is ServerEvent.Call -> _callFrames.tryEmit(e)
-            is ServerEvent.AiPosts, is ServerEvent.AiJob -> _aiEvents.tryEmit(e)
+            is ServerEvent.AiPosts, is ServerEvent.AiJob, is ServerEvent.AiTask -> _aiEvents.tryEmit(e)
             // Moderator and applicant signals: the screens that show them reload when opened.
             is ServerEvent.OrgReports, is ServerEvent.OrgApplications, is ServerEvent.OrgApplication, is ServerEvent.OrgAlert -> Unit
             // The socket's own bookkeeping, and frames from a newer server.

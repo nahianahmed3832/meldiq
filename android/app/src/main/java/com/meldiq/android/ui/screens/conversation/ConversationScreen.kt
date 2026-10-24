@@ -200,7 +200,17 @@ fun ConversationScreen(nav: NavHostController, conversationId: String, threadRoo
     // AI Workforce (docs/AI_WORKFORCE.md): agents assigned to this channel, and the Ask sheet (agent, brief) when open.
     val aiAgents = com.meldiq.android.ui.screens.ai.rememberChannelAgents(conv)
     var aiAsk by remember { mutableStateOf<Pair<String?, String>?>(null) }
+    // AI agents behave like bots here (API 0.40.0, as Meldiq Web): readers' notices and each person's choice, their posts
+    // among the messages, "@Agent …" sent straight to them. A direct conversation with an agent works the same way.
+    val aiReaders = com.meldiq.android.ui.screens.ai.rememberReaders(conversationId)
+    val aiOrg = if (conv?.type == "CHANNEL") conv?.orgId else aiReaders.value.direct?.orgId
+    val aiPosts = com.meldiq.android.ui.screens.ai.rememberAgentPosts(conversationId, threadRoot == null && aiOrg != null && (aiAgents.agents.isNotEmpty() || aiReaders.value.direct != null))
+    var aiJob by remember { mutableStateOf<String?>(null) }
+    val aiMention = com.meldiq.android.ui.screens.ai.rememberAgentMention(aiOrg, conversationId) { id, brief -> aiAsk = id to brief }
     val messages by vm.messages.collectAsStateWithLifecycle()
+    // What the list shows, newest first: the messages, with agent posts among them by time (just the messages otherwise).
+    val timeline = remember(messages, aiPosts) { com.meldiq.android.data.ai.AgentTimeline.merge(messages, aiPosts) }
+    val currentTimeline by androidx.compose.runtime.rememberUpdatedState(timeline)
     val root by vm.rootMessage.collectAsStateWithLifecycle()
     val users by vm.users.collectAsStateWithLifecycle()
     val typing by vm.typing.collectAsStateWithLifecycle()
@@ -411,7 +421,7 @@ fun ConversationScreen(nav: NavHostController, conversationId: String, threadRoo
         unreadMarkerPlaced = true
         val lines = messages.map { com.meldiq.android.data.model.ConversationMarkers.Line(it.id, it.outgoing, it.kind == "text" && !it.deleted) }
         unreadMarker = com.meldiq.android.data.model.ConversationMarkers.firstUnread(lines, n)
-        val idx = unreadMarker?.let { id -> messages.indexOfFirst { it.id == id } } ?: -1
+        val idx = unreadMarker?.let { id -> com.meldiq.android.data.ai.AgentTimeline.indexOfMessage(currentTimeline, id) } ?: -1
         if (idx > 2) {
             // Reverse layout: the item lands at the bottom; move it up so the unread messages after it fit below.
             listState.scrollToItem(idx)
@@ -420,7 +430,7 @@ fun ConversationScreen(nav: NavHostController, conversationId: String, threadRoo
     }
     LaunchedEffect(listState) {
         snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }.collect { last ->
-            if (last >= messages.size - 5) vm.loadMore()
+            if (last >= currentTimeline.size - 5) vm.loadMore()
         }
     }
 
@@ -438,9 +448,12 @@ fun ConversationScreen(nav: NavHostController, conversationId: String, threadRoo
     fun previewOf(m: MessageEntity) = com.meldiq.android.data.model.MessagePreview.of(m)
     /** Scrolls to a message (a search hit or a pin), loading older pages first when it isn't loaded yet. */
     fun jumpTo(id: String) {
-        val idx = messages.indexOfFirst { it.id == id }
+        val idx = com.meldiq.android.data.ai.AgentTimeline.indexOfMessage(timeline, id)
         if (idx >= 0) scope.launch { listState.animateScrollToItem(idx) }
-        else vm.loadUntil(id) { found -> scope.launch { listState.animateScrollToItem(found) } }
+        else vm.loadUntil(id) { _ ->
+            // Positions count agent posts too: find it again in the list as it is now.
+            scope.launch { kotlinx.coroutines.delay(50); com.meldiq.android.data.ai.AgentTimeline.indexOfMessage(currentTimeline, id).takeIf { it >= 0 }?.let { listState.animateScrollToItem(it) } }
+        }
     }
     // Batch B5: a message link scrolls to its message once the conversation has loaded.
     var focusDone by androidx.compose.runtime.saveable.rememberSaveable(focusMessage) { mutableStateOf(false) }
@@ -730,9 +743,19 @@ fun ConversationScreen(nav: NavHostController, conversationId: String, threadRoo
                 }
                 val byId = remember(messages) { messages.associateBy { it.id } }
                 LazyColumn(Modifier.fillMaxSize(), state = listState, reverseLayout = true, contentPadding = PaddingValues(vertical = 10.dp)) {
-                    itemsIndexed(messages, key = { _, m -> m.id }) { i, m ->
-                        val older = messages.getOrNull(i + 1)
-                        val newer = messages.getOrNull(i - 1)
+                    itemsIndexed(timeline, key = { _, e -> e.key }) { i, entry ->
+                        val olderEntry = timeline.getOrNull(i + 1)
+                        if (entry is com.meldiq.android.data.ai.AgentTimeline.Entry.Post) {
+                            Column(listItemMotion()) {
+                                if (olderEntry == null || !TimeFmt.sameDay(olderEntry.at, entry.at)) DayDivider(entry.at)
+                                com.meldiq.android.ui.screens.ai.AgentChatPost(aiOrg.orEmpty(), entry.p, entry.p.authorId?.let { if (it == me) youLabel else users[it]?.displayName }, aiAgents.permissions.canApprove) { aiJob = it }
+                            }
+                            return@itemsIndexed
+                        }
+                        val m = (entry as com.meldiq.android.data.ai.AgentTimeline.Entry.Msg).m
+                        // A message next to an agent post starts (or ends) its own group, as next to a call.
+                        val older = (olderEntry as? com.meldiq.android.data.ai.AgentTimeline.Entry.Msg)?.m
+                        val newer = (timeline.getOrNull(i - 1) as? com.meldiq.android.data.ai.AgentTimeline.Entry.Msg)?.m
                         val first = older == null || older.senderUserId != m.senderUserId || m.sortTs - older.sortTs > 5 * 60_000 || older.kind == "call" || !TimeFmt.sameDay(older.sortTs, m.sortTs)
                         val lastInRun = newer == null || newer.senderUserId != m.senderUserId || newer.sortTs - m.sortTs > 5 * 60_000 || newer.kind == "call"
                         val reply = m.replyToId?.let { byId[it] }
@@ -746,7 +769,7 @@ fun ConversationScreen(nav: NavHostController, conversationId: String, threadRoo
                                 selected = if (m.id in now) now - m.id else now + m.id
                             },
                         ) {
-                            if (older == null || !TimeFmt.sameDay(older.sortTs, m.sortTs)) DayDivider(m.sortTs)
+                            if (olderEntry == null || !TimeFmt.sameDay(olderEntry.at, m.sortTs)) DayDivider(m.sortTs)
                             if (m.id == unreadMarker) NewMessagesDivider()
                             SwipeToReply(chatSettings.swipeReply && canSwipeReply && selected == null, onReply = { vm.replyTo.value = m; vm.editing.value = null; focusComposer() }) {
                             MessageBubble(
@@ -776,7 +799,7 @@ fun ConversationScreen(nav: NavHostController, conversationId: String, threadRoo
                                 onOpenAttachment = openAttachment,
                                 onOpenThread = { nav.navigate(Routes.conversation(conversationId, m.id)) },
                                 onRetry = { vm.retry(m) },
-                                onReplyClick = { id -> val idx = messages.indexOfFirst { it.id == id }; if (idx >= 0) scope.launch { listState.animateScrollToItem(idx) } },
+                                onReplyClick = { id -> val idx = com.meldiq.android.data.ai.AgentTimeline.indexOfMessage(timeline, id); if (idx >= 0) scope.launch { listState.animateScrollToItem(idx) } },
                                 onMentionClick = { id -> nav.navigate(Routes.user(id)) },
                                 onOpenLink = onOpenLink,
                                 onCopyText = { t -> scope.launch { clipboard.setClipEntry(ClipData.newPlainText("contact", t).toClipEntry()) } },
@@ -848,6 +871,8 @@ fun ConversationScreen(nav: NavHostController, conversationId: String, threadRoo
                         }
                     },
                 )
+            } else if (threadRoot == null && aiReaders.value.pending.isNotEmpty()) {
+                Box(Modifier.fillMaxWidth().navigationBarsPadding()) { com.meldiq.android.ui.screens.ai.ReaderChoice(aiReaders) }
             } else if (conv?.format == "forum" && threadRoot == null) {
                 Box(Modifier.fillMaxWidth().background(c.surface).navigationBarsPadding()) { ForumComposerBar(conv?.canPost == true) { newPostSheet = true } }
             } else if (conv != null && !conv!!.canPost) {
@@ -886,7 +911,17 @@ fun ConversationScreen(nav: NavHostController, conversationId: String, threadRoo
                 }
                 val slowmode by vm.slowmode.collectAsStateWithLifecycle()
                 if (threadRoot == null) com.meldiq.android.ui.screens.community.SlowmodeLine(slowmode)
-                conv?.orgId?.takeIf { threadRoot == null }?.let { org -> com.meldiq.android.ui.screens.ai.ChannelAgentsBar(org, conversationId, aiAgents) { aiAsk = null to "" } }
+                if (threadRoot == null) {
+                    com.meldiq.android.ui.screens.ai.ReaderBanner(aiReaders)
+                    com.meldiq.android.ui.screens.ai.ChannelAgentsBar(aiAgents) { aiAsk = null to "" }
+                    val agentSuggest = if (field.selection.collapsed) com.meldiq.android.data.ai.AgentTimeline.suggest(text, field.selection.start, aiAgents.agents) else null
+                    agentSuggest?.let { sg ->
+                        com.meldiq.android.ui.screens.ai.AgentSuggestions(sg) { a ->
+                            val (t, cursor) = com.meldiq.android.data.ai.AgentTimeline.insert(text, field.selection.start, sg, a)
+                            field = TextFieldValue(t, TextRange(cursor))
+                        }
+                    }
+                }
                 composerPreview?.let { p ->
                     Row(Modifier.fillMaxWidth().background(c.surface).padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.weight(1f)) { LinkPreviewCard(p, out = false, onOpen = {}) }
@@ -904,8 +939,9 @@ fun ConversationScreen(nav: NavHostController, conversationId: String, threadRoo
                     onSend = {
                         // "@Agent …" or "/agent …" asks an AI agent: it opens the request (with its notice) instead of
                         // being sent as an end-to-end encrypted message, which the server could never read.
-                        val ask = if (threadRoot == null && editing == null) com.meldiq.android.data.ai.AgentRules.invocation(text, aiAgents.agents) else null
-                        if (ask != null) aiAsk = ask.installId to ask.brief
+                        // An agent this person shares their messages with here reads them anyway: then it goes as a message.
+                        val ask = if (threadRoot == null && editing == null) com.meldiq.android.data.ai.AgentRules.invocation(text, aiAgents.agents)?.takeIf { it.installId !in aiReaders.value.sharingAgents } else null
+                        if (ask != null) aiMention.handle(ask)
                         else vm.send(text, communityExpressions.filter { it.kind == "emoji" }.map(vm.c.expressions::ref))
                         setText("")
                     },
@@ -1140,6 +1176,8 @@ fun ConversationScreen(nav: NavHostController, conversationId: String, threadRoo
         }
     }
     if (newPostSheet) NewPostSheet(onDismiss = { newPostSheet = false }, forumTags = conv?.let { vm.c.conversations.forumTags(it) }.orEmpty(), guidelines = forumGuidelines[conversationId], onPost = { t, b, tags -> vm.sendForumPost(t, b, tags) })
+    aiMention.ui()
+    aiJob?.let { id -> aiOrg?.let { org -> com.meldiq.android.ui.screens.ai.JobSheet(org, id, aiAgents.permissions, onDismiss = { aiJob = null }) } }
     aiAsk?.let { (agent, brief) ->
         val org = conv?.orgId
         if (org != null) com.meldiq.android.ui.screens.ai.AskAgentSheet(

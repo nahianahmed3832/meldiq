@@ -43,6 +43,13 @@ data class AiInstall(
     val maxJobsPerDay: Int? = null,
     val maxConcurrent: Int? = null,
     val invokers: AiInvokers = AiInvokers(),
+    /** How much it does on its own (API 0.36.0, [AiAutonomy]); older servers don't send it. */
+    val autonomy: String = AiAutonomy.ASSISTED,
+    /** An installation can only tighten the skill's own limits; null: the skill's. */
+    val maxRuntimeSec: Int? = null,
+    val maxAttempts: Int? = null,
+    /** When triggers may run (continuous autonomy); null: any time. */
+    val activeHours: AiActiveHours? = null,
     val rev: Int,
     val skill: AiSkillRef? = null,
     /** Always shown with the name, so an agent can't pass for a person. */
@@ -52,6 +59,9 @@ data class AiInstall(
 ) {
     val active: Boolean get() = state == "active"
 }
+
+@Serializable
+data class AiActiveHours(val from: String, val to: String, val timeZone: String)
 
 @Serializable
 data class AiMediaEngine(val available: Boolean = false, val detail: String = "")
@@ -81,6 +91,10 @@ data class AiSkill(
     /** Whether a channel request may share recent messages with it (agents that read text). */
     val readsMessages: Boolean = false,
     val approvals: List<String> = emptyList(),
+    /** What the skill does when something's missing or fails, as people read it. */
+    val errors: List<String> = emptyList(),
+    /** The skill's own limits (maxRuntimeSec, maxAttempts, …): an installation can only tighten them. */
+    val limits: Map<String, JsonElement> = emptyMap(),
     /** The skill's input as JSON Schema; the Ask sheet shows its top-level options ([SkillForm]). */
     val inputSchema: JsonElement? = null,
 )
