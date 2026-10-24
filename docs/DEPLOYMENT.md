@@ -7,7 +7,7 @@
 | VPS | Hostinger VM 1245833, `srv1245833.hstgr.cloud`, **72.60.107.88** (Ubuntu 24.04, 2 vCPU, 8 GB) |
 | Compose project | **`griip-internal-messaging`** |
 | Directory | **`/opt/griip-internal-messaging`** (root, 0750; `.env` 0600) |
-| Services | `api` (`griip-internal-messaging-api:0.39.0` since 2026-10-24 15:40 UTC, built on the VPS; `0.37.1-rollback`, `0.37.0-rollback` and older `-rollback` tags kept), `livekit` (`livekit/livekit-server:v1.13.10`), `ntfy` (`binwiederhier/ntfy:v2.31.1`) |
+| Services | `api` (`griip-internal-messaging-api:0.40.0` since 2026-10-24 17:34 UTC, built on the VPS; `0.39.0-rollback`, `0.37.1-rollback` and older `-rollback` tags kept), `livekit` (`livekit/livekit-server:v1.13.10`), `ntfy` (`binwiederhier/ntfy:v2.31.1`) |
 | Volume / network | `griip-internal-messaging_api-data`, `griip-internal-messaging_default` |
 | Public URLs | **`https://msg.meldiq.app`** (API + WebSocket) and **`wss://rtc.meldiq.app`** (LiveKit signalling) since 2026-10-22; the former `msg.griipbuddy.cloud` and `rtc.griipbuddy.cloud` still serve the same backends for apps installed earlier |
 | TLS | host nginx: `meldiq-msg.conf` (certificate `meldiq-msg`, msg and rtc.meldiq.app) and `griip-message.conf` (certificate `griip-message`, the former names); both renew automatically (certbot, webroot `/var/www/griip-message-acme`). `meldiq-admin.conf` (certificate `admin.meldiq.app`, certbot `--nginx`, renews automatically) since 2026-10-23 |
@@ -129,6 +129,30 @@ Passkeys failed in the app installed from Google Play: Play signs it with its ap
 | Checks after | `/healthz` 0.35.0 on msg.meldiq.app and msg.griipbuddy.cloud; `assetlinks.json` lists `com.meldiq.android` with the debug and Play keys; passkey options answer. Google's Digital Asset Links check still said "not linked" right after (its answer is cached up to an hour) |
 
 Rollback: copy the backup's `.env` back and recreate `api` the same way.
+
+### API 0.40.0 and Meldiq Web 0.5.0-beta-08ba69d (2026-10-24, 17:34 UTC, owner's go-ahead; channel reading left off)
+
+AI Workforce 2.0 phase 5 (`AI_WORKFORCE_2_PLAN.md`; internal-beta `08965b1`, `de97578`): agents that read channels,
+opt-in, with each member's choice; direct conversations with an agent; the recipient rule's one exception (a reader's
+device accepted, never required). Migration **053** (additive: `users.kind`, the bot identity, reader, choice, context
+and decision tables). The platform setting `ai.workforce.channel_reading` stays **off** (no row; default), so no reader
+can be switched on and no key list shows one. Web: the notice and choice, the wrap rule, `@`/`/` agent suggestions,
+direct conversations, reading settings (orbit_web `08ba69d`). `@hpke/core` moved to runtime dependencies.
+
+| Step | Result |
+|---|---|
+| Checks before | server **1,008 passed** / 11 skipped (new `ai_channel_readers` 13 with real end-to-end crypto, `ai_creative_workflow` with real ffmpeg), `tsc` and build clean; web `tsc -b`, lint, format, 466 unit tests, 10 agent browser tests against this server |
+| Pre-flight | running 0.39.0; VPS `server/` byte-equal to `822ae06`; web branch level with `origin/main`; `.env` unchanged since 2026-10-24 08:37 |
+| Backup | `backups/pre-0.40.0-20261024T173150Z`: integrity ok, schema 52, 39 users, `.env` + `compose.yaml` copies; image tagged `0.39.0-rollback`; sources kept as `server.pre-0.40.0` |
+| Build | `docker build -t griip-internal-messaging-api:0.40.0 server` on the VPS (`build-0.40.0.log`, exit 0) |
+| Rehearsal | snapshot copy, `--network none`, env without FCM lines: migration 053, schema 53, integrity ok, 39 users all `kind = 'person'`, reader tables empty, no `channel_reading` row, `@hpke/core` loads in the image; removed after |
+| Switch | `compose.yaml` image 0.40.0, `validate-env.sh` 0 errors, `config -q`, `up -d --no-deps --no-build api`: healthy, 0 restarts |
+| Checks after | `/healthz` 0.40.0 on both hosts; no errors and no `device_mismatch` in the log since the switch; new routes answer "Authentication required" without a session; `platform-audit-verify` ok; channel reading off, 0 readers; backup `post-0.40.0-20261024T173650Z` verified (schema 53, 39 users) |
+| Web | release `0.5.0-beta-08ba69d` (contracts from the committed server tree; secret scan clean) with the previous settings; nginx files byte-identical; `verify.sh` all passed (API 0.40.0 through the site); serves the new build; sign-in page without console errors |
+
+Rollback: web first (`bash /root/meldiq-web-0.5.0-beta-08ba69d/rollback.sh`, back to `5f2b28d`), then the API image
+`0.39.0-rollback` with `up -d --no-deps --no-build api` (053 is additive; 0.39.0 ignores `users.kind` and the new tables;
+with reading off nothing was created in them).
 
 ### API 0.39.0 and Meldiq Web 0.5.0-beta-5f2b28d (2026-10-24, 15:40 UTC, owner's go-ahead)
 
