@@ -23,6 +23,7 @@ export function readerRoutes(app: FastifyInstance, ctx: AppContext, w: Workforce
     const conv = ctx.authz.conversation(r.conversation_id);
     return {
       readerId: r.id,
+      orgId: r.org_id,
       installId: r.install_id,
       agentUserId: w.readers.identity(r.install_id).userId,
       name: w.store.install(r.install_id)?.displayName ?? "AI agent",

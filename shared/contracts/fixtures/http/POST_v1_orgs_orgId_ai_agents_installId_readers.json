@@ -1,16 +1,17 @@
 {
   "reader": {
-    "readerId": "rdr_1A1YxVv6p1tLBQcwJtTALw",
-    "installId": "agi_bVy_LZm5GbT3WCGl6NAgzA",
-    "agentUserId": "u_vvjdHqawqyxpu5P60QNYFQ",
+    "readerId": "rdr_OogGAmb87zPeI4C_D72LQg",
+    "orgId": "o_ogM-nVDXwMgiX2RugI8iDQ",
+    "installId": "agi_ozmduaOEyohdGllJa7THfg",
+    "agentUserId": "u_0T5jr7K7UQtJUN67r7y-8Q",
     "name": "General Assistant",
-    "conversationId": "c_0_ys_2iGlvoRPfDSWc2nSw",
+    "conversationId": "c_vvEu2rMzd6JvFRbRSvbXWw",
     "conversationName": "work",
     "mode": "channel",
     "state": "on",
-    "since": 1792861801280,
+    "since": 1792862022438,
     "turnedOnBy": {
-      "id": "u_rXxlHGcR4vL3a4D2R31lAg",
+      "id": "u_xvFsSaOOEeJiJLpPm5NXmQ",
       "name": "Readersowner"
     },
     "reason": "AI Workforce test setup"

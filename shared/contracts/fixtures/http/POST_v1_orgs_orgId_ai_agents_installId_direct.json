@@ -1,17 +1,18 @@
 {
-  "conversationId": "c_NwjQtSb5Q13XiUK7aTrBtw",
+  "conversationId": "c_D4rh9dHzz2uKfQtpCoezwA",
   "reader": {
-    "readerId": "rdr_atDorH5FaM09X73cPoqufw",
-    "installId": "agi_bVy_LZm5GbT3WCGl6NAgzA",
-    "agentUserId": "u_vvjdHqawqyxpu5P60QNYFQ",
+    "readerId": "rdr_w1UxBexHE4J17x6xWCLeAw",
+    "orgId": "o_ogM-nVDXwMgiX2RugI8iDQ",
+    "installId": "agi_ozmduaOEyohdGllJa7THfg",
+    "agentUserId": "u_0T5jr7K7UQtJUN67r7y-8Q",
     "name": "General Assistant",
-    "conversationId": "c_NwjQtSb5Q13XiUK7aTrBtw",
+    "conversationId": "c_D4rh9dHzz2uKfQtpCoezwA",
     "conversationName": null,
     "mode": "direct",
     "state": "on",
-    "since": 1792861801623,
+    "since": 1792862022627,
     "turnedOnBy": {
-      "id": "u_HrgfEd8k_xS6Tw6ugBJ9iw",
+      "id": "u_C-dfb0z2P3KxPeLVnHmaLw",
       "name": "Readersmember"
     },
     "reason": "direct conversation"

@@ -52467,6 +52467,9 @@
                           "readerId": {
                             "type": "string"
                           },
+                          "orgId": {
+                            "type": "string"
+                          },
                           "installId": {
                             "type": "string"
                           },
@@ -52544,6 +52547,7 @@
                         },
                         "required": [
                           "readerId",
+                          "orgId",
                           "installId",
                           "agentUserId",
                           "name",
@@ -52633,6 +52637,9 @@
                           "readerId": {
                             "type": "string"
                           },
+                          "orgId": {
+                            "type": "string"
+                          },
                           "installId": {
                             "type": "string"
                           },
@@ -52710,6 +52717,7 @@
                         },
                         "required": [
                           "readerId",
+                          "orgId",
                           "installId",
                           "agentUserId",
                           "name",
@@ -52822,6 +52830,9 @@
                           "readerId": {
                             "type": "string"
                           },
+                          "orgId": {
+                            "type": "string"
+                          },
                           "installId": {
                             "type": "string"
                           },
@@ -52885,6 +52896,7 @@
                         },
                         "required": [
                           "readerId",
+                          "orgId",
                           "installId",
                           "agentUserId",
                           "name",
@@ -52966,6 +52978,9 @@
                         "readerId": {
                           "type": "string"
                         },
+                        "orgId": {
+                          "type": "string"
+                        },
                         "installId": {
                           "type": "string"
                         },
@@ -53029,6 +53044,7 @@
                       },
                       "required": [
                         "readerId",
+                        "orgId",
                         "installId",
                         "agentUserId",
                         "name",
@@ -53138,6 +53154,9 @@
                           "readerId": {
                             "type": "string"
                           },
+                          "orgId": {
+                            "type": "string"
+                          },
                           "installId": {
                             "type": "string"
                           },
@@ -53201,6 +53220,7 @@
                         },
                         "required": [
                           "readerId",
+                          "orgId",
                           "installId",
                           "agentUserId",
                           "name",
@@ -53321,6 +53341,9 @@
                         "readerId": {
                           "type": "string"
                         },
+                        "orgId": {
+                          "type": "string"
+                        },
                         "installId": {
                           "type": "string"
                         },
@@ -53384,6 +53407,7 @@
                       },
                       "required": [
                         "readerId",
+                        "orgId",
                         "installId",
                         "agentUserId",
                         "name",
@@ -53489,6 +53513,9 @@
                         "readerId": {
                           "type": "string"
                         },
+                        "orgId": {
+                          "type": "string"
+                        },
                         "installId": {
                           "type": "string"
                         },
@@ -53552,6 +53579,7 @@
                       },
                       "required": [
                         "readerId",
+                        "orgId",
                         "installId",
                         "agentUserId",
                         "name",

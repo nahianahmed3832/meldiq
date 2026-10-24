@@ -315,6 +315,8 @@ export const AiTaskSettings = z.strictObject({
 /** An agent reading a conversation: who switched it on, why and when (never what it read). */
 export const AiReaderView = z.strictObject({
   readerId: str,
+  /** The agent's community (a direct conversation has none of its own). */
+  orgId: str,
   installId: str,
   /** The agent's bot identity (it appears as this user in key lists, with only its device here). */
   agentUserId: str,
