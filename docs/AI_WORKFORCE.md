@@ -21,7 +21,12 @@ Progress, verification status and what's left: `AI_WORKFORCE_PROGRESS.md`.
 | Media | No ffmpeg in the server image | Added to the Dockerfile; the server detects it at run time and the console shows its real state |
 | Clients | Meldiq Web (React, hash routes, plain CSS design system); Android (Kotlin) | Web gets the AI Workforce area and the channel experience; Android doesn't (yet) |
 
-## 2. Privacy model: agents never hold encryption keys
+## 2. Privacy model: agents never hold encryption keys (except where a channel opts in)
+
+**Since API 0.40.0** a channel's managers can let an agent read new messages there, and a person can open a direct
+conversation with an agent: the agent then has a server-held device in that conversation, and each member's own choice
+decides whether their messages reach it (`AI_WORKFORCE_2_PLAN.md` phase 5). Everywhere else, the rest of this section
+holds as written.
 
 An agent is not a member device and is never given a message key. Content reaches an agent only when a person sends it
 on purpose: the brief they type and the files they choose. Their browser decrypts those files and uploads them to the

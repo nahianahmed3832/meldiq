@@ -122,6 +122,12 @@ Per message:
    `HPKE.Seal(base mode, DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, AES-256-GCM; pkR=deviceEncKey, info="griip-envelope-v1/key", aad=messageId+"\n"+deviceId, pt=contentKey)`.
 
 The server verifies the sender signature and checks that the recipient set equals the current members' active devices.
+**Exception (API 0.40.0, opt-in per channel):** an AI agent's reader device in a conversation that switched reading on
+may also be in the set, never must be. Each sender's app decides from its person's own choice (share or keep), and apps
+that don't implement the notice and choice are never shown a reader, so they never wrap to one. Messages wrapped to a
+reader are decrypted on the server (its keys are server-held, sealed under `PLATFORM_SECRETS_KEY`), so in those
+channels they're readable by whoever controls the server and by the AI provider. Calls are never wrapped to a reader.
+Design and limits: `AI_WORKFORCE_2_PLAN.md` phase 5 and `AI_AGENT_CHANNEL_READ_PROPOSAL.md`.
 If not, it returns `409 device_mismatch` and the client refreshes keys. The recipient verifies the signature against a device
 key whose certificate chains to the sender's identity key, opens the HPKE wrap, then decrypts and authenticates the content.
 

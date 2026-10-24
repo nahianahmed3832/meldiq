@@ -126,6 +126,13 @@ The owner's "native AI bots" brief, on top of decision 1 (opt-in AI reader). Des
    channel attachments are not read (files reach agents through requests and task hand-ins); the notice names the
    provider of the route in use.
 
+**Built (2026-10-25):** stage A, API 0.40.0 (internal-beta `08965b1`, `de97578`): migration 053, the reader worker,
+triggers, grants, direct conversations, the recipient rule; tests `ai_channel_readers` (13, real end-to-end crypto
+between the reference client and the server's reader) and `ai_creative_workflow` (real ffmpeg). Stage B, web
+(orbit_web `08ba69d`): notice and choice, the wrap rule, `@`/`/` suggestions, direct conversations, reading settings;
+browser test included. Not built yet: stage C (Android: it never sees a reader, so its members never share and see no
+notice), channel attachments, a "watch and triage" activation, cancelling a reader's running jobs at switch-off.
+
 Stages: (A) server: identities, reader devices, recipient rule, worker, triggers, grants, DMs, tests with real crypto;
 (B) web: notice and choice, wrap rule, commands, DMs, settings; (C) Android: the same; (D) staged rollout behind the
 platform setting `ai.workforce.channel_reading` (off by default).
