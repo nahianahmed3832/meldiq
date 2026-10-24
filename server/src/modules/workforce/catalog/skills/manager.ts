@@ -3,7 +3,7 @@ import { ApiError } from "../../../../shared/errors.js";
 import { untrusted } from "../../prompting.js";
 import { defineSkill, type SkillContext, type SkillOutcome } from "../../types.js";
 import { Brief, deliver, finish, MB, post, sharedSource, Summary, TEXT_MIMES, VIDEO_MIMES, AUDIO_MIMES, IMAGE_MIMES } from "../common.js";
-import { CAPABILITY_IDS, CAPABILITY_SPECS, type CapabilityId, missingLines } from "../../capabilityCatalog.js";
+import { CAPABILITY_IDS, CAPABILITY_SPECS, type CapabilityId, missingLines, SKILL_PROVIDES } from "../../capabilityCatalog.js";
 
 /**
  * Agent Manager: understands a request, and either answers it, asks one question, or plans steps for the community's
@@ -47,7 +47,14 @@ const Plan = z.object({
 });
 type Plan = z.infer<typeof Plan>;
 
-/** The capabilities a request needs, from the skill library's list (the coordinator itself is left out). */
+const SKILL_ID = "manager.orchestrate";
+/**
+ * What the Manager does itself (plan, and answer from its own model): never looked for among the other agents, which
+ * discovery searches (it leaves out the asking install), so a plain question is never reported as nobody's job.
+ */
+const OWN_CAPABILITIES: ReadonlySet<CapabilityId> = new Set(SKILL_PROVIDES[SKILL_ID] ?? []);
+
+/** The capabilities a request needs, from the skill library's list (what the Manager does itself is left out). */
 const Needs = z.object({ capabilities: z.array(z.enum(CAPABILITY_IDS as [CapabilityId, ...CapabilityId[]])).max(8) });
 
 const StepResult = z.strictObject({
@@ -112,13 +119,14 @@ export function checkPlan(plan: Plan, team: ReadonlySet<string>, people = false)
 async function unavailable(ctx: SkillContext, brief: string): Promise<string[]> {
   if (!ctx.models.available("fast")) return [];
   try {
-    const catalog = CAPABILITY_IDS.filter((c) => c !== "orchestrate.plan").map((c) => `${c}: ${CAPABILITY_SPECS[c].label}`).join("\n");
+    const catalog = CAPABILITY_IDS.filter((c) => !OWN_CAPABILITIES.has(c)).map((c) => `${c}: ${CAPABILITY_SPECS[c].label}`).join("\n");
     const needs = await ctx.models.json("fast", Needs, {
       system: `Which of these capabilities does the request need? Only ones it clearly needs; usually one to three.\n${catalog}\nAnswer with JSON only: {"capabilities": [ids]}`,
       prompt: untrusted("request", brief),
       maxOutputTokens: 200,
     });
-    return missingLines(await ctx.discover(needs.capabilities.filter((c) => c !== "orchestrate.plan")));
+    const others = needs.capabilities.filter((c) => !OWN_CAPABILITIES.has(c));
+    return others.length ? missingLines(await ctx.discover(others)) : [];
   } catch {
     return [];
   }
@@ -247,7 +255,7 @@ async function report(ctx: SkillContext, cp: z.infer<typeof Checkpoint>): Promis
 }
 
 export const managerSkill = defineSkill<Input, Output>({
-  id: "manager.orchestrate",
+  id: SKILL_ID,
   version: 1,
   input: Input,
   output: Output,

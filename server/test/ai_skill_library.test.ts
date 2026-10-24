@@ -27,7 +27,8 @@ function answer(call: FakeCall): Answer | null {
   const { system, user } = chatText(call);
   prompts.push({ system, user });
   if (user.includes("Reply with the single word")) return openAiChat("pong");
-  if (system.includes("Which of these capabilities does the request need")) return openAiChat(JSON.stringify({ capabilities: ["text.write", "social.publish"] }));
+  if (system.includes("Which of these capabilities does the request need"))
+    return openAiChat(JSON.stringify({ capabilities: user.includes("fewer tokens") ? ["text.answer"] : ["text.write", "social.publish"] }));
   if (system.includes("You coordinate a team of AI agents")) return openAiChat(JSON.stringify({ mode: "answer", answer: "Here is the launch post draft." }));
   return openAiChat("Ready.");
 }
@@ -117,5 +118,17 @@ describe("the Agent Manager", () => {
     expect(planPrompt.system).toMatch(/Not available here .*\n- Publish to social media/);
     // One quick classification call before the plan, on the quick-replies route.
     expect(prompts.findIndex((p) => p.system.includes("Which of these capabilities"))).toBeLessThan(prompts.indexOf(planPrompt));
+  });
+
+  it("answers a plain question itself, with no other agent installed, and reports nothing missing", async () => {
+    const alone = await community(h, "ManagerAlone");
+    const only = await install(alone, "agent_manager");
+    const job = (await alone.member.req("POST", `/v1/orgs/${alone.orgId}/ai/jobs`, { installId: only, input: { brief: "Can you work with fewer tokens?" } })).job;
+    await h.ctx.workforce.runtime.runUntilIdle();
+    const done = (await alone.member.req("GET", `/v1/orgs/${alone.orgId}/ai/jobs/${job.id}`)).job;
+    expect(done.state).toBe("completed");
+    expect(done.output.missing).toEqual([]);
+    expect(done.output.answer).toBe("Here is the launch post draft.");
+    expect(done.output.answer).not.toMatch(/Not available here/);
   });
 });
