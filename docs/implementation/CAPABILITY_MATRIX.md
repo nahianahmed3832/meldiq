@@ -10,7 +10,7 @@ What the AI workforce can do today, honestly classified. Updated at each phase g
 - **blocked_external**: needs something only the owner or a third party can provide (named).
 - **not_implemented**: not built.
 
-"Live" says whether production runs it (API 0.40.0, web 08ba69d). Commits since are local only.
+"Live" says whether production runs it (API 0.41.0, web 0f42277, console 0.6.0 since 2026-10-24 19:30 UTC).
 
 ## Core workforce
 
@@ -20,9 +20,9 @@ What the AI workforce can do today, honestly classified. Updated at each phase g
 | Agent catalog, install, configure, readiness, autonomy | verified | yes | `ai_workforce_*.test.ts`; web e2e "configures an agent step by step" |
 | Job engine: queue, leases, retries, idempotency, dependencies, recovery | verified | yes | `ai_workforce_runtime.test.ts` |
 | Ask an agent (dialog) and channel posts with AI badge | verified | yes | web e2e |
-| Channel "@Agent" anywhere in a message, "/command" | verified | no | ADR 0008; shared cases on server, web, Android; web e2e. Before: start of message only |
+| Channel "@Agent" anywhere in a message, "/command" | verified | yes | ADR 0008; shared cases on server, web, Android; web e2e. Before: start of message only |
 | Agent Manager: answer, ask, delegate, report from records | verified | yes | `ai_workforce_runtime.test.ts`, `ai_creative_workflow.test.ts`, `ai_tasks.test.ts` |
-| Manager reports only what other agents can't do | verified | no | fix `8601242`; live version still reports itself missing |
+| Manager reports only what other agents can't do | verified | yes | fix `8601242` |
 | Skill library and discovery (provides, blockers, installable) | verified | yes | `ai_skill_library.test.ts` |
 | Human tasks: assign, hand in, accept, Manager steps for people | verified | yes | `ai_tasks.test.ts`; web e2e "tasks for people" |
 | Triggers: schedules, signed webhooks, handoffs | verified | yes | `ai_workforce_automation.test.ts` |
@@ -37,11 +37,11 @@ What the AI workforce can do today, honestly classified. Updated at each phase g
 | Capability | Status | Live | Evidence / gap |
 |---|---|---|---|
 | Console AI control center (overview, routes, models, jobs) | verified | yes | console tests; used in production |
-| Full System Check (one run, all subsystems, history, export) | verified | no | `ai_system_check.test.ts`; web and console e2e; API 0.41.0 not deployed |
-| Work overview (what needs you, in progress, finished, failed, cost; links to records) | verified | no | `ai_work_overview.test.ts`; web e2e "Overview…"; Android not yet |
+| Full System Check (one run, all subsystems, history, export) | verified | yes | `ai_system_check.test.ts`; web and console e2e; first production run 21 healthy, 1 warning |
+| Work overview (what needs you, in progress, finished, failed, cost; links to records) | verified | yes | `ai_work_overview.test.ts`; web e2e "Overview…"; Android not yet |
 | Business goals/objectives as records with execution plans | not_implemented | — | no goal model; Manager plans per request only |
-| Cost accounting: quotas on requests, tokens and cost, usage per job | verified | yes | operator quotas (live); cost per request in the work overview (not deployed) |
-| Per-agent monthly AI budget, hard-enforced | verified | no | `ai_agent_budget.test.ts`; web e2e; migration 055 |
+| Cost accounting: quotas on requests, tokens and cost, usage per job | verified | yes | operator quotas; cost per request in the work overview |
+| Per-agent monthly AI budget, hard-enforced | verified | yes | `ai_agent_budget.test.ts`; web e2e; migration 055 |
 | Token efficiency: fast route for classification, context limits | partial | yes | no prompt caching, no batching |
 
 ## Business integrations

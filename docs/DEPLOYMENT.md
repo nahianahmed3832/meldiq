@@ -7,7 +7,7 @@
 | VPS | Hostinger VM 1245833, `srv1245833.hstgr.cloud`, **72.60.107.88** (Ubuntu 24.04, 2 vCPU, 8 GB) |
 | Compose project | **`griip-internal-messaging`** |
 | Directory | **`/opt/griip-internal-messaging`** (root, 0750; `.env` 0600) |
-| Services | `api` (`griip-internal-messaging-api:0.40.0` since 2026-10-24 17:34 UTC, built on the VPS; `0.39.0-rollback`, `0.37.1-rollback` and older `-rollback` tags kept), `livekit` (`livekit/livekit-server:v1.13.10`), `ntfy` (`binwiederhier/ntfy:v2.31.1`) |
+| Services | `api` (`griip-internal-messaging-api:0.41.0` since 2026-10-24 19:30 UTC, built on the VPS; `0.40.0-rollback`, `0.39.0-rollback` and older `-rollback` tags kept), `livekit` (`livekit/livekit-server:v1.13.10`), `ntfy` (`binwiederhier/ntfy:v2.31.1`) |
 | Volume / network | `griip-internal-messaging_api-data`, `griip-internal-messaging_default` |
 | Public URLs | **`https://msg.meldiq.app`** (API + WebSocket) and **`wss://rtc.meldiq.app`** (LiveKit signalling) since 2026-10-22; the former `msg.griipbuddy.cloud` and `rtc.griipbuddy.cloud` still serve the same backends for apps installed earlier |
 | TLS | host nginx: `meldiq-msg.conf` (certificate `meldiq-msg`, msg and rtc.meldiq.app) and `griip-message.conf` (certificate `griip-message`, the former names); both renew automatically (certbot, webroot `/var/www/griip-message-acme`). `meldiq-admin.conf` (certificate `admin.meldiq.app`, certbot `--nginx`, renews automatically) since 2026-10-23 |
@@ -129,6 +129,31 @@ Passkeys failed in the app installed from Google Play: Play signs it with its ap
 | Checks after | `/healthz` 0.35.0 on msg.meldiq.app and msg.griipbuddy.cloud; `assetlinks.json` lists `com.meldiq.android` with the debug and Play keys; passkey options answer. Google's Digital Asset Links check still said "not linked" right after (its answer is cached up to an hour) |
 
 Rollback: copy the backup's `.env` back and recreate `api` the same way.
+
+### API 0.41.0, Meldiq Web 0.5.0-beta-0f42277 and console 0.6.0 (2026-10-24, 19:30 UTC, owner's go-ahead)
+
+The master prompt's phases 1–3 and 10 (`implementation/PROGRESS.md`; internal-beta `8601242`…`c918fde`): the Agent
+Manager no longer reports itself missing; one invocation rule for mentions and commands on server, web and Android
+(ADR 0008); Run Full System Check for communities and the platform (also every 6 hours on its own); the work overview;
+a monthly AI budget per agent. Migrations **054** (`ai_system_checks`) and **055** (`ai_agent_installs.max_cost_micro_month`,
+index `ai_usage(install_id, at)`), both additive. Web: Overview, Health, budgets, mentions anywhere (orbit_web `0f42277`).
+Console: AI Control Center › System check (release `0.6.0-20261024T192944Z`).
+
+| Step | Result |
+|---|---|
+| Checks before | server **1,051 passed** / 11 skipped, `tsc` and build clean (the server has no linter); web `tsc -b`, lint, format, 484 unit tests, all browser tests 52 passed / 1 failed (`accounts.spec.ts:85`, fails the same on the pre-session code `87c71aa`); console `tsc -b`, lint, format, 17 unit, 5 browser tests |
+| Pre-flight | running 0.40.0; VPS `server/` byte-equal to `e494949`; web 08ba69d, console 0.5.0; `origin/internal-beta` and `origin/ai-workforce-web` behind local, nothing new on them; web branch level with `origin/main` |
+| Backup | `backups/pre-0.41.0-20261024T192706Z`: integrity ok, schema 53, 39 users, `.env` + `compose.yaml` copies; image tagged `0.40.0-rollback`; sources kept as `server.pre-0.41.0` |
+| Build | 32 changed files synced (all this release's); `docker build -t griip-internal-messaging-api:0.41.0 server` (`build-0.41.0.log`, exit 0) |
+| Rehearsal | snapshot copy, `--network none`, env without FCM lines: migrations 054–055, schema 55, integrity ok, 39 users, 7 orgs; `ai_system_checks`, the budget column and the usage index present; all 15 installs without a budget; removed after |
+| Switch | `compose.yaml` image 0.41.0, `validate-env.sh` 0 errors, `config -q`, `up -d --no-deps --no-build api`: healthy, 0 restarts |
+| Checks after | `/healthz` 0.41.0 on both hosts; 0 errors in the log; new routes answer "Authentication required"; `platform-audit-verify` ok; no budget set; the first scheduled platform System Check (19:30:43, 617 ms): 21 healthy, 1 warning (2 old `ai_not_configured` failures from before the routes were set up), all 7 routes verified, storage round-trip on S3, ffmpeg 8.1.2; backup `post-0.41.0-20261024T193330Z` verified (schema 55, 39 users) |
+| Web | release `0.5.0-beta-0f42277` (contracts from the committed server tree; secret scan clean) with the previous settings; nginx files byte-identical; `verify.sh` all passed (API 0.41.0 through the site) |
+| Console | release `0.6.0-20261024T192944Z` (secret scan clean); `verify.sh` all passed; serves the new build |
+
+Rollback: web (`bash /root/meldiq-web-0.5.0-beta-0f42277/rollback.sh`, back to `08ba69d`) and console
+(`bash /root/meldiq-admin-0.6.0-20261024T192944Z/rollback.sh`, back to 0.5.0) first, then the API image `0.40.0-rollback` with
+`up -d --no-deps --no-build api` (054 and 055 are additive; 0.40.0 ignores the new table, column and index).
 
 ### API 0.40.0 and Meldiq Web 0.5.0-beta-08ba69d (2026-10-24, 17:34 UTC, owner's go-ahead; channel reading left off)
 

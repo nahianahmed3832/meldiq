@@ -4,6 +4,9 @@ The owner's "Meldiq Autonomous AI Employee Platform" master prompt (2026-10-25),
 Newest entries first within each phase. Capability statuses: `CAPABILITY_MATRIX.md`. Material decisions: ADRs in
 `../decisions/` (index there) and the earlier AI Workforce design in `../AI_WORKFORCE.md` and `../AI_WORKFORCE_2_PLAN.md`.
 
+**Deployed 2026-10-24 19:30 UTC on the owner's go-ahead:** API 0.41.0, web 0.5.0-beta-0f42277, console 0.6.0
+(`../DEPLOYMENT.md`). The rest of this section describes the state before that release.
+
 **Rule for this work: no deploys.** Everything is committed locally on `internal-beta` (server, Android, shared) and
 `ai-workforce-web` (Meldiq Web worktree); the console (`meldiq_central_admin`, not a git repository) is changed in place.
 Production stays at API 0.40.0, web 0.5.0-beta-08ba69d, console 0.5.0 until the owner approves a release. Prepared:
@@ -220,3 +223,9 @@ account pages are another session's work); the fix is to go back to the conversa
     channel readers (stage C) are still unbuilt there.
 - **Next phase to continue from:** release preparation for API 0.41.0 (on the owner's go-ahead), or phase 4's
   workspace knowledge base (needs a vector store decision), or fixing `accounts.spec.ts` in the web branch.
+
+### Release (2026-10-24, 19:30 UTC, owner's go-ahead)
+
+API 0.41.0, web `0f42277` and console 0.6.0 are live after the usual safeguards (`../DEPLOYMENT.md`). The first real
+platform System Check ran on its own right after the switch: 21 healthy, 1 warning (two old `ai_not_configured`
+failures). Branches pushed: `internal-beta`, `ai-workforce-web` (PR #20 still unmerged).
