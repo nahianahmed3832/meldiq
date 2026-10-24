@@ -393,6 +393,37 @@ const CheckCounts = z.strictObject({ healthy: zCount, warning: zCount, failed: z
 export const AiCheckSummary = z.strictObject({ id: str, scope: z.enum(["community", "platform"]), requestedBy: str, startedAt: zTime, finishedAt: zTime, worst: CheckStatus, summary: CheckCounts });
 export const AiCheckReport = AiCheckSummary.extend({ orgId: nstr, items: z.array(AiCheckItem) });
 
+// The work overview (modules/workforce/workCenter.ts).
+export const AiWorkItem = z.strictObject({
+  kind: z.enum(["job", "task"]),
+  id: str,
+  title: str,
+  owner: z.strictObject({ kind: z.enum(["agent", "person"]), id: str, name: str }),
+  requestedBy: z.strictObject({ id: str, name: str }),
+  state: str,
+  at: zTime,
+  reason: nstr,
+  action: z.enum(["approve", "answer", "do", "review", "open"]),
+  jobId: nstr,
+  taskId: nstr,
+  approvalId: nstr,
+  dueAt: ntime,
+  progress: int.nullable(),
+  deliverables: zCount.nullable(),
+  costMicro: zCount.nullable(),
+  error: nstr,
+});
+export const AiWorkOverview = z.strictObject({
+  scope: z.enum(["mine", "all"]),
+  attention: z.array(AiWorkItem),
+  active: z.array(AiWorkItem),
+  finished: z.array(AiWorkItem),
+  failed: z.array(AiWorkItem),
+  totals: z.strictObject({ attention: zCount, active: zCount, finished: zCount, failed: zCount, requests: zCount, modelRequests: zCount, costMicro: zCount }),
+  health: z.strictObject({ id: str, worst: CheckStatus, at: zTime, failed: zCount, warning: zCount }).nullable(),
+  days: int,
+});
+
 const tag = "ai-workforce";
 const COMMON: readonly ErrorCode[] = ["not_found", "forbidden", "ai_workforce_disabled"];
 const errs = (...codes: ErrorCode[]): readonly ErrorCode[] => [...COMMON, ...codes];
@@ -557,6 +588,7 @@ export const aiWorkforceRoutes = [
     status: 202,
     errors: ["not_found"],
   }),
+  route({ method: "GET", url: "/v1/orgs/:orgId/ai/work", tag, summary: "The work overview: what needs this person, what agents and people are doing, what finished and failed in the last 7 days, cost, and (for managers) the latest System Check. Managers see the whole community; others their own requests and tasks.", auth: true, params: AiOrgParams, response: AiWorkOverview, errors: errs() }),
   route({ method: "POST", url: "/v1/orgs/:orgId/ai/system-check", tag, summary: "Run Full System Check for this community (Manage AI agents): configuration, runtime and safe smoke tests. Never calls an AI model, sends or publishes.", auth: true, params: AiOrgParams, response: z.strictObject({ report: AiCheckReport }), status: 201, errors: errs() }),
   route({ method: "GET", url: "/v1/orgs/:orgId/ai/system-check", tag, summary: "This community's latest System Check and the history of runs (Manage AI agents).", auth: true, params: AiOrgParams, response: z.strictObject({ latest: AiCheckReport.nullable(), history: z.array(AiCheckSummary) }), errors: errs() }),
   route({ method: "GET", url: "/v1/orgs/:orgId/ai/system-check/:checkId", tag, summary: "One System Check report of this community (Manage AI agents); also its export.", auth: true, params: AiCheckParams, response: z.strictObject({ report: AiCheckReport }), errors: errs() }),

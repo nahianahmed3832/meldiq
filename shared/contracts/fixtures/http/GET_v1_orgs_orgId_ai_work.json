@@ -1,0 +1,45 @@
+{
+  "scope": "mine",
+  "attention": [],
+  "active": [],
+  "finished": [
+    {
+      "kind": "job",
+      "id": "job_H51Dtg4DlnpXQxflkYAatg",
+      "title": "What is our refund window?",
+      "owner": {
+        "kind": "agent",
+        "id": "agi_6Wjh6oxaHO_iMqLSrnq_dQ",
+        "name": "General Assistant"
+      },
+      "requestedBy": {
+        "id": "u_YGAlxxUpz4X2QCbrPgoS3g",
+        "name": "Worksmember"
+      },
+      "state": "completed",
+      "at": 1792867728156,
+      "reason": null,
+      "action": "open",
+      "jobId": "job_H51Dtg4DlnpXQxflkYAatg",
+      "taskId": null,
+      "approvalId": null,
+      "dueAt": null,
+      "progress": 100,
+      "deliverables": 0,
+      "costMicro": 6000,
+      "error": null
+    }
+  ],
+  "failed": [],
+  "totals": {
+    "attention": 0,
+    "active": 0,
+    "finished": 1,
+    "failed": 0,
+    "requests": 1,
+    "modelRequests": 1,
+    "costMicro": 6000
+  },
+  "health": null,
+  "days": 7
+}

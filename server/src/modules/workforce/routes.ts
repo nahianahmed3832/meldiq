@@ -40,6 +40,7 @@ import { skillRoutes } from "./skillRoutes.js";
 import { taskRoutes } from "./taskRoutes.js";
 import { readerRoutes } from "./reader/routes.js";
 import { systemCheckRoutes } from "./health/routes.js";
+import { WorkCenter } from "./workCenter.js";
 
 /**
  * AI Workforce for communities (docs/AI_WORKFORCE.md): /v1/orgs/:orgId/ai/* and /v1/conversations/:id/ai/*. Who may
@@ -218,6 +219,14 @@ export default async function workforceRoutes(app: FastifyInstance, ctx: AppCont
     const all = q.scope === "all" && ctx.authz.can(orgId, userId, "ai.manage");
     const rows = w.jobs.list({ orgId, userId: all ? undefined : userId, installId: q.installId, state: q.state as JobState | undefined, rootOnly: true, before: q.before }, q.limit);
     return { jobs: rows.map((j) => jobSummary(w, j)), next: rows.length === q.limit ? rows[rows.length - 1]!.created_at : null };
+  });
+
+  const work = new WorkCenter(w);
+  app.get("/v1/orgs/:orgId/ai/work", auth, async (req) => {
+    const { userId } = me(req);
+    const { orgId } = parse(AiOrgParams, req.params);
+    member(orgId, userId);
+    return work.overview(orgId, userId);
   });
 
   app.get("/v1/orgs/:orgId/ai/jobs/:jobId", auth, async (req) => {
