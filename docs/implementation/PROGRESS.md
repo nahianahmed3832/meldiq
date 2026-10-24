@@ -7,7 +7,7 @@ Newest entries first within each phase. Capability statuses: `CAPABILITY_MATRIX.
 **Rule for this work: no deploys.** Everything is committed locally on `internal-beta` (server, Android, shared) and
 `ai-workforce-web` (Meldiq Web worktree); the console (`meldiq_central_admin`, not a git repository) is changed in place.
 Production stays at API 0.40.0, web 0.5.0-beta-08ba69d, console 0.5.0 until the owner approves a release. Prepared:
-API 0.41.0 (migration 054, additive), console 0.6.0.
+API 0.41.0 (migrations 054 and 055, both additive), console 0.6.0.
 
 ## Where things are
 
@@ -135,3 +135,31 @@ not built: those sections have no connected systems behind them yet, and empty s
 objectives/goals as records (no goal model exists; the Agent Manager's plans are the closest thing).
 
 Commits: server `e70e0a6`; web `45fed81`.
+
+## Phases 4–11: what was safe to do now (2026-10-25)
+
+| Phase | Done in this session | Waiting on |
+|---|---|---|
+| 4 Skills, setup, business context | Readiness now includes the agent's budget; the System Check aggregates readiness for every agent (phase 2). Skill library, discovery and the 9-step Configure (with a real test) already existed (0.36.0–0.38.0). | Integration onboarding needs the outside accounts (phase 6, 8, 9). A workspace knowledge base needs a vector store decision; the embeddings route is verified but unused. |
+| 5 Delegation | Unchanged: the Manager's validated plans, delegation as the requester, depth and job caps, waiting on tasks (0.39.0). | — |
+| 6 Social | Nothing new. | Meta (business verification, app review), TikTok (app review), Google Cloud project and Ads developer token: the owner registers these. Tools answer `integration_not_configured`. |
+| 7 Video | Nothing new: server editing is verified with real ffmpeg. | The Mac companion (Filmora/CapCut via accessibility) is a separate signed macOS app. |
+| 8 Commerce | Nothing new. | GriipBuddy store: a read-only MongoDB user and the server's location (owner). |
+| 9 Marketing budgets | The per-agent hard budget (below) is the enforcement an ads agent would run under. | Ad-account connections (as phase 6). |
+| 10 Cost | **Per-agent monthly AI budget**, enforced in code (below). | Prompt caching and batching: not started. |
+| 11 SaaS | Nothing new. | Pricing, plans and a payment provider are the owner's decisions (§1.2: no billing changes without authorization). |
+
+### Phase 10: per-agent monthly AI budget
+
+People who manage agents set a monthly budget (USD) per agent under Configure › Limits (migration 055, additive:
+`ai_agent_installs.max_cost_micro_month`, and an `ai_usage(install_id, at)` index). Spend comes from the usage records
+(`ai_usage.install_id`) for this calendar month (UTC). Once it's used up, new jobs are refused (`quota_exceeded`, with
+how much of what was used and when it resets) and a running job stops before its next model request. One request
+already in flight may finish past the budget. Readiness shows it (advice from 80%, missing when used up), so the System
+Check and the agent's Configure page both say why the agent stopped.
+
+**Verified:** server 1050 passed; `ai_agent_budget.test.ts` 5 (exact costs with a priced fake model; the in-flight stop
+is proven red without the runtime check); agent-view fixtures re-recorded; Android `ContractFixturesTest` 3/3 on them;
+web 484 unit, agents e2e 12/12 (the configure flow sets a $5 budget and readiness shows it).
+
+Commits: server `054367c`; web `0f42277`.
