@@ -11,3 +11,4 @@ One file per decision: context, decision, consequences. Earlier decisions (D-01 
 | [0005](0005-federated-network.md) | Griip is a federated network with a replicated core registry | Accepted |
 | [0006](0006-remote-users-as-shadows.md) | Remote users are "shadow" rows with their real ids | Accepted |
 | [0007](0007-calls-hosted-by-caller.md) | Cross-server calls are hosted by the caller's server | Accepted |
+| [0008](0008-one-agent-invocation-rule.md) | One rule for calling an agent from a message, shared by server, web and Android | Accepted |
