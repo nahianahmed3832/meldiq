@@ -7,7 +7,7 @@
 | VPS | Hostinger VM 1245833, `srv1245833.hstgr.cloud`, **72.60.107.88** (Ubuntu 24.04, 2 vCPU, 8 GB) |
 | Compose project | **`griip-internal-messaging`** |
 | Directory | **`/opt/griip-internal-messaging`** (root, 0750; `.env` 0600) |
-| Services | `api` (`griip-internal-messaging-api:0.37.1` since 2026-10-24 13:05 UTC, built on the VPS; `0.37.0-rollback`, `0.36.0-rollback` and older `-rollback` tags kept), `livekit` (`livekit/livekit-server:v1.13.10`), `ntfy` (`binwiederhier/ntfy:v2.31.1`) |
+| Services | `api` (`griip-internal-messaging-api:0.39.0` since 2026-10-24 15:40 UTC, built on the VPS; `0.37.1-rollback`, `0.37.0-rollback` and older `-rollback` tags kept), `livekit` (`livekit/livekit-server:v1.13.10`), `ntfy` (`binwiederhier/ntfy:v2.31.1`) |
 | Volume / network | `griip-internal-messaging_api-data`, `griip-internal-messaging_default` |
 | Public URLs | **`https://msg.meldiq.app`** (API + WebSocket) and **`wss://rtc.meldiq.app`** (LiveKit signalling) since 2026-10-22; the former `msg.griipbuddy.cloud` and `rtc.griipbuddy.cloud` still serve the same backends for apps installed earlier |
 | TLS | host nginx: `meldiq-msg.conf` (certificate `meldiq-msg`, msg and rtc.meldiq.app) and `griip-message.conf` (certificate `griip-message`, the former names); both renew automatically (certbot, webroot `/var/www/griip-message-acme`). `meldiq-admin.conf` (certificate `admin.meldiq.app`, certbot `--nginx`, renews automatically) since 2026-10-23 |
@@ -129,6 +129,30 @@ Passkeys failed in the app installed from Google Play: Play signs it with its ap
 | Checks after | `/healthz` 0.35.0 on msg.meldiq.app and msg.griipbuddy.cloud; `assetlinks.json` lists `com.meldiq.android` with the debug and Play keys; passkey options answer. Google's Digital Asset Links check still said "not linked" right after (its answer is cached up to an hour) |
 
 Rollback: copy the backup's `.env` back and recreate `api` the same way.
+
+### API 0.39.0 and Meldiq Web 0.5.0-beta-5f2b28d (2026-10-24, 15:40 UTC, owner's go-ahead)
+
+AI Workforce 2.0 phases 1 and 4 (`AI_WORKFORCE_2_PLAN.md`; internal-beta `a463694` 0.38.0, never deployed alone, and
+`822ae06` 0.39.0): the shared skill library and discovery, and human tasks with the Agent Manager assigning work to
+people and agents. Migration **052** (additive: `ai_tasks`, `ai_task_events`, `ai_task_settings`, `ai_files.task_id`;
+the one active Agent Manager install got the `tasks.assign` tool, inert until a community names who may be assigned
+work). Web: the Tasks tab (orbit_web `5f2b28d`). Console unchanged (0.5.0).
+
+| Step | Result |
+|---|---|
+| Checks before | server **993 passed** / 11 skipped (new `ai_skill_library` 5, `ai_tasks` 5), `tsc` and build clean; web `tsc -b`, lint, format, 466 unit tests, 9 agent browser tests against this server |
+| Pre-flight | running 0.37.1; VPS `server/` byte-equal to `37642c9`; web branch level with `origin/main` |
+| Backup | `backups/pre-0.39.0-20261024T153809Z`: integrity ok, schema 51, 39 users, `.env` + `compose.yaml` copies; image tagged `0.37.1-rollback`; sources kept as `server.pre-0.39.0` |
+| Build | `docker build -t griip-internal-messaging-api:0.39.0 server` on the VPS (`build-0.39.0.log`, exit 0) |
+| Rehearsal | snapshot copy, `--network none`, env without FCM lines: migration 052 applied, schema 52, integrity ok, 39 users, 15 installs, task tables empty, `ai_files.task_id` present, the active Agent Manager holds `tasks.assign`; removed after |
+| Switch | `compose.yaml` image 0.39.0, `validate-env.sh` 0 errors, `config -q`, `up -d --no-deps --no-build api`: healthy, 0 restarts, no errors |
+| Web | release `0.5.0-beta-5f2b28d` (contracts from the committed server tree; secret scan clean) with the previous settings; nginx files byte-identical; `verify.sh` all passed (API 0.39.0 through the site); serves the new build; sign-in page without console errors |
+| Checks after | `/healthz` 0.39.0 on both hosts; the new routes answer "Authentication required" without a session; `platform-audit-verify` ok; AI switches unchanged; backup `post-0.39.0-20261024T154248Z` verified (schema 52, 39 users) |
+
+Rollback: web first (`bash /root/meldiq-web-0.5.0-beta-5f2b28d/rollback.sh`, back to `ac31d7d`), then the API image
+`0.37.1-rollback` with `up -d --no-deps --no-build api` (052 is additive; 0.37.1 ignores the new tables and column, and
+`tasks.assign` in an install's tool list is ignored by a server that doesn't know it, as 0.37.1 filters unknown tool keys;
+only a community entitlement naming `tasks.assign`, set after this release, would fail to load on 0.37.1).
 
 ### API 0.37.1 and the first routes (2026-10-24, 13:05 UTC, owner's request)
 
