@@ -140,8 +140,12 @@ export function routeCheck(d: Deps, category: RoutingCategory, now: number, agen
       verified: true,
     });
   }
-  const status = st.status === "not_configured" ? "not_configured" : st.status === "untested" ? "not_tested" : "failed";
-  return item(now, { ...base, status, severity: status === "failed" ? "critical" : "high", evidence: `${st.detail}${lastLine}`, remediation: "Set up and verify a model in AI Control Center › Models & routing." });
+  // The kill switch is its own item (switches): every route is off with it, and nothing about a route can be tested.
+  if (!d.ctx.ai.enabled) return item(now, { ...base, status: "not_tested", evidence: `${st.detail} Its model can't be checked while AI requests are off.`, owner: null });
+  // "disabled": a route policy keeps its models out (cost ceiling, default switched off): a choice, worth a look.
+  const status = st.status === "not_configured" ? "not_configured" : st.status === "untested" ? "not_tested" : st.status === "disabled" ? "warning" : "failed";
+  const remediation = st.status === "disabled" ? "Review the route's policy in AI Control Center › Models & routing." : "Set up and verify a model in AI Control Center › Models & routing.";
+  return item(now, { ...base, status, severity: status === "failed" ? "critical" : status === "warning" ? "medium" : "high", evidence: `${st.detail}${lastLine}`, remediation });
 }
 
 /** Readers in this community's channels: switched on while reading is off on the platform, or falling behind. */

@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { HISTORY_KEPT } from "../src/modules/workforce/health/report.js";
+import { AdminSystemCheck, AdminSystemChecks } from "../src/shared/contracts/http/platformAdminWorkforce.js";
 import { SystemCheck } from "../src/modules/workforce/health/systemCheck.js";
 import { MemoryMailer } from "./support/accounts.js";
 import { ADMIN_ORIGIN, type ConsoleAdmin, consoleAdmin } from "./support/adminConsole.js";
@@ -108,6 +109,19 @@ describe("a community's System Check", () => {
     expect(inv.evidence).toMatch(/#work: "@Writer" calls another agent with the same name/);
   });
 
+  it("with the AI kill switch off, says so once instead of failing every model route", async () => {
+    await admin.browser.expect(200, "PUT", "/admin/v1/settings/ai.enabled", { value: false, reason: REASON });
+    try {
+      const r = await run(await community(h, "KillSwitch"));
+      expect(find(r, "config.switches").evidence).toMatch(/AI requests are switched off/);
+      const p = (await admin.browser.expect(201, "POST", "/admin/v1/ai/system-check")).report as Report;
+      expect(p.items.filter((i) => i.key.startsWith("model.")).map((i) => i.status)).toEqual(Array(7).fill("not_tested"));
+      expect(find(p, "config.switches").status).toBe("warning");
+    } finally {
+      await admin.browser.expect(200, "PUT", "/admin/v1/settings/ai.enabled", { value: true, reason: REASON });
+    }
+  });
+
   it("still runs when AI Workforce is switched off, and says so", async () => {
     await admin.browser.expect(200, "PUT", "/admin/v1/ai/workforce/controls", { workforceEnabled: false, reason: REASON });
     try {
@@ -160,7 +174,10 @@ describe("a community's System Check", () => {
 describe("the platform's System Check", () => {
   it("runs from the console with real database, storage and invocation probes", async () => {
     chats.length = 0;
-    const r = (await admin.browser.expect(201, "POST", "/admin/v1/ai/system-check")).report as Report;
+    const answer = await admin.browser.expect(201, "POST", "/admin/v1/ai/system-check");
+    // The console validates with these schemas (its copy of platformAdminWorkforce.ts).
+    expect(AdminSystemCheck.safeParse(answer).success).toBe(true);
+    const r = answer.report as Report;
     expect(chats).toEqual([]);
     expect(r.scope).toBe("platform");
     expect(find(r, "smoke.database")).toMatchObject({ status: "healthy", verified: true });
@@ -173,6 +190,7 @@ describe("the platform's System Check", () => {
     expect(find(r, "model.image_generation").status).toBe("not_configured");
     expect(["healthy", "warning", "failed"]).toContain(find(r, "runtime.disk").status);
     const listed = await admin.browser.expect(200, "GET", "/admin/v1/ai/system-check");
+    expect(AdminSystemChecks.safeParse(listed).success).toBe(true);
     expect(listed.latest.id).toBe(r.id);
     expect((await admin.browser.expect(200, "GET", `/admin/v1/ai/system-check/${r.id}`)).report.id).toBe(r.id);
     // A community's report isn't served to the console.

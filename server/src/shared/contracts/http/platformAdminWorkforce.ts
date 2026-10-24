@@ -500,6 +500,37 @@ export const AdminJobs = z.strictObject({
 });
 export const AdminJobParams = z.strictObject({ jobId: zRef });
 export const AdminSystemCheckParams = z.strictObject({ checkId: zRef });
+
+/** Run Full System Check (modules/workforce/health): statuses, evidence, counts and ids, never content. */
+const zSystemCheckStatus = z.enum(["healthy", "warning", "failed", "not_configured", "not_tested"]);
+export const AdminCheckItem = z.strictObject({
+  key: z.string(),
+  level: z.enum(["configuration", "runtime", "smoke"]),
+  title: z.string(),
+  status: zSystemCheckStatus,
+  severity: z.enum(["critical", "high", "medium", "low", "info"]),
+  evidence: z.string(),
+  at: zTime,
+  impacts: z.array(z.string()),
+  cause: z.string().nullable(),
+  remediation: z.string().nullable(),
+  owner: z.enum(["platform_operator", "community_admin"]).nullable(),
+  verified: z.boolean(),
+  links: z.strictObject({ jobs: z.array(z.string()).optional(), tasks: z.array(z.string()).optional(), installId: z.string().optional(), triggers: z.array(z.string()).optional() }),
+});
+const zSystemCheckCounts = z.strictObject({ healthy: zCount, warning: zCount, failed: zCount, not_configured: zCount, not_tested: zCount });
+export const AdminCheckSummary = z.strictObject({
+  id: z.string(),
+  scope: z.enum(["community", "platform"]),
+  requestedBy: z.string(),
+  startedAt: zTime,
+  finishedAt: zTime,
+  worst: zSystemCheckStatus,
+  summary: zSystemCheckCounts,
+});
+export const AdminCheckReport = AdminCheckSummary.extend({ orgId: z.string().nullable(), items: z.array(AdminCheckItem) });
+export const AdminSystemCheck = z.strictObject({ report: AdminCheckReport });
+export const AdminSystemChecks = z.strictObject({ latest: AdminCheckReport.nullable(), history: z.array(AdminCheckSummary) });
 export const AdminJobDetail = z.strictObject({
   job: zAdminJob,
   /** For a failed job: where it stopped, why, and how it can be recovered (no content). */
