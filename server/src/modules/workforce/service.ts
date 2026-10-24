@@ -8,6 +8,7 @@ import { conversationMemberIds } from "../messaging/index.js";
 import { orgMemberIds } from "../organizations/index.js";
 import { refusal, scopesFor } from "../quotas/index.js";
 import { channelRefusal, type Deps, directWith, effectiveMode, mayApprove, requireInvoke, reviewForced, useRefusal } from "./access.js";
+import { budgetRefusal } from "./budget.js";
 import { AGENTS, findAgent } from "./catalog/index.js";
 import { type AiFileRow, INPUT_MIMES, MAX_INPUT_BYTES, sniffMatches } from "./files.js";
 import { type JobRow, JobStore, MAX_DEPTH, MAX_JOBS_PER_ROOT } from "./jobs.js";
@@ -183,6 +184,7 @@ export class Workforce {
       executionMode: "review" | "auto";
       maxJobsPerDay: number | null;
       maxConcurrent: number | null;
+      maxCostMicroPerMonth: number | null;
       invokers: Invokers;
       upgradeTo: number;
       autonomy: Autonomy;
@@ -246,6 +248,7 @@ export class Workforce {
       executionMode: autonomy ? modeOf(autonomy) : undefined,
       maxJobsPerDay: p.maxJobsPerDay,
       maxConcurrent: p.maxConcurrent,
+      maxCostMicroPerMonth: p.maxCostMicroPerMonth,
       invokers: p.invokers,
       autonomy,
       maxRuntimeSec: p.maxRuntimeSec,
@@ -466,6 +469,8 @@ export class Workforce {
     for (const cap of [install.maxJobsPerDay, templateDaily]) {
       if (cap !== null && installToday >= cap) throw new ApiError(429, "quota_exceeded", `${install.displayName} has done as many jobs today as it may here.`);
     }
+    const overBudget = budgetRefusal(this.d, install);
+    if (overBudget) throw new ApiError(429, "quota_exceeded", overBudget);
     if (q.hasPolicies("ai.active_jobs")) {
       const d = q.check("ai.active_jobs", scopes, 1, {
         measured: { user: this.d.jobs.activeCount({ userId }), org: this.d.jobs.activeCount({ orgId: install.orgId }), global: this.d.jobs.activeCount({}) },

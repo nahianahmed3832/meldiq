@@ -412,6 +412,12 @@ export class AiService {
     return new Map(rows.map((r) => [r.job_id, { requests: r.requests, costMicro: r.cost }]));
   }
 
+  /** What an agent installation's requests cost since [from] (micro-USD, estimated where the provider gave no price). */
+  installCost(installId: string, from: number): number {
+    const r = this.db.prepare("SELECT SUM(COALESCE(cost_micro, 0)) cost FROM ai_usage WHERE install_id = ? AND at >= ?").get(installId, from) as { cost: number | null };
+    return r.cost ?? 0;
+  }
+
   /** Requests the console's verifications sent since [from]: real provider calls, kept apart from agents' usage. */
   verificationUsage(from: number): { requests: number; failed: number } {
     const r = this.db.prepare("SELECT COUNT(*) requests, SUM(outcome IN ('error','timeout')) failed FROM ai_usage WHERE feature = 'console.verify' AND at >= ?").get(from) as {

@@ -28,7 +28,8 @@ export function fileView(f: AiFileRow) {
   };
 }
 
-export function installView(i: Install, mode: "review" | "auto") {
+/** [costMicroThisMonth]: budget.ts spentThisMonth. */
+export function installView(i: Install, mode: "review" | "auto", costMicroThisMonth: number) {
   const def = findAgent(i.agentId, i.version);
   return {
     id: i.id,
@@ -48,6 +49,8 @@ export function installView(i: Install, mode: "review" | "auto") {
     effectiveMode: mode,
     maxJobsPerDay: i.maxJobsPerDay,
     maxConcurrent: i.maxConcurrent,
+    maxCostMicroPerMonth: i.maxCostMicroPerMonth,
+    costMicroThisMonth,
     invokers: i.invokers,
     autonomy: i.autonomy,
     maxRuntimeSec: i.maxRuntimeSec,

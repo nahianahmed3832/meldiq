@@ -85,6 +85,7 @@ export interface InstallRow {
   execution_mode: "review" | "auto";
   max_jobs_per_day: number | null;
   max_concurrent: number | null;
+  max_cost_micro_month: number | null;
   invokers: string;
   autonomy: Autonomy;
   max_runtime_sec: number | null;
@@ -114,6 +115,8 @@ export interface Install {
   executionMode: "review" | "auto";
   maxJobsPerDay: number | null;
   maxConcurrent: number | null;
+  /** The agent's monthly AI budget here, in micro-USD (null: none of its own). */
+  maxCostMicroPerMonth: number | null;
   invokers: Invokers;
   autonomy: Autonomy;
   /** Limits within the skill's own (null: the skill's). */
@@ -145,6 +148,7 @@ export const toInstall = (r: InstallRow): Install => ({
   executionMode: r.execution_mode,
   maxJobsPerDay: r.max_jobs_per_day,
   maxConcurrent: r.max_concurrent,
+  maxCostMicroPerMonth: r.max_cost_micro_month,
   invokers: Invokers.parse(JSON.parse(r.invokers)),
   autonomy: r.autonomy,
   maxRuntimeSec: r.max_runtime_sec,
@@ -319,6 +323,7 @@ export class WorkforceStore {
       executionMode: "review" | "auto";
       maxJobsPerDay: number | null;
       maxConcurrent: number | null;
+      maxCostMicroPerMonth: number | null;
       invokers: Invokers;
       autonomy: Autonomy;
       maxRuntimeSec: number | null;
@@ -337,6 +342,7 @@ export class WorkforceStore {
            role_title = COALESCE(?, role_title), avatar_color = CASE WHEN ? THEN ? ELSE avatar_color END, language = CASE WHEN ? THEN ? ELSE language END,
            style = COALESCE(?, style), instructions = COALESCE(?, instructions), tools = COALESCE(?, tools), execution_mode = COALESCE(?, execution_mode),
            max_jobs_per_day = CASE WHEN ? THEN ? ELSE max_jobs_per_day END, max_concurrent = CASE WHEN ? THEN ? ELSE max_concurrent END,
+           max_cost_micro_month = CASE WHEN ? THEN ? ELSE max_cost_micro_month END,
            invokers = COALESCE(?, invokers), autonomy = COALESCE(?, autonomy),
            max_runtime_sec = CASE WHEN ? THEN ? ELSE max_runtime_sec END, max_attempts = CASE WHEN ? THEN ? ELSE max_attempts END,
            active_hours = CASE WHEN ? THEN ? ELSE active_hours END, rev = rev + 1, updated_at = ?
@@ -360,6 +366,8 @@ export class WorkforceStore {
         patch.maxJobsPerDay ?? null,
         v("maxConcurrent") ? 1 : 0,
         patch.maxConcurrent ?? null,
+        v("maxCostMicroPerMonth") ? 1 : 0,
+        patch.maxCostMicroPerMonth ?? null,
         patch.invokers ? JSON.stringify(patch.invokers) : null,
         patch.autonomy ?? null,
         v("maxRuntimeSec") ? 1 : 0,

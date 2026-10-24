@@ -90,6 +90,8 @@ export const AiInstallPatch = z.strictObject({
   executionMode: z.enum(["review", "auto"]).optional(),
   maxJobsPerDay: z.number().int().min(0).max(10_000).nullable().optional(),
   maxConcurrent: z.number().int().min(1).max(16).nullable().optional(),
+  /** The agent's monthly AI budget here, micro-USD (null: none of its own; at most $100,000). */
+  maxCostMicroPerMonth: z.number().int().min(0).max(100_000_000_000).nullable().optional(),
   invokers: AiInvokers.optional(),
   upgradeTo: z.number().int().positive().optional(),
   autonomy: AiAutonomy.optional(),

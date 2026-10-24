@@ -1,5 +1,6 @@
 import { ROUTING_CATEGORIES, type RoutingCategory } from "../ai/index.js";
 import type { Deps } from "./access.js";
+import { BUDGET_NEAR, spentThisMonth, usd } from "./budget.js";
 import { findAgent } from "./catalog/index.js";
 import { mediaEngine } from "./media.js";
 import type { Install } from "./store.js";
@@ -100,6 +101,20 @@ export async function readiness(d: Deps, install: Install): Promise<Readiness> {
   if (def.skill.requiredTools.some((t) => t.startsWith("media."))) {
     const m = await mediaEngine();
     add("media", "Media engine", m.available, m.available ? m.detail : `Not available (${m.detail}).`, "operator");
+  }
+
+  if (install.maxCostMicroPerMonth !== null) {
+    const cap = install.maxCostMicroPerMonth;
+    const spent = spentThisMonth(d, install.id);
+    const left = spent < cap;
+    add(
+      "budget",
+      "Monthly AI budget",
+      left && spent < cap * BUDGET_NEAR,
+      `${usd(spent)} of ${usd(cap)} used this month${left ? "" : ": no new work until it resets or is raised"}.`,
+      "community",
+      left,
+    );
   }
 
   const channels = d.store.channelsOf(install.id);

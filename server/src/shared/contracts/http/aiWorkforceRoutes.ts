@@ -81,6 +81,9 @@ export const AiInstallView = z.strictObject({
   effectiveMode: ExecutionMode,
   maxJobsPerDay: int.nullable(),
   maxConcurrent: int.nullable(),
+  maxCostMicroPerMonth: int.nullable(),
+  /** What its requests cost this calendar month (UTC), estimated from the usage records. */
+  costMicroThisMonth: zCount,
   invokers: AiInvokers,
   autonomy: AiAutonomy,
   maxRuntimeSec: int.nullable(),

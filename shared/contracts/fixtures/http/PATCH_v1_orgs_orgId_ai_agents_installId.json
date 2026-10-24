@@ -1,6 +1,6 @@
 {
   "agent": {
-    "id": "agi_800nHo-THrN09Ro5rQh2bg",
+    "id": "agi_IYlYbNbQyHjb7aECO4fJLA",
     "agentId": "general_assistant",
     "version": 1,
     "state": "active",
@@ -17,15 +17,17 @@
       "files.write",
       "channel.post"
     ],
-    "executionMode": "auto",
-    "effectiveMode": "auto",
+    "executionMode": "review",
+    "effectiveMode": "review",
     "maxJobsPerDay": null,
     "maxConcurrent": null,
+    "maxCostMicroPerMonth": 10000,
+    "costMicroThisMonth": 0,
     "invokers": {
       "everyone": true,
       "roles": []
     },
-    "autonomy": "guarded",
+    "autonomy": "assisted",
     "maxRuntimeSec": null,
     "maxAttempts": null,
     "activeHours": null,
@@ -37,7 +39,7 @@
       "category": "productivity"
     },
     "badge": "AI",
-    "createdAt": 1792832478944,
-    "updatedAt": 1792832479084
+    "createdAt": 1792868790339,
+    "updatedAt": 1792868790366
   }
 }

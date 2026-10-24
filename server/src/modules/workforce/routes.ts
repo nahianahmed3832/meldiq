@@ -26,6 +26,7 @@ import { parse } from "../../shared/validation/index.js";
 import { me, requireAuth } from "../auth/index.js";
 import { scopesFor } from "../quotas/index.js";
 import { channelRefusal } from "./access.js";
+import { spentThisMonth } from "./budget.js";
 import { findAgent } from "./catalog/index.js";
 import { type AiFileRow, INLINE_MIMES, MAX_INPUT_BYTES } from "./files.js";
 import type { JobState } from "./jobs.js";
@@ -80,7 +81,7 @@ export default async function workforceRoutes(app: FastifyInstance, ctx: AppCont
       approvalFloor: w.settings.approvalFloor(),
       mediaEngine: { available: media.available, detail: media.detail },
       permissions: perms(orgId, userId),
-      agents: w.store.installsOf(orgId).map((i) => installView(i, svc.mode(i))),
+      agents: w.store.installsOf(orgId).map((i) => installView(i, svc.mode(i), spentThisMonth(w, i.id))),
       notice: "What you send to AI agents and what they make isn't end-to-end encrypted: it's processed on Meldiq's servers and by the AI provider the platform uses.",
     };
   });
@@ -99,7 +100,7 @@ export default async function workforceRoutes(app: FastifyInstance, ctx: AppCont
     const b = parse(AiInstallBody, req.body);
     const i = svc.install(orgId, b.agentId, userId, b);
     reply.code(201);
-    return { agent: installView(i, svc.mode(i)) };
+    return { agent: installView(i, svc.mode(i), spentThisMonth(w, i.id)) };
   });
 
   app.get("/v1/orgs/:orgId/ai/agents/:installId", auth, async (req) => {
@@ -111,7 +112,7 @@ export default async function workforceRoutes(app: FastifyInstance, ctx: AppCont
     const latest = findAgent(i.agentId);
     const canManage = ctx.authz.can(orgId, userId, "ai.manage");
     return {
-      agent: installView(i, svc.mode(i)),
+      agent: installView(i, svc.mode(i), spentThisMonth(w, i.id)),
       definition: def ? agentSummary(def) : null,
       upgrade: latest && def && latest.version > def.version && svc.availability(orgId, latest) === null ? { version: latest.version } : null,
       setup: def ? await svc.setup(orgId, def) : null,
@@ -133,7 +134,7 @@ export default async function workforceRoutes(app: FastifyInstance, ctx: AppCont
       return t;
     });
     const i = svc.update(orgId, installId, userId, b.rev, { ...b, tools });
-    return { agent: installView(i, svc.mode(i)) };
+    return { agent: installView(i, svc.mode(i), spentThisMonth(w, i.id)) };
   });
 
   app.put("/v1/orgs/:orgId/ai/agents/:installId/avatar", limited(10), async (req) => {
@@ -150,7 +151,7 @@ export default async function workforceRoutes(app: FastifyInstance, ctx: AppCont
       parts.push(c as Buffer);
     }
     const i = await svc.setAvatar(orgId, installId, userId, Buffer.concat(parts));
-    return { agent: installView(i, svc.mode(i)) };
+    return { agent: installView(i, svc.mode(i), spentThisMonth(w, i.id)) };
   });
 
   app.get("/v1/orgs/:orgId/ai/agents/:installId/avatar", auth, async (req, reply) => {
@@ -326,7 +327,7 @@ export default async function workforceRoutes(app: FastifyInstance, ctx: AppCont
     const { id } = parse(AiConversationParams, req.params);
     const agents = svc.channelAgents(id, userId);
     const orgId = ctx.authz.conversation(id)!.org_id!;
-    return { agents: agents.map((a) => ({ ...installView(a.install, svc.mode(a.install)), activation: a.activation, canInvoke: a.canInvoke })), permissions: perms(orgId, userId) };
+    return { agents: agents.map((a) => ({ ...installView(a.install, svc.mode(a.install), spentThisMonth(w, a.install.id)), activation: a.activation, canInvoke: a.canInvoke })), permissions: perms(orgId, userId) };
   });
 
   app.get("/v1/conversations/:id/ai/posts", auth, async (req) => {

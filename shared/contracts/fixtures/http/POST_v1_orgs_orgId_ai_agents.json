@@ -1,6 +1,6 @@
 {
   "agent": {
-    "id": "agi_gKAsk35_KdI95bYaRXUpNQ",
+    "id": "agi_IYlYbNbQyHjb7aECO4fJLA",
     "agentId": "general_assistant",
     "version": 1,
     "state": "active",
@@ -21,6 +21,8 @@
     "effectiveMode": "review",
     "maxJobsPerDay": null,
     "maxConcurrent": null,
+    "maxCostMicroPerMonth": null,
+    "costMicroThisMonth": 0,
     "invokers": {
       "everyone": true,
       "roles": []
@@ -37,7 +39,7 @@
       "category": "productivity"
     },
     "badge": "AI",
-    "createdAt": 1792832478957,
-    "updatedAt": 1792832478957
+    "createdAt": 1792868790339,
+    "updatedAt": 1792868790339
   }
 }

@@ -6,6 +6,7 @@ import { z } from "zod/v4";
 import { ApiError } from "../../shared/errors.js";
 import { type CallContext, type Invocation, isMp3, type RoutingCategory, sniffImage } from "../ai/index.js";
 import { effectiveMode, type Deps, invokeRefusal } from "./access.js";
+import { budgetRefusal } from "./budget.js";
 import { discover } from "./skillLibrary.js";
 import { findAgent } from "./catalog/index.js";
 import { payloadHash } from "./approvals.js";
@@ -277,6 +278,8 @@ export class WorkforceRuntime {
     const invoke = async (inv: Invocation) => {
       if (++calls > limit) throw new ApiError(429, "quota_exceeded", `The agent used all ${limit} model requests one job may make.`);
       if (env.signal.aborted) throw new ApiError(409, "job_cancelled", "The job was cancelled.");
+      const overBudget = budgetRefusal(d, install);
+      if (overBudget) throw new ApiError(429, "quota_exceeded", overBudget);
       const r = await d.ctx.ai.gateway.invoke(callCtx, inv);
       d.jobs.event(row.id, "model", { category: inv.category, provider: r.providerId, model: r.model, route: r.route, ms: r.latencyMs, inputTokens: r.inputTokens, outputTokens: r.outputTokens });
       return r.result;

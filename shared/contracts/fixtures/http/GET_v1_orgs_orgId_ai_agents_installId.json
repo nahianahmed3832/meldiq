@@ -1,6 +1,6 @@
 {
   "agent": {
-    "id": "agi_gKAsk35_KdI95bYaRXUpNQ",
+    "id": "agi_IYlYbNbQyHjb7aECO4fJLA",
     "agentId": "general_assistant",
     "version": 1,
     "state": "active",
@@ -21,6 +21,8 @@
     "effectiveMode": "review",
     "maxJobsPerDay": null,
     "maxConcurrent": null,
+    "maxCostMicroPerMonth": null,
+    "costMicroThisMonth": 0,
     "invokers": {
       "everyone": true,
       "roles": []
@@ -37,8 +39,8 @@
       "category": "productivity"
     },
     "badge": "AI",
-    "createdAt": 1792832478957,
-    "updatedAt": 1792832478957
+    "createdAt": 1792868790339,
+    "updatedAt": 1792868790339
   },
   "definition": {
     "id": "general_assistant",
@@ -127,11 +129,11 @@
   },
   "channels": [
     {
-      "installId": "agi_gKAsk35_KdI95bYaRXUpNQ",
-      "conversationId": "c_AJG9qqJ1ZoDZ4Hq0Gb20MQ",
+      "installId": "agi_IYlYbNbQyHjb7aECO4fJLA",
+      "conversationId": "c_IrxLp27iwIy5fkjRgKvibg",
       "activation": "mention",
-      "addedBy": "u_hpQrVR5Nt3XPiWvNfjpyUA",
-      "addedAt": 1792832478960
+      "addedBy": "u_LIcyP_eALfI68J1WI34EBw",
+      "addedAt": 1792868790345
     }
   ],
   "tools": [
@@ -168,7 +170,7 @@
   ],
   "permissions": {
     "canUse": true,
-    "canManage": false,
-    "canApprove": false
+    "canManage": true,
+    "canApprove": true
   }
 }
