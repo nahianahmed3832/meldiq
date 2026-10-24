@@ -18,6 +18,7 @@ export const TOOL_KEYS = [
   "media.extract_audio",
   "web.fetch",
   "agents.delegate",
+  "tasks.assign",
   "social.publish",
   "ads.manage",
   "email.send",
@@ -91,6 +92,19 @@ export interface EditPlan {
 }
 
 /** Tool arguments and results, by tool. */
+/** A person step of the Agent Manager's plan (taskService.ts chooses who; the plan never names a person). */
+export interface TaskAssignArgs {
+  title: string;
+  instructions: string;
+  deliverables: string;
+  dueInHours: number;
+  priority: "low" | "normal" | "high" | "urgent";
+  /** A role to prefer among the people the Manager may assign work to (matched by name); otherwise the least loaded. */
+  role: string | null;
+  /** Agent steps (job ids) that must complete first; their deliverables become the task's references. */
+  dependsOn: string[];
+}
+
 export interface ToolSignatures {
   "files.read": { args: { fileId: string }; result: ReadFile };
   "files.write": { args: { name: string; mime: string; bytes: Buffer; kind: string; supersedes?: string | null; pendingApproval?: boolean }; result: WrittenFile };
@@ -103,6 +117,7 @@ export interface ToolSignatures {
   "media.extract_audio": { args: { fileId: string }; result: { bytes: Buffer; mime: "audio/mpeg"; seconds: number } };
   "web.fetch": { args: { url: string }; result: { url: string; status: number; contentType: string; text: string; truncated: boolean } };
   "agents.delegate": { args: { installId: string; input: unknown; dependsOn: string[]; label: string }; result: { jobId: string } };
+  "tasks.assign": { args: TaskAssignArgs; result: { taskId: string; assigneeName: string } };
   "social.publish": { args: ExternalArgs; result: never };
   "ads.manage": { args: ExternalArgs; result: never };
   "email.send": { args: ExternalArgs; result: never };
@@ -175,6 +190,13 @@ export interface SkillContext {
    * for the person who asked, and the exact blocker otherwise (skillLibrary.ts).
    */
   discover(needs: readonly CapabilityId[]): Promise<Discovered[]>;
+  /**
+   * Who the Agent Manager may give work to for this request: null when the person who asked can't assign work (they
+   * need "Manage AI agents"); otherwise how many people are eligible and their roles' names (taskService.ts).
+   */
+  people(): { eligible: number; roles: string[] } | null;
+  /** Tasks this job created: their state, assignee's name, the note and files they submitted (never anything else). */
+  tasks(): { taskId: string; title: string; state: string; assignee: string; note: string | null; fileIds: string[] }[];
   /** Reads jobs this job delegated (the Agent Manager): their state and validated output, never anything else. */
   children(): { jobId: string; agentId: string; label: string; state: string; output: unknown; fileIds: string[]; error: string | null }[];
   progress(percent: number, note: string): void;

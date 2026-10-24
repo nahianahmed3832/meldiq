@@ -1,0 +1,50 @@
+{
+  "task": {
+    "id": "tsk_8wtbYaUpZzxtVRB6ySNTQA",
+    "title": "Count stock",
+    "state": "open",
+    "priority": "normal",
+    "overdue": false,
+    "dueAt": 1792941985385,
+    "assignee": {
+      "id": "u_beUw2WC3UtyTQp-IuSmVIA",
+      "name": "tkpack"
+    },
+    "createdBy": {
+      "id": "u_N88lYeQsTsw10RjIkTPVWQ",
+      "name": "Tasksowner"
+    },
+    "agent": null,
+    "jobId": null,
+    "updatedAt": 1792855585386,
+    "instructions": "Count shelf B and report the number.",
+    "deliverables": "The count and a photo",
+    "conversationId": null,
+    "blockedReason": null,
+    "submissionNote": null,
+    "returnReason": null,
+    "returns": 0,
+    "reminders": 0,
+    "escalatedAt": null,
+    "cancelReason": null,
+    "rev": 1,
+    "createdAt": 1792855585386,
+    "openedAt": 1792855585386,
+    "acceptedAt": null,
+    "submittedAt": null,
+    "doneAt": null,
+    "doneBy": null,
+    "files": [],
+    "references": [],
+    "can": {
+      "accept": false,
+      "start": false,
+      "block": false,
+      "submit": false,
+      "approve": false,
+      "return": false,
+      "cancel": true,
+      "reassign": true
+    }
+  }
+}

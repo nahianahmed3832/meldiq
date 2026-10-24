@@ -7,6 +7,8 @@ import { JobStore } from "./jobs.js";
 import { AgentPosts } from "./posts.js";
 import { Automation } from "./automation.js";
 import { SharedMessageStore } from "./sharedMessages.js";
+import { TaskService } from "./taskService.js";
+import { TaskStore } from "./taskStore.js";
 import { TriggerStore } from "./triggers.js";
 import { WorkforceConsoleView } from "./consoleView.js";
 import { WorkforceRuntime } from "./runtime.js";
@@ -27,6 +29,8 @@ export class WorkforceModule implements Deps {
   readonly posts: AgentPosts;
   readonly shared: SharedMessageStore;
   readonly triggers: TriggerStore;
+  readonly tasks: TaskStore;
+  readonly taskService: TaskService;
   readonly service: Workforce;
   readonly tools: ToolGateway;
   readonly runtime: WorkforceRuntime;
@@ -47,11 +51,19 @@ export class WorkforceModule implements Deps {
     this.posts = new AgentPosts(ctx.db, clock);
     this.shared = new SharedMessageStore(ctx.db, clock);
     this.triggers = new TriggerStore(ctx.db, clock);
+    this.tasks = new TaskStore(ctx.db, clock);
+    this.taskService = new TaskService(this);
     this.service = new Workforce(this);
     this.tools = new ToolGateway(this, async (parent, installId, input, dependsOn, label) => this.service.createChild(parent, installId, input, dependsOn, label));
     this.runtime = new WorkforceRuntime(this, this.tools, (id, version) => findAgent(id, version));
     this.automation = new Automation(this, this.service);
-    this.runtime.hooks = { onTick: () => void this.automation.fireDue(), onCompleted: (jobId) => this.automation.onCompleted(jobId) };
+    this.runtime.hooks = {
+      onTick: () => {
+        void this.automation.fireDue();
+        this.taskService.tick();
+      },
+      onCompleted: (jobId) => this.automation.onCompleted(jobId),
+    };
     this.console = new WorkforceConsoleView(this);
   }
 

@@ -211,7 +211,7 @@ export class JobStore {
         if (claimed.length >= limit) break;
         const waitFor = row.state === "queued" ? (JSON.parse(row.depends_on) as string[]) : (JSON.parse(row.waiting_on ?? "[]") as string[]);
         if (waitFor.length) {
-          const states = this.db.prepare(`SELECT id, state FROM ai_jobs WHERE id IN (${waitFor.map(() => "?").join(",")})`).all(...waitFor) as { id: string; state: JobState }[];
+          const states = this.dependencyStates(waitFor);
           if (row.state === "queued" && states.some((s) => s.state === "failed" || s.state === "cancelled")) {
             this.failNow(row.id, "dependency_failed", "A step this one depends on failed or was cancelled.");
             continue;
@@ -233,6 +233,18 @@ export class JobStore {
       }
       return claimed;
     })();
+  }
+
+  /**
+   * The states of what a job waits for: jobs, and human tasks (ids "tsk_…", migration 052), whose done counts as
+   * completed and cancelled as cancelled; any other task state is still running.
+   */
+  private dependencyStates(ids: string[]): { id: string; state: JobState }[] {
+    const jobs = ids.filter((i) => !i.startsWith("tsk_"));
+    const tasks = ids.filter((i) => i.startsWith("tsk_"));
+    const q = (table: string, list: string[]) => (list.length ? (this.db.prepare(`SELECT id, state FROM ${table} WHERE id IN (${list.map(() => "?").join(",")})`).all(...list) as { id: string; state: string }[]) : []);
+    const taskState = (s: string): JobState => (s === "done" ? "completed" : s === "cancelled" ? "cancelled" : "running");
+    return [...(q("ai_jobs", jobs) as { id: string; state: JobState }[]), ...q("ai_tasks", tasks).map((t) => ({ id: t.id, state: taskState(t.state) }))];
   }
 
   /** Renews the lease; returns false when the job is no longer this worker's (then the worker must stop). */

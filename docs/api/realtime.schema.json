@@ -1033,6 +1033,31 @@
           "properties": {
             "t": {
               "type": "string",
+              "const": "ai.task"
+            },
+            "orgId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "taskId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          "required": [
+            "t",
+            "orgId",
+            "taskId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "t": {
+              "type": "string",
               "const": "meeting.updated"
             },
             "orgId": {

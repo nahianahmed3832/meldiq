@@ -1,0 +1,25 @@
+{
+  "settings": {
+    "roles": [
+      "rl_rDI-GCgk_68UR1ITcG2Jgg"
+    ],
+    "users": [
+      "u_0zWlCtfRPDwgCGYWoqC3Nw"
+    ],
+    "updatedAt": 1792855676589,
+    "eligible": [
+      {
+        "id": "u_0zWlCtfRPDwgCGYWoqC3Nw",
+        "name": "tkpack",
+        "roles": []
+      },
+      {
+        "id": "u_hU0mCq81R5nje_aHd5zrgA",
+        "name": "tkphoto",
+        "roles": [
+          "Photographer"
+        ]
+      }
+    ]
+  }
+}

@@ -127,6 +127,8 @@ export const ServerEvent = z.discriminatedUnion("t", [
   z.strictObject({ t: z.literal("ai.posts"), conversationId: id }),
   /** AI Workforce: a job you asked for or may approve changed state (fetch it). */
   z.strictObject({ t: z.literal("ai.job"), ...orgId, jobId: id }),
+  /** AI Workforce: a task assigned to you or created by you changed (fetch it). */
+  z.strictObject({ t: z.literal("ai.task"), ...orgId, taskId: id }),
   z.strictObject({ t: z.literal("meeting.updated"), ...meeting }),
   z.strictObject({ t: z.literal("meeting.soon"), ...meeting }),
 ]);

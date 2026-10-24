@@ -37,6 +37,7 @@ import { approvalView, fileView, installView, jobDetail, jobSummary, postView } 
 import type { WorkforceModule } from "./index.js";
 import { automationRoutes } from "./automationRoutes.js";
 import { skillRoutes } from "./skillRoutes.js";
+import { taskRoutes } from "./taskRoutes.js";
 
 /**
  * AI Workforce for communities (docs/AI_WORKFORCE.md): /v1/orgs/:orgId/ai/* and /v1/conversations/:id/ai/*. Who may
@@ -328,6 +329,7 @@ export default async function workforceRoutes(app: FastifyInstance, ctx: AppCont
 
   automationRoutes(app, ctx, w);
   skillRoutes(app, ctx, w);
+  taskRoutes(app, ctx, w);
 
   async function sendFile(reply: FastifyReply, f: AiFileRow, download: boolean, range: { start: number; end: number } | null = null) {
     reply.header("cache-control", "private, no-store");

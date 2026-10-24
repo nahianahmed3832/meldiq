@@ -1,3 +1,5 @@
+import type { TaskService } from "./taskService.js";
+import type { TaskStore } from "./taskStore.js";
 import type { AppContext } from "../../app/context.js";
 import { ApiError } from "../../shared/errors.js";
 import type { AiFiles } from "./files.js";
@@ -27,6 +29,9 @@ export interface Deps {
   posts: AgentPosts;
   shared: SharedMessageStore;
   triggers: TriggerStore;
+  /** Human tasks (taskStore.ts) and their rules (taskService.ts). */
+  tasks: TaskStore;
+  taskService: TaskService;
   settings: WorkforceSettings;
   clock: () => number;
 }

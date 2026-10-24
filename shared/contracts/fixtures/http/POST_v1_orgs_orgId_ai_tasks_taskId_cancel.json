@@ -1,0 +1,72 @@
+{
+  "task": {
+    "id": "tsk_KZhnperkb8j_LdkzwxSP_Q",
+    "title": "Shoot from the brief",
+    "state": "cancelled",
+    "priority": "normal",
+    "overdue": false,
+    "dueAt": 1793028385525,
+    "assignee": {
+      "id": "u_beUw2WC3UtyTQp-IuSmVIA",
+      "name": "tkpack"
+    },
+    "createdBy": {
+      "id": "u_N88lYeQsTsw10RjIkTPVWQ",
+      "name": "Tasksowner"
+    },
+    "agent": {
+      "installId": "agi_sT7pKLAmhRKV2lOCk3nwzg",
+      "name": "Agent Manager"
+    },
+    "jobId": "job_oGYwO3ZIhGF6Ym2Oi1kO4w",
+    "updatedAt": 1792855585537,
+    "instructions": "Shoot as the brief says.",
+    "deliverables": "Photos",
+    "conversationId": "c_LxFeI3_ZHrTvepiRWIH0lA",
+    "blockedReason": null,
+    "submissionNote": null,
+    "returnReason": null,
+    "returns": 0,
+    "reminders": 0,
+    "escalatedAt": null,
+    "cancelReason": "Not needed after all.",
+    "rev": 3,
+    "createdAt": 1792855585525,
+    "openedAt": 1792855585532,
+    "acceptedAt": null,
+    "submittedAt": null,
+    "doneAt": null,
+    "doneBy": null,
+    "files": [],
+    "references": [
+      {
+        "id": "aif_zZhnENVrvzL-iN2Adf6cpw",
+        "role": "artifact",
+        "jobId": "job_CzjMhSfgd0MaOF7Rx8zhhQ",
+        "installId": "agi_OgZQMUOCXE0WWVEOcBjwJQ",
+        "agentId": "content_writer",
+        "skillVersion": 1,
+        "kind": "document",
+        "name": "article.md",
+        "mime": "text/markdown",
+        "size": 2155,
+        "sha256": "6595d52076e5adf5a8c7a77004846cce6f6389daf7e12a2e11d9a1ea9853003d",
+        "version": 1,
+        "supersedes": null,
+        "approvalState": "not_required",
+        "createdAt": 1792855585530,
+        "expiresAt": 1795447585530
+      }
+    ],
+    "can": {
+      "accept": false,
+      "start": false,
+      "block": false,
+      "submit": false,
+      "approve": false,
+      "return": false,
+      "cancel": false,
+      "reassign": false
+    }
+  }
+}

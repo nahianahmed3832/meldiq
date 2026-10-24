@@ -250,7 +250,8 @@ export class WorkforceRuntime {
       if (!d.jobs.awaitInput(row.id, w, outcome.checkpoint, outcome.question)) this.cancelIfAsked(row.id);
       return this.notify(row.id);
     }
-    const mine = new Set(d.jobs.children(row.id).map((c) => c.id));
+    // What it may wait for: the jobs it delegated and the tasks it gave people.
+    const mine = new Set([...d.jobs.children(row.id).map((c) => c.id), ...d.tasks.list({ orgId: row.org_id, jobId: row.id }, 50).map((t) => t.id)]);
     if (!outcome.jobIds.length || !outcome.jobIds.every((id) => mine.has(id))) throw new ApiError(500, "internal", "The agent waited for jobs it didn't start.");
     if (!d.jobs.waitChildren(row.id, w, outcome.jobIds, outcome.checkpoint)) this.cancelIfAsked(row.id);
     this.notify(row.id);
@@ -345,7 +346,10 @@ export class WorkforceRuntime {
     const inputJobs = [...new Set([row.id, root.id, ...(row.parent_job_id ? [row.parent_job_id] : [])])];
     // A handoff (automation.ts) also passes on the finished files of the job that triggered it: its latest versions.
     const handedOn = row.source_job_id ? d.files.ofJobs([row.source_job_id], "artifact").filter((f) => f.approval_state !== "superseded" && f.approval_state !== "rejected") : [];
-    const inputs = [...d.files.ofJobs(inputJobs, "input"), ...handedOn].map((f) => ({ id: f.id, name: f.name, mime: f.mime, size: f.size, sha256: f.sha256 }));
+    // A step that waited for people's tasks reads what they submitted.
+    const taskDeps = (JSON.parse(row.depends_on) as string[]).filter((id) => id.startsWith("tsk_"));
+    const submitted = d.files.ofTasks(taskDeps);
+    const inputs = [...d.files.ofJobs(inputJobs, "input"), ...handedOn, ...submitted].map((f) => ({ id: f.id, name: f.name, mime: f.mime, size: f.size, sha256: f.sha256 }));
     const checkpoint = row.checkpoint ? (JSON.parse(row.checkpoint) as unknown) : null;
     const revisionNote = checkpoint && typeof checkpoint === "object" && typeof (checkpoint as { revisionNote?: unknown }).revisionNote === "string" ? (checkpoint as { revisionNote: string }).revisionNote : null;
     return {
@@ -394,6 +398,8 @@ export class WorkforceRuntime {
           return [{ installId: i.id, agentId: def.id, name: i.displayName, roleTitle: i.roleTitle, description: i.description, capabilities: [...def.capabilities], inputHint: def.inputHint }];
         }),
       discover: (needs) => discover(d, row.org_id, row.requested_by, needs, install.id),
+      people: () => d.taskService.people(row),
+      tasks: () => d.taskService.ofJob(row),
       children: () =>
         d.jobs.children(row.id).map((c) => ({
           jobId: c.id,

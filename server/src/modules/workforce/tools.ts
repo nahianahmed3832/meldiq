@@ -96,16 +96,24 @@ export class ToolGateway {
   }
 
   /**
-   * A file this run may use: one of its request's, or (when [handedOn]) a finished file of the job a handoff trigger
-   * passed on (automation.ts). Handed-on files can be read, never posted elsewhere.
+   * A file this run may use: one of its request's (what people handed in for its tasks included), or (when [handedOn])
+   * a finished file of the job a handoff trigger passed on (automation.ts). Handed-on files can be read, never posted
+   * elsewhere.
    */
   private fileOfTree(env: RunEnv, fileId: string, handedOn = true): AiFileRow {
     const row = this.d.files.row(fileId);
     const fromSource = handedOn && !!row?.job_id && row.job_id === env.job.source_job_id && row.role === "artifact";
+    if (row && row.org_id === env.job.org_id && row.task_id && row.role === "input" && this.fromTaskOfTree(env, row.task_id)) return row;
     if (!row || row.org_id !== env.job.org_id || !row.job_id || (!fromSource && !this.treeJobIds(env).includes(row.job_id)) || row.role === "avatar") {
       throw new ApiError(404, "not_found", "That file isn't part of this request.");
     }
     return row;
+  }
+
+  /** Whether [taskId] is a person's task of this run's request (what they handed in belongs to the request). */
+  private fromTaskOfTree(env: RunEnv, taskId: string): boolean {
+    const t = this.d.tasks.get(taskId);
+    return t !== null && t.org_id === env.job.org_id && t.job_id !== null && this.treeJobIds(env).includes(t.job_id);
   }
 
   /** Copies a file to this run's temporary folder (for the media engine) once. */
@@ -173,6 +181,11 @@ export class ToolGateway {
         const a = raw as ToolSignatures["agents.delegate"]["args"];
         const child = await this.createChild(env.job, a.installId, a.input, a.dependsOn, a.label);
         return { jobId: child.id };
+      }
+      case "tasks.assign": {
+        const a = raw as ToolSignatures["tasks.assign"]["args"];
+        const r = this.d.taskService.createForJob(env.job, env.install.id, a);
+        return { taskId: r.task.id, assigneeName: r.assigneeName };
       }
       default:
         // External tools stop in admit(); nothing reaches here.

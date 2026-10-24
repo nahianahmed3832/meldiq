@@ -294,6 +294,10 @@ Console routes: `PLATFORM_ADMIN_CONSOLE.md` › AI Control Center routes.
 in the community) and `GET /v1/orgs/:orgId/ai/skills/discover?capabilities=a,b` (members; see
 `AI_WORKFORCE_2_PLAN.md`, phase 1).
 
+**Human tasks (0.39.0):** `GET/POST /v1/orgs/:orgId/ai/tasks`, `GET …/tasks/:taskId`, `POST …/tasks/:taskId/:action`
+and `GET/PUT …/tasks/settings` (see `AI_WORKFORCE_2_PLAN.md`, phase 4). Tasks are stored on the server, not end-to-end
+encrypted.
+
 ## 12. Security controls
 
 - Tenant isolation: every route resolves the community from the record and checks membership; unknown and invisible

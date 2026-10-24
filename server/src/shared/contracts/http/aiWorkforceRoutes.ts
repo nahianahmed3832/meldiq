@@ -23,6 +23,13 @@ import {
   AiPostsQuery,
   AiReviseBody,
   AiDiscoverQuery,
+  AiTaskActionBody,
+  AiTaskBody,
+  AiTaskParams,
+  AiTaskPriority,
+  AiTaskSettingsBody,
+  AiTaskStateName,
+  AiTasksQuery,
   AiTriggerBody,
   AiTriggerKind,
   AiTriggerParams,
@@ -227,6 +234,78 @@ export const AiSkillCard = z.strictObject({
   tests: z.array(str),
 });
 
+const Person = z.strictObject({ id: str, name: str });
+const TaskActions = z.strictObject({
+  accept: z.boolean(),
+  start: z.boolean(),
+  block: z.boolean(),
+  submit: z.boolean(),
+  approve: z.boolean(),
+  return: z.boolean(),
+  cancel: z.boolean(),
+  reassign: z.boolean(),
+});
+
+/** A human task in a list. */
+export const AiTaskSummary = z.strictObject({
+  id: str,
+  title: str,
+  state: AiTaskStateName,
+  priority: AiTaskPriority,
+  /** Due and not handed in. */
+  overdue: z.boolean(),
+  dueAt: ntime,
+  assignee: Person,
+  createdBy: Person,
+  /** The agent that created it (the Agent Manager), or null when a person did. */
+  agent: z.strictObject({ installId: str, name: str }).nullable(),
+  jobId: nstr,
+  updatedAt: zTime,
+});
+
+/** A human task: what to do, its state and history fields, what was handed in, and what the viewer may do. */
+export const AiTaskView = AiTaskSummary.extend({
+  instructions: str,
+  deliverables: str,
+  conversationId: nstr,
+  blockedReason: nstr,
+  submissionNote: nstr,
+  returnReason: nstr,
+  returns: zCount,
+  reminders: zCount,
+  escalatedAt: ntime,
+  cancelReason: nstr,
+  rev: zCount,
+  createdAt: zTime,
+  openedAt: ntime,
+  acceptedAt: ntime,
+  submittedAt: ntime,
+  doneAt: ntime,
+  doneBy: Person.nullable(),
+  /** What the assignee handed in. */
+  files: z.array(AiFileView),
+  /** Agents' deliverables it was given to work from. */
+  references: z.array(AiFileView),
+  can: TaskActions,
+});
+
+export const AiTaskEvent = z.strictObject({ at: zTime, actor: Person.nullable(), kind: str, detail: z.record(str, z.unknown()) });
+
+/** The workforce report: tasks by state, overdue, and active work per person (for people who manage agents). */
+export const AiTaskReport = z.strictObject({
+  byState: z.record(str, zCount),
+  overdue: zCount,
+  byAssignee: z.array(z.strictObject({ person: Person, active: zCount, overdue: zCount })),
+});
+
+export const AiTaskSettings = z.strictObject({
+  roles: z.array(str),
+  users: z.array(str),
+  updatedAt: ntime,
+  /** Who that makes eligible now, with the named roles each holds. */
+  eligible: z.array(z.strictObject({ id: str, name: str, roles: z.array(str) })),
+});
+
 export const AiTriggerView = z.strictObject({
   id: str,
   installId: str,
@@ -265,6 +344,17 @@ const Channels = z.strictObject({ channels: z.array(AiAssignment) });
 const tag = "ai-workforce";
 const COMMON: readonly ErrorCode[] = ["not_found", "forbidden", "ai_workforce_disabled"];
 const errs = (...codes: ErrorCode[]): readonly ErrorCode[] => [...COMMON, ...codes];
+
+const TASK_ACTION_SUMMARY = {
+  accept: "The assignee takes the task on.",
+  start: "The assignee starts (or resumes) work.",
+  block: "The assignee can't go on; reason required.",
+  submit: "The assignee hands in a note and/or files (uploaded first) for review.",
+  approve: "A reviewer (the creator or Manage AI agents; never the assignee) accepts what was handed in: the task is done.",
+  return: "A reviewer sends the work back with what needs changing.",
+  cancel: "The creator or Manage AI agents withdraws the task.",
+  reassign: "The creator or Manage AI agents gives the task to someone else.",
+} as const;
 
 const jobAction = (action: "cancel" | "retry" | "revise" | "answer", summary: string, body?: z.ZodType) =>
   route({ method: "POST", url: `/v1/orgs/:orgId/ai/jobs/:jobId/${action}`, tag, summary, auth: true, params: AiJobParams, body, response: Job, errors: errs("conflict", "job_not_retryable", "quota_exceeded", "ai_paused", "ai_not_configured") });
@@ -367,6 +457,14 @@ export const aiWorkforceRoutes = [
     response: z.strictObject({ agents: z.array(AiInstallView.extend({ activation: Activation, canInvoke: z.boolean() })), permissions: AiPermissions }),
     errors: errs(),
   }),
+  route({ method: "GET", url: "/v1/orgs/:orgId/ai/tasks", tag, summary: "Tasks for people: assigned to the person (mine), created by them, or all (Manage AI agents, with the workforce report).", auth: true, params: AiOrgParams, query: AiTasksQuery, response: z.strictObject({ tasks: z.array(AiTaskSummary), next: ntime, report: AiTaskReport.nullable() }), errors: errs() }),
+  route({ method: "POST", url: "/v1/orgs/:orgId/ai/tasks", tag, summary: "Give someone a task (Manage AI agents). Stored on the server, not end-to-end encrypted.", auth: true, params: AiOrgParams, body: AiTaskBody, response: z.strictObject({ task: AiTaskView }), status: 201, errors: errs("bad_request") }),
+  route({ method: "GET", url: "/v1/orgs/:orgId/ai/tasks/settings", tag, summary: "Who the Agent Manager may give work to (Manage AI agents).", auth: true, params: AiOrgParams, response: z.strictObject({ settings: AiTaskSettings }), errors: errs() }),
+  route({ method: "PUT", url: "/v1/orgs/:orgId/ai/tasks/settings", tag, summary: "Set who the Agent Manager may give work to: roles and people (Manage AI agents).", auth: true, params: AiOrgParams, body: AiTaskSettingsBody, response: z.strictObject({ settings: AiTaskSettings }), errors: errs("bad_request") }),
+  route({ method: "GET", url: "/v1/orgs/:orgId/ai/tasks/:taskId", tag, summary: "One task with its history, what was handed in and what the person may do.", auth: true, params: AiTaskParams, response: z.strictObject({ task: AiTaskView, events: z.array(AiTaskEvent) }), errors: errs() }),
+  ...(["accept", "start", "block", "submit", "approve", "return", "cancel", "reassign"] as const).map((action) =>
+    route({ method: "POST", url: `/v1/orgs/:orgId/ai/tasks/:taskId/${action}`, tag, summary: TASK_ACTION_SUMMARY[action], auth: true, params: AiTaskParams, body: AiTaskActionBody, response: z.strictObject({ task: AiTaskView }), errors: errs("conflict", "bad_request") }),
+  ),
   route({ method: "GET", url: "/v1/orgs/:orgId/ai/skills", tag, summary: "The skill library, and which capabilities this community's agents can do now (with the exact blocker otherwise).", auth: true, params: AiOrgParams, response: z.strictObject({ skills: z.array(AiSkillCard), capabilities: z.array(AiDiscovered) }), errors: errs() }),
   route({ method: "GET", url: "/v1/orgs/:orgId/ai/skills/discover", tag, summary: "For the capabilities named (comma-separated ids), which agents here can do each now, or what's missing.", auth: true, params: AiOrgParams, query: AiDiscoverQuery, response: z.strictObject({ capabilities: z.array(AiDiscovered) }), errors: errs("bad_request") }),
   route({ method: "GET", url: "/v1/orgs/:orgId/ai/agents/:installId/readiness", tag, summary: "Whether an agent can work now: each check, what's missing and who can fix it.", auth: true, params: AiInstallParams, response: z.strictObject({ readiness: AiReadiness }), errors: errs() }),

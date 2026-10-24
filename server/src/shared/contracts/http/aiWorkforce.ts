@@ -9,6 +9,38 @@ const id = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
 
 export const AiOrgParams = z.strictObject({ orgId: id });
 export const AiInstallParams = z.strictObject({ orgId: id, installId: id });
+// ───────────── Human tasks (migration 052; docs/AI_WORKFORCE_2_PLAN.md, phase 4) ─────────────
+
+export const AiTaskParams = z.strictObject({ orgId: id, taskId: id });
+export const AiTaskPriority = z.enum(["low", "normal", "high", "urgent"]);
+export const AiTaskStateName = z.enum(["waiting", "open", "accepted", "in_progress", "blocked", "submitted", "done", "cancelled"]);
+/** A task a person with "Manage AI agents" gives someone. */
+export const AiTaskBody = z.strictObject({
+  title: z.string().trim().min(1).max(120),
+  instructions: z.string().trim().min(1).max(4000),
+  deliverables: z.string().trim().max(1000).default(""),
+  assigneeId: id,
+  dueAt: z.number().int().positive().nullable().default(null),
+  priority: AiTaskPriority.default("normal"),
+  conversationId: id.nullable().default(null),
+});
+/** Any change to a task: the rev it was read at, and what that change needs (a reason, a note, files, a person). */
+export const AiTaskActionBody = z.strictObject({
+  rev: z.number().int().nonnegative(),
+  reason: z.string().max(1000).optional(),
+  note: z.string().max(4000).optional(),
+  fileIds: z.array(id).max(20).optional(),
+  assigneeId: id.optional(),
+});
+export const AiTasksQuery = z.strictObject({
+  scope: z.enum(["mine", "created", "all"]).default("mine"),
+  state: AiTaskStateName.optional(),
+  before: z.coerce.number().int().positive().optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+/** Who the Agent Manager may give work to: members of these roles, and these people. */
+export const AiTaskSettingsBody = z.strictObject({ roles: z.array(id).max(50), users: z.array(id).max(200) });
+
 /** Capability ids, comma-separated (skill library ids like "video.edit,social.publish"). */
 export const AiDiscoverQuery = z.strictObject({ capabilities: z.string().trim().min(1).max(600) });
 export const AiChannelParams = z.strictObject({ orgId: id, installId: id, conversationId: id });

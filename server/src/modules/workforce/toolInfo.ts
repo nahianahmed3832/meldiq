@@ -25,6 +25,7 @@ export const TOOL_INFO: Record<ToolKey, ToolInfo> = {
   "media.extract_audio": { label: "Extract audio", description: "Take the sound track out of a video for transcription.", risk: "internal", defaultMode: "allowed" },
   "web.fetch": { label: "Fetch public web pages", description: "Read one public https page (no private addresses, 2 MB, 15 seconds, no redirects to private hosts).", risk: "consequential", defaultMode: "disabled" },
   "agents.delegate": { label: "Delegate to other agents", description: "The Agent Manager hands parts of a request to the community's installed agents, as the person who asked.", risk: "internal", defaultMode: "allowed" },
+  "tasks.assign": { label: "Assign work to people", description: "The Agent Manager gives a task to someone the community allows it to assign work to (chosen by role and workload), as the person who asked; only when they may manage AI agents.", risk: "internal", defaultMode: "allowed" },
   "social.publish": { label: "Publish to social media", description: "Post to a social media account.", risk: "external", defaultMode: "approval", integration: "Social media account connection" },
   "ads.manage": { label: "Change ad campaigns", description: "Launch campaigns or change budgets.", risk: "external", defaultMode: "approval", integration: "Advertising account connection" },
   "email.send": { label: "Send email", description: "Send email to outside addresses.", risk: "external", defaultMode: "approval", integration: "Email account connection" },

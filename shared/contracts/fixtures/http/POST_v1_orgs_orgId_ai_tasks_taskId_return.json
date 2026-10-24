@@ -1,0 +1,69 @@
+{
+  "task": {
+    "id": "tsk_8wtbYaUpZzxtVRB6ySNTQA",
+    "title": "Count stock",
+    "state": "in_progress",
+    "priority": "normal",
+    "overdue": false,
+    "dueAt": 1792941985385,
+    "assignee": {
+      "id": "u_beUw2WC3UtyTQp-IuSmVIA",
+      "name": "tkpack"
+    },
+    "createdBy": {
+      "id": "u_N88lYeQsTsw10RjIkTPVWQ",
+      "name": "Tasksowner"
+    },
+    "agent": null,
+    "jobId": null,
+    "updatedAt": 1792855585418,
+    "instructions": "Count shelf B and report the number.",
+    "deliverables": "The count and a photo",
+    "conversationId": null,
+    "blockedReason": null,
+    "submissionNote": "42 units.",
+    "returnReason": "Add the photo.",
+    "returns": 1,
+    "reminders": 0,
+    "escalatedAt": null,
+    "cancelReason": null,
+    "rev": 6,
+    "createdAt": 1792855585386,
+    "openedAt": 1792855585386,
+    "acceptedAt": 1792855585393,
+    "submittedAt": 1792855585414,
+    "doneAt": null,
+    "doneBy": null,
+    "files": [
+      {
+        "id": "aif_Y1KgOieqyYyYd7jrEv9O7g",
+        "role": "input",
+        "jobId": null,
+        "installId": null,
+        "agentId": null,
+        "skillVersion": null,
+        "kind": null,
+        "name": "count.txt",
+        "mime": "text/plain",
+        "size": 17,
+        "sha256": "94eedf595f7690de4e72870a490bc72b870f10025b28f60bb0ec076966c64c4b",
+        "version": 1,
+        "supersedes": null,
+        "approvalState": "not_required",
+        "createdAt": 1792855585412,
+        "expiresAt": 1795447585412
+      }
+    ],
+    "references": [],
+    "can": {
+      "accept": false,
+      "start": false,
+      "block": false,
+      "submit": false,
+      "approve": false,
+      "return": false,
+      "cancel": true,
+      "reassign": true
+    }
+  }
+}

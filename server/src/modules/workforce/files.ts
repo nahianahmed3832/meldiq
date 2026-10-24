@@ -21,6 +21,8 @@ export interface AiFileRow {
   org_id: string;
   role: FileRole;
   job_id: string | null;
+  /** A person's submission for a human task (migration 052). */
+  task_id: string | null;
   install_id: string | null;
   agent_id: string | null;
   skill_version: number | null;
@@ -324,6 +326,14 @@ export class AiFiles {
     } catch {
       return false;
     }
+  }
+
+  /** Files people submitted for [taskIds] (human tasks, migration 052). */
+  ofTasks(taskIds: string[]): AiFileRow[] {
+    if (!taskIds.length) return [];
+    return this.db
+      .prepare(`SELECT * FROM ai_files WHERE deleted_at IS NULL AND role = 'input' AND task_id IN (${taskIds.map(() => "?").join(",")}) ORDER BY created_at`)
+      .all(...taskIds) as AiFileRow[];
   }
 
   ofJobs(jobIds: string[], role?: FileRole): AiFileRow[] {

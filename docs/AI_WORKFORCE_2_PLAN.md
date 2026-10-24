@@ -71,6 +71,27 @@ The owner's "Autonomous AI Workforce 2.0" brief, checked against this repository
 - Tests: `ai_skill_library.test.ts` (5). Not built yet: installing skills from outside sources, administrator-defined
   skills, an agent running another agent's skill (each skill still belongs to its agent; reuse is by delegation).
 
+## Phase 4: human tasks and Manager-led orchestration (done, API 0.39.0)
+
+- Migration **052**: `ai_tasks` (state, assignee, creator, request, channel, priority, due time, dependencies,
+  references, reasons, notes, reminders, escalation), `ai_task_events` (every change, who and when),
+  `ai_task_settings` (who the Agent Manager may give work to: roles and people; nobody until an admin says so),
+  `ai_files.task_id` (what people hand in). Existing Agent Manager installs get the new `tasks.assign` tool.
+- Lifecycle: waiting → open → accepted → in progress ⇄ blocked → submitted → done, or returned to in progress; cancel
+  and reassign. Only the assignee accepts, starts, blocks and submits; a submission needs a note or files (their own
+  uploads); only the creator or someone with "Manage AI agents", never the assignee, approves or returns.
+- Agent Manager: plans "person" steps beside agent steps, only when the person asking may manage agents and someone is
+  eligible. The server chooses who (the role named, then the fewest active tasks), never the model. An agent step can
+  wait for a person's task and reads what they handed in; a person's task can wait for agent steps and gets their
+  deliverables as references. The Manager waits on tasks like jobs and reports who did what.
+- Worker: opens waiting tasks when their agent steps finish (cancels them when those fail), reminds assignees a day
+  before and after the due time (at most daily), and tells the creator once after two reminders on an overdue task.
+- API: `GET/POST /v1/orgs/:orgId/ai/tasks` (mine, created, or all with the workforce report), `GET …/tasks/:taskId`,
+  `POST …/tasks/:taskId/{accept,start,block,submit,approve,return,cancel,reassign}`, `GET/PUT …/tasks/settings`;
+  realtime `ai.task`. Tests: `ai_tasks.test.ts` (5).
+- Not built: availability calendars (none exist in Meldiq; the employee-management app isn't deployed), push
+  notifications for tasks (realtime and channel posts only), an agent reviewing a submission against its criteria.
+
 ## Order of work
 
 Phases follow the brief's order, starting with what no decision blocks: (1) shared skill library and discovery,

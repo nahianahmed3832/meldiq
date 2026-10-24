@@ -491,7 +491,8 @@ export class Workforce {
     requireInvoke(this.ctx, target, parent.requested_by);
     const missingTools = def.skill.requiredTools.filter((t) => !target.tools.includes(t));
     if (missingTools.length) throw new ApiError(409, "agent_unavailable", `${target.displayName} needs these to be allowed first: ${missingTools.map((t) => TOOL_INFO[t].label).join(", ")}.`);
-    const siblings = new Set(this.d.jobs.children(parent.id).map((c) => c.id));
+    // Steps of the same plan: its agent jobs, and the tasks it gave people (a step can wait for what they hand in).
+    const siblings = new Set([...this.d.jobs.children(parent.id).map((c) => c.id), ...this.d.tasks.list({ orgId: parent.org_id, jobId: parent.id }, 50).map((t) => t.id)]);
     if (!dependsOn.every((id) => siblings.has(id))) throw new ApiError(400, "bad_request", "A step can only depend on steps of the same plan.");
     const parsed = def.skill.input.safeParse(input);
     if (!parsed.success) throw new ApiError(400, "bad_request", `That step's request doesn't fit ${target.displayName}: ${parsed.error.issues[0]?.message ?? ""}`);
@@ -651,6 +652,13 @@ export class Workforce {
     const job = file.job_id ? this.d.jobs.get(file.job_id) : null;
     const root = job ? this.d.jobs.get(job.root_job_id) : null;
     if (job?.requested_by === userId || root?.requested_by === userId) return true;
+    // Human tasks: what was handed in, for whoever may see the task; agents' deliverables it refers to, for its assignee.
+    const task = file.task_id ? this.d.tasks.get(file.task_id) : null;
+    if (task && (task.assignee_id === userId || task.created_by === userId)) return true;
+    const referenced = this.ctx.db
+      .prepare("SELECT 1 FROM ai_tasks WHERE org_id = ? AND assignee_id = ? AND state <> 'cancelled' AND instr(reference_files, ?) > 0 LIMIT 1")
+      .get(file.org_id, userId, JSON.stringify(file.id));
+    if (referenced) return true;
     return file.conversation_id !== null && channelRefusal(this.ctx, file.org_id, file.conversation_id, userId) === null;
   }
 
