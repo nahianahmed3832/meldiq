@@ -229,3 +229,9 @@ account pages are another session's work); the fix is to go back to the conversa
 API 0.41.0, web `0f42277` and console 0.6.0 are live after the usual safeguards (`../DEPLOYMENT.md`). The first real
 platform System Check ran on its own right after the switch: 21 healthy, 1 warning (two old `ai_not_configured`
 failures). Branches pushed: `internal-beta`, `ai-workforce-web` (PR #20 still unmerged).
+
+### Follow-up: `accounts.spec.ts` fixed (2026-10-25)
+
+The pre-existing web e2e failure is fixed in orbit_web `95a4a71` (test only: it now leaves Settings › Account with
+"Back to conversations" before the direct message arrives). Full web e2e (chromium): 53 passed, 2 skipped, 0 failed.
+Production is unaffected (no app code changed).
