@@ -2073,6 +2073,14 @@
                             "maxLength": 128
                           }
                         },
+                        "sharing": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
                         "attended": {
                           "type": "array",
                           "items": {
@@ -2354,6 +2362,14 @@
                               "maxLength": 128
                             }
                           },
+                          "sharing": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 128
+                            }
+                          },
                           "attended": {
                             "type": "array",
                             "items": {
@@ -2608,6 +2624,14 @@
                               "maxLength": 128
                             }
                           },
+                          "sharing": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 128
+                            }
+                          },
                           "attended": {
                             "type": "array",
                             "items": {
@@ -2846,6 +2870,14 @@
                             "maxLength": 128
                           }
                         },
+                        "sharing": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
                         "attended": {
                           "type": "array",
                           "items": {
@@ -3076,6 +3108,14 @@
                           "type": "boolean"
                         },
                         "hands": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
+                        "sharing": {
                           "type": "array",
                           "items": {
                             "type": "string",
@@ -3345,6 +3385,14 @@
                             "maxLength": 128
                           }
                         },
+                        "sharing": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
                         "attended": {
                           "type": "array",
                           "items": {
@@ -3593,6 +3641,14 @@
                           "type": "boolean"
                         },
                         "hands": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
+                        "sharing": {
                           "type": "array",
                           "items": {
                             "type": "string",
@@ -3865,6 +3921,14 @@
                             "maxLength": 128
                           }
                         },
+                        "sharing": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
                         "attended": {
                           "type": "array",
                           "items": {
@@ -4102,6 +4166,14 @@
                             "maxLength": 128
                           }
                         },
+                        "sharing": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
                         "attended": {
                           "type": "array",
                           "items": {
@@ -4332,6 +4404,14 @@
                           "type": "boolean"
                         },
                         "hands": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
+                        "sharing": {
                           "type": "array",
                           "items": {
                             "type": "string",
@@ -4596,6 +4676,14 @@
                             "maxLength": 128
                           }
                         },
+                        "sharing": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
                         "attended": {
                           "type": "array",
                           "items": {
@@ -4826,6 +4914,14 @@
                           "type": "boolean"
                         },
                         "hands": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
+                        "sharing": {
                           "type": "array",
                           "items": {
                             "type": "string",
