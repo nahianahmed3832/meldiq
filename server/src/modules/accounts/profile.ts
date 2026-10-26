@@ -68,7 +68,7 @@ export function presenceModeOf(u: Pick<ProfileRow, "presence_mode" | "presence_u
 
 /** How [u] appears to others right now (callers check the viewer may see it at all: canSeeLastSeen). */
 export function shownPresence(ctx: AppContext, u: Pick<ProfileRow, "id" | "presence_mode" | "presence_until">): ShownPresence {
-  if (!ctx.hub.isUserOnline(u.id)) return "offline";
+  if (!ctx.hub.isUserPresent(u.id)) return "offline";
   const m = presenceModeOf(u);
   if (m === "invisible") return "offline";
   return m === "auto" ? "online" : m;

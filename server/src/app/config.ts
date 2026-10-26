@@ -168,6 +168,12 @@ export interface Config {
   webOrigins: string[];
   /** Abuse controls (docs/ABUSE_CONTROLS.md). 0 turns a limit off. */
   abuse: AbuseConfig;
+  /**
+   * How long a connection must stay open before others see the person online (PRESENCE_SETTLE_MS, default 4 s), and
+   * how long after the last one closes they still appear online (PRESENCE_GRACE_MS, default 10 s): push wake-ups and
+   * network hand-offs don't flash anyone online or offline (src/modules/realtime/presence.ts).
+   */
+  presence: { settleMs: number; graceMs: number };
   /** Optional display name for this instance, shown on client setup screens (INSTANCE_NAME). */
   instanceName: string | null;
   /** Federation with other Griip servers (docs/FEDERATION_PROTOCOL.md). Null when FEDERATION_DOMAIN isn't set. */
@@ -455,6 +461,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     trustProxy: trustProxy(env.TRUST_PROXY),
     webOrigins: webOrigins(env.WEB_ORIGINS),
     abuse: abuseConfig(int),
+    presence: {
+      settleMs: Math.min(Math.max(int("PRESENCE_SETTLE_MS", 4_000), 0), 60_000),
+      graceMs: Math.min(Math.max(int("PRESENCE_GRACE_MS", 10_000), 0), 120_000),
+    },
     instanceName: (env.INSTANCE_NAME ?? "").trim().slice(0, 80) || null,
     federation: federationConfig(env, dataDir, int),
     push: pushConfig(env, int),

@@ -159,7 +159,7 @@ export async function buildApp(
     if (!opts.mongo) app.addHook("onClose", async () => mongo.close());
   }
   ctx.relay = ctx.mongo?.owns("relay") ? new MongoRelayStore(ctx.mongo, db, app.log) : new SqliteRelayStore(db);
-  ctx.hub = new Hub(ctx.relay, config.abuse.wsMaxSocketsPerDevice);
+  ctx.hub = new Hub(ctx.relay, config.abuse.wsMaxSocketsPerDevice, config.presence);
   ctx.files = ctx.mongo?.owns("files") ? new MongoFileStore(ctx.mongo, app.log) : new SqliteFileStore(db);
   if (opts.contracts) {
     const observer = opts.contracts;
@@ -194,6 +194,7 @@ export async function buildApp(
   ctx.reminders = new ReminderService(ctx);
   ctx.reminders.start(config.reminderTickMs);
   app.addHook("onClose", async () => ctx.reminders.stop());
+  app.addHook("onClose", async () => ctx.hub.closePresence());
   ctx.meetings = new MeetingService(ctx);
   ctx.meetings.start(config.workflowTickMs > 0 ? 30_000 : 0);
   app.addHook("onClose", async () => ctx.meetings.stop());
