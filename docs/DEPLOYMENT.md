@@ -130,6 +130,33 @@ Passkeys failed in the app installed from Google Play: Play signs it with its ap
 
 Rollback: copy the backup's `.env` back and recreate `api` the same way.
 
+### API 0.42.0 and Meldiq Web 0.5.0-beta-9e42f38 (2026-10-26, 22:26 UTC, owner's go-ahead)
+
+The community-first redesign (meldiq-web `docs/MELDIQ_COMMUNITY_FIRST_REPORT.md`). API (branch `community-first-api`, 4
+commits on `internal-beta` a95fb82): presence settles before it changes (`src/modules/realtime/presence.ts`: online after a
+connection stays 4 s, offline after 10 s without one; push wake-up fetches no longer flash people online), live calls list
+who is sharing their screen (`sharing`, from LiveKit's track webhooks), and `POST /v1/orgs/:orgId/members` adds people
+directly (only people the adder knows who would accept a DM from them). **No migration.** Web (branch `community-first`
+on `ai-workforce-web`): mascot rail, Create/Discover, unread rule, sound and tab badge, reactors, call badges, Add members,
+`/join/<code>` invite links, the Meldiq palette.
+
+| Step | Result |
+|---|---|
+| Checks before | server **1,076 passed** / 11 skipped, `tsc` clean; web `tsc -b`, lint, format, 504 unit tests (contracts from this API), browser tests Chromium + phone width against 0.42.0 (all passing after two test fixes, report §Verification) |
+| Pre-flight | running 0.41.0; VPS `server/` byte-equal to a95fb82 outside tests; web 0f42277 |
+| Backup | `backups/pre-0.42.0-20261026T221714Z`: integrity ok, schema 55, 43 users, `.env` + `compose.yaml` copies; image tagged `0.41.0-rollback`; sources kept as `server.pre-0.42.0` |
+| Build | 15 files synced (exactly this release's); `docker build -t griip-internal-messaging-api:0.42.0 server` (`build-0.42.0.log`, no errors) |
+| Rehearsal | snapshot copy, `--network none`, env without FCM lines: healthy, 0.42.0, schema 55 unchanged, 43 users; removed after |
+| Switch | `compose.yaml` image 0.42.0, `validate-env.sh` 0 errors, `config -q`, `up -d --no-deps --no-build api`: healthy, 0 restarts |
+| Checks after | `/healthz` 0.42.0 on both hosts; new route answers "Authentication required"; `verify.sh` clean; 0 errors in the log; backup `post-0.42.0-20261026T222757Z` verified (schema 55, 43 users) |
+| Web | release `0.5.0-beta-9e42f38` (sha256 checked) with the live settings; nginx files byte-identical; `verify.sh` all passed (API 0.42.0 through the site); sign-in page without console errors |
+
+Not checked in production: signed-in flows (no production test account). Tunable without a release: `PRESENCE_SETTLE_MS`,
+`PRESENCE_GRACE_MS` in `.env`.
+
+Rollback: web (`bash /root/meldiq-web-0.5.0-beta-9e42f38/rollback.sh`, back to 0f42277) first, then the API image
+`0.41.0-rollback` with `up -d --no-deps --no-build api` (nothing to undo in the database).
+
 ### API 0.41.0, Meldiq Web 0.5.0-beta-0f42277 and console 0.6.0 (2026-10-24, 19:30 UTC, owner's go-ahead)
 
 The master prompt's phases 1–3 and 10 (`implementation/PROGRESS.md`; internal-beta `8601242`…`c918fde`): the Agent
