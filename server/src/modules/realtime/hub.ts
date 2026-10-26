@@ -2,6 +2,7 @@ import type { WebSocket } from "ws";
 import type { QueueItemRow, RelayStore } from "../messaging/index.js";
 import type { QueueItemWire, ServerEvent } from "../../shared/contracts/realtime.js";
 import { now } from "../../shared/utilities/util.js";
+import { PresenceTracker, type PresenceTiming } from "./presence.js";
 
 export type { QueueItemRow };
 
@@ -101,7 +102,16 @@ export class Hub {
   constructor(
     private relay: RelayStore,
     private maxSocketsPerDevice = 4,
-  ) {}
+    presenceTiming: PresenceTiming = { settleMs: 0, graceMs: 0 },
+  ) {
+    this.presence = new PresenceTracker(presenceTiming, (userId) => this.isUserOnline(userId), (userId, online) => {
+      if (!online && this.recordsLastSeen(userId)) this.lastSeen.set(userId, now());
+      this.onPresenceChange(userId, online);
+    });
+  }
+
+  /** Who others see online: connections that stayed open, not every short one (presence.ts). */
+  private readonly presence: PresenceTracker;
 
   add(ws: WebSocket, userId: string, deviceId: string): Conn {
     // Its backlog flush starts right after "hello".
@@ -124,7 +134,7 @@ export class Hub {
     const wasOnline = !!devs && devs.size > 0;
     if (!devs) this.byUser.set(userId, (devs = new Set()));
     devs.add(deviceId);
-    if (!wasOnline) this.onPresenceChange(userId, true);
+    if (!wasOnline) this.presence.connectedNow(userId);
     return conn;
   }
 
@@ -141,16 +151,26 @@ export class Hub {
         devs?.delete(conn.deviceId);
         if (devs && devs.size === 0) {
           this.byUser.delete(conn.userId);
-          if (this.recordsLastSeen(conn.userId)) this.lastSeen.set(conn.userId, now());
-          this.onPresenceChange(conn.userId, false);
+          this.presence.disconnectedNow(conn.userId);
         }
         this.onDeviceOffline(conn.deviceId, conn.openedAt);
       }
     }
   }
 
+  /** At least one open connection right now (delivery and the person's own devices). */
   isUserOnline(userId: string): boolean {
     return (this.byUser.get(userId)?.size ?? 0) > 0;
+  }
+
+  /** Whether others see [userId] online: connected long enough, or left within the grace period (presence.ts). */
+  isUserPresent(userId: string): boolean {
+    return this.presence.isPresent(userId);
+  }
+
+  /** Stops presence timers (server shutdown). */
+  closePresence(): void {
+    this.presence.close();
   }
 
   isDeviceOnline(deviceId: string): boolean {

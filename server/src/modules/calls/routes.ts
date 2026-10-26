@@ -8,6 +8,7 @@ import { me, requireAuth } from "../auth/index.js";
 import { parse } from "../../shared/validation/index.js";
 import { ApiError, badRequest, conflict, forbidden, notFound } from "../../shared/errors.js";
 import { newId, now } from "../../shared/utilities/util.js";
+import { forgetSharing, isScreenShare, setSharing, sharingDevices } from "./screenShares.js";
 
 export interface CallRow {
   id: string;
@@ -96,9 +97,18 @@ export function callView(ctx: AppContext, c: CallRow): CallWire {
             .all(c.id) as { user_id: string }[]
         ).map((h) => h.user_id)
       : [],
+    // Live calls: who is sharing their screen now (LiveKit's account, current participants only; screenShares.ts).
+    ...(c.state !== "ENDED" ? { sharing: sharersOf(ctx, c.id, participants) } : {}),
     // Ended calls only (older apps ignore it): who connected, for the call history line in the conversation.
     ...(c.state === "ENDED" ? { attended: callAttendance(ctx, c) } : {}),
   };
+}
+
+/** The people (each once) whose device still in the call is sharing its screen. */
+function sharersOf(ctx: AppContext, callId: string, participants: { user_id: string; device_id: string }[]): string[] {
+  const devices = sharingDevices(ctx, callId);
+  if (devices.size === 0) return [];
+  return [...new Set(participants.filter((p) => devices.has(p.device_id)).map((p) => p.user_id))];
 }
 
 export function conversationMemberIds(ctx: AppContext, convId: string): string[] {
@@ -158,6 +168,7 @@ export async function endCallRow(ctx: AppContext, c: CallRow, reason: string): P
   // Observability (UI-003): the call's id, why it ended and how long it lasted; never names, identities or media.
   ctx.log.info({ callId: c.id, reason, seconds: c.answered_at ? Math.round((t - c.answered_at) / 1000) : 0 }, "call ended");
   ctx.db.prepare("UPDATE call_participants SET left_at = ? WHERE call_id = ? AND left_at IS NULL").run(t, c.id);
+  forgetSharing(ctx, c.id);
   broadcastCall(ctx, loadCall(ctx, c.id)!, "ended");
   if (!c.host_server_id) await ctx.livekit?.deleteRoom(c.room_name);
 }
@@ -696,6 +707,7 @@ export default async function callRoutes(app: FastifyInstance, ctx: AppContext) 
         return { ok: true };
       }
       db.prepare("UPDATE call_participants SET left_at = ? WHERE call_id = ? AND device_id = ? AND left_at IS NULL").run(now(), c.id, pDevice);
+      forgetSharing(ctx, c.id, pDevice);
       const cur = load(c.id)!;
       const remaining = (db.prepare("SELECT COUNT(*) n FROM call_participants WHERE call_id = ? AND left_at IS NULL").get(c.id) as { n: number }).n;
       const conv = authz.conversation(c.conversation_id);
@@ -705,6 +717,9 @@ export default async function callRoutes(app: FastifyInstance, ctx: AppContext) 
         if (cur.state === "ACTIVE" && conv?.type === "DM") scheduleLost(ctx, cur);
         broadcast(cur, "updated");
       }
+    } else if ((event.event === "track_published" || event.event === "track_unpublished") && pDevice && isScreenShare(event.track?.source)) {
+      // Screen sharing started or stopped: members see it on the channel without joining (community-first brief §E).
+      if (c.state !== "ENDED" && setSharing(ctx, c.id, pDevice, event.event === "track_published")) broadcast(load(c.id)!, "updated");
     } else if (event.event === "room_finished") {
       await endCall(c, "empty");
     }

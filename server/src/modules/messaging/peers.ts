@@ -17,3 +17,13 @@ export function conversationPeers(ctx: AppContext, userId: string): string[] {
 export function conversationMemberIds(ctx: AppContext, conversationId: string): string[] {
   return (ctx.db.prepare("SELECT user_id FROM conversation_members WHERE conversation_id = ?").all(conversationId) as { user_id: string }[]).map((r) => r.user_id);
 }
+
+/** Whether [a] and [b] share a direct message or a group (not just a channel). */
+export function sharesDirectConversation(ctx: AppContext, a: string, b: string): boolean {
+  return !!ctx.db
+    .prepare(
+      `SELECT 1 FROM conversation_members m1 JOIN conversations c ON c.id = m1.conversation_id AND c.type IN ('DM','GROUP')
+       JOIN conversation_members m2 ON m2.conversation_id = m1.conversation_id WHERE m1.user_id = ? AND m2.user_id = ? LIMIT 1`,
+    )
+    .get(a, b);
+}

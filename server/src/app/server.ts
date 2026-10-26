@@ -44,6 +44,7 @@ import conversationRoutes from "../modules/messaging/conversationsRoutes.js";
 import historyRoutes from "../modules/messaging/history/routes.js";
 import messageRoutes from "../modules/messaging/messagesRoutes.js";
 import orgRoutes from "../modules/organizations/orgsRoutes.js";
+import addMembersRoutes from "../modules/organizations/addMembers.js";
 import roleRoutes from "../modules/organizations/rolesRoutes.js";
 import { Entitlements } from "../modules/administration/entitlements.js";
 import opsRoutes from "../modules/administration/ops/routes.js";
@@ -72,7 +73,7 @@ import { ApiError } from "../shared/errors.js";
 import { now } from "../shared/utilities/util.js";
 import wsRoutes from "../modules/realtime/ws.js";
 
-export const VERSION = "0.41.0";
+export const VERSION = "0.42.0";
 /**
  * The client API this server speaks and the oldest client API it accepts. Clients refuse a server whose
  * minClientApi is newer than theirs; servers from before these fields existed count as API 1.
@@ -159,7 +160,7 @@ export async function buildApp(
     if (!opts.mongo) app.addHook("onClose", async () => mongo.close());
   }
   ctx.relay = ctx.mongo?.owns("relay") ? new MongoRelayStore(ctx.mongo, db, app.log) : new SqliteRelayStore(db);
-  ctx.hub = new Hub(ctx.relay, config.abuse.wsMaxSocketsPerDevice);
+  ctx.hub = new Hub(ctx.relay, config.abuse.wsMaxSocketsPerDevice, config.presence);
   ctx.files = ctx.mongo?.owns("files") ? new MongoFileStore(ctx.mongo, app.log) : new SqliteFileStore(db);
   if (opts.contracts) {
     const observer = opts.contracts;
@@ -194,6 +195,7 @@ export async function buildApp(
   ctx.reminders = new ReminderService(ctx);
   ctx.reminders.start(config.reminderTickMs);
   app.addHook("onClose", async () => ctx.reminders.stop());
+  app.addHook("onClose", async () => ctx.hub.closePresence());
   ctx.meetings = new MeetingService(ctx);
   ctx.meetings.start(config.workflowTickMs > 0 ? 30_000 : 0);
   app.addHook("onClose", async () => ctx.meetings.stop());
@@ -344,7 +346,7 @@ export async function buildApp(
     passkeys: ctx.accounts.passkeys.available ? { webOrigins: ctx.accounts.passkeys.webOrigins } : null,
   }));
 
-  for (const r of [authRoutes, userRoutes, orgRoutes, roleRoutes, conversationRoutes, messageRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, expressionRoutes, wsRoutes]) {
+  for (const r of [authRoutes, userRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, expressionRoutes, wsRoutes]) {
     await app.register(async (scope) => r(scope, ctx));
   }
   await app.register(async (scope) => opsRoutes(scope, ctx, VERSION));

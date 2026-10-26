@@ -57,6 +57,8 @@ export const CallWire = z.strictObject({
   voiceRoom: z.boolean(),
   /** Voice rooms: people with a raised hand, in the order they raised it. */
   hands: z.array(id),
+  /** Live calls: people sharing their screen now, from the media server (servers from 2026-10-26; older ones leave it out). */
+  sharing: z.array(id).optional(),
   /** Ended calls only. */
   attended: z.array(CallAttendanceWire).optional(),
 });

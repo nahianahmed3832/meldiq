@@ -45,6 +45,9 @@ export async function startServer(env: Record<string, string> = {}, opts: { push
     // Account suites make many sign-ins from 127.0.0.1; the per-network limit itself is tested on its own.
     AUTH_RATE_LIMIT_PER_MINUTE: "10000",
     ACCOUNT_EMAILS_PER_NETWORK_PER_HOUR: "10000",
+    // Presence changes at once in tests; the settle and grace delays have their own suite (presence_stability.test.ts).
+    PRESENCE_SETTLE_MS: "0",
+    PRESENCE_GRACE_MS: "0",
     // MELDIQ_TEST_MONGO_DOMAINS=accounts,preferences runs every suite with those domains in MongoDB (docs/MONGODB.md).
     ...testMongoEnv(env),
     ...env,

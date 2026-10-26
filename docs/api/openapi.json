@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Meldiq API",
-    "version": "0.41.0",
+    "version": "0.42.0",
     "description": "The canonical contract of the Meldiq server (docs/architecture/ARCHITECTURE_1_0_PLAN.md §4), generated from src/shared/contracts. Fields are only ever added within a version; clients ignore unknown fields. Routes not listed here exist but aren't documented yet."
   },
   "servers": [
@@ -2073,6 +2073,14 @@
                             "maxLength": 128
                           }
                         },
+                        "sharing": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
                         "attended": {
                           "type": "array",
                           "items": {
@@ -2354,6 +2362,14 @@
                               "maxLength": 128
                             }
                           },
+                          "sharing": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 128
+                            }
+                          },
                           "attended": {
                             "type": "array",
                             "items": {
@@ -2608,6 +2624,14 @@
                               "maxLength": 128
                             }
                           },
+                          "sharing": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 128
+                            }
+                          },
                           "attended": {
                             "type": "array",
                             "items": {
@@ -2846,6 +2870,14 @@
                             "maxLength": 128
                           }
                         },
+                        "sharing": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
                         "attended": {
                           "type": "array",
                           "items": {
@@ -3076,6 +3108,14 @@
                           "type": "boolean"
                         },
                         "hands": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
+                        "sharing": {
                           "type": "array",
                           "items": {
                             "type": "string",
@@ -3345,6 +3385,14 @@
                             "maxLength": 128
                           }
                         },
+                        "sharing": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
                         "attended": {
                           "type": "array",
                           "items": {
@@ -3593,6 +3641,14 @@
                           "type": "boolean"
                         },
                         "hands": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
+                        "sharing": {
                           "type": "array",
                           "items": {
                             "type": "string",
@@ -3865,6 +3921,14 @@
                             "maxLength": 128
                           }
                         },
+                        "sharing": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
                         "attended": {
                           "type": "array",
                           "items": {
@@ -4102,6 +4166,14 @@
                             "maxLength": 128
                           }
                         },
+                        "sharing": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
                         "attended": {
                           "type": "array",
                           "items": {
@@ -4332,6 +4404,14 @@
                           "type": "boolean"
                         },
                         "hands": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
+                        "sharing": {
                           "type": "array",
                           "items": {
                             "type": "string",
@@ -4596,6 +4676,14 @@
                             "maxLength": 128
                           }
                         },
+                        "sharing": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
                         "attended": {
                           "type": "array",
                           "items": {
@@ -4826,6 +4914,14 @@
                           "type": "boolean"
                         },
                         "hands": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
+                        "sharing": {
                           "type": "array",
                           "items": {
                             "type": "string",
@@ -16586,6 +16682,106 @@
             "bearer": []
           }
         ]
+      },
+      "post": {
+        "tags": [
+          "communities"
+        ],
+        "summary": "Add existing accounts directly: people the caller knows who would accept a direct message from them. Others (and anyone blocked, banned or unknown) come back not_available; invite them instead.",
+        "operationId": "postV1OrgsOrgIdMembers",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "userId": {
+                            "type": "string"
+                          },
+                          "outcome": {
+                            "type": "string",
+                            "enum": [
+                              "added",
+                              "already_member",
+                              "not_available"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "userId",
+                          "outcome"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "results"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, invites_paused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "userIds": {
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    }
+                  }
+                },
+                "required": [
+                  "userIds"
+                ]
+              }
+            }
+          }
+        }
       }
     },
     "/v1/orgs/{orgId}/members/{userId}": {
