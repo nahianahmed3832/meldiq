@@ -455,6 +455,10 @@ export function serverFeatures(config: Config, directUploads = false): string[] 
     "reminders",
     // Round 6: voice rooms (docs/VOICE_ROOMS.md).
     "voice-rooms",
+    // API 0.43.0: importing a Discord server's structure (GET /v1/discord/status says whether it's set up), and
+    // self-only encrypted controls (audience "self": a read in one browser clears the person's others).
+    "discord-import",
+    "self-controls",
   ];
   if (config.accounts.legacy.migration) f.push("legacy-migration");
   if (directUploads) f.push("direct-upload");
