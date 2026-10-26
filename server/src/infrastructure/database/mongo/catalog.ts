@@ -45,6 +45,8 @@ export const EXCLUDED_TABLES: Readonly<Record<string, string>> = {
   presence_samples: "per-minute concurrency samples, 30 days (presence_hourly keeps the long view)",
   resource_samples: "per-minute resource samples, 7 days (resource_hourly keeps the long view)",
   quota_reservations: "quota reservations in flight, minutes",
+  // Discord import (migration 056): a sign-in with Discord in progress, 10 minutes.
+  discord_oauth_states: "Discord sign-in states in progress, 10 minutes",
 };
 
 export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
@@ -151,6 +153,10 @@ export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
   community_onboarding: "workspace",
   // Batch B9: a community's own emoji and stickers (their images are profile-photos blobs).
   community_expressions: "workspace",
+  // Discord import (migration 056).
+  discord_connections: "workspace",
+  discord_imports: "workspace",
+  discord_import_items: "workspace",
   onboarding_answers: "workspace",
   // Batch B6: connections, message requests and who may message you.
   connections: "relationships",

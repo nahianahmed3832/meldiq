@@ -182,8 +182,55 @@ export interface Config {
   push: PushConfig | null;
   /** Firebase Cloud Messaging wake-ups (docs/PUSH_FCM.md). Null (off) unless FCM_PROJECT_ID and FCM_SERVICE_ACCOUNT_FILE are set. */
   fcm: FcmConfig | null;
+  /** Importing a Discord server's structure (docs/DISCORD_IMPORT.md). Null (off) unless all four DISCORD_* values are set. */
+  discord: DiscordConfig | null;
   logLevel: string;
   rateLimitPerMinute: number;
+}
+
+export interface DiscordConfig {
+  /** The Discord application (DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET) and its bot (DISCORD_BOT_TOKEN). */
+  clientId: string;
+  clientSecret: string;
+  botToken: string;
+  /** Where Discord sends people back (DISCORD_REDIRECT_URI): Meldiq Web's /discord/callback, registered on the application. */
+  redirectUri: string;
+  /** Discord's API and image CDN; other values only for tests against a local stand-in (DISCORD_API_BASE, DISCORD_CDN_BASE). */
+  apiBase: string;
+  cdnBase: string;
+}
+
+/** An https URL, or http on this machine (tests and local development only). */
+function serviceUrl(raw: string, name: string): string {
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    throw new Error(`${name}: "${raw}" isn't a URL`);
+  }
+  const local = u.protocol === "http:" && (u.hostname === "127.0.0.1" || u.hostname === "localhost");
+  if (u.protocol !== "https:" && !local) throw new Error(`${name} must be an https URL`);
+  return raw.replace(/\/$/, "");
+}
+
+export function discordConfig(env: NodeJS.ProcessEnv): DiscordConfig | null {
+  const clientId = env.DISCORD_CLIENT_ID?.trim();
+  const clientSecret = env.DISCORD_CLIENT_SECRET?.trim();
+  const botToken = env.DISCORD_BOT_TOKEN?.trim();
+  const redirect = env.DISCORD_REDIRECT_URI?.trim();
+  if (!clientId && !clientSecret && !botToken && !redirect) return null;
+  if (!clientId || !clientSecret || !botToken || !redirect) {
+    throw new Error("Discord import needs DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_BOT_TOKEN and DISCORD_REDIRECT_URI together (or none of them)");
+  }
+  if (!/^\d{5,25}$/.test(clientId)) throw new Error("DISCORD_CLIENT_ID is the application's numeric id");
+  return {
+    clientId,
+    clientSecret,
+    botToken,
+    redirectUri: serviceUrl(redirect, "DISCORD_REDIRECT_URI"),
+    apiBase: serviceUrl(env.DISCORD_API_BASE?.trim() || "https://discord.com/api/v10", "DISCORD_API_BASE"),
+    cdnBase: serviceUrl(env.DISCORD_CDN_BASE?.trim() || "https://cdn.discordapp.com", "DISCORD_CDN_BASE"),
+  };
 }
 
 export interface PushConfig {
@@ -469,6 +516,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     federation: federationConfig(env, dataDir, int),
     push: pushConfig(env, int),
     fcm: fcmConfig(env),
+    discord: discordConfig(env),
     logLevel: env.LOG_LEVEL ?? "info",
     rateLimitPerMinute: int("RATE_LIMIT_PER_MINUTE", 600),
   };

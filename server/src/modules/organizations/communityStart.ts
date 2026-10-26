@@ -110,29 +110,63 @@ export function templateList(): { id: TemplateId; categories: { name: string; ch
   }));
 }
 
+/** A category at [position] (no notification: the caller notifies once it's done). */
+export function insertCategory(ctx: AppContext, orgId: string, actorId: string, name: string, position: number, t = now()): string {
+  const id = newId("cat");
+  ctx.db.prepare("INSERT INTO channel_categories (id, org_id, name, position, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(id, orgId, name, position, actorId, t, t);
+  return id;
+}
+
+export interface NewChannel {
+  name: string;
+  topic: string | null;
+  kind: "PUBLIC" | "PRIVATE" | "ANNOUNCEMENT";
+  voice: boolean;
+  format: "text" | "forum";
+  categoryId: string | null;
+  position: number;
+}
+
+/**
+ * A channel made by [actorId] (its admin). Public and announcement channels are joined by every member who may see them;
+ * a private one starts with [actorId] only. Call inside a transaction; the caller notifies.
+ */
+export function insertChannel(ctx: AppContext, orgId: string, actorId: string, ch: NewChannel, t = now()): string {
+  const { db, authz } = ctx;
+  const id = newId("c");
+  const autoJoin = ch.kind !== "PRIVATE";
+  db.prepare(
+    `INSERT INTO conversations (id, type, org_id, scope, scope_id, kind, name, topic, auto_join, created_by, created_at, updated_at, voice, category_id, position, format)
+     VALUES (?, 'CHANNEL', ?, 'ORG', NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(id, orgId, ch.kind, ch.name, ch.topic, autoJoin ? 1 : 0, actorId, t, t, ch.voice ? 1 : 0, ch.categoryId, ch.position, ch.format);
+  db.prepare("INSERT INTO conversation_members (conversation_id, user_id, role, joined_at) VALUES (?, ?, 'ADMIN', ?)").run(id, actorId, t);
+  if (autoJoin) {
+    const conv = authz.conversation(id) as ConversationRow;
+    for (const r of db.prepare("SELECT user_id FROM org_members WHERE org_id = ? AND user_id != ?").all(orgId, actorId) as { user_id: string }[]) {
+      if (authz.scopeEligible(conv, r.user_id)) db.prepare("INSERT OR IGNORE INTO conversation_members (conversation_id, user_id, role, joined_at) VALUES (?, ?, 'MEMBER', ?)").run(id, r.user_id, t);
+    }
+  }
+  return id;
+}
+
+/** Channels in a community and in one category, for the limits (CHANNEL_LIMITS). */
+export function channelCounts(ctx: AppContext, orgId: string, categoryId: string | null): { total: number; inCategory: number } {
+  const total = (ctx.db.prepare("SELECT COUNT(*) n FROM conversations WHERE org_id = ? AND type = 'CHANNEL'").get(orgId) as { n: number }).n;
+  const inCategory = categoryId ? (ctx.db.prepare("SELECT COUNT(*) n FROM conversations WHERE category_id = ?").get(categoryId) as { n: number }).n : 0;
+  return { total, inCategory };
+}
+
 /** Creates [template]'s categories and channels for a community [ownerId] just made. Returns the channel ids. */
 export function createCommunityStart(ctx: AppContext, orgId: string, ownerId: string, template: TemplateId = "starter"): string[] {
-  const { db, authz } = ctx;
   const created: string[] = [];
   const t = now();
-  db.transaction(() => {
+  ctx.db.transaction(() => {
     COMMUNITY_TEMPLATES[template].forEach((group, g) => {
-      const categoryId = newId("cat");
-      db.prepare("INSERT INTO channel_categories (id, org_id, name, position, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
-        categoryId, orgId, group.category, g, ownerId, t, t,
-      );
+      const categoryId = insertCategory(ctx, orgId, ownerId, group.category, g, t);
       group.channels.forEach((ch, i) => {
-        const id = newId("c");
-        db.prepare(
-          `INSERT INTO conversations (id, type, org_id, scope, scope_id, kind, name, topic, auto_join, created_by, created_at, updated_at, voice, category_id, position, format)
-           VALUES (?, 'CHANNEL', ?, 'ORG', NULL, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)`,
-        ).run(id, orgId, ch.kind, ch.name, ch.topic, ownerId, t, t, ch.voice ? 1 : 0, categoryId, i, ch.format ?? "text");
-        db.prepare("INSERT INTO conversation_members (conversation_id, user_id, role, joined_at) VALUES (?, ?, 'ADMIN', ?)").run(id, ownerId, t);
-        const conv = authz.conversation(id) as ConversationRow;
-        for (const r of db.prepare("SELECT user_id FROM org_members WHERE org_id = ? AND user_id != ?").all(orgId, ownerId) as { user_id: string }[]) {
-          if (authz.scopeEligible(conv, r.user_id)) db.prepare("INSERT OR IGNORE INTO conversation_members (conversation_id, user_id, role, joined_at) VALUES (?, ?, 'MEMBER', ?)").run(id, r.user_id, t);
-        }
-        created.push(id);
+        created.push(
+          insertChannel(ctx, orgId, ownerId, { name: ch.name, topic: ch.topic, kind: ch.kind, voice: !!ch.voice, format: ch.format ?? "text", categoryId, position: i }, t),
+        );
       });
     });
   })();

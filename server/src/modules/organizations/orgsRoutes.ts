@@ -42,7 +42,7 @@ import { categoryViews } from "./communityRoutes.js";
 const templateIdsMatch: [(typeof COMMUNITY_TEMPLATE_IDS)[number]] extends [TemplateId] ? ([TemplateId] extends [(typeof COMMUNITY_TEMPLATE_IDS)[number]] ? true : never) : never = true;
 void templateIdsMatch;
 
-function slugify(name: string): string {
+export function slugify(name: string): string {
   return (
     name
       .toLowerCase()

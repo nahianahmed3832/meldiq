@@ -45,6 +45,7 @@ import historyRoutes from "../modules/messaging/history/routes.js";
 import messageRoutes from "../modules/messaging/messagesRoutes.js";
 import orgRoutes from "../modules/organizations/orgsRoutes.js";
 import addMembersRoutes from "../modules/organizations/addMembers.js";
+import discordRoutes from "../modules/organizations/discord/routes.js";
 import roleRoutes from "../modules/organizations/rolesRoutes.js";
 import { Entitlements } from "../modules/administration/entitlements.js";
 import opsRoutes from "../modules/administration/ops/routes.js";
@@ -73,7 +74,7 @@ import { ApiError } from "../shared/errors.js";
 import { now } from "../shared/utilities/util.js";
 import wsRoutes from "../modules/realtime/ws.js";
 
-export const VERSION = "0.42.0";
+export const VERSION = "0.43.0";
 /**
  * The client API this server speaks and the oldest client API it accepts. Clients refuse a server whose
  * minClientApi is newer than theirs; servers from before these fields existed count as API 1.
@@ -346,7 +347,7 @@ export async function buildApp(
     passkeys: ctx.accounts.passkeys.available ? { webOrigins: ctx.accounts.passkeys.webOrigins } : null,
   }));
 
-  for (const r of [authRoutes, userRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, expressionRoutes, wsRoutes]) {
+  for (const r of [authRoutes, userRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, expressionRoutes, discordRoutes, wsRoutes]) {
     await app.register(async (scope) => r(scope, ctx));
   }
   await app.register(async (scope) => opsRoutes(scope, ctx, VERSION));

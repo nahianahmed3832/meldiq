@@ -184,6 +184,20 @@ else
   ok "Firebase wake-ups off (FCM_PROJECT_ID empty)"
 fi
 
+# Discord import (docs/DISCORD_IMPORT.md): all four settings or none; the redirect must be Meldiq Web's /discord/callback.
+if [ -n "${DISCORD_CLIENT_ID:-}${DISCORD_CLIENT_SECRET:-}${DISCORD_BOT_TOKEN:-}${DISCORD_REDIRECT_URI:-}" ]; then
+  if [ -z "${DISCORD_CLIENT_ID:-}" ] || [ -z "${DISCORD_CLIENT_SECRET:-}" ] || [ -z "${DISCORD_BOT_TOKEN:-}" ] || [ -z "${DISCORD_REDIRECT_URI:-}" ]; then
+    err "Discord import needs DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_BOT_TOKEN and DISCORD_REDIRECT_URI together"
+  else
+    case "$DISCORD_REDIRECT_URI" in
+      https://*/discord/callback) ok "Discord import on (application ${DISCORD_CLIENT_ID})" ;;
+      *) err "DISCORD_REDIRECT_URI must be https://<Meldiq Web>/discord/callback" ;;
+    esac
+  fi
+else
+  ok "Discord import off (DISCORD_CLIENT_ID empty)"
+fi
+
 # compose.yaml mounts ntfy/server.yml into the ntfy service; without it Docker would mount an empty directory instead.
 NT="$DIR/ntfy/server.yml"
 if [ ! -f "$NT" ]; then

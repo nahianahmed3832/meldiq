@@ -7,7 +7,7 @@ import { parse, zB64, zKey, zSig } from "../../shared/validation/index.js";
 import { canonical, verifyEd25519 } from "../../shared/utilities/crypto.js";
 import { queueItemToWire } from "../realtime/hub.js";
 import { DuplicateSubmission, type QueueInsert, type QueueItemRow } from "./relay/store.js";
-import { ApiError, conflict, forbidden } from "../../shared/errors.js";
+import { ApiError, badRequest, conflict, forbidden } from "../../shared/errors.js";
 import { now } from "../../shared/utilities/util.js";
 import { MENTION_ALL_MESSAGES, mentionAllPermission, mentionAllRateLimited } from "./mentions.js";
 
@@ -95,14 +95,18 @@ export default async function messageRoutes(app: FastifyInstance, ctx: AppContex
     // The recipient set must equal the active devices of current members (minus this device). An AI agent's reader
     // device in this conversation may be in it too, never must: each sender's client decides, by their own choice, whether
     // their messages reach it (docs/AI_WORKFORCE_2_PLAN.md phase 5). Agents' devices are never required.
+    // A self-only control (audience "self") goes to the sender's own other devices and nobody else.
+    const selfOnly = e.audience === "self";
+    if (selfOnly && e.cls !== "control") throw badRequest("Only controls can be sent to your own devices alone");
     const expected = db
       .prepare(
         `SELECT d.id, d.user_id, u.home_server_id FROM devices d JOIN conversation_members m ON m.user_id = d.user_id
          JOIN users u ON u.id = d.user_id
          WHERE m.conversation_id = ? AND d.revoked_at IS NULL AND u.disabled_at IS NULL AND u.kind = 'person' AND d.id != ?`,
       )
-      .all(conv.id, deviceId) as { id: string; user_id: string; home_server_id: string | null }[];
-    const readers = ctx.workforce.readers.optionalDevices(conv.id).map((r) => ({ id: r.deviceId, user_id: r.userId, home_server_id: null }));
+      .all(conv.id, deviceId)
+      .filter((d) => !selfOnly || (d as { user_id: string }).user_id === userId) as { id: string; user_id: string; home_server_id: string | null }[];
+    const readers = selfOnly ? [] : ctx.workforce.readers.optionalDevices(conv.id).map((r) => ({ id: r.deviceId, user_id: r.userId, home_server_id: null }));
     const expectedIds = new Map([...expected, ...readers].map((d) => [d.id, d.user_id]));
     const provided = new Set(e.recipients.map((r) => r.deviceId));
     const missing = expected.filter((d) => !provided.has(d.id)).map((d) => ({ deviceId: d.id, userId: d.user_id }));
