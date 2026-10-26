@@ -250,6 +250,10 @@ export const MemberSearchQuery = z.object({ q: z.string().trim().max(40).optiona
 
 export const MemberUpdateBody = z.object({ role: OrgRole.optional(), title: zOptText });
 
+/** Adding existing accounts directly (community-first brief §F): up to twenty at a time. */
+export const MembersAddBody = z.object({ userIds: z.array(z.string().min(1).max(64)).min(1).max(20) });
+export const MembersAddResult = z.strictObject({ userId: z.string(), outcome: z.enum(["added", "already_member", "not_available"]) });
+
 export const InviteCreateBody = z.object({
   role: z.enum(["ADMIN", "MEMBER", "GUEST"]).default("MEMBER"),
   /** Branches and teams became roles: older apps send null here, anything else is refused. */
@@ -393,6 +397,16 @@ export const orgRoutes = [
     params: OrgMemberParams,
     response: Ok,
     errors: ["not_found", "forbidden", "conflict"],
+  }),
+  community({
+    method: "POST",
+    url: "/v1/orgs/:orgId/members",
+    summary:
+      "Add existing accounts directly: people the caller knows who would accept a direct message from them. Others (and anyone blocked, banned or unknown) come back not_available; invite them instead.",
+    params: OrgParams,
+    body: MembersAddBody,
+    response: z.strictObject({ results: z.array(MembersAddResult) }),
+    errors: ["not_found", "forbidden", "invites_paused"],
   }),
   community({
     method: "POST",

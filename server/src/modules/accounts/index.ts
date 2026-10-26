@@ -45,6 +45,8 @@ export {
   type UserSummaryRow,
   userSummary,
 } from "./platformQueries.js";
+/** Who may reach whom (connections, blocks, messaging settings): for other modules' consent checks. */
+export { availableUser, blockedEitherWay, dmDecision, sharesCommunity } from "./relationships/rules.js";
 
 /**
  * Orbit 2.0 accounts (docs/ORBIT_2_ARCHITECTURE_2026-10-18.md): email-and-password sign-in, sessions, device setup,
