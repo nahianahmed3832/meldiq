@@ -32,7 +32,14 @@ import {
   SessionIdParams,
   UpdateAccountBody,
   VerifyEmailBody,
+  EmailChangeConfirmBody,
+  EmailChangeStartBody,
+  TotpCodeBody,
+  TotpDisableBody,
+  TotpSetupBody,
 } from "../../shared/contracts/http/accounts.js";
+import { mailTexts } from "../../infrastructure/mail/mailer.js";
+import { standingOf } from "./standing.js";
 import type { ActiveSession } from "./store.js";
 import { announceOwnSettingsChange, announceProfileChange } from "./profileEvents.js";
 
@@ -49,7 +56,7 @@ function session(req: FastifyRequest): ActiveSession {
 
 /** The v2 account API (docs/ORBIT_2_ARCHITECTURE §6). */
 export default async function accountRoutes(app: FastifyInstance, ctx: AppContext, accounts: Accounts) {
-  const { service, identity, legacy, workspaces, store, recovery, keyBackups, passkeys } = accounts;
+  const { service, identity, legacy, workspaces, store, recovery, keyBackups, passkeys, totp, emailChange } = accounts;
   // Unauthenticated routes that hash passwords or send email: tighter than the global limit, per network.
   const strict = { config: { rateLimit: { max: ctx.config.accounts.authRateLimitPerMinute, timeWindow: "1 minute" } } };
   const requireAccount = async (req: FastifyRequest) => {
@@ -98,6 +105,39 @@ export default async function accountRoutes(app: FastifyInstance, ctx: AppContex
     return added;
   });
   app.delete("/v2/account/passkeys/:id", authedStrict, async (req) => passkeys.remove(session(req), parse(PasskeyIdParams, req.params).id));
+  // ───────────── Two-step sign-in, email change, standing (API 0.46.0, docs/ACCOUNT_SAFETY.md) ─────────────
+  const tell = (a: { email: string }, on: boolean) =>
+    void accounts.mailer.send({ to: a.email, ...mailTexts.totpChanged(on) }).catch((e: unknown) => ctx.log.warn({ err: e }, "account email not sent"));
+  app.get("/v2/account/totp", authed, async (req) => totp.status(session(req).account_id));
+  app.post("/v2/account/totp/setup", authedStrict, async (req) => totp.setup(session(req), await accountOf(req), parse(TotpSetupBody, req.body).password));
+  app.post("/v2/account/totp/enable", authedStrict, async (req) => {
+    const done = totp.enable(session(req), session(req).account_id, parse(TotpCodeBody, req.body).code);
+    tell(await accountOf(req), true);
+    return done;
+  });
+  app.post("/v2/account/totp/disable", authedStrict, async (req) => {
+    const body = parse(TotpDisableBody, req.body);
+    const a = await accountOf(req);
+    const was = totp.enabled(a.id);
+    await totp.disable(session(req), a, body.password, body.code);
+    if (was) tell(a, false);
+    return { ok: true };
+  });
+  app.post("/v2/account/email", authedStrict, async (req, reply) => {
+    const body = parse(EmailChangeStartBody, req.body);
+    const started = await emailChange.start(session(req), await accountOf(req), body.password, body.newEmail);
+    return reply.code(202).send(started);
+  });
+  app.post("/v2/account/email/confirm", authedStrict, async (req) => {
+    const changed = await emailChange.confirm(session(req), await accountOf(req), parse(EmailChangeConfirmBody, req.body).code);
+    if (session(req).user_id) announceOwnSettingsChange(ctx, session(req).user_id!);
+    return changed;
+  });
+  app.get("/v2/account/standing", authed, async (req) => {
+    const userId = session(req).user_id;
+    return userId ? standingOf(ctx.db, userId) : { level: "good", warnings: [] };
+  });
+
   // Digital Asset Links: Android only offers this server's passkeys to the apps listed here.
   app.get("/.well-known/assetlinks.json", async () => passkeys.assetLinks());
 

@@ -71,6 +71,7 @@ import pushRoutes from "../modules/notifications/routes.js";
 import userRoutes from "../modules/accounts/usersRoutes.js";
 import profileMediaRoutes from "../modules/accounts/profileMediaRoutes.js";
 import gifRoutes from "../modules/messaging/gifsRoutes.js";
+import bugReportRoutes from "../modules/accounts/bugReports.js";
 import { Metrics } from "../modules/administration/ops/metrics.js";
 import { ApiError } from "../shared/errors.js";
 import { now } from "../shared/utilities/util.js";
@@ -349,7 +350,7 @@ export async function buildApp(
     passkeys: ctx.accounts.passkeys.available ? { webOrigins: ctx.accounts.passkeys.webOrigins } : null,
   }));
 
-  for (const r of [authRoutes, userRoutes, profileMediaRoutes, gifRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, expressionRoutes, discordRoutes, wsRoutes]) {
+  for (const r of [authRoutes, userRoutes, profileMediaRoutes, gifRoutes, bugReportRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, expressionRoutes, discordRoutes, wsRoutes]) {
     await app.register(async (scope) => r(scope, ctx));
   }
   await app.register(async (scope) => opsRoutes(scope, ctx, VERSION));
@@ -472,6 +473,13 @@ export function serverFeatures(config: Config, directUploads = false): string[] 
     "name-styles",
     "community-tags",
     "community-mute",
+    // API 0.46.0 (docs/ACCOUNT_SAFETY.md): two-step sign-in, changing the email, account standing, bug reports, and
+    // About me and links on profiles. Two-step sign-in needs PLATFORM_SECRETS_KEY (GET /v2/account/totp says).
+    "two-step",
+    "email-change",
+    "account-standing",
+    "bug-reports",
+    "profile-links",
   ];
   if (config.accounts.legacy.migration) f.push("legacy-migration");
   if (directUploads) f.push("direct-upload");

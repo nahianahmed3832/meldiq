@@ -1,0 +1,15 @@
+{
+  "reports": [
+    {
+      "id": "bug_Ld9fBg-l1hp7IzcsKm5EKQ",
+      "summary": "Menu doesn't close",
+      "details": "Right-click, then Escape: the menu stays open.",
+      "page": "/home",
+      "status": "open",
+      "staffNote": null,
+      "createdAt": 1793112423964,
+      "updatedAt": 1793112423964
+    }
+  ],
+  "bugHunter": false
+}

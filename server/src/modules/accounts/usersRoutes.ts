@@ -3,6 +3,7 @@ import { deleteBlobNow } from "../files/routes.js";
 import { photoBlobId, readJpegBody, storePhoto } from "./photos.js";
 import { type AppContext } from "../../app/context.js";
 import { wornTag } from "./profileMedia.js";
+import { isBugHunter } from "./bugReports.js";
 import { me, requireAuth } from "../auth/index.js";
 import { parse } from "../../shared/validation/index.js";
 import { UserIdParams } from "../../shared/contracts/http/auth.js";
@@ -104,7 +105,9 @@ export default async function userRoutes(app: FastifyInstance, ctx: AppContext) 
   // API 0.46.0: the community tag someone wears, shown with their name to everyone who sees them.
   const tagOf = (u: { id: string; profile_style?: string | null }) => {
     const tag = wornTag(ctx, u);
-    return tag ? { tag } : {};
+    // API 0.46.0: badges people earned (a confirmed or fixed bug report: Bug Hunter).
+    const badges = isBugHunter(ctx.db, u.id) ? ["bug-hunter"] : [];
+    return { ...(tag ? { tag } : {}), ...(badges.length ? { badges } : {}) };
   };
   const meView = (u: any) => ({
     ...profileView(u, { self: true, contact: true, blockedByTarget: false }),
@@ -174,6 +177,16 @@ export default async function userRoutes(app: FastifyInstance, ctx: AppContext) 
         now(),
         userId,
       );
+    // API 0.46.0: About me and links, only when sent.
+    if (body.aboutMe !== undefined || body.links !== undefined) {
+      ctx.db
+        .prepare("UPDATE users SET about_me = ?, profile_links = ? WHERE id = ?")
+        .run(
+          body.aboutMe !== undefined ? body.aboutMe || null : (u.about_me ?? null),
+          body.links !== undefined ? (body.links?.length ? JSON.stringify(body.links) : null) : (u.profile_links ?? null),
+          userId,
+        );
+    }
     const updated = ctx.db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
     announceProfileChange(ctx, userId);
     return { user: meView(updated) };

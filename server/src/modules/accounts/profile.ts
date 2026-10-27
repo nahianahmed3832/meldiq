@@ -37,6 +37,9 @@ export interface ProfileRow {
   username: string;
   display_name: string;
   avatar_color: number;
+  /** API 0.46.0 (migration 060). */
+  about_me?: string | null;
+  profile_links?: string | null;
   status_text: string | null;
   status_emoji?: string | null;
   status_expires_at?: number | null;
@@ -158,6 +161,10 @@ export function profileView(u: ProfileRow, r: Relation) {
   if (show("bio") && status.emoji) view.statusEmoji = status.emoji;
   if (show("bio") && (status.text || status.emoji) && status.expiresAt) view.statusExpiresAt = status.expiresAt;
   if (show("bio") && u.pronouns) view.pronouns = u.pronouns;
+  // API 0.46.0: About me and links, under the bio's setting.
+  if (show("bio") && u.about_me) view.aboutMe = u.about_me;
+  const links = show("bio") ? linksOf(u) : [];
+  if (links.length) view.links = links;
   if (show("name")) {
     if (u.first_name) view.firstName = u.first_name;
     if (u.last_name) view.lastName = u.last_name;
@@ -220,4 +227,17 @@ function listMedia(ctx: AppContext, u: ProfileRow, photoAllowed: boolean): Recor
   const { profileBanner: _banner, ...media } = profileMediaView(u as never, photoAllowed);
   const tag = wornTag(ctx, u as never);
   return tag ? { ...media, tag } : media;
+}
+
+/** A user row's profile links (API 0.46.0), dropping anything malformed. */
+export function linksOf(u: { profile_links?: string | null }): { label: string; url: string }[] {
+  if (!u.profile_links) return [];
+  try {
+    const raw = JSON.parse(u.profile_links) as unknown;
+    return Array.isArray(raw)
+      ? raw.filter((l): l is { label: string; url: string } => typeof l?.label === "string" && typeof l?.url === "string" && l.url.startsWith("https://")).slice(0, 5)
+      : [];
+  } catch {
+    return [];
+  }
 }

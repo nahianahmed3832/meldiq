@@ -106,6 +106,13 @@ export async function eraseAccount(ctx: AppContext, accounts: Accounts, account:
   await accounts.recovery.store.deleteForAccount(account.id);
   await accounts.keyBackups.store.deleteForAccount(account.id);
   accounts.passkeys.removeAll(account.id);
+  // API 0.46.0: two-step sign-in, an email change in progress, bug reports and staff warnings.
+  accounts.totp.remove(account.id);
+  accounts.emailChange.remove(account.id);
+  if (userId) {
+    ctx.db.prepare("DELETE FROM bug_reports WHERE user_id = ?").run(userId);
+    ctx.db.prepare("DELETE FROM account_warnings WHERE user_id = ?").run(userId);
+  }
   await accounts.store.deleteAccount(account.id);
   // Counts only: the email, username and profile are gone, and the audit log mustn't keep them.
   ctx.audit({
@@ -216,7 +223,7 @@ function anonymize(ctx: AppContext, userId: string, photoRev: number | null, t: 
   ctx.db
     .prepare(
       `UPDATE users SET username = ?, display_name = ?, status_text = NULL, status_emoji = NULL, status_expires_at = NULL, notifications_paused_until = NULL, avatar_color = 0, first_name = NULL, last_name = NULL,
-         birthday = NULL, phone = NULL, photo_rev = NULL, avatar_media = NULL, profile_banner = NULL, profile_style = NULL, privacy = NULL, username_changed_at = NULL, limited_until = NULL,
+         birthday = NULL, phone = NULL, photo_rev = NULL, avatar_media = NULL, profile_banner = NULL, profile_style = NULL, about_me = NULL, profile_links = NULL, privacy = NULL, username_changed_at = NULL, limited_until = NULL,
          disabled_at = COALESCE(disabled_at, ?), deleted_at = COALESCE(deleted_at, ?), updated_at = ? WHERE id = ?`,
     )
     .run(placeholder, DELETED_DISPLAY_NAME, t, t, t, userId);

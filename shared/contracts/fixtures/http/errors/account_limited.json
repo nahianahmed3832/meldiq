@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "account_limited",
+    "message": "Warnings from Meldiq's staff limit your account, so you can't start communities for now. See Settings › My Account › Account standing."
+  }
+}

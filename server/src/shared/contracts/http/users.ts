@@ -56,7 +56,30 @@ const zOptText = (max: number) =>
     .transform((v) => (v === "" ? null : v));
 
 /** Every field is optional; null (or "") clears it. */
+/** API 0.46.0: a profile link (https only, so nothing else can be opened from someone's profile). */
+export const ProfileLink = z.object({
+  label: z.string().trim().min(1).max(40),
+  url: z
+    .string()
+    .trim()
+    .max(300)
+    .refine((v) => /^https:\/\/[^\s/$.?#].[^\s]*$/i.test(v), "Links start with https://"),
+});
+export const PROFILE_LINKS_MAX = 5;
+
+/** API 0.46.0: a bug report from Settings › My Account. */
+export const BugReportBody = z.object({
+  summary: z.string().trim().min(4).max(120),
+  details: z.string().trim().min(10).max(4000),
+  /** Where it happened in the app (a route, never a message), and the app and version. */
+  page: z.string().trim().max(200).optional(),
+  client: z.string().trim().max(200).optional(),
+});
+
 export const ProfileUpdateBody = z.object({
+  /** API 0.46.0: "About me", shown with the bio. */
+  aboutMe: z.string().trim().max(300).nullable().optional(),
+  links: z.array(ProfileLink).max(PROFILE_LINKS_MAX).nullable().optional(),
   displayName: zName.optional(),
   statusText: zOptText(140),
   statusEmoji: zOptText(16).refine((v) => v == null || !/[\p{L}\p{N}]/u.test(v), "The status emoji can't contain letters or digits"),
@@ -170,6 +193,10 @@ const profileFields = {
   profileBanner: ProfileBanner.optional(),
   profileStyle: ProfileStyle.optional(),
   tag: WornTag.optional(),
+  /** API 0.46.0: About me and links (under the bio's setting), and badges earned (bug-hunter). */
+  aboutMe: z.string().optional(),
+  links: z.array(z.strictObject({ label: z.string(), url: z.string() })).optional(),
+  badges: z.array(z.enum(["bug-hunter"])).optional(),
 };
 /** Only in the person's own profile. */
 const ownFields = {

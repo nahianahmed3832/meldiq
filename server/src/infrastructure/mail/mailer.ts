@@ -232,6 +232,40 @@ export const mailTexts = {
       code: { value: code, note: "This code expires in 30 minutes." },
       footnote: "If this wasn't you, ignore this email: nothing changes without this code.",
     }),
+  /** API 0.46.0 (docs/ACCOUNT_SAFETY.md): changing the account's email from Settings. */
+  emailChangeCode: (code: string): Omit<MailMessage, "to"> =>
+    compose(`${code} confirms your new Meldiq email address`, {
+      preview: "Confirm this address to make it your Meldiq account's email.",
+      heading: "Confirm your new email address",
+      paragraphs: ["You asked to use this address for your Meldiq account. To confirm, enter this code in Meldiq."],
+      code: { value: code, note: "This code expires in 30 minutes." },
+      footnote: "If this wasn't you, ignore this email: nothing changes without this code.",
+    }),
+  emailChangeInUse: (): Omit<MailMessage, "to"> =>
+    compose("This address already has a Meldiq account", {
+      preview: "Someone asked to move a Meldiq account to this address, but it already has one.",
+      heading: "This address is already in use",
+      paragraphs: ["Someone asked to use this address for their Meldiq account, but it already belongs to a Meldiq account, so nothing changed."],
+      footnote: "If this was you, sign in to that account instead, or use a different address.",
+    }),
+  emailChanged: (newAddress: string): Omit<MailMessage, "to"> =>
+    compose("Your Meldiq account's email was changed", {
+      preview: "Your account now uses a different email address.",
+      heading: "Your email address was changed",
+      paragraphs: [`Your Meldiq account now uses ${newAddress}. Sign-in emails and codes go there from now on.`],
+      footnote: "If this wasn't you, reset your password and contact Meldiq support straight away.",
+    }),
+  totpChanged: (on: boolean): Omit<MailMessage, "to"> =>
+    compose(on ? "Two-step sign-in is on for your Meldiq account" : "Two-step sign-in was turned off", {
+      preview: on ? "Signing in now also needs a code from your authenticator app." : "Signing in no longer needs a code from your authenticator app.",
+      heading: on ? "Two-step sign-in is on" : "Two-step sign-in is off",
+      paragraphs: [
+        on
+          ? "Signing in to your Meldiq account with your password now also needs a code from your authenticator app, or one of your backup codes."
+          : "Signing in to your Meldiq account no longer needs a code from your authenticator app.",
+      ],
+      footnote: "If this wasn't you, reset your password and contact Meldiq support straight away.",
+    }),
   recoveryCodesCreated: (): Omit<MailMessage, "to"> =>
     compose("New recovery codes for your Meldiq account", {
       preview: "New recovery codes were created, and older ones stopped working.",

@@ -63,7 +63,14 @@ export type RegisterBody = z.infer<typeof RegisterBody>;
 export const EmailBody = z.object({ email: zEmail });
 /** The password chosen at sign-up goes with the code: whoever verifies an address is whoever set its password. */
 export const VerifyEmailBody = z.object({ email: zEmail, code: zVerifyCode, password: zPassword });
-export const LoginBody = z.object({ email: zEmail, password: zPassword, deviceName: zName.optional(), device: DeviceProof.optional() });
+export const LoginBody = z.object({
+  email: zEmail,
+  password: zPassword,
+  deviceName: zName.optional(),
+  device: DeviceProof.optional(),
+  /** API 0.46.0: the authenticator app's code (or a backup code) when two-step sign-in is on. */
+  totpCode: z.string().trim().min(6).max(20).optional(),
+});
 export type LoginBody = z.infer<typeof LoginBody>;
 export const RefreshBody = z.object({ refreshToken: zTicket });
 export const ResetPasswordBody = z.object({ email: zEmail, code: zVerifyCode, newPassword: zPassword });
@@ -113,9 +120,26 @@ export const PasskeyLoginBody = z.object({ challengeId: zChallengeId, response: 
 export type PasskeyLoginBody = z.infer<typeof PasskeyLoginBody>;
 export const PasskeyIdParams = z.object({ id: z.string().min(1).max(1024) });
 
+/** API 0.46.0 (docs/ACCOUNT_SAFETY.md): two-step sign-in, changing the email. */
+export const TotpSetupBody = z.object({ password: zPassword });
+export const TotpCodeBody = z.object({ code: z.string().trim().min(6).max(20) });
+export const TotpDisableBody = z.object({ password: zPassword, code: z.string().trim().min(6).max(20) });
+export const EmailChangeStartBody = z.object({ password: zPassword, newEmail: zEmail });
+export const EmailChangeConfirmBody = z.object({ code: z.string().trim().min(6).max(12) });
+
 // ───────────── Answers ─────────────
 
 export const Ok = z.strictObject({ ok: z.literal(true) });
+
+export const TotpStatus = z.strictObject({ available: z.boolean(), enabled: z.boolean(), enabledAt: zTime.nullable(), backupCodesLeft: z.number().int() });
+export const TotpSetup = z.strictObject({ secret: z.string(), uri: z.string() });
+export const TotpEnabled = z.strictObject({ backupCodes: z.array(z.string()) });
+export const EmailChangeStarted = z.strictObject({ email: z.string(), expiresAt: zTime });
+export const EmailChanged = z.strictObject({ email: z.string() });
+export const Standing = z.strictObject({
+  level: z.enum(["good", "limited", "very_limited", "suspended"]),
+  warnings: z.array(z.strictObject({ id: z.string(), reason: z.string(), createdAt: zTime, expiresAt: zTime })),
+});
 
 /** The signed-in account. [identity]: its encryption identity, null until the first device is set up. */
 export const AccountView = z.strictObject({

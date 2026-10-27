@@ -1,3 +1,4 @@
+import { requireStanding } from "../accounts/index.js";
 import type { FastifyInstance } from "fastify";
 import { requireSyntheticScopeForOrg } from "./syntheticScope.js";
 import {
@@ -354,6 +355,7 @@ export default async function communityRoutes(app: FastifyInstance, ctx: AppCont
   app.get("/v1/communities/:id/preview", discoverRate, async (req) => {
     const userId = me(req).userId;
     const { id } = parse(IdParams, req.params);
+    requireStanding(db, userId, "join_community");
     const o = db.prepare("SELECT * FROM orgs WHERE id = ?").get(id) as any;
     const member = o ? authz.orgRole(o.id, userId) !== null : false;
     if (!o || (o.visibility !== "public" && !member)) throw notFound("Community not found");

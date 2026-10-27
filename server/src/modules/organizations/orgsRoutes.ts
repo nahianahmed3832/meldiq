@@ -1,3 +1,4 @@
+import { requireStanding } from "../accounts/index.js";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { markSyntheticOrg } from "./syntheticScope.js";
 import { type ConversationRow, parsePermissionList } from "./authz.js";
@@ -157,6 +158,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
   app.post("/v1/orgs", auth, async (req) => {
     const { userId } = me(req);
     const body = parse(OrgCreateBody, req.body);
+    requireStanding(db, userId, "create_community");
     // Idempotent: the app sends one request id per create form, so a retry or a double tap returns the first result.
     if (body.requestId) {
       const prior = db.prepare("SELECT * FROM orgs WHERE created_by = ? AND create_request_id = ?").get(userId, body.requestId);
@@ -581,6 +583,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const actor = me(req).userId;
     const { orgId } = parse(OrgParams, req.params);
     const body = parse(InviteCreateBody, req.body);
+    requireStanding(db, actor, "invite");
     const actorRole = authz.requireOrgMember(orgId, actor);
     const policy = db.prepare("SELECT guests_allowed, guest_max_days FROM orgs WHERE id = ?").get(orgId) as { guests_allowed: number; guest_max_days: number | null } | undefined;
     if (body.role === "GUEST" && policy && !policy.guests_allowed) throw conflict("This community doesn't allow guests");
@@ -747,6 +750,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
   app.post("/v1/invites/accept", inviteRate, async (req) => {
     const userId = me(req).userId;
     const { code } = parse(InviteCodeBody, req.body);
+    requireStanding(db, userId, "join_community");
     const t = now();
     // One transaction: two taps (or two people racing for the last use) can't both pass the checks and over-use it.
     const result = db.transaction(() => {
