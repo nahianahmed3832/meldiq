@@ -130,6 +130,27 @@ Passkeys failed in the app installed from Google Play: Play signs it with its ap
 
 Rollback: copy the backup's `.env` back and recreate `api` the same way.
 
+### API 0.50.0 and Meldiq Web 0.5.0-beta-f78407e (2026-10-27, 19:19 and 19:22 UTC, owner's go-ahead: "fix all and deploy for production too … after done all then push for live server productions")
+
+The owner's 2026-10-28 round (meldiq-web `docs/MELDIQ_OWNER_ROUND_1028.md`): rail folders in the personal preferences
+(`railFolders`, feature `rail-folders`); the web's sounds, menus, media viewer, dragging, Friends, call layout and
+themes. Additive, no migration (schema stays 61). Branch `v5-api` dd7a67d on internal-beta 4e81b3d (0.49.0 billing
+unchanged; checked with the billing session before and after).
+
+| Step | Result |
+|---|---|
+| Checks before | server full suite 979 passed / 10 skipped, `tsc` clean; web 530 unit tests, `tsc`/eslint/prettier clean; browser suite Chromium + phone width passing after updating two tests for the new defaults; calls with the native LiveKit peer: 19 passed (desktop and phone width) |
+| Pre-flight | running 0.49.0; VPS `server/` (tests excluded) byte-equal to 4e81b3d; no other session deploying (billing and Android parity sessions confirmed) |
+| Build | sources kept as `server.pre-0.50.0`; 6 files synced, parity with dd7a67d; image `0.50.0` built |
+| Backup | `backups/pre-0.50.0-20261027T191810Z`: integrity ok, schema 61, 43 users, `.env` + `compose.yaml` copies; image tagged `0.49.0-rollback` |
+| Rehearsal | backup copy (owned by the image's user), `--network none`, push settings blanked: healthy, 0.50.0, 43 users, 0 errors; removed after |
+| Switch | `validate-env.sh` 0 errors, `config -q`, `up -d --no-deps --no-build api`: healthy |
+| Checks after | `/healthz` 0.50.0 on both hosts; `rail-folders` advertised; 0 errors; billing: signed-out `/v1/orgs/:id/billing` 401, `GET /v1/billing/webhooks/sandbox` 404, schema 61 |
+| Web | release `f78407e` (sha256 ok) with the live settings; nginx site and snippets byte-identical; `verify.sh` all passed (API 0.50.0 through the site, realtime 101); `/sounds/*.mp3` served as audio/mpeg; `/friends` served; signed in (owner's browser, read only): Friends page, dark theme, online |
+
+Rollback: web `bash /root/meldiq-web-0.5.0-beta-f78407e/rollback.sh` (back to 46c016c); API image
+`griip-internal-messaging-api:0.49.0-rollback` (rail folders stay stored, unread by 0.49.0).
+
 ### API 0.49.0 and Platform Admin Console 0.7.0 (2026-10-27, 17:50 UTC, owner's go-ahead: "Deploy API 0.48.0 and console 0.7.0 … with backup, rehearsal and rollback tags")
 
 Billing foundation (`docs/BILLING.md`): plan catalog, subscriptions from signed provider events, operator limits with
@@ -150,6 +171,26 @@ Migration 061 (additive). `BILLING_PROVIDER` unset (none): nothing can be bought
 
 Rollback: API image `griip-internal-messaging-api:0.48.0-rollback` (`compose.yaml` image, `up -d --no-deps --no-build api`;
 the billing tables stay, unread); console `bash /root/meldiq-admin-0.7.0-20261027T170747Z/rollback.sh` (back to 0.6.0).
+
+### API 0.48.0 and Meldiq Web 0.5.0-beta-46c016c (2026-10-27, 17:46 and 17:53 UTC, owner's go-ahead: "after done push for production")
+
+Web brief v4 (meldiq-web `docs/MELDIQ_V4_REPORT.md`): channels carry `categoryPosition` (no alphabetical first paint);
+the web's phone layout after the Android app, safety numbers and moving pre-email accounts retired from the web,
+faster file crypto. Additive, no migration (schema stays 60). Branches `v4-api` 27bffb7, web `continuation-v4` 46c016c.
+
+| Step | Result |
+|---|---|
+| Checks before | server full suite 952 passed / 10 skipped, `tsc` clean; web 524 unit tests, `tsc`/eslint/prettier clean; browser suite Chromium + phone width: all passed after reruns (see the web report) |
+| Pre-flight | running 0.47.0; VPS `server/` (tests excluded) byte-equal to c14cfd7 |
+| Build | sources kept as `server.pre-0.48.0`; 5 files synced, parity with 27bffb7; image `0.48.0` built |
+| Backup | `backups/pre-0.48.0-20261027T174251Z`: integrity ok, schema 60, 43 users, `.env` + `compose.yaml` copies; image tagged `0.47.0-rollback` |
+| Rehearsal | backup copy (owned by the image's user), `--network none`, push settings blanked (the backup leaves `/data/secrets` out): healthy, 0.48.0, 43 users, 0 errors; removed after |
+| Switch | image 0.48.0, `validate-env.sh` 0 errors, `config -q`, `up -d --no-deps --no-build api`: healthy |
+| Checks after | `/healthz` 0.48.0 on msg.meldiq.app and msg.griipbuddy.cloud; 0 errors in the log |
+| Web | release `46c016c` (sha256 ok) with the live settings; nginx site and both snippets byte-identical, `config.json` unchanged; `verify.sh` all passed; `/`, `/invite/…`, `/discover`, `/m/…`, the manifest and favicons 200; signed in (owner's browser, read only): phone layout, online, app and channels shown 560 ms after a reload |
+
+At 17:50 UTC another session deployed API 0.49.0 (billing) built on this 0.48.0 (`0.48.0-rollback` tag); production
+runs 0.49.0 since. Rollback for the web: `bash /root/meldiq-web-0.5.0-beta-46c016c/rollback.sh` (back to 564e3b0).
 
 ### API 0.47.0 and Meldiq Web 0.5.0-beta-564e3b0 (2026-10-27, 16:19 UTC, owner's go-ahead: "Yes, deploy API 0.47.0 and the web without AI to production")
 
