@@ -74,7 +74,7 @@ import { ApiError } from "../shared/errors.js";
 import { now } from "../shared/utilities/util.js";
 import wsRoutes from "../modules/realtime/ws.js";
 
-export const VERSION = "0.43.0";
+export const VERSION = "0.44.0";
 /**
  * The client API this server speaks and the oldest client API it accepts. Clients refuse a server whose
  * minClientApi is newer than theirs; servers from before these fields existed count as API 1.
@@ -459,6 +459,8 @@ export function serverFeatures(config: Config, directUploads = false): string[] 
     // self-only encrypted controls (audience "self": a read in one browser clears the person's others).
     "discord-import",
     "self-controls",
+    // API 0.44.0: a community's accent colour and banner (docs/COMMUNITY_BRANDING.md).
+    "community-branding",
   ];
   if (config.accounts.legacy.migration) f.push("legacy-migration");
   if (directUploads) f.push("direct-upload");

@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "discord_not_configured",
+    "message": "Importing from Discord isn't set up on this server yet."
+  }
+}

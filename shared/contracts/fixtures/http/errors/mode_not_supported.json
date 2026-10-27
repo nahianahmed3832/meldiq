@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "mode_not_supported",
+    "message": "Signed-in app sessions can only be observed or warned about (Sign-in (observed and warned only: signing in is never blocked by a quota))."
+  }
+}

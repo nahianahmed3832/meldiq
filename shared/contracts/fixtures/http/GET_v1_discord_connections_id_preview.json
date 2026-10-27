@@ -1,0 +1,129 @@
+{
+  "guild": {
+    "id": "111111111111111111",
+    "name": "Pixel Club",
+    "description": "We make pixel art"
+  },
+  "items": [
+    {
+      "key": "icon:111111111111111111",
+      "kind": "icon",
+      "name": "Server icon",
+      "action": "create",
+      "note": null
+    },
+    {
+      "key": "role:300000000000000002",
+      "kind": "role",
+      "name": "Admins",
+      "action": "create",
+      "note": "Name, colour and permissions; not copied: Administrator"
+    },
+    {
+      "key": "role:300000000000000001",
+      "kind": "role",
+      "name": "Moderators",
+      "action": "create",
+      "note": "Name, colour and permissions"
+    },
+    {
+      "key": "role:300000000000000003",
+      "kind": "role",
+      "name": "MusicBot",
+      "action": "skip",
+      "note": "Belongs to a Discord bot or integration"
+    },
+    {
+      "key": "category:500000000000000001",
+      "kind": "category",
+      "name": "Info",
+      "action": "create",
+      "note": null
+    },
+    {
+      "key": "category:500000000000000002",
+      "kind": "category",
+      "name": "Voice",
+      "action": "create",
+      "note": null
+    },
+    {
+      "key": "channel:500000000000000030",
+      "kind": "channel",
+      "name": "directory",
+      "action": "skip",
+      "note": "This kind of Discord channel has no Meldiq equivalent"
+    },
+    {
+      "key": "channel:500000000000000010",
+      "kind": "channel",
+      "name": "announcements",
+      "action": "create",
+      "note": null
+    },
+    {
+      "key": "channel:500000000000000011",
+      "kind": "channel",
+      "name": "general",
+      "action": "create",
+      "note": null
+    },
+    {
+      "key": "channel:500000000000000012",
+      "kind": "channel",
+      "name": "staff-only",
+      "action": "create",
+      "note": "Private in Discord: private here, add people or roles after"
+    },
+    {
+      "key": "channel:500000000000000013",
+      "kind": "channel",
+      "name": "showcase",
+      "action": "create",
+      "note": null
+    },
+    {
+      "key": "channel:500000000000000020",
+      "kind": "channel",
+      "name": "Lounge 🎧",
+      "action": "create",
+      "note": null
+    },
+    {
+      "key": "channel:500000000000000021",
+      "kind": "channel",
+      "name": "Stage",
+      "action": "create",
+      "note": "Stage channel: becomes a voice channel"
+    },
+    {
+      "key": "emoji:400000000000000001",
+      "kind": "emoji",
+      "name": ":party_parrot:",
+      "action": "create",
+      "note": null
+    },
+    {
+      "key": "emoji:400000000000000002",
+      "kind": "emoji",
+      "name": ":wave_hi:",
+      "action": "create",
+      "note": null
+    },
+    {
+      "key": "emoji:400000000000000003",
+      "kind": "emoji",
+      "name": ":twitch_sub:",
+      "action": "skip",
+      "note": "Managed by an integration, or not available"
+    }
+  ],
+  "excluded": [
+    "Messages and message history",
+    "Members and their accounts: people join with a Meldiq invitation",
+    "Direct messages",
+    "Channels Meldiq's bot can't see, and threads",
+    "Stickers, soundboard sounds, events, bots and webhooks",
+    "Per-person channel permissions"
+  ]
+}

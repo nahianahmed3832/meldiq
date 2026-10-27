@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "reauth_required",
+    "message": "Confirm with your passkey again to do that."
+  }
+}

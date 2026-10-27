@@ -1,22 +1,27 @@
 {
   "community": {
-    "id": "o_tkC0dd9DaRrYzhsL7AtKaw",
-    "name": "Night Sky Club",
-    "slug": "night-sky-club",
-    "description": "Amateur astronomy",
+    "id": "o_flNHVDiL4-7OPZV7Ko821g",
+    "name": "Apply Lab",
+    "slug": "apply-lab",
+    "description": null,
     "myRole": null,
-    "memberCount": 7,
-    "createdAt": 1792676691754,
+    "memberCount": 3,
+    "createdAt": 1793092858065,
     "photoRev": null,
+    "accent": null,
+    "bannerRev": null,
     "guestsAllowed": true,
     "guestMaxDays": null,
     "kind": "community",
     "visibility": "public",
-    "joinPolicy": "open",
-    "rules": "Be kind. No spam.",
+    "joinPolicy": "invite",
+    "rules": null,
     "invitesPausedUntil": null,
     "dmsPausedUntil": null,
-    "joinQuestions": null,
+    "joinQuestions": [
+      "Why do you want to join?",
+      "How did you find us?"
+    ],
     "guide": null,
     "onboarding": false,
     "activityAlerts": true,
@@ -24,7 +29,7 @@
   },
   "channels": [
     {
-      "id": "c_TACEiMpNZA_igvGBwxXKPQ",
+      "id": "c_bzi0D8D5F9kvl1upBJC6jw",
       "name": "general",
       "topic": "Everyday conversation",
       "kind": "PUBLIC",
@@ -32,15 +37,7 @@
       "format": "text"
     },
     {
-      "id": "c_u21YYwppHV497eaQ-gERmA",
-      "name": "quiet",
-      "topic": null,
-      "kind": "PUBLIC",
-      "voice": false,
-      "format": "text"
-    },
-    {
-      "id": "c_EwIit4aA7oVbU3DthtHQ5Q",
+      "id": "c_FTFz8MU1ULgQhrn5IVfBrA",
       "name": "welcome",
       "topic": "What this community is about and how it works",
       "kind": "ANNOUNCEMENT",
@@ -48,7 +45,7 @@
       "format": "text"
     },
     {
-      "id": "c_MqHetCu7wuUnQ05HQLd9Kg",
+      "id": "c_Ru77qN5N6pqLhaAbNSCnCw",
       "name": "announcements",
       "topic": "News from the people who run the community",
       "kind": "ANNOUNCEMENT",
@@ -56,15 +53,7 @@
       "format": "text"
     },
     {
-      "id": "c_nx6WV7lWd6lsnrJWTiW_dw",
-      "name": "den",
-      "topic": null,
-      "kind": "PUBLIC",
-      "voice": false,
-      "format": "text"
-    },
-    {
-      "id": "c_cIcKMWZzuOerJ10qg3oKIw",
+      "id": "c_mX48tKZw_mMp5AWnvek1IQ",
       "name": "introductions",
       "topic": "Say hello and tell people what brings you here",
       "kind": "PUBLIC",
@@ -72,19 +61,11 @@
       "format": "text"
     },
     {
-      "id": "c_ymRaDd4rmUYliJxcDnN1KQ",
+      "id": "c_mCRh88jKYuYTzwatc4D-jQ",
       "name": "lounge",
       "topic": "Drop in to talk",
       "kind": "PUBLIC",
       "voice": true,
-      "format": "text"
-    },
-    {
-      "id": "c_uHz-U9ColPvbgxHUYukNxA",
-      "name": "questions",
-      "topic": null,
-      "kind": "PUBLIC",
-      "voice": false,
       "format": "text"
     }
   ],

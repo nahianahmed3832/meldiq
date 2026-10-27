@@ -13,20 +13,26 @@ export const MAX_PHOTO_BYTES = 512 * 1024;
 /** Photos are stored per revision, so a replaced photo is never served under the new revision. */
 export const photoBlobId = (ownerId: string, rev: number): string => `${ownerId.replace(/[^A-Za-z0-9_-]/g, "")}-${rev}`;
 
+/** Largest community banner accepted (the apps send a 1200 × 480 JPEG of about 150 KB). */
+export const MAX_BANNER_BYTES = 1024 * 1024;
+
+/** A community banner's blob ("<orgId>_banner-<rev>"), beside its photo in the same store. */
+export const bannerBlobId = (orgId: string, rev: number): string => photoBlobId(`${orgId}_banner`, rev);
+
 /**
- * Reads a JPEG request body of at most [MAX_PHOTO_BYTES], stopping as soon as it's too large. The phone re-encodes
- * photos first, so there is no metadata to strip.
+ * Reads a JPEG request body of at most [max] bytes, stopping as soon as it's too large. The apps re-encode photos
+ * first, so there is no metadata to strip.
  */
-export async function readJpegBody(req: FastifyRequest, what: string): Promise<Buffer> {
+export async function readJpegBody(req: FastifyRequest, what: string, max = MAX_PHOTO_BYTES): Promise<Buffer> {
   const body = req.body as Readable | undefined;
   if (!body || typeof body.pipe !== "function") throw badRequest("Expected application/octet-stream body");
-  const tooLarge = () => new ApiError(413, "too_large", `${what} can be up to 512 KB`);
-  if (Number(req.headers["content-length"] ?? Number.NaN) > MAX_PHOTO_BYTES) throw tooLarge();
+  const tooLarge = () => new ApiError(413, "too_large", `${what} can be up to ${max >= 1024 * 1024 ? `${max / (1024 * 1024)} MB` : `${max / 1024} KB`}`);
+  if (Number(req.headers["content-length"] ?? Number.NaN) > max) throw tooLarge();
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const c of body) {
     size += (c as Buffer).length;
-    if (size > MAX_PHOTO_BYTES) {
+    if (size > max) {
       body.destroy();
       throw tooLarge();
     }

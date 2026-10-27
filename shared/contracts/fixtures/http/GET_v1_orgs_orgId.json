@@ -1,19 +1,21 @@
 {
   "org": {
-    "id": "o_tkC0dd9DaRrYzhsL7AtKaw",
-    "name": "Night Sky Club",
-    "slug": "night-sky-club",
-    "description": "Amateur astronomy",
+    "id": "o_SzqGtkT1RW3iMmS90qM8DA",
+    "name": "Busy Lab",
+    "slug": "busy-lab",
+    "description": null,
     "myRole": "OWNER",
-    "memberCount": 1,
-    "createdAt": 1792676691754,
+    "memberCount": 9,
+    "createdAt": 1793092858223,
     "photoRev": null,
+    "accent": null,
+    "bannerRev": null,
     "guestsAllowed": true,
     "guestMaxDays": null,
     "kind": "community",
-    "visibility": "private",
-    "joinPolicy": "invite",
-    "rules": "Be kind. No spam.",
+    "visibility": "public",
+    "joinPolicy": "open",
+    "rules": null,
     "invitesPausedUntil": null,
     "dmsPausedUntil": null,
     "joinQuestions": null,
@@ -27,7 +29,7 @@
   "teams": [],
   "categories": [
     {
-      "id": "cat_1thIVHpWxrEIXGdN2RqG0A",
+      "id": "cat_CE7iDNvdXn7T5HVvd7rRRA",
       "name": "Start here",
       "position": 0,
       "channelCount": 2,
@@ -35,7 +37,7 @@
       "canCreateChannels": true
     },
     {
-      "id": "cat_SOpr7X_JEWQsbTVGR_n9uA",
+      "id": "cat_quZ5RZfUqkIsE13froD_pA",
       "name": "Talk",
       "position": 1,
       "channelCount": 3,
@@ -44,7 +46,7 @@
     }
   ],
   "stats": {
-    "members": 1,
+    "members": 9,
     "teams": 0,
     "channels": 5,
     "branches": 0,
@@ -73,6 +75,9 @@
     "canManagePolicies": false,
     "canTransferOwnership": true,
     "effective": [
+      "ai.approve",
+      "ai.manage",
+      "ai.use",
       "audit.view",
       "channels.create",
       "channels.manage",

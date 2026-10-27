@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "enrolment_required",
+    "message": "Register a console passkey with your enrolment code first."
+  }
+}

@@ -1,0 +1,140 @@
+{
+  "import": {
+    "id": "dimp_CT8yEbrs_RB97M8OKQKBtw",
+    "guildId": "111111111111111111",
+    "guildName": "Pixel Club",
+    "orgId": "o_C09jEtiEDYPMaQDHhQeDGw",
+    "status": "running",
+    "error": null,
+    "options": {
+      "icon": true,
+      "roles": true,
+      "rolePermissions": false,
+      "channels": true,
+      "emojis": true
+    },
+    "counts": {
+      "total": 16,
+      "done": 0,
+      "failed": 0,
+      "skipped": 3,
+      "pending": 13
+    },
+    "createdAt": 1793092901707,
+    "finishedAt": null
+  },
+  "items": [
+    {
+      "key": "icon:111111111111111111",
+      "kind": "icon",
+      "name": "Server icon",
+      "status": "pending",
+      "note": null
+    },
+    {
+      "key": "role:300000000000000002",
+      "kind": "role",
+      "name": "Admins",
+      "status": "pending",
+      "note": "Name and colour"
+    },
+    {
+      "key": "role:300000000000000001",
+      "kind": "role",
+      "name": "Moderators",
+      "status": "pending",
+      "note": "Name and colour"
+    },
+    {
+      "key": "role:300000000000000003",
+      "kind": "role",
+      "name": "MusicBot",
+      "status": "skipped",
+      "note": "Belongs to a Discord bot or integration"
+    },
+    {
+      "key": "category:500000000000000001",
+      "kind": "category",
+      "name": "Info",
+      "status": "pending",
+      "note": null
+    },
+    {
+      "key": "category:500000000000000002",
+      "kind": "category",
+      "name": "Voice",
+      "status": "pending",
+      "note": null
+    },
+    {
+      "key": "channel:500000000000000030",
+      "kind": "channel",
+      "name": "directory",
+      "status": "skipped",
+      "note": "This kind of Discord channel has no Meldiq equivalent"
+    },
+    {
+      "key": "channel:500000000000000010",
+      "kind": "channel",
+      "name": "announcements",
+      "status": "pending",
+      "note": null
+    },
+    {
+      "key": "channel:500000000000000011",
+      "kind": "channel",
+      "name": "general",
+      "status": "pending",
+      "note": null
+    },
+    {
+      "key": "channel:500000000000000012",
+      "kind": "channel",
+      "name": "staff-only",
+      "status": "pending",
+      "note": "Private in Discord: private here, add people or roles after"
+    },
+    {
+      "key": "channel:500000000000000013",
+      "kind": "channel",
+      "name": "showcase",
+      "status": "pending",
+      "note": null
+    },
+    {
+      "key": "channel:500000000000000020",
+      "kind": "channel",
+      "name": "Lounge 🎧",
+      "status": "pending",
+      "note": null
+    },
+    {
+      "key": "channel:500000000000000021",
+      "kind": "channel",
+      "name": "Stage",
+      "status": "pending",
+      "note": "Stage channel: becomes a voice channel"
+    },
+    {
+      "key": "emoji:400000000000000001",
+      "kind": "emoji",
+      "name": ":party_parrot:",
+      "status": "pending",
+      "note": null
+    },
+    {
+      "key": "emoji:400000000000000002",
+      "kind": "emoji",
+      "name": ":wave_hi:",
+      "status": "pending",
+      "note": null
+    },
+    {
+      "key": "emoji:400000000000000003",
+      "kind": "emoji",
+      "name": ":twitch_sub:",
+      "status": "skipped",
+      "note": "Managed by an integration, or not available"
+    }
+  ]
+}

@@ -340,6 +340,8 @@ export default async function communityRoutes(app: FastifyInstance, ctx: AppCont
         description: o.description,
         memberCount: o.member_count,
         photoRev: o.photo_rev ?? null,
+        accent: o.accent ?? null,
+        bannerRev: o.banner_rev ?? null,
         joinPolicy: o.join_policy === "open" ? "open" : "invite",
         applications: !!o.join_questions,
         joined: authz.orgRole(o.id, userId) !== null,

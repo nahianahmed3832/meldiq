@@ -122,6 +122,9 @@ export const DiscoveredCommunity = z.strictObject({
   description: z.string().nullable(),
   memberCount: zCount,
   photoRev: z.number().int().nullable(),
+  /** Its look (API 0.44.0): the accent, and the banner's revision (GET /v1/orgs/:orgId/banner). */
+  accent: z.string().nullable(),
+  bannerRev: z.number().int().nullable(),
   joinPolicy: JoinPolicy,
   /** The community takes join applications. */
   applications: z.boolean(),

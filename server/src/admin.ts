@@ -447,14 +447,18 @@ switch (cmd) {
     for await (const o of blobs.listIds("attachments")) {
       if (o.modifiedAt < cutoff && !(await files.knows(o.id))) orphans.push({ kind: "attachments", id: o.id, size: o.size });
     }
-    // People's photos ("<userId>-<rev>", or "<userId>" before 2026-10-17) and organisations' ("<orgId>-<rev>", 2026-10-19).
+    // People's photos ("<userId>-<rev>", or "<userId>" before 2026-10-17), organisations' ("<orgId>-<rev>", 2026-10-19)
+    // and community banners ("<orgId>_banner-<rev>", API 0.44.0).
     const photo = db.prepare(
       `SELECT 1 FROM users WHERE id = ? AND photo_rev IS NOT NULL AND (? = id || '-' || photo_rev OR ? = id)
-       UNION SELECT 1 FROM orgs WHERE id = ? AND photo_rev IS NOT NULL AND ? = id || '-' || photo_rev`,
+       UNION SELECT 1 FROM orgs WHERE id = ? AND photo_rev IS NOT NULL AND ? = id || '-' || photo_rev
+       UNION SELECT 1 FROM orgs WHERE id || '_banner' = ? AND banner_rev IS NOT NULL AND ? = id || '_banner-' || banner_rev`,
     );
+    // A community's own emoji and stickers (batch B9) are stored there too, under their own ids.
+    const expression = db.prepare("SELECT 1 FROM community_expressions WHERE id = ?");
     for await (const o of blobs.listIds("profile-photos")) {
       const owner = o.id.replace(/-\d+$/, "");
-      if (o.modifiedAt < cutoff && !photo.get(owner, o.id, o.id, owner, o.id)) orphans.push({ kind: "profile-photos", id: o.id, size: o.size });
+      if (o.modifiedAt < cutoff && !photo.get(owner, o.id, o.id, owner, o.id, owner, o.id) && !expression.get(o.id)) orphans.push({ kind: "profile-photos", id: o.id, size: o.size });
     }
     const bytes = orphans.reduce((a, o) => a + o.size, 0);
     console.log(`${orphans.length} orphaned file(s), ${bytes} bytes, older than a day (${blobs.backend})`);

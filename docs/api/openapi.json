@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Meldiq API",
-    "version": "0.43.0",
+    "version": "0.44.0",
     "description": "The canonical contract of the Meldiq server (docs/architecture/ARCHITECTURE_1_0_PLAN.md §4), generated from src/shared/contracts. Fields are only ever added within a version; clients ignore unknown fields. Routes not listed here exist but aren't documented yet."
   },
   "servers": [
@@ -14385,6 +14385,28 @@
                             }
                           ]
                         },
+                        "accent": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "bannerRev": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "guestsAllowed": {
                           "type": "boolean"
                         },
@@ -14587,6 +14609,8 @@
                         "memberCount",
                         "createdAt",
                         "photoRev",
+                        "accent",
+                        "bannerRev",
                         "guestsAllowed",
                         "guestMaxDays",
                         "kind",
@@ -14773,6 +14797,28 @@
                             "maximum": 9007199254740991
                           },
                           "photoRev": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "accent": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "bannerRev": {
                             "anyOf": [
                               {
                                 "type": "integer",
@@ -14986,6 +15032,8 @@
                           "memberCount",
                           "createdAt",
                           "photoRev",
+                          "accent",
+                          "bannerRev",
                           "guestsAllowed",
                           "guestMaxDays",
                           "kind",
@@ -15219,6 +15267,28 @@
                             }
                           ]
                         },
+                        "accent": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "bannerRev": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "guestsAllowed": {
                           "type": "boolean"
                         },
@@ -15421,6 +15491,8 @@
                         "memberCount",
                         "createdAt",
                         "photoRev",
+                        "accent",
+                        "bannerRev",
                         "guestsAllowed",
                         "guestMaxDays",
                         "kind",
@@ -15787,6 +15859,28 @@
                             }
                           ]
                         },
+                        "accent": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "bannerRev": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "guestsAllowed": {
                           "type": "boolean"
                         },
@@ -15989,6 +16083,8 @@
                         "memberCount",
                         "createdAt",
                         "photoRev",
+                        "accent",
+                        "bannerRev",
                         "guestsAllowed",
                         "guestMaxDays",
                         "kind",
@@ -16079,6 +16175,17 @@
                       {
                         "type": "string",
                         "maxLength": 4000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "accent": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^#[0-9a-fA-F]{6}$"
                       },
                       {
                         "type": "null"
@@ -16321,6 +16428,175 @@
         ],
         "summary": "The community photo (JPEG).",
         "operationId": "getV1OrgsOrgIdPhoto",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The bytes (or 302 to a storage URL)",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/orgs/{orgId}/banner": {
+      "put": {
+        "tags": [
+          "communities"
+        ],
+        "summary": "Set the community banner (a JPEG of at most 1 MB; the apps send about 1200 × 480).",
+        "operationId": "putV1OrgsOrgIdBanner",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "bannerRev": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "bannerRev"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, too_large, storage_unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "communities"
+        ],
+        "summary": "Remove the community banner.",
+        "operationId": "deleteV1OrgsOrgIdBanner",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "bannerRev": {
+                      "type": "null"
+                    }
+                  },
+                  "required": [
+                    "bannerRev"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "get": {
+        "tags": [
+          "communities"
+        ],
+        "summary": "The community banner (JPEG): for its members, and for anyone signed in when the community is public.",
+        "operationId": "getV1OrgsOrgIdBanner",
         "parameters": [
           {
             "name": "orgId",
@@ -17433,6 +17709,28 @@
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991
+                        },
+                        "accent": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "bannerRev": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         }
                       },
                       "required": [
@@ -17441,7 +17739,9 @@
                         "slug",
                         "description",
                         "rules",
-                        "memberCount"
+                        "memberCount",
+                        "accent",
+                        "bannerRev"
                       ],
                       "additionalProperties": false
                     },
@@ -17603,12 +17903,27 @@
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991
+                        },
+                        "accent": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "banner": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
                         "name",
                         "description",
-                        "memberCount"
+                        "memberCount",
+                        "accent",
+                        "banner"
                       ],
                       "additionalProperties": false
                     },
@@ -17621,6 +17936,50 @@
                     "invitesPaused"
                   ],
                   "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: invite_not_found, invite_revoked, invite_expired, invite_used_up, invite_unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/invites/{code}/banner": {
+      "get": {
+        "tags": [
+          "communities"
+        ],
+        "summary": "The banner of the community an invitation leads to (JPEG), before signing in.",
+        "operationId": "getV1InvitesCodeBanner",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 40
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The bytes (or 302 to a storage URL)",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
                 }
               }
             }
@@ -17703,6 +18062,28 @@
                           "maximum": 9007199254740991
                         },
                         "photoRev": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "accent": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "bannerRev": {
                           "anyOf": [
                             {
                               "type": "integer",
@@ -17916,6 +18297,8 @@
                         "memberCount",
                         "createdAt",
                         "photoRev",
+                        "accent",
+                        "bannerRev",
                         "guestsAllowed",
                         "guestMaxDays",
                         "kind",
@@ -24587,6 +24970,28 @@
                               }
                             ]
                           },
+                          "accent": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "bannerRev": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
                           "joinPolicy": {
                             "type": "string",
                             "enum": [
@@ -24607,6 +25012,8 @@
                           "description",
                           "memberCount",
                           "photoRev",
+                          "accent",
+                          "bannerRev",
                           "joinPolicy",
                           "applications",
                           "joined"
@@ -24722,6 +25129,28 @@
                           "maximum": 9007199254740991
                         },
                         "photoRev": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "accent": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "bannerRev": {
                           "anyOf": [
                             {
                               "type": "integer",
@@ -24935,6 +25364,8 @@
                         "memberCount",
                         "createdAt",
                         "photoRev",
+                        "accent",
+                        "bannerRev",
                         "guestsAllowed",
                         "guestMaxDays",
                         "kind",
@@ -25174,6 +25605,28 @@
                             }
                           ]
                         },
+                        "accent": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "bannerRev": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "guestsAllowed": {
                           "type": "boolean"
                         },
@@ -25376,6 +25829,8 @@
                         "memberCount",
                         "createdAt",
                         "photoRev",
+                        "accent",
+                        "bannerRev",
                         "guestsAllowed",
                         "guestMaxDays",
                         "kind",
