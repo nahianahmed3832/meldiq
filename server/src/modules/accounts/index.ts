@@ -20,8 +20,6 @@ import { EmailChangeService } from "./emailChange.js";
 
 // API 0.46.0: what warnings from staff limit (docs/ACCOUNT_SAFETY.md).
 export { requireStanding } from "./standing.js";
-// AI agents' bot identities (modules/workforce/reader).
-export { addBotDevice, botDevice, createBotUser, identityKeyOf, isBot, revokeBotDevice, senderKeys } from "./botIdentities.js";
 // For the Platform Admin Console (modules/platformAdmin), which signs admins in with their account password.
 export type { AccountRow } from "./store.js";
 export { burnPasswordCheck, verifyPassword } from "./passwords.js";

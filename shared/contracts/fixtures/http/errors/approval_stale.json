@@ -1,6 +1,0 @@
-{
-  "error": {
-    "code": "approval_stale",
-    "message": "The file changed since approval was asked."
-  }
-}

@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { ApiError } from "../../shared/errors.js";
 
 /**
- * Credentials at rest (docs/AI_OPERATIONS.md › Credentials): AES-256-GCM with a key that lives only in the server's
+ * Secrets at rest (two-step sign-in, docs/ACCOUNT_SAFETY.md; first written for AI credentials, docs/retired/AI_OPERATIONS.md): AES-256-GCM with a key that lives only in the server's
  * environment (PLATFORM_SECRETS_KEY: 32 random bytes, base64 or hex), never in the database or a backup of it. Each
  * ciphertext is bound to the row it belongs to (associated data), so it can't be moved to another provider.
  *

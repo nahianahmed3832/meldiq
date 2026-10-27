@@ -9,7 +9,7 @@ import { Readable } from "node:stream";
  * bytes, under keys that carry no names, conversation ids or message metadata.
  */
 
-/** "ai-files": what people sent to AI agents and what agents made (docs/AI_WORKFORCE.md); never end-to-end encrypted. */
+/** "ai-files": what people sent to AI agents and what agents made (docs/retired/AI_WORKFORCE.md, AI removed in 0.47.0); kept, never end-to-end encrypted. */
 export type BlobKind = "attachments" | "profile-photos" | "ai-files";
 
 export interface BlobRange {

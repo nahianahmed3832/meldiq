@@ -5,8 +5,7 @@ import { ApiError } from "../../shared/errors.js";
 /**
  * Runtime platform settings changed from the console (docs/PLATFORM_SETTINGS.md). Only settings that really change
  * what the server does are here, each with its schema and default; every change is audited with its before and after
- * value by the route that makes it. Secrets never live here (AI keys are encrypted in ai_providers; everything else
- * stays in the server's environment).
+ * value by the route that makes it. Secrets never live here: they stay in the server's environment.
  */
 const COST = z.strictObject({
   /** Micro-USD (millionths of a dollar). */
@@ -16,44 +15,6 @@ const COST = z.strictObject({
 });
 
 export const SETTINGS = {
-  "ai.enabled": {
-    label: "AI requests allowed",
-    description: "The global AI kill switch. Off: the gateway refuses every AI request before any provider is called. Messaging, calls and sign-in are unaffected.",
-    schema: z.boolean(),
-    default: false,
-  },
-  // AI Workforce (docs/AI_WORKFORCE.md §5 and §9). They change what the job engine does at once, not only the console.
-  "ai.workforce.enabled": {
-    label: "AI Workforce available",
-    description: "Off: communities can't install or ask agents, and no job starts. Jobs already running finish their current step and stop.",
-    schema: z.boolean(),
-    default: false,
-  },
-  "ai.workforce.channel_reading": {
-    label: "AI agents may read channels",
-    description:
-      "Off: no agent reads any channel, and switching a reader on is refused; readers already on stop reading at once (their channels' managers switch them off to erase what they kept). On: a channel's managers may let an agent read new messages there, with a notice to every member and each member's own opt-out. Those messages are then readable by the server and the AI provider.",
-    schema: z.boolean(),
-    default: false,
-  },
-  "ai.workforce.paused": {
-    label: "New AI jobs paused",
-    description: "An emergency pause: no new job is accepted or started. Running steps finish; jobs waiting in the queue stay there until it's lifted.",
-    schema: z.boolean(),
-    default: false,
-  },
-  "ai.workforce.max_concurrency": {
-    label: "AI jobs running at once",
-    description: "How many agent jobs this server works on at the same time. Lowering it takes effect for the next job; running ones aren't stopped.",
-    schema: z.number().int().min(0).max(16),
-    default: 2,
-  },
-  "ai.workforce.approval_floor": {
-    label: "Approval policy",
-    description: "standard: each community chooses review or automatic for internal work. strict: every agent works in review mode, whatever its community chose.",
-    schema: z.enum(["standard", "strict"]),
-    default: "standard" as "standard" | "strict",
-  },
   "analytics.excluded_users": {
     label: "People left out of analytics",
     description: "User ids of internal and test accounts. Load-test accounts are always left out. Applies to past figures too.",

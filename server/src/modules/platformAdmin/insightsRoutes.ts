@@ -2,7 +2,6 @@ import type { FastifyInstance } from "fastify";
 import { AdminOrgParams, AdminReasonBody, AdminUserParams } from "../../shared/contracts/http/platformAdmin.js";
 import {
   AdminAdjustBody,
-  AdminCredentialBody,
   AdminDaysQuery,
   AdminDeleteUserBody,
   AdminDevicesQuery,
@@ -10,18 +9,12 @@ import {
   AdminDisconnectBody,
   AdminExportParams,
   AdminExportQuery,
-  AdminGenerateTest,
-  AdminModelBody,
-  AdminModelRemove,
   AdminOrgMemberTarget,
   AdminPlanBody,
   AdminPlanMemberBody,
   AdminPlanParams,
   AdminPolicyBody,
   AdminPolicyParams,
-  AdminProviderCreate,
-  AdminProviderParams,
-  AdminProviderPatch,
   AdminQuotaEffectiveQuery,
   AdminQuotaEventsQuery,
   AdminRangeQuery,
@@ -34,7 +27,6 @@ import {
   AdminSettingParams,
 } from "../../shared/contracts/http/platformAdminInsights.js";
 import { parse } from "../../shared/validation/index.js";
-import { AdminAi } from "./aiAdmin.js";
 import { AlertEngine } from "./alerts.js";
 import { AdminAnalytics } from "./analyticsView.js";
 import type { AdminDeps } from "./dataRoutes.js";
@@ -57,7 +49,6 @@ export default async function adminInsightsRoutes(app: FastifyInstance, d: Admin
   const quotas = new AdminQuotas(d.ctx, d.audit);
   const insights = new AdminInsights(d.ctx, d.store, d.audit, quotas, exclusions);
   const resources = new AdminResources(d.ctx, d.version);
-  const ai = new AdminAi(d.ctx, d.audit, (rows) => quotas.policyViewsOf(rows));
   const alerts = new AlertEngine(d.ctx, d.store);
   const settings = new AdminSettings(d.ctx, d.audit, alerts, exclusions);
   const search = new AdminSearchExport(d.ctx, d.audit, exclusions);
@@ -145,36 +136,6 @@ export default async function adminInsightsRoutes(app: FastifyInstance, d: Admin
   );
   app.post("/admin/v1/quotas/plan-members/remove", needs("quotas.edit"), async (req) => quotas.unassignPlan(principal(req), parse(AdminPlanMemberBody, req.body), metaOf(req)));
   app.post("/admin/v1/quotas/adjust", needs("quotas.edit"), async (req) => quotas.adjust(principal(req), parse(AdminAdjustBody, req.body), metaOf(req)));
-
-  // ── AI operations ──
-  app.get("/admin/v1/ai", needs("ai.view"), async () => ai.overview());
-  app.post("/admin/v1/ai/providers", needs("ai.manage"), async (req) => {
-    const b = parse(AdminProviderCreate, req.body);
-    return ai.create(principal(req), b.kind, b.name, b.reason, metaOf(req));
-  });
-  app.patch("/admin/v1/ai/providers/:providerId", needs("ai.manage"), async (req) => {
-    const { reason, ...patch } = parse(AdminProviderPatch, req.body);
-    return ai.update(principal(req), parse(AdminProviderParams, req.params).providerId, patch, reason, metaOf(req));
-  });
-  app.put("/admin/v1/ai/providers/:providerId/credential", needs("ai.credentials"), async (req) => {
-    const { apiKey, reason } = parse(AdminCredentialBody, req.body);
-    return ai.setCredential(principal(req), parse(AdminProviderParams, req.params).providerId, apiKey, reason, metaOf(req));
-  });
-  app.post("/admin/v1/ai/providers/:providerId/credential/remove", needs("ai.credentials"), async (req) =>
-    ai.clearCredential(principal(req), parse(AdminProviderParams, req.params).providerId, parse(AdminReasonBody, req.body).reason, metaOf(req)),
-  );
-  app.post("/admin/v1/ai/providers/:providerId/test", needs("ai.manage"), async (req) => ai.test(principal(req), parse(AdminProviderParams, req.params).providerId, metaOf(req)));
-  app.put("/admin/v1/ai/providers/:providerId/models", needs("ai.manage"), async (req) =>
-    ai.setModel(principal(req), parse(AdminProviderParams, req.params).providerId, parse(AdminModelBody, req.body), metaOf(req)),
-  );
-  app.post("/admin/v1/ai/providers/:providerId/models/remove", needs("ai.manage"), async (req) => {
-    const { model, reason } = parse(AdminModelRemove, req.body);
-    return ai.removeModel(principal(req), parse(AdminProviderParams, req.params).providerId, model, reason, metaOf(req));
-  });
-  app.post("/admin/v1/ai/providers/:providerId/generate-test", needs("ai.manage"), async (req) => {
-    const { model, reason } = parse(AdminGenerateTest, req.body);
-    return ai.generateTest(principal(req), parse(AdminProviderParams, req.params).providerId, model, reason, metaOf(req));
-  });
 
   // ── Settings and alerts ──
   app.get("/admin/v1/settings", needs("settings.view"), async () => settings.list());

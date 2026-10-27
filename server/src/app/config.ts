@@ -1,4 +1,4 @@
-import { secretsKey } from "../modules/ai/index.js";
+import { secretsKey } from "../infrastructure/crypto/secretBox.js";
 import path from "node:path";
 import { networkKey } from "./middleware/abuse.js";
 import { type MongoConfig, mongoConfig } from "../infrastructure/database/mongo/config.js";
@@ -59,8 +59,6 @@ export interface Config {
   reminderTickMs: number;
   /** How often telemetry is written and sampled (TELEMETRY_TICK_MS, default a minute; 0: never, tests drive it). */
   telemetryTickMs: number;
-  /** How often the AI Workforce worker looks for due jobs (AI_WORKFORCE_TICK_MS, default 1 s; 0: never, tests drive it). */
-  aiWorkforceTickMs: number;
   /** PLATFORM_SECRETS_KEY: the key that encrypts credentials stored by the platform console (AI providers); null unset. */
   platformSecretsKey: Buffer | null;
   /** How often background schedules (meeting "starting soon" notices) are checked; 0 stops them (tests drive them). */
@@ -469,7 +467,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     defaultDmPolicy: dmPolicyFrom(env.DEFAULT_DM_POLICY),
     reminderTickMs: Math.min(Math.max(int("REMINDER_TICK_MS", 15_000), 0), 300_000),
     telemetryTickMs: Math.min(Math.max(int("TELEMETRY_TICK_MS", 60_000), 0), 300_000),
-    aiWorkforceTickMs: Math.min(Math.max(int("AI_WORKFORCE_TICK_MS", 1000), 0), 60_000),
     platformSecretsKey: secretsKey(env),
     workflowTickMs: Math.min(Math.max(int("WORKFLOW_TICK_MS", 3_000), 0), 300_000),
     attachmentTtlSeconds: Math.min(int("ATTACHMENT_TTL_SECONDS", SEVEN_DAYS_S), SEVEN_DAYS_S),

@@ -4,7 +4,7 @@ import { zCursor, zDay, zLimit, zPerson, zReason, zRef } from "./platformAdmin.j
 
 /**
  * Platform Admin 2.0 (meldiq_central_admin/docs/ADMIN_2_ASSESSMENT.md): analytics, live connections, devices and
- * sessions, resources and traffic, quotas, AI operations, settings, alerts, search and exports. Same rules as
+ * sessions, resources and traffic, quotas, settings, alerts, search and exports. Same rules as
  * platformAdmin.ts: strict bodies, every figure either measured or null with a reason. The console mirrors this file.
  */
 
@@ -356,60 +356,6 @@ export const AdminQuotaEvents = z.strictObject({
   nextCursor: z.number().nullable(),
 });
 
-// ───────────── AI operations ─────────────
-
-const zProviderKind = z.enum(["anthropic", "openai", "google"]);
-const zModelId = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$/);
-const zProvider = z.strictObject({
-  id: z.string(),
-  kind: zProviderKind,
-  kindLabel: z.string(),
-  name: z.string(),
-  enabled: z.boolean(),
-  credential: z.strictObject({ configured: z.boolean(), setAt: zTime.nullable() }),
-  timeoutMs: zCount,
-  maxRetries: zCount,
-  fallbackId: z.string().nullable(),
-  lastTest: z.strictObject({ at: zTime, ok: z.boolean(), detail: z.string() }).nullable(),
-  models: z.array(z.strictObject({ model: z.string(), enabled: z.boolean(), inputPriceMicro: zMaybe, outputPriceMicro: zMaybe, priceSource: z.string(), priceUpdatedAt: zTime.nullable() })),
-  updatedAt: zTime,
-});
-export const AdminAi = z.strictObject({
-  enabled: z.boolean(),
-  secretsAvailable: z.boolean(),
-  providers: z.array(zProvider),
-  features: z.array(z.strictObject({ id: z.string(), label: z.string(), description: z.string() })),
-  usage: z.record(z.string(), z.unknown()),
-  budgets: z.array(zPolicy),
-  notes: z.array(z.string()),
-});
-export const AdminProviderParams = z.strictObject({ providerId: zRef });
-export const AdminProviderCreate = z.strictObject({ kind: zProviderKind, name: z.string().trim().min(2).max(60), reason: zReason });
-export const AdminProviderPatch = z.strictObject({
-  name: z.string().trim().min(2).max(60).optional(),
-  enabled: z.boolean().optional(),
-  timeoutMs: z.number().int().min(1000).max(120_000).optional(),
-  maxRetries: z.number().int().min(0).max(3).optional(),
-  fallbackId: zRef.nullable().optional(),
-  reason: zReason,
-});
-/** The provider's API key: sent once, stored encrypted, never returned. */
-export const AdminCredentialBody = z.strictObject({ apiKey: z.string().trim().min(10).max(500).regex(/^[\x21-\x7e]+$/, "An API key has no spaces"), reason: zReason });
-export const AdminModelBody = z.strictObject({
-  model: zModelId,
-  enabled: z.boolean(),
-  /** Micro-USD per million tokens, from the provider's price page. */
-  inputPriceMicro: z.number().int().min(0).max(1e12).nullable(),
-  outputPriceMicro: z.number().int().min(0).max(1e12).nullable(),
-  priceSource: z.string().trim().max(200),
-  reason: zReason,
-});
-export const AdminModelRemove = z.strictObject({ model: zModelId, reason: zReason });
-export const AdminGenerateTest = z.strictObject({ model: zModelId, reason: zReason });
-export const AdminProviderTested = z.strictObject({ ok: z.boolean(), latencyMs: zCount, models: z.array(z.string()), detail: z.string() });
-export const AdminGenerated = z.strictObject({ text: z.string(), inputTokens: zMaybe, outputTokens: zMaybe, costMicro: zMaybe, providerId: z.string(), model: z.string(), latencyMs: zCount });
-export const AdminAiProvider = z.strictObject({ provider: zProvider });
-
 // ───────────── Settings and alerts ─────────────
 
 export const AdminSettings = z.strictObject({
@@ -454,6 +400,6 @@ export const AdminSearch = z.strictObject({
   sections: z.array(z.string()),
 });
 
-export const EXPORT_KINDS = ["users", "organizations", "devices", "audit", "incidents", "quota-events", "ai-usage", "active-users"] as const;
+export const EXPORT_KINDS = ["users", "organizations", "devices", "audit", "incidents", "quota-events", "active-users"] as const;
 export const AdminExportParams = z.strictObject({ kind: z.enum(EXPORT_KINDS) });
 export const AdminExportQuery = z.strictObject({ from: zDay.optional(), to: zDay.optional(), reason: zReason });

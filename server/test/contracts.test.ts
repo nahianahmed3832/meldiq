@@ -4,7 +4,6 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { API_DOCS, fixtureName, renderContracts } from "../scripts/contracts.js";
 import { ErrorEnvelope, ROUTE_CONTRACTS } from "../src/shared/contracts/http/index.js";
 import { ServerEvent } from "../src/shared/contracts/realtime.js";
-import { InvocationCases } from "../src/modules/workforce/invocation.js";
 import { FIXTURES } from "./support/contracts.js";
 import { type Harness, startServer } from "./support/harness.js";
 
@@ -56,11 +55,9 @@ describe("contracts", () => {
       const json = JSON.parse(fs.readFileSync(file, "utf8")) as unknown;
       const schema = rel.startsWith("realtime/")
         ? ServerEvent
-        : rel === "rules/agent-invocation.json"
-          ? InvocationCases
-          : rel.startsWith("http/errors/")
-            ? ErrorEnvelope
-            : byFile.get(path.basename(rel, ".json"))?.response;
+        : rel.startsWith("http/errors/")
+          ? ErrorEnvelope
+          : byFile.get(path.basename(rel, ".json"))?.response;
       if (!schema) bad.push(`${rel}: no schema (a route contract was renamed or removed)`);
       else if (!schema.safeParse(json).success) bad.push(`${rel}: doesn't match its schema`);
     }

@@ -195,17 +195,6 @@ export const RULES: readonly RuleDef[] = [
     measure: (ctx, w, t) => ctx.quotas.eventCount(["blocked", "throttled"], t - w * 60_000),
   },
   {
-    key: "ai.errors",
-    label: "AI provider failures",
-    service: "AI",
-    unit: "failed requests",
-    description: "AI requests that failed or timed out at the provider over the window.",
-    threshold: 20,
-    windowMinutes: 60,
-    severity: "sev4",
-    measure: (ctx, w, t) => ctx.ai.usage(t - w * 60_000).totals.failed,
-  },
-  {
     key: "collector.down",
     label: "Host collector not reporting",
     service: "Monitoring",

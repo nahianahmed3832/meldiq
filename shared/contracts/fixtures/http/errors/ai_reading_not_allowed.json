@@ -1,6 +1,0 @@
-{
-  "error": {
-    "code": "ai_reading_not_allowed",
-    "message": "Reading channels is switched off on this platform."
-  }
-}

@@ -2,7 +2,6 @@ import crypto from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   AdminActiveUsers,
-  AdminAi,
   AdminAlerts,
   AdminAnalyticsOverview,
   AdminClients,
@@ -19,7 +18,6 @@ import {
   AdminUserInsights,
 } from "../src/shared/contracts/http/platformAdminInsights.js";
 import { AdminUserDetail } from "../src/shared/contracts/http/platformAdmin.js";
-import { AiService, type Fetch, SecretBox } from "../src/modules/ai/index.js";
 import { PlatformAudit, platformSetting } from "../src/modules/platformAdmin/index.js";
 import { liftExpiredSuspensions } from "../src/modules/platformAdmin/insights.js";
 import { AccountClient, MemoryMailer } from "./support/accounts.js";
@@ -97,8 +95,8 @@ describe("analytics", () => {
     expect(after).toBe(before - 1);
     expect(lastAudit("settings.update")).toMatchObject({ target_id: "analytics.excluded_users", reason: REASON.reason });
     await as("super_admin").expect(200, "PUT", "/admin/v1/settings/analytics.excluded_users", { value: [], ...REASON });
-    await as("operations_admin").expect(403, "PUT", "/admin/v1/settings/ai.enabled", { value: true, ...REASON });
-    await as("super_admin").expect(400, "PUT", "/admin/v1/settings/ai.enabled", { value: "yes", ...REASON });
+    await as("operations_admin").expect(403, "PUT", "/admin/v1/settings/analytics.exclude_admins", { value: true, ...REASON });
+    await as("super_admin").expect(400, "PUT", "/admin/v1/settings/analytics.exclude_admins", { value: "yes", ...REASON });
   });
 });
 
@@ -218,41 +216,6 @@ describe("quotas", () => {
     expect(lastAudit("quota.policy_remove")).toMatchObject({ target_id: saved.policy.id });
     await as("support_admin").expect(403, "POST", "/admin/v1/quotas/plans", { name: "Team", ...REASON });
     await as("billing_admin").expect(200, "POST", "/admin/v1/quotas/plans", { name: "Team", description: "Internal teams", ...REASON });
-  });
-});
-
-describe("AI operations", () => {
-  const API_KEY = "sk-console-test-0123456789abcdef";
-  it("store a credential write-only, test it for real, and keep it out of every answer and the audit", async () => {
-    const created = await as("operations_admin").expect(200, "POST", "/admin/v1/ai/providers", { kind: "anthropic", name: "Primary", ...REASON });
-    const id = created.provider.id;
-    await as("operations_admin").expect(403, "PUT", `/admin/v1/ai/providers/${id}/credential`, { apiKey: API_KEY, ...REASON });
-    await as("super_admin").expect(200, "PUT", `/admin/v1/ai/providers/${id}/credential`, { apiKey: API_KEY, ...REASON });
-    const view = await as("auditor").expect(200, "GET", "/admin/v1/ai");
-    ok(AdminAi, view);
-    expect(view).toMatchObject({ enabled: false, secretsAvailable: true });
-    expect(JSON.stringify(view)).not.toContain(API_KEY);
-    expect(JSON.stringify(h.ctx.db.prepare("SELECT * FROM platform_audit WHERE action LIKE 'ai.%'").all())).not.toContain(API_KEY);
-    // The provider is a fake here: the real gateway would call api.anthropic.com.
-    const calls: string[] = [];
-    const fake: Fetch = async (url, init) => {
-      calls.push(`${url} ${init.headers["x-api-key"] === API_KEY}`);
-      return { status: 200, json: async () => (url.endsWith("/v1/messages") ? { content: [{ type: "text", text: "pong" }], usage: { input_tokens: 9, output_tokens: 1 } } : { data: [{ id: "claude-test" }] }) };
-    };
-    h.ctx.ai = new AiService(h.ctx.db, h.ctx.quotas, new SecretBox(Buffer.from(SECRETS_KEY, "hex")), { fetch: fake, enabled: () => platformSetting(h.ctx.db, "ai.enabled") });
-    const tested = await as("operations_admin").expect(200, "POST", `/admin/v1/ai/providers/${id}/test`);
-    expect(tested).toMatchObject({ ok: true, models: ["claude-test"] });
-    expect(calls).toEqual(["https://api.anthropic.com/v1/models?limit=100 true"]);
-    await as("operations_admin").expect(200, "PATCH", `/admin/v1/ai/providers/${id}`, { enabled: true, ...REASON });
-    await as("operations_admin").expect(200, "PUT", `/admin/v1/ai/providers/${id}/models`, { model: "claude-test", enabled: true, inputPriceMicro: 3_000_000, outputPriceMicro: 15_000_000, priceSource: "price page, 2026-10-24", ...REASON });
-    // The kill switch is off by default: nothing reaches the provider.
-    await as("operations_admin").expect(503, "POST", `/admin/v1/ai/providers/${id}/generate-test`, { model: "claude-test", ...REASON });
-    await as("super_admin").expect(200, "PUT", "/admin/v1/settings/ai.enabled", { value: true, ...REASON });
-    const gen = await as("operations_admin").expect(200, "POST", `/admin/v1/ai/providers/${id}/generate-test`, { model: "claude-test", ...REASON });
-    expect(gen).toMatchObject({ text: "pong", inputTokens: 9, outputTokens: 1, costMicro: 42 });
-    expect(lastAudit("ai.generate_test")).toMatchObject({ outcome: "success" });
-    await as("super_admin").expect(200, "POST", `/admin/v1/ai/providers/${id}/credential/remove`, REASON);
-    expect((await as("auditor").expect(200, "GET", "/admin/v1/ai")).providers[0]).toMatchObject({ enabled: false, credential: { configured: false } });
   });
 });
 

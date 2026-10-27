@@ -33,7 +33,6 @@ const RETIRED_KEYS: readonly string[] = [
   "groups",
   "api_keys",
   "webhooks.outgoing",
-  "ai.requests_monthly",
   "inbox.accounts",
 ];
 

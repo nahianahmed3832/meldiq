@@ -35,9 +35,6 @@ export const PERMISSIONS = [
   "resources.view",
   "quotas.view",
   "quotas.edit",
-  "ai.view",
-  "ai.manage",
-  "ai.credentials",
   "settings.view",
   "settings.edit",
   "alerts.manage",
@@ -57,8 +54,6 @@ export const SENSITIVE: ReadonlySet<Permission> = new Set([
   "users.delete",
   "orgs.members.manage",
   "quotas.edit",
-  "ai.manage",
-  "ai.credentials",
   "settings.edit",
   "alerts.manage",
 ]);
@@ -76,7 +71,6 @@ const READ_EVERYTHING: Permission[] = [
   "devices.view",
   "resources.view",
   "quotas.view",
-  "ai.view",
   "settings.view",
 ];
 
@@ -98,8 +92,6 @@ const GRANTS: Readonly<Record<PlatformRole, ReadonlySet<Permission>>> = {
     "resources.view",
     "quotas.view",
     "quotas.edit",
-    "ai.view",
-    "ai.manage",
     "settings.view",
     "alerts.manage",
     "exports.create",
@@ -124,7 +116,7 @@ const GRANTS: Readonly<Record<PlatformRole, ReadonlySet<Permission>>> = {
     "users.recovery",
     "quotas.view",
   ]),
-  billing_admin: new Set<Permission>(["overview.view", "orgs.view", "entitlements.view", "entitlements.edit", "analytics.view", "resources.view", "quotas.view", "quotas.edit", "ai.view", "settings.view"]),
+  billing_admin: new Set<Permission>(["overview.view", "orgs.view", "entitlements.view", "entitlements.edit", "analytics.view", "resources.view", "quotas.view", "quotas.edit", "settings.view"]),
   auditor: new Set<Permission>([...READ_EVERYTHING, "audit.view", "admins.view", "exports.create"]),
 };
 

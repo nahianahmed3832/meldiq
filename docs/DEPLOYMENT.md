@@ -130,6 +130,26 @@ Passkeys failed in the app installed from Google Play: Play signs it with its ap
 
 Rollback: copy the backup's `.env` back and recreate `api` the same way.
 
+### API 0.47.0 and Meldiq Web 0.5.0-beta-564e3b0 (2026-10-27, 16:19 UTC, owner's go-ahead: "Yes, deploy API 0.47.0 and the web without AI to production")
+
+AI and AI Workforce removed (`docs/AI_REMOVAL.md`). No migration; no data deleted (the `ai_*` tables, the agent account
+and the `ai.*` settings rows stay, unread). Branch `remove-ai-api` c1d0044; web `remove-ai` 564e3b0.
+
+| Step | Result |
+|---|---|
+| Checks before | server full suite 951 passed / 10 skipped; web 521 unit tests; browser suite Chromium + phone width against 0.47.0: 63 passed, 0 failed |
+| Pre-flight | running 0.46.0; VPS `server/` (tests excluded) byte-equal to 0f99156 |
+| Build | sources kept as `server.pre-0.47.0`; synced with deletions (104 changes, 78 AI files removed), parity with c1d0044; image `0.47.0` built |
+| Backup | `backups/pre-0.47.0-20261027T161806Z`: integrity ok, schema 60, 43 users, `.env` + `compose.yaml` copies; image tagged `0.46.0-rollback` |
+| Rehearsal | backup copy, `--network none`: healthy, 0.47.0, schema 60, integrity ok, 0 errors; removed after |
+| Switch | image 0.47.0, `validate-env.sh` 0 errors, `config -q`, `up -d --no-deps --no-build api`: healthy, 0 restarts |
+| Checks after | `/healthz` 0.47.0 on both hosts; `ai-workforce` not advertised; `/v1/orgs/:id/ai`, `/v1/conversations/:id/ai/posts`, `/v1/ai/hooks/:id` answer 404; 0 errors in the log |
+| Web | release `564e3b0` (sha256 ok) with the live settings; nginx sites byte-identical; `verify.sh` all passed (API 0.47.0 through the site, realtime 101); no AI text in the release |
+
+Rollback: web `bash /root/meldiq-web-0.5.0-beta-564e3b0/rollback.sh` (back to f642711); API image
+`griip-internal-messaging-api:0.46.0-rollback` (AI comes back with the kept tables and settings). The Platform Admin
+Console's AI pages now get 404 (that project wasn't changed).
+
 ### API 0.46.0 and Meldiq Web 0.5.0-beta-f642711 (2026-10-27, 15:28 UTC, owner's go-ahead: "deploy everything together")
 
 Stage 1 of the 2026-10-28 round (meldiq-web `docs/MELDIQ_STAGE1_REPORT.md`): name styles and community tags, member
