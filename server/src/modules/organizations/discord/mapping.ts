@@ -27,7 +27,8 @@ export const DiscordEmoji = z.object({
 export const DiscordGuild = z.object({
   id: snowflake,
   name: z.string().min(1).max(200),
-  icon: z.string().max(80).nullable().default(null),
+  /** An image hash (a_ prefix for animated); only ever used in a CDN path, so nothing else is accepted. */
+  icon: z.string().regex(/^[A-Za-z0-9_]{1,64}$/).nullable().default(null),
   description: z.string().max(2000).nullable().default(null),
   roles: z.array(DiscordRole).max(1000).default([]),
   emojis: z.array(DiscordEmoji).max(2000).default([]),
