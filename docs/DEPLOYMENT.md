@@ -130,6 +130,27 @@ Passkeys failed in the app installed from Google Play: Play signs it with its ap
 
 Rollback: copy the backup's `.env` back and recreate `api` the same way.
 
+### API 0.49.0 and Platform Admin Console 0.7.0 (2026-10-27, 17:50 UTC, owner's go-ahead: "Deploy API 0.48.0 and console 0.7.0 … with backup, rehearsal and rollback tags")
+
+Billing foundation (`docs/BILLING.md`): plan catalog, subscriptions from signed provider events, operator limits with
+end dates, the console's Subscriptions & Billing area; console AI pages removed. Built as 0.48.0, renumbered 0.49.0
+because another session shipped API 0.48.0 (v4-api 27bffb7) minutes earlier; 0.49.0 = 27bffb7 + internal-beta 830c80b.
+Migration 061 (additive). `BILLING_PROVIDER` unset (none): nothing can be bought.
+
+| Step | Result |
+|---|---|
+| Checks before | server full suite 975 passed / 10 skipped (one MongoDB test timed out under load, passes alone); console 20 unit tests; browser suite 5 passed (Chromium, sandbox provider) |
+| Pre-flight | running 0.48.0 (healthy, 0 restarts, 0 errors); VPS `server/` (tests excluded) byte-equal to 27bffb7 (rsync checksum dry run: 0 differences) |
+| Backup | `backups/pre-0.49.0-20261027T174745Z`: integrity ok, schema 60, 43 users; `.env` + `compose.yaml` copies; image tagged `0.48.0-rollback` |
+| Build | sources kept as `server.pre-0.49.0`; synced (36 changes), parity with 830c80b; image `0.49.0` (`build-0.49.0.log`) |
+| Rehearsal | backup copy, `--network none`, env without FCM lines: healthy, 0.49.0, schema 61, integrity ok, 8 billing tables, `org_entitlements` has `expires_at`/`reason`, 43 users, 0 errors; billing 401, webhook 404; removed after |
+| Switch | `compose.yaml` image 0.49.0, `validate-env.sh` (BILLING_PROVIDER none), `config -q`, `up -d --no-deps --no-build api`: healthy, 0 restarts |
+| Checks after | `/healthz` 0.49.0 on both hosts; schema 61, quick_check ok; `platform-audit-verify` 112 rows, unbroken; `/v1/orgs/:id/billing` and `/plan` 401 signed out; `/v1/billing/webhooks/sandbox` 404; `verify.sh` 0 restarts; 108 requests, 0 errors, 0 warnings, 0 5xx in the first 3 minutes |
+| Console | release `0.7.0-20261027T170747Z` (sha256 ok), `install-release.sh`; nginx site and headers snippet byte-identical to before; `verify.sh` all passed on the server and from outside; the served bundle has the billing pages and no AI pages |
+
+Rollback: API image `griip-internal-messaging-api:0.48.0-rollback` (`compose.yaml` image, `up -d --no-deps --no-build api`;
+the billing tables stay, unread); console `bash /root/meldiq-admin-0.7.0-20261027T170747Z/rollback.sh` (back to 0.6.0).
+
 ### API 0.47.0 and Meldiq Web 0.5.0-beta-564e3b0 (2026-10-27, 16:19 UTC, owner's go-ahead: "Yes, deploy API 0.47.0 and the web without AI to production")
 
 AI and AI Workforce removed (`docs/AI_REMOVAL.md`). No migration; no data deleted (the `ai_*` tables, the agent account
