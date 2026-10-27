@@ -130,6 +130,30 @@ Passkeys failed in the app installed from Google Play: Play signs it with its ap
 
 Rollback: copy the backup's `.env` back and recreate `api` the same way.
 
+### API 0.46.0 and Meldiq Web 0.5.0-beta-f642711 (2026-10-27, 15:28 UTC, owner's go-ahead: "deploy everything together")
+
+Stage 1 of the 2026-10-28 round (meldiq-web `docs/MELDIQ_STAGE1_REPORT.md`): name styles and community tags, member
+lists with animated avatars, community mute, the invite page's icon (`docs/PROFILE_MEDIA.md`); two-step sign-in, email
+change, account standing (enforced), bug reports, About me and links (`docs/ACCOUNT_SAFETY.md`). **Migrations 059 and
+060**, additive only. Branch `stage1-api` 0f99156.
+
+| Step | Result |
+|---|---|
+| Checks before | server full suite 1,134 passed / 11 skipped, `tsc` clean; web 544 unit tests, browser suite Chromium + phone width against 0.46.0: 75 passed, 0 failed |
+| Pre-flight | running 0.45.0; VPS `server/` (tests excluded) byte-equal to c3c1fca; `PLATFORM_SECRETS_KEY` and mail present (names only checked) |
+| Build | sources kept as `server.pre-0.46.0`; 38 files synced, parity with 0f99156; image `0.46.0` built (`build-0.46.0.log`) |
+| Backup | `backups/pre-0.46.0-20261027T152606Z`: integrity ok, schema 58, 43 users, `.env` + `compose.yaml` copies; image tagged `0.45.0-rollback` |
+| Rehearsal | backup copy, `--network none`: healthy, 0.46.0, schema 60, integrity ok, 0 errors; removed after |
+| Switch | image 0.46.0, `validate-env.sh` 0 errors, `config -q`, `up -d --no-deps --no-build api`: healthy, 0 restarts |
+| Checks after | `/healthz` 0.46.0 on both hosts; features `name-styles`, `community-tags`, `community-mute`, `two-step`, `email-change`, `account-standing`, `bug-reports`, `profile-links`; integrity ok; 0 errors in the log |
+| Web | release `f642711` (sha256 ok) with the live settings; nginx sites byte-identical; `verify.sh` all passed (API 0.46.0 through the site, realtime 101); name fonts and the invite page's Play Store link served |
+
+Not checked in production: anything signed in (no production test account).
+
+Rollback: web `bash /root/meldiq-web-0.5.0-beta-f642711/rollback.sh` (back to cc5b4c6); API image
+`griip-internal-messaging-api:0.45.0-rollback` runs on schema 60 as it is (new tables and nullable columns it never
+reads). Two-step sign-in turned on under 0.46.0 isn't enforced by 0.45.0 after a rollback.
+
 ### API 0.45.0 (2026-10-27, 12:45 UTC, owner's go-ahead: "directly push to github and for productions")
 
 Profile media and style (`docs/PROFILE_MEDIA.md`), GIF search through the server (`docs/GIFS.md`; off: no
