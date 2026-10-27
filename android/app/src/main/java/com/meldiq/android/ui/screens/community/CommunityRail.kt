@@ -131,7 +131,8 @@ private fun RailTile(o: OrgDto, selected: Boolean, badge: RailBadge?, onClick: (
                     .clip(Shapes.pill).background(c.badge).widthIn(min = 18.dp).padding(horizontal = 5.dp, vertical = 1.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(if (mentions > 99) "99+" else "$mentions", style = Griip.type.caption.copy(fontWeight = FontWeight.Bold), color = c.onBadge)
+                // As Meldiq Web: a mention reads apart from plain unread by its "@" as well as its colour.
+                Text("@" + com.meldiq.android.data.model.UnreadRules.cap(mentions), style = Griip.type.caption.copy(fontWeight = FontWeight.Bold), color = c.onBadge)
             }
         }
     }

@@ -362,7 +362,8 @@ private fun MainNav(container: AppContainer, pendingConversation: String?, pendi
             FloatingNavBar(
                 items = listOf(
                     NavItem(Routes.HOME, androidx.compose.ui.res.stringResource(com.meldiq.android.R.string.nav_home), Icons.Outlined.Home, Icons.Rounded.Home, badge = homeBadge),
-                    NavItem(Routes.CHATS, androidx.compose.ui.res.stringResource(com.meldiq.android.R.string.nav_dms), Icons.AutoMirrored.Outlined.Chat, Icons.AutoMirrored.Rounded.Chat, badge = dmBadge),
+                    // As Meldiq Web (community-first): the DMs tab is Messages, with Meldling.
+                    NavItem(Routes.CHATS, androidx.compose.ui.res.stringResource(com.meldiq.android.R.string.wp_nav_messages), Icons.AutoMirrored.Outlined.Chat, Icons.AutoMirrored.Rounded.Chat, badge = dmBadge, glyph = com.meldiq.android.R.drawable.meldling_glyph),
                     NavItem(Routes.ACTIVITY, androidx.compose.ui.res.stringResource(com.meldiq.android.R.string.nav_activity), Icons.Outlined.Notifications, Icons.Rounded.Notifications, badge = activityBadge),
                     NavItem(Routes.YOU, androidx.compose.ui.res.stringResource(com.meldiq.android.R.string.nv_you), Icons.Outlined.AccountCircle, Icons.Rounded.AccountCircle),
                 ),

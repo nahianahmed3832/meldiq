@@ -147,12 +147,16 @@ fun PanelFavouritesHeader() {
 }
 
 /**
- * One channel: its type icon and name; something unread in bold, the primary text colour and a dot; mentions as a
- * count; muted dimmed; the one you have open highlighted; one you haven't joined dimmed until you open it.
+ * One channel: its type icon and name; something unread in bold and the primary text colour, with the unread marker
+ * ([com.meldiq.android.data.model.UnreadRules], as Meldiq Web: a dot for one, a light count for more, "@" for mentions); muted dimmed; the one you have open highlighted; one you haven't joined dimmed until you open it.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun PanelChannelRow(ch: PanelChannel, selected: Boolean, onClick: () -> Unit, onLongPress: () -> Unit) {
+fun PanelChannelRow(
+    ch: PanelChannel, selected: Boolean, onClick: () -> Unit, onLongPress: () -> Unit,
+    /** The channel's live call as rows show it (kind, people, screen sharing), when its details have arrived. */
+    live: com.meldiq.android.call.LiveCall? = null,
+) {
     val c = Griip.colors
     val strong = ch.hasNews && !ch.muted
     val tint = when {
@@ -184,19 +188,8 @@ fun PanelChannelRow(ch: PanelChannel, selected: Boolean, onClick: () -> Unit, on
             ch.name, style = Griip.type.bodyMedium.copy(fontWeight = if (strong || selected) FontWeight.SemiBold else FontWeight.Normal),
             color = tint, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
         )
-        if (ch.liveCall) Icon(Icons.Rounded.Call, null, tint = c.success, modifier = Modifier.padding(end = 6.dp).size(16.dp))
-        when {
-            ch.mentions > 0 -> MentionCount(ch.mentions)
-            strong -> Box(Modifier.size(8.dp).clip(Shapes.pill).background(c.textPrimary))
-        }
-    }
-}
-
-@Composable
-private fun MentionCount(n: Int) {
-    val c = Griip.colors
-    Box(Modifier.clip(Shapes.pill).background(c.badge).widthIn(min = 20.dp).padding(horizontal = 6.dp, vertical = 1.dp), contentAlignment = Alignment.Center) {
-        Text(if (n > 99) "99+" else "$n", style = Griip.type.caption.copy(fontWeight = FontWeight.Bold), color = c.onBadge)
+        if (ch.liveCall) com.meldiq.android.ui.components.LiveCallBadge(live, video = live?.video ?: false, modifier = Modifier.padding(end = 6.dp))
+        com.meldiq.android.ui.components.UnreadMarkerView(com.meldiq.android.data.model.UnreadRules.marker(ch.unread, ch.mentions, ch.muted))
     }
 }
 

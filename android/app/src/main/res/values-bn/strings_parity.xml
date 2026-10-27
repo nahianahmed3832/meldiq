@@ -5,4 +5,22 @@
     <string name="wp_2fa_subtitle">আপনার অথেন্টিকেটর অ্যাপের ৬ অঙ্কের কোড, অথবা একটি ব্যাকআপ কোড লিখুন।</string>
     <string name="wp_2fa_code">কোড</string>
     <string name="wp_2fa_submit">সাইন ইন</string>
+    <string name="wp_nav_messages">মেসেজ</string>
+    <string name="wp_react_dialog_title">রিঅ্যাকশন</string>
+    <string name="wp_react_by">রিঅ্যাক্ট করেছেন %1$s</string>
+    <string name="wp_react_and_more">এবং আরও %1$d জন</string>
+    <string name="wp_react_you">আপনি</string>
+    <string name="wp_react_count">%1$d জন</string>
+    <string name="wp_react_someone">কেউ একজন</string>
+    <string name="wp_typing_meldling">Meldling</string>
+    <string name="wp_typing_one">%1$s লিখছেন</string>
+    <string name="wp_typing_two">%1$s এবং %2$s লিখছেন</string>
+    <string name="wp_typing_many">%1$s, %2$s এবং আরও %3$d জন লিখছেন</string>
+    <string name="wp_live_voice">ভয়েস কল</string>
+    <string name="wp_live_video">ভিডিও কল</string>
+    <string name="wp_live_people">%1$s, %2$d জন আছেন</string>
+    <string name="wp_live_sharing">%1$s স্ক্রিন শেয়ার করছেন</string>
+    <string name="wp_live_sharing_short">শেয়ার করছেন</string>
+    <string name="wp_unread_mentions">%1$d টি উল্লেখ</string>
+    <string name="wp_unread_messages">%1$d টি অপঠিত</string>
 </resources>

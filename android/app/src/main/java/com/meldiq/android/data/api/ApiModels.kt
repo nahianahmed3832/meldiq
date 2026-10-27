@@ -582,6 +582,8 @@ object CommunityAccess {
     val voiceRoom: Boolean = false,
     /** Voice rooms: who raised a hand, in order. */
     val hands: List<String> = emptyList(),
+    /** Live calls: who is sharing their screen now, from the media server (API 0.42.0; older servers leave it out). */
+    val sharing: List<String> = emptyList(),
 )
 @Serializable data class CallAttendanceDto(val userId: String, val joinedAt: Long, val leftAt: Long, val seconds: Long)
 /** [canSpeak] false: a voice channel where you may only listen (the token can't publish). Older servers: true. */

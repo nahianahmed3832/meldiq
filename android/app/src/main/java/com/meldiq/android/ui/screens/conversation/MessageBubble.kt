@@ -158,6 +158,7 @@ private class MessageCallbacks(
     val linkDetails: (@Composable (String) -> Unit)?,
     val onDoubleTap: (() -> Unit)?,
     val onPlayVideo: ((String) -> Unit)?,
+    val onShowReactions: ((String) -> Unit)?,
 )
 
 /**
@@ -193,6 +194,8 @@ fun MessageBubble(
     onDoubleTap: (() -> Unit)? = null,
     /** 2026-10-23: plays a YouTube video (its id) inside Meldiq; null opens the YouTube app instead. */
     onPlayVideo: ((String) -> Unit)? = null,
+    /** A long press on a reaction: everyone who reacted, opened on that reaction (as Meldiq Web). */
+    onShowReactions: ((String) -> Unit)? = null,
 ) {
     val m = b.m
     if (onShown != null && !m.outgoing && b.attachments.isNotEmpty()) LaunchedEffect(m.id) { onShown() }
@@ -202,7 +205,7 @@ fun MessageBubble(
     }
     val cb = MessageCallbacks(
         onLongPress, onReact, onOpenAttachment, onOpenThread, onRetry, onReplyClick, onVoiceToggle, onVoiceSeek, onMentionClick,
-        onCopyText, onFindPhone, onOpenLink, onVote, linkDetails, onDoubleTap, onPlayVideo,
+        onCopyText, onFindPhone, onOpenLink, onVote, linkDetails, onDoubleTap, onPlayVideo, onShowReactions,
     )
     if (b.stream) StreamMessage(b, me, transfer, localFile, voice, cb) else BubbleMessage(b, me, transfer, localFile, voice, cb)
 }
@@ -456,6 +459,7 @@ private fun MessageContent(b: BubbleModel, me: String?, tinted: Boolean, transfe
 }
 
 /** Below the message: why it's paused or failed, its reactions, and its thread. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MessageExtras(b: BubbleModel, me: String?, alignEnd: Boolean, cb: MessageCallbacks) {
     val c = Griip.colors
@@ -485,7 +489,13 @@ private fun MessageExtras(b: BubbleModel, me: String?, alignEnd: Boolean, cb: Me
                 val custom = com.meldiq.android.data.model.ExpressionRules.reactionName(emoji)?.let(communityEmoji::get)
                 Row(
                     Modifier.heightIn(min = 30.dp).clip(Shapes.pill).background(if (mine) c.primarySoft else c.surface).border(1.dp, if (mine) c.primary else c.border, Shapes.pill)
-                        .pressable({ cb.onReact(emoji) }).padding(horizontal = 9.dp, vertical = 3.dp)
+                        // A tap adds or takes back yours; a long press shows who reacted (community-first brief §B).
+                        .combinedClickable(
+                            onClick = { cb.onReact(emoji) },
+                            onLongClick = cb.onShowReactions?.let { show -> { show(emoji) } },
+                            onLongClickLabel = if (cb.onShowReactions != null) androidx.compose.ui.res.stringResource(com.meldiq.android.R.string.wp_react_dialog_title) else null,
+                        )
+                        .padding(horizontal = 9.dp, vertical = 3.dp)
                         .semantics { contentDescription = "$emoji reaction, ${users.size}${if (mine) ", including you" else ""}" },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {

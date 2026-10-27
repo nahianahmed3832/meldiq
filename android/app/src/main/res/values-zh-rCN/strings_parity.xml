@@ -5,4 +5,22 @@
     <string name="wp_2fa_subtitle">输入身份验证器应用中的 6 位数代码，或使用一个备用代码。</string>
     <string name="wp_2fa_code">代码</string>
     <string name="wp_2fa_submit">登录</string>
+    <string name="wp_nav_messages">消息</string>
+    <string name="wp_react_dialog_title">表态</string>
+    <string name="wp_react_by">表态者：%1$s</string>
+    <string name="wp_react_and_more">等另外 %1$d 人</string>
+    <string name="wp_react_you">你</string>
+    <string name="wp_react_count">%1$d 人</string>
+    <string name="wp_react_someone">某人</string>
+    <string name="wp_typing_meldling">Meldling</string>
+    <string name="wp_typing_one">%1$s 正在输入</string>
+    <string name="wp_typing_two">%1$s 和 %2$s 正在输入</string>
+    <string name="wp_typing_many">%1$s、%2$s 和另外 %3$d 人正在输入</string>
+    <string name="wp_live_voice">语音通话</string>
+    <string name="wp_live_video">视频通话</string>
+    <string name="wp_live_people">%1$s，%2$d 人在线</string>
+    <string name="wp_live_sharing">%1$s 正在共享屏幕</string>
+    <string name="wp_live_sharing_short">共享中</string>
+    <string name="wp_unread_mentions">%1$d 次提及</string>
+    <string name="wp_unread_messages">%1$d 条未读</string>
 </resources>

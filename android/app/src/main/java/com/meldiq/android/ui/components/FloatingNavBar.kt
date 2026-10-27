@@ -102,7 +102,9 @@ private fun NavTab(item: NavItem, selected: Boolean, modifier: Modifier, onTap: 
         verticalArrangement = Arrangement.Center,
     ) {
         Box(Modifier.clip(ItemShape).background(pill).padding(horizontal = 18.dp, vertical = 4.dp)) {
-            Icon(if (selected) item.selectedIcon else item.icon, null, tint = iconTint, modifier = Modifier.size(22.dp))
+            val glyph = item.glyph
+            if (glyph != null) Icon(androidx.compose.ui.res.painterResource(glyph), null, tint = iconTint, modifier = Modifier.size(22.dp))
+            else Icon(if (selected) item.selectedIcon else item.icon, null, tint = iconTint, modifier = Modifier.size(22.dp))
             if (item.badge > 0) {
                 Box(
                     Modifier.align(Alignment.TopEnd).offset(x = 12.dp, y = (-6).dp).heightIn(min = 16.dp).widthIn(min = 16.dp)

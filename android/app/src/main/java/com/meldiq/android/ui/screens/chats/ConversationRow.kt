@@ -49,9 +49,7 @@ import com.meldiq.android.data.db.ConversationEntity
 import com.meldiq.android.data.repo.ConversationRepository
 import com.meldiq.android.ui.TimeFmt
 import com.meldiq.android.ui.components.Avatar
-import com.meldiq.android.ui.components.CountBadge
 import com.meldiq.android.ui.components.IconTile
-import com.meldiq.android.ui.components.TagPill
 import com.meldiq.android.ui.theme.Griip
 import com.meldiq.android.ui.theme.Shapes
 import com.meldiq.android.ui.theme.Space
@@ -144,7 +142,11 @@ fun ConversationRow(
     val c = Griip.colors
     val title = ConversationRepository.title(conv, myUserId).let { if (conv.type == "CHANNEL") "#$it" else it }
     val unread = conv.unreadCount > 0
-    val settings by com.meldiq.android.ui.LocalContainer.current.settings.state.collectAsStateWithLifecycle()
+    val container = com.meldiq.android.ui.LocalContainer.current
+    val settings by container.settings.state.collectAsStateWithLifecycle()
+    val liveCalls by container.calls.live.collectAsStateWithLifecycle()
+    // The same rule as channel rows and Meldiq Web: a DM or group counts from its first message, a mention is "@".
+    val marker = com.meldiq.android.data.model.UnreadRules.marker(conv.unreadCount, conv.mentionCount, conv.muted, direct = conv.type != "CHANNEL")
     val preview = ChatPreview.of(conv, typingNames, settings.previewMode)
     val stamp = TimeFmt.listStamp(if (conv.lastMessageAt > 0) conv.lastMessageAt else conv.serverUpdatedAt)
     Column(modifier.fillMaxWidth()) {
@@ -176,7 +178,7 @@ fun ConversationRow(
                         }
                         if (conv.activeCallId != null) {
                             Spacer(Modifier.width(6.dp))
-                            TagPill("Live", c.success, c.successSoft, icon = Icons.Rounded.Call)
+                            com.meldiq.android.ui.components.LiveCallBadge(liveCalls[conv.id], conv.activeCallVideo)
                         }
                     }
                     Spacer(Modifier.width(8.dp))
@@ -199,15 +201,13 @@ fun ConversationRow(
                         },
                         maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
                     )
-                    if (conv.mentionCount > 0) {
+                    if (marker.highlighted) {
                         Spacer(Modifier.width(6.dp))
-                        Box(Modifier.size(20.dp).clip(Shapes.pill).background(c.primary).semantics { contentDescription = "Mentioned" }, contentAlignment = Alignment.Center) {
-                            Text("@", style = Griip.type.caption.copy(fontWeight = FontWeight.Bold), color = c.onPrimary)
+                        val spoken = when {
+                            conv.mentionCount > 0 -> androidx.compose.ui.res.stringResource(com.meldiq.android.R.string.wp_unread_mentions, conv.mentionCount)
+                            else -> androidx.compose.ui.res.stringResource(com.meldiq.android.R.string.wp_unread_messages, conv.unreadCount)
                         }
-                    }
-                    if (unread) {
-                        Spacer(Modifier.width(6.dp))
-                        CountBadge(conv.unreadCount, muted = conv.muted)
+                        com.meldiq.android.ui.components.UnreadMarkerView(marker, Modifier.semantics { contentDescription = spoken })
                     }
                 }
             }

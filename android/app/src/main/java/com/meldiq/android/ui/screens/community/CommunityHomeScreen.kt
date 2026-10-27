@@ -123,6 +123,7 @@ fun CommunityHomeScreen(nav: NavHostController) {
     val serverChannels by vm.serverChannels.collectAsStateWithLifecycle()
     val conn by container.realtime.state.collectAsStateWithLifecycle()
     val call by container.calls.state.collectAsStateWithLifecycle()
+    val liveCalls by container.calls.live.collectAsStateWithLifecycle()
     val settings by container.settings.state.collectAsStateWithLifecycle()
     val navPrefs by container.navPrefs.prefs.collectAsStateWithLifecycle()
     val starredIds by container.navPrefs.starred.collectAsStateWithLifecycle()
@@ -290,7 +291,7 @@ fun CommunityHomeScreen(nav: NavHostController) {
                     item(key = "fav-header") { PanelFavouritesHeader() }
                     items(favourites, key = { "fav-" + it.id }) { conv ->
                         val ch = channels.firstOrNull { it.id == conv.id } ?: return@items
-                        PanelChannelRow(ch, ch.id == selectedChannel, onClick = { open(ch) }, onLongPress = { sheet = PanelSheet.Channel(ch.id) })
+                        PanelChannelRow(ch, ch.id == selectedChannel, onClick = { open(ch) }, onLongPress = { sheet = PanelSheet.Channel(ch.id) }, live = liveCalls[ch.id])
                     }
                 }
                 customSectionsList(
@@ -322,7 +323,7 @@ fun CommunityHomeScreen(nav: NavHostController) {
                     if (section.all.isEmpty() && !section.collapsed && canArrange) item(key = "empty-" + section.key) { Box(listItemMotion()) { PanelEmptyCategory() } }
                     items(section.shown, key = { "ch-" + it.id }) { ch ->
                         Column(listItemMotion()) {
-                            PanelChannelRow(ch, ch.id == selectedChannel, onClick = { open(ch) }, onLongPress = { sheet = PanelSheet.Channel(ch.id) })
+                            PanelChannelRow(ch, ch.id == selectedChannel, onClick = { open(ch) }, onLongPress = { sheet = PanelSheet.Channel(ch.id) }, live = liveCalls[ch.id])
                             if (ch.voice) ch.conv?.let { conv -> roomPeople(conv).takeIf { it.isNotEmpty() }?.let { PanelVoicePeople(it, usersById) } }
                         }
                     }

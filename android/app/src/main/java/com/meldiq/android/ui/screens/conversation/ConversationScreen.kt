@@ -149,7 +149,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.toClipEntry
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -198,6 +200,8 @@ fun ConversationScreen(nav: NavHostController, conversationId: String, threadRoo
     val ctx = LocalContext.current
     val conv by vm.conversation.collectAsStateWithLifecycle()
     val messages by vm.messages.collectAsStateWithLifecycle()
+    // Who reacted: the message and the reaction long-pressed (as Meldiq Web's reactions dialog).
+    var reactorsFor by remember { mutableStateOf<Pair<String, String>?>(null) }
     // What the list shows, newest first.
     val timeline = messages
     val currentTimeline by androidx.compose.runtime.rememberUpdatedState(timeline)
@@ -775,6 +779,7 @@ fun ConversationScreen(nav: NavHostController, conversationId: String, threadRoo
                                 localFile = { vm.c.messages.localAttachment(it) },
                                 onLongPress = { if (m.kind != "call") actionFor = m },
                                 onReact = { vm.react(m, it) },
+                                onShowReactions = { e -> reactorsFor = m.id to e },
                                 onVote = { vm.vote(m, it) },
                                 onOpenAttachment = openAttachment,
                                 onOpenThread = { nav.navigate(Routes.conversation(conversationId, m.id)) },
@@ -1137,6 +1142,11 @@ fun ConversationScreen(nav: NavHostController, conversationId: String, threadRoo
             EmojiPanel(emojiPrefs, onPick = { e -> vm.react(m, e); reactFor = null }, modifier = Modifier.fillMaxWidth().height(if (own.isNotEmpty()) 360.dp else 440.dp))
         }
     }
+    reactorsFor?.let { (mid, emoji) ->
+        val target = messages.firstOrNull { it.id == mid }
+        if (target == null) reactorsFor = null
+        else ReactorsSheet(vm.c.messages.reactions(target), emoji, me, users, onDismiss = { reactorsFor = null }, onOpenProfile = { id -> reactorsFor = null; nav.navigate(Routes.user(id)) })
+    }
     if (newPostSheet) NewPostSheet(onDismiss = { newPostSheet = false }, forumTags = conv?.let { vm.c.conversations.forumTags(it) }.orEmpty(), guidelines = forumGuidelines[conversationId], onPost = { t, b, tags -> vm.sendForumPost(t, b, tags) })
     if (pollSheet) PollComposerSheet(onSend = { poll -> vm.sendRich(com.meldiq.android.data.model.RichContent(poll = poll)); pollSheet = false }, onDismiss = { pollSheet = false }, emojiPrefs = emojiPrefs)
     remindFor?.let { m ->
@@ -1267,21 +1277,42 @@ private fun DayDivider(t: Long) {
     }
 }
 
+/**
+ * Who's typing, Meldiq's way (as Meldiq Web): Meldling and "Meldling…" with an ellipsis that fades, once however many
+ * people type. Nothing moves, so the list never shifts; still under reduced motion. Screen readers get the real names.
+ */
 @Composable
 private fun TypingRow(names: List<String>) {
     val c = Griip.colors
+    val still = com.meldiq.android.ui.theme.rememberReducedMotion()
     val t = rememberInfiniteTransition(label = "typing")
-    val a by t.animateFloat(0.3f, 1f, infiniteRepeatable(tween(600), RepeatMode.Reverse), label = "dots")
-    Row(Modifier.padding(start = 20.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Row(Modifier.clip(Shapes.pill).background(c.surface).padding(horizontal = 10.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-            repeat(3) { i -> Box(Modifier.size(6.dp).clip(CircleShape).background(c.primary.copy(alpha = if (i == 1) a else 1.3f - a))) }
+    val phase by t.animateFloat(0f, 3f, infiniteRepeatable(tween(TYPING_CYCLE_MS, easing = androidx.compose.animation.core.LinearEasing)), label = "ellipsis")
+    val who = typingNames(names)
+    Row(
+        Modifier.padding(start = 20.dp, bottom = 4.dp).semantics(mergeDescendants = true) { contentDescription = who; liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        com.meldiq.android.ui.components.MeldlingGlyph(18.dp, c.primary)
+        Spacer(Modifier.width(6.dp))
+        Text(stringResource(R.string.wp_typing_meldling), style = Griip.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary, modifier = Modifier.clearAndSetSemantics {})
+        repeat(3) { i ->
+            // Each dot fades in turn; with reduced motion all three stay.
+            val alpha = if (still) 1f else (1f - kotlin.math.abs(phase - i - 0.5f)).coerceIn(0.25f, 1f)
+            Text(".", style = Griip.type.caption.copy(fontWeight = FontWeight.Bold), color = c.textSecondary.copy(alpha = alpha), modifier = Modifier.clearAndSetSemantics {})
         }
-        Spacer(Modifier.width(8.dp))
-        Text(
-            if (names.size == 1) "${names[0]} is typing" else "${names.size} people are typing",
-            style = Griip.type.caption, color = c.textSecondary,
-        )
     }
+}
+
+/** One full fade of the three dots. */
+private const val TYPING_CYCLE_MS = 1200
+
+/** "Ana is typing", "Ana and Bo are typing", "Ana, Bo and 3 others are typing" (as Meldiq Web's typingNames). */
+@Composable
+private fun typingNames(names: List<String>): String = when (names.size) {
+    0 -> ""
+    1 -> stringResource(R.string.wp_typing_one, names[0])
+    2 -> stringResource(R.string.wp_typing_two, names[0], names[1])
+    else -> stringResource(R.string.wp_typing_many, names[0], names[1], names.size - 2)
 }
 
 /** Past this many characters the composer's corners tighten, as it is about to wrap onto a second line. */

@@ -5,4 +5,22 @@
     <string name="wp_2fa_subtitle">Enter the 6-digit code from your authenticator app, or one of your backup codes.</string>
     <string name="wp_2fa_code">Code</string>
     <string name="wp_2fa_submit">Sign in</string>
+    <string name="wp_nav_messages">Messages</string>
+    <string name="wp_react_dialog_title">Reactions</string>
+    <string name="wp_react_by">Reacted by %1$s</string>
+    <string name="wp_react_and_more">and %1$d more</string>
+    <string name="wp_react_you">You</string>
+    <string name="wp_react_count">%1$d people</string>
+    <string name="wp_react_someone">Someone</string>
+    <string name="wp_typing_meldling">Meldling</string>
+    <string name="wp_typing_one">%1$s is typing</string>
+    <string name="wp_typing_two">%1$s and %2$s are typing</string>
+    <string name="wp_typing_many">%1$s, %2$s and %3$d others are typing</string>
+    <string name="wp_live_voice">Voice call</string>
+    <string name="wp_live_video">Video call</string>
+    <string name="wp_live_people">%1$s, %2$d in it</string>
+    <string name="wp_live_sharing">%1$s sharing their screen</string>
+    <string name="wp_live_sharing_short">Sharing</string>
+    <string name="wp_unread_mentions">%1$d mentions</string>
+    <string name="wp_unread_messages">%1$d unread</string>
 </resources>

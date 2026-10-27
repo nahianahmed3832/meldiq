@@ -87,7 +87,8 @@ fun LargeHeader(
     }
 }
 
-data class NavItem(val route: String, val label: String, val icon: ImageVector, val selectedIcon: ImageVector, val badge: Int = 0)
+/** [glyph]: a drawable drawn instead of [icon] (tinted the same way), e.g. Meldling on the Messages tab. */
+data class NavItem(val route: String, val label: String, val icon: ImageVector, val selectedIcon: ImageVector, val badge: Int = 0, val glyph: Int? = null)
 
 @Composable
 fun ConfirmDialog(

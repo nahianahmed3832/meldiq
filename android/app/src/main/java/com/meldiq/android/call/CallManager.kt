@@ -177,6 +177,9 @@ class CallManager(
 ) {
     private val _state = MutableStateFlow(CallUiState())
     val state: StateFlow<CallUiState> = _state
+    private val _live = MutableStateFlow<Map<String, LiveCall>>(emptyMap())
+    /** Live calls by conversation, from the server's call events: what rows show without joining (API 0.42.0). */
+    val live: StateFlow<Map<String, LiveCall>> = _live
     private val _ringChecks = MutableStateFlow(0)
     /** Ring-recovery checks finished (each drained backlog runs one): a push wake-up waits for its check. */
     val ringChecks: StateFlow<Int> = _ringChecks
@@ -280,9 +283,13 @@ class CallManager(
 
     private suspend fun syncActiveCall(call: CallDto, event: String) {
         when {
-            event == "ended" || call.state == "ENDED" -> db.conversations().clearActiveCall(call.conversationId, call.id)
+            event == "ended" || call.state == "ENDED" -> {
+                db.conversations().clearActiveCall(call.conversationId, call.id)
+                _live.update { all -> if (all[call.conversationId]?.callId == call.id) all - call.conversationId else all }
+            }
             event == "ring" || event == "started" || event == "updated" -> {
                 db.conversations().setActiveCall(call.conversationId, call.id, call.video)
+                _live.update { it + (call.conversationId to LiveCall.of(call)) }
                 if (call.voiceRoom) {
                     val people = call.participants.map { it.userId }.distinct()
                     db.conversations().setRoomPeople(call.conversationId, GriipJson.encodeToString(ListSerializer(String.serializer()), people))
@@ -1374,5 +1381,13 @@ class CallManager(
         private const val KEY_WAIT_STEP_MS = 50L
         private const val KEY_WAIT_STEPS = 200
         private const val FIRST_AUDIO_WATCH_MS = 5000L
+    }
+}
+
+/** A live call as rows show it: its kind, how many people are in it and who is sharing a screen. */
+data class LiveCall(val callId: String, val video: Boolean, val people: Int, val sharing: List<String>) {
+    companion object {
+        fun of(call: com.meldiq.android.data.api.CallDto) =
+            LiveCall(call.id, call.video, call.participants.map { it.userId }.distinct().size, call.sharing.distinct())
     }
 }
