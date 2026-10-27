@@ -60,6 +60,10 @@ export default async function preferenceRoutes(app: FastifyInstance, ctx: AppCon
         : stored?.community;
     const myOrgs = new Set((ctx.db.prepare("SELECT org_id FROM org_members WHERE user_id = ?").all(userId) as { org_id: string }[]).map((r) => r.org_id));
     const railOrder = personal ? (body.prefs.railOrder ?? stored?.railOrder)?.filter((id) => myOrgs.has(id)) : undefined;
+    // API 0.50.0: rail folders hold only communities the person is in; a folder left with none is dropped.
+    const railFolders = personal
+      ? (body.prefs.railFolders ?? stored?.railFolders)?.map((f) => ({ ...f, orgIds: f.orgIds.filter((id) => myOrgs.has(id)) })).filter((f) => f.orgIds.length > 0)
+      : undefined;
     // Batch B3: timed mutes (any document), and a community's category levels and hidden channels (its document only):
     // only its own categories, and only its channels the person can see (joined or not).
     const mutedUntil = body.prefs.mutedUntil ?? stored?.mutedUntil;
@@ -85,7 +89,7 @@ export default async function preferenceRoutes(app: FastifyInstance, ctx: AppCon
       const cat = channelCategory.get(id);
       return (cat && categoryNotify?.[cat]) || communityLevel;
     };
-    const prefs = normalizePrefs({ ...body.prefs, saved, community, railOrder, mutedUntil, categoryNotify, hidden }, (id) => mine.has(id), parentLevel);
+    const prefs = normalizePrefs({ ...body.prefs, saved, community, railOrder, railFolders, mutedUntil, categoryNotify, hidden }, (id) => mine.has(id), parentLevel);
     const result = await ctx.prefs.put(userId, workspaceId, prefs, body.baseRev, now());
     if (!result.ok) {
       throw new ApiError(409, "stale_preferences", "These preferences changed on another device. Apply your change to this copy and try again.", {

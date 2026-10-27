@@ -19,6 +19,7 @@ export const PREFS_LIMITS = {
   notify: 1000,
   saved: 500,
   railOrder: 200,
+  railFolders: 50,
   mutedUntil: 1000,
   categories: 200,
   hidden: 500,
@@ -74,6 +75,22 @@ const prefsFields = {
   community: CommunityNotify.optional(),
   /** Personal document only: the person's communities in rail order. Left out, the stored order is kept. */
   railOrder: z.array(zOrgId).max(PREFS_LIMITS.railOrder).optional(),
+  /** Personal document only (API 0.50.0): folders of communities on the rail. Left out, the stored ones are kept. */
+  railFolders: z
+    .array(
+      z.strictObject({
+        id: z.string().regex(/^f_[A-Za-z0-9_-]{4,40}$/),
+        name: z.string().trim().max(40).default(""),
+        color: z
+          .string()
+          .regex(/^#[0-9a-fA-F]{6}$/)
+          .nullable()
+          .default(null),
+        orgIds: z.array(zOrgId).min(1).max(PREFS_LIMITS.railOrder),
+      }),
+    )
+    .max(PREFS_LIMITS.railFolders)
+    .optional(),
   /** Mutes that end by themselves: conversation id → epoch ms. Left out, the stored ones are kept. */
   mutedUntil: z
     .record(zConversationId, z.number().int().min(0))

@@ -89,6 +89,33 @@ describe("rail order", () => {
   });
 });
 
+describe("rail folders (API 0.50.0)", () => {
+  it("are advertised", async () => {
+    expect((await alice.req("GET", "/v1/server-info")).features).toContain("rail-folders");
+  });
+
+  it("keeps folders of the person's own communities, each community once, and keeps them when an app leaves them out", async () => {
+    const p = await prefsOf(alice, "personal");
+    const r = await put(alice, "personal", p.rev, {
+      railFolders: [
+        { id: "f_games1", name: "Games", color: "#22D3EE", orgIds: [orgA, orgC, orgB] },
+        { id: "f_dupes1", name: "Again", orgIds: [orgA] },
+        { id: "f_empty1", name: "Not mine", orgIds: [orgC] },
+      ],
+    });
+    expect(r.prefs.railFolders).toEqual([{ id: "f_games1", name: "Games", color: "#22d3ee", orgIds: [orgA, orgB] }]);
+    expect((await put(alice, "personal", r.rev, { starred: [] })).prefs.railFolders).toEqual(r.prefs.railFolders);
+  });
+
+  it("isn't kept in a community's document, and refuses malformed folders", async () => {
+    const cur = await prefsOf(alice, orgA);
+    expect((await put(alice, orgA, cur.rev, { railFolders: [{ id: "f_games1", orgIds: [orgA] }] })).prefs.railFolders).toBeUndefined();
+    const p = await prefsOf(alice, "personal");
+    await expectStatus(put(alice, "personal", p.rev, { railFolders: [{ id: "bad", orgIds: [orgA] }] }), 400);
+    await expectStatus(put(alice, "personal", p.rev, { railFolders: [{ id: "f_games2", orgIds: [] }] }), 400);
+  });
+});
+
 describe("community templates", () => {
   it("lists the templates", async () => {
     const t = await alice.req("GET", "/v1/community-templates");
