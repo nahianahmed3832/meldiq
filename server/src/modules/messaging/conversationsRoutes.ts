@@ -57,7 +57,11 @@ export function conversationView(ctx: AppContext, c: ConversationRow, userId: st
       : undefined;
   // Older apps group channels by scope: a channel in a category is shown to them as a team named after the category,
   // so they list categories too. Newer apps read categoryId and position (docs/COMMUNITY_REBUILD_2026-10-21.md §7).
-  const category = c.category_id ? (db.prepare("SELECT id, name FROM channel_categories WHERE id = ?").get(c.category_id) as { id: string; name: string } | undefined) : undefined;
+  // categoryPosition (API 0.48.0): the category's place too, so an app orders categories right before it has loaded the
+  // community's category list (no alphabetical first paint that then jumps, brief v4 §15).
+  const category = c.category_id
+    ? (db.prepare("SELECT id, name, position FROM channel_categories WHERE id = ?").get(c.category_id) as { id: string; name: string; position: number } | undefined)
+    : undefined;
   const orgName = c.org_id ? ((db.prepare("SELECT name FROM orgs WHERE id = ?").get(c.org_id) as { name: string } | undefined)?.name ?? null) : null;
   const channel = c.type === "CHANNEL";
   return {
@@ -69,6 +73,7 @@ export function conversationView(ctx: AppContext, c: ConversationRow, userId: st
     scopeName: channel ? (category?.name ?? orgName) : null,
     categoryId: category?.id ?? null,
     categoryName: category?.name ?? null,
+    categoryPosition: category ? (category.position ?? 0) : null,
     position: c.position ?? 0,
     format: c.format ?? "text",
     forumTags: c.format === "forum" ? forumTags(c) : [],

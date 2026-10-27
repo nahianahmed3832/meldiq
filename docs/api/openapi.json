@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Meldiq API",
-    "version": "0.47.0",
+    "version": "0.48.0",
     "description": "The canonical contract of the Meldiq server (docs/architecture/ARCHITECTURE_1_0_PLAN.md §4), generated from src/shared/contracts. Fields are only ever added within a version; clients ignore unknown fields. Routes not listed here exist but aren't documented yet."
   },
   "servers": [
@@ -21237,6 +21237,18 @@
                             }
                           ]
                         },
+                        "categoryPosition": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "position": {
                           "type": "integer",
                           "minimum": -9007199254740991,
@@ -22050,6 +22062,18 @@
                             "anyOf": [
                               {
                                 "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "categoryPosition": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
                               },
                               {
                                 "type": "null"
@@ -32831,6 +32855,18 @@
                               }
                             ]
                           },
+                          "categoryPosition": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
                           "position": {
                             "type": "integer",
                             "minimum": -9007199254740991,
@@ -33628,6 +33664,18 @@
                             }
                           ]
                         },
+                        "categoryPosition": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "position": {
                           "type": "integer",
                           "minimum": -9007199254740991,
@@ -34359,6 +34407,18 @@
                           "anyOf": [
                             {
                               "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "categoryPosition": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
                             },
                             {
                               "type": "null"
@@ -35726,6 +35786,18 @@
                             }
                           ]
                         },
+                        "categoryPosition": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "position": {
                           "type": "integer",
                           "minimum": -9007199254740991,
@@ -36643,6 +36715,18 @@
                             }
                           ]
                         },
+                        "categoryPosition": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "position": {
                           "type": "integer",
                           "minimum": -9007199254740991,
@@ -37363,6 +37447,18 @@
                           "anyOf": [
                             {
                               "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "categoryPosition": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
                             },
                             {
                               "type": "null"
@@ -38370,6 +38466,18 @@
                                       }
                                     ]
                                   },
+                                  "categoryPosition": {
+                                    "anyOf": [
+                                      {
+                                        "type": "integer",
+                                        "minimum": -9007199254740991,
+                                        "maximum": 9007199254740991
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
                                   "position": {
                                     "type": "integer",
                                     "minimum": -9007199254740991,
@@ -39094,6 +39202,18 @@
                                     "anyOf": [
                                       {
                                         "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "categoryPosition": {
+                                    "anyOf": [
+                                      {
+                                        "type": "integer",
+                                        "minimum": -9007199254740991,
+                                        "maximum": 9007199254740991
                                       },
                                       {
                                         "type": "null"

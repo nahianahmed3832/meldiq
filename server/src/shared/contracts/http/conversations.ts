@@ -72,6 +72,8 @@ export const ConversationView = z.strictObject({
   scopeName: z.string().nullable(),
   categoryId: z.string().nullable(),
   categoryName: z.string().nullable(),
+  /** The category's place among the community's categories (API 0.48.0); null outside a category. */
+  categoryPosition: z.number().int().nullable().optional(),
   position: z.number().int(),
   format: z.enum(["text", "forum"]),
   forumTags: z.array(ForumTag),
