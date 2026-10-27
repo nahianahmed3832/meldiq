@@ -218,6 +218,16 @@ describe("previewing and importing", () => {
     expect(await status(other.req("POST", "/v1/discord/imports", { connectionId, destination: { name: "Mine" }, options: ALL }))).toMatchObject({ status: 404 });
   });
 
+  it("re-checks the person's role in the destination before a retry", async () => {
+    const theirs = (await other.req("POST", "/v1/orgs", { name: "Shared Space" })).org.id;
+    const code = (await other.req("POST", `/v1/orgs/${theirs}/invites`, { role: "ADMIN" })).invite.code;
+    await owner.req("POST", "/v1/invites/accept", { code });
+    const r = await owner.req("POST", "/v1/discord/imports", { connectionId, destination: { orgId: theirs }, options: { icon: false, roles: false, rolePermissions: false, channels: true, emojis: false } });
+    await finished(owner, r.import.id);
+    await other.req("PATCH", `/v1/orgs/${theirs}/members/${owner.userId}`, { role: "MEMBER" });
+    expect(await status(owner.req("POST", `/v1/discord/imports/${r.import.id}/retry`))).toMatchObject({ status: 403 });
+  });
+
   it("disconnects, and the bot leaves only when asked", async () => {
     const r = await owner.req("DELETE", `/v1/discord/connections/${connectionId}?leave=true`);
     expect(r).toEqual({ ok: true, botLeft: true });

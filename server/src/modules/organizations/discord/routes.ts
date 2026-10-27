@@ -189,7 +189,7 @@ export default async function discordRoutes(app: FastifyInstance, ctx: AppContex
     return { guild: { id: guild.id, name: guild.name, description: guild.description }, items, excluded: EXCLUDED };
   });
 
-  app.post("/v1/discord/imports", limited(5), async (req, reply) => {
+  app.post("/v1/discord/imports", limited(10), async (req, reply) => {
     const c = requireClient();
     const userId = me(req).userId;
     const body = parse(DiscordImportBody, req.body);
@@ -220,7 +220,8 @@ export default async function discordRoutes(app: FastifyInstance, ctx: AppContex
     const c = requireClient();
     const imp = importOf(parse(DiscordIdParams, req.params).id, me(req).userId);
     if (isRunning(imp.id)) throw conflict("This import is still running");
-    if (imp.org_id && !ctx.authz.orgRole(imp.org_id, imp.user_id)) throw conflict("You're no longer in the community this import went to");
+    // The same checks as at the start: their role there may have changed since (or they may have left).
+    if (imp.org_id) checkDestination(ctx, imp.user_id, { orgId: imp.org_id }, JSON.parse(imp.options) as ImportOptions);
     db.prepare("UPDATE discord_imports SET status = 'running', error = NULL, finished_at = NULL, updated_at = ? WHERE id = ?").run(now(), imp.id);
     void runImport(ctx, c, imp.id);
     reply.code(202);
