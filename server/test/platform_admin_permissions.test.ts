@@ -26,8 +26,6 @@ const EXPECTED: Record<string, string[]> = {
     "resources.view",
     "quotas.view",
     "quotas.edit",
-    "ai.view",
-    "ai.manage",
     "settings.view",
     "alerts.manage",
     "exports.create",
@@ -52,7 +50,7 @@ const EXPECTED: Record<string, string[]> = {
     "users.recovery",
     "quotas.view",
   ],
-  billing_admin: ["overview.view", "orgs.view", "entitlements.view", "entitlements.edit", "analytics.view", "resources.view", "quotas.view", "quotas.edit", "ai.view", "settings.view"],
+  billing_admin: ["overview.view", "orgs.view", "entitlements.view", "entitlements.edit", "analytics.view", "resources.view", "quotas.view", "quotas.edit", "settings.view"],
   auditor: [
     "overview.view",
     "users.view",
@@ -68,7 +66,6 @@ const EXPECTED: Record<string, string[]> = {
     "devices.view",
     "resources.view",
     "quotas.view",
-    "ai.view",
     "settings.view",
     "exports.create",
   ],
@@ -93,7 +90,7 @@ describe("platform roles", () => {
   });
 
   it("keep credentials, deletion, settings and membership changes to super admins", () => {
-    for (const p of ["ai.credentials", "users.delete", "settings.edit", "orgs.members.manage", "admins.manage"] as const) {
+    for (const p of ["users.delete", "settings.edit", "orgs.members.manage", "admins.manage"] as const) {
       for (const role of PLATFORM_ROLES) expect(can(role, p), `${role} ${p}`).toBe(role === "super_admin");
     }
   });

@@ -48,8 +48,6 @@ export interface CleanupResult {
   reminders: number;
   /** Guests whose membership end date passed, taken out of the workspace (round 7, docs/WORKSPACE_C5.md). */
   guestsExpired: number;
-  /** AI Workforce: finished jobs, their files and channel posts past their 30 days (docs/AI_WORKFORCE.md). */
-  aiWorkforce: number;
 }
 
 /**
@@ -115,16 +113,7 @@ export async function runCleanup(ctx: AppContext): Promise<CleanupResult> {
     quotaReservations: ctx.quotas ? ctx.quotas.expireReservations() : 0,
     reportsPurged: 0,
     guestsExpired: 0,
-    aiWorkforce: 0,
   };
-  if (ctx.workforce) {
-    try {
-      const w = await ctx.workforce.cleanup();
-      r.aiWorkforce = w.jobs + w.files + w.posts;
-    } catch (e) {
-      ctx.log.error({ errorType: (e as Error).name }, "AI Workforce cleanup failed");
-    }
-  }
   // Usage gauges (seats, stored bytes, call minutes), at most every ten minutes (docs/USAGE_AND_PLANS.md).
   try {
     await ctx.usage?.snapshot();

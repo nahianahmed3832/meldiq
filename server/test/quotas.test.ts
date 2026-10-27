@@ -119,7 +119,7 @@ describe("accounting", () => {
     expect(db.prepare("SELECT period_start, used FROM quota_counters ORDER BY period_start").all()).toEqual([{ period_start: "2026-10", used: 90 }]);
   });
 
-  it("observes without refusing, warns at the level, allows the grace in soft mode, and throttles until the reset", () => {
+  it("observes without refusing, warns at the level, and allows the grace in soft mode", () => {
     const t = { now: Date.parse("2026-10-24T10:00:00Z") };
     const { db, q } = engineAt(t);
     q.setPolicy(policy("user", "u1", 100, "observe"), "admin");
@@ -127,12 +127,9 @@ describe("accounting", () => {
     q.setPolicy(policy("user", "u1", 100, "soft", { gracePct: 20 }), "admin");
     expect(q.check("files.upload_bytes", [ME], 115).scopes[0]!.outcome).toBe("soft_over");
     expect(q.check("files.upload_bytes", [ME], 125).allowed).toBe(false);
-    q.setPolicy({ scopeType: "user", scopeId: "u1", key: "ai.requests", limit: 2, mode: "throttle", reason: "test policy" }, "admin");
-    q.charge("ai.requests", [ME], 2);
-    const throttled = q.check("ai.requests", [ME], 1);
-    expect(throttled).toMatchObject({ allowed: false, retryAt: Date.parse("2026-10-25T00:00:00Z") });
+    // No metered key is throttled since AI was removed (API 0.47.0): throttling is refused as a mode for these keys.
     const outcomes = (db.prepare("SELECT DISTINCT outcome FROM quota_events").all() as { outcome: string }[]).map((r) => r.outcome).sort();
-    expect(outcomes).toEqual(["blocked", "observed_over", "soft_over", "throttled", "warned"]);
+    expect(outcomes).toEqual(["blocked", "observed_over", "soft_over"]);
   });
 
   it("keeps policy history: a change supersedes, a removal ends, nothing is deleted", () => {

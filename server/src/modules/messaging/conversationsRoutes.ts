@@ -43,7 +43,7 @@ export function conversationView(ctx: AppContext, c: ConversationRow, userId: st
   if (c.type !== "CHANNEL" || memberCount <= 12) {
     members = (
       db
-        .prepare("SELECT u.*, m.role AS conv_role FROM conversation_members m JOIN users u ON u.id = m.user_id WHERE m.conversation_id = ? ORDER BY m.joined_at LIMIT 12")
+        .prepare("SELECT u.*, m.role AS conv_role FROM conversation_members m JOIN users u ON u.id = m.user_id WHERE m.conversation_id = ? AND u.kind = 'person' ORDER BY m.joined_at LIMIT 12")
         .all(c.id) as any[]
     ).map((u) => memberView(ctx, userId, u, { ...userSummary(u), role: u.conv_role }));
   }
@@ -230,7 +230,7 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     const c = authz.conversation(id);
     if (!c || !(c.type === "CHANNEL" ? authz.canViewChannel(c, userId) : authz.isMember(c.id, userId))) throw notFound("Conversation not found");
     const rows = db
-      .prepare("SELECT u.*, m.role AS conv_role, m.joined_at FROM conversation_members m JOIN users u ON u.id = m.user_id WHERE m.conversation_id = ? ORDER BY m.role, u.display_name")
+      .prepare("SELECT u.*, m.role AS conv_role, m.joined_at FROM conversation_members m JOIN users u ON u.id = m.user_id WHERE m.conversation_id = ? AND u.kind = 'person' ORDER BY m.role, u.display_name")
       .all(id) as any[];
     return {
       members: rows.map((u) =>
@@ -249,14 +249,12 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     const { userId } = me(req);
     const { id } = parse(idParams, req.params);
     authz.requireMember(id, userId);
-    const ids = (db.prepare("SELECT user_id FROM conversation_members WHERE conversation_id = ?").all(id) as { user_id: string }[]).map((r) => r.user_id);
+    // People only: agents left over from AI Workforce (removed in API 0.47.0) are never recipients.
+    const ids = (
+      db.prepare("SELECT m.user_id FROM conversation_members m JOIN users u ON u.id = m.user_id WHERE m.conversation_id = ? AND u.kind = 'person'").all(id) as { user_id: string }[]
+    ).map((r) => r.user_id);
     await ctx.federation?.refreshStale(ids); // remote members' keys come from their home server, refreshed when stale
-    // AI agents: members' entries without their devices (a direct conversation's agent is a member, not a recipient
-    // anyone must include), and, for clients that show the notice and honour each member's choice, each reader with only
-    // its device here (docs/AI_WORKFORCE_2_PLAN.md phase 5). Other clients never see a reader, so never share with it.
-    const people = deviceDirectory(ctx, ids).map((u) => (ctx.workforce.readers.isAgent(u.userId) ? { ...u, devices: [], revokedDevices: [] } : u));
-    const readers = req.headers["x-meldiq-ai-reader"] === "1" ? ctx.workforce.readers.directory(id) : [];
-    return { users: [...people.filter((u) => !readers.some((r) => r.userId === u.userId)), ...readers] };
+    return { users: deviceDirectory(ctx, ids) };
   });
 
   app.post("/v1/conversations/dm", auth, async (req) => {

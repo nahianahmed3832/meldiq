@@ -46,15 +46,11 @@ export const PERMISSION_KEYS = [
   // Security and administration
   "audit.view",
   "reports.view",
-  // AI Workforce (docs/AI_WORKFORCE.md).
-  "ai.use",
-  "ai.manage",
-  "ai.approve",
 ] as const;
 
 export type Permission = (typeof PERMISSION_KEYS)[number];
 
-export type PermissionCategory = "workspace" | "members" | "roles" | "channels" | "messaging" | "voice" | "security" | "ai";
+export type PermissionCategory = "workspace" | "members" | "roles" | "channels" | "messaging" | "voice" | "security";
 
 export interface PermissionDef {
   key: Permission;
@@ -107,9 +103,6 @@ const DEFS: Record<Permission, Def> = {
   "voice.speak": { category: "voice", label: "Speak in voice channels", description: "Talk, share video and share the screen in voice channels. Without it, people listen only.", restrictable: true, guestAllowed: true },
   "audit.view": { category: "security", label: "View the audit log", description: "See every administrative change in the community.", admin: true },
   "reports.view": { category: "security", label: "Handle reports", description: "See what members reported to the moderators, and close reports.", admin: true },
-  "ai.use": { category: "ai", label: "Ask AI agents", description: "Ask the community's AI agents for work in the channels they're assigned to. What you send them isn't end-to-end encrypted.", restrictable: true },
-  "ai.manage": { category: "ai", label: "Manage AI agents", description: "Install, rename and configure AI agents, choose their tools and channels, and remove them.", admin: true },
-  "ai.approve": { category: "ai", label: "Approve AI agent actions", description: "Approve or reject what an AI agent asks permission for, such as a final video export.", admin: true },
 };
 
 export const PERMISSIONS: readonly PermissionDef[] = PERMISSION_KEYS.map((key) => {
@@ -139,7 +132,7 @@ export function isPermission(key: string): key is Permission {
 }
 
 /** What the protected base roles hold. Owners hold everything; admins everything but owner-only powers and delegation. */
-const MEMBER_BASE: readonly Permission[] = ["members.view", "roles.view", "channels.view", "messages.post", "messages.attach", "voice.connect", "voice.speak", "ai.use"];
+const MEMBER_BASE: readonly Permission[] = ["members.view", "roles.view", "channels.view", "messages.post", "messages.attach", "voice.connect", "voice.speak"];
 const GUEST_BASE: readonly Permission[] = ["messages.post", "messages.attach", "voice.connect", "voice.speak"];
 
 export const BASE_ROLE_PERMISSIONS: Readonly<Record<OrgRole, ReadonlySet<Permission>>> = {

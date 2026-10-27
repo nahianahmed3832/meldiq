@@ -27,7 +27,7 @@ export function csvCell(v: unknown): string {
 
 export const toCsv = (header: string[], rows: unknown[][]) => [header, ...rows].map((r) => r.map(csvCell).join(",")).join("\r\n") + "\r\n";
 
-type ExportKind = "users" | "organizations" | "devices" | "audit" | "incidents" | "quota-events" | "ai-usage" | "active-users";
+type ExportKind = "users" | "organizations" | "devices" | "audit" | "incidents" | "quota-events" | "active-users";
 
 const NEEDS: Record<ExportKind, Permission> = {
   users: "users.view",
@@ -36,7 +36,6 @@ const NEEDS: Record<ExportKind, Permission> = {
   audit: "audit.view",
   incidents: "incidents.view",
   "quota-events": "quotas.view",
-  "ai-usage": "ai.view",
   "active-users": "analytics.view",
 };
 
@@ -135,13 +134,6 @@ export class AdminSearchExport {
       case "quota-events": {
         header = ["id", "at", "quota", "scope_type", "scope_id", "outcome", "amount", "used", "limit", "detail"];
         rows = quotaAdmin.eventsPage(db, { from: fromMs, to: toMs, limit: EXPORT_MAX_ROWS }).map((e) => [e.id, e.at, e.quota_key, e.scope_type, e.scope_id, e.outcome, e.amount, e.used, e.limit_value ?? "", e.detail ?? ""]);
-        break;
-      }
-      case "ai-usage": {
-        header = ["day", "provider_id", "model", "requests", "tokens", "estimated_cost_micro_usd", "failed"];
-        const u = this.ctx.ai.usage(fromMs) as { byDay: Record<string, unknown>[]; byModel: Record<string, unknown>[] };
-        rows = u.byModel.map((m) => ["", m.providerId, m.model, m.requests, Number(m.inputTokens ?? 0) + Number(m.outputTokens ?? 0), m.costMicro, ""]);
-        rows.push(...u.byDay.map((d) => [d.day, "", "", d.requests, d.tokens, d.costMicro, d.failed]));
         break;
       }
       case "active-users": {

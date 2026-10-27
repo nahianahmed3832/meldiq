@@ -43,12 +43,9 @@ export const PERMISSION_KEYS = [
   "voice.speak",
   "audit.view",
   "reports.view",
-  "ai.use",
-  "ai.manage",
-  "ai.approve",
 ] as const;
 export type PermissionKey = (typeof PERMISSION_KEYS)[number];
-export const PERMISSION_CATEGORIES = ["workspace", "members", "roles", "channels", "messaging", "voice", "security", "ai"] as const;
+export const PERMISSION_CATEGORIES = ["workspace", "members", "roles", "channels", "messaging", "voice", "security"] as const;
 /** Icons a custom role may show (names the app maps to its own icon set). */
 export const ROLE_ICON_NAMES = ["shield", "star", "people", "briefcase", "support", "code", "finance", "eye", "megaphone", "badge"] as const;
 

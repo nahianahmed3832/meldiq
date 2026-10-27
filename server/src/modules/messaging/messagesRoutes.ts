@@ -109,8 +109,7 @@ export default async function messageRoutes(app: FastifyInstance, ctx: AppContex
       )
       .all(conv.id, deviceId)
       .filter((d) => !selfOnly || (d as { user_id: string }).user_id === userId) as { id: string; user_id: string; home_server_id: string | null }[];
-    const readers = selfOnly ? [] : ctx.workforce.readers.optionalDevices(conv.id).map((r) => ({ id: r.deviceId, user_id: r.userId, home_server_id: null }));
-    const expectedIds = new Map([...expected, ...readers].map((d) => [d.id, d.user_id]));
+    const expectedIds = new Map(expected.map((d) => [d.id, d.user_id]));
     const provided = new Set(e.recipients.map((r) => r.deviceId));
     const missing = expected.filter((d) => !provided.has(d.id)).map((d) => ({ deviceId: d.id, userId: d.user_id }));
     const extra = [...provided].filter((id) => !expectedIds.has(id));
@@ -121,8 +120,8 @@ export default async function messageRoutes(app: FastifyInstance, ctx: AppContex
     const t = now();
     const expiresAt = t + ctx.config.queueTtlSeconds * 1000;
     // Devices of people on other servers go to the federation outbox (same ciphertext, same per-device key wrap).
-    const homeOf = new Map([...expected, ...readers].map((d) => [d.id, d.home_server_id]));
-    const ownerOf = new Map([...expected, ...readers].map((d) => [d.id, d.user_id]));
+    const homeOf = new Map(expected.map((d) => [d.id, d.home_server_id]));
+    const ownerOf = new Map(expected.map((d) => [d.id, d.user_id]));
     if ([...homeOf.values()].some((h) => h) && !ctx.federation) throw new ApiError(503, "federation_disabled", "This server no longer federates");
     // People who blocked the sender don't get the message (the sender isn't told).
     const blockedBy = new Set(

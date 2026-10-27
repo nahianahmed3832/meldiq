@@ -1,6 +1,0 @@
-{
-  "error": {
-    "code": "agent_not_assigned",
-    "message": "That isn't an open channel of this community."
-  }
-}

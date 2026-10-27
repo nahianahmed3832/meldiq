@@ -5,7 +5,6 @@ import { openMongo } from "../../infrastructure/database/mongo/index.js";
 import { Accounts } from "../accounts/index.js";
 import { PlatformAudit } from "./audit.js";
 import { CLI_ACTOR, grantAdmin, resetAdminPasskeys, revokeAdmin } from "./bootstrap.js";
-import { jobStateCounts } from "../workforce/index.js";
 import { platformSetting, writeSetting } from "./settings.js";
 import { PlatformAdminStore } from "./store.js";
 
@@ -19,10 +18,6 @@ import { PlatformAdminStore } from "./store.js";
  *   platform-admin-revoke <email> [reason]           revoke a grant and end its console sessions
  *   platform-admin-reset-passkeys <email> [reason]   lost device: remove console passkeys, print a new enrolment code
  *   platform-audit-verify                            check the platform audit's hash chain end to end
- *   ai-workforce-status                              AI Workforce's switches and its jobs by state (no content)
- *   ai-workforce-pause <reason>                      emergency stop for new AI jobs (running steps finish), audited;
- *                                                     the running server reads it on its next tick, console or not
- *   ai-workforce-resume <reason>                     lift the pause, audited
  */
 export const PLATFORM_ADMIN_COMMANDS = [
   "platform-admin-grant",
@@ -30,49 +25,13 @@ export const PLATFORM_ADMIN_COMMANDS = [
   "platform-admin-revoke",
   "platform-admin-reset-passkeys",
   "platform-audit-verify",
-  "ai-workforce-status",
-  "ai-workforce-pause",
-  "ai-workforce-resume",
 ];
 
 const USAGE: Record<string, string> = {
   "platform-admin-grant": "usage: platform-admin-grant <email> <super_admin|operations_admin|support_admin|billing_admin|auditor> [note]",
   "platform-admin-revoke": "usage: platform-admin-revoke <email> [reason]",
   "platform-admin-reset-passkeys": "usage: platform-admin-reset-passkeys <email> [reason]",
-  "ai-workforce-pause": "usage: ai-workforce-pause <reason>",
-  "ai-workforce-resume": "usage: ai-workforce-resume <reason>",
 };
-
-/** AI Workforce from the command line: the emergency pause works even when the console can't be reached. */
-function aiWorkforceCommand(cmd: string, args: string[], db: DB, audit: PlatformAudit): number {
-  if (cmd === "ai-workforce-status") {
-    const keys = ["ai.enabled", "ai.workforce.enabled", "ai.workforce.paused", "ai.workforce.max_concurrency", "ai.workforce.approval_floor"] as const;
-    console.log(JSON.stringify(Object.fromEntries(keys.map((k) => [k, platformSetting(db, k)])), null, 2));
-    console.table(jobStateCounts(db));
-    return 0;
-  }
-  const reason = args.join(" ").trim();
-  if (reason.length < 8) {
-    console.error(USAGE[cmd]);
-    return 2;
-  }
-  const paused = cmd === "ai-workforce-pause";
-  const r = writeSetting(db, "ai.workforce.paused", paused, "cli", Date.now());
-  audit.record({
-    action: "ai.workforce_controls",
-    outcome: "success",
-    actorAccountId: CLI_ACTOR.accountId,
-    actorRole: CLI_ACTOR.role,
-    requestId: CLI_ACTOR.requestId,
-    network: CLI_ACTOR.network,
-    targetType: "ai_workforce",
-    targetId: "platform",
-    reason,
-    detail: { "ai.workforce.paused": `${JSON.stringify(r.before)} -> ${paused}`, via: "cli" },
-  });
-  console.log(paused ? "New AI Workforce jobs are paused. Running steps finish; queued jobs wait." : "AI Workforce jobs are accepted again.");
-  return 0;
-}
 
 async function accountsFor(cfg: Config, db: DB): Promise<{ accounts: Accounts; close: () => Promise<void> }> {
   const ctx = { db, config: cfg, log: console } as unknown as AppContext;
@@ -92,7 +51,6 @@ function printEnrolment(code: string | null, email: string): void {
 export async function runPlatformAdminCommand(cmd: string, args: string[], cfg: Config, db: DB): Promise<number> {
   const store = new PlatformAdminStore(db);
   const audit = new PlatformAudit(db);
-  if (cmd.startsWith("ai-workforce-")) return aiWorkforceCommand(cmd, args, db, audit);
   if (cmd === "platform-audit-verify") {
     const r = audit.verify();
     console.log(JSON.stringify(r, null, 2));

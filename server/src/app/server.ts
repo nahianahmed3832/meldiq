@@ -52,8 +52,6 @@ import opsRoutes from "../modules/administration/ops/routes.js";
 import { platformSetting, registerPlatformAdmin } from "../modules/platformAdmin/index.js";
 import { Telemetry } from "../modules/telemetry/index.js";
 import { QuotaEngine, scopesFor } from "../modules/quotas/index.js";
-import { AiService, SecretBox } from "../modules/ai/index.js";
-import { WorkforceModule, workforceRoutes } from "../modules/workforce/index.js";
 import searchRoutes from "../modules/messaging/search/routes.js";
 import experimentRoutes from "../modules/administration/experiments/routes.js";
 import { UsageMeter } from "../modules/administration/usage/meter.js";
@@ -77,7 +75,7 @@ import { ApiError } from "../shared/errors.js";
 import { now } from "../shared/utilities/util.js";
 import wsRoutes from "../modules/realtime/ws.js";
 
-export const VERSION = "0.46.0";
+export const VERSION = "0.47.0";
 /**
  * The client API this server speaks and the oldest client API it accepts. Clients refuse a server whose
  * minClientApi is newer than theirs; servers from before these fields existed count as API 1.
@@ -179,18 +177,7 @@ export async function buildApp(
   ctx.entitlements = new Entitlements(config.entitlements, db);
   ctx.usage = new UsageMeter(db, ctx.files);
   ctx.quotas = new QuotaEngine(db);
-  // Off until an operator turns it on in the console (the AI kill switch, a platform setting).
-  ctx.ai = new AiService(db, ctx.quotas, new SecretBox(config.platformSecretsKey), { enabled: () => platformSetting(db, "ai.enabled") });
-  // AI Workforce (docs/AI_WORKFORCE.md): off until an operator turns it on; its controls are platform settings read live.
-  ctx.workforce = new WorkforceModule(ctx, {
-    enabled: () => platformSetting(db, "ai.workforce.enabled"),
-    paused: () => platformSetting(db, "ai.workforce.paused"),
-    maxConcurrency: () => platformSetting(db, "ai.workforce.max_concurrency"),
-    approvalFloor: () => platformSetting(db, "ai.workforce.approval_floor"),
-    channelReading: () => platformSetting(db, "ai.workforce.channel_reading"),
-  });
-  ctx.workforce.runtime.start(config.aiWorkforceTickMs);
-  app.addHook("onClose", async () => ctx.workforce.runtime.stop());
+  // AI and AI Workforce were removed in API 0.47.0 (docs/AI_REMOVAL.md): their tables stay, unread.
   // Activity, traffic, concurrency and resources (docs/ANALYTICS_DEFINITIONS.md): written once a minute.
   ctx.telemetry = new Telemetry(ctx);
   ctx.telemetry.recordVersion(VERSION);
@@ -359,7 +346,6 @@ export async function buildApp(
   await app.register(async (scope) => communityRoutes(scope, ctx));
   await app.register(async (scope) => experimentRoutes(scope, ctx));
   await app.register(async (scope) => accountRoutes(scope, ctx, ctx.accounts));
-  await app.register(async (scope) => workforceRoutes(scope, ctx, ctx.workforce));
   // The Platform Admin Console's /admin/v1 (only with ADMIN_CONSOLE_ORIGIN set; its own sessions, roles and audit).
   await registerPlatformAdmin(app, ctx, VERSION);
   const fed = ctx.federation;
@@ -436,9 +422,6 @@ export function serverFeatures(config: Config, directUploads = false): string[] 
     "presence-modes",
     // Batch B8: a forum's post guidelines (polls' end times and answer emoji live inside the encrypted message).
     "forum-guidelines",
-    // AI Workforce 1.0 (docs/AI_WORKFORCE.md): installed agents, channel assignments, jobs and deliverables. Advertised
-    // always; GET /v1/orgs/:id/ai says whether the platform has it switched on.
-    "ai-workforce",
     // Batch B8b: repeating events, onboarding questions, the community guide.
     "event-repeat",
     "onboarding",
