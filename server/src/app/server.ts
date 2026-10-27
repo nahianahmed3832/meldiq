@@ -71,12 +71,13 @@ import pushRoutes from "../modules/notifications/routes.js";
 import userRoutes from "../modules/accounts/usersRoutes.js";
 import profileMediaRoutes from "../modules/accounts/profileMediaRoutes.js";
 import gifRoutes from "../modules/messaging/gifsRoutes.js";
+import bugReportRoutes from "../modules/accounts/bugReports.js";
 import { Metrics } from "../modules/administration/ops/metrics.js";
 import { ApiError } from "../shared/errors.js";
 import { now } from "../shared/utilities/util.js";
 import wsRoutes from "../modules/realtime/ws.js";
 
-export const VERSION = "0.45.0";
+export const VERSION = "0.46.0";
 /**
  * The client API this server speaks and the oldest client API it accepts. Clients refuse a server whose
  * minClientApi is newer than theirs; servers from before these fields existed count as API 1.
@@ -349,7 +350,7 @@ export async function buildApp(
     passkeys: ctx.accounts.passkeys.available ? { webOrigins: ctx.accounts.passkeys.webOrigins } : null,
   }));
 
-  for (const r of [authRoutes, userRoutes, profileMediaRoutes, gifRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, expressionRoutes, discordRoutes, wsRoutes]) {
+  for (const r of [authRoutes, userRoutes, profileMediaRoutes, gifRoutes, bugReportRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, expressionRoutes, discordRoutes, wsRoutes]) {
     await app.register(async (scope) => r(scope, ctx));
   }
   await app.register(async (scope) => opsRoutes(scope, ctx, VERSION));
@@ -467,6 +468,18 @@ export function serverFeatures(config: Config, directUploads = false): string[] 
     "profile-media",
     // API 0.45.0: GIF search through this server (GET /v1/gifs/status says whether a provider is set up; docs/GIFS.md).
     "gif-search",
+    // API 0.46.0 (docs/PROFILE_MEDIA.md): name fonts, colours and effects; community tags worn by names; member lists
+    // carry animated avatars; a whole community muted for a while; the invite page shows the community's icon.
+    "name-styles",
+    "community-tags",
+    "community-mute",
+    // API 0.46.0 (docs/ACCOUNT_SAFETY.md): two-step sign-in, changing the email, account standing, bug reports, and
+    // About me and links on profiles. Two-step sign-in needs PLATFORM_SECRETS_KEY (GET /v2/account/totp says).
+    "two-step",
+    "email-change",
+    "account-standing",
+    "bug-reports",
+    "profile-links",
   ];
   if (config.accounts.legacy.migration) f.push("legacy-migration");
   if (directUploads) f.push("direct-upload");

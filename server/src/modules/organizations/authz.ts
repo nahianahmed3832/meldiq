@@ -295,6 +295,17 @@ export class Authz {
   }
 
   /**
+   * API 0.46.0: the tag [userId] may show from [orgId] (its letters and the community's accent), or null when they
+   * aren't a member or it has no tag. Accounts ask here, so community tables stay this module's.
+   */
+  communityTag(orgId: string, userId: string): { text: string; color: string | null } | null {
+    const row = this.db.prepare("SELECT o.tag, o.accent FROM orgs o JOIN org_members m ON m.org_id = o.id WHERE o.id = ? AND m.user_id = ?").get(orgId, userId) as
+      | { tag: string | null; accent: string | null }
+      | undefined;
+    return row?.tag ? { text: row.tag, color: row.accent ?? null } : null;
+  }
+
+  /**
    * Batch B4: until when a community has paused [what] (joining by invitation or openly; new DMs between its
    * members), or null when it hasn't (or the pause ended).
    */

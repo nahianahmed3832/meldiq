@@ -56,7 +56,30 @@ const zOptText = (max: number) =>
     .transform((v) => (v === "" ? null : v));
 
 /** Every field is optional; null (or "") clears it. */
+/** API 0.46.0: a profile link (https only, so nothing else can be opened from someone's profile). */
+export const ProfileLink = z.object({
+  label: z.string().trim().min(1).max(40),
+  url: z
+    .string()
+    .trim()
+    .max(300)
+    .refine((v) => /^https:\/\/[^\s/$.?#].[^\s]*$/i.test(v), "Links start with https://"),
+});
+export const PROFILE_LINKS_MAX = 5;
+
+/** API 0.46.0: a bug report from Settings › My Account. */
+export const BugReportBody = z.object({
+  summary: z.string().trim().min(4).max(120),
+  details: z.string().trim().min(10).max(4000),
+  /** Where it happened in the app (a route, never a message), and the app and version. */
+  page: z.string().trim().max(200).optional(),
+  client: z.string().trim().max(200).optional(),
+});
+
 export const ProfileUpdateBody = z.object({
+  /** API 0.46.0: "About me", shown with the bio. */
+  aboutMe: z.string().trim().max(300).nullable().optional(),
+  links: z.array(ProfileLink).max(PROFILE_LINKS_MAX).nullable().optional(),
   displayName: zName.optional(),
   statusText: zOptText(140),
   statusEmoji: zOptText(16).refine((v) => v == null || !/[\p{L}\p{N}]/u.test(v), "The status emoji can't contain letters or digits"),
@@ -92,13 +115,33 @@ export const PrivacyBody = Privacy.partial();
 /** Profile style (API 0.45.0, docs/PROFILE_MEDIA.md): Meldiq's own decorations and effects, drawn by the apps. */
 export const PROFILE_DECORATIONS = ["aurora", "ember", "frost", "neon", "sakura", "pixel"] as const;
 export const PROFILE_EFFECTS = ["sparkles", "glow", "stars", "bubbles"] as const;
+/** Name styles (API 0.46.0): a font for the display name, drawn by the apps with fonts they ship. */
+export const NAME_FONTS = ["pixel", "arcade", "script", "block", "tech", "mono"] as const;
+export const NAME_EFFECTS = ["glow", "shimmer"] as const;
+const zHex = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 export const ProfileStyleBody = z.object({
   decoration: z.enum(PROFILE_DECORATIONS).nullable().optional(),
   effect: z.enum(PROFILE_EFFECTS).nullable().optional(),
-  accent: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
+  accent: zHex.nullable().optional(),
+  /** API 0.46.0: the display name's font, its colour (one) or gradient (two or three), and an effect. */
+  nameFont: z.enum(NAME_FONTS).nullable().optional(),
+  nameColors: z.array(zHex).min(1).max(3).nullable().optional(),
+  nameEffect: z.enum(NAME_EFFECTS).nullable().optional(),
+  /** API 0.46.0: wear this community's tag by your name (you must be a member and it must have a tag); null: none. */
+  tagOrgId: z.string().max(64).nullable().optional(),
 });
-const ProfileStyle = z.strictObject({ decoration: z.enum(PROFILE_DECORATIONS).nullable(), effect: z.enum(PROFILE_EFFECTS).nullable(), accent: z.string().nullable() });
-const AvatarMedia = z.strictObject({ kind: z.enum(["gif", "webp", "video"]), rev: z.number().int() });
+export const ProfileStyle = z.strictObject({
+  decoration: z.enum(PROFILE_DECORATIONS).nullable(),
+  effect: z.enum(PROFILE_EFFECTS).nullable(),
+  accent: z.string().nullable(),
+  nameFont: z.enum(NAME_FONTS).nullable().optional(),
+  nameColors: z.array(z.string()).nullable().optional(),
+  nameEffect: z.enum(NAME_EFFECTS).nullable().optional(),
+  tagOrgId: z.string().nullable().optional(),
+});
+/** The community tag someone wears (API 0.46.0): its letters, colour (the community's accent) and community. */
+export const WornTag = z.strictObject({ orgId: z.string(), text: z.string(), color: z.string().nullable() });
+export const AvatarMedia = z.strictObject({ kind: z.enum(["gif", "webp", "video"]), rev: z.number().int() });
 const ProfileBanner = z.strictObject({ kind: z.enum(["jpeg", "gif", "webp"]), rev: z.number().int() });
 export const PhoneQuery = z.object({ phone: z.string().trim().max(24) });
 export const SearchQuery = z.object({ q: z.string().trim().min(1).max(40) });
@@ -110,6 +153,13 @@ export const PresenceQuery = z.object({ ids: z.string().max(5000) });
  * A person as lists and search show them: only what they publish to everyone. A null status means none or not shown;
  * photoRev is absent without a photo everyone may see.
  */
+/** API 0.46.0: what lists add from a person's profile media (the animated avatar, the style, the worn tag). */
+export const listMediaFields = {
+  avatarMedia: AvatarMedia.optional(),
+  profileStyle: ProfileStyle.optional(),
+  tag: WornTag.optional(),
+};
+
 export const UserSummary = z.strictObject({
   id: z.string(),
   username: z.string(),
@@ -142,6 +192,11 @@ const profileFields = {
   avatarMedia: AvatarMedia.optional(),
   profileBanner: ProfileBanner.optional(),
   profileStyle: ProfileStyle.optional(),
+  tag: WornTag.optional(),
+  /** API 0.46.0: About me and links (under the bio's setting), and badges earned (bug-hunter). */
+  aboutMe: z.string().optional(),
+  links: z.array(z.strictObject({ label: z.string(), url: z.string() })).optional(),
+  badges: z.array(z.enum(["bug-hunter"])).optional(),
 };
 /** Only in the person's own profile. */
 const ownFields = {

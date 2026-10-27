@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { requireSyntheticScopeForPeople } from "../accounts/index.js";
+import { requireStanding, requireSyntheticScopeForPeople } from "../accounts/index.js";
 import { availableUser, blockedEitherWay, dmDecision, notAvailable, REQUEST_MESSAGE_LIMIT, requireRequestBudget } from "../accounts/relationships/rules.js";
 import type { DmRequestRow } from "../accounts/relationships/store.js";
 import { mentionAllPermission } from "./mentions.js";
@@ -278,6 +278,7 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
       notifyConversation(ctx, c.id);
     }
     if (!c) {
+      requireStanding(db, userId, "start_conversation");
       // People on other servers keep their settings there: their server decides.
       const decision = target.home_server_id ? "direct" : await dmDecision(ctx, userId, other);
       if (decision === "refused") throw new ApiError(403, "dm_not_allowed", "This person only accepts messages from people they're connected with");
@@ -359,6 +360,7 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
   app.post("/v1/conversations/group", auth, async (req) => {
     const { userId } = me(req);
     const body = parse(GroupBody, req.body);
+    requireStanding(db, userId, "start_conversation");
     const ids = [...new Set(body.memberIds.filter((m) => m !== userId))];
     // Groups are server-local in this release: people on other servers can't be added (FEDERATION_PROTOCOL.md §7).
     const found = db.prepare(`SELECT id FROM users WHERE disabled_at IS NULL AND home_server_id IS NULL AND id IN (${ids.map(() => "?").join(",")})`).all(...ids) as { id: string }[];

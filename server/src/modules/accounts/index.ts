@@ -15,7 +15,11 @@ import { KeyBackupService } from "./keyBackup.js";
 import { type KeyBackupStore, SqliteKeyBackupStore } from "./keyBackupStore.js";
 import { MongoKeyBackupStore } from "./mongoKeyBackupStore.js";
 import { PasskeyService } from "./passkeys.js";
+import { TotpService } from "./totp.js";
+import { EmailChangeService } from "./emailChange.js";
 
+// API 0.46.0: what warnings from staff limit (docs/ACCOUNT_SAFETY.md).
+export { requireStanding } from "./standing.js";
 // AI agents' bot identities (modules/workforce/reader).
 export { addBotDevice, botDevice, createBotUser, identityKeyOf, isBot, revokeBotDevice, senderKeys } from "./botIdentities.js";
 // For the Platform Admin Console (modules/platformAdmin), which signs admins in with their account password.
@@ -62,6 +66,9 @@ export class Accounts {
   readonly recovery: RecoveryService;
   readonly keyBackups: KeyBackupService;
   readonly passkeys: PasskeyService;
+  /** API 0.46.0 (docs/ACCOUNT_SAFETY.md): two-step sign-in and changing the account's email. SQLite in either mode. */
+  readonly totp: TotpService;
+  readonly emailChange: EmailChangeService;
 
   private readonly db: AppContext["db"];
 
@@ -81,6 +88,9 @@ export class Accounts {
     this.keyBackups = new KeyBackupService(ctx, this.service, keyBackupStore);
     // Passkeys are kept in SQLite in either mode (migration 045 explains why there is no foreign key).
     this.passkeys = new PasskeyService(ctx, this.service);
+    this.totp = new TotpService(ctx, ctx.config.platformSecretsKey);
+    this.service.secondFactor = (accountId, code) => this.totp.checkSignIn(accountId, code);
+    this.emailChange = new EmailChangeService(ctx, this.service);
   }
 
   /**

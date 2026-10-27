@@ -4,7 +4,8 @@
     "description": null,
     "memberCount": 4,
     "accent": null,
-    "banner": false
+    "banner": false,
+    "photo": false
   },
   "invitesPaused": false
 }

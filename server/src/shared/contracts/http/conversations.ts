@@ -1,7 +1,7 @@
 import { z } from "zod/v4";
 import { idParams, zCount, zTime } from "./primitives.js";
 import { route } from "./route.js";
-import { UserSummary } from "./users.js";
+import { listMediaFields, UserSummary } from "./users.js";
 
 /**
  * Conversations: direct messages, groups and community channels (docs/COMMUNITY_REBUILD_2026-10-21.md,
@@ -33,6 +33,7 @@ export const ConversationMember = UserSummary.extend({
   /** Absent when the viewer may not see it; invisible people appear offline. */
   presence: PresenceShown.optional(),
   notificationsPaused: z.boolean().nullable(),
+  ...listMediaFields,
 });
 
 export const ConversationMemberDetail = ConversationMember.extend({

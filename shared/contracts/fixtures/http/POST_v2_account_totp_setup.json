@@ -1,0 +1,4 @@
+{
+  "secret": "<redacted>",
+  "uri": "otpauth://totp/Meldiq:tf1.mvqsu8o62%40example.test?secret=PGVTUWX7JBECRCFYUFB5ZQDHRJ7CA3YI&issuer=Meldiq&algorithm=SHA1&digits=6&period=30"
+}

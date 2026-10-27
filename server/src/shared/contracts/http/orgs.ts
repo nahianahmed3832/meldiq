@@ -3,6 +3,7 @@ import { PresenceState } from "../realtime.js";
 import { zCount, zTime } from "./primitives.js";
 import { ConversationView } from "./conversations.js";
 import { route } from "./route.js";
+import { listMediaFields } from "./users.js";
 
 /**
  * Communities (the code calls them orgs; docs/COMMUNITY_REBUILD_2026-10-21.md): the community itself, its members,
@@ -22,6 +23,8 @@ const zOptText = zText.nullable().optional();
  */
 export const zAccent = z.string().regex(/^#[0-9a-fA-F]{6}$/, "Use a colour like #3a5bd9");
 const zRules = z.string().trim().max(4000).nullable().optional();
+/** A community's tag (API 0.46.0): 2 to 4 letters or digits, stored in capitals; members may wear it by their names. */
+export const zCommunityTag = z.string().trim().regex(/^[A-Za-z0-9]{2,4}$/, "Use 2 to 4 letters or digits");
 /** Accepted from older apps and ignored: every workspace is a community since the rebuild. */
 const zOrgKind = z.enum(["team", "community"]);
 /** Listed in discovery or not, and how people get in (docs/COMMUNITY_REBUILD_2026-10-21.md §5). */
@@ -61,6 +64,8 @@ export const CommunityView = z.strictObject({
   accent: z.string().nullable(),
   /** Its banner's revision (GET /v1/orgs/:orgId/banner), null without one (API 0.44.0). */
   bannerRev: zTime.nullable(),
+  /** Its tag, which members may wear by their names (API 0.46.0); null without one. */
+  tag: z.string().nullable(),
   guestsAllowed: z.boolean(),
   guestMaxDays: zCount.nullable(),
   /** Always "community" since the rebuild. */
@@ -101,6 +106,7 @@ const personFields = {
   online: z.boolean().nullable(),
   presence: PresenceState.optional(),
   notificationsPaused: z.boolean().nullable(),
+  ...listMediaFields,
 };
 
 /** One person in the community's member list. */
@@ -254,6 +260,8 @@ export const OrgUpdateBody = z.object({
   rules: zRules,
   /** The accent colour, or null for Meldiq's theme (API 0.44.0). */
   accent: zAccent.nullable().optional(),
+  /** The community's tag, or null for none (API 0.46.0). */
+  tag: zCommunityTag.nullable().optional(),
 });
 
 export const OrgDeleteBody = z.object({ confirmName: z.string().max(200), requestId: z.string().min(8).max(64).optional() });
@@ -513,6 +521,8 @@ export const orgRoutes = [
         /** Its accent, and whether it has a banner (GET /v1/invites/:code/banner); API 0.44.0. */
         accent: z.string().nullable(),
         banner: z.boolean(),
+        /** Whether it has an icon (GET /v1/invites/:code/photo); API 0.46.0. */
+        photo: z.boolean(),
       }),
       invitesPaused: z.boolean(),
     }),
@@ -522,6 +532,16 @@ export const orgRoutes = [
     method: "GET",
     url: "/v1/invites/:code/banner",
     summary: "The banner of the community an invitation leads to (JPEG), before signing in.",
+    auth: false,
+    params: InviteCodeParams,
+    binary: "response",
+    response: z.unknown(),
+    errors: [...INVITE_PROBLEM_CODES],
+  }),
+  community({
+    method: "GET",
+    url: "/v1/invites/:code/photo",
+    summary: "The icon of the community an invitation leads to (JPEG), before signing in.",
     auth: false,
     params: InviteCodeParams,
     binary: "response",

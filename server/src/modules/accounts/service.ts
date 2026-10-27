@@ -77,6 +77,8 @@ export interface AccountView {
  */
 export class AccountService {
   readonly sessions: SessionService;
+  /** API 0.46.0: two-step sign-in, checked after the password (accounts/totp.ts); set by Accounts. */
+  secondFactor: ((accountId: string, code: string | undefined) => void) | null = null;
   private readonly codesSent = new SlidingWindow(CODES_PER_HOUR, HOUR_MS);
   private readonly notices = new SlidingWindow(NOTICES_PER_HOUR, HOUR_MS);
   private readonly codeRequests: SlidingWindow;
@@ -368,6 +370,7 @@ export class AccountService {
       throw invalidCredentials();
     }
     await this.checkPassword(a, body.password, ip, reply);
+    this.secondFactor?.(a.id, body.totpCode);
     return this.finishLogin(a, body, "password");
   }
 

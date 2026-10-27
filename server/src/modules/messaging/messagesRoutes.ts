@@ -1,3 +1,4 @@
+import { requireStanding } from "../accounts/index.js";
 import type { FastifyInstance } from "fastify";
 import { AckBody, Envelope, QueueQuery } from "../../shared/contracts/http/messaging.js";
 import { REQUEST_MESSAGE_LIMIT } from "../accounts/relationships/rules.js";
@@ -23,6 +24,8 @@ export default async function messageRoutes(app: FastifyInstance, ctx: AppContex
   app.post("/v1/messages", { ...auth, bodyLimit: 2 * 1024 * 1024 }, async (req) => {
     const { userId, deviceId } = me(req);
     const e = parse(Envelope, req.body);
+    // API 0.46.0: a suspended account can't send (account standing); controls and receipts still flow.
+    if (e.cls === "message") requireStanding(ctx.db, userId, "send_message");
     const conv = authz.requireMember(e.conversationId, userId);
     if (!authz.canPost(conv, userId)) {
       const timedOut = conv.org_id ? authz.timeoutUntil(conv.org_id, userId) : null;

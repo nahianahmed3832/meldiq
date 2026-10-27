@@ -51,7 +51,13 @@ export default async function preferenceRoutes(app: FastifyInstance, ctx: AppCon
     // The same for a community's own notification settings and the rail order (batch B2). Each lives in one kind of
     // document only: community settings in a community's, the rail order in the personal one.
     const personal = workspaceId === PERSONAL_WORKSPACE_ID;
-    const community = personal ? undefined : (body.prefs.community ?? stored?.community);
+    // A client that doesn't know the community mute (API 0.46.0) leaves it out of its copy: the stored one stays.
+    const sentCommunity = body.prefs.community;
+    const community = personal
+      ? undefined
+      : sentCommunity
+        ? { ...sentCommunity, mutedUntil: sentCommunity.mutedUntil !== undefined ? sentCommunity.mutedUntil : stored?.community?.mutedUntil }
+        : stored?.community;
     const myOrgs = new Set((ctx.db.prepare("SELECT org_id FROM org_members WHERE user_id = ?").all(userId) as { org_id: string }[]).map((r) => r.org_id));
     const railOrder = personal ? (body.prefs.railOrder ?? stored?.railOrder)?.filter((id) => myOrgs.has(id)) : undefined;
     // Batch B3: timed mutes (any document), and a community's category levels and hidden channels (its document only):

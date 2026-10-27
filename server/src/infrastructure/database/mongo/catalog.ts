@@ -63,6 +63,12 @@ export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
   // Passkeys (2026-10-23, docs/PASSKEYS.md); kept in SQLite in either mode.
   account_passkeys: "accounts",
   account_passkey_challenges: "accounts",
+  // Account safety (API 0.46.0, docs/ACCOUNT_SAFETY.md); kept in SQLite in either mode, like passkeys.
+  account_totp: "accounts",
+  account_totp_backup: "accounts",
+  account_email_changes: "accounts",
+  account_warnings: "accounts",
+  bug_reports: "accounts",
   nav_preferences: "preferences",
   // Apps and connected accounts (2026-10-19): removed with the community rebuild; the tables stay (src/retiredData.ts).
   integration_installs: "integrations",

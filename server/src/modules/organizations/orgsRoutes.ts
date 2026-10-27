@@ -1,3 +1,4 @@
+import { requireStanding } from "../accounts/index.js";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { markSyntheticOrg } from "./syntheticScope.js";
 import { type ConversationRow, parsePermissionList } from "./authz.js";
@@ -81,6 +82,8 @@ export function orgSummary(ctx: AppContext, org: any, userId: string) {
     // API 0.44.0 (docs/COMMUNITY_BRANDING.md): its accent colour and banner, null for Meldiq's standard look.
     accent: org.accent ?? null,
     bannerRev: org.banner_rev ?? null,
+    // API 0.46.0: the tag members may wear by their names.
+    tag: org.tag ?? null,
     // Round 7 guest policy (docs/WORKSPACE_C5.md).
     guestsAllowed: org.guests_allowed === undefined ? true : !!org.guests_allowed,
     guestMaxDays: org.guest_max_days ?? null,
@@ -155,6 +158,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
   app.post("/v1/orgs", auth, async (req) => {
     const { userId } = me(req);
     const body = parse(OrgCreateBody, req.body);
+    requireStanding(db, userId, "create_community");
     // Idempotent: the app sends one request id per create form, so a retry or a double tap returns the first result.
     if (body.requestId) {
       const prior = db.prepare("SELECT * FROM orgs WHERE created_by = ? AND create_request_id = ?").get(userId, body.requestId);
@@ -261,19 +265,21 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     // Listing a community publicly or opening it to anyone changes who can find and enter it: owners decide that.
     const opening = (body.visibility && body.visibility !== o.visibility) || (body.joinPolicy && body.joinPolicy !== o.join_policy);
     if (opening && authz.orgRole(orgId, userId) !== "OWNER") throw forbidden("Only owners can change who can find and join this community");
-    db.prepare("UPDATE orgs SET name = ?, description = ?, visibility = ?, join_policy = ?, rules = ?, accent = ?, updated_at = ? WHERE id = ?").run(
+    db.prepare("UPDATE orgs SET name = ?, description = ?, visibility = ?, join_policy = ?, rules = ?, accent = ?, tag = ?, updated_at = ? WHERE id = ?").run(
       body.name ?? o.name,
       body.description === undefined ? o.description : body.description,
       body.visibility ?? o.visibility,
       body.joinPolicy ?? o.join_policy,
       body.rules === undefined ? o.rules : body.rules,
       body.accent === undefined ? o.accent : (body.accent?.toLowerCase() ?? null),
+      body.tag === undefined ? (o.tag ?? null) : (body.tag?.toUpperCase() ?? null),
       now(),
       orgId,
     );
     const recolored = body.accent !== undefined && (body.accent?.toLowerCase() ?? null) !== (o.accent ?? null);
     ctx.audit({ actorId: userId, orgId, action: "org.update", detail: opening ? `visibility=${body.visibility ?? o.visibility} join=${body.joinPolicy ?? o.join_policy}` : undefined });
     if (recolored) ctx.audit({ actorId: userId, orgId, action: "org.accent", detail: body.accent?.toLowerCase() ?? "removed" });
+    if (body.tag !== undefined && (body.tag?.toUpperCase() ?? null) !== (o.tag ?? null)) ctx.audit({ actorId: userId, orgId, action: "org.tag", detail: body.tag?.toUpperCase() ?? "removed" });
     notifyOrg(ctx, orgId);
     return { org: orgSummary(ctx, db.prepare("SELECT * FROM orgs WHERE id = ?").get(orgId), userId) };
   });
@@ -577,6 +583,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const actor = me(req).userId;
     const { orgId } = parse(OrgParams, req.params);
     const body = parse(InviteCreateBody, req.body);
+    requireStanding(db, actor, "invite");
     const actorRole = authz.requireOrgMember(orgId, actor);
     const policy = db.prepare("SELECT guests_allowed, guest_max_days FROM orgs WHERE id = ?").get(orgId) as { guests_allowed: number; guest_max_days: number | null } | undefined;
     if (body.role === "GUEST" && policy && !policy.guests_allowed) throw conflict("This community doesn't allow guests");
@@ -701,12 +708,13 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
   app.get("/v1/invites/:code/public", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (req) => {
     const { code } = parse(InviteCodeParams, req.params);
     const inv = findInvite(code);
-    const org = db.prepare("SELECT id, name, description, accent, banner_rev FROM orgs WHERE id = ?").get(inv.org_id) as {
+    const org = db.prepare("SELECT id, name, description, accent, banner_rev, photo_rev FROM orgs WHERE id = ?").get(inv.org_id) as {
       id: string;
       name: string;
       description: string | null;
       accent: string | null;
       banner_rev: number | null;
+      photo_rev: number | null;
     };
     return {
       community: {
@@ -715,6 +723,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
         memberCount: (db.prepare("SELECT COUNT(*) n FROM org_members WHERE org_id = ?").get(org.id) as { n: number }).n,
         accent: org.accent ?? null,
         banner: org.banner_rev !== null,
+        photo: org.photo_rev !== null,
       },
       invitesPaused: !!authz.pausedUntil(inv.org_id, "invites", now()),
     };
@@ -728,9 +737,20 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     return sendBanner(reply, inv.org_id, rev, "public, max-age=300");
   });
 
+  /** The invitation's community icon (API 0.46.0), for the invite page: a usable code only, like the banner. */
+  app.get("/v1/invites/:code/photo", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (req, reply) => {
+    const { code } = parse(InviteCodeParams, req.params);
+    const inv = findInvite(code);
+    const rev = (db.prepare("SELECT photo_rev FROM orgs WHERE id = ?").get(inv.org_id) as { photo_rev: number | null } | undefined)?.photo_rev ?? null;
+    const stream = rev ? await ctx.blobs.get("profile-photos", photoBlobId(inv.org_id, rev)) : null;
+    if (!stream) throw notFound("No photo");
+    return reply.header("content-type", "image/jpeg").header("cache-control", "public, max-age=300").header("etag", `"${rev}"`).send(stream);
+  });
+
   app.post("/v1/invites/accept", inviteRate, async (req) => {
     const userId = me(req).userId;
     const { code } = parse(InviteCodeBody, req.body);
+    requireStanding(db, userId, "join_community");
     const t = now();
     // One transaction: two taps (or two people racing for the last use) can't both pass the checks and over-use it.
     const result = db.transaction(() => {

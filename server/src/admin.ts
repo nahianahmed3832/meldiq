@@ -41,6 +41,8 @@
  *   platform-audit-verify          Platform Admin Console roles, enrolment codes and its audit chain
  *                                  (src/modules/platformAdmin/cli.ts)
  */
+import { addWarning, revokeWarning, standingOf } from "./modules/accounts/standing.js";
+import { BUG_STATUSES, type BugStatus, listBugReports, setBugStatus } from "./modules/accounts/bugReports.js";
 import { MongoRelationshipStore } from "./modules/accounts/relationships/mongoStore.js";
 import { type RelationshipStore, SqliteRelationshipStore } from "./modules/accounts/relationships/store.js";
 import { Accounts } from "./modules/accounts/index.js";
@@ -164,6 +166,67 @@ switch (cmd) {
       `INSERT INTO invitations (id, org_id, code_hash, code_hint, role, max_uses, created_by, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(newId("inv"), org.id, sha256Hex(code), code.slice(-4), role, Number(uses), org.created_by, now(), now() + 72 * 3600_000);
     console.log(`${code.slice(0, 4)}-${code.slice(4, 8)}-${code.slice(8)}  (${role}, ${uses} use(s), 72h)`);
+    break;
+  }
+  // ───────── API 0.46.0 (docs/ACCOUNT_SAFETY.md): staff warnings and bug reports ─────────
+  case "warn": {
+    const [username, days, ...words] = rest;
+    const u = username ? (db.prepare("SELECT id FROM users WHERE username = ? AND deleted_at IS NULL").get(username) as { id: string } | undefined) : undefined;
+    if (!u || !Number(days) || !words.length) {
+      console.error("usage: warn <username> <days 1-365> <reason...>   (1 active warning limits an account, 2 limit it more, 3 suspend it)");
+      process.exit(2);
+    }
+    const w = addWarning(db, u.id, words.join(" "), Number(days), "operator");
+    console.log(`${w.id}  until ${new Date(w.expiresAt).toISOString()}  standing now: ${standingOf(db, u.id).level}`);
+    break;
+  }
+  case "warnings": {
+    const [username] = rest;
+    const u = username ? (db.prepare("SELECT id FROM users WHERE username = ?").get(username) as { id: string } | undefined) : undefined;
+    if (!u) {
+      console.error("usage: warnings <username>");
+      process.exit(2);
+    }
+    const st = standingOf(db, u.id);
+    console.log(`standing: ${st.level}`);
+    console.table(st.warnings.map((w) => ({ id: w.id, reason: w.reason, until: new Date(w.expiresAt).toISOString() })));
+    break;
+  }
+  case "unwarn": {
+    const [id] = rest;
+    if (!id) {
+      console.error("usage: unwarn <warningId>");
+      process.exit(2);
+    }
+    console.log(revokeWarning(db, id) ? "lifted" : "no active warning with that id");
+    break;
+  }
+  case "bug-reports": {
+    const [status] = rest;
+    if (status && !BUG_STATUSES.includes(status as BugStatus)) {
+      console.error(`usage: bug-reports [${BUG_STATUSES.join("|")}]`);
+      process.exit(2);
+    }
+    console.table(
+      listBugReports(db, (status as BugStatus) ?? null).map((b) => ({ id: b.id, from: b.username, status: b.status, summary: b.summary, page: b.page, at: new Date(b.created_at).toISOString() })),
+    );
+    break;
+  }
+  case "bug-report": {
+    const [id, status, ...note] = rest;
+    if (!id) {
+      console.error(`usage: bug-report <id> [${BUG_STATUSES.join("|")}] [note...]`);
+      process.exit(2);
+    }
+    if (!status) {
+      console.log(db.prepare("SELECT * FROM bug_reports WHERE id = ?").get(id) ?? "no such report");
+      break;
+    }
+    if (!BUG_STATUSES.includes(status as BugStatus)) {
+      console.error(`status must be one of ${BUG_STATUSES.join(", ")}`);
+      process.exit(2);
+    }
+    console.log(setBugStatus(db, id, status as BugStatus, note.join(" ") || null) ? `set to ${status}` : "no such report");
     break;
   }
   case "reg-invite": {
@@ -512,7 +575,7 @@ switch (cmd) {
   }
   default:
     console.log(
-      "commands: stats | users | invite <orgSlug> [role] [uses] | reg-invite [uses] [days] [note] | reg-invites | reg-invite-revoke <hint|id> | disable <username> | enable <username> | cleanup | backup <file> | verify-backup <file> | fed-status | fed-rotate-key | fed-decommission <reason> --yes | fed-block <serverId> [reason] | fed-unblock <serverId> | reports [closed] | report-show <id> | report-close <id> actioned|dismissed [note]",
+      "commands: stats | users | invite <orgSlug> [role] [uses] | reg-invite [uses] [days] [note] | reg-invites | reg-invite-revoke <hint|id> | disable <username> | enable <username> | cleanup | backup <file> | verify-backup <file> | fed-status | fed-rotate-key | fed-decommission <reason> --yes | fed-block <serverId> [reason] | fed-unblock <serverId> | reports [closed] | report-show <id> | report-close <id> actioned|dismissed [note] | warn <username> <days> <reason> | warnings <username> | unwarn <id> | bug-reports [status] | bug-report <id> [status] [note]",
     );
 }
 db.close();

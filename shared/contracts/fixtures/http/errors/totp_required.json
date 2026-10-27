@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "totp_required",
+    "message": "Enter the code from your authenticator app."
+  }
+}

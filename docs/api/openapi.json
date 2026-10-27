@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Meldiq API",
-    "version": "0.45.0",
+    "version": "0.46.0",
     "description": "The canonical contract of the Meldiq server (docs/architecture/ARCHITECTURE_1_0_PLAN.md §4), generated from src/shared/contracts. Fields are only ever added within a version; clients ignore unknown fields. Routes not listed here exist but aren't documented yet."
   },
   "servers": [
@@ -19,6 +19,9 @@
     },
     {
       "name": "gifs"
+    },
+    {
+      "name": "bug-reports"
     },
     {
       "name": "history"
@@ -1122,6 +1125,254 @@
                 }
               }
             }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/bug-reports": {
+      "post": {
+        "tags": [
+          "bug-reports"
+        ],
+        "summary": "Report a bug: what went wrong and where (up to 10 a day). Nothing from your messages is attached.",
+        "operationId": "postV1BugReports",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "summary": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "type": "string"
+                        },
+                        "page": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "open",
+                            "confirmed",
+                            "fixed",
+                            "not_a_bug",
+                            "duplicate"
+                          ]
+                        },
+                        "staffNote": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "updatedAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "summary",
+                        "details",
+                        "page",
+                        "status",
+                        "staffNote",
+                        "createdAt",
+                        "updatedAt"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "report"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: rate_limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "summary": {
+                    "type": "string",
+                    "minLength": 4,
+                    "maxLength": 120
+                  },
+                  "details": {
+                    "type": "string",
+                    "minLength": 10,
+                    "maxLength": 4000
+                  },
+                  "page": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "client": {
+                    "type": "string",
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "summary",
+                  "details"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "bug-reports"
+        ],
+        "summary": "Your bug reports and what staff said, and whether you've earned the Bug Hunter badge.",
+        "operationId": "getV1BugReports",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "reports": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "summary": {
+                            "type": "string"
+                          },
+                          "details": {
+                            "type": "string"
+                          },
+                          "page": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "open",
+                              "confirmed",
+                              "fixed",
+                              "not_a_bug",
+                              "duplicate"
+                            ]
+                          },
+                          "staffNote": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "createdAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "updatedAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "summary",
+                          "details",
+                          "page",
+                          "status",
+                          "staffNote",
+                          "createdAt",
+                          "updatedAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "bugHunter": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "reports",
+                    "bugHunter"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
           }
         },
         "security": [
@@ -5778,7 +6029,7 @@
             }
           },
           "default": {
-            "description": "Error. Codes: invalid_credentials, login_throttled, account_disabled, email_unverified, invalid_device_proof, challenge_expired, device_revoked",
+            "description": "Error. Codes: invalid_credentials, login_throttled, account_disabled, email_unverified, invalid_device_proof, challenge_expired, device_revoked, totp_required, totp_invalid, totp_locked",
             "content": {
               "application/json": {
                 "schema": {
@@ -5835,6 +6086,11 @@
                       "nonce",
                       "signature"
                     ]
+                  },
+                  "totpCode": {
+                    "type": "string",
+                    "minLength": 6,
+                    "maxLength": 20
                   }
                 },
                 "required": [
@@ -7013,6 +7269,501 @@
                 }
               }
             }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/account/totp": {
+      "get": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Whether two-step sign-in is on, and how many backup codes are left.",
+        "operationId": "getV2AccountTotp",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "available": {
+                      "type": "boolean"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "enabledAt": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "backupCodesLeft": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "available",
+                    "enabled",
+                    "enabledAt",
+                    "backupCodesLeft"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/account/totp/setup": {
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Two-step sign-in, step 1 (the password again): a new secret for the authenticator app, off until its first code.",
+        "operationId": "postV2AccountTotpSetup",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "secret": {
+                      "type": "string"
+                    },
+                    "uri": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "secret",
+                    "uri"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: invalid_credentials, totp_already_on, secrets_unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "password": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                  }
+                },
+                "required": [
+                  "password"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/account/totp/enable": {
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Two-step sign-in, step 2: the app's first code turns it on and returns ten single-use backup codes (shown once).",
+        "operationId": "postV2AccountTotpEnable",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "backupCodes": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "backupCodes"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: totp_invalid, totp_not_pending",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 6,
+                    "maxLength": 20
+                  }
+                },
+                "required": [
+                  "code"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/account/totp/disable": {
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Turn two-step sign-in off: the password and a code from the app (or a backup code).",
+        "operationId": "postV2AccountTotpDisable",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: invalid_credentials, totp_invalid, totp_locked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "password": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                  },
+                  "code": {
+                    "type": "string",
+                    "minLength": 6,
+                    "maxLength": 20
+                  }
+                },
+                "required": [
+                  "password",
+                  "code"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/account/email": {
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Change the account's email, step 1 (the password again): a code goes to the new address.",
+        "operationId": "postV2AccountEmail",
+        "parameters": [],
+        "responses": {
+          "202": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "email": {
+                      "type": "string"
+                    },
+                    "expiresAt": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "email",
+                    "expiresAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: invalid_credentials, bad_request, rate_limited, email_unavailable, email_failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "password": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                  },
+                  "newEmail": {
+                    "type": "string",
+                    "maxLength": 254,
+                    "pattern": "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$"
+                  }
+                },
+                "required": [
+                  "password",
+                  "newEmail"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/account/email/confirm": {
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Change the account's email, step 2: the code from the new address makes the change; the old address is told.",
+        "operationId": "postV2AccountEmailConfirm",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "email": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "email"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: invalid_code, email_in_use, email_unavailable, email_failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 6,
+                    "maxLength": 12
+                  }
+                },
+                "required": [
+                  "code"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/account/standing": {
+      "get": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "The account's standing: active warnings from staff and what they limit.",
+        "operationId": "getV2AccountStanding",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "level": {
+                      "type": "string",
+                      "enum": [
+                        "good",
+                        "limited",
+                        "very_limited",
+                        "suspended"
+                      ]
+                    },
+                    "warnings": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "expiresAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "reason",
+                          "createdAt",
+                          "expiresAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "level",
+                    "warnings"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
           }
         },
         "security": [
@@ -10111,6 +10862,61 @@
                                   "type": "null"
                                 }
                               ]
+                            },
+                            "nameFont": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "pixel",
+                                    "arcade",
+                                    "script",
+                                    "block",
+                                    "tech",
+                                    "mono"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "nameColors": {
+                              "anyOf": [
+                                {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "nameEffect": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "glow",
+                                    "shimmer"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "tagOrgId": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
                             }
                           },
                           "required": [
@@ -10119,6 +10925,64 @@
                             "accent"
                           ],
                           "additionalProperties": false
+                        },
+                        "tag": {
+                          "type": "object",
+                          "properties": {
+                            "orgId": {
+                              "type": "string"
+                            },
+                            "text": {
+                              "type": "string"
+                            },
+                            "color": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "orgId",
+                            "text",
+                            "color"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "aboutMe": {
+                          "type": "string"
+                        },
+                        "links": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "label": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "label",
+                              "url"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "badges": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "bug-hunter"
+                            ]
+                          }
                         },
                         "privacy": {
                           "type": "object",
@@ -10449,6 +11313,61 @@
                                   "type": "null"
                                 }
                               ]
+                            },
+                            "nameFont": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "pixel",
+                                    "arcade",
+                                    "script",
+                                    "block",
+                                    "tech",
+                                    "mono"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "nameColors": {
+                              "anyOf": [
+                                {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "nameEffect": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "glow",
+                                    "shimmer"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "tagOrgId": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
                             }
                           },
                           "required": [
@@ -10457,6 +11376,64 @@
                             "accent"
                           ],
                           "additionalProperties": false
+                        },
+                        "tag": {
+                          "type": "object",
+                          "properties": {
+                            "orgId": {
+                              "type": "string"
+                            },
+                            "text": {
+                              "type": "string"
+                            },
+                            "color": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "orgId",
+                            "text",
+                            "color"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "aboutMe": {
+                          "type": "string"
+                        },
+                        "links": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "label": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "label",
+                              "url"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "badges": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "bug-hunter"
+                            ]
+                          }
                         },
                         "privacy": {
                           "type": "object",
@@ -10631,6 +11608,46 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "aboutMe": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 300
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "links": {
+                    "anyOf": [
+                      {
+                        "maxItems": 5,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "label": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 40
+                            },
+                            "url": {
+                              "type": "string",
+                              "maxLength": 300
+                            }
+                          },
+                          "required": [
+                            "label",
+                            "url"
+                          ]
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "displayName": {
                     "type": "string",
                     "minLength": 1,
@@ -11616,6 +12633,61 @@
                               "type": "null"
                             }
                           ]
+                        },
+                        "nameFont": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "pixel",
+                                "arcade",
+                                "script",
+                                "block",
+                                "tech",
+                                "mono"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "nameColors": {
+                          "anyOf": [
+                            {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "nameEffect": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "glow",
+                                "shimmer"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "tagOrgId": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         }
                       },
                       "required": [
@@ -11696,6 +12768,65 @@
                       {
                         "type": "string",
                         "pattern": "^#[0-9a-fA-F]{6}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "nameFont": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "pixel",
+                          "arcade",
+                          "script",
+                          "block",
+                          "tech",
+                          "mono"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "nameColors": {
+                    "anyOf": [
+                      {
+                        "minItems": 1,
+                        "maxItems": 3,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^#[0-9a-fA-F]{6}$"
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "nameEffect": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "glow",
+                          "shimmer"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "tagOrgId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 64
                       },
                       {
                         "type": "null"
@@ -12134,6 +13265,61 @@
                                   "type": "null"
                                 }
                               ]
+                            },
+                            "nameFont": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "pixel",
+                                    "arcade",
+                                    "script",
+                                    "block",
+                                    "tech",
+                                    "mono"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "nameColors": {
+                              "anyOf": [
+                                {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "nameEffect": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "glow",
+                                    "shimmer"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "tagOrgId": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
                             }
                           },
                           "required": [
@@ -12142,6 +13328,64 @@
                             "accent"
                           ],
                           "additionalProperties": false
+                        },
+                        "tag": {
+                          "type": "object",
+                          "properties": {
+                            "orgId": {
+                              "type": "string"
+                            },
+                            "text": {
+                              "type": "string"
+                            },
+                            "color": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "orgId",
+                            "text",
+                            "color"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "aboutMe": {
+                          "type": "string"
+                        },
+                        "links": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "label": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "label",
+                              "url"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "badges": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "bug-hunter"
+                            ]
+                          }
                         },
                         "privacy": {
                           "type": "object",
@@ -13860,6 +15104,18 @@
                             "suppressEveryone": {
                               "default": false,
                               "type": "boolean"
+                            },
+                            "mutedUntil": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
                             }
                           },
                           "required": [
@@ -14154,6 +15410,18 @@
                             "suppressEveryone": {
                               "default": false,
                               "type": "boolean"
+                            },
+                            "mutedUntil": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
                             }
                           },
                           "required": [
@@ -14409,6 +15677,18 @@
                           "suppressEveryone": {
                             "default": false,
                             "type": "boolean"
+                          },
+                          "mutedUntil": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           }
                         },
                         "additionalProperties": false
@@ -15623,6 +16903,16 @@
                             }
                           ]
                         },
+                        "tag": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "guestsAllowed": {
                           "type": "boolean"
                         },
@@ -15827,6 +17117,7 @@
                         "photoRev",
                         "accent",
                         "bannerRev",
+                        "tag",
                         "guestsAllowed",
                         "guestMaxDays",
                         "kind",
@@ -16046,6 +17337,16 @@
                               }
                             ]
                           },
+                          "tag": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
                           "guestsAllowed": {
                             "type": "boolean"
                           },
@@ -16250,6 +17551,7 @@
                           "photoRev",
                           "accent",
                           "bannerRev",
+                          "tag",
                           "guestsAllowed",
                           "guestMaxDays",
                           "kind",
@@ -16505,6 +17807,16 @@
                             }
                           ]
                         },
+                        "tag": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "guestsAllowed": {
                           "type": "boolean"
                         },
@@ -16709,6 +18021,7 @@
                         "photoRev",
                         "accent",
                         "bannerRev",
+                        "tag",
                         "guestsAllowed",
                         "guestMaxDays",
                         "kind",
@@ -17097,6 +18410,16 @@
                             }
                           ]
                         },
+                        "tag": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "guestsAllowed": {
                           "type": "boolean"
                         },
@@ -17301,6 +18624,7 @@
                         "photoRev",
                         "accent",
                         "bannerRev",
+                        "tag",
                         "guestsAllowed",
                         "guestMaxDays",
                         "kind",
@@ -17402,6 +18726,17 @@
                       {
                         "type": "string",
                         "pattern": "^#[0-9a-fA-F]{6}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "tag": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9]{2,4}$"
                       },
                       {
                         "type": "null"
@@ -18039,6 +19374,166 @@
                                 "type": "null"
                               }
                             ]
+                          },
+                          "avatarMedia": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "gif",
+                                  "webp",
+                                  "video"
+                                ]
+                              },
+                              "rev": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "rev"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "profileStyle": {
+                            "type": "object",
+                            "properties": {
+                              "decoration": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "aurora",
+                                      "ember",
+                                      "frost",
+                                      "neon",
+                                      "sakura",
+                                      "pixel"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "effect": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "sparkles",
+                                      "glow",
+                                      "stars",
+                                      "bubbles"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "accent": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "nameFont": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "pixel",
+                                      "arcade",
+                                      "script",
+                                      "block",
+                                      "tech",
+                                      "mono"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "nameColors": {
+                                "anyOf": [
+                                  {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "nameEffect": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "glow",
+                                      "shimmer"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "tagOrgId": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "decoration",
+                              "effect",
+                              "accent"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "tag": {
+                            "type": "object",
+                            "properties": {
+                              "orgId": {
+                                "type": "string"
+                              },
+                              "text": {
+                                "type": "string"
+                              },
+                              "color": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "orgId",
+                              "text",
+                              "color"
+                            ],
+                            "additionalProperties": false
                           },
                           "orgRole": {
                             "type": "string",
@@ -19132,6 +20627,9 @@
                         },
                         "banner": {
                           "type": "boolean"
+                        },
+                        "photo": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -19139,7 +20637,8 @@
                         "description",
                         "memberCount",
                         "accent",
-                        "banner"
+                        "banner",
+                        "photo"
                       ],
                       "additionalProperties": false
                     },
@@ -19176,6 +20675,50 @@
         ],
         "summary": "The banner of the community an invitation leads to (JPEG), before signing in.",
         "operationId": "getV1InvitesCodeBanner",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 40
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The bytes (or 302 to a storage URL)",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: invite_not_found, invite_revoked, invite_expired, invite_used_up, invite_unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/invites/{code}/photo": {
+      "get": {
+        "tags": [
+          "communities"
+        ],
+        "summary": "The icon of the community an invitation leads to (JPEG), before signing in.",
+        "operationId": "getV1InvitesCodePhoto",
         "parameters": [
           {
             "name": "code",
@@ -19305,6 +20848,16 @@
                               "type": "integer",
                               "minimum": 0,
                               "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "tag": {
+                          "anyOf": [
+                            {
+                              "type": "string"
                             },
                             {
                               "type": "null"
@@ -19515,6 +21068,7 @@
                         "photoRev",
                         "accent",
                         "bannerRev",
+                        "tag",
                         "guestsAllowed",
                         "guestMaxDays",
                         "kind",
@@ -19881,6 +21435,166 @@
                                     "type": "null"
                                   }
                                 ]
+                              },
+                              "avatarMedia": {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "enum": [
+                                      "gif",
+                                      "webp",
+                                      "video"
+                                    ]
+                                  },
+                                  "rev": {
+                                    "type": "integer",
+                                    "minimum": -9007199254740991,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "rev"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "profileStyle": {
+                                "type": "object",
+                                "properties": {
+                                  "decoration": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "aurora",
+                                          "ember",
+                                          "frost",
+                                          "neon",
+                                          "sakura",
+                                          "pixel"
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "effect": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "sparkles",
+                                          "glow",
+                                          "stars",
+                                          "bubbles"
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "accent": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "nameFont": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "pixel",
+                                          "arcade",
+                                          "script",
+                                          "block",
+                                          "tech",
+                                          "mono"
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "nameColors": {
+                                    "anyOf": [
+                                      {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "nameEffect": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "glow",
+                                          "shimmer"
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "tagOrgId": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "decoration",
+                                  "effect",
+                                  "accent"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "tag": {
+                                "type": "object",
+                                "properties": {
+                                  "orgId": {
+                                    "type": "string"
+                                  },
+                                  "text": {
+                                    "type": "string"
+                                  },
+                                  "color": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "orgId",
+                                  "text",
+                                  "color"
+                                ],
+                                "additionalProperties": false
                               }
                             },
                             "required": [
@@ -20540,6 +22254,166 @@
                                       "type": "null"
                                     }
                                   ]
+                                },
+                                "avatarMedia": {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "type": "string",
+                                      "enum": [
+                                        "gif",
+                                        "webp",
+                                        "video"
+                                      ]
+                                    },
+                                    "rev": {
+                                      "type": "integer",
+                                      "minimum": -9007199254740991,
+                                      "maximum": 9007199254740991
+                                    }
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "rev"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                "profileStyle": {
+                                  "type": "object",
+                                  "properties": {
+                                    "decoration": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "aurora",
+                                            "ember",
+                                            "frost",
+                                            "neon",
+                                            "sakura",
+                                            "pixel"
+                                          ]
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "effect": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "sparkles",
+                                            "glow",
+                                            "stars",
+                                            "bubbles"
+                                          ]
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "accent": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "nameFont": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "pixel",
+                                            "arcade",
+                                            "script",
+                                            "block",
+                                            "tech",
+                                            "mono"
+                                          ]
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "nameColors": {
+                                      "anyOf": [
+                                        {
+                                          "type": "array",
+                                          "items": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "nameEffect": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "glow",
+                                            "shimmer"
+                                          ]
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "tagOrgId": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "decoration",
+                                    "effect",
+                                    "accent"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                "tag": {
+                                  "type": "object",
+                                  "properties": {
+                                    "orgId": {
+                                      "type": "string"
+                                    },
+                                    "text": {
+                                      "type": "string"
+                                    },
+                                    "color": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "orgId",
+                                    "text",
+                                    "color"
+                                  ],
+                                  "additionalProperties": false
                                 }
                               },
                               "required": [
@@ -26378,6 +28252,16 @@
                             }
                           ]
                         },
+                        "tag": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "guestsAllowed": {
                           "type": "boolean"
                         },
@@ -26582,6 +28466,7 @@
                         "photoRev",
                         "accent",
                         "bannerRev",
+                        "tag",
                         "guestsAllowed",
                         "guestMaxDays",
                         "kind",
@@ -26843,6 +28728,16 @@
                             }
                           ]
                         },
+                        "tag": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "guestsAllowed": {
                           "type": "boolean"
                         },
@@ -27047,6 +28942,7 @@
                         "photoRev",
                         "accent",
                         "bannerRev",
+                        "tag",
                         "guestsAllowed",
                         "guestMaxDays",
                         "kind",
@@ -31179,6 +33075,166 @@
                                       "type": "null"
                                     }
                                   ]
+                                },
+                                "avatarMedia": {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "type": "string",
+                                      "enum": [
+                                        "gif",
+                                        "webp",
+                                        "video"
+                                      ]
+                                    },
+                                    "rev": {
+                                      "type": "integer",
+                                      "minimum": -9007199254740991,
+                                      "maximum": 9007199254740991
+                                    }
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "rev"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                "profileStyle": {
+                                  "type": "object",
+                                  "properties": {
+                                    "decoration": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "aurora",
+                                            "ember",
+                                            "frost",
+                                            "neon",
+                                            "sakura",
+                                            "pixel"
+                                          ]
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "effect": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "sparkles",
+                                            "glow",
+                                            "stars",
+                                            "bubbles"
+                                          ]
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "accent": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "nameFont": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "pixel",
+                                            "arcade",
+                                            "script",
+                                            "block",
+                                            "tech",
+                                            "mono"
+                                          ]
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "nameColors": {
+                                      "anyOf": [
+                                        {
+                                          "type": "array",
+                                          "items": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "nameEffect": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "glow",
+                                            "shimmer"
+                                          ]
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "tagOrgId": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "decoration",
+                                    "effect",
+                                    "accent"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                "tag": {
+                                  "type": "object",
+                                  "properties": {
+                                    "orgId": {
+                                      "type": "string"
+                                    },
+                                    "text": {
+                                      "type": "string"
+                                    },
+                                    "color": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "orgId",
+                                    "text",
+                                    "color"
+                                  ],
+                                  "additionalProperties": false
                                 }
                               },
                               "required": [
@@ -31816,6 +33872,166 @@
                                     "type": "null"
                                   }
                                 ]
+                              },
+                              "avatarMedia": {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "enum": [
+                                      "gif",
+                                      "webp",
+                                      "video"
+                                    ]
+                                  },
+                                  "rev": {
+                                    "type": "integer",
+                                    "minimum": -9007199254740991,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "rev"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "profileStyle": {
+                                "type": "object",
+                                "properties": {
+                                  "decoration": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "aurora",
+                                          "ember",
+                                          "frost",
+                                          "neon",
+                                          "sakura",
+                                          "pixel"
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "effect": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "sparkles",
+                                          "glow",
+                                          "stars",
+                                          "bubbles"
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "accent": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "nameFont": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "pixel",
+                                          "arcade",
+                                          "script",
+                                          "block",
+                                          "tech",
+                                          "mono"
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "nameColors": {
+                                    "anyOf": [
+                                      {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "nameEffect": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "glow",
+                                          "shimmer"
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "tagOrgId": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "decoration",
+                                  "effect",
+                                  "accent"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "tag": {
+                                "type": "object",
+                                "properties": {
+                                  "orgId": {
+                                    "type": "string"
+                                  },
+                                  "text": {
+                                    "type": "string"
+                                  },
+                                  "color": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "orgId",
+                                  "text",
+                                  "color"
+                                ],
+                                "additionalProperties": false
                               }
                             },
                             "required": [
@@ -32393,6 +34609,166 @@
                                     "type": "null"
                                   }
                                 ]
+                              },
+                              "avatarMedia": {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "enum": [
+                                      "gif",
+                                      "webp",
+                                      "video"
+                                    ]
+                                  },
+                                  "rev": {
+                                    "type": "integer",
+                                    "minimum": -9007199254740991,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "rev"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "profileStyle": {
+                                "type": "object",
+                                "properties": {
+                                  "decoration": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "aurora",
+                                          "ember",
+                                          "frost",
+                                          "neon",
+                                          "sakura",
+                                          "pixel"
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "effect": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "sparkles",
+                                          "glow",
+                                          "stars",
+                                          "bubbles"
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "accent": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "nameFont": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "pixel",
+                                          "arcade",
+                                          "script",
+                                          "block",
+                                          "tech",
+                                          "mono"
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "nameColors": {
+                                    "anyOf": [
+                                      {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "nameEffect": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "glow",
+                                          "shimmer"
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "tagOrgId": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "decoration",
+                                  "effect",
+                                  "accent"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "tag": {
+                                "type": "object",
+                                "properties": {
+                                  "orgId": {
+                                    "type": "string"
+                                  },
+                                  "text": {
+                                    "type": "string"
+                                  },
+                                  "color": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "orgId",
+                                  "text",
+                                  "color"
+                                ],
+                                "additionalProperties": false
                               }
                             },
                             "required": [
@@ -32925,6 +35301,166 @@
                               }
                             ]
                           },
+                          "avatarMedia": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "gif",
+                                  "webp",
+                                  "video"
+                                ]
+                              },
+                              "rev": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "rev"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "profileStyle": {
+                            "type": "object",
+                            "properties": {
+                              "decoration": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "aurora",
+                                      "ember",
+                                      "frost",
+                                      "neon",
+                                      "sakura",
+                                      "pixel"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "effect": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "sparkles",
+                                      "glow",
+                                      "stars",
+                                      "bubbles"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "accent": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "nameFont": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "pixel",
+                                      "arcade",
+                                      "script",
+                                      "block",
+                                      "tech",
+                                      "mono"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "nameColors": {
+                                "anyOf": [
+                                  {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "nameEffect": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "glow",
+                                      "shimmer"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "tagOrgId": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "decoration",
+                              "effect",
+                              "accent"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "tag": {
+                            "type": "object",
+                            "properties": {
+                              "orgId": {
+                                "type": "string"
+                              },
+                              "text": {
+                                "type": "string"
+                              },
+                              "color": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "orgId",
+                              "text",
+                              "color"
+                            ],
+                            "additionalProperties": false
+                          },
                           "joinedAt": {
                             "type": "integer",
                             "minimum": 0,
@@ -33434,6 +35970,166 @@
                                     "type": "null"
                                   }
                                 ]
+                              },
+                              "avatarMedia": {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "enum": [
+                                      "gif",
+                                      "webp",
+                                      "video"
+                                    ]
+                                  },
+                                  "rev": {
+                                    "type": "integer",
+                                    "minimum": -9007199254740991,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "rev"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "profileStyle": {
+                                "type": "object",
+                                "properties": {
+                                  "decoration": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "aurora",
+                                          "ember",
+                                          "frost",
+                                          "neon",
+                                          "sakura",
+                                          "pixel"
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "effect": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "sparkles",
+                                          "glow",
+                                          "stars",
+                                          "bubbles"
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "accent": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "nameFont": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "pixel",
+                                          "arcade",
+                                          "script",
+                                          "block",
+                                          "tech",
+                                          "mono"
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "nameColors": {
+                                    "anyOf": [
+                                      {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "nameEffect": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "glow",
+                                          "shimmer"
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "tagOrgId": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "decoration",
+                                  "effect",
+                                  "accent"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "tag": {
+                                "type": "object",
+                                "properties": {
+                                  "orgId": {
+                                    "type": "string"
+                                  },
+                                  "text": {
+                                    "type": "string"
+                                  },
+                                  "color": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "orgId",
+                                  "text",
+                                  "color"
+                                ],
+                                "additionalProperties": false
                               }
                             },
                             "required": [
@@ -34191,6 +36887,166 @@
                                     "type": "null"
                                   }
                                 ]
+                              },
+                              "avatarMedia": {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "enum": [
+                                      "gif",
+                                      "webp",
+                                      "video"
+                                    ]
+                                  },
+                                  "rev": {
+                                    "type": "integer",
+                                    "minimum": -9007199254740991,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "rev"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "profileStyle": {
+                                "type": "object",
+                                "properties": {
+                                  "decoration": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "aurora",
+                                          "ember",
+                                          "frost",
+                                          "neon",
+                                          "sakura",
+                                          "pixel"
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "effect": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "sparkles",
+                                          "glow",
+                                          "stars",
+                                          "bubbles"
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "accent": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "nameFont": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "pixel",
+                                          "arcade",
+                                          "script",
+                                          "block",
+                                          "tech",
+                                          "mono"
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "nameColors": {
+                                    "anyOf": [
+                                      {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "nameEffect": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "glow",
+                                          "shimmer"
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "tagOrgId": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "decoration",
+                                  "effect",
+                                  "accent"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "tag": {
+                                "type": "object",
+                                "properties": {
+                                  "orgId": {
+                                    "type": "string"
+                                  },
+                                  "text": {
+                                    "type": "string"
+                                  },
+                                  "color": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "orgId",
+                                  "text",
+                                  "color"
+                                ],
+                                "additionalProperties": false
                               }
                             },
                             "required": [
@@ -34757,6 +37613,166 @@
                                     "type": "null"
                                   }
                                 ]
+                              },
+                              "avatarMedia": {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "enum": [
+                                      "gif",
+                                      "webp",
+                                      "video"
+                                    ]
+                                  },
+                                  "rev": {
+                                    "type": "integer",
+                                    "minimum": -9007199254740991,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "rev"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "profileStyle": {
+                                "type": "object",
+                                "properties": {
+                                  "decoration": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "aurora",
+                                          "ember",
+                                          "frost",
+                                          "neon",
+                                          "sakura",
+                                          "pixel"
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "effect": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "sparkles",
+                                          "glow",
+                                          "stars",
+                                          "bubbles"
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "accent": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "nameFont": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "pixel",
+                                          "arcade",
+                                          "script",
+                                          "block",
+                                          "tech",
+                                          "mono"
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "nameColors": {
+                                    "anyOf": [
+                                      {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "nameEffect": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "glow",
+                                          "shimmer"
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "tagOrgId": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "decoration",
+                                  "effect",
+                                  "accent"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "tag": {
+                                "type": "object",
+                                "properties": {
+                                  "orgId": {
+                                    "type": "string"
+                                  },
+                                  "text": {
+                                    "type": "string"
+                                  },
+                                  "color": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "orgId",
+                                  "text",
+                                  "color"
+                                ],
+                                "additionalProperties": false
                               }
                             },
                             "required": [
@@ -35598,6 +38614,166 @@
                                               "type": "null"
                                             }
                                           ]
+                                        },
+                                        "avatarMedia": {
+                                          "type": "object",
+                                          "properties": {
+                                            "kind": {
+                                              "type": "string",
+                                              "enum": [
+                                                "gif",
+                                                "webp",
+                                                "video"
+                                              ]
+                                            },
+                                            "rev": {
+                                              "type": "integer",
+                                              "minimum": -9007199254740991,
+                                              "maximum": 9007199254740991
+                                            }
+                                          },
+                                          "required": [
+                                            "kind",
+                                            "rev"
+                                          ],
+                                          "additionalProperties": false
+                                        },
+                                        "profileStyle": {
+                                          "type": "object",
+                                          "properties": {
+                                            "decoration": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "string",
+                                                  "enum": [
+                                                    "aurora",
+                                                    "ember",
+                                                    "frost",
+                                                    "neon",
+                                                    "sakura",
+                                                    "pixel"
+                                                  ]
+                                                },
+                                                {
+                                                  "type": "null"
+                                                }
+                                              ]
+                                            },
+                                            "effect": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "string",
+                                                  "enum": [
+                                                    "sparkles",
+                                                    "glow",
+                                                    "stars",
+                                                    "bubbles"
+                                                  ]
+                                                },
+                                                {
+                                                  "type": "null"
+                                                }
+                                              ]
+                                            },
+                                            "accent": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "string"
+                                                },
+                                                {
+                                                  "type": "null"
+                                                }
+                                              ]
+                                            },
+                                            "nameFont": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "string",
+                                                  "enum": [
+                                                    "pixel",
+                                                    "arcade",
+                                                    "script",
+                                                    "block",
+                                                    "tech",
+                                                    "mono"
+                                                  ]
+                                                },
+                                                {
+                                                  "type": "null"
+                                                }
+                                              ]
+                                            },
+                                            "nameColors": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "array",
+                                                  "items": {
+                                                    "type": "string"
+                                                  }
+                                                },
+                                                {
+                                                  "type": "null"
+                                                }
+                                              ]
+                                            },
+                                            "nameEffect": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "string",
+                                                  "enum": [
+                                                    "glow",
+                                                    "shimmer"
+                                                  ]
+                                                },
+                                                {
+                                                  "type": "null"
+                                                }
+                                              ]
+                                            },
+                                            "tagOrgId": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "string"
+                                                },
+                                                {
+                                                  "type": "null"
+                                                }
+                                              ]
+                                            }
+                                          },
+                                          "required": [
+                                            "decoration",
+                                            "effect",
+                                            "accent"
+                                          ],
+                                          "additionalProperties": false
+                                        },
+                                        "tag": {
+                                          "type": "object",
+                                          "properties": {
+                                            "orgId": {
+                                              "type": "string"
+                                            },
+                                            "text": {
+                                              "type": "string"
+                                            },
+                                            "color": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "string"
+                                                },
+                                                {
+                                                  "type": "null"
+                                                }
+                                              ]
+                                            }
+                                          },
+                                          "required": [
+                                            "orgId",
+                                            "text",
+                                            "color"
+                                          ],
+                                          "additionalProperties": false
                                         }
                                       },
                                       "required": [
@@ -36168,6 +39344,166 @@
                                               "type": "null"
                                             }
                                           ]
+                                        },
+                                        "avatarMedia": {
+                                          "type": "object",
+                                          "properties": {
+                                            "kind": {
+                                              "type": "string",
+                                              "enum": [
+                                                "gif",
+                                                "webp",
+                                                "video"
+                                              ]
+                                            },
+                                            "rev": {
+                                              "type": "integer",
+                                              "minimum": -9007199254740991,
+                                              "maximum": 9007199254740991
+                                            }
+                                          },
+                                          "required": [
+                                            "kind",
+                                            "rev"
+                                          ],
+                                          "additionalProperties": false
+                                        },
+                                        "profileStyle": {
+                                          "type": "object",
+                                          "properties": {
+                                            "decoration": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "string",
+                                                  "enum": [
+                                                    "aurora",
+                                                    "ember",
+                                                    "frost",
+                                                    "neon",
+                                                    "sakura",
+                                                    "pixel"
+                                                  ]
+                                                },
+                                                {
+                                                  "type": "null"
+                                                }
+                                              ]
+                                            },
+                                            "effect": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "string",
+                                                  "enum": [
+                                                    "sparkles",
+                                                    "glow",
+                                                    "stars",
+                                                    "bubbles"
+                                                  ]
+                                                },
+                                                {
+                                                  "type": "null"
+                                                }
+                                              ]
+                                            },
+                                            "accent": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "string"
+                                                },
+                                                {
+                                                  "type": "null"
+                                                }
+                                              ]
+                                            },
+                                            "nameFont": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "string",
+                                                  "enum": [
+                                                    "pixel",
+                                                    "arcade",
+                                                    "script",
+                                                    "block",
+                                                    "tech",
+                                                    "mono"
+                                                  ]
+                                                },
+                                                {
+                                                  "type": "null"
+                                                }
+                                              ]
+                                            },
+                                            "nameColors": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "array",
+                                                  "items": {
+                                                    "type": "string"
+                                                  }
+                                                },
+                                                {
+                                                  "type": "null"
+                                                }
+                                              ]
+                                            },
+                                            "nameEffect": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "string",
+                                                  "enum": [
+                                                    "glow",
+                                                    "shimmer"
+                                                  ]
+                                                },
+                                                {
+                                                  "type": "null"
+                                                }
+                                              ]
+                                            },
+                                            "tagOrgId": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "string"
+                                                },
+                                                {
+                                                  "type": "null"
+                                                }
+                                              ]
+                                            }
+                                          },
+                                          "required": [
+                                            "decoration",
+                                            "effect",
+                                            "accent"
+                                          ],
+                                          "additionalProperties": false
+                                        },
+                                        "tag": {
+                                          "type": "object",
+                                          "properties": {
+                                            "orgId": {
+                                              "type": "string"
+                                            },
+                                            "text": {
+                                              "type": "string"
+                                            },
+                                            "color": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "string"
+                                                },
+                                                {
+                                                  "type": "null"
+                                                }
+                                              ]
+                                            }
+                                          },
+                                          "required": [
+                                            "orgId",
+                                            "text",
+                                            "color"
+                                          ],
+                                          "additionalProperties": false
                                         }
                                       },
                                       "required": [
@@ -62435,6 +65771,7 @@
                   "application_required",
                   "archived",
                   "bad_clock",
+                  "account_limited",
                   "bad_request",
                   "bad_signature",
                   "bad_username",
@@ -62565,6 +65902,11 @@
                   "text_channel_no_calls",
                   "timed_out",
                   "too_large",
+                  "totp_already_on",
+                  "totp_invalid",
+                  "totp_locked",
+                  "totp_not_pending",
+                  "totp_required",
                   "too_many_attempts",
                   "too_many_devices",
                   "too_many_reminders",
@@ -62801,6 +66143,12 @@
         400
       ],
       "meaning": "Device clock is too far off"
+    },
+    "account_limited": {
+      "status": [
+        403
+      ],
+      "meaning": "Your account is limited by warnings from Meldiq's staff (Settings › My Account › Account standing)."
     },
     "bad_request": {
       "status": [
@@ -63583,6 +66931,37 @@
         413
       ],
       "meaning": "… can be up to 512 KB"
+    },
+    "totp_already_on": {
+      "status": [
+        409
+      ],
+      "meaning": "Two-step sign-in is already on. Turn it off first to use a new app."
+    },
+    "totp_invalid": {
+      "status": [
+        400,
+        401
+      ],
+      "meaning": "That code isn't right. Use the newest code from your app, or a backup code."
+    },
+    "totp_locked": {
+      "status": [
+        429
+      ],
+      "meaning": "Too many wrong codes. Try again in 15 minutes."
+    },
+    "totp_not_pending": {
+      "status": [
+        409
+      ],
+      "meaning": "Start setting up two-step sign-in again."
+    },
+    "totp_required": {
+      "status": [
+        401
+      ],
+      "meaning": "Enter the code from your authenticator app."
     },
     "too_many_attempts": {
       "status": [

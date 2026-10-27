@@ -1,15 +1,16 @@
 {
   "org": {
-    "id": "o_IzX2kFgczyslXMpWPLSc8A",
+    "id": "o_6TzxLlbojXEcAjOvbhonbA",
     "name": "Open Lab",
     "slug": "open-lab",
     "description": null,
     "myRole": "MEMBER",
     "memberCount": 2,
-    "createdAt": 1793092858209,
+    "createdAt": 1793109286688,
     "photoRev": null,
     "accent": null,
     "bannerRev": null,
+    "tag": null,
     "guestsAllowed": true,
     "guestMaxDays": null,
     "kind": "community",

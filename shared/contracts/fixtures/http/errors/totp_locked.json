@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "totp_locked",
+    "message": "Too many wrong codes. Try again in 15 minutes."
+  }
+}
