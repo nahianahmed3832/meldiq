@@ -43,6 +43,8 @@ sealed interface NavOp {
     @Serializable @SerialName("remind") data class Remind(val messageId: String, val remindAt: Long?) : NavOp
     /** Batch B2: a community's own level and @everyone setting (community documents). Null fields stay as they were. */
     @Serializable @SerialName("community") data class CommunityNotify(val level: String? = null, val suppressEveryone: Boolean? = null) : NavOp
+    /** API 0.46.0: the whole community muted until [until] (epoch ms); 0 unmutes it. */
+    @Serializable @SerialName("communityMute") data class CommunityMute(val until: Long) : NavOp
     /** Batch B2: a channel goes back to following its community's level (no override). */
     @Serializable @SerialName("notifyReset") data class NotifyReset(val conversationId: String) : NavOp
     /** Batch B2: the whole rail order (personal document); the last arrangement wins. */
@@ -72,7 +74,11 @@ object NavPrefsRules {
      * its category's ([categoryId], B3); else its community's (B2); else "all".
      */
     fun level(p: NavPrefsDto, conversationId: String, categoryId: String? = null, now: Long = System.currentTimeMillis()): String =
-        if (mutedUntil(p, conversationId, now) != null) NotifyLevel.NONE else p.notify[conversationId] ?: parentLevel(p, categoryId)
+        if (mutedUntil(p, conversationId, now) != null || communityMutedUntil(p, now) != null) NotifyLevel.NONE
+        else p.notify[conversationId] ?: parentLevel(p, categoryId)
+
+    /** API 0.46.0: while a community mute runs, every channel in it counts as "none", their own levels included. */
+    fun communityMutedUntil(p: NavPrefsDto, now: Long = System.currentTimeMillis()): Long? = p.community?.mutedUntil?.takeIf { it > now }
 
     /** What a channel follows when it has no level of its own: its category's level, else the community's. */
     fun parentLevel(p: NavPrefsDto, categoryId: String?): String = categoryId?.let { p.categoryNotify?.get(it) } ?: communityLevel(p)
@@ -141,6 +147,7 @@ object NavPrefsRules {
             val dropAll = next.level == NotifyLevel.ALL && p.categoryNotify.isNullOrEmpty()
             p.copy(community = next, notify = if (dropAll) p.notify.filterValues { it != NotifyLevel.ALL } else p.notify)
         }
+        is NavOp.CommunityMute -> p.copy(community = (p.community ?: com.meldiq.android.data.api.CommunityNotifyDto()).copy(mutedUntil = op.until))
         is NavOp.RailOrder -> p.copy(railOrder = op.orgIds.distinct())
         is NavOp.AddSection -> {
             val name = op.name.trim().take(SECTION_NAME_MAX)

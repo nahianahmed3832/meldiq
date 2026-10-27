@@ -438,6 +438,15 @@ object CommunityAccess {
     val roleId: String? = null,
 )
 @Serializable data class InviteRes(val invite: InviteDto)
+/** API 0.42.0: add people directly ([MAX] at a time). */
+@Serializable data class MembersAddReq(val userIds: List<String>) {
+    companion object {
+        const val MAX = 20
+    }
+}
+/** [outcome]: "added", "already_member" or "not_available" (invite them instead). */
+@Serializable data class MemberAddResult(val userId: String, val outcome: String)
+@Serializable data class MembersAddRes(val results: List<MemberAddResult> = emptyList())
 @Serializable data class InvitesRes(val invites: List<InviteDto>)
 @Serializable data class CodeReq(val code: String)
 @Serializable data class NamedRef(val id: String, val name: String)
@@ -579,7 +588,8 @@ object CommunityAccess {
     val hidden: List<String>? = null,
 )
 /** The level a community's channels follow unless a channel has its own, and whether @everyone counts as a mention. */
-@Serializable data class CommunityNotifyDto(val level: String = "all", val suppressEveryone: Boolean = false)
+/** [mutedUntil] (API 0.46.0): the whole community muted until then (epoch ms); 0 ends it (the server drops ended mutes). */
+@Serializable data class CommunityNotifyDto(val level: String = "all", val suppressEveryone: Boolean = false, val mutedUntil: Long? = null)
 /** A message saved for later: ids and times only (the message itself stays end-to-end encrypted on the devices). */
 @Serializable data class SavedItemDto(
     val conversationId: String, val messageId: String, val savedAt: Long, val remindAt: Long? = null, val done: Boolean = false,

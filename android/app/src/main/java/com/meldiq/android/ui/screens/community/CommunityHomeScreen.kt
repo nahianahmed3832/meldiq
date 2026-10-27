@@ -80,6 +80,10 @@ import kotlinx.coroutines.launch
 /** The sheets Home's panel can show. */
 private sealed interface PanelSheet {
     data object Community : PanelSheet
+    /** API 0.46.0: how long to mute the whole community. */
+    data object CommunityMute : PanelSheet
+    /** Invite people: add them directly or make a link (as Meldiq Web's one Invite dialog). */
+    data object Invite : PanelSheet
     data class Category(val key: String) : PanelSheet
     data class Channel(val id: String) : PanelSheet
     data class NewChannel(val categoryId: String?) : PanelSheet
@@ -140,10 +144,13 @@ fun CommunityHomeScreen(nav: NavHostController) {
     var tagsAvailable by remember { mutableStateOf(false) }
     var communityPrefs by remember { mutableStateOf(false) }
     var channelPrefs by remember { mutableStateOf(false) }
+    // API 0.46.0: a whole community muted for a while, synced with the person's other devices.
+    var communityMute by remember { mutableStateOf(false) }
     val railOrder by container.navPrefs.railOrder.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) {
         communityPrefs = container.features.has(ServerFeatures.COMMUNITY_PREFERENCES) == true
         channelPrefs = container.features.has(ServerFeatures.CHANNEL_PREFERENCES) == true
+        communityMute = container.features.has(ServerFeatures.COMMUNITY_MUTE) == true
         discovery = container.features.has(ServerFeatures.COMMUNITY_DISCOVERY) == true
         canDeleteChannels = container.features.has(ServerFeatures.CHANNEL_DELETE) == true
         tagsAvailable = container.features.has(ServerFeatures.FORUM_TAGS) == true
@@ -206,9 +213,19 @@ fun CommunityHomeScreen(nav: NavHostController) {
             .onFailure { toast(it.friendly()) }
     }
     fun setMuted(targets: List<com.meldiq.android.data.db.ConversationEntity>, mute: Boolean) = scope.launch { targets.forEach { container.navPrefs.setMuted(it, mute) } }
+    // With community mute (API 0.46.0), Mute means the community itself, as on Meldiq Web: its channels' own levels stay.
+    val communityMuted = com.meldiq.android.data.model.NavPrefsRules.communityMutedUntil(orgPrefs) != null
     /** Batch B3: muting asks for how long (where the server keeps timed mutes); unmuting is immediate. */
     fun muteOrAsk(targets: List<com.meldiq.android.data.db.ConversationEntity>, mute: Boolean, title: String) {
         if (mute && channelPrefs) sheet = PanelSheet.MuteFor(targets.map { it.id }, title) else setMuted(targets, mute)
+    }
+    fun toggleMute(org: com.meldiq.android.data.api.OrgDto) {
+        if (communityMute && communityPrefs) {
+            if (communityMuted) container.navPrefs.muteCommunity(org.id, null, mute = false) else sheet = PanelSheet.CommunityMute
+        } else {
+            val mute = !CommunityPanelRules.allMuted(channels)
+            muteOrAsk(CommunityPanelRules.muteTargets(channels, mute), mute, org.name)
+        }
     }
     fun copy(text: String) = scope.launch { clipboard.setClipEntry(ClipData.newPlainText("name", text).toClipEntry()); toast(ctx.getString(R.string.nv_copied)) }
 
@@ -229,7 +246,7 @@ fun CommunityHomeScreen(nav: NavHostController) {
                         org.name, d?.let { memberCountLabel(it.stats.members) },
                         onMenu = { sheet = PanelSheet.Community },
                         onSearch = { nav.navigate(Routes.SEARCH) },
-                        onInvite = if (d?.permissions?.canInvite == true) ({ nav.navigate(Routes.invites(org.id)) }) else null,
+                        onInvite = if (d?.permissions?.canInvite == true) ({ sheet = PanelSheet.Invite }) else null,
                     )
                 }
                 item(key = "connection") { ConnectionBanner(conn, Modifier.padding(horizontal = 8.dp, vertical = 2.dp)) { container.realtime.reconnectNow() } }
@@ -341,10 +358,10 @@ fun CommunityHomeScreen(nav: NavHostController) {
     val s = sheet
     if (s != null && org != null) when (s) {
         PanelSheet.Community -> CommunityMenuSheet(
-            org, d?.stats?.members ?: org.memberCount, CommunityPanelRules.allMuted(channels), view.hideMuted, view.unreadOnly,
+            org, d?.stats?.members ?: org.memberCount, communityMuted || CommunityPanelRules.allMuted(channels), view.hideMuted, view.unreadOnly,
             CommunityMenuActions(
-                onInvite = if (d?.permissions?.canInvite == true) ({ nav.navigate(Routes.invites(org.id)) }) else null,
-                onToggleMute = if (channels.any { it.joined }) ({ val mute = !CommunityPanelRules.allMuted(channels); muteOrAsk(CommunityPanelRules.muteTargets(channels, mute), mute, org.name) }) else null,
+                onInvite = if (d?.permissions?.canInvite == true) ({ sheet = PanelSheet.Invite }) else null,
+                onToggleMute = if (channels.any { it.joined }) ({ toggleMute(org) }) else null,
                 onSettings = { nav.navigate(Routes.WORKSPACE) },
                 onMarkRead = CommunityPanelRules.markReadTargets(channels).takeIf { it.isNotEmpty() }?.let { t -> { actions.markAllRead(t); toast(ctx.getString(R.string.r3_marked_all_read)) } },
                 onNewChannel = if (d?.permissions?.canCreateChannels == true) ({ sheet = PanelSheet.NewChannel(null) }) else null,
@@ -467,7 +484,7 @@ fun CommunityHomeScreen(nav: NavHostController) {
         PanelSheet.Notifications -> CommunityNotificationsSheet(
             org.name, CommunityPanelRules.allMuted(channels), orgPrefs, channels,
             CommunityNotifyActions(
-                onToggleMute = if (channels.any { it.joined }) ({ val mute = !CommunityPanelRules.allMuted(channels); muteOrAsk(CommunityPanelRules.muteTargets(channels, mute), mute, org.name) }) else null,
+                onToggleMute = if (channels.any { it.joined }) ({ toggleMute(org) }) else null,
                 onLevel = { level -> container.navPrefs.setCommunityNotify(org.id, level = level) },
                 onSuppressEveryone = { on -> container.navPrefs.setCommunityNotify(org.id, suppressEveryone = on) },
                 onChannelLevel = { ch, level ->
@@ -478,6 +495,14 @@ fun CommunityHomeScreen(nav: NavHostController) {
             onDismiss = { if (sheet == s) sheet = null },
         )
         PanelSheet.Arrange -> ArrangeCommunitiesSheet(list, onOrder = { container.navPrefs.setRailOrder(it) }, onDismiss = { if (sheet == s) sheet = null })
+        PanelSheet.Invite -> InvitePeopleSheet(
+            org, canAddDirectly = true,
+            onManage = { sheet = null; nav.navigate(Routes.invites(org.id)) },
+            onDismiss = { if (sheet == s) sheet = null },
+        )
+        PanelSheet.CommunityMute -> MuteForSheet(org.name, timed = true, onPick = { duration ->
+            container.navPrefs.muteCommunity(org.id, duration)
+        }, onDismiss = { if (sheet == s) sheet = null })
         is PanelSheet.MuteFor -> MuteForSheet(s.title, timed = channelPrefs, onPick = { duration ->
             container.navPrefs.muteFor(channels.filter { it.id in s.ids }.mapNotNull { it.conv }, duration)
         }, onDismiss = { if (sheet == s) sheet = null })

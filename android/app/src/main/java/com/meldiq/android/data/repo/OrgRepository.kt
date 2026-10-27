@@ -121,6 +121,13 @@ class OrgRepository(
             },
         ).org.also { runCatching { orgs() } }
 
+    /**
+     * Adds people directly (API 0.42.0, at most 20): only people the caller knows who'd accept a DM from them; everyone
+     * else comes back `not_available` and needs an invitation link.
+     */
+    suspend fun addMembers(orgId: String, userIds: List<String>): List<com.meldiq.android.data.api.MemberAddResult> =
+        api.post<com.meldiq.android.data.api.MembersAddReq, com.meldiq.android.data.api.MembersAddRes>("/v1/orgs/$orgId/members", com.meldiq.android.data.api.MembersAddReq(userIds.distinct().take(com.meldiq.android.data.api.MembersAddReq.MAX))).results
+
     /** A community's banner (a JPEG of at most 1 MB; [com.meldiq.android.media.MediaPrep.bannerJpeg]). */
     suspend fun setBanner(orgId: String, jpeg: ByteArray) {
         api.sendBytes("PUT", "/v1/orgs/$orgId/banner", jpeg, kotlinx.serialization.json.JsonObject.serializer())

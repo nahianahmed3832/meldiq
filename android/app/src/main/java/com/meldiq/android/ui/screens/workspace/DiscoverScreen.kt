@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -143,6 +144,13 @@ private fun CommunityPreviewSheet(o: DiscoverCommunityDto, onDismiss: () -> Unit
     }
     GlassSheet(onDismiss, title = o.name) {
         Column(Modifier.verticalScroll(rememberScrollState())) {
+            // API 0.44.0: the community's banner or accent band, as Meldiq Web's Discover cards show it.
+            if (o.bannerRev != null || o.accent != null) {
+                androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth().clip(com.meldiq.android.ui.theme.Shapes.small)) {
+                    com.meldiq.android.ui.screens.community.CommunityBanner(o.id, o.accent, o.bannerRev)
+                }
+                Spacer(Modifier.height(10.dp))
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 OrgMark(o.id, o.name, o.id.hashCode(), o.photoRev, size = 56.dp)
                 Spacer(Modifier.width(12.dp))

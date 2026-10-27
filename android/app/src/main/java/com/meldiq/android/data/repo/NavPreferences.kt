@@ -152,6 +152,12 @@ class NavPreferences(
     fun setCommunityNotify(orgId: String, level: String? = null, suppressEveryone: Boolean? = null) =
         changeAndApplyMutes(orgId, listOf(NavOp.CommunityNotify(level, suppressEveryone)))
 
+    /** API 0.46.0: mutes the whole community [orgId] for [duration] ms (null: until turned back on), or unmutes it. */
+    fun muteCommunity(orgId: String, duration: Long?, mute: Boolean = true, now: Long = System.currentTimeMillis()) {
+        val until = if (!mute) 0L else com.meldiq.android.data.model.MuteRules.until(duration, now) ?: COMMUNITY_MUTE_FOREVER
+        changeAndApplyMutes(orgId, listOf(NavOp.CommunityMute(until)))
+    }
+
     /** Batch B2: [conv] follows its community's level again. */
     fun resetLevel(conv: ConversationEntity) = changeAndApplyMutes(workspaceOf(conv), listOf(NavOp.NotifyReset(conv.id)))
 
@@ -282,6 +288,8 @@ class NavPreferences(
     companion object {
         private const val TAG = "NavPrefs"
         const val PERSONAL = "personal"
+        /** "Until I turn it back on": the largest time a JavaScript date holds (Meldiq Web's MUTE_FOREVER). */
+        const val COMMUNITY_MUTE_FOREVER = 8_640_000_000_000_000L
         private const val MAX_ATTEMPTS = 3
         private fun key(workspaceId: String) = "nav.prefs.$workspaceId"
 

@@ -44,5 +44,5 @@ object MuteRules {
 
     /** The soonest end of a timed mute after [now] across [docs], to look again then. */
     fun nextExpiry(docs: Collection<com.meldiq.android.data.api.NavPrefsDto>, now: Long): Long? =
-        docs.flatMap { it.mutedUntil.orEmpty().values }.filter { it > now }.minOrNull()
+        docs.flatMap { it.mutedUntil.orEmpty().values + listOfNotNull(it.community?.mutedUntil) }.filter { it > now }.minOrNull()
 }
