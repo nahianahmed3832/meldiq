@@ -69,12 +69,14 @@ import { SqlitePreferenceStore } from "../modules/accounts/preferences/store.js"
 import { SqliteHistoryStore } from "../modules/messaging/history/store.js";
 import pushRoutes from "../modules/notifications/routes.js";
 import userRoutes from "../modules/accounts/usersRoutes.js";
+import profileMediaRoutes from "../modules/accounts/profileMediaRoutes.js";
+import gifRoutes from "../modules/messaging/gifsRoutes.js";
 import { Metrics } from "../modules/administration/ops/metrics.js";
 import { ApiError } from "../shared/errors.js";
 import { now } from "../shared/utilities/util.js";
 import wsRoutes from "../modules/realtime/ws.js";
 
-export const VERSION = "0.44.0";
+export const VERSION = "0.45.0";
 /**
  * The client API this server speaks and the oldest client API it accepts. Clients refuse a server whose
  * minClientApi is newer than theirs; servers from before these fields existed count as API 1.
@@ -347,7 +349,7 @@ export async function buildApp(
     passkeys: ctx.accounts.passkeys.available ? { webOrigins: ctx.accounts.passkeys.webOrigins } : null,
   }));
 
-  for (const r of [authRoutes, userRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, expressionRoutes, discordRoutes, wsRoutes]) {
+  for (const r of [authRoutes, userRoutes, profileMediaRoutes, gifRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, expressionRoutes, discordRoutes, wsRoutes]) {
     await app.register(async (scope) => r(scope, ctx));
   }
   await app.register(async (scope) => opsRoutes(scope, ctx, VERSION));
@@ -461,6 +463,10 @@ export function serverFeatures(config: Config, directUploads = false): string[] 
     "self-controls",
     // API 0.44.0: a community's accent colour and banner (docs/COMMUNITY_BRANDING.md).
     "community-branding",
+    // API 0.45.0: animated avatars, profile banners and profile style (docs/PROFILE_MEDIA.md).
+    "profile-media",
+    // API 0.45.0: GIF search through this server (GET /v1/gifs/status says whether a provider is set up; docs/GIFS.md).
+    "gif-search",
   ];
   if (config.accounts.legacy.migration) f.push("legacy-migration");
   if (directUploads) f.push("direct-upload");

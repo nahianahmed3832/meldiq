@@ -130,6 +130,24 @@ Passkeys failed in the app installed from Google Play: Play signs it with its ap
 
 Rollback: copy the backup's `.env` back and recreate `api` the same way.
 
+### API 0.45.0 (2026-10-27, 12:45 UTC, owner's go-ahead: "directly push to github and for productions")
+
+Profile media and style (`docs/PROFILE_MEDIA.md`), GIF search through the server (`docs/GIFS.md`; off: no
+`GIF_PROVIDER`/`GIF_API_KEY`). **Migration 058** adds three nullable columns to `users`. Branch `meldling-api` c3c1fca.
+
+| Step | Result |
+|---|---|
+| Checks before | server full suite 1,116 passed / 11 skipped (docs check passes after `npm run contracts`); new `profile_media` (7, a real ffmpeg clip), `gifs` (3) |
+| Pre-flight | running 0.44.0; VPS `server/` (tests excluded) byte-equal to 8020aa3 |
+| Build | sources kept as `server.pre-0.45.0` (and `validate-env.sh.pre-0.45.0`); the 16 changed files synced plus `validate-env.sh`; parity with c3c1fca; image `0.45.0` built, `ffmpeg` and `ffprobe` in it |
+| Backup | `backups/pre-0.45.0-20261027T124431Z`: integrity ok, schema 57, 43 users, `.env` + `compose.yaml` copies; image tagged `0.44.0-rollback` |
+| Rehearsal | backup copy, `--network none`: healthy, 0.45.0, schema 58, 0 errors; removed after |
+| Switch | image 0.45.0, `validate-env.sh` 0 errors ("GIF search off", "Discord import on"), `config -q`, `up -d --no-deps --no-build api`: healthy, 0 restarts |
+| Checks after | `/healthz` 0.45.0 on both hosts; features `profile-media`, `gif-search`, `community-branding`, `discord-import`; live schema 58, integrity ok; 0 errors |
+
+Rollback: image `griip-internal-messaging-api:0.44.0-rollback`; 0.44.0 runs on schema 58 as it is (three added nullable
+columns it never reads).
+
 ### Meldiq Web 0.5.0-beta-fbee84d and c3220e5 (2026-10-27, 10:19 and 10:21 UTC)
 
 The reference UI, colourful names and community branding (meldiq-web `docs/MELDIQ_BRANDING_REPORT.md`), then a

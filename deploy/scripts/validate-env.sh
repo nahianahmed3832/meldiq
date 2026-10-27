@@ -184,6 +184,20 @@ else
   ok "Firebase wake-ups off (FCM_PROJECT_ID empty)"
 fi
 
+# GIF search (docs/GIFS.md): both settings or neither; the provider is tenor or giphy.
+if [ -n "${GIF_PROVIDER:-}${GIF_API_KEY:-}" ]; then
+  if [ -z "${GIF_PROVIDER:-}" ] || [ -z "${GIF_API_KEY:-}" ]; then
+    err "GIF search needs GIF_PROVIDER and GIF_API_KEY together"
+  else
+    case "$GIF_PROVIDER" in
+      tenor|giphy) ok "GIF search on ($GIF_PROVIDER)" ;;
+      *) err "GIF_PROVIDER must be tenor or giphy" ;;
+    esac
+  fi
+else
+  ok "GIF search off (no GIF_PROVIDER / GIF_API_KEY)"
+fi
+
 # Discord import (docs/DISCORD_IMPORT.md): all four settings or none; the redirect must be Meldiq Web's /discord/callback.
 if [ -n "${DISCORD_CLIENT_ID:-}${DISCORD_CLIENT_SECRET:-}${DISCORD_BOT_TOKEN:-}${DISCORD_REDIRECT_URI:-}" ]; then
   if [ -z "${DISCORD_CLIENT_ID:-}" ] || [ -z "${DISCORD_CLIENT_SECRET:-}" ] || [ -z "${DISCORD_BOT_TOKEN:-}" ] || [ -z "${DISCORD_REDIRECT_URI:-}" ]; then

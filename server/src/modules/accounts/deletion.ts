@@ -1,3 +1,4 @@
+import { profileMediaBlobs } from "./profileMedia.js";
 import crypto from "node:crypto";
 import type { AppContext } from "../../app/context.js";
 import type { DB } from "../../infrastructure/database/db.js";
@@ -209,10 +210,13 @@ function keepGroupAdmin(db: DB, convId: string): void {
 function anonymize(ctx: AppContext, userId: string, photoRev: number | null, t: number): void {
   // "-" is never allowed in a username, so the placeholder can't collide with a real one; the old name is free again.
   const placeholder = `deleted-${crypto.randomBytes(8).toString("hex")}`;
+  // API 0.45.0: the animated avatar and banner go with the photo.
+  const media = ctx.db.prepare("SELECT id, avatar_media, profile_banner FROM users WHERE id = ?").get(userId) as { id: string; avatar_media: string | null; profile_banner: string | null } | undefined;
+  for (const b of media ? profileMediaBlobs(media) : []) queueBlobDelete(ctx, "profile-photos", b);
   ctx.db
     .prepare(
       `UPDATE users SET username = ?, display_name = ?, status_text = NULL, status_emoji = NULL, status_expires_at = NULL, notifications_paused_until = NULL, avatar_color = 0, first_name = NULL, last_name = NULL,
-         birthday = NULL, phone = NULL, photo_rev = NULL, privacy = NULL, username_changed_at = NULL, limited_until = NULL,
+         birthday = NULL, phone = NULL, photo_rev = NULL, avatar_media = NULL, profile_banner = NULL, profile_style = NULL, privacy = NULL, username_changed_at = NULL, limited_until = NULL,
          disabled_at = COALESCE(disabled_at, ?), deleted_at = COALESCE(deleted_at, ?), updated_at = ? WHERE id = ?`,
     )
     .run(placeholder, DELETED_DISPLAY_NAME, t, t, t, userId);

@@ -1,3 +1,4 @@
+import { profileMediaView } from "./profileMedia.js";
 import type { AppContext } from "../../app/context.js";
 import { Audience as AudienceEnum, PHONE, PresenceMode as PresenceModeEnum, validBirthday } from "../../shared/contracts/http/users.js";
 
@@ -51,6 +52,10 @@ export interface ProfileRow {
   presence_until?: number | null;
   /** Batch B12: shown with the bio, under its privacy setting. */
   pronouns?: string | null;
+  /** API 0.45.0 (profileMedia.ts). */
+  avatar_media?: string | null;
+  profile_banner?: string | null;
+  profile_style?: string | null;
 }
 
 /** Batch B6b: what a person chose to appear as. "auto": online while an app is connected. */
@@ -158,6 +163,8 @@ export function profileView(u: ProfileRow, r: Relation) {
     if (u.last_name) view.lastName = u.last_name;
   }
   if (show("photo") && u.photo_rev) view.photoRev = u.photo_rev;
+  // API 0.45.0: an animated avatar and banner under the photo's setting, and the profile's style.
+  Object.assign(view, profileMediaView(u, show("photo")));
   if (show("birthday") && u.birthday) view.birthday = u.birthday;
   if (show("phone") && u.phone) view.phone = u.phone;
   if (r.self) {

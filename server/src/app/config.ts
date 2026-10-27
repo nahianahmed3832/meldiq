@@ -184,6 +184,8 @@ export interface Config {
   fcm: FcmConfig | null;
   /** Importing a Discord server's structure (docs/DISCORD_IMPORT.md). Null (off) unless all four DISCORD_* values are set. */
   discord: DiscordConfig | null;
+  /** GIF search through this server (docs/GIFS.md). Null (off) unless GIF_PROVIDER and GIF_API_KEY are set. */
+  gifs: GifConfig | null;
   logLevel: string;
   rateLimitPerMinute: number;
 }
@@ -230,6 +232,31 @@ export function discordConfig(env: NodeJS.ProcessEnv): DiscordConfig | null {
     redirectUri: serviceUrl(redirect, "DISCORD_REDIRECT_URI"),
     apiBase: serviceUrl(env.DISCORD_API_BASE?.trim() || "https://discord.com/api/v10", "DISCORD_API_BASE"),
     cdnBase: serviceUrl(env.DISCORD_CDN_BASE?.trim() || "https://cdn.discordapp.com", "DISCORD_CDN_BASE"),
+  };
+}
+
+export interface GifConfig {
+  /** "tenor" (Tenor API v2) or "giphy" (GIPHY API v1). */
+  provider: "tenor" | "giphy";
+  apiKey: string;
+  /** The provider's API; another value only for tests against a local stand-in (GIF_API_BASE). */
+  apiBase: string;
+  /** Content rating passed to the provider: Tenor "medium", GIPHY "pg-13" (GIF_RATING overrides). */
+  rating: string;
+}
+
+export function gifConfig(env: NodeJS.ProcessEnv): GifConfig | null {
+  const provider = env.GIF_PROVIDER?.trim().toLowerCase();
+  const apiKey = env.GIF_API_KEY?.trim();
+  if (!provider && !apiKey) return null;
+  if (!provider || !apiKey) throw new Error("GIF search needs GIF_PROVIDER (tenor or giphy) and GIF_API_KEY together (or neither)");
+  if (provider !== "tenor" && provider !== "giphy") throw new Error("GIF_PROVIDER is tenor or giphy");
+  const base = provider === "tenor" ? "https://tenor.googleapis.com/v2" : "https://api.giphy.com/v1";
+  return {
+    provider,
+    apiKey,
+    apiBase: serviceUrl(env.GIF_API_BASE?.trim() || base, "GIF_API_BASE"),
+    rating: env.GIF_RATING?.trim() || (provider === "tenor" ? "medium" : "pg-13"),
   };
 }
 
@@ -517,6 +544,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     push: pushConfig(env, int),
     fcm: fcmConfig(env),
     discord: discordConfig(env),
+    gifs: gifConfig(env),
     logLevel: env.LOG_LEVEL ?? "info",
     rateLimitPerMinute: int("RATE_LIMIT_PER_MINUTE", 600),
   };
