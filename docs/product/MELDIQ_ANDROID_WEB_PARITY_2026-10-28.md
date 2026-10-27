@@ -50,6 +50,24 @@ uses routes and fields API 0.47.0 already serves.
 | APK | `android/app/build/outputs/apk/debug/meldiq-test-web-parity-production-debug.apk` (side by side as "Meldiq Test", production server), sha256 `53c2b701…3a0db4b6` |
 | Emulator (Medium_Phone_API_36.1) | installed over the existing test app with its data kept: the database moved to v14, the palette moved to Meldiq ("Dark · Meldiq"), the Meldling Messages tab and the pink count show, You and Settings list Profile style and Account safety, Profile style opens. Signed-in screens couldn't be exercised: the emulator's test account belongs to a local server that's gone, and signing up another account there means erasing the phone's data first |
 
+## Second pass (2026-10-28, against Meldiq Web v4 `fbe8ba3` and stage 1's Appearance)
+
+The owner asked to check everything again, add the newer customisation and use a more modern design.
+
+| Web | Android now | Commit |
+|---|---|---|
+| v4: safety numbers retired | No safety number cards, Mark as verified or verified points; a changed key still pauses messages, and the profile asks to confirm it in person or on a trusted call | `5331f58` |
+| v4: old account flows retired | "Move an account from before email" is no longer offered at sign-in; a phone that holds such an account is still taken through the move | `5331f58` |
+| v4 / API 0.48.0: stable channel order | Categories keep their saved order before the category list loads (`categoryPosition`, DB v15) | `5331f58` |
+| v4: connection banner | Shows only after 1.5 s down | `5331f58` |
+| Stage 1: Colour themes | Settings › Appearance › Colour themes: none, the web's twenty gradients or a custom theme of two or three colours, with strength; one soft layer over the app | `316913f` |
+| Stage 1: Use a community's own colours | A switch under Colour themes; off keeps Meldiq's colours on the rail and hides community banners | `316913f` |
+| v4: phone You tab | Your card (banner, animated avatar, styled name, @username, Status for status, pause and presence), shortcuts, then User settings and App settings as plain grouped lists | `316913f` |
+| Modern lists | Every settings row uses a plain monochrome glyph instead of a coloured tile (only destructive and warning rows keep a colour) | `316913f` |
+
+Still web-only: message bubbles on the rail (Android's rail has no Home button; DMs are their own tab), keyboard
+shortcuts, Builder mode and "Install as an app" (desktop browser features), and the rail folders coming in API 0.50.0.
+
 ## Follow-ups
 
 - API 0.48.0 added `categoryPosition` on channels (web v4: a stable channel order); Android still orders by its own
