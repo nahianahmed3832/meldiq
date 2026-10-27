@@ -130,6 +130,28 @@ Passkeys failed in the app installed from Google Play: Play signs it with its ap
 
 Rollback: copy the backup's `.env` back and recreate `api` the same way.
 
+### API 0.44.0 (2026-10-27, 09:39 UTC, owner's go-ahead in the brief)
+
+Community accent colours and banners (`docs/COMMUNITY_BRANDING.md`), feature `community-branding`. **Migration 057**
+adds two nullable columns to `orgs` (`accent`, `banner_rev`); every existing community keeps Meldiq's theme. Branch
+`meldling-api` 8020aa3.
+
+| Step | Result |
+|---|---|
+| Checks before | server full suite 1,106 passed / 11 skipped (the docs check passes after `npm run contracts`); new `community_branding` (7); `tsc` clean; PR CI "Server" passed |
+| Pre-flight | running 0.43.0; VPS `server/` (tests excluded) byte-equal to a5c2d6b (`rsync -c` dry run, empty); 49 GB free; `.env` has no `DISCORD_*` names |
+| Housekeeping | the 0.35.0 build waiter (PID 1577835, `while pgrep -f "docker build … 0.35.0"`, started 2026-10-24 06:20 UTC) could never end: its pattern matched its own command line. No build was running; it was sent SIGTERM and exited. Two older `bash -s` sleep loops (PIDs 1582394, 1708911, from 2026-10-23) were left alone: their purpose couldn't be shown |
+| Build | sources kept as `server.pre-0.44.0`; the 10 changed files synced; parity with 8020aa3 confirmed; `docker build -t griip-internal-messaging-api:0.44.0 server` (`build-0.44.0.log`, done; the SSH session dropped, `nohup` survived) |
+| Backup | `backups/pre-0.44.0-20261027T093747Z`: integrity ok, schema 56, 43 users, `.env` + `compose.yaml` copies; image tagged `0.43.0-rollback` |
+| Rehearsal | backup copy, `--network none`, env without FCM lines: healthy, 0.44.0, schema 57, both columns present, no community branded, 0 errors; removed after |
+| Switch | `compose.yaml` image 0.44.0, `validate-env.sh` 0 errors (the 2 usual warnings), `config -q`, `up -d --no-deps --no-build api`: healthy, 0 restarts |
+| Checks after | `/healthz` 0.44.0 on msg.meldiq.app and msg.griipbuddy.cloud; `community-branding` advertised; banner routes answer 401 signed out and 404 for an unknown invitation; live schema 57, integrity ok; 0 errors in the log; `verify.sh` clean |
+
+| Discord import (09:56 UTC) | application "Meldiq" (Client ID 1564576594209673226) made by the owner's account in the Developer Portal: redirect `https://web.meldiq.app/discord/callback`, privileged intents off, Public Bot on. The owner entered the secret and bot token with `/root/set-discord.sh` (hidden input; `.env.before-discord-20261027T095631Z` kept). `validate-env.sh` "Discord import on", 0 errors; `up -d --no-deps --no-build --force-recreate api`: healthy, 0 restarts, 0 errors. From the container: the bot token answers as "Meldiq" with the same id, Public Bot and that redirect; the client secret is accepted (a client-credentials token, revoked at once); the API's configuration has Discord on. No real server imported yet |
+
+Rollback: `compose.yaml` image `griip-internal-messaging-api:0.43.0-rollback`, `up -d --no-deps --no-build api`. 0.43.0
+runs on schema 57 as it is (two added nullable columns it never reads); banners already uploaded stay in the store.
+
 ### API 0.43.0 and Meldiq Web 0.5.0-beta-73bbdda (2026-10-27, 00:19 UTC, owner's go-ahead in the brief)
 
 The Meldling round (meldiq-web `docs/MELDIQ_MELDLING_REPORT.md`). API (branch `meldling-api` on `internal-beta` 59c7916):

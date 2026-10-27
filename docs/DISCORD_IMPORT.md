@@ -50,13 +50,19 @@ Meldiq's own limits apply (500 channels, 50 per category, 50 roles, 50 emoji); w
 
 ## Setting it up (owner, on Discord's side)
 
+Done for production on 2026-10-27: application "Meldiq" (Client ID `1564576594209673226`) with the redirect below,
+privileged intents off, Public Bot on. The secret and bot token are entered on the VPS with `/root/set-discord.sh`
+(hidden input, straight into `.env`, a dated copy of `.env` kept first).
+
+
 Until these four settings are in the API's `.env`, the app says "Importing from Discord isn't set up on this server
 yet" and offers nothing that would fail:
 
 1. Discord Developer Portal → New Application ("Meldiq").
 2. **OAuth2** → Redirects: add `https://web.meldiq.app/discord/callback`. Copy the Client ID and reset/copy the Client Secret.
 3. **Bot**: create it, copy its token. Leave **all privileged gateway intents off** (presence, server members, message
-   content): the import doesn't use them. Turn "Public Bot" off if only the owner should add it.
+   content): the import doesn't use them. Keep **Public Bot on**: with it off, only the application's owner could add
+   the bot, so nobody else could import their server.
 4. In `/opt/griip-internal-messaging/.env`: `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_BOT_TOKEN`,
    `DISCORD_REDIRECT_URI=https://web.meldiq.app/discord/callback`; then `deploy/scripts/validate-env.sh` and recreate
    the API container. Never commit these values.
