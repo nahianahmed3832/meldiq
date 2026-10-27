@@ -130,6 +130,14 @@ Passkeys failed in the app installed from Google Play: Play signs it with its ap
 
 Rollback: copy the backup's `.env` back and recreate `api` the same way.
 
+### Meldiq Web 0.5.0-beta-fbee84d and c3220e5 (2026-10-27, 10:19 and 10:21 UTC)
+
+The reference UI, colourful names and community branding (meldiq-web `docs/MELDIQ_BRANDING_REPORT.md`), then a
+one-line fix to the invitation page. Browser suite (Chromium + phone width, against 0.44.0) 64 passed, 0 failed;
+518 unit tests. Each release: `sha256sum -c` ok; nginx site, CSP and `config.json` byte-identical before and after;
+`verify.sh` all passed. Post backup `backups/post-0.44.0-20261027T102210Z` (schema 57, 43 users). Rollback:
+`bash /root/meldiq-web-0.5.0-beta-c3220e5/rollback.sh`.
+
 ### API 0.44.0 (2026-10-27, 09:39 UTC, owner's go-ahead in the brief)
 
 Community accent colours and banners (`docs/COMMUNITY_BRANDING.md`), feature `community-branding`. **Migration 057**
