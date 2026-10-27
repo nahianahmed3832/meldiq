@@ -34,11 +34,18 @@ object Channels {
     /** Channels these replace (the original ids, and other sound variants). */
     private val LEGACY = mapOf("msg" to listOf("messages"), "mention" to listOf("mentions"), "call" to listOf("incoming_call", "incoming_call_v2"))
 
-    /** The channel ids for these sound settings (pure; unit-tested in `ChannelIdsTest`). */
+    /**
+     * The channel ids for these sound settings (pure; unit-tested in `ChannelIdsTest`). Channels with a sound carry the
+     * sound's version ([SOUNDS]): Android keeps a channel's sound for good, so new sounds need new channels (the old
+     * ones are removed, keeping whether the person turned them off or down).
+     */
     object Ids {
-        fun messages(sound: Boolean, vibrate: Boolean) = "meldiq_msg_s${if (sound) 1 else 0}v${if (vibrate) 1 else 0}"
-        fun mentions(sound: Boolean, vibrate: Boolean) = "meldiq_mention_s${if (sound) 1 else 0}v${if (vibrate) 1 else 0}"
-        fun calls(ring: Boolean, vibrate: Boolean) = "meldiq_call_r${if (ring) 1 else 0}v${if (vibrate) 1 else 0}"
+        /** 2026-10-28: the owner's ringtone and bell notification sound (res/raw, docs/NOTIFICATIONS.md). */
+        private const val SOUNDS = "_t2"
+        private fun sounds(on: Boolean) = if (on) SOUNDS else ""
+        fun messages(sound: Boolean, vibrate: Boolean) = "meldiq_msg_s${if (sound) 1 else 0}v${if (vibrate) 1 else 0}${sounds(sound)}"
+        fun mentions(sound: Boolean, vibrate: Boolean) = "meldiq_mention_s${if (sound) 1 else 0}v${if (vibrate) 1 else 0}${sounds(sound)}"
+        fun calls(ring: Boolean, vibrate: Boolean) = "meldiq_call_r${if (ring) 1 else 0}v${if (vibrate) 1 else 0}${sounds(ring)}"
         fun category(id: String): String? = when {
             id.startsWith("meldiq_msg_") -> "msg"
             id.startsWith("meldiq_mention_") -> "mention"

@@ -1,13 +1,17 @@
 # Notifications and sounds
 
-## Sounds (2026-10-17)
-Meldiq has its own message tone and ringtone (`res/raw/orbit_message.ogg`, 0.45 s, two rising notes;
-`res/raw/orbit_ringtone.ogg`, 2.6 s, a three-note motif that loops while ringing). Both were synthesised for Meldiq with
-ffmpeg from sine tones, so they are original and carry no licence.
+## Sounds (2026-10-28)
+Since 2026-10-28 the sounds are the ones the owner chose: the ringtone `res/raw/meldiq_ringtone.m4a` (10.6 s, a classic
+phone ring, from "soynoviembre-classic-phone-ringtone-439034.mp3", Pixabay) and the message sound
+`res/raw/meldiq_message.m4a` (3.4 s, a bell, from Mixkit's "bell notification" 933). Both were converted to AAC (160 kbps,
+44.1 kHz, metadata removed); every Android version Meldiq supports plays it. Channels with a sound carry its version
+(`_t2`), so phones that already had Meldiq get new channels with the new sounds.
+
+Until then Meldiq had its own message tone and ringtone (0.45 s and 2.6 s), synthesised with ffmpeg from sine tones.
 
 Android fixes a notification channel's sound and vibration when it's created, so each combination of Meldiq's settings
-has its own channel (`Channels.Ids`, tested in `UiRulesTest`): `orbit_msg_s{0|1}v{0|1}`, `orbit_mention_…`,
-`orbit_call_r{0|1}v{0|1}`. When a setting changes (or on first start after updating), Meldiq creates the matching channel
+has its own channel (`Channels.Ids`, tested in `UiRulesTest`): `meldiq_msg_s{0|1}v{0|1}`, `meldiq_mention_…`,
+`meldiq_call_r{0|1}v{0|1}`, with `_t2` after those that have a sound. When a setting changes (or on first start after updating), Meldiq creates the matching channel
 and deletes the old ones of that kind, including the original `messages`, `mentions` and `incoming_call_v2`. A channel the
 person had blocked or turned down in Android's settings is recreated at that importance, not reset.
 

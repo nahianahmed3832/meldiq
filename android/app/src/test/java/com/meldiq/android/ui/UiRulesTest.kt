@@ -47,9 +47,13 @@ class UiRulesTest {
 
     @Test
     fun soundSettingsMapToTheirOwnChannels() {
-        assertEquals("meldiq_msg_s1v1", Channels.Ids.messages(sound = true, vibrate = true))
+        assertEquals("meldiq_msg_s1v1_t2", Channels.Ids.messages(sound = true, vibrate = true))
         assertEquals("meldiq_msg_s0v1", Channels.Ids.messages(sound = false, vibrate = true))
         assertEquals("meldiq_call_r0v0", Channels.Ids.calls(ring = false, vibrate = false))
+        // A new sound gets new channels (Android keeps a channel's sound for good); the old ones are still recognised.
+        assertEquals("meldiq_call_r1v1_t2", Channels.Ids.calls(ring = true, vibrate = true))
+        assertEquals("call", Channels.Ids.category("meldiq_call_r1v1_t2"))
+        assertEquals("call", Channels.Ids.category("meldiq_call_r1v1"))
         assertEquals("msg", Channels.Ids.category("meldiq_msg_s0v0"))
         assertEquals("msg", Channels.Ids.category("messages")) // the original channel is migrated, not left behind
         assertEquals("call", Channels.Ids.category("incoming_call_v2"))
