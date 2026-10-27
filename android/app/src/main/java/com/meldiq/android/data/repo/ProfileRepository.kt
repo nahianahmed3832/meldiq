@@ -104,6 +104,58 @@ class ProfileRepository(
     /** An organisation's avatar at [rev] (members only), cached like people's photos (ids never clash: "o_…" vs "u_…"). */
     suspend fun orgPhoto(orgId: String, rev: Long): File? = cachedPhoto(orgId, rev, "/v1/orgs/$orgId/photo")
 
+    /**
+     * API 0.45.0: someone's animated avatar (GIF or WebP), or a video avatar's still frame, cached per revision like
+     * photos; null when they don't show it to this account.
+     */
+    suspend fun avatarMedia(userId: String, media: com.meldiq.android.data.model.MediaRef): File? =
+        if (media.kind == "video") cachedPhoto(userId, media.rev, "/v1/users/$userId/avatar-poster", kind = "poster")
+        else cachedPhoto(userId, media.rev, "/v1/users/$userId/avatar-media", kind = "avatar", ext = media.kind)
+
+    /** API 0.45.0: someone's profile banner (JPEG, GIF or WebP), cached per revision. */
+    suspend fun profileBanner(userId: String, banner: com.meldiq.android.data.model.MediaRef): File? =
+        cachedPhoto(userId, banner.rev, "/v1/users/$userId/profile-banner", kind = "banner", ext = if (banner.kind == "jpeg") "jpg" else banner.kind)
+
+    // ───── Your own profile media and style (API 0.45.0–0.46.0, docs/PROFILE_MEDIA.md) ─────
+
+    /** Sets your animated avatar: a GIF or WebP (≤ 4 MB), or a short clip the server turns into a 3 s silent loop. */
+    suspend fun setAvatarMedia(bytes: ByteArray): com.meldiq.android.data.model.MediaRef? =
+        api.sendBytes("PUT", "/v1/users/me/avatar-media", bytes, AvatarMediaRes.serializer()).avatarMedia.also { refreshMe() }
+
+    suspend fun removeAvatarMedia() {
+        api.delete<AvatarMediaRes>("/v1/users/me/avatar-media")
+        refreshMe()
+    }
+
+    /** Sets your profile banner: a JPEG (≤ 1 MB) or an animated GIF or WebP (≤ 6 MB). */
+    suspend fun setProfileBanner(bytes: ByteArray): com.meldiq.android.data.model.MediaRef? =
+        api.sendBytes("PUT", "/v1/users/me/profile-banner", bytes, ProfileBannerRes.serializer()).profileBanner.also { refreshMe() }
+
+    suspend fun removeProfileBanner() {
+        api.delete<ProfileBannerRes>("/v1/users/me/profile-banner")
+        refreshMe()
+    }
+
+    /** Changes the fields in [changes] of your profile style (a JSON null removes one; fields left out stay as they are). */
+    suspend fun setProfileStyle(changes: kotlinx.serialization.json.JsonObject): com.meldiq.android.data.model.ProfileStyleDto =
+        api.put<kotlinx.serialization.json.JsonObject, ProfileStyleRes>("/v1/users/me/profile-style", changes).profileStyle.also { refreshMe() }
+
+    /** API 0.46.0: About me (≤ 300 characters) and up to five https links; null clears either. */
+    suspend fun setAbout(aboutMe: String?, links: List<com.meldiq.android.data.api.ProfileLinkDto>?): UserDto = patchMe(
+        kotlinx.serialization.json.buildJsonObject {
+            put("aboutMe", aboutMe?.trim()?.takeIf { it.isNotEmpty() }?.let { kotlinx.serialization.json.JsonPrimitive(it) } ?: kotlinx.serialization.json.JsonNull)
+            put(
+                "links",
+                links?.takeIf { it.isNotEmpty() }?.let { list ->
+                    kotlinx.serialization.json.JsonArray(list.map { l -> kotlinx.serialization.json.buildJsonObject { put("label", kotlinx.serialization.json.JsonPrimitive(l.label.trim())); put("url", kotlinx.serialization.json.JsonPrimitive(l.url.trim())) } })
+                } ?: kotlinx.serialization.json.JsonNull,
+            )
+        },
+    )
+
+    /** API 0.44.0: a community's banner (JPEG), cached per revision. */
+    suspend fun orgBanner(orgId: String, rev: Long): File? = cachedPhoto(orgId, rev, "/v1/orgs/$orgId/banner", kind = "banner")
+
     /** Batch B6b: a group's photo, cached per revision like people's and communities'. */
     suspend fun groupPhoto(conversationId: String, rev: Long): File? = cachedPhoto(conversationId, rev, "/v1/conversations/$conversationId/photo")
 
@@ -123,9 +175,11 @@ class ProfileRepository(
         }
     }
 
-    private suspend fun cachedPhoto(ownerId: String, rev: Long, path: String): File? = withContext(Dispatchers.IO) {
-        val safe = ownerId.replace(Regex("[^A-Za-z0-9_-]"), "_")
-        val file = File(photoDir, "$safe-$rev.jpg")
+    /** [kind] names what else of [ownerId]'s is kept (an animated avatar, a banner) beside its photo, never replacing it. */
+    private suspend fun cachedPhoto(ownerId: String, rev: Long, path: String, kind: String? = null, ext: String = "jpg"): File? = withContext(Dispatchers.IO) {
+        val owner = ownerId.replace(Regex("[^A-Za-z0-9_-]"), "_")
+        val safe = if (kind == null) owner else "$owner~$kind"
+        val file = File(photoDir, "$safe-$rev.${ext.filter(Char::isLetterOrDigit).ifEmpty { "bin" }}")
         if (file.length() > 0) return@withContext file
         val lock = synchronized(locks) { locks.getOrPut(safe) { Mutex() } }
         lock.withLock {
@@ -143,3 +197,10 @@ class ProfileRepository(
     suspend fun blockedUsers(federation: FederationRepository): List<UserDto> =
         federation.blocked().mapNotNull { id -> runCatching { users.fetch(id) }.getOrNull() }
 }
+
+@kotlinx.serialization.Serializable
+data class AvatarMediaRes(val avatarMedia: com.meldiq.android.data.model.MediaRef? = null)
+@kotlinx.serialization.Serializable
+data class ProfileBannerRes(val profileBanner: com.meldiq.android.data.model.MediaRef? = null)
+@kotlinx.serialization.Serializable
+data class ProfileStyleRes(val profileStyle: com.meldiq.android.data.model.ProfileStyleDto)

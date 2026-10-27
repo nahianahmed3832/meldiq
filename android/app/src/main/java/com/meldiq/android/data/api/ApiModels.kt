@@ -75,6 +75,8 @@ import kotlinx.serialization.json.JsonObject
 @Serializable data class PairingApproveReq(val certificate: String, val sealedIdentity: String, val sealedEnc: String)
 
 // ───────── Users & devices ─────────
+/** A link on a profile (API 0.46.0): https only, at most five. */
+@Serializable data class ProfileLinkDto(val label: String, val url: String)
 @Serializable data class UserDto(
     val id: String, val username: String, val displayName: String, val avatarColor: Int = 0, val statusText: String? = null,
     /** Round 3 (servers with `status-expiry`): the status emoji and when it ends; your own profile only for the end. */
@@ -101,6 +103,15 @@ import kotlinx.serialization.json.JsonObject
     val photoRev: Long? = null,
     /** Batch B12: shown with the bio, under its privacy setting (servers with `pronouns`). */
     val pronouns: String? = null,
+    /** API 0.45.0: an animated avatar and a banner (to whoever may see the photo), and the profile's style. */
+    val avatarMedia: com.meldiq.android.data.model.MediaRef? = null,
+    val profileBanner: com.meldiq.android.data.model.MediaRef? = null,
+    val profileStyle: com.meldiq.android.data.model.ProfileStyleDto? = null,
+    /** API 0.46.0: the community tag they wear, About me and links (under the bio's setting), badges earned. */
+    val tag: com.meldiq.android.data.model.WornTag? = null,
+    val aboutMe: String? = null,
+    val links: List<ProfileLinkDto>? = null,
+    val badges: List<String>? = null,
     /** Your own privacy settings (only in your own profile): field → "everyone" | "contacts" | "nobody". */
     val privacy: Map<String, String>? = null,
     /** Workspace member lists (servers with `custom-roles`): the custom roles this person holds there. */
@@ -310,6 +321,11 @@ object ChannelFormat {
     /** Batch B8b: the community guide (members only), and whether it asks onboarding questions. */
     val guide: GuideDto? = null,
     val onboarding: Boolean = false,
+    /** API 0.44.0 (docs/COMMUNITY_BRANDING.md): the accent `#rrggbb` (null: Meldiq's theme) and the banner's revision. */
+    val accent: String? = null,
+    val bannerRev: Long? = null,
+    /** API 0.46.0: the 2–4 letter tag members can wear by their names (null: none). */
+    val tag: String? = null,
 )
 /** Batch B9: one of a community's own emoji or stickers. */
 @Serializable data class ExpressionDto(
@@ -501,6 +517,9 @@ object CommunityAccess {
     val joinPolicy: String = CommunityAccess.INVITE, val joined: Boolean = false,
     /** Batch B4b: people apply to join by answering the community's questions. */
     val applications: Boolean = false,
+    /** API 0.44.0: the community's accent and banner (Discover cards show them). */
+    val accent: String? = null,
+    val bannerRev: Long? = null,
 )
 @Serializable data class DiscoverRes(val communities: List<DiscoverCommunityDto> = emptyList(), val nextCursor: Int? = null)
 @Serializable data class PreviewChannelDto(

@@ -2,6 +2,8 @@ package com.meldiq.android.ui.screens.community
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -63,6 +65,32 @@ fun panelIcon(kind: String?, voice: Boolean, format: String): ImageVector = when
     ChannelType.FORUM -> Icons.Outlined.Forum
     ChannelType.ANNOUNCEMENT -> Icons.Outlined.Campaign
     ChannelType.TEXT -> if (kind == "PRIVATE") Icons.Outlined.Lock else Icons.Outlined.Tag
+}
+
+/** A community banner's height above its channel list. */
+private val BannerHeight = 84.dp
+
+/**
+ * A community's banner (API 0.44.0, as Meldiq Web): its picture, else a soft band in its accent, else nothing. Scoped to
+ * this community's panel; it never recolours the app.
+ */
+@Composable
+fun CommunityBanner(orgId: String, accent: String?, bannerRev: Long?) {
+    val colors = com.meldiq.android.data.model.AccentRules.colors(accent)
+    if (bannerRev == null && colors == null) return
+    val container = com.meldiq.android.ui.LocalContainer.current
+    val image by androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, orgId, bannerRev) {
+        val rev = bannerRev ?: return@produceState
+        val file = runCatching { container.profiles.orgBanner(orgId, rev) }.getOrNull() ?: return@produceState
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { android.graphics.BitmapFactory.decodeFile(file.path)?.asImageBitmap() }
+    }
+    val band = colors?.let {
+        val fill = androidx.compose.ui.graphics.Color(it.fill)
+        androidx.compose.ui.graphics.Brush.linearGradient(listOf(fill, androidx.compose.ui.graphics.Color(com.meldiq.android.data.model.AccentRules.mix(it.fill, 0xFF8B5CF6L, 0.55))))
+    } ?: androidx.compose.ui.graphics.Brush.linearGradient(listOf(Griip.colors.surfaceVariant, Griip.colors.surfaceVariant))
+    Box(Modifier.fillMaxWidth().height(BannerHeight).background(band)) {
+        image?.let { androidx.compose.foundation.Image(it, null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.matchParentSize()) }
+    }
 }
 
 /** The panel's header: the community's name (opens its sheet), search and invite. */

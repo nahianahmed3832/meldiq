@@ -151,6 +151,8 @@ fun CommunitySettingsScreen(nav: NavHostController) {
             }
         }
         if (p.canManageOrg) item(key = "setup") { WorkspaceSetupCard(d) }
+        // API 0.44.0 / 0.46.0: the community's accent, banner and tag (as Meldiq Web's Appearance), for those who may edit it.
+        if (p.isOwner || "workspace.edit" in p.effective) item(key = "appearance") { CommunityAppearanceCard(d.org) { vm.refresh() } }
         group(R.string.nv_group_community) {
             MenuRow(Icons.Outlined.Info, stringResource(R.string.nv_overview), subtitle = stringResource(R.string.nv_overview_sub), onClick = { sheet = SettingsSheet.Overview })
             MenuRow(

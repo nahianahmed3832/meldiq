@@ -157,9 +157,11 @@ fun MembersScreen(nav: NavHostController, orgId: String) {
             ListCard(
                 u.displayName, Modifier.padding(horizontal = 8.dp, vertical = 1.dp),
                 subtitle = "@${u.username}" + (u.title?.let { " · $it" } ?: ""),
-                leading = { Avatar(u.displayName, u.avatarColor, size = 46.dp, online = u.online) },
+                // API 0.46.0: member lists carry each person's look (animated avatar, frame, worn tag), as on Meldiq Web.
+                leading = { com.meldiq.android.ui.components.LookAvatar(u.id, u.displayName, u.avatarColor, u.photoRev, com.meldiq.android.data.model.PersonLook(u.avatarMedia, u.profileStyle, u.tag), size = 46.dp, online = u.online) },
                 meta = {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        u.tag?.let { com.meldiq.android.ui.components.WornTagChip(it) }
                         RoleBadge(u.orgRole)
                         u.expiresAt?.let { TagPill(androidx.compose.ui.res.stringResource(com.meldiq.android.R.string.guest_until, com.meldiq.android.ui.TimeFmt.dayHeader(it)), c.warning, c.warningSoft) }
                         if (TimeoutRules.running(u.timeoutUntil)) TagPill(stringResource(R.string.to_tag), c.danger, c.dangerSoft)

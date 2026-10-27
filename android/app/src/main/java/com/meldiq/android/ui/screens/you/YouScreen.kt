@@ -230,6 +230,7 @@ fun YouScreen(nav: NavHostController) {
                 MenuRow(Icons.Outlined.People, stringResource(R.string.contacts_title), onClick = { nav.navigate(Routes.CONTACTS) })
                 MenuRow(Icons.Outlined.Call, stringResource(R.string.home_call_history), onClick = { nav.navigate(Routes.CALLS) })
                 MenuRow(Icons.Outlined.AccountCircle, stringResource(R.string.settings_edit_profile), onClick = { nav.navigate(Routes.EDIT_PROFILE) })
+                MenuRow(androidx.compose.material.icons.Icons.Outlined.Palette, stringResource(R.string.wp_style_title), onClick = { nav.navigate(Routes.PROFILE_STYLE) })
                 MenuRow(
                     Icons.AutoMirrored.Outlined.Logout, stringResource(R.string.home_accounts), tint = c.textSecondary, tintBg = c.surfaceVariant,
                     onClick = { nav.navigate(Routes.ACCOUNTS) },

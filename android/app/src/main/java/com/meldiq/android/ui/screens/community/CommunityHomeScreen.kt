@@ -223,6 +223,7 @@ fun CommunityHomeScreen(nav: NavHostController) {
         )
         Box(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(topStart = 16.dp)).background(c.surface)) {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = barPadding + 16.dp)) {
+                if (org != null) item(key = "banner") { CommunityBanner(org.id, org.accent, org.bannerRev) }
                 if (org != null) item(key = "header") {
                     PanelHeader(
                         org.name, d?.let { memberCountLabel(it.stats.members) },

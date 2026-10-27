@@ -130,6 +130,58 @@ object MediaPrep {
         }
     }
 
+    /**
+     * A banner from a picked still image (profiles and communities, API 0.44.0–0.45.0): upright, centre-cropped to 5:2,
+     * [BANNER_WIDTH] × [BANNER_HEIGHT], JPEG (as Meldiq Web sends), stepped down in quality until it fits the server's
+     * 1 MB. Re-encoding drops the camera's metadata.
+     */
+    suspend fun bannerJpeg(context: Context, uri: Uri): ByteArray = withContext(Dispatchers.IO) {
+        val tmp = File(context.cacheDir, "banner-src-${System.nanoTime()}")
+        try {
+            context.contentResolver.openInputStream(uri)?.use { i -> tmp.outputStream().use { o -> i.copyTo(o) } } ?: throw java.io.IOException("can't read")
+            val src = decodeUpright(tmp, 2048) ?: throw java.io.IOException("This image couldn't be read")
+            val ratio = BANNER_WIDTH.toFloat() / BANNER_HEIGHT
+            val w = minOf(src.width, (src.height * ratio).toInt()).coerceAtLeast(1)
+            val h = (w / ratio).toInt().coerceAtLeast(1)
+            val cropped = Bitmap.createBitmap(src, (src.width - w) / 2, (src.height - h) / 2, w, h)
+            val out = Bitmap.createScaledBitmap(cropped, BANNER_WIDTH, BANNER_HEIGHT, true)
+            var quality = 88
+            var bytes: ByteArray
+            do {
+                bytes = java.io.ByteArrayOutputStream().also { out.compress(Bitmap.CompressFormat.JPEG, quality, it) }.toByteArray()
+                quality -= 8
+            } while (bytes.size > BANNER_MAX_BYTES && quality > 40)
+            listOf(src, cropped, out).distinct().forEach { it.recycle() }
+            bytes
+        } finally {
+            tmp.delete()
+        }
+    }
+
+    /** A picked file's bytes as they are (an animated GIF or WebP, a short clip), refused past [maxBytes]. */
+    suspend fun rawBytes(context: Context, uri: Uri, maxBytes: Long): ByteArray = withContext(Dispatchers.IO) {
+        val size = context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } ?: -1L
+        if (size > maxBytes) throw java.io.IOException("too_large")
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            val out = java.io.ByteArrayOutputStream()
+            val buf = ByteArray(64 * 1024)
+            var total = 0L
+            while (true) {
+                val n = input.read(buf)
+                if (n < 0) break
+                total += n
+                if (total > maxBytes) throw java.io.IOException("too_large")
+                out.write(buf, 0, n)
+            }
+            out.toByteArray()
+        } ?: throw java.io.IOException("can't read")
+    }
+
+    const val BANNER_WIDTH = 1200
+    const val BANNER_HEIGHT = 480
+    /** The server's limit for a still banner. */
+    const val BANNER_MAX_BYTES = 1_000_000
+
     data class VideoInfo(val width: Int, val height: Int, val bitrate: Int)
 
     fun videoInfo(file: File): VideoInfo? {

@@ -167,7 +167,8 @@ class KeyDirectory(private val source: KeySource, private val pins: PinStore) {
 }
 
 class UserRepository(private val api: ApiClient, private val db: GriipDatabase) {
-    suspend fun remember(u: UserDto) {
+    /** [withLook]: the view carries people's look (profiles, member lists); search results don't, so they keep it. */
+    suspend fun remember(u: UserDto, withLook: Boolean = true) {
         val e = db.users().get(u.id)
         db.users().upsert(
             (e ?: UserEntity(u.id, u.username, u.displayName, u.avatarColor, u.statusText, null)).copy(
@@ -175,11 +176,12 @@ class UserRepository(private val api: ApiClient, private val db: GriipDatabase) 
                 online = u.online ?: e?.online ?: false, lastSeenAt = u.lastSeenAt ?: e?.lastSeenAt, updatedAt = System.currentTimeMillis(),
                 photoRev = u.photoRev,
                 presence = PresenceRules.stored(u.presence),
+                lookJson = if (withLook) com.meldiq.android.data.model.PersonLooks.encode(com.meldiq.android.data.model.PersonLook(u.avatarMedia, u.profileStyle, u.tag)) else e?.lookJson,
             ),
         )
     }
 
-    suspend fun search(q: String): List<UserDto> = api.get<UsersRes>("/v1/users/search?q=${java.net.URLEncoder.encode(q, "UTF-8")}").users.also { it.forEach { u -> remember(u) } }
+    suspend fun search(q: String): List<UserDto> = api.get<UsersRes>("/v1/users/search?q=${java.net.URLEncoder.encode(q, "UTF-8")}").users.also { it.forEach { u -> remember(u, withLook = false) } }
 
     suspend fun fetch(id: String): UserDto = api.get<UserRes>("/v1/users/$id").user.also { remember(it) }
 

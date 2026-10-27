@@ -74,7 +74,7 @@ private fun PersonRow(u: UserEntity, label: String?, onClick: () -> Unit) {
         Modifier.fillMaxWidth().clip(Shapes.small).pressable(onClick, onClickLabel = stringResource(R.string.card_share_send, u.displayName)).padding(vertical = 8.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        UserAvatar(u.id, u.displayName, u.avatarColor, u.photoRev, size = 40.dp)
+        com.meldiq.android.ui.components.LookAvatar(u.id, u.displayName, u.avatarColor, u.photoRev, com.meldiq.android.data.model.PersonLooks.of(u.lookJson), size = 40.dp)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(label ?: u.displayName, style = Griip.type.body.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)

@@ -230,7 +230,7 @@ private fun BubbleMessage(b: BubbleModel, me: String?, transfer: Float?, localFi
         verticalAlignment = Alignment.Bottom,
     ) {
         if (!out && b.isGroupConv) {
-            if (b.showAvatar) com.meldiq.android.ui.components.UserAvatar(b.sender?.id, b.sender?.displayName ?: "?", b.sender?.avatarColor ?: 0, b.sender?.photoRev, size = 30.dp)
+            if (b.showAvatar) com.meldiq.android.ui.components.LookAvatar(b.sender?.id, b.sender?.displayName ?: "?", b.sender?.avatarColor ?: 0, b.sender?.photoRev, com.meldiq.android.data.model.PersonLooks.of(b.sender?.lookJson), size = 30.dp)
             else Spacer(Modifier.width(30.dp))
             Spacer(Modifier.width(8.dp))
         }
@@ -252,7 +252,10 @@ private fun BubbleMessage(b: BubbleModel, me: String?, transfer: Float?, localFi
                     .padding(horizontal = if (standalone) 0.dp else 12.dp, vertical = 7.dp),
             ) {
                 if (b.showSender && !out && b.isGroupConv) {
-                    Text(b.sender?.displayName ?: "Unknown", style = Griip.type.label.copy(fontWeight = FontWeight.SemiBold), color = senderColor(b.sender?.avatarColor ?: 0), maxLines = 1)
+                    com.meldiq.android.ui.components.StyledName(
+                        b.sender?.displayName ?: "Unknown", com.meldiq.android.data.model.PersonLooks.of(b.sender?.lookJson),
+                        Griip.type.label.copy(fontWeight = FontWeight.SemiBold), senderColor(b.sender?.avatarColor ?: 0),
+                    )
                     Spacer(Modifier.height(2.dp))
                 }
                 MessageBody(b, me, tinted = out, transfer, localFile, voice, cb)
@@ -289,16 +292,18 @@ private fun StreamMessage(b: BubbleModel, me: String?, transfer: Float?, localFi
         verticalAlignment = Alignment.Top,
     ) {
         Box(Modifier.width(StreamAvatar)) {
-            if (b.firstInGroup) com.meldiq.android.ui.components.UserAvatar(b.sender?.id, b.sender?.displayName ?: "?", b.sender?.avatarColor ?: 0, b.sender?.photoRev, size = StreamAvatar)
+            if (b.firstInGroup) com.meldiq.android.ui.components.LookAvatar(b.sender?.id, b.sender?.displayName ?: "?", b.sender?.avatarColor ?: 0, b.sender?.photoRev, com.meldiq.android.data.model.PersonLooks.of(b.sender?.lookJson), size = StreamAvatar)
         }
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f).widthIn(max = 640.dp)) {
             if (b.firstInGroup) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 1.dp)) {
-                    Text(
+                    // Name styles and the worn tag (API 0.46.0), as Meldiq Web shows them in messages.
+                    com.meldiq.android.ui.components.StyledName(
                         b.sender?.displayName?.takeIf { it.isNotBlank() } ?: if (out) androidx.compose.ui.res.stringResource(com.meldiq.android.R.string.conv_you) else "Unknown",
-                        style = Griip.type.bodyMedium.copy(fontWeight = FontWeight.Bold), color = if (out) c.primary else c.textPrimary,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
+                        com.meldiq.android.data.model.PersonLooks.of(b.sender?.lookJson),
+                        Griip.type.bodyMedium.copy(fontWeight = FontWeight.Bold), if (out) c.primary else c.textPrimary,
+                        modifier = Modifier.weight(1f, fill = false),
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(TimeFmt.clock(m.sortTs), style = Griip.type.caption, color = c.textSecondary)

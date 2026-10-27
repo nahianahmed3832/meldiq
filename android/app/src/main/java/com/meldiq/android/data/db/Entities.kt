@@ -133,6 +133,8 @@ data class UserEntity(
     val photoRev: Long? = null,
     /** Batch B6b: "idle" or "dnd" while they appear so (null: online or offline as [online] says, or unknown). */
     val presence: String? = null,
+    /** API 0.45.0–0.46.0: their animated avatar, style and worn tag ([com.meldiq.android.data.model.PersonLooks]); null: none. */
+    val lookJson: String? = null,
 )
 
 @Entity(tableName = "call_log", indices = [Index("conversationId")])

@@ -109,6 +109,30 @@ class OrgRepository(
         ).org.also { runCatching { orgs() } }
 
     /**
+     * A community's look (API 0.44.0 and 0.46.0, `workspace.edit`): its accent `#rrggbb` and its 2–4 letter tag. Only the
+     * fields passed change; [clearAccent] / [clearTag] go back to Meldiq's theme or no tag.
+     */
+    suspend fun setBranding(orgId: String, accent: String? = null, clearAccent: Boolean = false, tag: String? = null, clearTag: Boolean = false) =
+        api.patch<kotlinx.serialization.json.JsonObject, OrgRes>(
+            "/v1/orgs/$orgId",
+            kotlinx.serialization.json.buildJsonObject {
+                if (clearAccent) put("accent", kotlinx.serialization.json.JsonNull) else accent?.let { put("accent", kotlinx.serialization.json.JsonPrimitive(it.lowercase())) }
+                if (clearTag) put("tag", kotlinx.serialization.json.JsonNull) else tag?.let { put("tag", kotlinx.serialization.json.JsonPrimitive(it.uppercase())) }
+            },
+        ).org.also { runCatching { orgs() } }
+
+    /** A community's banner (a JPEG of at most 1 MB; [com.meldiq.android.media.MediaPrep.bannerJpeg]). */
+    suspend fun setBanner(orgId: String, jpeg: ByteArray) {
+        api.sendBytes("PUT", "/v1/orgs/$orgId/banner", jpeg, kotlinx.serialization.json.JsonObject.serializer())
+        runCatching { orgs() }
+    }
+
+    suspend fun removeBanner(orgId: String) {
+        api.delete<kotlinx.serialization.json.JsonObject>("/v1/orgs/$orgId/banner")
+        runCatching { orgs() }
+    }
+
+    /**
      * Leaves the community: the server removes [myUserId]'s roles and channel memberships (the last owner is
      * refused with 409). Afterwards its channels show as left on this phone and another workspace is selected.
      */

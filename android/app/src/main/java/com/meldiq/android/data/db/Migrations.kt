@@ -72,6 +72,10 @@ object Migrations {
             "ALTER TABLE `conversations` ADD COLUMN `photoRev` INTEGER",
             "ALTER TABLE `users` ADD COLUMN `presence` TEXT",
         ),
+        // v14 (2026-10-28, Meldiq Web parity): how people look (animated avatar, name style, worn tag).
+        13 to listOf(
+            "ALTER TABLE `users` ADD COLUMN `lookJson` TEXT",
+        ),
         6 to listOf(
             "CREATE TABLE IF NOT EXISTS `history_outbox` (`key` TEXT NOT NULL, `queuedAt` INTEGER NOT NULL, PRIMARY KEY(`key`))",
             "CREATE INDEX IF NOT EXISTS `index_history_outbox_queuedAt` ON `history_outbox` (`queuedAt`)",

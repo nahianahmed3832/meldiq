@@ -532,7 +532,7 @@ class ConversationViewModel(val c: AppContainer, val conversationId: String, val
     /** Someone on this server with that exact phone number, if they let people find them by it. */
     fun findByPhone(phone: String, onFound: (String) -> Unit) = viewModelScope.launch {
         runCatching { c.api.get<com.meldiq.android.data.api.UserRes>("/v1/users/by-phone?phone=${java.net.URLEncoder.encode(phone, "UTF-8")}").user }
-            .onSuccess { c.users.remember(it); onFound(it.id) }
+            .onSuccess { c.users.remember(it, withLook = false); onFound(it.id) }
             .onFailure { notice.value = "No one on Meldiq lets people find them by this number" }
     }
 

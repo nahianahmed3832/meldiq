@@ -9,6 +9,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.material.icons.outlined.BugReport
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -339,9 +342,23 @@ fun UserProfileScreen(nav: NavHostController, userId: String) {
             item {
                 GlassCard(Modifier.fillMaxWidth().padding(horizontal = Space.gutter, vertical = 8.dp), shape = Shapes.hero) {
                     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                        com.meldiq.android.ui.components.UserAvatar(u.id, u.displayName, u.avatarColor, u.photoRev, size = 84.dp, online = u.online, presence = u.presence)
+                        // API 0.45.0–0.46.0, as Meldiq Web's profile card: the banner with its effect, the animated and
+                        // framed avatar, the styled name with the tag they wear.
+                        val look = com.meldiq.android.data.model.PersonLook(u.avatarMedia, u.profileStyle, u.tag)
+                        if (u.profileBanner != null || u.profileStyle?.accent != null || u.profileStyle?.effect != null) {
+                            com.meldiq.android.ui.components.ProfileBannerView(
+                                u.id, u.profileBanner, u.profileStyle,
+                                Modifier.fillMaxWidth().height(com.meldiq.android.ui.components.ProfileBannerHeight).clip(Shapes.small),
+                            )
+                            Spacer(Modifier.height(10.dp))
+                        }
+                        com.meldiq.android.ui.components.LookAvatar(u.id, u.displayName, u.avatarColor, u.photoRev, look, size = 84.dp, online = u.online, presence = u.presence)
                         Spacer(Modifier.height(10.dp))
-                        Text(u.displayName, style = Griip.type.headline, color = c.textPrimary)
+                        com.meldiq.android.ui.components.StyledName(u.displayName, look, Griip.type.headline, c.textPrimary)
+                        if ("bug-hunter" in u.badges.orEmpty()) {
+                            Spacer(Modifier.height(4.dp))
+                            com.meldiq.android.ui.components.TagPill(androidx.compose.ui.res.stringResource(com.meldiq.android.R.string.wp_badge_bug_hunter), c.lavender, c.lavenderSoft, icon = androidx.compose.material.icons.Icons.Outlined.BugReport)
+                        }
                         Text("@${u.username}" + (u.pronouns?.let { " · $it" } ?: ""), style = Griip.type.bodySmall, color = c.textSecondary)
                         val fullName = listOfNotNull(u.firstName, u.lastName).joinToString(" ")
                         if (fullName.isNotBlank() && fullName != u.displayName) Text(fullName, style = Griip.type.bodySmall, color = c.textSecondary)
@@ -372,6 +389,10 @@ fun UserProfileScreen(nav: NavHostController, userId: String) {
                         }
                     }
                 }
+            }
+            // API 0.46.0: About me and up to five links, under the bio's privacy setting.
+            if (!u.aboutMe.isNullOrBlank() || !u.links.isNullOrEmpty()) item {
+                AboutCard(u.aboutMe, u.links.orEmpty())
             }
             // What they chose to show this account (the server leaves out everything else).
             val birthday = com.meldiq.android.data.model.ProfileRules.Birthday.parse(u.birthday)
@@ -466,3 +487,26 @@ fun safetyNumber(a: ByteArray, b: ByteArray): String {
 
 @Suppress("unused")
 private fun keyB64(k: ByteArray) = k.b64()
+
+/** About me and links (API 0.46.0): links open in the browser, https only (the server accepts nothing else). */
+@Composable
+private fun AboutCard(about: String?, links: List<com.meldiq.android.data.api.ProfileLinkDto>) {
+    val c = Griip.colors
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    GlassCard(Modifier.fillMaxWidth().padding(horizontal = Space.gutter, vertical = 8.dp)) {
+        Column(Modifier.fillMaxWidth()) {
+            Text(androidx.compose.ui.res.stringResource(com.meldiq.android.R.string.wp_about_me), style = Griip.type.label.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold), color = c.textSecondary)
+            about?.takeIf { it.isNotBlank() }?.let {
+                Spacer(Modifier.height(6.dp))
+                Text(it, style = Griip.type.body, color = c.textPrimary)
+            }
+            links.filter { it.url.startsWith("https://") }.forEach { link ->
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    link.label.ifBlank { link.url }, style = Griip.type.bodyMedium, color = c.primary,
+                    modifier = Modifier.clip(Shapes.small).clickable { com.meldiq.android.ui.LinkOpener.open(ctx, link.url, inApp = true) }.padding(vertical = 4.dp),
+                )
+            }
+        }
+    }
+}

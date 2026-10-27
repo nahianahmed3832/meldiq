@@ -117,6 +117,8 @@ object Routes {
     /** Kept for older links; the settings now live on the Settings tab. */
     const val SETTINGS = "settings"
     const val EDIT_PROFILE = "profile/edit"
+    /** Settings › Profile style (API 0.45.0–0.46.0): frame, banner, name style and worn tag. */
+    const val PROFILE_STYLE = "profile/style"
     const val ACCOUNTS = "accounts"
     const val CHAT_SETTINGS = "settings/chats"
     const val NOTIFICATION_SETTINGS = "settings/notifications"
@@ -334,6 +336,7 @@ private fun MainNav(container: AppContainer, pendingConversation: String?, pendi
             composable(Routes.SERVERS) { ServersScreen(nav) }
             composable(Routes.SETTINGS) { com.meldiq.android.ui.screens.profile.SettingsHub(nav) }
             composable(Routes.EDIT_PROFILE) { com.meldiq.android.ui.screens.profile.EditProfileScreen(nav) }
+            composable(Routes.PROFILE_STYLE) { com.meldiq.android.ui.screens.profile.ProfileStyleScreen(nav) }
             composable(Routes.ACCOUNTS) { com.meldiq.android.ui.screens.profile.AccountsScreen(nav) }
             composable(Routes.CHAT_SETTINGS) { com.meldiq.android.ui.screens.profile.ChatSettingsScreen(nav) }
             composable(Routes.NOTIFICATION_SETTINGS) { com.meldiq.android.ui.screens.profile.NotificationSettingsScreen(nav) }

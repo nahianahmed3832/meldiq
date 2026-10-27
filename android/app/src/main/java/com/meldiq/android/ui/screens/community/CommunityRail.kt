@@ -90,7 +90,9 @@ fun CommunityRail(
 @Composable
 private fun RailTile(o: OrgDto, selected: Boolean, badge: RailBadge?, onClick: () -> Unit, onLongClick: (() -> Unit)?) {
     val c = Griip.colors
-    val ring by animateColorAsState(if (selected) c.primary else androidx.compose.ui.graphics.Color.Transparent, label = "railRing")
+    // API 0.44.0: the selected ring in the community's own accent (as Meldiq Web), scoped to its own icon.
+    val accent = com.meldiq.android.data.model.AccentRules.colors(o.accent)?.let { androidx.compose.ui.graphics.Color(it.fill) }
+    val ring by animateColorAsState(if (selected) accent ?: c.primary else androidx.compose.ui.graphics.Color.Transparent, label = "railRing")
     // Selected: a tall bar; unread: a short one; nothing new: none (the reference's pill, in Meldiq's accent).
     val bar by animateDpAsState(
         when {
