@@ -28,6 +28,7 @@ import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.NotificationsOff
 import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Text
@@ -231,6 +232,7 @@ fun YouScreen(nav: NavHostController) {
                 MenuRow(Icons.Outlined.Call, stringResource(R.string.home_call_history), onClick = { nav.navigate(Routes.CALLS) })
                 MenuRow(Icons.Outlined.AccountCircle, stringResource(R.string.settings_edit_profile), onClick = { nav.navigate(Routes.EDIT_PROFILE) })
                 MenuRow(androidx.compose.material.icons.Icons.Outlined.Palette, stringResource(R.string.wp_style_title), onClick = { nav.navigate(Routes.PROFILE_STYLE) })
+                MenuRow(androidx.compose.material.icons.Icons.Outlined.Shield, stringResource(R.string.wp_safety_title), onClick = { nav.navigate(Routes.ACCOUNT_SAFETY) })
                 MenuRow(
                     Icons.AutoMirrored.Outlined.Logout, stringResource(R.string.home_accounts), tint = c.textSecondary, tintBg = c.surfaceVariant,
                     onClick = { nav.navigate(Routes.ACCOUNTS) },

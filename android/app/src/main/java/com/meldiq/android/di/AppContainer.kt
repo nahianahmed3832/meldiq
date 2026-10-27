@@ -60,6 +60,8 @@ class AppContainer(
     val workspaces = com.meldiq.android.data.account.WorkspaceRepository(accountApi)
     /** Recovery codes for a lost email address (docs/ACCOUNT_RECOVERY.md). */
     val recoveryCodes = com.meldiq.android.data.account.RecoveryCodesApi(api)
+    /** Two-step sign-in, email change, standing and bug reports (API 0.46.0, docs/ACCOUNT_SAFETY.md). */
+    val accountSafety = com.meldiq.android.data.account.AccountSafetyApi(api)
     /** What this account's server supports (server-info features, 2026-10-17). */
     val features = com.meldiq.android.data.repo.ServerFeatures(api)
     /** Experiments and content-free analytics counts, silent unless the server turns them on (docs/product/EXPERIMENTS.md). */
