@@ -130,6 +130,26 @@ Passkeys failed in the app installed from Google Play: Play signs it with its ap
 
 Rollback: copy the backup's `.env` back and recreate `api` the same way.
 
+### API 0.48.0 and Meldiq Web 0.5.0-beta-46c016c (2026-10-27, 17:46 and 17:53 UTC, owner's go-ahead: "after done push for production")
+
+Web brief v4 (meldiq-web `docs/MELDIQ_V4_REPORT.md`): channels carry `categoryPosition` (no alphabetical first paint);
+the web's phone layout after the Android app, safety numbers and moving pre-email accounts retired from the web,
+faster file crypto. Additive, no migration (schema stays 60). Branches `v4-api` 27bffb7, web `continuation-v4` 46c016c.
+
+| Step | Result |
+|---|---|
+| Checks before | server full suite 952 passed / 10 skipped, `tsc` clean; web 524 unit tests, `tsc`/eslint/prettier clean; browser suite Chromium + phone width: all passed after reruns (see the web report) |
+| Pre-flight | running 0.47.0; VPS `server/` (tests excluded) byte-equal to c14cfd7 |
+| Build | sources kept as `server.pre-0.48.0`; 5 files synced, parity with 27bffb7; image `0.48.0` built |
+| Backup | `backups/pre-0.48.0-20261027T174251Z`: integrity ok, schema 60, 43 users, `.env` + `compose.yaml` copies; image tagged `0.47.0-rollback` |
+| Rehearsal | backup copy (owned by the image's user), `--network none`, push settings blanked (the backup leaves `/data/secrets` out): healthy, 0.48.0, 43 users, 0 errors; removed after |
+| Switch | image 0.48.0, `validate-env.sh` 0 errors, `config -q`, `up -d --no-deps --no-build api`: healthy |
+| Checks after | `/healthz` 0.48.0 on msg.meldiq.app and msg.griipbuddy.cloud; 0 errors in the log |
+| Web | release `46c016c` (sha256 ok) with the live settings; nginx site and both snippets byte-identical, `config.json` unchanged; `verify.sh` all passed; `/`, `/invite/…`, `/discover`, `/m/…`, the manifest and favicons 200; signed in (owner's browser, read only): phone layout, online, app and channels shown 560 ms after a reload |
+
+At 17:50 UTC another session deployed API 0.49.0 (billing) built on this 0.48.0 (`0.48.0-rollback` tag); production
+runs 0.49.0 since. Rollback for the web: `bash /root/meldiq-web-0.5.0-beta-46c016c/rollback.sh` (back to 564e3b0).
+
 ### API 0.47.0 and Meldiq Web 0.5.0-beta-564e3b0 (2026-10-27, 16:19 UTC, owner's go-ahead: "Yes, deploy API 0.47.0 and the web without AI to production")
 
 AI and AI Workforce removed (`docs/AI_REMOVAL.md`). No migration; no data deleted (the `ai_*` tables, the agent account
