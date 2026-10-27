@@ -63,6 +63,10 @@ fun AppearanceSettings(s: Settings, update: ((Settings) -> Settings) -> Unit) {
                 }
             }
         }
+    }
+    // Colour themes and community colours (as Meldiq Web's Appearance, 2026-10-28).
+    VibesSettings(s, update)
+    Column(Modifier.fillMaxWidth().padding(horizontal = Space.gutter)) {
         Label(stringResource(R.string.appearance_layout), Modifier.padding(top = 18.dp))
         val layouts = listOf(MessageLayout.STREAM, MessageLayout.BUBBLES)
         SegmentedPills(

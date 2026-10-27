@@ -1,5 +1,11 @@
 package com.meldiq.android.ui.screens.you
 
+import androidx.compose.material.icons.outlined.Devices
+import androidx.compose.material.icons.outlined.ColorLens
+import androidx.compose.material.icons.outlined.Headphones
+import androidx.compose.material.icons.outlined.Storage
+import androidx.compose.ui.unit.sp
+import com.meldiq.android.ui.components.pressable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -82,7 +88,7 @@ import com.meldiq.android.ui.theme.Shapes
 import com.meldiq.android.ui.theme.Space
 
 /** The sheets You can show. */
-private enum class YouSheet { Status, Pause, Drafts, Presence }
+private enum class YouSheet { StatusMenu, Status, Pause, Drafts, Presence }
 
 /**
  * The You tab (docs/product/MELDIQ_COMMUNITY_CHAT_SPEC.md §1): your profile and status, pausing notifications, your own
@@ -175,73 +181,43 @@ fun YouScreen(nav: NavHostController) {
                 modifier = Modifier.padding(horizontal = Space.gutter, vertical = 12.dp).semantics { heading() },
             )
         }
-        item(key = "profile") {
-            GlassCard(Modifier.fillMaxWidth().padding(horizontal = Space.gutter, vertical = 4.dp), shape = Shapes.hero) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    UserAvatar(me, myName.ifBlank { "?" }, meUser?.avatarColor ?: 0, meUser?.photoRev, size = 64.dp)
-                    Spacer(Modifier.width(14.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(myName, style = Griip.type.title, color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        handle?.let { Text("@$it", style = Griip.type.bodySmall, color = c.textSecondary, maxLines = 1) }
-                        if (statusFeatures) {
-                            com.meldiq.android.ui.screens.profile.StatusRules.line(myStatus, now)?.let { Text(it, style = Griip.type.caption, color = c.textSecondary, maxLines = 1) }
-                        }
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
-                PillButton(stringResource(R.string.settings_edit_profile), { nav.navigate(Routes.EDIT_PROFILE) }, Modifier.fillMaxWidth(), tone = ButtonTone.Glass, height = 44.dp)
-            }
-        }
-        if (statusFeatures) item(key = "status") {
-            GlassCard(Modifier.fillMaxWidth().padding(horizontal = Space.gutter, vertical = 6.dp), contentPadding = PaddingValues(6.dp)) {
-                val line = com.meldiq.android.ui.screens.profile.StatusRules.line(myStatus, now)
-                val until = myStatus?.statusExpiresAt?.takeIf { line != null }
-                MenuRow(
-                    Icons.Outlined.EmojiEmotions, line ?: stringResource(R.string.r3_status_set),
-                    subtitle = until?.let { stringResource(R.string.r3_status_until, TimeFmt.clock(it)) }, onClick = { sheet = YouSheet.Status },
-                )
-                val pausedUntil = myStatus?.notificationsPausedUntil?.takeIf { com.meldiq.android.ui.screens.profile.StatusRules.paused(it, now) }
-                MenuRow(
-                    Icons.Outlined.NotificationsOff,
-                    pausedUntil?.let { stringResource(R.string.r3_paused_until, TimeFmt.clock(it)) } ?: stringResource(R.string.r3_pause),
-                    tint = c.peach, tintBg = c.peachSoft, onClick = { sheet = YouSheet.Pause },
-                )
-                // Batch B6b: online automatically, idle, do not disturb or invisible.
-                if (presenceModes) com.meldiq.android.ui.screens.profile.PresenceRow(myStatus?.presenceMode, myStatus?.presenceUntil, now) { sheet = YouSheet.Presence }
-            }
-        }
+        // As Meldiq Web's phone You tab (v4, 2026-10-28): you (banner, look, styled name and Status), your shortcuts, then
+        // User settings and App settings as plain grouped lists.
+        item(key = "profile") { YouCard(me, myName, handle, meUser, myStatus, now, statusFeatures, onProfile = { nav.navigate(Routes.EDIT_PROFILE) }, onStatus = { sheet = YouSheet.StatusMenu }) }
         item(key = "cards") { QuickAccessRow(cards, Modifier.padding(vertical = 8.dp)) }
         if (orgs != null && StartRules.visible(settings.setupDismissed, startSteps)) item(key = "start") {
             StartChecklist(startSteps, onHide = { container.settings.update { it.copy(setupDismissed = true) } })
         }
-        item(key = "settings") {
-            GlassCard(Modifier.fillMaxWidth().padding(horizontal = Space.gutter, vertical = 6.dp), contentPadding = PaddingValues(6.dp)) {
-                MenuRow(Icons.Outlined.Settings, stringResource(R.string.settings_title), onClick = { nav.navigate(Routes.PROFILE) })
-                MenuRow(Icons.Outlined.Notifications, stringResource(R.string.settings_notifications), tint = c.peach, tintBg = c.peachSoft, onClick = { nav.navigate(Routes.NOTIFICATION_SETTINGS) }, trailing = { ValueChevron(com.meldiq.android.ui.screens.profile.notificationsValue()) })
-                MenuRow(Icons.Outlined.Palette, stringResource(R.string.chat_appearance), onClick = { nav.navigate(Routes.CHAT_SETTINGS) }, trailing = { ValueChevron(com.meldiq.android.ui.screens.profile.appearanceValue()) })
-                MenuRow(Icons.Outlined.Lock, stringResource(R.string.settings_privacy), tint = c.lavender, tintBg = c.lavenderSoft, onClick = { nav.navigate(Routes.PRIVACY) })
-                MenuRow(
-                    Icons.Outlined.Language, stringResource(R.string.settings_language), tint = c.textSecondary, tintBg = c.surfaceVariant, onClick = { nav.navigate(Routes.LANGUAGE) },
-                    trailing = { ValueChevron(com.meldiq.android.ui.screens.profile.languageValue()) },
-                )
+        item(key = "user-settings") {
+            SettingsGroup(stringResource(R.string.wp_settings_user_group)) {
+                MenuRow(Icons.Outlined.AccountCircle, stringResource(R.string.wp_settings_profile), onClick = { nav.navigate(Routes.EDIT_PROFILE) })
+                MenuRow(Icons.Outlined.Palette, stringResource(R.string.wp_style_title), onClick = { nav.navigate(Routes.PROFILE_STYLE) })
+                MenuRow(Icons.Outlined.Shield, stringResource(R.string.wp_safety_title), onClick = { nav.navigate(Routes.ACCOUNT_SAFETY) })
+                MenuRow(Icons.Outlined.Lock, stringResource(R.string.settings_privacy), onClick = { nav.navigate(Routes.PRIVACY) })
+                MenuRow(Icons.Outlined.Devices, stringResource(R.string.wp_settings_devices), onClick = { nav.navigate(Routes.DEVICES) })
+                MenuRow(Icons.Outlined.People, stringResource(R.string.contacts_title), onClick = { nav.navigate(Routes.CONTACTS) })
             }
         }
-        item(key = "people") {
-            GlassCard(Modifier.fillMaxWidth().padding(horizontal = Space.gutter, vertical = 6.dp), contentPadding = PaddingValues(6.dp)) {
-                MenuRow(Icons.Outlined.People, stringResource(R.string.contacts_title), onClick = { nav.navigate(Routes.CONTACTS) })
+        item(key = "app-settings") {
+            SettingsGroup(stringResource(R.string.wp_settings_app_group)) {
+                MenuRow(Icons.Outlined.ColorLens, stringResource(R.string.chat_appearance), onClick = { nav.navigate(Routes.CHAT_SETTINGS) }, trailing = { ValueChevron(com.meldiq.android.ui.screens.profile.appearanceValue()) })
+                MenuRow(Icons.Outlined.Notifications, stringResource(R.string.settings_notifications), onClick = { nav.navigate(Routes.NOTIFICATION_SETTINGS) }, trailing = { ValueChevron(com.meldiq.android.ui.screens.profile.notificationsValue()) })
+                MenuRow(Icons.Outlined.Headphones, stringResource(R.string.settings_calls), onClick = { nav.navigate(Routes.CALL_SETTINGS) })
+                MenuRow(Icons.Outlined.Storage, stringResource(R.string.settings_storage), onClick = { nav.navigate(Routes.STORAGE) })
+                MenuRow(Icons.Outlined.Language, stringResource(R.string.settings_language), onClick = { nav.navigate(Routes.LANGUAGE) }, trailing = { ValueChevron(com.meldiq.android.ui.screens.profile.languageValue()) })
+                MenuRow(Icons.Outlined.Settings, stringResource(R.string.wp_more_settings), subtitle = stringResource(R.string.wp_more_settings_sub), onClick = { nav.navigate(Routes.PROFILE) })
+            }
+        }
+        item(key = "accounts") {
+            SettingsGroup(null) {
                 MenuRow(Icons.Outlined.Call, stringResource(R.string.home_call_history), onClick = { nav.navigate(Routes.CALLS) })
-                MenuRow(Icons.Outlined.AccountCircle, stringResource(R.string.settings_edit_profile), onClick = { nav.navigate(Routes.EDIT_PROFILE) })
-                MenuRow(androidx.compose.material.icons.Icons.Outlined.Palette, stringResource(R.string.wp_style_title), onClick = { nav.navigate(Routes.PROFILE_STYLE) })
-                MenuRow(androidx.compose.material.icons.Icons.Outlined.Shield, stringResource(R.string.wp_safety_title), onClick = { nav.navigate(Routes.ACCOUNT_SAFETY) })
-                MenuRow(
-                    Icons.AutoMirrored.Outlined.Logout, stringResource(R.string.home_accounts), tint = c.textSecondary, tintBg = c.surfaceVariant,
-                    onClick = { nav.navigate(Routes.ACCOUNTS) },
-                )
+                MenuRow(Icons.AutoMirrored.Outlined.Logout, stringResource(R.string.home_accounts), onClick = { nav.navigate(Routes.ACCOUNTS) })
             }
         }
     }
 
     when (sheet) {
+        YouSheet.StatusMenu -> StatusMenuSheet(myStatus, now, presenceModes, onPick = { sheet = it }, onDismiss = { sheet = null })
         YouSheet.Status -> com.meldiq.android.ui.screens.profile.StatusSheet(myStatus, onDismiss = { sheet = null })
         YouSheet.Pause -> com.meldiq.android.ui.screens.profile.PauseSheet(myStatus?.notificationsPausedUntil, onDismiss = { sheet = null })
         YouSheet.Presence -> com.meldiq.android.ui.screens.profile.PresenceSheet(myStatus?.presenceMode, onDismiss = { sheet = null })
@@ -287,5 +263,76 @@ private fun DraftsSentSheet(
                 }
             }
         }
+    }
+}
+
+/**
+ * You (as Meldiq Web's phone You card, v4): your banner behind you when you have one, your animated and framed avatar,
+ * your styled name and tag, @username and status; tapping it edits your profile, Status sets presence, status and pauses.
+ */
+@Composable
+private fun YouCard(
+    me: String?, name: String, handle: String?, meUser: com.meldiq.android.data.db.UserEntity?, mine: com.meldiq.android.data.api.UserDto?, now: Long,
+    statusFeatures: Boolean, onProfile: () -> Unit, onStatus: () -> Unit,
+) {
+    val c = Griip.colors
+    val look = mine?.let { com.meldiq.android.data.model.PersonLook(it.avatarMedia, it.profileStyle, it.tag) } ?: com.meldiq.android.data.model.PersonLooks.of(meUser?.lookJson)
+    val hasBanner = mine?.profileBanner != null || mine?.profileStyle?.accent != null || mine?.profileStyle?.effect != null
+    GlassCard(Modifier.fillMaxWidth().padding(horizontal = Space.gutter, vertical = 4.dp), shape = Shapes.hero, contentPadding = PaddingValues(0.dp)) {
+        Column(Modifier.fillMaxWidth()) {
+            if (hasBanner && me != null) {
+                com.meldiq.android.ui.components.ProfileBannerView(me, mine?.profileBanner, mine?.profileStyle, Modifier.fillMaxWidth().height(YOU_BANNER))
+            }
+            Row(Modifier.fillMaxWidth().pressable(onProfile).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                com.meldiq.android.ui.components.LookAvatar(me, name.ifBlank { "?" }, meUser?.avatarColor ?: 0, meUser?.photoRev, look, size = 60.dp, online = true, presence = meUser?.presence)
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    com.meldiq.android.ui.components.StyledName(name, look, Griip.type.title, c.textPrimary)
+                    handle?.let { Text("@$it", style = Griip.type.bodySmall, color = c.textSecondary, maxLines = 1) }
+                    if (statusFeatures) {
+                        com.meldiq.android.ui.screens.profile.StatusRules.line(mine, now)?.let { Text(it, style = Griip.type.caption, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                    }
+                }
+                Spacer(Modifier.width(8.dp))
+                PillButton(stringResource(R.string.wp_status), onStatus, tone = ButtonTone.Glass, height = 40.dp, leadingIcon = Icons.Outlined.EmojiEmotions)
+            }
+        }
+    }
+}
+
+private val YOU_BANNER = 96.dp
+
+/** A titled group of rows on one surface (as the web's "User settings" and "App settings"); [title] null: no heading. */
+@Composable
+private fun SettingsGroup(title: String?, content: @Composable () -> Unit) {
+    val c = Griip.colors
+    Column(Modifier.fillMaxWidth().padding(top = 14.dp)) {
+        title?.let {
+            Text(
+                it.uppercase(), style = Griip.type.caption.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, letterSpacing = 0.6.sp), color = c.textTertiary,
+                modifier = Modifier.padding(horizontal = Space.gutter + 4.dp, vertical = 6.dp).semantics { heading() },
+            )
+        }
+        GlassCard(Modifier.fillMaxWidth().padding(horizontal = Space.gutter), contentPadding = PaddingValues(4.dp)) { content() }
+    }
+}
+
+/** Status (as the web's profile menu): what you're doing, pausing notifications, and how you appear. */
+@Composable
+private fun StatusMenuSheet(mine: com.meldiq.android.data.api.UserDto?, now: Long, presenceModes: Boolean, onPick: (YouSheet) -> Unit, onDismiss: () -> Unit) {
+    GlassSheet(onDismiss, title = stringResource(R.string.wp_status)) {
+        val line = com.meldiq.android.ui.screens.profile.StatusRules.line(mine, now)
+        val until = mine?.statusExpiresAt?.takeIf { line != null }
+        MenuRow(
+            Icons.Outlined.EmojiEmotions, line ?: stringResource(R.string.r3_status_set),
+            subtitle = until?.let { stringResource(R.string.r3_status_until, TimeFmt.clock(it)) }, onClick = { onPick(YouSheet.Status) },
+        )
+        val pausedUntil = mine?.notificationsPausedUntil?.takeIf { com.meldiq.android.ui.screens.profile.StatusRules.paused(it, now) }
+        MenuRow(
+            Icons.Outlined.NotificationsOff, pausedUntil?.let { stringResource(R.string.r3_paused_until, TimeFmt.clock(it)) } ?: stringResource(R.string.r3_pause),
+            onClick = { onPick(YouSheet.Pause) },
+        )
+        if (presenceModes) com.meldiq.android.ui.screens.profile.PresenceRow(mine?.presenceMode, mine?.presenceUntil, now) { onPick(YouSheet.Presence) }
+        Spacer(Modifier.height(12.dp))
     }
 }

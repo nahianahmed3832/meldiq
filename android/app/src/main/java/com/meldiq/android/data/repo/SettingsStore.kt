@@ -48,6 +48,12 @@ data class Settings(
     val palette: String = MeldiqPalettes.DEFAULT,
     /** How conversations are drawn: a left-aligned stream with names and avatars (default), or bubbles. */
     val messageLayout: MessageLayout = MessageLayout.STREAM,
+    /** Colour theme ([com.meldiq.android.data.model.Vibes], as Meldiq Web): a preset id, "custom", or null for none; its strength. */
+    val vibe: String? = null,
+    val vibeCustom: List<String> = emptyList(),
+    val vibeStrength: Int = com.meldiq.android.data.model.Vibes.STRENGTH_DEFAULT,
+    /** Show a community's own accent and banner while in it (as Meldiq Web); off keeps Meldiq's colours everywhere. */
+    val communityColors: Boolean = true,
     /** The "Get started" checklist on Home was dismissed (or finished). */
     val setupDismissed: Boolean = false,
     /** The first-run introduction pages were seen or skipped (replayable from Settings › Introduction). */
@@ -123,6 +129,10 @@ class SettingsStore(
         wallpaper = prefs.getString("wallpaper", null) ?: "none",
         palette = MeldiqPalettes.of(prefs.getString("palette", null)).id,
         messageLayout = runCatching { MessageLayout.valueOf(prefs.getString("messageLayout", null)!!) }.getOrDefault(MessageLayout.STREAM),
+        vibe = prefs.getString("vibe", null),
+        vibeCustom = prefs.getString("vibeCustom", null)?.split(',')?.filter { it.isNotBlank() }.orEmpty(),
+        vibeStrength = com.meldiq.android.data.model.Vibes.strength(prefs.getInt("vibeStrength", com.meldiq.android.data.model.Vibes.STRENGTH_DEFAULT)),
+        communityColors = prefs.getBoolean("communityColors", true),
         setupDismissed = prefs.getBoolean("setupDismissed", false),
         introSeen = prefs.getBoolean("introSeen", false),
         autoDownload = runCatching { AutoDownload.valueOf(prefs.getString("autoDownload", null)!!) }.getOrDefault(AutoDownload.WIFI),
@@ -166,6 +176,10 @@ class SettingsStore(
             .putString("wallpaper", n.wallpaper)
             .putString("palette", n.palette)
             .putString("messageLayout", n.messageLayout.name)
+            .putString("vibe", n.vibe)
+            .putString("vibeCustom", n.vibeCustom.joinToString(","))
+            .putInt("vibeStrength", com.meldiq.android.data.model.Vibes.strength(n.vibeStrength))
+            .putBoolean("communityColors", n.communityColors)
             .putBoolean("setupDismissed", n.setupDismissed)
             .putBoolean("introSeen", n.introSeen)
             .putString("autoDownload", n.autoDownload.name)

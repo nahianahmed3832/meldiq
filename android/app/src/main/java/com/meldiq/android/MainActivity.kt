@@ -1,5 +1,7 @@
 package com.meldiq.android
 
+import androidx.compose.foundation.layout.fillMaxSize
+import com.meldiq.android.ui.theme.vibeTint
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -91,12 +93,17 @@ class MainActivity : ComponentActivity() {
             GriipTheme(settings.theme, settings.palette) {
                 // A new container (erase, or a switch to another server profile) gets a fresh UI tree:
                 // navigation, view models and remembered state never carry over between profiles.
+                // The colour theme (Settings › Appearance) tints everything the app draws.
+                androidx.compose.foundation.layout.Box(
+                    androidx.compose.ui.Modifier.fillMaxSize().vibeTint(settings.vibe, settings.vibeCustom, settings.vibeStrength, com.meldiq.android.ui.theme.Griip.colors.isDark),
+                ) {
                 androidx.compose.runtime.key(gen, container) {
                     AppRoot(container, pendingConversation, pendingInvite, pendingMessageLink = pendingMessageLink, onPendingHandled = {
                         pendingConversation = null
                         pendingInvite = null
                         pendingMessageLink = null
                     })
+                }
                 }
             }
             }

@@ -253,7 +253,7 @@ fun ListCard(
     }
 }
 
-/** Settings/menu row: tinted icon, label (+subtitle), chevron/switch/value. */
+/** Settings/menu row: a monochrome glyph, label (+subtitle), chevron/switch/value ([tint] only for danger or warning rows). */
 @Composable
 fun MenuRow(
     icon: ImageVector,
@@ -261,17 +261,23 @@ fun MenuRow(
     modifier: Modifier = Modifier,
     subtitle: String? = null,
     tint: Color = Griip.colors.primary,
-    tintBg: Color = Griip.colors.primarySoft,
+    @Suppress("UNUSED_PARAMETER") tintBg: Color = Griip.colors.primarySoft,
     onClick: (() -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = Griip.colors.textTertiary) },
 ) {
     val c = Griip.colors
+    // 2026-10-28 (as Meldiq Web's settings lists): a plain monochrome glyph instead of a coloured tile; only a
+    // destructive or warning row keeps its colour.
+    val glyph = when (tint) {
+        c.danger, c.warning -> tint
+        else -> c.textSecondary
+    }
     Row(
-        modifier.fillMaxWidth().heightIn(min = 56.dp).clip(Shapes.small).pressable(onClick).padding(horizontal = 10.dp, vertical = 10.dp),
+        modifier.fillMaxWidth().heightIn(min = 52.dp).clip(Shapes.small).pressable(onClick).padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconTile(icon, tint, tintBg, size = 36.dp)
-        Spacer(Modifier.width(14.dp))
+        Icon(icon, null, tint = glyph, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f)) {
             Text(title, style = Griip.type.bodyMedium.copy(fontSize = 15.sp), color = c.textPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis)
             if (subtitle != null) Text(subtitle, style = Griip.type.caption, color = c.textSecondary, maxLines = 3, overflow = TextOverflow.Ellipsis)

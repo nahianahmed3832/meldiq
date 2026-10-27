@@ -133,4 +133,21 @@
     <string name="wp_key_confirm">আমি নিশ্চিত করেছি</string>
     <string name="wp_security_row">রিকভারি কী ও এনক্রিপশন</string>
     <string name="wp_security_row_sub">আপনার রিকভারি কী, কী এনক্রিপ্টেড, কী বদলের সতর্কতা</string>
+    <string name="wp_vibes_title">রঙের থিম</string>
+    <string name="wp_vibes_sub">পুরো অ্যাপে গ্রেডিয়েন্টের আভা দিন। শুধু এই ফোনে।</string>
+    <string name="wp_vibes_custom">নিজের থিম</string>
+    <string name="wp_vibes_custom_sub">দুটি রং, বা তৃতীয়টি যোগ করুন। বদলাতে কোনো রঙে ট্যাপ করুন।</string>
+    <string name="wp_vibes_add">তৃতীয় রং যোগ করুন</string>
+    <string name="wp_vibes_remove">তৃতীয় রং সরান</string>
+    <string name="wp_vibes_strength">তীব্রতা</string>
+    <string name="wp_vibes_pick">একটি রং বেছে নিন</string>
+    <string name="wp_community_colors">কমিউনিটির নিজের রং ব্যবহার করুন</string>
+    <string name="wp_community_colors_sub">কমিউনিটিতে থাকার সময় তার অ্যাকসেন্ট ও ব্যানার দেখান। বন্ধ করলে সবসময় আপনার রং থাকবে।</string>
+    <string name="wp_settings_user_group">ব্যবহারকারীর সেটিংস</string>
+    <string name="wp_settings_app_group">অ্যাপ সেটিংস</string>
+    <string name="wp_settings_profile">আমার প্রোফাইল</string>
+    <string name="wp_settings_devices">ডিভাইস</string>
+    <string name="wp_status">স্ট্যাটাস</string>
+    <string name="wp_more_settings">আরও সেটিংস</string>
+    <string name="wp_more_settings_sub">সম্পর্কে, পরিচিতি, সার্ভার ও বাকি সব</string>
 </resources>

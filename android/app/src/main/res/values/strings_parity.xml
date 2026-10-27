@@ -133,4 +133,21 @@
     <string name="wp_key_confirm">I\'ve confirmed it</string>
     <string name="wp_security_row">Recovery key and encryption</string>
     <string name="wp_security_row_sub">Your recovery key, what\'s encrypted, key-change warnings</string>
+    <string name="wp_vibes_title">Colour themes</string>
+    <string name="wp_vibes_sub">Tint the whole app with a gradient. Only on this phone.</string>
+    <string name="wp_vibes_custom">Custom theme</string>
+    <string name="wp_vibes_custom_sub">Two colours, or add a third. Tap a colour to change it.</string>
+    <string name="wp_vibes_add">Add a third colour</string>
+    <string name="wp_vibes_remove">Remove the third colour</string>
+    <string name="wp_vibes_strength">Strength</string>
+    <string name="wp_vibes_pick">Choose a colour</string>
+    <string name="wp_community_colors">Use a community\'s own colours</string>
+    <string name="wp_community_colors_sub">Show a community\'s accent and banner while you\'re in it. Turn off to always keep yours.</string>
+    <string name="wp_settings_user_group">User settings</string>
+    <string name="wp_settings_app_group">App settings</string>
+    <string name="wp_settings_profile">My Profile</string>
+    <string name="wp_settings_devices">Devices</string>
+    <string name="wp_status">Status</string>
+    <string name="wp_more_settings">More settings</string>
+    <string name="wp_more_settings_sub">About, introduction, servers and everything else</string>
 </resources>

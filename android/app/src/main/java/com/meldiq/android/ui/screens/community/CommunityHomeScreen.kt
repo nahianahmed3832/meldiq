@@ -231,7 +231,8 @@ fun CommunityHomeScreen(nav: NavHostController) {
 
     Row(Modifier.fillMaxSize().background(c.background).statusBarsPadding()) {
         CommunityRail(
-            list, orgId, badges,
+            // Settings › Appearance: "Use a community's own colours" off keeps Meldiq's colours on the rail too.
+            if (settings.communityColors) list else list.map { it.copy(accent = null) }, orgId, badges,
             onSelect = { id -> if (id != orgId) vm.switchOrg(id) },
             onAdd = { nav.navigate(Routes.JOIN + "?code=") },
             onDiscover = if (discovery) ({ nav.navigate(Routes.DISCOVER) }) else null,
@@ -240,7 +241,7 @@ fun CommunityHomeScreen(nav: NavHostController) {
         )
         Box(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(topStart = 16.dp)).background(c.surface)) {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = barPadding + 16.dp)) {
-                if (org != null) item(key = "banner") { CommunityBanner(org.id, org.accent, org.bannerRev) }
+                if (org != null && settings.communityColors) item(key = "banner") { CommunityBanner(org.id, org.accent, org.bannerRev) }
                 if (org != null) item(key = "header") {
                     PanelHeader(
                         org.name, d?.let { memberCountLabel(it.stats.members) },
