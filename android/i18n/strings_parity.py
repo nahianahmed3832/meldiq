@@ -135,4 +135,10 @@ S = {
 "wp_bug_sent": ("Thanks: your report was sent.", "谢谢：你的报告已发送。", "ধন্যবাদ: আপনার রিপোর্ট পাঠানো হয়েছে।"),
 "wp_bug_yours": ("Your reports", "你的报告", "আপনার রিপোর্ট"),
 "wp_palette_meldiq": ("Meldiq", "Meldiq", "Meldiq"),
+# Web v4 (2026-10-28): safety numbers retired, the connection banner, colour themes, the You tab
+"wp_key_changed_title": ("Security key changed", "安全密钥已更改", "সিকিউরিটি কী বদলেছে"),
+"wp_key_changed_body": ("%1$s's security key changed, so messages with them are paused. Confirm it with them in person or on a call you trust, then continue.", "%1$s 的安全密钥已更改，与其的消息已暂停。请当面或通过可信的通话与对方确认，然后继续。", "%1$s-এর সিকিউরিটি কী বদলেছে, তাই তাঁর সঙ্গে বার্তা থেমে আছে। সামনাসামনি বা ভরসার কোনো কলে নিশ্চিত হয়ে তারপর চালিয়ে যান।"),
+"wp_key_confirm": ("I've confirmed it", "我已确认", "আমি নিশ্চিত করেছি"),
+"wp_security_row": ("Recovery key and encryption", "恢复密钥与加密", "রিকভারি কী ও এনক্রিপশন"),
+"wp_security_row_sub": ("Your recovery key, what's encrypted, key-change warnings", "你的恢复密钥、加密内容、密钥更改提醒", "আপনার রিকভারি কী, কী এনক্রিপ্টেড, কী বদলের সতর্কতা"),
 }

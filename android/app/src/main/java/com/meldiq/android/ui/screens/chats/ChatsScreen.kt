@@ -472,7 +472,7 @@ fun NewChatScreen(nav: NavHostController, mode: String?, with: String? = null) {
 
 /**
  * Someone found by global address: who they are, which server vouches for them and how that server was verified,
- * and their safety number, before the first message.
+ * before the first message (safety numbers were retired on 2026-10-28, as on Meldiq Web).
  */
 @Composable
 private fun RemoteContactSheet(r: ResolveRes, call: Boolean, myKey: ByteArray?, onDismiss: () -> Unit, onMessage: () -> Unit) {
@@ -491,13 +491,6 @@ private fun RemoteContactSheet(r: ResolveRes, call: Boolean, myKey: ByteArray?, 
             )
             Spacer(Modifier.height(6.dp))
             Text("Server id ${r.server.serverId.take(15)}…", style = Griip.type.caption, color = c.textTertiary)
-            Spacer(Modifier.height(10.dp))
-        }
-        val theirs = r.user.identityKey?.let { runCatching { it.unb64() }.getOrNull() }
-        if (theirs != null && myKey != null) {
-            Text("Safety number", style = Griip.type.label, color = c.textSecondary)
-            Text(com.meldiq.android.ui.screens.profile.safetyNumber(myKey, theirs), style = Griip.type.bodyMedium.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace), color = c.textPrimary)
-            Text("Compare it with ${r.user.displayName} in person or on a call you trust.", style = Griip.type.caption, color = c.textTertiary)
             Spacer(Modifier.height(10.dp))
         }
         if (r.server.identityChanged) {

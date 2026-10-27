@@ -175,6 +175,8 @@ import kotlinx.serialization.json.JsonObject
     val categoryId: String? = null,
     val categoryName: String? = null,
     val position: Int = 0,
+    /** API 0.48.0: the category's place among the community's categories (null: no category, or an older server). */
+    val categoryPosition: Int? = null,
     val format: String = ChannelFormat.TEXT,
     /** Forum channels: the tags posts can carry (servers with `forum-tags`). */
     val forumTags: List<ForumTagDto> = emptyList(),

@@ -15,12 +15,6 @@ object ConversationSecurity {
         CALLS_E2EE,
         /** Call media only encrypted in transit to the media server (the call setting is off on this phone). */
         CALLS_TRANSPORT,
-        /** One-to-one: you compared safety numbers with this person. */
-        VERIFIED,
-        /** One-to-one: not compared yet. */
-        NOT_VERIFIED,
-        /** Groups and channels: members are verified one by one from their profiles. */
-        VERIFY_MEMBERS,
         /** Someone's security key changed; messages with them are paused until it's checked. */
         KEYS_CHANGED,
         /** Members on another server: both servers relay encrypted copies only. */
@@ -46,11 +40,7 @@ object ConversationSecurity {
         add(Point.MESSAGES)
         add(Point.FILES)
         add(if (f.callMediaE2ee) Point.CALLS_E2EE else Point.CALLS_TRANSPORT)
-        when {
-            f.type != "DM" -> add(Point.VERIFY_MEMBERS)
-            f.peerVerified == true -> add(Point.VERIFIED)
-            else -> add(Point.NOT_VERIFIED)
-        }
+        // Safety numbers were retired (2026-10-28, as Meldiq Web v4): no "verified" points; a changed key still pauses.
         if (f.otherServers > 0) add(Point.OTHER_SERVERS)
         if (f.type == "CHANNEL") add(Point.APP_UPDATES)
         add(Point.METADATA)

@@ -33,6 +33,8 @@ data class PanelChannel(
     val archived: Boolean = false,
     /** The stored conversation, for channels you're in (null for one you haven't joined). */
     val conv: ConversationEntity? = null,
+    /** API 0.48.0: its category's place, for the order before the category list loads. */
+    val categoryPosition: Int? = null,
 ) {
     val hasNews: Boolean get() = unread > 0 || mentions > 0
 }
@@ -70,7 +72,7 @@ object CommunityPanelRules {
                 PanelChannel(
                     c.id, c.name.orEmpty(), c.kind, c.voice, c.format, c.categoryId, c.categoryName, c.position, c.topic, joined = true,
                     unread = c.unreadCount, mentions = c.mentionCount, muted = c.muted, liveCall = c.activeCallId != null,
-                    canManage = c.canManage, archived = c.archived, conv = c,
+                    canManage = c.canManage, archived = c.archived, conv = c, categoryPosition = c.categoryPosition,
                 )
             }
         val known = joined.map { it.id }.toSet()
@@ -78,7 +80,7 @@ object CommunityPanelRules {
             .map { d ->
                 PanelChannel(
                     d.id, d.name.orEmpty(), d.kind, d.voice, d.format, d.categoryId, d.categoryName, d.position, d.topic, joined = false,
-                    liveCall = d.activeCall != null, canManage = d.canManage,
+                    liveCall = d.activeCall != null, canManage = d.canManage, categoryPosition = d.categoryPosition,
                 )
             }
         return joined + others
@@ -105,7 +107,7 @@ object CommunityPanelRules {
         hidden: Set<String> = emptySet(),
     ): List<PanelSection> {
         val listed = channels.filter { it.id !in placed }
-        return ChannelTree.sections(listed, categories, keepEmpty = keepEmpty, ref = { ChannelRef(it.id, it.name, it.categoryId, it.position) }, categoryName = { it.categoryName })
+        return ChannelTree.sections(listed, categories, keepEmpty = keepEmpty, ref = { ChannelRef(it.id, it.name, it.categoryId, it.position) }, categoryName = { it.categoryName }, categoryPosition = { it.categoryPosition })
             .mapNotNull { s ->
                 val isCollapsed = s.key in collapsed
                 val shown = s.channels.filter { ch ->

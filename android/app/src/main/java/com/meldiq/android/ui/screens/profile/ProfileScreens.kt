@@ -230,20 +230,6 @@ fun SecurityScreen(nav: NavHostController) {
         // Orbit 2.0: the email-and-password account (shown only on profiles that have one).
         item { com.meldiq.android.ui.screens.account.AccountSecurityCard(onEditProfile = { nav.navigate(Routes.EDIT_PROFILE) }) }
         item {
-            GlassCard(Modifier.fillMaxWidth().padding(horizontal = Space.gutter, vertical = 8.dp), shape = Shapes.hero) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconTile(Icons.Outlined.VerifiedUser, c.primary, c.primarySoft, size = 46.dp)
-                    Spacer(Modifier.width(12.dp))
-                    Column {
-                        Text("Your safety number", style = Griip.type.titleSmall, color = c.textPrimary)
-                        Text("Compare in person to verify your identity key", style = Griip.type.caption, color = c.textTertiary)
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
-                Text(keys?.let { Fingerprint.of(it.identityPublic) } ?: "—", style = Griip.type.title.copy(fontFamily = FontFamily.Monospace, letterSpacing = 1.sp), color = c.primaryDeep, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
-            }
-        }
-        item {
             GlassCard(Modifier.fillMaxWidth().padding(horizontal = Space.gutter, vertical = 8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconTile(Icons.Outlined.Key, c.lavender, c.lavenderSoft, size = 42.dp)
@@ -408,38 +394,24 @@ fun UserProfileScreen(nav: NavHostController, userId: String) {
                     }
                 }
             }
-            item {
+            // Safety numbers were retired (2026-10-28, as Meldiq Web v4). A changed security key still pauses messages
+            // with this person until it's reviewed here.
+            if (local?.identityChanged == true) item {
                 GlassCard(Modifier.fillMaxWidth().padding(horizontal = Space.gutter, vertical = 8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconTile(if (local?.identityChanged == true) Icons.Rounded.GppMaybe else Icons.Outlined.VerifiedUser, if (local?.identityChanged == true) c.warning else c.primary, if (local?.identityChanged == true) c.warningSoft else c.primarySoft, size = 42.dp)
+                        IconTile(Icons.Rounded.GppMaybe, c.warning, c.warningSoft, size = 42.dp)
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
-                            Text("Safety number", style = Griip.type.titleSmall, color = c.textPrimary)
-                            Text(
-                                when {
-                                    local?.identityChanged == true -> "Their identity key changed since you first talked. Verify before trusting."
-                                    local?.verified == true -> "You marked this identity as verified."
-                                    else -> "Compare with ${u.displayName}'s screen in person."
-                                },
-                                style = Griip.type.caption, color = c.textTertiary,
-                            )
+                            Text(androidx.compose.ui.res.stringResource(com.meldiq.android.R.string.wp_key_changed_title), style = Griip.type.titleSmall, color = c.textPrimary)
+                            Text(androidx.compose.ui.res.stringResource(com.meldiq.android.R.string.wp_key_changed_body, u.displayName), style = Griip.type.caption, color = c.textSecondary)
                         }
-                        if (local?.verified == true) TagPill("Verified", c.success, c.successSoft)
                     }
-                    Spacer(Modifier.height(10.dp))
-                    val theirs = u.identityKey?.unb64()
-                    val combined = if (theirs != null && myKey != null) safetyNumber(myKey, theirs) else "—"
-                    Text(combined, style = Griip.type.bodyMedium.copy(fontFamily = FontFamily.Monospace, letterSpacing = 1.sp), color = c.primaryDeep, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                     Spacer(Modifier.height(12.dp))
-                    if (local?.identityChanged == true) {
-                        PillButton("I verified the new key", {
-                            // Pin exactly the key whose safety number is shown, not whatever the server returns next.
-                            val shown = u.identityKey ?: return@PillButton
-                            scope.launch { container.messages.acceptIdentity(userId, shown); container.users.markVerified(userId) }
-                        }, Modifier.fillMaxWidth(), height = 46.dp)
-                    } else if (local?.verified != true) {
-                        PillButton("Mark as verified", { scope.launch { container.users.markVerified(userId) } }, Modifier.fillMaxWidth(), tone = ButtonTone.Glass, height = 46.dp)
-                    }
+                    PillButton(androidx.compose.ui.res.stringResource(com.meldiq.android.R.string.wp_key_confirm), {
+                        // Pin exactly the key this profile shows, not whatever the server returns next.
+                        val shown = u.identityKey ?: return@PillButton
+                        scope.launch { container.messages.acceptIdentity(userId, shown) }
+                    }, Modifier.fillMaxWidth(), height = 46.dp)
                 }
             }
             blocked?.let { isBlocked ->
@@ -476,13 +448,6 @@ fun UserProfileScreen(nav: NavHostController, userId: String) {
     if (inviting) user?.let { who ->
         InviteToCommunitySheet(userId, who.displayName, onDismiss = { inviting = false }, onSent = { cid -> inviting = false; nav.navigate(Routes.conversation(cid)) })
     }
-}
-
-/** Both parties see the same number: fingerprints of both identity keys, sorted. */
-fun safetyNumber(a: ByteArray, b: ByteArray): String {
-    val fa = Fingerprint.of(a)
-    val fb = Fingerprint.of(b)
-    return listOf(fa, fb).sorted().joinToString("\n")
 }
 
 @Suppress("unused")

@@ -128,4 +128,9 @@
     <string name="wp_bug_sent">谢谢：你的报告已发送。</string>
     <string name="wp_bug_yours">你的报告</string>
     <string name="wp_palette_meldiq">Meldiq</string>
+    <string name="wp_key_changed_title">安全密钥已更改</string>
+    <string name="wp_key_changed_body">%1$s 的安全密钥已更改，与其的消息已暂停。请当面或通过可信的通话与对方确认，然后继续。</string>
+    <string name="wp_key_confirm">我已确认</string>
+    <string name="wp_security_row">恢复密钥与加密</string>
+    <string name="wp_security_row_sub">你的恢复密钥、加密内容、密钥更改提醒</string>
 </resources>

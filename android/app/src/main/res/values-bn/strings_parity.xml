@@ -128,4 +128,9 @@
     <string name="wp_bug_sent">ধন্যবাদ: আপনার রিপোর্ট পাঠানো হয়েছে।</string>
     <string name="wp_bug_yours">আপনার রিপোর্ট</string>
     <string name="wp_palette_meldiq">Meldiq</string>
+    <string name="wp_key_changed_title">সিকিউরিটি কী বদলেছে</string>
+    <string name="wp_key_changed_body">%1$s-এর সিকিউরিটি কী বদলেছে, তাই তাঁর সঙ্গে বার্তা থেমে আছে। সামনাসামনি বা ভরসার কোনো কলে নিশ্চিত হয়ে তারপর চালিয়ে যান।</string>
+    <string name="wp_key_confirm">আমি নিশ্চিত করেছি</string>
+    <string name="wp_security_row">রিকভারি কী ও এনক্রিপশন</string>
+    <string name="wp_security_row_sub">আপনার রিকভারি কী, কী এনক্রিপ্টেড, কী বদলের সতর্কতা</string>
 </resources>

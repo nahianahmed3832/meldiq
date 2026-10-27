@@ -14,9 +14,9 @@ class ConversationSecurityTest {
     private val dm = Facts(type = "DM", peerVerified = false, changedMembers = 0, otherServers = 0, callMediaE2ee = true)
 
     @Test
-    fun `an unverified one-to-one chat lists encryption, verification and metadata`() {
+    fun `a one-to-one chat lists encryption and metadata (safety numbers are retired)`() {
         assertEquals(
-            listOf(Point.MESSAGES, Point.FILES, Point.CALLS_E2EE, Point.NOT_VERIFIED, Point.METADATA),
+            listOf(Point.MESSAGES, Point.FILES, Point.CALLS_E2EE, Point.METADATA),
             ConversationSecurity.points(dm),
         )
         assertFalse(ConversationSecurity.needsAttention(dm))
@@ -37,17 +37,10 @@ class ConversationSecurityTest {
     }
 
     @Test
-    fun `channels mention app updates, other servers and per-member verification`() {
+    fun `channels mention app updates and other servers`() {
         val points = ConversationSecurity.points(Facts("CHANNEL", null, 0, otherServers = 2, callMediaE2ee = true))
         assertTrue(Point.APP_UPDATES in points)
         assertTrue(Point.OTHER_SERVERS in points)
-        assertTrue(Point.VERIFY_MEMBERS in points)
-        assertFalse(Point.NOT_VERIFIED in points)
-    }
-
-    @Test
-    fun `a verified peer is shown as verified`() {
-        assertTrue(Point.VERIFIED in ConversationSecurity.points(dm.copy(peerVerified = true)))
     }
 
     @Test

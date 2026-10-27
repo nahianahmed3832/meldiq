@@ -51,6 +51,8 @@ data class ConversationEntity(
     val categoryId: String? = null,
     val categoryName: String? = null,
     @androidx.room.ColumnInfo(defaultValue = "0") val position: Int = 0,
+    /** API 0.48.0: its category's place among the community's categories, so categories keep their order before the list loads. */
+    val categoryPosition: Int? = null,
     @androidx.room.ColumnInfo(defaultValue = "text") val format: String = "text",
     /** A forum's tags, JSON [{id, name}] from the server (null: none). Which tags a post has is inside the post. */
     val forumTagsJson: String? = null,

@@ -54,8 +54,9 @@ class AccountHelpTest {
 
     @Test
     fun `sign-in help always offers the password reset, and the rest only where they apply`() {
+        // Moving an account from before email is no longer offered (retired 2026-10-28, as Meldiq Web v4).
         assertEquals(
-            listOf(AccountStep.Forgot, AccountStep.Recover, AccountStep.LegacyCredentials),
+            listOf(AccountStep.Forgot, AccountStep.Recover),
             signInHelpOptions(allowRecovery = true, allowLegacy = true).map { it.step },
         )
         assertEquals(listOf(AccountStep.Forgot), signInHelpOptions(allowRecovery = false, allowLegacy = false).map { it.step })

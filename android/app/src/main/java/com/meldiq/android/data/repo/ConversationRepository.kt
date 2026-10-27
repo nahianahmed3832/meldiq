@@ -76,7 +76,7 @@ class ConversationRepository(
             archivedAt = local?.archivedAt,
             voice = d.voice,
             roomPeopleJson = d.activeCall?.participantIds?.let { GriipJson.encodeToString(ListSerializer(String.serializer()), it) },
-            categoryId = d.categoryId, categoryName = d.categoryName, position = d.position, format = d.format,
+            categoryId = d.categoryId, categoryName = d.categoryName, position = d.position, categoryPosition = d.categoryPosition, format = d.format,
             forumTagsJson = d.forumTags.takeIf { it.isNotEmpty() }?.let { GriipJson.encodeToString(ListSerializer(com.meldiq.android.data.api.ForumTagDto.serializer()), it) },
             canConnect = d.canConnect, canSpeak = d.canSpeak, timedOutUntil = d.timedOutUntil,
             request = d.request?.let { if (it.incoming) RequestRules.INCOMING else RequestRules.OUTGOING },

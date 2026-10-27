@@ -33,12 +33,12 @@ import com.meldiq.android.ui.theme.Space
 internal data class HelpOption(val icon: ImageVector, val title: Int, val subtitle: Int, val step: AccountStep)
 
 /** What "Having trouble signing in?" offers: the password reset always, the others when this sign-in allows them. */
-internal fun signInHelpOptions(allowRecovery: Boolean, allowLegacy: Boolean): List<HelpOption> = listOfNotNull(
+internal fun signInHelpOptions(allowRecovery: Boolean, @Suppress("UNUSED_PARAMETER") allowLegacy: Boolean): List<HelpOption> = listOfNotNull(
     HelpOption(Icons.Outlined.LockReset, R.string.auth_help_forgot, R.string.auth_help_forgot_sub, AccountStep.Forgot),
     HelpOption(Icons.Outlined.MarkEmailUnread, R.string.auth_help_lost_email, R.string.auth_help_lost_email_sub, AccountStep.Recover)
         .takeIf { allowRecovery },
-    HelpOption(Icons.Outlined.SwapHoriz, R.string.acct_legacy_entry, R.string.acct_legacy_entry_sub, AccountStep.LegacyCredentials)
-        .takeIf { allowLegacy },
+    // "Move an account from before email" was retired on 2026-10-28 (as Meldiq Web v4); a phone that still holds such an
+    // account is taken through the move by AccountGate, so nobody is stranded.
 )
 
 /** The ways to get this account's keys onto a new phone without the emailed code. */

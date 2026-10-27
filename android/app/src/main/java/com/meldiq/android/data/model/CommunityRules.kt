@@ -42,10 +42,14 @@ object ChannelTree {
 
     /**
      * [items] grouped by category: uncategorised channels first, then categories in [categories] order (a category the
-     * list doesn't know, from a stale cache, goes last by its name), channels by position then name. [keepEmpty]: also
+     * list doesn't know yet goes by the channels' [categoryPosition] (API 0.48.0, as Meldiq Web v4), else last by its
+     * name), channels by position then name. [keepEmpty]: also
      * list known categories without channels (for the people arranging them).
      */
-    fun <T> sections(items: List<T>, categories: List<CategoryDto>, keepEmpty: Boolean = false, ref: (T) -> ChannelRef, categoryName: (T) -> String? = { null }): List<ChannelSection<T>> {
+    fun <T> sections(
+        items: List<T>, categories: List<CategoryDto>, keepEmpty: Boolean = false, ref: (T) -> ChannelRef, categoryName: (T) -> String? = { null },
+        categoryPosition: (T) -> Int? = { null },
+    ): List<ChannelSection<T>> {
         val order = categories.sortedWith(compareBy({ it.position }, { it.name.lowercase() }, { it.id })).mapIndexed { i, c -> c.id to i }.toMap()
         val known = categories.associateBy { it.id }
         val byCategory = items.groupBy { ref(it).categoryId?.takeIf { id -> id.isNotEmpty() } }
@@ -53,7 +57,9 @@ object ChannelTree {
         val sections = mutableListOf<ChannelSection<T>>()
         byCategory[null]?.let { sections += ChannelSection(UNCATEGORISED, null, null, sortChannels(it)) }
         val ids = (byCategory.keys.filterNotNull() + if (keepEmpty) known.keys else emptySet()).toSet()
-        ids.sortedWith(compareBy({ order[it] ?: Int.MAX_VALUE }, { (known[it]?.name ?: byCategory[it]?.firstOrNull()?.let(categoryName) ?: "").lowercase() }, { it }))
+        // Known categories by the list's order; the others by the position their channels carry, after the known ones.
+        val carried = { id: String -> byCategory[id]?.firstNotNullOfOrNull(categoryPosition) }
+        ids.sortedWith(compareBy({ if (order[it] != null) 0 else 1 }, { order[it] ?: carried(it) ?: Int.MAX_VALUE }, { (known[it]?.name ?: byCategory[it]?.firstOrNull()?.let(categoryName) ?: "").lowercase() }, { it }))
             .forEach { id ->
                 val list = byCategory[id].orEmpty()
                 val title = known[id]?.name ?: list.firstOrNull()?.let(categoryName) ?: ""

@@ -98,7 +98,7 @@ fun PrivacyScreen(nav: NavHostController) {
         item { SectionHeader("Security", Modifier.padding(top = 6.dp, bottom = 6.dp)) }
         item {
             GlassCard(Modifier.fillMaxWidth().padding(horizontal = Space.gutter), contentPadding = PaddingValues(4.dp)) {
-                MenuRow(Icons.Outlined.Key, "Recovery key & safety numbers", subtitle = "Your recovery key, what is encrypted, key-change warnings", onClick = { nav.navigate(Routes.SECURITY) })
+                MenuRow(Icons.Outlined.Key, androidx.compose.ui.res.stringResource(com.meldiq.android.R.string.wp_security_row), subtitle = androidx.compose.ui.res.stringResource(com.meldiq.android.R.string.wp_security_row_sub), onClick = { nav.navigate(Routes.SECURITY) })
                 MenuRow(Icons.Outlined.Devices, "Devices & sessions", subtitle = "Phones signed in to this account; sign one out", onClick = { nav.navigate(Routes.DEVICES) })
             }
         }

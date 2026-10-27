@@ -128,4 +128,9 @@
     <string name="wp_bug_sent">Thanks: your report was sent.</string>
     <string name="wp_bug_yours">Your reports</string>
     <string name="wp_palette_meldiq">Meldiq</string>
+    <string name="wp_key_changed_title">Security key changed</string>
+    <string name="wp_key_changed_body">%1$s\'s security key changed, so messages with them are paused. Confirm it with them in person or on a call you trust, then continue.</string>
+    <string name="wp_key_confirm">I\'ve confirmed it</string>
+    <string name="wp_security_row">Recovery key and encryption</string>
+    <string name="wp_security_row_sub">Your recovery key, what\'s encrypted, key-change warnings</string>
 </resources>
