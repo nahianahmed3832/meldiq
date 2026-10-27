@@ -96,7 +96,8 @@ internal fun paletteName(id: String): String = stringResource(
         "sunset" -> R.string.palette_sunset
         "meadow" -> R.string.palette_meadow
         "aurora" -> R.string.palette_aurora
-        else -> R.string.palette_graphite
+        "graphite" -> R.string.palette_graphite
+        else -> R.string.wp_palette_meldiq
     },
 )
 

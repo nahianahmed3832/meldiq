@@ -134,4 +134,5 @@ S = {
 "wp_bug_send": ("Send report", "发送报告", "রিপোর্ট পাঠান"),
 "wp_bug_sent": ("Thanks: your report was sent.", "谢谢：你的报告已发送。", "ধন্যবাদ: আপনার রিপোর্ট পাঠানো হয়েছে।"),
 "wp_bug_yours": ("Your reports", "你的报告", "আপনার রিপোর্ট"),
+"wp_palette_meldiq": ("Meldiq", "Meldiq", "Meldiq"),
 }
