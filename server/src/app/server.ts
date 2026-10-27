@@ -74,8 +74,9 @@ import { Metrics } from "../modules/administration/ops/metrics.js";
 import { ApiError } from "../shared/errors.js";
 import { now } from "../shared/utilities/util.js";
 import wsRoutes from "../modules/realtime/ws.js";
+import { Billing, billingRoutes } from "../modules/billing/index.js";
 
-export const VERSION = "0.48.0";
+export const VERSION = "0.49.0";
 /**
  * The client API this server speaks and the oldest client API it accepts. Clients refuse a server whose
  * minClientApi is newer than theirs; servers from before these fields existed count as API 1.
@@ -174,7 +175,9 @@ export async function buildApp(
   ctx.reports = ctx.mongo?.owns("reports") ? new MongoReportStore(ctx.mongo) : new SqliteReportStore(db);
   ctx.relationships = ctx.mongo?.owns("relationships") ? new MongoRelationshipStore(ctx.mongo) : new SqliteRelationshipStore(db);
   ctx.reportSealer = ReportSealer.load(process.env, config.dataDir);
-  ctx.entitlements = new Entitlements(config.entitlements, db);
+  ctx.billing = new Billing(db, config.billing, app.log);
+  // A workspace's subscription adds its plan's limits between operator overrides and server-wide limits.
+  ctx.entitlements = new Entitlements(config.entitlements, db, (orgId, t) => ctx.billing.subscriptions.planLimits(orgId, t));
   ctx.usage = new UsageMeter(db, ctx.files);
   ctx.quotas = new QuotaEngine(db);
   // AI and AI Workforce were removed in API 0.47.0 (docs/AI_REMOVAL.md): their tables stay, unread.
@@ -346,6 +349,7 @@ export async function buildApp(
   await app.register(async (scope) => communityRoutes(scope, ctx));
   await app.register(async (scope) => experimentRoutes(scope, ctx));
   await app.register(async (scope) => accountRoutes(scope, ctx, ctx.accounts));
+  await app.register(async (scope) => billingRoutes(scope, ctx));
   // The Platform Admin Console's /admin/v1 (only with ADMIN_CONSOLE_ORIGIN set; its own sessions, roles and audit).
   await registerPlatformAdmin(app, ctx, VERSION);
   const fed = ctx.federation;

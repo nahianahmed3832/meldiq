@@ -5,6 +5,7 @@ import { parse } from "../../shared/validation/index.js";
 import type { PlatformAudit } from "./audit.js";
 import type { AdminAuthService } from "./auth.js";
 import { metaOf, principal, requirePermission } from "./guards.js";
+import { AdminBilling } from "./billing.js";
 import { AdminOrgs } from "./orgs.js";
 import { overview } from "./overview.js";
 import type { Permission } from "./permissions.js";
@@ -23,7 +24,7 @@ export interface AdminDeps {
 export default async function adminDataRoutes(app: FastifyInstance, d: AdminDeps) {
   const needs = (permission: Permission) => ({ preHandler: requirePermission(d.auth, d.audit, permission) });
   const users = new AdminUsers(d.ctx, d.store, d.audit);
-  const orgs = new AdminOrgs(d.ctx);
+  const orgs = new AdminOrgs(d.ctx, new AdminBilling(d.ctx, d.audit));
 
   app.get("/admin/v1/overview", needs("overview.view"), async (req) => overview(d.ctx, principal(req), d.version));
 

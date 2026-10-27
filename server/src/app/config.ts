@@ -8,6 +8,7 @@ import { type ExperimentsConfig, experimentsConfig } from "../modules/administra
 import type { S3Config } from "../infrastructure/storage/s3.js";
 import { type FcmConfig, fcmConfig } from "../modules/notifications/fcm.js";
 import { type AdminConsoleConfig, adminConsoleConfig } from "../modules/platformAdmin/config.js";
+import { type BillingConfig, billingConfig } from "../modules/billing/config.js";
 
 const SEVEN_DAYS_S = 7 * 24 * 3600;
 const MiB = 1024 * 1024;
@@ -117,6 +118,8 @@ export interface Config {
   adminConsole: AdminConsoleConfig | null;
   /** Server-wide limits for future plans (docs/PLANS.md); none by default. */
   entitlements: EntitlementConfig;
+  /** The billing provider (BILLING_PROVIDER, docs/BILLING.md); none by default, so nothing can be bought. */
+  billing: BillingConfig;
   /** Product experiments (docs/product/EXPERIMENTS.md): off unless EXPERIMENTS_MODE says otherwise. */
   experiments: ExperimentsConfig;
   /** Content-free daily analytics counts (ANALYTICS_ENABLED=true); off by default. */
@@ -479,6 +482,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     platformAdmins: new Set((env.PLATFORM_ADMIN_USER_IDS ?? "").split(",").map((s) => s.trim()).filter(Boolean)),
     adminConsole: adminConsoleConfig(env, int),
     entitlements: entitlementConfig(env),
+    billing: billingConfig(env),
     experiments: experimentsConfig(env),
     analyticsEnabled: (env.ANALYTICS_ENABLED ?? "").trim().toLowerCase() === "true",
     // No upload quotas by default (0: no limit; owner's decision 2026-10-18, UI-003).

@@ -49,8 +49,22 @@ const EXPECTED: Record<string, string[]> = {
     "devices.revoke",
     "users.recovery",
     "quotas.view",
+    "billing.view",
   ],
-  billing_admin: ["overview.view", "orgs.view", "entitlements.view", "entitlements.edit", "analytics.view", "resources.view", "quotas.view", "quotas.edit", "settings.view"],
+  billing_admin: [
+    "overview.view",
+    "orgs.view",
+    "entitlements.view",
+    "entitlements.edit",
+    "analytics.view",
+    "resources.view",
+    "quotas.view",
+    "quotas.edit",
+    "settings.view",
+    "billing.view",
+    "billing.manage",
+    "billing.events.replay",
+  ],
   auditor: [
     "overview.view",
     "users.view",
@@ -68,6 +82,7 @@ const EXPECTED: Record<string, string[]> = {
     "quotas.view",
     "settings.view",
     "exports.create",
+    "billing.view",
   ],
 };
 
@@ -112,8 +127,8 @@ describe("the console's code", () => {
 
   it("imports no messaging, history, file, report or key code", () => {
     // Platform Admin 2.0 adds metadata-only modules: telemetry (counts and client kinds), quotas, AI provider settings,
-    // and wake-up registration state (never the token).
-    const allowed = /^\.\.\/(accounts|administration|auth|organizations|telemetry|quotas|ai|notifications)\/index\.js$|^\.\/|^\.\.\/\.\.\/(app|shared|infrastructure)\//;
+    // and wake-up registration state (never the token). Billing holds plans, subscriptions and provider references only.
+    const allowed = /^\.\.\/(accounts|administration|auth|organizations|telemetry|quotas|ai|notifications|billing)\/index\.js$|^\.\/|^\.\.\/\.\.\/(app|shared|infrastructure)\//;
     for (const { file, text } of sources) {
       for (const [, names, spec] of text.matchAll(/import\s+([^;]*?)\s+from\s+"([^"]+)"/gs)) {
         if (!spec.startsWith(".")) continue;

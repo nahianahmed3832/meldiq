@@ -56,6 +56,15 @@ case "${ADMIN_CONSOLE_ORIGIN:-}" in
   *) err "ADMIN_CONSOLE_ORIGIN must start with https:// (${ADMIN_CONSOLE_ORIGIN})" ;;
 esac
 
+# Billing (docs/BILLING.md): none by default; the sandbox provider is test mode only and needs its webhook secret.
+case "${BILLING_PROVIDER:-none}" in
+  none|'') ok "BILLING_PROVIDER none (nothing can be bought)" ;;
+  sandbox)
+    if [ "${#BILLING_SANDBOX_WEBHOOK_SECRET}" -ge 32 ]; then warn "BILLING_PROVIDER=sandbox: test mode, no real money; not for production customers"
+    else err "BILLING_SANDBOX_WEBHOOK_SECRET must be at least 32 characters with BILLING_PROVIDER=sandbox"; fi ;;
+  *) err "BILLING_PROVIDER must be none or sandbox (${BILLING_PROVIDER})" ;;
+esac
+
 # Platform Admin 2.0: the credentials key, if set, must be 32 bytes (hex or base64); the server refuses to start otherwise.
 case "${PLATFORM_SECRETS_KEY:-}" in
   '') ok "PLATFORM_SECRETS_KEY unset (the console can't store AI credentials)" ;;

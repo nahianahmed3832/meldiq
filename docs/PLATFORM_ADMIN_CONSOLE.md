@@ -59,8 +59,8 @@ reads another module's tables itself.
 
 | Route | Permission | |
 |---|---|---|
-| `GET /admin/v1/entitlements` | `entitlements.view` | billing status (no provider), entitlement keys, server-wide limits, organizations' own limits |
-| `PUT /admin/v1/orgs/:orgId/limits` | `entitlements.edit` ★ | `{ limits: { key: n \| null }, reason }`; the same limits the existing `PUT /v1/admin/orgs/:orgId/limits` sets, audited with before → after |
+| `GET /admin/v1/entitlements` | `entitlements.view` | whether a billing provider is configured, entitlement keys, server-wide limits, organizations' own limits in force (with end date and reason) |
+| `PUT /admin/v1/orgs/:orgId/limits` | `entitlements.edit` ★ | `{ limits: { key: n \| null }, expiresAt, reason }`; setting a limit needs an end date within 366 days (no end: super admins only); audited with before → after and the end |
 | `GET /admin/v1/infrastructure` | `health.view` | checks, load, notable routes, jobs, providers, connectors (setting names only, never values), warnings |
 | `POST /admin/v1/connectors/:id/check` | `connectors.check` | `email`, `storage`, `push-fcm`, `mongodb`; sends nothing to anyone; audited |
 | `GET /admin/v1/incidents?status=&cursor=` · `GET /admin/v1/incidents/:id` | `incidents.view` | `status=active` means not resolved |
@@ -72,21 +72,11 @@ reads another module's tables itself.
 
 Admin management refuses changing one's own access and leaving no active super admin (both audited as `denied`).
 
-## AI Control Center routes (AI Workforce, `AI_WORKFORCE.md`)
+## Billing routes (API 0.49.0, `BILLING.md`)
 
-★ = a fresh passkey check and a written reason (every `ai.manage` route). Job views are metadata only.
-
-| Route | Permission | |
-|---|---|---|
-| `GET /admin/v1/ai/workforce?days=` | `ai.view` | controls, worker, media engine, queue, jobs, model use, storage, installations, configuration issues |
-| `PUT /admin/v1/ai/workforce/controls` | `ai.manage` ★ | on/off, pause new jobs, concurrency, approval floor; take effect at the worker's next tick |
-| `GET /admin/v1/ai/models` | `ai.view` | capabilities per model with verification, routing per category (what `auto` tries now and why others are left out), latest decisions |
-| `PUT /admin/v1/ai/providers/:providerId/models/:model/capabilities` · `POST …/verify` | `ai.manage` ★ | turn capabilities on (clears verification); verify one with a real minimal request |
-| `PUT /admin/v1/ai/routing/:category` | `ai.manage` ★ | default, fallbacks, preference, cost ceiling |
-| `GET /admin/v1/ai/catalog` · `PUT /admin/v1/ai/catalog/:agentId/:version` | `ai.view` · `ai.manage` ★ | publish, disable, retire; availability; baseline policy |
-| `GET /admin/v1/ai/tools` · `PUT /admin/v1/ai/tools/:tool` | `ai.view` · `ai.manage` ★ | platform ceiling per tool; payments can't be allowed; outside services can't be simply "allowed" |
-| `GET /admin/v1/ai/entitlements` · `GET/PUT /admin/v1/orgs/:orgId/ai` | `ai.view` · `ai.manage` ★ | what one community may use (optimistic `rev`) |
-| `GET /admin/v1/ai/jobs` · `GET /admin/v1/ai/jobs/:jobId` · `POST …/cancel` | `ai.view` · `ai.manage` ★ | metadata, content-free events, emergency cancel |
+Plans, subscriptions, invoices, provider events and their figures: `/admin/v1/billing/…`, permissions `billing.view`,
+`billing.manage` ★ and `billing.events.replay` ★. The full table, the lifecycle and the runbooks are in `BILLING.md`.
+The AI Control Center's routes went with AI in API 0.47.0 (`AI_REMOVAL.md`); console 0.7.0 no longer shows it.
 
 ## Bootstrap (the only way to make the first admin)
 

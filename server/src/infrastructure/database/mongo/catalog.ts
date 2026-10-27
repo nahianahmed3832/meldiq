@@ -225,6 +225,16 @@ export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
   ai_files: "platform",
   ai_approvals: "platform",
   ai_channel_posts: "platform",
+  // Billing (migration 061): the plan catalog, checkouts, subscriptions, invoices and provider events. Kept in SQLite in
+  // every mode, like the rest of the platform tables.
+  billing_plans: "platform",
+  billing_plan_versions: "platform",
+  billing_checkouts: "platform",
+  billing_subscriptions: "platform",
+  billing_subscription_history: "platform",
+  billing_invoices: "platform",
+  billing_provider_events: "platform",
+  billing_webhook_rejections: "platform",
 };
 
 export interface ColumnSpec {

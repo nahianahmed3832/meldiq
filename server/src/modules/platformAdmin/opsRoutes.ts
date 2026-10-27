@@ -15,6 +15,17 @@ import {
   AdminRoleBody,
   AdminSessionParams,
 } from "../../shared/contracts/http/platformAdmin.js";
+import {
+  AdminBillingEventParams,
+  AdminBillingEventsQuery,
+  AdminBillingMetricsQuery,
+  AdminPlanCreate,
+  AdminPlanMeta,
+  AdminBillingPlanParams,
+  AdminPlanTerms,
+  AdminSubscriptionParams,
+  AdminSubscriptionsQuery,
+} from "../../shared/contracts/http/platformAdminBilling.js";
 import { parse } from "../../shared/validation/index.js";
 import { AdminAdmins } from "./admins.js";
 import { AdminAuditView } from "./auditView.js";
@@ -38,8 +49,37 @@ export default async function adminOpsRoutes(app: FastifyInstance, d: AdminDeps)
   app.get("/admin/v1/entitlements", needs("entitlements.view"), async () => billing.overview());
   app.put("/admin/v1/orgs/:orgId/limits", needs("entitlements.edit"), async (req) => {
     const { orgId } = parse(AdminOrgParams, req.params);
-    const { limits, reason } = parse(AdminLimitsBody, req.body);
-    return billing.setLimits(principal(req), orgId, limits, reason, metaOf(req));
+    const { limits, expiresAt, reason } = parse(AdminLimitsBody, req.body);
+    return billing.setLimits(principal(req), orgId, limits, expiresAt, reason, metaOf(req));
+  });
+
+  // ── Billing: catalog, subscriptions, provider events, figures (docs/BILLING.md) ──
+  app.get("/admin/v1/billing/metrics", needs("billing.view"), async (req) => billing.metrics(parse(AdminBillingMetricsQuery, req.query).days));
+  app.get("/admin/v1/billing/plans", needs("billing.view"), async () => billing.plans());
+  app.post("/admin/v1/billing/plans", needs("billing.manage"), async (req) => billing.createPlan(principal(req), parse(AdminPlanCreate, req.body), metaOf(req)));
+  app.patch("/admin/v1/billing/plans/:planId", needs("billing.manage"), async (req) => {
+    const { planId } = parse(AdminBillingPlanParams, req.params);
+    return billing.updatePlan(principal(req), planId, parse(AdminPlanMeta, req.body), metaOf(req));
+  });
+  app.put("/admin/v1/billing/plans/:planId/draft", needs("billing.manage"), async (req) => {
+    const { planId } = parse(AdminBillingPlanParams, req.params);
+    const { terms, reason } = parse(AdminPlanTerms, req.body);
+    return billing.saveDraft(principal(req), planId, terms, reason, metaOf(req));
+  });
+  app.post("/admin/v1/billing/plans/:planId/publish", needs("billing.manage"), async (req) => {
+    const { planId } = parse(AdminBillingPlanParams, req.params);
+    return billing.publish(principal(req), planId, parse(AdminReasonBody, req.body).reason, metaOf(req));
+  });
+  app.post("/admin/v1/billing/plans/:planId/archive", needs("billing.manage"), async (req) => {
+    const { planId } = parse(AdminBillingPlanParams, req.params);
+    return billing.archive(principal(req), planId, parse(AdminReasonBody, req.body).reason, metaOf(req));
+  });
+  app.get("/admin/v1/billing/subscriptions", needs("billing.view"), async (req) => billing.subscriptions(parse(AdminSubscriptionsQuery, req.query)));
+  app.get("/admin/v1/billing/subscriptions/:subscriptionId", needs("billing.view"), async (req) => billing.subscription(parse(AdminSubscriptionParams, req.params).subscriptionId));
+  app.get("/admin/v1/billing/events", needs("billing.view"), async (req) => billing.events(parse(AdminBillingEventsQuery, req.query)));
+  app.post("/admin/v1/billing/events/:eventId/replay", needs("billing.events.replay"), async (req) => {
+    const { eventId } = parse(AdminBillingEventParams, req.params);
+    return billing.replay(principal(req), eventId, parse(AdminReasonBody, req.body).reason, metaOf(req));
   });
 
   // ── Infrastructure ──

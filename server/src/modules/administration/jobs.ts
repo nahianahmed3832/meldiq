@@ -41,6 +41,8 @@ export interface CleanupResult {
   platformAdmin: number;
   /** Quota reservations of operations that never finished, given back (docs/QUOTAS.md). */
   quotaReservations: number;
+  /** Failed billing provider events retried, and checkouts past their time closed (docs/BILLING.md). */
+  billing: number;
   /** Batch B4: closed reports past their 90 days. */
   reportsPurged: number;
   /** Expired sign-in flows, webhook delivery ids, channel notifications from apps and old finished jobs. */
@@ -111,6 +113,7 @@ export async function runCleanup(ctx: AppContext): Promise<CleanupResult> {
     auditPruned: 0,
     platformAdmin: new PlatformAdminStore(db).purgeExpired(t),
     quotaReservations: ctx.quotas ? ctx.quotas.expireReservations() : 0,
+    billing: ctx.billing ? ctx.billing.sweep() : 0,
     reportsPurged: 0,
     guestsExpired: 0,
   };

@@ -1,5 +1,8 @@
 # Plans and entitlements (preparation only, 2026-10-19)
 
+> Since API 0.49.0 (2026-10-28) plans, subscriptions and provider events exist: see `BILLING.md`. What follows is the
+> original preparation note; `GET /v1/orgs/:id/plan` now answers the plan's name while a subscription grants one.
+
 Meldiq is meant to launch with Free and Premium options, but **no plans, prices or entitlements have been decided**.
 This round only adds the one place where such rules will live, so the app and the routes never hard-code them.
 

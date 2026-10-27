@@ -24,6 +24,7 @@ import type { ReminderService } from "../modules/accounts/reminders/service.js";
 import type { BlobStore } from "../infrastructure/storage/index.js";
 import type { Telemetry } from "../modules/telemetry/index.js";
 import type { QuotaEngine } from "../modules/quotas/index.js";
+import type { Billing } from "../modules/billing/index.js";
 
 export interface AppContext {
   db: DB;
@@ -70,6 +71,8 @@ export interface AppContext {
   telemetry: Telemetry;
   /** The unified quota engine (modules/quotas, docs/QUOTAS.md): no policies, so nothing enforced, until an operator sets one. */
   quotas: QuotaEngine;
+  /** Plans, subscriptions, invoices and provider webhooks (modules/billing, docs/BILLING.md). */
+  billing: Billing;
   log: FastifyBaseLogger;
   audit: (e: { actorId?: string | null; orgId?: string | null; action: string; target?: string | null; detail?: string | null }) => void;
 }

@@ -122,7 +122,7 @@ export class AdminAnalytics {
       requests,
       push: providers ? { providers } : null,
       incidents: { open: incidents.n, critical: incidents.c, breachingRules: breaching },
-      billing: { available: false as const, reason: "No billing provider is configured: Meldiq has no plans, prices or payments yet." },
+      billing: { available: !!this.ctx.billing.provider, reason: this.ctx.billing.unavailableReason },
     };
   }
 

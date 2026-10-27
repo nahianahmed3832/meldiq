@@ -203,10 +203,10 @@ export const Usage = z.strictObject({
   metered: z.strictObject({ days: z.literal(30), metrics: z.array(MetricSeries) }),
 });
 
-/** No plans exist yet (docs/PLANS.md): plan and upgrade are null, with any limits that apply. */
+/** The workspace's plan while a subscription grants one (docs/BILLING.md), else null; upgrade is always null. */
 export const Plan = z.strictObject({
-  plan: z.null(),
-  source: z.enum(["workspace", "server", "none"]),
+  plan: z.strictObject({ name: z.string() }).nullable(),
+  source: z.enum(["workspace", "plan", "server", "none"]),
   capabilities: z.array(
     z.strictObject({
       key: z.string(),
@@ -215,7 +215,7 @@ export const Plan = z.strictObject({
       limit: zCount.nullable(),
       used: zCount,
       available: z.boolean(),
-      source: z.enum(["workspace", "server", "none"]),
+      source: z.enum(["workspace", "plan", "server", "none"]),
     }),
   ),
   upgrade: z.null(),

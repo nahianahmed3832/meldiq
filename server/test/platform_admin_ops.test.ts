@@ -48,11 +48,12 @@ describe("billing status and limits", () => {
   });
 
   it("are set and cleared per organization by billing admins, with a reason, and enforced", async () => {
-    const set = await as("billing_admin").expect(200, "PUT", `/admin/v1/orgs/${orgId}/limits`, { limits: { members: 1 }, reason: REASON });
+    const until = Date.now() + 30 * 86_400_000;
+    const set = await as("billing_admin").expect(200, "PUT", `/admin/v1/orgs/${orgId}/limits`, { limits: { members: 1 }, expiresAt: until, reason: REASON });
     expect(AdminLimits.safeParse(set).success).toBe(true);
     expect(set.limits).toContainEqual({ key: "members", limit: 1, source: "workspace" });
     expect(lastAudit("org.limits")).toMatchObject({ target_id: orgId, reason: REASON, actor_role: "billing_admin" });
-    expect(JSON.parse(lastAudit("org.limits").detail)).toEqual({ members: "default -> 1" });
+    expect(JSON.parse(lastAudit("org.limits").detail)).toEqual({ members: "default -> 1", until: new Date(until).toISOString() });
     expect((await as("billing_admin").expect(200, "GET", "/admin/v1/entitlements")).overrides).toContainEqual(expect.objectContaining({ orgId, orgName: "Limits Lab", key: "members", limit: 1 }));
     const cleared = await as("billing_admin").expect(200, "PUT", `/admin/v1/orgs/${orgId}/limits`, { limits: { members: null }, reason: REASON });
     expect(cleared.limits).toContainEqual({ key: "members", limit: null, source: "none" });
@@ -61,7 +62,7 @@ describe("billing status and limits", () => {
   it("refuse unknown keys, empty changes, and roles without the permission", async () => {
     await as("billing_admin").expect(400, "PUT", `/admin/v1/orgs/${orgId}/limits`, { limits: { "ai.requests": 5 }, reason: REASON });
     await as("billing_admin").expect(400, "PUT", `/admin/v1/orgs/${orgId}/limits`, { limits: {}, reason: REASON });
-    await as("billing_admin").expect(404, "PUT", "/admin/v1/orgs/o_none_here/limits", { limits: { members: 3 }, reason: REASON });
+    await as("billing_admin").expect(404, "PUT", "/admin/v1/orgs/o_none_here/limits", { limits: { members: 3 }, expiresAt: Date.now() + 86_400_000, reason: REASON });
     await as("support_admin").expect(403, "PUT", `/admin/v1/orgs/${orgId}/limits`, { limits: { members: 3 }, reason: REASON });
     await as("auditor").expect(200, "GET", "/admin/v1/entitlements");
   });

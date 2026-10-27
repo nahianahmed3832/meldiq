@@ -121,6 +121,11 @@ const TABLE_OWNERS: Readonly<Record<string, string>> = {
     "telemetry",
     "activity_daily telemetry_epochs traffic_user_daily presence_samples presence_hourly resource_samples resource_hourly session_clients",
   ),
+  // Billing (migration 061).
+  ...owned(
+    "billing",
+    "billing_plans billing_plan_versions billing_checkouts billing_subscriptions billing_subscription_history billing_invoices billing_provider_events billing_webhook_rejections",
+  ),
   ...owned("quotas", "quota_plans quota_plan_members quota_policies quota_counters quota_reservations quota_events"),
   ...owned("ai", "ai_providers ai_models ai_usage ai_model_capabilities ai_routing"),
   // AI Workforce 1.0 (migration 049).

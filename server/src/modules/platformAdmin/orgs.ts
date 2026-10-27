@@ -6,6 +6,7 @@ import { ENTITLEMENT_KEYS } from "../administration/index.js";
 import { channelCounts } from "../messaging/index.js";
 import { type OrgKind, orgComposition, orgRecord, type OrgSummaryRow, searchOrgs } from "../organizations/index.js";
 import { decodeCursor, page } from "./pagination.js";
+import type { AdminBilling } from "./billing.js";
 
 const USAGE_DAYS = 30;
 
@@ -16,7 +17,10 @@ const orgView = (o: OrgSummaryRow) => ({ id: o.id, name: o.name, slug: o.slug, k
  * member list or anything said in them. Suspension is designed but not enforced yet, and says so.
  */
 export class AdminOrgs {
-  constructor(private readonly ctx: AppContext) {}
+  constructor(
+    private readonly ctx: AppContext,
+    private readonly billing: AdminBilling,
+  ) {}
 
   search(q: { q?: string; kind?: OrgKind; cursor?: string; limit: number }) {
     const rows = searchOrgs(this.ctx.db, { q: q.q || undefined, kind: q.kind, after: decodeCursor(q.cursor), limit: q.limit + 1 });
@@ -47,6 +51,7 @@ export class AdminOrgs {
       channels: channelCounts(this.ctx.db, orgId),
       usage: { days: USAGE_DAYS, metrics: usage },
       limits: ENTITLEMENT_KEYS.map((key) => ({ key, ...this.ctx.entitlements.limitFor(key, orgId) })),
+      subscription: this.billing.orgSubscription(orgId),
       suspension: { supported: false as const },
     };
   }

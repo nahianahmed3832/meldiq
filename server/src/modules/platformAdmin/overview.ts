@@ -50,7 +50,7 @@ export async function overview(ctx: AppContext, p: AdminPrincipal, version: stri
           warnings: health.warnings,
         }
       : null,
-    billing: { available: false as const, reason: "No billing provider is configured: Meldiq has no plans, prices or payments yet (docs/USAGE_AND_PLANS.md)." },
+    billing: { available: !!ctx.billing.provider, reason: ctx.billing.unavailableReason },
     recentActions: recent ? recent.map((r) => ({ at: r.at, action: r.action, outcome: r.outcome, actorRole: r.actor_role, targetType: r.target_type })) : null,
     openIncidents,
   };

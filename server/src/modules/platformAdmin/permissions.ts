@@ -39,6 +39,10 @@ export const PERMISSIONS = [
   "settings.edit",
   "alerts.manage",
   "exports.create",
+  // Billing (docs/BILLING.md): the catalog, subscriptions, invoices and provider events.
+  "billing.view",
+  "billing.manage",
+  "billing.events.replay",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -56,6 +60,8 @@ export const SENSITIVE: ReadonlySet<Permission> = new Set([
   "quotas.edit",
   "settings.edit",
   "alerts.manage",
+  "billing.manage",
+  "billing.events.replay",
 ]);
 
 const READ_EVERYTHING: Permission[] = [
@@ -72,6 +78,7 @@ const READ_EVERYTHING: Permission[] = [
   "resources.view",
   "quotas.view",
   "settings.view",
+  "billing.view",
 ];
 
 const GRANTS: Readonly<Record<PlatformRole, ReadonlySet<Permission>>> = {
@@ -115,8 +122,22 @@ const GRANTS: Readonly<Record<PlatformRole, ReadonlySet<Permission>>> = {
     "devices.revoke",
     "users.recovery",
     "quotas.view",
+    "billing.view",
   ]),
-  billing_admin: new Set<Permission>(["overview.view", "orgs.view", "entitlements.view", "entitlements.edit", "analytics.view", "resources.view", "quotas.view", "quotas.edit", "settings.view"]),
+  billing_admin: new Set<Permission>([
+    "overview.view",
+    "orgs.view",
+    "entitlements.view",
+    "entitlements.edit",
+    "analytics.view",
+    "resources.view",
+    "quotas.view",
+    "quotas.edit",
+    "settings.view",
+    "billing.view",
+    "billing.manage",
+    "billing.events.replay",
+  ]),
   auditor: new Set<Permission>([...READ_EVERYTHING, "audit.view", "admins.view", "exports.create"]),
 };
 

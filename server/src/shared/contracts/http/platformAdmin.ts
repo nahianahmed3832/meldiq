@@ -69,7 +69,7 @@ export const AdminOverview = z.strictObject({
       warnings: z.array(z.string()),
     })
     .nullable(),
-  billing: z.strictObject({ available: z.literal(false), reason: z.string() }),
+  billing: z.strictObject({ available: z.boolean(), reason: z.string().nullable() }),
   recentActions: z.array(z.strictObject({ at: zTime, action: z.string(), outcome: z.string(), actorRole: z.string().nullable(), targetType: z.string().nullable() })).nullable(),
   openIncidents: zCount,
 });
@@ -168,7 +168,9 @@ export const AdminOrgDetail = z.strictObject({
   composition: z.strictObject({ byRole: z.record(z.string(), zCount), customRoles: zCount, bans: zCount, activeInvites: zCount }),
   channels: z.strictObject({ total: zCount, private: zCount }),
   usage: z.strictObject({ days: zCount, metrics: z.record(z.string(), z.number()) }),
-  limits: z.array(z.strictObject({ key: z.string(), limit: zCount.nullable(), source: z.enum(["workspace", "server", "none"]) })),
+  limits: z.array(z.strictObject({ key: z.string(), limit: zCount.nullable(), source: z.enum(["workspace", "plan", "server", "none"]) })),
+  /** The subscription that isn't over, if any (docs/BILLING.md); null when there is none. */
+  subscription: z.strictObject({ id: z.string(), plan: z.string(), status: z.string(), standing: z.string(), currentPeriodEnd: zTime.nullable() }).nullable(),
   /** Org suspension is designed but not enforced yet (owner's decision 2026-10-23). */
   suspension: z.strictObject({ supported: z.literal(false) }),
 });
@@ -179,19 +181,23 @@ export const ENTITLEMENT_KEY_VALUES = ["roles.custom", "members", "storage.bytes
 const zLimitValue = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 
 export const AdminEntitlements = z.strictObject({
-  /** Meldiq has no billing provider, plans or prices: the console says so instead of showing invented figures. */
-  billing: z.strictObject({ available: z.literal(false), reason: z.string() }),
+  /** Whether a billing provider is configured: without one the console says so instead of showing invented figures. */
+  billing: z.strictObject({ available: z.boolean(), reason: z.string().nullable() }),
   keys: z.array(z.strictObject({ key: z.string(), label: z.string() })),
   serverLimits: z.array(z.strictObject({ key: z.string(), limit: zCount })),
-  overrides: z.array(z.strictObject({ orgId: z.string(), orgName: z.string().nullable(), key: z.string(), limit: zCount, setAt: zTime })),
+  overrides: z.array(
+    z.strictObject({ orgId: z.string(), orgName: z.string().nullable(), key: z.string(), limit: zCount, setAt: zTime, expiresAt: zTime.nullable(), reason: z.string().nullable() }),
+  ),
 });
 
 export const AdminLimitsBody = z.strictObject({
   /** null clears an organization's own limit (the server-wide one, if any, applies again). */
   limits: z.partialRecord(z.enum(ENTITLEMENT_KEY_VALUES), zLimitValue.nullable()).refine((l) => Object.keys(l).length > 0, "Change at least one limit"),
+  /** When the limits set here stop applying. Required to set a limit; null (no end) is for super admins only. */
+  expiresAt: zTime.nullable().optional(),
   reason: zReason,
 });
-export const AdminLimits = z.strictObject({ limits: z.array(z.strictObject({ key: z.string(), limit: zCount.nullable(), source: z.enum(["workspace", "server", "none"]) })) });
+export const AdminLimits = z.strictObject({ limits: z.array(z.strictObject({ key: z.string(), limit: zCount.nullable(), source: z.enum(["workspace", "plan", "server", "none"]) })) });
 
 // ───────────── Infrastructure (phase 4) ─────────────
 

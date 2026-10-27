@@ -64,6 +64,7 @@ export const ERROR_CODES = {
   bad_clock: { status: [400], meaning: "Device clock is too far off" },
   account_limited: { status: [403], meaning: "Your account is limited by warnings from Meldiq's staff (Settings › My Account › Account standing)." },
   bad_request: { status: [400], meaning: "Give the role a name" },
+  billing_unavailable: { status: [409], meaning: "No billing provider is configured on this server, so nothing can be bought." },
   bad_signature: { status: [400, 401], meaning: "A signature doesn't verify (a message envelope against its device, or a federated request against its server)." },
   bad_username: { status: [400], meaning: "The username isn't valid (length or characters)." },
   banned: { status: [403, 409], meaning: "You've been banned from this community" },

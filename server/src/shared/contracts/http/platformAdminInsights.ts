@@ -40,7 +40,7 @@ export const AdminAnalyticsOverview = z.strictObject({
     .nullable(),
   push: z.strictObject({ providers: z.array(z.strictObject({ name: z.string(), ok: zCount, failed: zCount, lastFailureAt: zTime.nullable() })) }).nullable(),
   incidents: z.strictObject({ open: zCount, critical: zCount, breachingRules: zCount }),
-  billing: z.strictObject({ available: z.literal(false), reason: z.string() }),
+  billing: z.strictObject({ available: z.boolean(), reason: z.string().nullable() }),
 });
 
 export const AdminActiveUsers = z.strictObject({
