@@ -25,7 +25,9 @@ enum class AccountStep {
     /** The code sent to the new address, and a new password. */
     RecoverConfirm,
     /** A new phone unlocks the key backup with an emailed code and the password (docs/KEY_BACKUP.md). */
-    EmailUnlock;
+    EmailUnlock,
+    /** Two-step sign-in (API 0.46.0): the password was right; the authenticator app's code or a backup code. */
+    TwoStep;
 
     val back: AccountStep?
         get() = when (this) {
@@ -39,11 +41,15 @@ enum class AccountStep {
             LegacyDetails -> LegacyCredentials
             Recover -> LogIn
             RecoverConfirm -> Recover
+            TwoStep -> LogIn
         }
 
     /** Steps the account's phase decides; the person can't wander off them with Back. */
     val pinned: Boolean get() = this == Verify || this == DeviceSetup || this == EmailUnlock
 }
+
+/** The server's answer to a right password when the account has two-step sign-in on (docs/ACCOUNT_SAFETY.md). */
+private const val TWO_STEP_REQUIRED = "totp_required"
 
 /** A confirmation shown above a form. */
 enum class AccountNotice { CodeResent, ResetCodeSent, PasswordChanged, AccountRecovered }
@@ -75,6 +81,8 @@ data class AccountFormState(
     /** Where the unlock code went (masked), and whether the unlock step needs the password typed again. */
     val unlockSentTo: String? = null,
     val unlockNeedsPassword: Boolean = false,
+    /** Two-step sign-in: the code typed on the [AccountStep.TwoStep] step. */
+    val twoStepCode: String = "",
 ) {
     val passwordIssue: AccountRules.PasswordIssue? get() = if (password.isEmpty()) null else AccountRules.passwordIssue(password, email)
     val newPasswordIssue: AccountRules.PasswordIssue? get() = if (newPassword.isEmpty()) null else AccountRules.passwordIssue(newPassword, email)
@@ -93,6 +101,7 @@ data class AccountFormState(
     val newEmailValid: Boolean get() = AccountRules.isEmail(newEmail) && AccountRules.normalizeEmail(newEmail) != AccountRules.normalizeEmail(email)
     val recoverPasswordIssue: AccountRules.PasswordIssue? get() = if (newPassword.isEmpty()) null else AccountRules.passwordIssue(newPassword, newEmail)
     val canRecover get() = !submitting && emailValid && com.meldiq.android.data.account.RecoveryRules.isCode(recoveryCode) && newEmailValid
+    val canTwoStep get() = !submitting && password.isNotEmpty() && com.meldiq.android.data.account.TwoStepRules.isCode(twoStepCode)
     val canRecoverConfirm get() = !submitting && AccountRules.isVerifyCode(code) && newPassword.isNotEmpty() && recoverPasswordIssue == null
 
     companion object {
@@ -225,11 +234,25 @@ class AccountFlowViewModel(
                 accounts.login(serverUrl(), s.email, s.password)
                 _form.update { it.copy(password = "", signedOutReason = null) }
             } catch (e: ApiException) {
+                if (e.code == TWO_STEP_REQUIRED) {
+                    _form.update { it.copy(step = AccountStep.TwoStep, twoStepCode = "") }
+                    return@run
+                }
                 if (e.code != "email_unverified") throw e
                 // Signed up earlier but never entered the code: send a fresh one and sign in right after it.
                 withPendingPassword(s.password) { accounts.awaitVerification(serverUrl(), AccountRules.normalizeEmail(s.email), accounts.record?.deviceId) }
                 runCatching { accounts.resendVerification() }
             }
+        }
+    }
+
+    /** The second step of a sign-in with two-step on: the same email and password with the code. */
+    fun logInWithCode() {
+        val s = _form.value
+        if (!s.canTwoStep) return
+        run {
+            accounts.login(serverUrl(), s.email, s.password, com.meldiq.android.data.account.TwoStepRules.clean(s.twoStepCode))
+            _form.update { it.copy(password = "", twoStepCode = "", step = AccountStep.LogIn, signedOutReason = null) }
         }
     }
 

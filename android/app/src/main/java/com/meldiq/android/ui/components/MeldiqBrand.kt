@@ -24,7 +24,7 @@ import com.meldiq.android.ui.theme.Griip
 /** Corner radius of the logo tile, as a share of its size (the launcher's rounded-square look). */
 private const val TILE_CORNER = 0.24f
 
-/** The official Meldiq logo as a tile: the mark on its navy ground (brand/meldiq-logo.webp, android/scripts/render_brand.py). */
+/** The official brand tile: Meldling on its deep teal ground (brand/meldling.png, android/scripts/render_brand.py). */
 @Composable
 fun MeldiqLogo(size: Dp, modifier: Modifier = Modifier) {
     Image(
@@ -45,4 +45,13 @@ fun MeldiqLockup(modifier: Modifier = Modifier, logo: Dp = 34.dp) {
             Text("by GriipBuddy", style = Griip.type.caption, color = c.textSecondary)
         }
     }
+}
+
+/**
+ * Meldling alone, in one colour (the Messages tab, the typing indicator): the mascot's silhouette tinted with [tint],
+ * as Meldiq Web draws it. Decorative unless [label] is given.
+ */
+@Composable
+fun MeldlingGlyph(size: Dp, tint: androidx.compose.ui.graphics.Color, modifier: Modifier = Modifier, label: String? = null) {
+    androidx.compose.material3.Icon(painterResource(R.drawable.meldling_glyph), label, modifier.size(size), tint = tint)
 }

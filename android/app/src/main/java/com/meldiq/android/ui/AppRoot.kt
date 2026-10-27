@@ -327,11 +327,6 @@ private fun MainNav(container: AppContainer, pendingConversation: String?, pendi
             composable("reports/{orgId}") { com.meldiq.android.ui.screens.moderation.ReportsScreen(nav, it.arguments?.getString("orgId").orEmpty()) }
             composable("expressions/{orgId}") { com.meldiq.android.ui.screens.community.ExpressionsScreen(nav, it.arguments?.getString("orgId").orEmpty()) }
             composable("applications/{orgId}") { com.meldiq.android.ui.screens.moderation.ApplicationsScreen(nav, it.arguments?.getString("orgId").orEmpty()) }
-            // AI Workforce (docs/AI_WORKFORCE.md): a community's AI agents, and one agent's settings.
-            composable("ai/{orgId}") { com.meldiq.android.ui.screens.ai.AgentsScreen(nav, it.arguments?.getString("orgId").orEmpty()) }
-            composable("ai/{orgId}/agent/{installId}") {
-                com.meldiq.android.ui.screens.ai.AgentSettingsScreen(nav, it.arguments?.getString("orgId").orEmpty(), it.arguments?.getString("installId").orEmpty())
-            }
             composable("usage/{orgId}") { com.meldiq.android.ui.screens.workspace.UsageScreen(nav, it.arguments?.getString("orgId").orEmpty()) }
             composable("user/{id}") { UserProfileScreen(nav, it.arguments!!.getString("id")!!) }
             composable(Routes.DEVICES) { DevicesScreen(nav) }

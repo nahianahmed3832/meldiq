@@ -14,11 +14,11 @@ from strings_round3 import S as ROUND3
 from strings_keybackup import S as KEYBACKUP
 from strings_community import S as COMMUNITY
 from strings_navigation import S as NAVIGATION
-from strings_ai import S as AIW
+from strings_parity import S as PARITY
 res = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "app", "src", "main", "res")
 # Every key must be unique across the tables (Android merges them into one namespace).
 _seen = {}
-for _name, _table in [("strings", S), ("strings_account", ACCOUNT), ("strings_workspace", WORKSPACE), ("strings_apps", APPS), ("strings_meldiq", MELDIQ), ("strings_round6", ROUND6), ("strings_round7", ROUND7), ("strings_meldiq2", MELDIQ2), ("strings_round3", ROUND3), ("strings_keybackup", KEYBACKUP), ("strings_community", COMMUNITY), ("strings_navigation", NAVIGATION), ("strings_ai", AIW)]:
+for _name, _table in [("strings", S), ("strings_account", ACCOUNT), ("strings_workspace", WORKSPACE), ("strings_apps", APPS), ("strings_meldiq", MELDIQ), ("strings_round6", ROUND6), ("strings_round7", ROUND7), ("strings_meldiq2", MELDIQ2), ("strings_round3", ROUND3), ("strings_keybackup", KEYBACKUP), ("strings_community", COMMUNITY), ("strings_navigation", NAVIGATION), ("strings_parity", PARITY)]:
     for _k in _table:
         if _k in _seen:
             raise SystemExit(f"duplicate string key {_k!r} in {_name} and {_seen[_k]}")
@@ -123,10 +123,9 @@ for lang, folder, idx in [("en", "values", 0), ("zh", "values-zh-rCN", 1), ("bn"
     nv.append('</resources>')
     open(f"{res}/{folder}/strings_navigation.xml", "w").write("\n".join(nv) + "\n")
     print(folder, "navigation", len(NAVIGATION))
-    # AI Workforce strings (2026-10-24): strings_ai.py.
-    aw = ['<?xml version="1.0" encoding="utf-8"?>', '<!-- AI Workforce strings (docs/LANGUAGES.md). Generated from strings_ai.py. -->', '<resources>']
-    for k, v in AIW.items():
-        aw.append(f'    <string name="{k}">{esc(v[idx])}</string>')
-    aw.append('</resources>')
-    open(f"{res}/{folder}/strings_ai.xml", "w").write("\n".join(aw) + "\n")
-    print(folder, "ai", len(AIW))
+    # Android and Meldiq Web parity strings (2026-10-28): strings_parity.py.
+    wp = ['<?xml version="1.0" encoding="utf-8"?>', '<!-- Android and Meldiq Web parity strings (docs/LANGUAGES.md). Generated from strings_parity.py. -->', '<resources>']
+    for k, v in PARITY.items():
+        wp.append(f'    <string name="{k}">{esc(v[idx])}</string>')
+    wp.append('</resources>')
+    open(f"{res}/{folder}/strings_parity.xml", "w").write("\n".join(wp) + "\n")

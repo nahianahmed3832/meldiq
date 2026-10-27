@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android and Meldiq Web parity strings (docs/LANGUAGES.md). Generated from strings_parity.py. -->
+<resources>
+    <string name="wp_2fa_title">Two-step sign-in</string>
+    <string name="wp_2fa_subtitle">Enter the 6-digit code from your authenticator app, or one of your backup codes.</string>
+    <string name="wp_2fa_code">Code</string>
+    <string name="wp_2fa_submit">Sign in</string>
+</resources>

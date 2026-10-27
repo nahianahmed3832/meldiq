@@ -65,7 +65,7 @@ class MeldiqPalettesTest {
 
     @Test
     fun everyPresetIsReadableInLightAndDarkMode() {
-        assertEquals(listOf("graphite", "aurora", "sunset", "meadow"), MeldiqPalettes.ALL.map { it.id })
+        assertEquals(listOf("meldiq", "graphite", "aurora", "sunset", "meadow"), MeldiqPalettes.ALL.map { it.id })
         MeldiqPalettes.ALL.forEach { p ->
             assertReadable("${p.label} light", p.light)
             assertReadable("${p.label} dark", p.dark)
@@ -74,12 +74,15 @@ class MeldiqPalettesTest {
     }
 
     @Test
-    fun graphiteIsTheDefaultAndUnknownIdsFallBackToIt() {
-        assertEquals("graphite", MeldiqPalettes.DEFAULT)
+    fun meldiqIsTheDefaultAndUnknownIdsFallBackToIt() {
+        assertEquals("meldiq", MeldiqPalettes.DEFAULT)
         assertEquals(MeldiqPalettes.ALL.first(), MeldiqPalettes.of(null))
         assertEquals(MeldiqPalettes.ALL.first(), MeldiqPalettes.of("orbit")) // an older accent id
-        assertEquals(LightColors, MeldiqPalettes.colors("graphite", dark = false))
-        assertEquals(DarkColors, MeldiqPalettes.colors("graphite", dark = true))
+        assertEquals(LightColors, MeldiqPalettes.colors("meldiq", dark = false))
+        assertEquals(DarkColors, MeldiqPalettes.colors("meldiq", dark = true))
+        // As Meldiq Web: deep navy ground, pink only for mentions.
+        assertEquals(Color(0xFF0B1020), MeldiqPalettes.of("meldiq").dark.background)
+        assertEquals(Color(0xFFFF5FA8), MeldiqPalettes.of("meldiq").dark.badge)
     }
 
     @Test

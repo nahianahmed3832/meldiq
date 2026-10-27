@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android and Meldiq Web parity strings (docs/LANGUAGES.md). Generated from strings_parity.py. -->
+<resources>
+    <string name="wp_2fa_title">两步登录</string>
+    <string name="wp_2fa_subtitle">输入身份验证器应用中的 6 位数代码，或使用一个备用代码。</string>
+    <string name="wp_2fa_code">代码</string>
+    <string name="wp_2fa_submit">登录</string>
+</resources>

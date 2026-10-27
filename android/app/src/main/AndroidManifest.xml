@@ -73,6 +73,8 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="meldiq.app" android:pathPrefix="/invite/" />
                 <data android:scheme="https" android:host="www.meldiq.app" android:pathPrefix="/invite/" />
+                <!-- 2026-10-28: links are made on web.meldiq.app, as Meldiq Web makes them (its page opens in any browser). -->
+                <data android:scheme="https" android:host="web.meldiq.app" android:pathPrefix="/invite/" />
                 <!-- Batch B5: message links, https://meldiq.app/m/CONVERSATION/MESSAGE. -->
                 <data android:pathPrefix="/m/" />
             </intent-filter>

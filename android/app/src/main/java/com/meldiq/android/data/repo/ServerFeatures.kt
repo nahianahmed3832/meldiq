@@ -117,10 +117,26 @@ class ServerFeatures(private val api: ApiClient, private val clock: () -> Long =
         const val SEARCH = "search"
         /** Organisation avatars (2026-10-19). */
         const val ORG_PHOTOS = "org-photos"
+        /** API 0.43.0: self-only encrypted controls (audience "self"): a channel read here clears on this person's other devices. */
+        const val SELF_CONTROLS = "self-controls"
+        const val DISCORD_IMPORT = "discord-import"
+        /** API 0.44.0: a community's accent colour and banner (docs/COMMUNITY_BRANDING.md). */
+        const val COMMUNITY_BRANDING = "community-branding"
+        /** API 0.45.0: animated avatars, profile banners and style (docs/PROFILE_MEDIA.md); GIF search (docs/GIFS.md). */
+        const val PROFILE_MEDIA = "profile-media"
+        const val GIF_SEARCH = "gif-search"
+        /** API 0.46.0 (docs/PROFILE_MEDIA.md): name styles, community tags, a whole community muted for a while. */
+        const val NAME_STYLES = "name-styles"
+        const val COMMUNITY_TAGS = "community-tags"
+        const val COMMUNITY_MUTE = "community-mute"
+        /** API 0.46.0 (docs/ACCOUNT_SAFETY.md): two-step sign-in, email change, standing, bug reports, About me and links. */
+        const val TWO_STEP = "two-step"
+        const val EMAIL_CHANGE = "email-change"
+        const val ACCOUNT_STANDING = "account-standing"
+        const val BUG_REPORTS = "bug-reports"
+        const val PROFILE_LINKS = "profile-links"
         /** Custom workspace roles and delegated permissions (2026-10-19, docs/WORKSPACE_ROLES.md). */
         const val CUSTOM_ROLES = "custom-roles"
-        /** Communities' AI agents (docs/AI_WORKFORCE.md): the AI agents page, channel agents and their posts. */
-        const val AI_WORKFORCE = "ai-workforce"
         private const val TTL_MS = 5 * 60_000L
     }
 }

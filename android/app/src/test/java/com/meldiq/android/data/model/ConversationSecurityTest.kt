@@ -3,6 +3,7 @@ package com.meldiq.android.data.model
 import com.meldiq.android.data.model.ConversationSecurity.Facts
 import com.meldiq.android.data.model.ConversationSecurity.Point
 import com.meldiq.android.data.repo.SettingsStore
+import com.meldiq.android.ui.theme.MeldiqPalettes
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -51,9 +52,16 @@ class ConversationSecurityTest {
 
     @Test
     fun `the design move keeps an explicit theme and replaces following the system with dark`() {
-        assertEquals("DARK" to "graphite", SettingsStore.migratedDesign("SYSTEM"))
-        assertEquals("DARK" to "graphite", SettingsStore.migratedDesign(null))
-        assertEquals("LIGHT" to "graphite", SettingsStore.migratedDesign("LIGHT"))
-        assertEquals("DARK" to "graphite", SettingsStore.migratedDesign("DARK"))
+        assertEquals("DARK" to MeldiqPalettes.DEFAULT, SettingsStore.migratedDesign("SYSTEM"))
+        assertEquals("DARK" to MeldiqPalettes.DEFAULT, SettingsStore.migratedDesign(null))
+        assertEquals("LIGHT" to MeldiqPalettes.DEFAULT, SettingsStore.migratedDesign("LIGHT"))
+        assertEquals("DARK" to MeldiqPalettes.DEFAULT, SettingsStore.migratedDesign("DARK"))
+    }
+
+    @Test
+    fun `the 2026-10-28 move takes the old default palette to Meldiq and keeps any other choice`() {
+        assertEquals("meldiq", SettingsStore.migratedPalette("graphite"))
+        assertEquals("meldiq", SettingsStore.migratedPalette(null))
+        assertEquals("sunset", SettingsStore.migratedPalette("sunset"))
     }
 }

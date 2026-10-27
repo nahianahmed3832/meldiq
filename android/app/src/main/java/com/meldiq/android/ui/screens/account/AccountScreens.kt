@@ -275,6 +275,29 @@ internal fun ForgotPasswordScreen(vm: AccountFlowViewModel, state: AccountFormSt
     }
 }
 
+/** Two-step sign-in (API 0.46.0): the password was right; the authenticator app's code or a backup code signs in. */
+@Composable
+internal fun TwoStepScreen(vm: AccountFlowViewModel, state: AccountFormState, onBack: () -> Unit) {
+    val focus = LocalFocusManager.current
+    AuthScaffold(
+        title = stringResource(R.string.wp_2fa_title), subtitle = stringResource(R.string.wp_2fa_subtitle),
+        onBack = onBack, backEnabled = !state.submitting,
+        bottomBar = { StepButton(stringResource(R.string.wp_2fa_submit), stringResource(R.string.acct_working), state, state.canTwoStep) { focus.clearFocus(); vm.logInWithCode() } },
+    ) {
+        GriipTextField(
+            state.twoStepCode, { v -> vm.edit { it.copy(twoStepCode = v.take(TWO_STEP_FIELD_MAX)) } }, stringResource(R.string.wp_2fa_code),
+            placeholder = "123456", leadingIcon = Icons.Rounded.Pin, shape = Shapes.field, enabled = !state.submitting,
+            textStyle = Griip.type.body.copy(fontFamily = FontFamily.Monospace),
+            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, autoCorrectEnabled = false, keyboardType = KeyboardType.Ascii, imeAction = ImeAction.Done),
+            keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { if (state.canTwoStep) vm.logInWithCode() }),
+        )
+        FormProblems(state)
+    }
+}
+
+/** Long enough for a backup code typed with spaces. */
+private const val TWO_STEP_FIELD_MAX = 16
+
 @Composable
 internal fun ResetPasswordScreen(vm: AccountFlowViewModel, state: AccountFormState, onBack: () -> Unit) {
     val focus = LocalFocusManager.current

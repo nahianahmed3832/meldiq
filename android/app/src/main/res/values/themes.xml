@@ -7,8 +7,8 @@
         <item name="android:windowLightStatusBar">true</item>
     </style>
 
-    <!-- Launch screen (AndroidX SplashScreen: the Android 12+ system splash, and the same look on 8–11). The official
-         logo on its own navy ground, shown only until the first frame (no added delay); then the app theme above. -->
+    <!-- Launch screen (AndroidX SplashScreen: the Android 12+ system splash, and the same look on 8–11). Meldling
+         on its own deep teal ground, shown only until the first frame (no added delay); then the app theme above. -->
     <style name="Theme.Meldiq.Starting" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/brand_ground</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/splash_mark</item>

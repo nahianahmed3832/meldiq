@@ -83,6 +83,8 @@ class MessageRepository(
     attachmentsDir: File = File(context.filesDir, "attachments"),
     /** Direct uploads to the server's file store when it offers them; the original upload otherwise. */
     private val uploader: AttachmentUploader = AttachmentUploader(api, null),
+    /** Whether this account's server has a feature ([ServerFeatures]); unknown counts as no. */
+    private val serverHas: suspend (String) -> Boolean = { false },
     private val notify: (Notice) -> Unit,
 ) {
     private val json = GriipJson
@@ -97,7 +99,7 @@ class MessageRepository(
     private val myDeviceId get() = session.session?.deviceId
 
     private val signals = MessageSignals(db, conversations, directory, users) { session.session?.userId }
-    private val controls = MessageControls(db, realtime, session, conversations, settings, files, ::sendControl)
+    private val controls = MessageControls(db, realtime, session, conversations, settings, files, ::sendControl, ::sendSelfControl)
     private val receiver = MessageReceiver(
         context, db, api, realtime, session, crypto, directory, conversations, users, settings, appState, scope, files, keyRequests,
         signals, controls, notify, ::sendControl, ::kick,
@@ -126,8 +128,6 @@ class MessageRepository(
     val orgDeleted: SharedFlow<String> = signals.orgDeleted
     /** Reminders that went off or changed on another device ("reminder.due", "reminders.changed"): their ids. */
     val reminderEvents: SharedFlow<String> = signals.reminderEvents
-    /** AI Workforce frames (`ai.posts`, `ai.job`), for [com.meldiq.android.data.ai.AiWorkforceSignals]. */
-    val aiEvents: SharedFlow<com.meldiq.android.data.api.ServerEvent> = signals.aiEvents
     /** Workspaces whose personal preferences another device of this person changed ("prefs.updated"). */
     val prefsUpdated: SharedFlow<String> = signals.prefsUpdated
     val backlogDrained: MutableStateFlow<Boolean> = signals.backlogDrained
@@ -270,6 +270,42 @@ class MessageRepository(
         val id = UUID.randomUUID().toString()
         db.outbox().put(OutboxEntity(id, cid, "control", json.encodeToString(Payload.serializer(), payload), System.currentTimeMillis(), visible = false))
         kick()
+    }
+
+    /**
+     * A control for this person's own other devices only (API 0.43.0, audience "self"), e.g. "read up to here" in a
+     * channel, so their other phones and browsers clear it while nobody else learns what was read. Best effort, like
+     * Meldiq Web: not kept in the outbox (the next read says it again). False when it wasn't sent.
+     */
+    private suspend fun sendSelfControl(cid: String, payload: Payload): Boolean {
+        val s = session.session ?: return false
+        if (!serverHas(ServerFeatures.SELF_CONTROLS)) return false
+        val body = json.encodeToString(Payload.serializer(), payload).toByteArray()
+        for (pass in 0..1) {
+            try {
+                val recips = directory.ownRecipients(cid, s.userId, s.deviceId, force = pass > 0)
+                val id = UUID.randomUUID().toString()
+                val now = System.currentTimeMillis()
+                val sealed = crypto.seal(EnvelopeHeader(id, cid, s.userId, s.deviceId, now, "control"), body, recips)
+                api.post<SendMessageReq, SendMessageRes>(
+                    "/v1/messages",
+                    SendMessageReq(cid, id, "control", now, sealed.nonce, sealed.ciphertext, sealed.signature, sealed.recipients.map { WireKeyWrap(it.deviceId, it.enc, it.wrappedKey) }, audience = SELF_AUDIENCE),
+                )
+                return true
+            } catch (e: ApiException) {
+                if (e.status == 409 && e.code == "device_mismatch" && pass == 0) {
+                    directory.invalidate(cid)
+                    continue
+                }
+                return false
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "self-only control not sent: ${e.javaClass.simpleName}")
+                return false
+            }
+        }
+        return false
     }
 
     suspend fun retry(id: String) {
@@ -698,25 +734,12 @@ class MessageRepository(
         for (item in db.outbox().due(System.currentTimeMillis())) sendOne(item)
     }
 
-    /**
-     * The AI readers [item] goes to (API 0.40.0): only text messages and their edits and deletes, and only readers this
-     * person chose to share with here. No choice yet counts as keep, so nothing is shared before the notice was answered.
-     */
-    private suspend fun readersFor(item: OutboxEntity, force: Boolean): List<com.meldiq.android.crypto.RecipientDevice> {
-        val type = runCatching { json.decodeFromString(Payload.serializer(), item.payloadJson).type }.getOrNull()
-        if (!com.meldiq.android.data.ai.ReaderRules.shareable(item.cls, type)) return emptyList()
-        val readers = directory.conversationReaders(item.conversationId, force)
-        if (readers.isEmpty()) return emptyList()
-        val choices = directory.readerChoices(item.conversationId, force)
-        return com.meldiq.android.data.ai.ReaderRules.pick(readers, { it.readerId }, choices).map { it.device }
-    }
-
     private suspend fun sendOne(item: OutboxEntity) {
         val s = session.session ?: return
         var force = item.attempts > 0
         for (pass in 0..1) {
             try {
-                val recips = directory.conversationRecipients(item.conversationId, s.deviceId, force) + readersFor(item, force)
+                val recips = directory.conversationRecipients(item.conversationId, s.deviceId, force)
                 val now = System.currentTimeMillis()
                 val sentAt = if (now - item.createdAt > 20 * 3600_000L) now else item.createdAt
                 val sealed = crypto.seal(EnvelopeHeader(item.messageId, item.conversationId, s.userId, s.deviceId, sentAt, item.cls), item.payloadJson.toByteArray(), recips)
@@ -835,6 +858,8 @@ class MessageRepository(
     }
 
     companion object {
+        /** Self-only controls go to this person's own other devices alone (API 0.43.0). */
+        private const val SELF_AUDIENCE = "self"
         const val MAX_ATTACHMENT_BYTES = 25L * 1024 * 1024
         private const val SERVER_LIMIT_TTL_MS = 10 * 60_000L
         /** More than a sender can attach (10), so an older or newer app's message still shows, but bounded. */

@@ -23,7 +23,11 @@ data class VerifyEmailReq(val email: String, val code: String, val password: Str
 data class DeviceProofDto(val deviceId: String, val nonce: String, val signature: String)
 
 @Serializable
-data class AccountLoginReq(val email: String, val password: String, val deviceName: String? = null, val device: DeviceProofDto? = null)
+data class AccountLoginReq(
+    val email: String, val password: String, val deviceName: String? = null, val device: DeviceProofDto? = null,
+    /** Two-step sign-in (API 0.46.0, docs/ACCOUNT_SAFETY.md): a code from the authenticator app or a backup code. */
+    val totpCode: String? = null,
+)
 
 @Serializable
 data class RefreshReq(val refreshToken: String)

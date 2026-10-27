@@ -14,7 +14,7 @@ class ChatInterfaceRulesTest {
     @Test
     fun `a message link carries only the two ids and reads back from both forms`() {
         val link = MessageLinks.link("c_abc-1", "0f8e-77aa")
-        assertEquals("https://meldiq.app/m/c_abc-1/0f8e-77aa", link)
+        assertEquals("https://web.meldiq.app/m/c_abc-1/0f8e-77aa", link)
         assertEquals(MessageLinks.Target("c_abc-1", "0f8e-77aa"), MessageLinks.parse(link))
         assertEquals(MessageLinks.Target("c1", "m1"), MessageLinks.parse("meldiq://m/c1/m1"))
         assertEquals(MessageLinks.Target("c1", "m1"), MessageLinks.parse(" https://www.meldiq.app/m/c1/m1/ "))

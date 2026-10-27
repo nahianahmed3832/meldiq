@@ -6,7 +6,9 @@ import androidx.compose.ui.graphics.Color
 /**
  * The Meldiq palettes (2026-10-19, from the owner's three-theme reference and the logo; docs/DESIGN_SYSTEM.md):
  *
- * - **Graphite** (default since round 6): the professional workspace look for long working days. Dark mode is
+ * - **Meldiq** (default since 2026-10-28, as Meldiq Web's community-first palette): deep navy surfaces, the logo's
+ *   cyan, blue and violet for selection and actions, pink only for mentions, white for unread.
+ * - **Graphite** (default from round 6 to 2026-10-28): the professional workspace look for long working days. Dark mode is
  *   charcoal canvas, slate bars and cards, inset inputs, flat (no gradient) header and one restrained indigo accent
  *   taken from the logo's ribbon. Light mode is the same design in neutral greys.
  * - **Aurora**: lavender → sky header, indigo actions and a violet accent, like the logo's ribbon. Dark mode
@@ -19,7 +21,7 @@ import androidx.compose.ui.graphics.Color
  * outlines 3:1.
  */
 object MeldiqPalettes {
-    const val DEFAULT = "graphite"
+    const val DEFAULT = "meldiq"
 
     data class Preset(val id: String, val label: String, val light: GriipColors, val dark: GriipColors)
 
@@ -73,6 +75,27 @@ object MeldiqPalettes {
         )
     }
 
+    // Meldiq Web's `data-palette="meldiq"` tokens (styles/tokens.css), one for one where Android has the same role; the light
+    // teal accent is a shade deeper than the web's #0e7fa0 and the dark violet a shade lighter than its #8b5cf6, as both read
+    // about 4.3:1 here where Android draws text on or in them (4.5:1 is the rule).
+    private val meldiqLight = Tones(
+        background = 0xFFF4F6FB, surface = 0xFFFFFFFF, surfaceVariant = 0xFFEEF1F8, border = 0xFFE1E6F0, outline = 0xFF7F88A4,
+        textPrimary = 0xFF121933, textSecondary = 0xFF434C6B, textTertiary = 0xFF5F6887,
+        primary = 0xFF3A5BD9, primaryBright = 0xFF4A6BE6, primaryDeep = 0xFF2C48B8, primarySoft = 0xFFE6ECFD, onPrimary = 0xFFFFFFFF,
+        action = 0xFF2563EB, onAction = 0xFFFFFFFF, accentStart = 0xFF0A6A86, accentEnd = 0xFF7C3AED, onAccent = 0xFFFFFFFF,
+        headerStart = 0xFFFFFFFF, headerMid = 0xFFFFFFFF, headerEnd = 0xFFFFFFFF, badge = 0xFFC81E66, onBadge = 0xFFFFFFFF,
+        bubbleOutgoing = 0xFFEAF0FE, onBubbleOutgoing = 0xFF121933, bubbleOutgoingMeta = 0xFF434C6B, navIndicator = 0xFFE6EAF6,
+        headerField = 0xFFEEF1F8,
+    )
+    private val meldiqDark = Tones(
+        background = 0xFF0B1020, surface = 0xFF10172B, surfaceVariant = 0xFF151D34, border = 0xFF1F2944, outline = 0xFF6B7598,
+        textPrimary = 0xFFEEF2FF, textSecondary = 0xFFB4BDDB, textTertiary = 0xFF8A94B6,
+        primary = 0xFF7AA2FF, primaryBright = 0xFF9AB8FF, primaryDeep = 0xFFA9C2FF, primarySoft = 0xFF1B2850, onPrimary = 0xFF0A1230,
+        action = 0xFF2563EB, onAction = 0xFFFFFFFF, accentStart = 0xFF22D3EE, accentEnd = 0xFF9B73F7, onAccent = 0xFF0A1230,
+        headerStart = 0xFF10172B, headerMid = 0xFF10172B, headerEnd = 0xFF10172B, badge = 0xFFFF5FA8, onBadge = 0xFF2A0517,
+        bubbleOutgoing = 0xFF172245, onBubbleOutgoing = 0xFFEEF2FF, bubbleOutgoingMeta = 0xFFB4BDDB, navIndicator = 0xFF1F2A4A,
+        headerField = 0xFF0C1326,
+    )
     private val graphiteLight = Tones(
         background = 0xFFF4F5F7, surface = 0xFFFFFFFF, surfaceVariant = 0xFFEBECEF, border = 0xFFDCDEE3, outline = 0xFF7A7F8C,
         textPrimary = 0xFF17181C, textSecondary = 0xFF4A4D57, textTertiary = 0xFF5D616C,
@@ -141,6 +164,7 @@ object MeldiqPalettes {
     )
 
     val ALL: List<Preset> = listOf(
+        Preset("meldiq", "Meldiq", shared(meldiqLight, false), shared(meldiqDark, true)),
         Preset("graphite", "Graphite", shared(graphiteLight, false), shared(graphiteDark, true)),
         Preset("aurora", "Aurora", shared(auroraLight, false), shared(auroraDark, true)),
         Preset("sunset", "Sunset", shared(sunsetLight, false), shared(sunsetDark, true)),
@@ -148,10 +172,14 @@ object MeldiqPalettes {
     )
 
     /**
-     * Version of the default look. Installs that predate [DESIGN_VERSION] move once to Graphite, and from following the
-     * system to dark mode (an explicit light or dark choice is kept): `SettingsStore` does this on first read.
+     * Version of the default look. Installs before version 2 moved once to Graphite and from following the system to dark
+     * mode (an explicit light or dark choice is kept); version 3 (2026-10-28) moves Graphite, the old default, to Meldiq,
+     * as Meldiq Web did for browsers that never picked a palette. `SettingsStore` does this on first read.
      */
-    const val DESIGN_VERSION = 2
+    const val DESIGN_VERSION = 3
+
+    /** The default before [DESIGN_VERSION] 3: installs still on it move to [DEFAULT]. */
+    const val PREVIOUS_DEFAULT = "graphite"
 
     /** The preset with this id; anything else (older accent ids, a missing setting) is the default. */
     fun of(id: String?): Preset = ALL.firstOrNull { it.id == id } ?: ALL.first()

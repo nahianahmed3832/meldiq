@@ -46,9 +46,6 @@ class MessageSignals(
     /** Workspaces whose personal preferences another device of this person changed ("prefs.updated"). */
     val prefsUpdated: SharedFlow<String> = _prefsUpdated
     val backlogDrained = MutableStateFlow(false)
-    /** AI Workforce: the channel an agent posted in (`ai.posts`), and "a job changed" (`ai.job`). Ids only. */
-    private val _aiEvents = MutableSharedFlow<ServerEvent>(extraBufferCapacity = 32)
-    val aiEvents: SharedFlow<ServerEvent> = _aiEvents
 
     private val _userUpdates = MutableSharedFlow<String>(extraBufferCapacity = 16)
     /** Your own profile or account settings changed on another device (your id): screens showing them reload. */
@@ -98,7 +95,6 @@ class MessageSignals(
             is ServerEvent.MeetingSoon -> _meetingSoon.tryEmit(e.meetingId)
             is ServerEvent.MeetingUpdated -> _meetingUpdates.tryEmit(e.orgId)
             is ServerEvent.Call -> _callFrames.tryEmit(e)
-            is ServerEvent.AiPosts, is ServerEvent.AiJob, is ServerEvent.AiTask -> _aiEvents.tryEmit(e)
             // Moderator and applicant signals: the screens that show them reload when opened.
             is ServerEvent.OrgReports, is ServerEvent.OrgApplications, is ServerEvent.OrgApplication, is ServerEvent.OrgAlert -> Unit
             // The socket's own bookkeeping, and frames from a newer server.

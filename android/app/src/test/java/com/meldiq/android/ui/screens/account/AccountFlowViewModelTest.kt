@@ -108,6 +108,26 @@ class AccountFlowViewModelTest {
     }
 
     @Test
+    fun `two-step sign-in asks for the code after the password and signs in with it`() = runTest(dispatcher) {
+        api.verifiedAccount("twostep@example.com").totpCode = "123456"
+        vm.edit { it.copy(email = "twostep@example.com", password = PASSWORD) }
+        vm.logIn()
+        assertEquals(AccountStep.TwoStep, vm.form.value.step)
+        assertEquals(null, vm.form.value.error)
+        vm.edit { it.copy(twoStepCode = "12345") }
+        assertFalse("five digits isn't a code", vm.form.value.canTwoStep)
+        vm.edit { it.copy(twoStepCode = "654 321") }
+        vm.logInWithCode()
+        assertEquals("totp_invalid", (vm.form.value.error as AuthError.Server).code)
+        assertEquals(AccountStep.TwoStep, vm.form.value.step)
+        vm.edit { it.copy(twoStepCode = "123 456") }
+        vm.logInWithCode()
+        assertTrue(accounts.phase.value !is AccountPhase.None)
+        assertEquals("", vm.form.value.password)
+        assertEquals(AccountStep.TwoStep.back, AccountStep.LogIn)
+    }
+
+    @Test
     fun `signing in before verifying sends a new code and signs in right after it`() = runTest(dispatcher) {
         api.verifiedAccount("late@example.com").verified = false
         vm.edit { it.copy(email = "late@example.com", password = PASSWORD) }

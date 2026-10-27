@@ -202,13 +202,25 @@ class SettingsStore(
             return nextTheme to MeldiqPalettes.DEFAULT
         }
 
+        /**
+         * Version 3 (2026-10-28): the palette moves from Graphite, the previous default (every save stores it, so it
+         * can't be told from a choice), to Meldiq; any other palette someone picked is kept.
+         */
+        fun migratedPalette(palette: String?): String =
+            if (palette == null || palette == MeldiqPalettes.PREVIOUS_DEFAULT) MeldiqPalettes.DEFAULT else palette
+
         private fun migrateDesign(prefs: android.content.SharedPreferences) {
-            if (prefs.getInt("designVersion", 0) >= MeldiqPalettes.DESIGN_VERSION) return
+            val version = prefs.getInt("designVersion", 0)
+            if (version >= MeldiqPalettes.DESIGN_VERSION) return
             val edit = prefs.edit().putInt("designVersion", MeldiqPalettes.DESIGN_VERSION)
             // A fresh install has nothing stored yet and simply reads the defaults.
             if (prefs.contains("theme") || prefs.contains("palette")) {
-                val (theme, palette) = migratedDesign(prefs.getString("theme", null))
-                edit.putString("theme", theme).putString("palette", palette)
+                if (version < 2) {
+                    val (theme, palette) = migratedDesign(prefs.getString("theme", null))
+                    edit.putString("theme", theme).putString("palette", palette)
+                } else {
+                    edit.putString("palette", migratedPalette(prefs.getString("palette", null)))
+                }
             }
             edit.apply()
         }

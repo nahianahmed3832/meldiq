@@ -69,7 +69,7 @@ class ApiClient(
     suspend inline fun <reified T> delete(path: String): T = request("DELETE", path, null, serializer<T>())
     suspend inline fun <reified B, reified T> delete(path: String, body: B): T = request("DELETE", path, encodeBody(serializer<B>(), body), serializer<T>())
 
-    /** A GET with extra request headers (e.g. what this app supports, `x-meldiq-ai-reader`). */
+    /** A GET with extra request headers (e.g. what this app supports). */
     suspend inline fun <reified T> get(path: String, headers: Map<String, String>): T = request("GET", path, null, serializer<T>(), headers = headers)
 
     suspend fun <T> request(method: String, path: String, body: String?, de: kotlinx.serialization.KSerializer<T>, auth: Boolean = true, headers: Map<String, String> = emptyMap()): T {

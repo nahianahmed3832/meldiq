@@ -28,7 +28,6 @@ import androidx.compose.material.icons.outlined.ManageAccounts
 import androidx.compose.material.icons.outlined.Policy
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.SwapHoriz
-import androidx.compose.material.icons.outlined.SmartToy
 import androidx.compose.material.icons.outlined.Tag
 import androidx.compose.material.icons.outlined.Workspaces
 import androidx.compose.material3.Text
@@ -104,11 +103,8 @@ fun CommunitySettingsScreen(nav: NavHostController) {
     var guideAvailable by remember { mutableStateOf(false) }
     var onboardingAvailable by remember { mutableStateOf(false) }
     var expressionsAvailable by remember { mutableStateOf(false) }
-    // AI Workforce (docs/AI_WORKFORCE.md): the community's AI agents, on servers that have them.
-    var aiAvailable by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         vm.refresh()
-        aiAvailable = container.features.has(com.meldiq.android.data.repo.ServerFeatures.AI_WORKFORCE) == true
         reportsAvailable = container.features.has(com.meldiq.android.data.repo.ServerFeatures.REPORTS) == true
         securityAvailable = container.features.has(com.meldiq.android.data.repo.ServerFeatures.SECURITY_ACTIONS) == true
         applicationsAvailable = container.features.has(com.meldiq.android.data.repo.ServerFeatures.JOIN_APPLICATIONS) == true
@@ -211,7 +207,6 @@ fun CommunitySettingsScreen(nav: NavHostController) {
         }
         group(R.string.nv_group_more) {
             MenuRow(Icons.Outlined.Event, stringResource(R.string.cm_events), subtitle = stringResource(R.string.cm_events_sub), tint = c.peach, tintBg = c.peachSoft, onClick = { nav.navigate(Routes.meetings(d.org.id, canSchedule = d.org.myRole != "GUEST")) })
-            if (aiAvailable) MenuRow(Icons.Outlined.SmartToy, stringResource(R.string.aw_title), subtitle = stringResource(R.string.aw_subtitle), tint = c.lavender, tintBg = c.lavenderSoft, onClick = { nav.navigate(com.meldiq.android.ui.screens.ai.AiRoutes.agents(d.org.id)) })
             if (p.canViewUsage) MenuRow(Icons.Outlined.Insights, stringResource(R.string.manage_usage), subtitle = stringResource(R.string.manage_usage_sub), onClick = { nav.navigate(Routes.usage(d.org.id)) })
         }
         group(R.string.nv_group_danger, danger = true) {

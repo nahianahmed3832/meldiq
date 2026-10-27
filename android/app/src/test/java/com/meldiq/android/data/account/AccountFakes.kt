@@ -53,6 +53,8 @@ class FakeAccountApi : AccountApi {
         /** The key backup, and the password it was saved under (a later change makes it stale, like the server). */
         var keyBackup: KeyBackupDto? = null,
         var keyBackupPassword: String? = null,
+        /** Two-step sign-in (API 0.46.0): the one code this fake accepts when set. */
+        var totpCode: String? = null,
     )
 
     val accounts = mutableMapOf<String, Account>()
@@ -104,6 +106,10 @@ class FakeAccountApi : AccountApi {
         calls += if (req.device != null) "login+device" else "login"
         val a = accounts[req.email]?.takeIf { it.password == req.password } ?: throw ApiException(401, "invalid_credentials", "No match")
         if (!a.verified) throw ApiException(403, "email_unverified", "Verify first")
+        a.totpCode?.let { expected ->
+            if (req.totpCode == null) throw ApiException(401, "totp_required", "Enter the code from your authenticator app.")
+            if (req.totpCode != expected) throw ApiException(401, "totp_invalid", "That code isn't right.")
+        }
         val proof = req.device ?: return session(a, null)
         val key = a.devices[proof.deviceId]
         if (key == null || !Ed25519.verify(key.unb64(), Canonical.authProof("login", proof.nonce, key).toByteArray(), proof.signature.unb64())) {

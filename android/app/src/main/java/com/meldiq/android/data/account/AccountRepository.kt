@@ -192,7 +192,8 @@ class AccountRepository(
      * Signs in. When this phone already has keys for the account, its device key proves it and the session is bound at
      * once; otherwise [DeviceSetup] takes over (automatically for a new account or this phone's own identity).
      */
-    suspend fun login(serverUrl: String, email: String, password: String) {
+    /** [totpCode]: the second step when the account has two-step sign-in on (`totp_required` without it). */
+    suspend fun login(serverUrl: String, email: String, password: String, totpCode: String? = null) {
         val address = AccountRules.normalizeEmail(email)
         val here = vault.account()
         val keys = vault.keys()
@@ -204,14 +205,14 @@ class AccountRepository(
         val deviceId = r?.deviceId ?: legacyDevice
         var deviceUnusable = false
         val res = try {
-            loginWithProof(serverUrl, address, password, deviceId?.let { id -> keys?.let { id to it } })
+            loginWithProof(serverUrl, address, password, deviceId?.let { id -> keys?.let { id to it } }, totpCode)
         } catch (e: ApiException) {
             if (deviceId == null || e.code !in DEVICE_UNUSABLE) throw e
             // Keys for another account must never be set up under this one.
             if (legacyDevice != null) throw ApiException(409, OTHER_ACCOUNT_HERE, "This phone holds another account's messages. Sign in with the account you moved, or erase this phone first.")
             // This phone's device was removed: sign in, then set it up again with new device keys.
             deviceUnusable = true
-            api.login(serverUrl, AccountLoginReq(address, password, deviceName(), null))
+            api.login(serverUrl, AccountLoginReq(address, password, deviceName(), null, totpCode))
         }
         adopt(serverUrl, res, keepDevice = !deviceUnusable)
     }
@@ -259,15 +260,15 @@ class AccountRepository(
     suspend fun removePasskey(id: String) = api.removePasskey(id)
 
     /** Signs in, proving [device]'s key when given; a challenge that expired on the way is asked for again once. */
-    private suspend fun loginWithProof(serverUrl: String, email: String, password: String, device: Pair<String, LocalKeys>?): AccountSessionRes {
+    private suspend fun loginWithProof(serverUrl: String, email: String, password: String, device: Pair<String, LocalKeys>?, totpCode: String?): AccountSessionRes {
         repeat(CHALLENGE_TRIES - 1) {
             try {
-                return api.login(serverUrl, AccountLoginReq(email, password, deviceName(), device?.let { deviceProof(serverUrl, it.first, it.second) }))
+                return api.login(serverUrl, AccountLoginReq(email, password, deviceName(), device?.let { deviceProof(serverUrl, it.first, it.second) }, totpCode))
             } catch (e: ApiException) {
                 if (e.code != "challenge_expired") throw e
             }
         }
-        return api.login(serverUrl, AccountLoginReq(email, password, deviceName(), device?.let { deviceProof(serverUrl, it.first, it.second) }))
+        return api.login(serverUrl, AccountLoginReq(email, password, deviceName(), device?.let { deviceProof(serverUrl, it.first, it.second) }, totpCode))
     }
 
     private suspend fun deviceProof(serverUrl: String, deviceId: String, keys: LocalKeys): DeviceProofDto {

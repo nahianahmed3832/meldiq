@@ -10,6 +10,7 @@ import com.meldiq.android.data.model.MentionRules
 import com.meldiq.android.data.model.MentionSet
 import com.meldiq.android.data.model.Payload
 import com.meldiq.android.data.model.PollRules
+import com.meldiq.android.data.model.ReadRules
 
 /**
  * Message controls: what you do to messages already sent (react, edit, delete, vote, close a poll, pin) and the read
@@ -24,6 +25,8 @@ class MessageControls(
     private val settings: SettingsStore,
     private val files: AttachmentFiles,
     private val sendControl: suspend (cid: String, payload: Payload) -> Unit,
+    /** A control for this person's own other devices only (audience "self"); false when it wasn't sent. */
+    private val sendSelfControl: suspend (cid: String, payload: Payload) -> Boolean = { _, _ -> false },
 ) {
     private val lastReadSent = HashMap<String, Long>()
     private val myUserId get() = session.session?.userId
@@ -114,16 +117,22 @@ class MessageControls(
         db.messages().upsert(t.copy(reactionsJson = MessageColumns.encodeReactions(map)))
     }
 
-    /** Clear unread and (DMs/groups) send an encrypted read receipt. */
+    /**
+     * Clear unread and (DMs/groups) send an encrypted read receipt. Channels and large groups send none; there, only
+     * this person's own other devices hear "read up to here" (API 0.43.0), so reading here clears them on the web too.
+     */
     suspend fun markConversationRead(cid: String) {
         db.conversations().markRead(cid)
         val conv = db.conversations().get(cid) ?: return
-        if (!settings.current.readReceipts || conv.type == "CHANNEL" || conv.memberCount > 20 || !conv.canPost) return
+        val receipts = ReadRules.sendsReceipts(conv.type, conv.memberCount, conv.canPost) && settings.current.readReceipts
+        val selfOnly = !ReadRules.sendsReceipts(conv.type, conv.memberCount, conv.canPost)
+        if (!receipts && !selfOnly) return
         val latest = db.messages().latestIncoming(cid) ?: return
         val upTo = latest.serverTs ?: latest.sortTs
         if ((lastReadSent[cid] ?: 0) >= upTo) return
         lastReadSent[cid] = upTo
-        sendControl(cid, Payload(type = "read", upTo = upTo))
+        if (receipts) sendControl(cid, Payload(type = "read", upTo = upTo))
+        else if (!sendSelfControl(cid, Payload(type = "read", upTo = upTo))) lastReadSent.remove(cid)
     }
 
     private var lastTypingSent = 0L

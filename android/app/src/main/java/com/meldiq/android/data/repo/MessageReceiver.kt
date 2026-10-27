@@ -245,7 +245,9 @@ class MessageReceiver(
             "read" -> {
                 val upTo = pl.upTo ?: return
                 if (mine) {
-                    db.conversations().markRead(item.conversationId)
+                    // Read on another of this person's devices: cleared here too, unless something newer arrived since.
+                    val latest = db.messages().latestIncoming(item.conversationId)
+                    if (com.meldiq.android.data.model.ReadRules.clearsHere(upTo, latest?.let { it.serverTs ?: it.sortTs })) db.conversations().markRead(item.conversationId)
                 } else {
                     for (m in db.messages().outgoingUpTo(item.conversationId, upTo)) {
                         val r = (MessageColumns.readBy(m) + item.senderUserId).distinct()

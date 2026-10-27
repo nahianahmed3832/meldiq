@@ -60,6 +60,6 @@ class ApplicationRulesTest {
         assertEquals(listOf("o1", "o2"), ProfileInvite.offered(orgs).map { it.id })
         assertEquals(1, ProfileInvite.USES)
         assertEquals(168, ProfileInvite.HOURS)
-        assertEquals("Alpha: https://meldiq.app/invite/ABCD-EFGH-JKLM", ProfileInvite.message("Alpha", InviteCodes.link("ABCD-EFGH-JKLM")))
+        assertEquals("Alpha: https://web.meldiq.app/invite/ABCD-EFGH-JKLM", ProfileInvite.message("Alpha", InviteCodes.link("ABCD-EFGH-JKLM")))
     }
 }

@@ -19,7 +19,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Event
-import androidx.compose.material.icons.outlined.SmartToy
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.Workspaces
@@ -109,7 +108,6 @@ private sealed interface PanelSheet {
 fun CommunityHomeScreen(nav: NavHostController) {
     val container = LocalContainer.current
     // AI Workforce (docs/AI_WORKFORCE.md): the AI agents shortcut, on servers that have them.
-    val aiAvailable by androidx.compose.runtime.produceState(false) { value = container.features.has(com.meldiq.android.data.repo.ServerFeatures.AI_WORKFORCE) == true }
     val c = Griip.colors
     val ctx = LocalContext.current
     val clipboard = LocalClipboard.current
@@ -287,7 +285,6 @@ fun CommunityHomeScreen(nav: NavHostController) {
                     }
                 }
                 item(key = "events") { PanelShortcut(Icons.Outlined.Event, stringResource(R.string.cm_events)) { nav.navigate(Routes.meetings(org.id, canSchedule = org.myRole != "GUEST")) } }
-                if (aiAvailable) item(key = "ai") { PanelShortcut(Icons.Outlined.SmartToy, stringResource(R.string.aw_title)) { nav.navigate(com.meldiq.android.ui.screens.ai.AiRoutes.agents(org.id)) } }
                 if (d?.permissions?.canViewDirectory == true) item(key = "members") { PanelShortcut(Icons.Outlined.People, stringResource(R.string.cm_stat_members)) { nav.navigate(Routes.members(org.id)) } }
                 if (favourites.isNotEmpty()) {
                     item(key = "fav-header") { PanelFavouritesHeader() }

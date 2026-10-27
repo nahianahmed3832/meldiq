@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android and Meldiq Web parity strings (docs/LANGUAGES.md). Generated from strings_parity.py. -->
+<resources>
+    <string name="wp_2fa_title">দুই ধাপে সাইন-ইন</string>
+    <string name="wp_2fa_subtitle">আপনার অথেন্টিকেটর অ্যাপের ৬ অঙ্কের কোড, অথবা একটি ব্যাকআপ কোড লিখুন।</string>
+    <string name="wp_2fa_code">কোড</string>
+    <string name="wp_2fa_submit">সাইন ইন</string>
+</resources>

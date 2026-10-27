@@ -104,13 +104,14 @@ private fun LegacyMoveFlow(container: AppContainer, canWait: Boolean, onLater: (
             AccountStep.LegacyDetails -> vm.goTo(AccountStep.LegacyCredentials)
             AccountStep.Forgot -> vm.goTo(AccountStep.LogIn)
             AccountStep.Reset -> vm.goTo(AccountStep.Forgot)
+            AccountStep.TwoStep -> vm.goTo(AccountStep.LogIn)
             else -> later?.invoke()
         }
     }
     when (state.step) {
         AccountStep.LegacyDetails -> LegacyDetailsScreen(vm, state, onBack = { vm.goTo(AccountStep.LegacyCredentials) })
         AccountStep.Verify -> VerifyEmailScreen(vm, state, onBack = { later?.invoke() ?: startOver() }, onUseAnotherEmail = startOver)
-        AccountStep.LogIn, AccountStep.Forgot, AccountStep.Reset -> FinishMoveSignIn(vm, state, onLater = later, onStartOver = startOver)
+        AccountStep.LogIn, AccountStep.Forgot, AccountStep.Reset, AccountStep.TwoStep -> FinishMoveSignIn(vm, state, onLater = later, onStartOver = startOver)
         // A required move (no "Later") has nowhere to go back to: the arrow is shown disabled.
         else -> LegacyCredentialsScreen(vm, state, recognizedUsername = username, onBack = { later?.invoke() }, onLater = later, canGoBack = later != null)
     }
@@ -122,6 +123,7 @@ private fun FinishMoveSignIn(vm: AccountFlowViewModel, state: AccountFormState, 
     when (state.step) {
         AccountStep.Forgot -> ForgotPasswordScreen(vm, state, onBack = { vm.goTo(AccountStep.LogIn) })
         AccountStep.Reset -> ResetPasswordScreen(vm, state, onBack = { vm.goTo(AccountStep.Forgot) })
+        AccountStep.TwoStep -> TwoStepScreen(vm, state, onBack = { vm.goTo(AccountStep.LogIn) })
         else -> LogInEmailScreen(
             vm, state, showServer = false, onBack = { onLater?.invoke() }, onServer = {}, onOtherAccount = null,
             allowLegacyEntry = false, onStartOver = onStartOver, canGoBack = onLater != null, allowRecovery = false,

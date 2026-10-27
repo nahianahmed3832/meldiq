@@ -75,6 +75,7 @@ class AppContainer(
     val messages = MessageRepository(
         app, db, api, realtime, session, crypto, directory, conversations, users, settings, appState, scope,
         java.io.File(app.filesDir, profile.attachmentsDir), com.meldiq.android.data.repo.AttachmentUploader(api, features),
+        serverHas = { features.has(it) == true },
     ) { notifier.show(it) }
     val orgs = OrgRepository(api, db, conversations, users)
     /** Custom roles, ownership transfer, usage and the audit log (docs/WORKSPACE_ROLES.md). */
@@ -112,9 +113,6 @@ class AppContainer(
     val backups = com.meldiq.android.data.repo.BackupManager(app, db, session, java.io.File(app.filesDir, profile.attachmentsDir), profile.id)
     val calls = CallManager(app, api, db, session, messages, conversations, settings, scope)
     val voicePlayer = com.meldiq.android.voice.VoicePlayer(app)
-    /** AI Workforce (docs/AI_WORKFORCE.md): agents, jobs, approvals and files; signals from `ai.posts` / `ai.job` frames. */
-    val ai = com.meldiq.android.data.ai.AiWorkforceApi(api)
-    val aiSignals = com.meldiq.android.data.ai.AiWorkforceSignals()
     /** Push wake-ups for this profile (docs/BACKGROUND_DELIVERY.md); the profile id is the UnifiedPush instance. */
     val push = PushRegistrar(
         profile.id, PrefsPushStore(app), ApiPushServer(api, features),
@@ -129,16 +127,6 @@ class AppContainer(
         session.accountRenewal = { if (accounts.record?.tokens != null) accounts.refreshTokens() else null }
         messages.start()
         calls.start()
-        scope.launch {
-            messages.aiEvents.collect { e ->
-                when (e) {
-                    // A reader switched on or off posts its notice here: the choices and devices are asked again.
-                    is com.meldiq.android.data.api.ServerEvent.AiPosts -> { directory.invalidate(e.conversationId); aiSignals.postsChanged(e.conversationId) }
-                    is com.meldiq.android.data.api.ServerEvent.AiJob, is com.meldiq.android.data.api.ServerEvent.AiTask -> aiSignals.jobChanged()
-                    else -> {}
-                }
-            }
-        }
         history.start()
         scope.launch { orgs.loadSelection() }
         scope.launch { runCatching { threadSeen.load() } }

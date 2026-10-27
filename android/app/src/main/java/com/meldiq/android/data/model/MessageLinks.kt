@@ -1,14 +1,15 @@
 package com.meldiq.android.data.model
 
 /**
- * Batch B5 (Discord reference CHAT-MSG-004 "Copy Message Link"): a link to one message, `https://meldiq.app/m/CONV/MSG`
+ * Batch B5 (Discord reference CHAT-MSG-004 "Copy Message Link"): a link to one message, `https://web.meldiq.app/m/CONV/MSG`
  * (also `meldiq://m/CONV/MSG`). It carries only ids, never content: it opens on a phone that is in the conversation and
  * has the message, and says so otherwise. Nobody else learns anything from it.
  */
 object MessageLinks {
-    private const val HOST = "meldiq.app"
+    /** As Meldiq Web (2026-10-28): the web app opens it in a browser; older meldiq.app links are still recognised. */
+    private const val HOST = "web.meldiq.app"
     private const val ID = "[A-Za-z0-9_-]{1,128}"
-    private val LINK = Regex("""^(?:https://(?:www\.)?meldiq\.app/m/|meldiq://m/)($ID)/($ID)/?$""", RegexOption.IGNORE_CASE)
+    private val LINK = Regex("""^(?:https://(?:www\.|web\.)?meldiq\.app/m/|meldiq://m/)($ID)/($ID)/?$""", RegexOption.IGNORE_CASE)
 
     data class Target(val conversationId: String, val messageId: String)
 

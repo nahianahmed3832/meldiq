@@ -22,8 +22,10 @@ class InviteScanTest {
 
     @Test
     fun drawsMeldiqLinksAndStillReadsTheOlderOnes() {
-        // Batch B4b: shared links are web links to meldiq.app, which open the app when it's installed.
-        assertEquals("https://meldiq.app/invite/ABCD-EFGH-JK23", InviteCodes.link("ABCD-EFGH-JK23"))
+        // Shared links are web links to web.meldiq.app (as Meldiq Web), which open the app when it's installed.
+        assertEquals("https://web.meldiq.app/invite/ABCD-EFGH-JK23", InviteCodes.link("ABCD-EFGH-JK23"))
+        assertEquals("ABCD-EFGH-JK23", InviteCodes.fromScan("https://web.meldiq.app/invite/abcd-efgh-jk23"))
+        assertEquals(true, InviteCodes.isInviteLink("https", "web.meldiq.app", "/invite/ABCD-EFGH-JK23"))
         assertEquals("ABCD-EFGH-JK23", InviteCodes.fromScan("https://www.meldiq.app/invite/abcd-efgh-jk23"))
         assertEquals("ABCD-EFGH-JK23", InviteCodes.fromScan("meldiq://invite/ABCD-EFGH-JK23"))
         assertNull(InviteCodes.fromScan("https://evil.example/invite/ABCD-EFGH-JK23"))
