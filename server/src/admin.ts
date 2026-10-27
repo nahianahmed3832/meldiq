@@ -456,9 +456,18 @@ switch (cmd) {
     );
     // A community's own emoji and stickers (batch B9) are stored there too, under their own ids.
     const expression = db.prepare("SELECT 1 FROM community_expressions WHERE id = ?");
+    // API 0.45.0: people's animated avatars, their poster frames and profile banners ("<userId>_avatar-<rev>", ...).
+    const profileMedia = db.prepare(
+      `SELECT 1 FROM users WHERE (id || '_avatar' = ? OR id || '_poster' = ?) AND json_extract(avatar_media, '$.rev') = ?
+       UNION SELECT 1 FROM users WHERE id || '_pbanner' = ? AND json_extract(profile_banner, '$.rev') = ?`,
+    );
+    const keptProfileMedia = (id: string) => {
+      const m = /^(.*)-(\d+)$/.exec(id);
+      return !!m && !!profileMedia.get(m[1], m[1], Number(m[2]), m[1], Number(m[2]));
+    };
     for await (const o of blobs.listIds("profile-photos")) {
       const owner = o.id.replace(/-\d+$/, "");
-      if (o.modifiedAt < cutoff && !photo.get(owner, o.id, o.id, owner, o.id, owner, o.id) && !expression.get(o.id)) orphans.push({ kind: "profile-photos", id: o.id, size: o.size });
+      if (o.modifiedAt < cutoff && !photo.get(owner, o.id, o.id, owner, o.id, owner, o.id) && !expression.get(o.id) && !keptProfileMedia(o.id)) orphans.push({ kind: "profile-photos", id: o.id, size: o.size });
     }
     const bytes = orphans.reduce((a, o) => a + o.size, 0);
     console.log(`${orphans.length} orphaned file(s), ${bytes} bytes, older than a day (${blobs.backend})`);

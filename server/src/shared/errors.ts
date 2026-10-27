@@ -102,6 +102,8 @@ export const ERROR_CODES = {
   discord_bot_missing: { status: [409], meaning: "Meldiq's Discord bot isn't in that server any more. Connect Discord again to add it." },
   discord_not_allowed: { status: [403], meaning: "You need to own that Discord server or have Manage Server there to import it." },
   discord_not_configured: { status: [409], meaning: "Importing from Discord isn't set up on this server yet." },
+  gifs_not_configured: { status: [503], meaning: "GIF search isn't set up on this server (no GIF_PROVIDER and GIF_API_KEY)." },
+  gif_provider_unavailable: { status: [502], meaning: "The GIF provider didn't answer, refused the request, or sent something that isn't a GIF." },
   discord_unreachable: { status: [502], meaning: "Discord didn't answer. Try again in a minute." },
   dm_not_allowed: { status: [403], meaning: "This person only accepts messages from people they're connected with" },
   dms_paused: { status: [403], meaning: "New direct messages between members of your community are paused for now" },

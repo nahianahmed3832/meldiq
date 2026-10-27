@@ -1,0 +1,19 @@
+{
+  "results": [
+    {
+      "id": "t1",
+      "title": "gif t1",
+      "preview": {
+        "url": "https://media.tenor.com/t1/tiny.gif",
+        "width": 220,
+        "height": 124
+      },
+      "gif": {
+        "url": "https://media.tenor.com/t1/full.gif",
+        "width": 498,
+        "height": 280
+      }
+    }
+  ],
+  "next": null
+}

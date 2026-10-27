@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "gifs_not_configured",
+    "message": "GIFs aren't set up on this server yet."
+  }
+}

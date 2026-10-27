@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Meldiq API",
-    "version": "0.44.0",
+    "version": "0.45.0",
     "description": "The canonical contract of the Meldiq server (docs/architecture/ARCHITECTURE_1_0_PLAN.md §4), generated from src/shared/contracts. Fields are only ever added within a version; clients ignore unknown fields. Routes not listed here exist but aren't documented yet."
   },
   "servers": [
@@ -16,6 +16,9 @@
     },
     {
       "name": "messaging"
+    },
+    {
+      "name": "gifs"
     },
     {
       "name": "history"
@@ -743,6 +746,389 @@
             }
           }
         }
+      }
+    },
+    "/v1/gifs/status": {
+      "get": {
+        "tags": [
+          "gifs"
+        ],
+        "summary": "Whether GIF search is set up here, the provider, and the attribution to show.",
+        "operationId": "getV1GifsStatus",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "configured": {
+                      "type": "boolean"
+                    },
+                    "provider": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "tenor",
+                            "giphy"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "attribution": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "configured",
+                    "provider",
+                    "attribution"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/gifs/search": {
+      "post": {
+        "tags": [
+          "gifs"
+        ],
+        "summary": "Search GIFs (the words go in the body, so they're never in a request log; nothing is stored).",
+        "operationId": "postV1GifsSearch",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "preview": {
+                            "type": "object",
+                            "properties": {
+                              "url": {
+                                "type": "string"
+                              },
+                              "width": {
+                                "type": "number"
+                              },
+                              "height": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "url",
+                              "width",
+                              "height"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "gif": {
+                            "type": "object",
+                            "properties": {
+                              "url": {
+                                "type": "string"
+                              },
+                              "width": {
+                                "type": "number"
+                              },
+                              "height": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "url",
+                              "width",
+                              "height"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "title",
+                          "preview",
+                          "gif"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "next": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "results",
+                    "next"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: gifs_not_configured, gif_provider_unavailable, rate_limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "q": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "pos": {
+                    "type": "string",
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "q"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/gifs/trending": {
+      "post": {
+        "tags": [
+          "gifs"
+        ],
+        "summary": "Popular GIFs right now.",
+        "operationId": "postV1GifsTrending",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "preview": {
+                            "type": "object",
+                            "properties": {
+                              "url": {
+                                "type": "string"
+                              },
+                              "width": {
+                                "type": "number"
+                              },
+                              "height": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "url",
+                              "width",
+                              "height"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "gif": {
+                            "type": "object",
+                            "properties": {
+                              "url": {
+                                "type": "string"
+                              },
+                              "width": {
+                                "type": "number"
+                              },
+                              "height": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "url",
+                              "width",
+                              "height"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "title",
+                          "preview",
+                          "gif"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "next": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "results",
+                    "next"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: gifs_not_configured, gif_provider_unavailable, rate_limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "pos": {
+                    "type": "string",
+                    "maxLength": 200
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/gifs/media": {
+      "get": {
+        "tags": [
+          "gifs"
+        ],
+        "summary": "A GIF's file (image/gif, image/webp or video/mp4), fetched from the provider's own media hosts only.",
+        "operationId": "getV1GifsMedia",
+        "parameters": [
+          {
+            "name": "src",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 2048
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The bytes (or 302 to a storage URL)",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: gifs_not_configured, gif_provider_unavailable, too_large, bad_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
       }
     },
     "/v1/history/summary": {
@@ -9633,6 +10019,107 @@
                         "phone": {
                           "type": "string"
                         },
+                        "avatarMedia": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "gif",
+                                "webp",
+                                "video"
+                              ]
+                            },
+                            "rev": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "rev"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "profileBanner": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "jpeg",
+                                "gif",
+                                "webp"
+                              ]
+                            },
+                            "rev": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "rev"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "profileStyle": {
+                          "type": "object",
+                          "properties": {
+                            "decoration": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "aurora",
+                                    "ember",
+                                    "frost",
+                                    "neon",
+                                    "sakura",
+                                    "pixel"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "effect": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "sparkles",
+                                    "glow",
+                                    "stars",
+                                    "bubbles"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "accent": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "decoration",
+                            "effect",
+                            "accent"
+                          ],
+                          "additionalProperties": false
+                        },
                         "privacy": {
                           "type": "object",
                           "properties": {
@@ -9869,6 +10356,107 @@
                         },
                         "phone": {
                           "type": "string"
+                        },
+                        "avatarMedia": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "gif",
+                                "webp",
+                                "video"
+                              ]
+                            },
+                            "rev": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "rev"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "profileBanner": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "jpeg",
+                                "gif",
+                                "webp"
+                              ]
+                            },
+                            "rev": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "rev"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "profileStyle": {
+                          "type": "object",
+                          "properties": {
+                            "decoration": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "aurora",
+                                    "ember",
+                                    "frost",
+                                    "neon",
+                                    "sakura",
+                                    "pixel"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "effect": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "sparkles",
+                                    "glow",
+                                    "stars",
+                                    "bubbles"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "accent": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "decoration",
+                            "effect",
+                            "accent"
+                          ],
+                          "additionalProperties": false
                         },
                         "privacy": {
                           "type": "object",
@@ -10594,6 +11182,533 @@
         ]
       }
     },
+    "/v1/users/me/avatar-media": {
+      "put": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Set an animated avatar: a GIF or WebP (≤ 4 MB, ≤ 1024 px), or a video clip (≤ 12 MB, ≤ 6 s) shown as a 3 s silent loop.",
+        "operationId": "putV1UsersMeAvatarMedia",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "avatarMedia": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "gif",
+                            "webp",
+                            "video"
+                          ]
+                        },
+                        "rev": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "rev"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "avatarMedia"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: bad_request, too_large, storage_unavailable, media_engine_unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Remove your animated avatar.",
+        "operationId": "deleteV1UsersMeAvatarMedia",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "avatarMedia": {
+                      "type": "null"
+                    }
+                  },
+                  "required": [
+                    "avatarMedia"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/users/{id}/avatar-media": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Someone's animated avatar (image/gif, image/webp or video/mp4), if they show you their photo.",
+        "operationId": "getV1UsersIdAvatarMedia",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The bytes (or 302 to a storage URL)",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/users/{id}/avatar-poster": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "The still frame of someone's video avatar (image/jpeg).",
+        "operationId": "getV1UsersIdAvatarPoster",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The bytes (or 302 to a storage URL)",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/users/me/profile-banner": {
+      "put": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Set your profile banner: a JPEG (≤ 1 MB) or an animated GIF or WebP (≤ 6 MB), at most 2048 × 1024.",
+        "operationId": "putV1UsersMeProfileBanner",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "profileBanner": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "jpeg",
+                            "gif",
+                            "webp"
+                          ]
+                        },
+                        "rev": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "rev"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "profileBanner"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: bad_request, too_large, storage_unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Remove your profile banner.",
+        "operationId": "deleteV1UsersMeProfileBanner",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "profileBanner": {
+                      "type": "null"
+                    }
+                  },
+                  "required": [
+                    "profileBanner"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/users/{id}/profile-banner": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Someone's profile banner, if they show you their photo.",
+        "operationId": "getV1UsersIdProfileBanner",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The bytes (or 302 to a storage URL)",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/users/me/profile-style": {
+      "put": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Your profile's decoration, effect and accent colour (fields sent change; null removes).",
+        "operationId": "putV1UsersMeProfileStyle",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "profileStyle": {
+                      "type": "object",
+                      "properties": {
+                        "decoration": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "aurora",
+                                "ember",
+                                "frost",
+                                "neon",
+                                "sakura",
+                                "pixel"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "effect": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "sparkles",
+                                "glow",
+                                "stars",
+                                "bubbles"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "accent": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "decoration",
+                        "effect",
+                        "accent"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "profileStyle"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: bad_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "decoration": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "aurora",
+                          "ember",
+                          "frost",
+                          "neon",
+                          "sakura",
+                          "pixel"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "effect": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "sparkles",
+                          "glow",
+                          "stars",
+                          "bubbles"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "accent": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^#[0-9a-fA-F]{6}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/users/by-phone": {
       "get": {
         "tags": [
@@ -10926,6 +12041,107 @@
                         },
                         "phone": {
                           "type": "string"
+                        },
+                        "avatarMedia": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "gif",
+                                "webp",
+                                "video"
+                              ]
+                            },
+                            "rev": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "rev"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "profileBanner": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "jpeg",
+                                "gif",
+                                "webp"
+                              ]
+                            },
+                            "rev": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "rev"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "profileStyle": {
+                          "type": "object",
+                          "properties": {
+                            "decoration": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "aurora",
+                                    "ember",
+                                    "frost",
+                                    "neon",
+                                    "sakura",
+                                    "pixel"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "effect": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "sparkles",
+                                    "glow",
+                                    "stars",
+                                    "bubbles"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "accent": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "decoration",
+                            "effect",
+                            "accent"
+                          ],
+                          "additionalProperties": false
                         },
                         "privacy": {
                           "type": "object",
@@ -61242,6 +62458,8 @@
                   "discord_bot_missing",
                   "discord_not_allowed",
                   "discord_not_configured",
+                  "gifs_not_configured",
+                  "gif_provider_unavailable",
                   "discord_unreachable",
                   "dm_not_allowed",
                   "dms_paused",
@@ -61723,6 +62941,18 @@
         409
       ],
       "meaning": "Importing from Discord isn't set up on this server yet."
+    },
+    "gifs_not_configured": {
+      "status": [
+        503
+      ],
+      "meaning": "GIF search isn't set up on this server (no GIF_PROVIDER and GIF_API_KEY)."
+    },
+    "gif_provider_unavailable": {
+      "status": [
+        502
+      ],
+      "meaning": "The GIF provider didn't answer, refused the request, or sent something that isn't a GIF."
     },
     "discord_unreachable": {
       "status": [

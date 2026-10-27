@@ -88,6 +88,18 @@ export const ProfileUpdateBody = z.object({
 });
 export const PresenceBody = z.strictObject({ mode: PresenceMode, until: z.number().int().nullable().optional() });
 export const PrivacyBody = Privacy.partial();
+
+/** Profile style (API 0.45.0, docs/PROFILE_MEDIA.md): Meldiq's own decorations and effects, drawn by the apps. */
+export const PROFILE_DECORATIONS = ["aurora", "ember", "frost", "neon", "sakura", "pixel"] as const;
+export const PROFILE_EFFECTS = ["sparkles", "glow", "stars", "bubbles"] as const;
+export const ProfileStyleBody = z.object({
+  decoration: z.enum(PROFILE_DECORATIONS).nullable().optional(),
+  effect: z.enum(PROFILE_EFFECTS).nullable().optional(),
+  accent: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
+});
+const ProfileStyle = z.strictObject({ decoration: z.enum(PROFILE_DECORATIONS).nullable(), effect: z.enum(PROFILE_EFFECTS).nullable(), accent: z.string().nullable() });
+const AvatarMedia = z.strictObject({ kind: z.enum(["gif", "webp", "video"]), rev: z.number().int() });
+const ProfileBanner = z.strictObject({ kind: z.enum(["jpeg", "gif", "webp"]), rev: z.number().int() });
 export const PhoneQuery = z.object({ phone: z.string().trim().max(24) });
 export const SearchQuery = z.object({ q: z.string().trim().min(1).max(40) });
 export const DevicesBody = z.object({ userIds: z.array(z.string().max(64)).min(1).max(500) });
@@ -126,6 +138,10 @@ const profileFields = {
   photoRev: z.number().int().optional(),
   birthday: z.string().optional(),
   phone: z.string().optional(),
+  /** API 0.45.0: an animated avatar and a banner (to whoever may see the photo), and the profile's style. */
+  avatarMedia: AvatarMedia.optional(),
+  profileBanner: ProfileBanner.optional(),
+  profileStyle: ProfileStyle.optional(),
 };
 /** Only in the person's own profile. */
 const ownFields = {
@@ -217,6 +233,53 @@ export const userRoutes = [
     binary: "response",
     response: z.unknown(),
     errors: ["not_found"],
+  }),
+  user("/v1/users/me/avatar-media", {
+    method: "PUT",
+    summary: "Set an animated avatar: a GIF or WebP (≤ 4 MB, ≤ 1024 px), or a video clip (≤ 12 MB, ≤ 6 s) shown as a 3 s silent loop.",
+    binary: "request",
+    response: z.strictObject({ avatarMedia: AvatarMedia }),
+    errors: ["bad_request", "too_large", "storage_unavailable", "media_engine_unavailable"],
+  }),
+  user("/v1/users/me/avatar-media", { method: "DELETE", summary: "Remove your animated avatar.", response: z.strictObject({ avatarMedia: z.null() }) }),
+  user("/v1/users/:id/avatar-media", {
+    method: "GET",
+    summary: "Someone's animated avatar (image/gif, image/webp or video/mp4), if they show you their photo.",
+    params: idParams,
+    binary: "response",
+    response: z.unknown(),
+    errors: ["not_found"],
+  }),
+  user("/v1/users/:id/avatar-poster", {
+    method: "GET",
+    summary: "The still frame of someone's video avatar (image/jpeg).",
+    params: idParams,
+    binary: "response",
+    response: z.unknown(),
+    errors: ["not_found"],
+  }),
+  user("/v1/users/me/profile-banner", {
+    method: "PUT",
+    summary: "Set your profile banner: a JPEG (≤ 1 MB) or an animated GIF or WebP (≤ 6 MB), at most 2048 × 1024.",
+    binary: "request",
+    response: z.strictObject({ profileBanner: ProfileBanner }),
+    errors: ["bad_request", "too_large", "storage_unavailable"],
+  }),
+  user("/v1/users/me/profile-banner", { method: "DELETE", summary: "Remove your profile banner.", response: z.strictObject({ profileBanner: z.null() }) }),
+  user("/v1/users/:id/profile-banner", {
+    method: "GET",
+    summary: "Someone's profile banner, if they show you their photo.",
+    params: idParams,
+    binary: "response",
+    response: z.unknown(),
+    errors: ["not_found"],
+  }),
+  user("/v1/users/me/profile-style", {
+    method: "PUT",
+    summary: "Your profile's decoration, effect and accent colour (fields sent change; null removes).",
+    body: ProfileStyleBody,
+    response: z.strictObject({ profileStyle: ProfileStyle }),
+    errors: ["bad_request"],
   }),
   user("/v1/users/by-phone", {
     method: "GET",

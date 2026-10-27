@@ -1,0 +1,33 @@
+{
+  "results": [
+    {
+      "id": "a1",
+      "title": "gif a1",
+      "preview": {
+        "url": "https://media.tenor.com/a1/tiny.gif",
+        "width": 220,
+        "height": 124
+      },
+      "gif": {
+        "url": "https://media.tenor.com/a1/full.gif",
+        "width": 498,
+        "height": 280
+      }
+    },
+    {
+      "id": "a2",
+      "title": "gif a2",
+      "preview": {
+        "url": "https://media.tenor.com/a2/tiny.gif",
+        "width": 220,
+        "height": 124
+      },
+      "gif": {
+        "url": "https://media.tenor.com/a2/full.gif",
+        "width": 498,
+        "height": 280
+      }
+    }
+  ],
+  "next": "p2"
+}
