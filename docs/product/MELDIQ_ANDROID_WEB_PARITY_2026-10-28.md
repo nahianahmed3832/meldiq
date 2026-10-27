@@ -5,8 +5,8 @@ The owner asked: "check the codebase, match the web app's features and design, t
 `e454b7a`). Every web release since then (community-first 0.42.0, Meldling 0.43.0, branding 0.44.0, continuation v3
 0.45.0, stage 1 0.46.0, AI removal 0.47.0) said "Android: not yet". This round brings those to the app.
 
-Branch `android-web-parity` (5 commits on `internal-beta` e80986e). No server change: everything uses routes and fields
-API 0.47.0 already serves.
+Branch `android-web-parity` (6 commits, rebased on `internal-beta` 1183ae9, API 0.49.0). No server change: everything
+uses routes and fields API 0.47.0 already serves.
 
 ## Done
 
@@ -46,8 +46,16 @@ API 0.47.0 already serves.
 | Check | Result |
 |---|---|
 | Unit tests (`:app:testDebugUnitTest`) | baseline 708 with 1 failure (AI frames); now **730 passed, 0 failed** (new: two-step, read rules, unread rule, accent, person look, community mute, account safety) |
-| Lint, APK | see the session record below |
-| Emulator | see the session record below |
+| Lint (`:app:lintDebug`) | 0 errors (801 warnings, as before) |
+| APK | `android/app/build/outputs/apk/debug/meldiq-test-web-parity-production-debug.apk` (side by side as "Meldiq Test", production server), sha256 `53c2b701…3a0db4b6` |
+| Emulator (Medium_Phone_API_36.1) | installed over the existing test app with its data kept: the database moved to v14, the palette moved to Meldiq ("Dark · Meldiq"), the Meldling Messages tab and the pink count show, You and Settings list Profile style and Account safety, Profile style opens. Signed-in screens couldn't be exercised: the emulator's test account belongs to a local server that's gone, and signing up another account there means erasing the phone's data first |
+
+## Follow-ups
+
+- API 0.48.0 added `categoryPosition` on channels (web v4: a stable channel order); Android still orders by its own
+  rule and ignores the field.
+- Pushing these commits and a release build wait for the owner (versionCode and versionName in the main folder's
+  uncommitted `build.gradle.kts` are the owner's).
 
 Not tested: a physical phone, production accounts (no production test account), two-step sign-in against the live
 server, uploads of animated avatars and banners against the live server.
