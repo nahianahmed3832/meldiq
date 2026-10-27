@@ -221,10 +221,17 @@ export default async function profileMediaRoutes(app: FastifyInstance, ctx: AppC
     const { userId } = me(req);
     const body = parse(ProfileStyleBody, req.body);
     const current = styleOf(row(userId) ?? {});
+    // API 0.46.0: a community's tag can only be worn by its members (whether it has one now is checked when shown).
+    if (body.tagOrgId && !ctx.authz.orgRole(body.tagOrgId, userId)) throw badRequest("You can only wear the tag of a community you're in");
+    const keep = <T,>(sent: T | undefined, was: T) => (sent === undefined ? was : sent);
     const next: Style = {
-      decoration: body.decoration === undefined ? current.decoration : body.decoration,
-      effect: body.effect === undefined ? current.effect : body.effect,
+      decoration: keep(body.decoration, current.decoration),
+      effect: keep(body.effect, current.effect),
       accent: body.accent === undefined ? current.accent : (body.accent?.toLowerCase() ?? null),
+      nameFont: keep(body.nameFont, current.nameFont),
+      nameColors: body.nameColors === undefined ? current.nameColors : (body.nameColors?.map((c) => c.toLowerCase()) ?? null),
+      nameEffect: keep(body.nameEffect, current.nameEffect),
+      tagOrgId: keep(body.tagOrgId, current.tagOrgId),
     };
     ctx.db.prepare("UPDATE users SET profile_style = ?, updated_at = ? WHERE id = ?").run(JSON.stringify(next), now(), userId);
     announceProfileChange(ctx, userId);

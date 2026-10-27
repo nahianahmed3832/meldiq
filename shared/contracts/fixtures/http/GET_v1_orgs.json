@@ -1,16 +1,17 @@
 {
   "orgs": [
     {
-      "id": "o_flNHVDiL4-7OPZV7Ko821g",
+      "id": "o_8BslOyZRThPOi7x-21XZAA",
       "name": "Apply Lab",
       "slug": "apply-lab",
       "description": null,
       "myRole": "MEMBER",
       "memberCount": 4,
-      "createdAt": 1793092858065,
+      "createdAt": 1793109286106,
       "photoRev": null,
       "accent": null,
       "bannerRev": null,
+      "tag": null,
       "guestsAllowed": true,
       "guestMaxDays": null,
       "kind": "community",

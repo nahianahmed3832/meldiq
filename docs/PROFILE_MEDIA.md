@@ -38,3 +38,36 @@ Web: Settings › Profile › Profile style (upload with clear limits, live prev
 Meldiq's own designs), the profile card plays the avatar silently and loops it; with reduced motion it shows the photo
 (or the clip's poster) and no effect. Effects stay inside the banner, never over the name, status or avatar.
 Android: not yet; the fields are additive.
+
+## Name styles and community tags (API 0.46.0)
+
+Features `name-styles`, `community-tags`, `community-mute`. Migration `059_names_and_tags.sql` adds one nullable
+column (`orgs.tag`); everything else lives in the existing JSON `users.profile_style`.
+
+**Name style.** `PUT /v1/users/me/profile-style` also takes, each optional and nullable (left out: unchanged):
+
+| Field | Values |
+|---|---|
+| `nameFont` | `pixel`, `arcade`, `script`, `block`, `tech`, `mono` (the apps ship the fonts; web: OFL fonts in `public/fonts/names`) |
+| `nameColors` | 1 colour (solid) or 2–3 (a gradient), each `#rrggbb`, stored in lower case |
+| `nameEffect` | `glow`, `shimmer` (apps keep it still with reduced motion) |
+| `tagOrgId` | a community the person is a member of (400 otherwise), or null |
+
+The style is shown to everyone who sees the person, like the decoration.
+
+**Community tag.** `PATCH /v1/orgs/:orgId` takes `tag`: 2–4 letters or digits, stored in capitals (`workspace.edit`;
+audited as `org.tag`), or null. Community views carry `tag`. A person wears it (profile style `tagOrgId`); views of
+them carry `tag: { orgId, text, color }` (color = the community's accent) only while they're still a member and the
+community still has a tag. Accounts read it through `Authz.communityTag`, so community tables stay the organizations
+module's.
+
+**Lists.** Conversation and community member lists now carry `avatarMedia` (to viewers who may see the photo),
+`profileStyle` and `tag`, so apps play animated avatars and draw name styles everywhere, not only on the profile card.
+The banner stays on the profile.
+
+**Community mute.** A community's preferences document takes `community.mutedUntil` (epoch ms, or null): while it
+runs, every channel in it counts as "none", including channels with a level of their own. A write that leaves the
+field out (older apps) keeps the stored mute; ended mutes are dropped.
+
+**Invite page.** `GET /v1/invites/:code/public` carries `photo: boolean`; `GET /v1/invites/:code/photo` serves the
+community's icon (JPEG, public, a usable code only, rate limited like the banner).

@@ -87,4 +87,16 @@ describe("community branding", () => {
     expect((await owner.req("GET", "/v1/orgs")).orgs.find((o: { id: string }) => o.id === privateOrg)).toMatchObject({ accent: null, bannerRev: null });
     await expectStatus(owner.req("GET", `/v1/orgs/${privateOrg}/banner`), 404);
   });
+
+  it("shows the community's icon on the public invite page (API 0.46.0), only through a usable code", async () => {
+    expect((await fetch(`${h.baseUrl}/v1/invites/${code}/public`).then((r) => r.json())).community.photo).toBe(false);
+    expect((await fetch(`${h.baseUrl}/v1/invites/${code}/photo`)).status).toBe(404);
+    const icon = jpeg(3000);
+    await owner.req("PUT", `/v1/orgs/${orgId}/photo`, undefined, icon);
+    expect((await fetch(`${h.baseUrl}/v1/invites/${code}/public`).then((r) => r.json())).community.photo).toBe(true);
+    const res = await fetch(`${h.baseUrl}/v1/invites/${code}/photo`);
+    expect(res.headers.get("content-type")).toBe("image/jpeg");
+    expect(Buffer.compare(Buffer.from(await res.arrayBuffer()), icon)).toBe(0);
+    expect((await fetch(`${h.baseUrl}/v1/invites/AAAA-BBBB-CCCC/photo`)).status).toBe(404);
+  });
 });

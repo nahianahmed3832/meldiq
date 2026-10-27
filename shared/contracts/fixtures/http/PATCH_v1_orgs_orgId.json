@@ -1,15 +1,16 @@
 {
   "org": {
-    "id": "o_IxfICcZUOIGF174PrLIsMw",
+    "id": "o_RER8Etq25iF70Nc4JOVN_Q",
     "name": "Night Sky Club",
     "slug": "night-sky-club",
     "description": "Amateur astronomy",
     "myRole": "OWNER",
     "memberCount": 7,
-    "createdAt": 1793092912610,
+    "createdAt": 1793109336751,
     "photoRev": null,
     "accent": null,
     "bannerRev": null,
+    "tag": null,
     "guestsAllowed": true,
     "guestMaxDays": null,
     "kind": "community",

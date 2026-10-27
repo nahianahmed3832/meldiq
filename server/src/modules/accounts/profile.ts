@@ -1,4 +1,4 @@
-import { profileMediaView } from "./profileMedia.js";
+import { profileMediaView, wornTag } from "./profileMedia.js";
 import type { AppContext } from "../../app/context.js";
 import { Audience as AudienceEnum, PHONE, PresenceMode as PresenceModeEnum, validBirthday } from "../../shared/contracts/http/users.js";
 
@@ -204,10 +204,20 @@ export function memberView(ctx: AppContext, viewerId: string, u: ProfileRow, bas
     statusText: allows(p.bio, r) ? status.text : null,
     statusEmoji: allows(p.bio, r) ? status.emoji : null,
     ...(allows(p.photo, r) && u.photo_rev ? { photoRev: u.photo_rev } : {}),
+    // API 0.46.0: lists play animated avatars and show name styles and the worn community tag, as profiles do (the
+    // banner stays on the profile).
+    ...listMedia(ctx, u, allows(p.photo, r)),
     online: seen ? appearsOnline(ctx, u) : null,
     // Batch B6b: online, idle, do not disturb or offline (invisible people appear offline).
     ...(seen ? { presence: shownPresence(ctx, u) } : {}),
     // "Ada has paused notifications": shown to the people who may see when Ada was last online (round 3).
     notificationsPaused: seen ? notificationsPaused(u) : null,
   };
+}
+
+/** What a list adds from profile media (API 0.46.0): the animated avatar to whoever may see the photo, the style, the tag. */
+function listMedia(ctx: AppContext, u: ProfileRow, photoAllowed: boolean): Record<string, unknown> {
+  const { profileBanner: _banner, ...media } = profileMediaView(u as never, photoAllowed);
+  const tag = wornTag(ctx, u as never);
+  return tag ? { ...media, tag } : media;
 }

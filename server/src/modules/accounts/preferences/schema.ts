@@ -31,6 +31,11 @@ export const zCommunityNotify = z
   .object({
     level: z.enum(NOTIFY_LEVELS).default("all"),
     suppressEveryone: z.boolean().default(false),
+    /**
+     * API 0.46.0: the whole community muted until then (epoch ms), every channel in it included, even those with a level
+     * of their own; null or left out: not muted. Ended ones are dropped.
+     */
+    mutedUntil: z.number().int().min(0).nullable().optional(),
   })
   .strict();
 
@@ -146,7 +151,7 @@ export function normalizePrefs(
     collapsed: [...new Set(p.collapsed)],
     notify,
     saved,
-    ...(p.community ? { community: p.community } : {}),
+    ...(p.community ? { community: liveCommunity(p.community, at) } : {}),
     ...(p.railOrder ? { railOrder: [...new Set(p.railOrder)] } : {}),
     ...(p.mutedUntil ? { mutedUntil: Object.fromEntries(Object.entries(p.mutedUntil).filter(([id, until]) => until > at && keep(id))) } : {}),
     ...(p.categoryNotify ? { categoryNotify: p.categoryNotify } : {}),
@@ -157,4 +162,10 @@ export function normalizePrefs(
 /** Every conversation id a document mentions. */
 export function referencedConversations(p: NavPrefs): string[] {
   return [...new Set([...p.starred, ...p.sections.flatMap((s) => s.items), ...Object.keys(p.notify), ...(p.saved ?? []).map((s) => s.conversationId)])];
+}
+
+/** A community's settings without a mute that has ended. */
+function liveCommunity(c: z.infer<typeof zCommunityNotify>, at: number): z.infer<typeof zCommunityNotify> {
+  const { mutedUntil, ...rest } = c;
+  return mutedUntil && mutedUntil > at ? { ...rest, mutedUntil } : rest;
 }

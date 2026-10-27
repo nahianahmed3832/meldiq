@@ -125,10 +125,10 @@ describe("profile banners and style", () => {
 
   it("keeps a decoration, effect and accent from the fixed lists, shown to everyone", async () => {
     const { profileStyle } = await ada.req("PUT", "/v1/users/me/profile-style", { decoration: "aurora", effect: "sparkles", accent: "#EC4899" });
-    expect(profileStyle).toEqual({ decoration: "aurora", effect: "sparkles", accent: "#ec4899" });
+    expect(profileStyle).toEqual({ decoration: "aurora", effect: "sparkles", accent: "#ec4899", nameFont: null, nameColors: null, nameEffect: null, tagOrgId: null });
     expect((await eve.req("GET", `/v1/users/${ada.userId}`)).user.profileStyle).toEqual(profileStyle);
     await expectStatus(ada.req("PUT", "/v1/users/me/profile-style", { decoration: "nitro-clone" }), 400);
     await expectStatus(ada.req("PUT", "/v1/users/me/profile-style", { accent: "red" }), 400);
-    expect((await ada.req("PUT", "/v1/users/me/profile-style", { effect: null })).profileStyle).toEqual({ decoration: "aurora", effect: null, accent: "#ec4899" });
+    expect((await ada.req("PUT", "/v1/users/me/profile-style", { effect: null })).profileStyle).toEqual({ decoration: "aurora", effect: null, accent: "#ec4899", nameFont: null, nameColors: null, nameEffect: null, tagOrgId: null });
   });
 });

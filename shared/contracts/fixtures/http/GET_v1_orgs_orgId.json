@@ -1,15 +1,16 @@
 {
   "org": {
-    "id": "o_SzqGtkT1RW3iMmS90qM8DA",
+    "id": "o_WhOTWvO28zWNe5sb-_LAlA",
     "name": "Busy Lab",
     "slug": "busy-lab",
     "description": null,
     "myRole": "OWNER",
     "memberCount": 9,
-    "createdAt": 1793092858223,
+    "createdAt": 1793109286735,
     "photoRev": null,
     "accent": null,
     "bannerRev": null,
+    "tag": null,
     "guestsAllowed": true,
     "guestMaxDays": null,
     "kind": "community",
@@ -29,7 +30,7 @@
   "teams": [],
   "categories": [
     {
-      "id": "cat_CE7iDNvdXn7T5HVvd7rRRA",
+      "id": "cat_FshA174qh0Bf_DtOPO7b0Q",
       "name": "Start here",
       "position": 0,
       "channelCount": 2,
@@ -37,7 +38,7 @@
       "canCreateChannels": true
     },
     {
-      "id": "cat_quZ5RZfUqkIsE13froD_pA",
+      "id": "cat_XimhoIIZP8RNUC9NcIxxeQ",
       "name": "Talk",
       "position": 1,
       "channelCount": 3,

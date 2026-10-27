@@ -76,7 +76,7 @@ import { ApiError } from "../shared/errors.js";
 import { now } from "../shared/utilities/util.js";
 import wsRoutes from "../modules/realtime/ws.js";
 
-export const VERSION = "0.45.0";
+export const VERSION = "0.46.0";
 /**
  * The client API this server speaks and the oldest client API it accepts. Clients refuse a server whose
  * minClientApi is newer than theirs; servers from before these fields existed count as API 1.
@@ -467,6 +467,11 @@ export function serverFeatures(config: Config, directUploads = false): string[] 
     "profile-media",
     // API 0.45.0: GIF search through this server (GET /v1/gifs/status says whether a provider is set up; docs/GIFS.md).
     "gif-search",
+    // API 0.46.0 (docs/PROFILE_MEDIA.md): name fonts, colours and effects; community tags worn by names; member lists
+    // carry animated avatars; a whole community muted for a while; the invite page shows the community's icon.
+    "name-styles",
+    "community-tags",
+    "community-mute",
   ];
   if (config.accounts.legacy.migration) f.push("legacy-migration");
   if (directUploads) f.push("direct-upload");

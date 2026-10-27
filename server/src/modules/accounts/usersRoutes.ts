@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { deleteBlobNow } from "../files/routes.js";
 import { photoBlobId, readJpegBody, storePhoto } from "./photos.js";
 import { type AppContext } from "../../app/context.js";
+import { wornTag } from "./profileMedia.js";
 import { me, requireAuth } from "../auth/index.js";
 import { parse } from "../../shared/validation/index.js";
 import { UserIdParams } from "../../shared/contracts/http/auth.js";
@@ -100,8 +101,14 @@ export default async function userRoutes(app: FastifyInstance, ctx: AppContext) 
   // Photos are stored per revision ("<userId>-<rev>"), so a replaced photo is never served under the new revision.
   // Photos saved before 2026-10-17 are under "<userId>" alone and are still found.
   const photoId = photoBlobId;
+  // API 0.46.0: the community tag someone wears, shown with their name to everyone who sees them.
+  const tagOf = (u: { id: string; profile_style?: string | null }) => {
+    const tag = wornTag(ctx, u);
+    return tag ? { tag } : {};
+  };
   const meView = (u: any) => ({
     ...profileView(u, { self: true, contact: true, blockedByTarget: false }),
+    ...tagOf(u),
     identityKey: u.identity_key,
     fingerprint: keyFingerprint(u.identity_key),
     createdAt: u.created_at,
@@ -295,6 +302,7 @@ export default async function userRoutes(app: FastifyInstance, ctx: AppContext) 
       user: {
         statusText: null, // older apps expect the key
         ...profileView(u, r),
+        ...tagOf(u),
         identityKey: u.identity_key,
         fingerprint: keyFingerprint(u.identity_key),
         online: visible ? appearsOnline(ctx, u) : null,

@@ -39,6 +39,8 @@ const zCategoryId = z.string().min(3).max(64).regex(/^cat_[A-Za-z0-9_-]+$/);
 export const CommunityNotify = z.strictObject({
   level: NotifyLevel.default("all"),
   suppressEveryone: z.boolean().default(false),
+  /** API 0.46.0: the whole community muted until then (epoch ms), its channels' own levels included; null: not muted. */
+  mutedUntil: z.number().int().min(0).nullable().optional(),
 });
 
 export const NavSection = z.object({
