@@ -1,0 +1,11 @@
+{
+  "error": {
+    "code": "ai_not_configured",
+    "message": "General Assistant can't work yet: no verified model for quick replies and classification. A platform operator sets one up in the AI Control Center.",
+    "details": {
+      "categories": [
+        "fast"
+      ]
+    }
+  }
+}

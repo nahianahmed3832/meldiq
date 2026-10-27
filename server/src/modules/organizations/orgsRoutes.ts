@@ -1,4 +1,4 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply } from "fastify";
 import { markSyntheticOrg } from "./syntheticScope.js";
 import { type ConversationRow, parsePermissionList } from "./authz.js";
 import { type AppContext } from "../../app/context.js";
@@ -30,7 +30,7 @@ import { onboardingOn } from "./onboardingRoutes.js";
 import { INVITE_PROBLEMS, inviteAlreadySatisfied, joinOrgByInvite, lookupOrgInvite, orgInviteProblem } from "./invites.js";
 import { userSummary } from "../auth/routes.js";
 import { deleteBlobNow, processBlobDeletes, queueBlobDelete } from "../files/routes.js";
-import { photoBlobId, readJpegBody, storePhoto } from "../accounts/photos.js";
+import { bannerBlobId, MAX_BANNER_BYTES, photoBlobId, readJpegBody, storePhoto } from "../accounts/photos.js";
 import { evictRemovedMember } from "../calls/routes.js";
 import { conversationView } from "../messaging/conversationsRoutes.js";
 import { orgRoleChangeRefusal, removalAllowed, titleChangeAllowed } from "./roleRules.js";
@@ -42,7 +42,7 @@ import { categoryViews } from "./communityRoutes.js";
 const templateIdsMatch: [(typeof COMMUNITY_TEMPLATE_IDS)[number]] extends [TemplateId] ? ([TemplateId] extends [(typeof COMMUNITY_TEMPLATE_IDS)[number]] ? true : never) : never = true;
 void templateIdsMatch;
 
-function slugify(name: string): string {
+export function slugify(name: string): string {
   return (
     name
       .toLowerCase()
@@ -78,6 +78,9 @@ export function orgSummary(ctx: AppContext, org: any, userId: string) {
     createdAt: org.created_at,
     // The organisation's avatar revision (GET /v1/orgs/:orgId/photo), null without one.
     photoRev: org.photo_rev ?? null,
+    // API 0.44.0 (docs/COMMUNITY_BRANDING.md): its accent colour and banner, null for Meldiq's standard look.
+    accent: org.accent ?? null,
+    bannerRev: org.banner_rev ?? null,
     // Round 7 guest policy (docs/WORKSPACE_C5.md).
     guestsAllowed: org.guests_allowed === undefined ? true : !!org.guests_allowed,
     guestMaxDays: org.guest_max_days ?? null,
@@ -258,16 +261,19 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     // Listing a community publicly or opening it to anyone changes who can find and enter it: owners decide that.
     const opening = (body.visibility && body.visibility !== o.visibility) || (body.joinPolicy && body.joinPolicy !== o.join_policy);
     if (opening && authz.orgRole(orgId, userId) !== "OWNER") throw forbidden("Only owners can change who can find and join this community");
-    db.prepare("UPDATE orgs SET name = ?, description = ?, visibility = ?, join_policy = ?, rules = ?, updated_at = ? WHERE id = ?").run(
+    db.prepare("UPDATE orgs SET name = ?, description = ?, visibility = ?, join_policy = ?, rules = ?, accent = ?, updated_at = ? WHERE id = ?").run(
       body.name ?? o.name,
       body.description === undefined ? o.description : body.description,
       body.visibility ?? o.visibility,
       body.joinPolicy ?? o.join_policy,
       body.rules === undefined ? o.rules : body.rules,
+      body.accent === undefined ? o.accent : (body.accent?.toLowerCase() ?? null),
       now(),
       orgId,
     );
+    const recolored = body.accent !== undefined && (body.accent?.toLowerCase() ?? null) !== (o.accent ?? null);
     ctx.audit({ actorId: userId, orgId, action: "org.update", detail: opening ? `visibility=${body.visibility ?? o.visibility} join=${body.joinPolicy ?? o.join_policy}` : undefined });
+    if (recolored) ctx.audit({ actorId: userId, orgId, action: "org.accent", detail: body.accent?.toLowerCase() ?? "removed" });
     notifyOrg(ctx, orgId);
     return { org: orgSummary(ctx, db.prepare("SELECT * FROM orgs WHERE id = ?").get(orgId), userId) };
   });
@@ -316,6 +322,57 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const stream = rev ? await ctx.blobs.get("profile-photos", photoBlobId(orgId, rev)) : null;
     if (!stream) throw notFound("No photo");
     return reply.header("content-type", "image/jpeg").header("cache-control", "private, max-age=3600").header("etag", `"${rev}"`).send(stream);
+  });
+
+  // ───────────── Community banner (API 0.44.0, docs/COMMUNITY_BRANDING.md) ─────────────
+  // A wide JPEG stored per revision beside the photo. Whoever can edit the community sets it; members see it, and so
+  // does anyone signed in when the community is listed publicly (Discover shows it). Like the name, it isn't encrypted.
+  app.put("/v1/orgs/:orgId/banner", auth, async (req) => {
+    const { userId } = me(req);
+    const { orgId } = parse(OrgParams, req.params);
+    authz.requirePermission(orgId, userId, "workspace.edit", "Only people who can edit the community can change its banner");
+    const buf = await readJpegBody(req, "Banners", MAX_BANNER_BYTES);
+    const previous = (db.prepare("SELECT banner_rev FROM orgs WHERE id = ?").get(orgId) as { banner_rev: number | null } | undefined)?.banner_rev ?? null;
+    const rev = Math.max(now(), (previous ?? 0) + 1);
+    await storePhoto(ctx, bannerBlobId(orgId, rev), buf);
+    // The community may have been deleted while the banner uploaded: then the new blob is removed again.
+    if (db.prepare("UPDATE orgs SET banner_rev = ?, updated_at = ? WHERE id = ?").run(rev, now(), orgId).changes === 0) {
+      await deleteBlobNow(ctx, "profile-photos", bannerBlobId(orgId, rev));
+      throw notFound("Organization not found");
+    }
+    if (previous) await deleteBlobNow(ctx, "profile-photos", bannerBlobId(orgId, previous));
+    ctx.audit({ actorId: userId, orgId, action: "org.banner" });
+    notifyOrg(ctx, orgId);
+    return { bannerRev: rev };
+  });
+
+  app.delete("/v1/orgs/:orgId/banner", auth, async (req) => {
+    const { userId } = me(req);
+    const { orgId } = parse(OrgParams, req.params);
+    authz.requirePermission(orgId, userId, "workspace.edit", "Only people who can edit the community can change its banner");
+    const previous = (db.prepare("SELECT banner_rev FROM orgs WHERE id = ?").get(orgId) as { banner_rev: number | null }).banner_rev;
+    db.prepare("UPDATE orgs SET banner_rev = NULL, updated_at = ? WHERE id = ?").run(now(), orgId);
+    if (previous) {
+      await deleteBlobNow(ctx, "profile-photos", bannerBlobId(orgId, previous));
+      ctx.audit({ actorId: userId, orgId, action: "org.banner", detail: "removed" });
+      notifyOrg(ctx, orgId);
+    }
+    return { bannerRev: null };
+  });
+
+  const sendBanner = async (reply: FastifyReply, orgId: string, rev: number | null, cache: string) => {
+    const stream = rev ? await ctx.blobs.get("profile-photos", bannerBlobId(orgId, rev)) : null;
+    if (!stream) throw notFound("No banner");
+    return reply.header("content-type", "image/jpeg").header("cache-control", cache).header("etag", `"${rev}"`).send(stream);
+  };
+
+  app.get("/v1/orgs/:orgId/banner", auth, async (req, reply) => {
+    const { userId } = me(req);
+    const { orgId } = parse(OrgParams, req.params);
+    const o = db.prepare("SELECT visibility, banner_rev FROM orgs WHERE id = ?").get(orgId) as { visibility: string; banner_rev: number | null } | undefined;
+    // Members, or anyone signed in for a community listed in Discover (which shows it); otherwise it doesn't exist.
+    if (!o || (o.visibility !== "public" && !authz.orgRole(orgId, userId)) || authz.isBanned(orgId, userId)) throw notFound("No banner");
+    return sendBanner(reply, orgId, o.banner_rev, "private, max-age=3600");
   });
 
   // ───────────── Deleting an organization (2026-10-17, docs/WORKSPACES.md › Deleting a workspace) ─────────────
@@ -367,6 +424,8 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
         }
         const photoRev = (db.prepare("SELECT photo_rev FROM orgs WHERE id = ?").get(orgId) as { photo_rev: number | null }).photo_rev;
         if (photoRev) queueBlobDelete(ctx, "profile-photos", photoBlobId(orgId, photoRev));
+        const bannerRev = (db.prepare("SELECT banner_rev FROM orgs WHERE id = ?").get(orgId) as { banner_rev: number | null }).banner_rev;
+        if (bannerRev) queueBlobDelete(ctx, "profile-photos", bannerBlobId(orgId, bannerRev));
         // Batch B9: the community's own emoji and stickers.
         for (const e of db.prepare("SELECT id FROM community_expressions WHERE org_id = ?").all(orgId) as { id: string }[]) queueBlobDelete(ctx, "profile-photos", e.id);
         // Cascades to org_members, roles, categories, overwrites, bans, invitations, the old branch and team rows, and
@@ -615,7 +674,16 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const org = db.prepare("SELECT * FROM orgs WHERE id = ?").get(inv.org_id) as any;
     return {
       // Same org shape as everywhere else (the app decodes it with the same model; without the slug it refused the response).
-      org: { id: org.id, name: org.name, slug: org.slug, description: org.description, rules: org.rules ?? null, memberCount: (db.prepare("SELECT COUNT(*) n FROM org_members WHERE org_id = ?").get(org.id) as { n: number }).n },
+      org: {
+        id: org.id,
+        name: org.name,
+        slug: org.slug,
+        description: org.description,
+        rules: org.rules ?? null,
+        memberCount: (db.prepare("SELECT COUNT(*) n FROM org_members WHERE org_id = ?").get(org.id) as { n: number }).n,
+        accent: org.accent ?? null,
+        bannerRev: org.banner_rev ?? null,
+      },
       role: inv.role,
       branch: null,
       team: null,
@@ -633,15 +701,31 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
   app.get("/v1/invites/:code/public", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (req) => {
     const { code } = parse(InviteCodeParams, req.params);
     const inv = findInvite(code);
-    const org = db.prepare("SELECT id, name, description, photo_rev FROM orgs WHERE id = ?").get(inv.org_id) as { id: string; name: string; description: string | null; photo_rev: number | null };
+    const org = db.prepare("SELECT id, name, description, accent, banner_rev FROM orgs WHERE id = ?").get(inv.org_id) as {
+      id: string;
+      name: string;
+      description: string | null;
+      accent: string | null;
+      banner_rev: number | null;
+    };
     return {
       community: {
         name: org.name,
         description: org.description,
         memberCount: (db.prepare("SELECT COUNT(*) n FROM org_members WHERE org_id = ?").get(org.id) as { n: number }).n,
+        accent: org.accent ?? null,
+        banner: org.banner_rev !== null,
       },
       invitesPaused: !!authz.pausedUntil(inv.org_id, "invites", now()),
     };
+  });
+
+  /** The invitation's community banner (API 0.44.0), for the invite page and the app's preview: a usable code only. */
+  app.get("/v1/invites/:code/banner", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (req, reply) => {
+    const { code } = parse(InviteCodeParams, req.params);
+    const inv = findInvite(code);
+    const rev = (db.prepare("SELECT banner_rev FROM orgs WHERE id = ?").get(inv.org_id) as { banner_rev: number | null } | undefined)?.banner_rev ?? null;
+    return sendBanner(reply, inv.org_id, rev, "public, max-age=300");
   });
 
   app.post("/v1/invites/accept", inviteRate, async (req) => {

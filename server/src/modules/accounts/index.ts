@@ -123,3 +123,5 @@ export {
   admitLoadtestAccount, checkLoadtestRequest, createLoadtestInvite, findLoadtestInvite, isSynthetic, LOADTEST_INVITE_MAX_DAYS, LOADTEST_INVITE_MAX_USES,
   loadtestQuota, requireSyntheticScopeForPeople, type LoadtestPolicy, type QuotaState,
 } from "./loadtest.js";
+// Community photos made from a Discord server's icon (modules/organizations/discord).
+export { MAX_PHOTO_BYTES, photoBlobId, storePhoto } from "./photos.js";

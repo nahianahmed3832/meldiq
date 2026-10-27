@@ -1,0 +1,26 @@
+{
+  "import": {
+    "id": "dimp_CT8yEbrs_RB97M8OKQKBtw",
+    "guildId": "111111111111111111",
+    "guildName": "Pixel Club",
+    "orgId": "o_C09jEtiEDYPMaQDHhQeDGw",
+    "status": "running",
+    "error": null,
+    "options": {
+      "icon": true,
+      "roles": true,
+      "rolePermissions": false,
+      "channels": true,
+      "emojis": true
+    },
+    "counts": {
+      "total": 16,
+      "done": 0,
+      "failed": 0,
+      "skipped": 3,
+      "pending": 13
+    },
+    "createdAt": 1793092901707,
+    "finishedAt": null
+  }
+}

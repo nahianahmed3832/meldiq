@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "discord_bot_missing",
+    "message": "Meldiq's bot wasn't added to that server. Connect Discord again and allow it."
+  }
+}

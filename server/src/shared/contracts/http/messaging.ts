@@ -28,6 +28,11 @@ export const Envelope = z.object({
    * marks the recipients' copies, and recipients treat @everyone as a mention only with that mark.
    */
   mentionAll: z.boolean().optional(),
+  /**
+   * "self": a control only for the sender's own other devices (API 0.43.0), e.g. "I've read this channel up to here"
+   * so the person's other browsers clear it too. Recipients are then exactly those devices; nobody else gets a copy.
+   */
+  audience: z.enum(["self"]).optional(),
 });
 export type Envelope = z.infer<typeof Envelope>;
 

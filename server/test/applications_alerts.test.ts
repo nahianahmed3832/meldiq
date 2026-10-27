@@ -104,7 +104,7 @@ describe("public invite preview", () => {
     const r = await fetch(`${h.baseUrl}/v1/invites/${code}/public`);
     expect(r.status).toBe(200);
     const body = await r.json();
-    expect(body).toEqual({ community: { name: "Apply Lab", description: null, memberCount: expect.any(Number) }, invitesPaused: false });
+    expect(body).toEqual({ community: { name: "Apply Lab", description: null, memberCount: expect.any(Number), accent: null, banner: false }, invitesPaused: false });
     const bad = await fetch(`${h.baseUrl}/v1/invites/AAAA-BBBB-CCCC/public`);
     expect(bad.status).toBe(404);
     expect((await bad.json()).error.code).toBe("invite_not_found");

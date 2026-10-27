@@ -15,6 +15,12 @@ export const OrgRole = z.enum(["OWNER", "ADMIN", "MEMBER", "GUEST"]);
 const zName = z.string().trim().min(1).max(80);
 const zText = z.string().trim().max(500);
 const zOptText = zText.nullable().optional();
+
+/**
+ * A community's accent colour (docs/COMMUNITY_BRANDING.md): "#rrggbb", stored in lower case; null puts Meldiq's theme
+ * back. Apps derive readable text and tints from it, so any colour is safe to pick.
+ */
+export const zAccent = z.string().regex(/^#[0-9a-fA-F]{6}$/, "Use a colour like #3a5bd9");
 const zRules = z.string().trim().max(4000).nullable().optional();
 /** Accepted from older apps and ignored: every workspace is a community since the rebuild. */
 const zOrgKind = z.enum(["team", "community"]);
@@ -51,6 +57,10 @@ export const CommunityView = z.strictObject({
   createdAt: zTime,
   /** The community photo's revision (GET /v1/orgs/:orgId/photo), null without one. */
   photoRev: zTime.nullable(),
+  /** Its accent colour ("#rrggbb"), null for Meldiq's standard theme (API 0.44.0). */
+  accent: z.string().nullable(),
+  /** Its banner's revision (GET /v1/orgs/:orgId/banner), null without one (API 0.44.0). */
+  bannerRev: zTime.nullable(),
   guestsAllowed: z.boolean(),
   guestMaxDays: zCount.nullable(),
   /** Always "community" since the rebuild. */
@@ -242,6 +252,8 @@ export const OrgUpdateBody = z.object({
   visibility: Visibility.optional(),
   joinPolicy: JoinPolicy.optional(),
   rules: zRules,
+  /** The accent colour, or null for Meldiq's theme (API 0.44.0). */
+  accent: zAccent.nullable().optional(),
 });
 
 export const OrgDeleteBody = z.object({ confirmName: z.string().max(200), requestId: z.string().min(8).max(64).optional() });
@@ -356,6 +368,32 @@ export const orgRoutes = [
     errors: ["not_found"],
   }),
   community({
+    method: "PUT",
+    url: "/v1/orgs/:orgId/banner",
+    summary: "Set the community banner (a JPEG of at most 1 MB; the apps send about 1200 × 480).",
+    params: OrgParams,
+    binary: "request",
+    response: z.strictObject({ bannerRev: zTime }),
+    errors: ["not_found", "forbidden", "too_large", "storage_unavailable"],
+  }),
+  community({
+    method: "DELETE",
+    url: "/v1/orgs/:orgId/banner",
+    summary: "Remove the community banner.",
+    params: OrgParams,
+    response: z.strictObject({ bannerRev: z.null() }),
+    errors: ["not_found", "forbidden"],
+  }),
+  community({
+    method: "GET",
+    url: "/v1/orgs/:orgId/banner",
+    summary: "The community banner (JPEG): for its members, and for anyone signed in when the community is public.",
+    params: OrgParams,
+    binary: "response",
+    response: z.unknown(),
+    errors: ["not_found"],
+  }),
+  community({
     method: "DELETE",
     url: "/v1/orgs/:orgId",
     summary: "Delete a community for good (owners, after typing its name). A retry with the same requestId gets the same answer.",
@@ -439,7 +477,17 @@ export const orgRoutes = [
     summary: "What an invitation code leads to, before accepting it.",
     body: InviteCodeBody,
     response: z.strictObject({
-      org: z.strictObject({ id: z.string(), name: z.string(), slug: z.string(), description: z.string().nullable(), rules: z.string().nullable(), memberCount: zCount }),
+      org: z.strictObject({
+        id: z.string(),
+        name: z.string(),
+        slug: z.string(),
+        description: z.string().nullable(),
+        rules: z.string().nullable(),
+        memberCount: zCount,
+        /** Its look (API 0.44.0): the accent, and the banner's revision (GET /v1/invites/:code/banner). */
+        accent: z.string().nullable(),
+        bannerRev: zTime.nullable(),
+      }),
       role: z.enum(["ADMIN", "MEMBER", "GUEST"]),
       branch: z.null(),
       team: z.null(),
@@ -458,9 +506,26 @@ export const orgRoutes = [
     auth: false,
     params: InviteCodeParams,
     response: z.strictObject({
-      community: z.strictObject({ name: z.string(), description: z.string().nullable(), memberCount: zCount }),
+      community: z.strictObject({
+        name: z.string(),
+        description: z.string().nullable(),
+        memberCount: zCount,
+        /** Its accent, and whether it has a banner (GET /v1/invites/:code/banner); API 0.44.0. */
+        accent: z.string().nullable(),
+        banner: z.boolean(),
+      }),
       invitesPaused: z.boolean(),
     }),
+    errors: [...INVITE_PROBLEM_CODES],
+  }),
+  community({
+    method: "GET",
+    url: "/v1/invites/:code/banner",
+    summary: "The banner of the community an invitation leads to (JPEG), before signing in.",
+    auth: false,
+    params: InviteCodeParams,
+    binary: "response",
+    response: z.unknown(),
     errors: [...INVITE_PROBLEM_CODES],
   }),
   community({

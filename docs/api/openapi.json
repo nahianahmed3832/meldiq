@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Meldiq API",
-    "version": "0.42.0",
+    "version": "0.44.0",
     "description": "The canonical contract of the Meldiq server (docs/architecture/ARCHITECTURE_1_0_PLAN.md §4), generated from src/shared/contracts. Fields are only ever added within a version; clients ignore unknown fields. Routes not listed here exist but aren't documented yet."
   },
   "servers": [
@@ -52,6 +52,9 @@
     },
     {
       "name": "roles"
+    },
+    {
+      "name": "discord-import"
     },
     {
       "name": "community"
@@ -537,6 +540,12 @@
                   },
                   "mentionAll": {
                     "type": "boolean"
+                  },
+                  "audience": {
+                    "type": "string",
+                    "enum": [
+                      "self"
+                    ]
                   }
                 },
                 "required": [
@@ -14376,6 +14385,28 @@
                             }
                           ]
                         },
+                        "accent": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "bannerRev": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "guestsAllowed": {
                           "type": "boolean"
                         },
@@ -14578,6 +14609,8 @@
                         "memberCount",
                         "createdAt",
                         "photoRev",
+                        "accent",
+                        "bannerRev",
                         "guestsAllowed",
                         "guestMaxDays",
                         "kind",
@@ -14764,6 +14797,28 @@
                             "maximum": 9007199254740991
                           },
                           "photoRev": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "accent": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "bannerRev": {
                             "anyOf": [
                               {
                                 "type": "integer",
@@ -14977,6 +15032,8 @@
                           "memberCount",
                           "createdAt",
                           "photoRev",
+                          "accent",
+                          "bannerRev",
                           "guestsAllowed",
                           "guestMaxDays",
                           "kind",
@@ -15210,6 +15267,28 @@
                             }
                           ]
                         },
+                        "accent": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "bannerRev": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "guestsAllowed": {
                           "type": "boolean"
                         },
@@ -15412,6 +15491,8 @@
                         "memberCount",
                         "createdAt",
                         "photoRev",
+                        "accent",
+                        "bannerRev",
                         "guestsAllowed",
                         "guestMaxDays",
                         "kind",
@@ -15778,6 +15859,28 @@
                             }
                           ]
                         },
+                        "accent": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "bannerRev": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "guestsAllowed": {
                           "type": "boolean"
                         },
@@ -15980,6 +16083,8 @@
                         "memberCount",
                         "createdAt",
                         "photoRev",
+                        "accent",
+                        "bannerRev",
                         "guestsAllowed",
                         "guestMaxDays",
                         "kind",
@@ -16070,6 +16175,17 @@
                       {
                         "type": "string",
                         "maxLength": 4000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "accent": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^#[0-9a-fA-F]{6}$"
                       },
                       {
                         "type": "null"
@@ -16312,6 +16428,175 @@
         ],
         "summary": "The community photo (JPEG).",
         "operationId": "getV1OrgsOrgIdPhoto",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The bytes (or 302 to a storage URL)",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/orgs/{orgId}/banner": {
+      "put": {
+        "tags": [
+          "communities"
+        ],
+        "summary": "Set the community banner (a JPEG of at most 1 MB; the apps send about 1200 × 480).",
+        "operationId": "putV1OrgsOrgIdBanner",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "bannerRev": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "bannerRev"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, too_large, storage_unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "communities"
+        ],
+        "summary": "Remove the community banner.",
+        "operationId": "deleteV1OrgsOrgIdBanner",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "bannerRev": {
+                      "type": "null"
+                    }
+                  },
+                  "required": [
+                    "bannerRev"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "get": {
+        "tags": [
+          "communities"
+        ],
+        "summary": "The community banner (JPEG): for its members, and for anyone signed in when the community is public.",
+        "operationId": "getV1OrgsOrgIdBanner",
         "parameters": [
           {
             "name": "orgId",
@@ -17424,6 +17709,28 @@
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991
+                        },
+                        "accent": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "bannerRev": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         }
                       },
                       "required": [
@@ -17432,7 +17739,9 @@
                         "slug",
                         "description",
                         "rules",
-                        "memberCount"
+                        "memberCount",
+                        "accent",
+                        "bannerRev"
                       ],
                       "additionalProperties": false
                     },
@@ -17594,12 +17903,27 @@
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991
+                        },
+                        "accent": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "banner": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
                         "name",
                         "description",
-                        "memberCount"
+                        "memberCount",
+                        "accent",
+                        "banner"
                       ],
                       "additionalProperties": false
                     },
@@ -17612,6 +17936,50 @@
                     "invitesPaused"
                   ],
                   "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: invite_not_found, invite_revoked, invite_expired, invite_used_up, invite_unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/invites/{code}/banner": {
+      "get": {
+        "tags": [
+          "communities"
+        ],
+        "summary": "The banner of the community an invitation leads to (JPEG), before signing in.",
+        "operationId": "getV1InvitesCodeBanner",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 40
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The bytes (or 302 to a storage URL)",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
                 }
               }
             }
@@ -17694,6 +18062,28 @@
                           "maximum": 9007199254740991
                         },
                         "photoRev": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "accent": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "bannerRev": {
                           "anyOf": [
                             {
                               "type": "integer",
@@ -17907,6 +18297,8 @@
                         "memberCount",
                         "createdAt",
                         "photoRev",
+                        "accent",
+                        "bannerRev",
                         "guestsAllowed",
                         "guestMaxDays",
                         "kind",
@@ -21924,6 +22316,1159 @@
         ]
       }
     },
+    "/v1/discord/status": {
+      "get": {
+        "tags": [
+          "discord-import"
+        ],
+        "summary": "Whether this server can import from Discord, and the Discord servers you've connected (usable for 24 hours).",
+        "operationId": "getV1DiscordStatus",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "configured": {
+                      "type": "boolean"
+                    },
+                    "connections": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "guildId": {
+                            "type": "string"
+                          },
+                          "guildName": {
+                            "type": "string"
+                          },
+                          "verifiedAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "expiresAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "guildId",
+                          "guildName",
+                          "verifiedAt",
+                          "expiresAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "configured",
+                    "connections"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/discord/connect": {
+      "post": {
+        "tags": [
+          "discord-import"
+        ],
+        "summary": "Start connecting Discord: the address where you add Meldiq's bot to a server you manage (valid 10 minutes).",
+        "operationId": "postV1DiscordConnect",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "url"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: discord_not_configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/discord/callback": {
+      "post": {
+        "tags": [
+          "discord-import"
+        ],
+        "summary": "Finish connecting: Meldiq checks with Discord that you own the server or have Manage Server there, then forgets your Discord token.",
+        "operationId": "postV1DiscordCallback",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "connection": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "guildId": {
+                          "type": "string"
+                        },
+                        "guildName": {
+                          "type": "string"
+                        },
+                        "verifiedAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "expiresAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "guildId",
+                        "guildName",
+                        "verifiedAt",
+                        "expiresAt"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "connection"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: discord_not_configured, discord_not_allowed, discord_bot_missing, discord_unreachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "state": {
+                    "type": "string",
+                    "minLength": 16,
+                    "maxLength": 200
+                  },
+                  "guildId": {
+                    "type": "string",
+                    "pattern": "^\\d{5,25}$"
+                  }
+                },
+                "required": [
+                  "code",
+                  "state"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/discord/connections/{id}": {
+      "delete": {
+        "tags": [
+          "discord-import"
+        ],
+        "summary": "Disconnect a Discord server; with ?leave=true Meldiq's bot also leaves it.",
+        "operationId": "deleteV1DiscordConnectionsId",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "leave",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "botLeft": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "botLeft"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, discord_unreachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/discord/connections/{id}/preview": {
+      "get": {
+        "tags": [
+          "discord-import"
+        ],
+        "summary": "What an import would make, item by item, and what it would leave out and why.",
+        "operationId": "getV1DiscordConnectionsIdPreview",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "orgId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "guild": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "description": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "description"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "icon",
+                              "role",
+                              "category",
+                              "channel",
+                              "emoji"
+                            ]
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "action": {
+                            "type": "string",
+                            "enum": [
+                              "create",
+                              "skip"
+                            ]
+                          },
+                          "note": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "kind",
+                          "name",
+                          "action",
+                          "note"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "excluded": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "guild",
+                    "items",
+                    "excluded"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, discord_not_configured, discord_bot_missing, discord_unreachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/discord/imports": {
+      "post": {
+        "tags": [
+          "discord-import"
+        ],
+        "summary": "Import a connected server into a new community (private, invite-only) or one you run. Runs in the background.",
+        "operationId": "postV1DiscordImports",
+        "parameters": [],
+        "responses": {
+          "202": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "import": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "guildId": {
+                          "type": "string"
+                        },
+                        "guildName": {
+                          "type": "string"
+                        },
+                        "orgId": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "running",
+                            "completed",
+                            "completed_with_errors",
+                            "failed",
+                            "interrupted"
+                          ]
+                        },
+                        "error": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "options": {
+                          "type": "object",
+                          "properties": {
+                            "icon": {
+                              "type": "boolean"
+                            },
+                            "roles": {
+                              "type": "boolean"
+                            },
+                            "rolePermissions": {
+                              "type": "boolean"
+                            },
+                            "channels": {
+                              "type": "boolean"
+                            },
+                            "emojis": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "icon",
+                            "roles",
+                            "rolePermissions",
+                            "channels",
+                            "emojis"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "counts": {
+                          "type": "object",
+                          "properties": {
+                            "total": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            },
+                            "done": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            },
+                            "failed": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            },
+                            "skipped": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            },
+                            "pending": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "total",
+                            "done",
+                            "failed",
+                            "skipped",
+                            "pending"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "finishedAt": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "guildId",
+                        "guildName",
+                        "orgId",
+                        "status",
+                        "error",
+                        "options",
+                        "counts",
+                        "createdAt",
+                        "finishedAt"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "import"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, org_name_taken, discord_not_configured, discord_bot_missing, discord_unreachable, conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "connectionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "destination": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "orgId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          }
+                        },
+                        "required": [
+                          "orgId"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 80
+                          }
+                        },
+                        "required": [
+                          "name"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  },
+                  "options": {
+                    "type": "object",
+                    "properties": {
+                      "icon": {
+                        "type": "boolean"
+                      },
+                      "roles": {
+                        "type": "boolean"
+                      },
+                      "rolePermissions": {
+                        "type": "boolean"
+                      },
+                      "channels": {
+                        "type": "boolean"
+                      },
+                      "emojis": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "icon",
+                      "roles",
+                      "rolePermissions",
+                      "channels",
+                      "emojis"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "connectionId",
+                  "destination",
+                  "options"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/discord/imports/{id}": {
+      "get": {
+        "tags": [
+          "discord-import"
+        ],
+        "summary": "An import's progress and, item by item, what was made, left out or failed.",
+        "operationId": "getV1DiscordImportsId",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "import": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "guildId": {
+                          "type": "string"
+                        },
+                        "guildName": {
+                          "type": "string"
+                        },
+                        "orgId": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "running",
+                            "completed",
+                            "completed_with_errors",
+                            "failed",
+                            "interrupted"
+                          ]
+                        },
+                        "error": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "options": {
+                          "type": "object",
+                          "properties": {
+                            "icon": {
+                              "type": "boolean"
+                            },
+                            "roles": {
+                              "type": "boolean"
+                            },
+                            "rolePermissions": {
+                              "type": "boolean"
+                            },
+                            "channels": {
+                              "type": "boolean"
+                            },
+                            "emojis": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "icon",
+                            "roles",
+                            "rolePermissions",
+                            "channels",
+                            "emojis"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "counts": {
+                          "type": "object",
+                          "properties": {
+                            "total": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            },
+                            "done": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            },
+                            "failed": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            },
+                            "skipped": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            },
+                            "pending": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "total",
+                            "done",
+                            "failed",
+                            "skipped",
+                            "pending"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "finishedAt": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "guildId",
+                        "guildName",
+                        "orgId",
+                        "status",
+                        "error",
+                        "options",
+                        "counts",
+                        "createdAt",
+                        "finishedAt"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "icon",
+                              "role",
+                              "category",
+                              "channel",
+                              "emoji"
+                            ]
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "pending",
+                              "done",
+                              "failed",
+                              "skipped"
+                            ]
+                          },
+                          "note": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "kind",
+                          "name",
+                          "status",
+                          "note"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "import",
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/discord/imports/{id}/retry": {
+      "post": {
+        "tags": [
+          "discord-import"
+        ],
+        "summary": "Try the failed items again (and continue an interrupted import). Nothing already made is made twice.",
+        "operationId": "postV1DiscordImportsIdRetry",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "import": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "guildId": {
+                          "type": "string"
+                        },
+                        "guildName": {
+                          "type": "string"
+                        },
+                        "orgId": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "running",
+                            "completed",
+                            "completed_with_errors",
+                            "failed",
+                            "interrupted"
+                          ]
+                        },
+                        "error": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "options": {
+                          "type": "object",
+                          "properties": {
+                            "icon": {
+                              "type": "boolean"
+                            },
+                            "roles": {
+                              "type": "boolean"
+                            },
+                            "rolePermissions": {
+                              "type": "boolean"
+                            },
+                            "channels": {
+                              "type": "boolean"
+                            },
+                            "emojis": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "icon",
+                            "roles",
+                            "rolePermissions",
+                            "channels",
+                            "emojis"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "counts": {
+                          "type": "object",
+                          "properties": {
+                            "total": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            },
+                            "done": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            },
+                            "failed": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            },
+                            "skipped": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            },
+                            "pending": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "total",
+                            "done",
+                            "failed",
+                            "skipped",
+                            "pending"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "finishedAt": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "guildId",
+                        "guildName",
+                        "orgId",
+                        "status",
+                        "error",
+                        "options",
+                        "counts",
+                        "createdAt",
+                        "finishedAt"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "import"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, conflict, discord_not_configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
     "/v1/orgs/{orgId}/categories": {
       "get": {
         "tags": [
@@ -23425,6 +24970,28 @@
                               }
                             ]
                           },
+                          "accent": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "bannerRev": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
                           "joinPolicy": {
                             "type": "string",
                             "enum": [
@@ -23445,6 +25012,8 @@
                           "description",
                           "memberCount",
                           "photoRev",
+                          "accent",
+                          "bannerRev",
                           "joinPolicy",
                           "applications",
                           "joined"
@@ -23560,6 +25129,28 @@
                           "maximum": 9007199254740991
                         },
                         "photoRev": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "accent": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "bannerRev": {
                           "anyOf": [
                             {
                               "type": "integer",
@@ -23773,6 +25364,8 @@
                         "memberCount",
                         "createdAt",
                         "photoRev",
+                        "accent",
+                        "bannerRev",
                         "guestsAllowed",
                         "guestMaxDays",
                         "kind",
@@ -24012,6 +25605,28 @@
                             }
                           ]
                         },
+                        "accent": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "bannerRev": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "guestsAllowed": {
                           "type": "boolean"
                         },
@@ -24214,6 +25829,8 @@
                         "memberCount",
                         "createdAt",
                         "photoRev",
+                        "accent",
+                        "bannerRev",
                         "guestsAllowed",
                         "guestMaxDays",
                         "kind",
@@ -59622,6 +61239,10 @@
                   "device_required",
                   "device_revoked",
                   "direct_upload_unavailable",
+                  "discord_bot_missing",
+                  "discord_not_allowed",
+                  "discord_not_configured",
+                  "discord_unreachable",
                   "dm_not_allowed",
                   "dms_paused",
                   "email_failed",
@@ -60084,6 +61705,30 @@
         409
       ],
       "meaning": "This server receives uploads itself: use POST /v1/attachments."
+    },
+    "discord_bot_missing": {
+      "status": [
+        409
+      ],
+      "meaning": "Meldiq's Discord bot isn't in that server any more. Connect Discord again to add it."
+    },
+    "discord_not_allowed": {
+      "status": [
+        403
+      ],
+      "meaning": "You need to own that Discord server or have Manage Server there to import it."
+    },
+    "discord_not_configured": {
+      "status": [
+        409
+      ],
+      "meaning": "Importing from Discord isn't set up on this server yet."
+    },
+    "discord_unreachable": {
+      "status": [
+        502
+      ],
+      "meaning": "Discord didn't answer. Try again in a minute."
     },
     "dm_not_allowed": {
       "status": [

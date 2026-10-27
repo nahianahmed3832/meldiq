@@ -130,6 +130,61 @@ Passkeys failed in the app installed from Google Play: Play signs it with its ap
 
 Rollback: copy the backup's `.env` back and recreate `api` the same way.
 
+### Meldiq Web 0.5.0-beta-fbee84d and c3220e5 (2026-10-27, 10:19 and 10:21 UTC)
+
+The reference UI, colourful names and community branding (meldiq-web `docs/MELDIQ_BRANDING_REPORT.md`), then a
+one-line fix to the invitation page. Browser suite (Chromium + phone width, against 0.44.0) 64 passed, 0 failed;
+518 unit tests. Each release: `sha256sum -c` ok; nginx site, CSP and `config.json` byte-identical before and after;
+`verify.sh` all passed. Post backup `backups/post-0.44.0-20261027T102210Z` (schema 57, 43 users). Rollback:
+`bash /root/meldiq-web-0.5.0-beta-c3220e5/rollback.sh`.
+
+### API 0.44.0 (2026-10-27, 09:39 UTC, owner's go-ahead in the brief)
+
+Community accent colours and banners (`docs/COMMUNITY_BRANDING.md`), feature `community-branding`. **Migration 057**
+adds two nullable columns to `orgs` (`accent`, `banner_rev`); every existing community keeps Meldiq's theme. Branch
+`meldling-api` 8020aa3.
+
+| Step | Result |
+|---|---|
+| Checks before | server full suite 1,106 passed / 11 skipped (the docs check passes after `npm run contracts`); new `community_branding` (7); `tsc` clean; PR CI "Server" passed |
+| Pre-flight | running 0.43.0; VPS `server/` (tests excluded) byte-equal to a5c2d6b (`rsync -c` dry run, empty); 49 GB free; `.env` has no `DISCORD_*` names |
+| Housekeeping | the 0.35.0 build waiter (PID 1577835, `while pgrep -f "docker build … 0.35.0"`, started 2026-10-24 06:20 UTC) could never end: its pattern matched its own command line. No build was running; it was sent SIGTERM and exited. Two older `bash -s` sleep loops (PIDs 1582394, 1708911, from 2026-10-23) were left alone: their purpose couldn't be shown |
+| Build | sources kept as `server.pre-0.44.0`; the 10 changed files synced; parity with 8020aa3 confirmed; `docker build -t griip-internal-messaging-api:0.44.0 server` (`build-0.44.0.log`, done; the SSH session dropped, `nohup` survived) |
+| Backup | `backups/pre-0.44.0-20261027T093747Z`: integrity ok, schema 56, 43 users, `.env` + `compose.yaml` copies; image tagged `0.43.0-rollback` |
+| Rehearsal | backup copy, `--network none`, env without FCM lines: healthy, 0.44.0, schema 57, both columns present, no community branded, 0 errors; removed after |
+| Switch | `compose.yaml` image 0.44.0, `validate-env.sh` 0 errors (the 2 usual warnings), `config -q`, `up -d --no-deps --no-build api`: healthy, 0 restarts |
+| Checks after | `/healthz` 0.44.0 on msg.meldiq.app and msg.griipbuddy.cloud; `community-branding` advertised; banner routes answer 401 signed out and 404 for an unknown invitation; live schema 57, integrity ok; 0 errors in the log; `verify.sh` clean |
+
+| Discord import (09:56 UTC) | application "Meldiq" (Client ID 1564576594209673226) made by the owner's account in the Developer Portal: redirect `https://web.meldiq.app/discord/callback`, privileged intents off, Public Bot on. The owner entered the secret and bot token with `/root/set-discord.sh` (hidden input; `.env.before-discord-20261027T095631Z` kept). `validate-env.sh` "Discord import on", 0 errors; `up -d --no-deps --no-build --force-recreate api`: healthy, 0 restarts, 0 errors. From the container: the bot token answers as "Meldiq" with the same id, Public Bot and that redirect; the client secret is accepted (a client-credentials token, revoked at once); the API's configuration has Discord on. No real server imported yet |
+
+Rollback: `compose.yaml` image `griip-internal-messaging-api:0.43.0-rollback`, `up -d --no-deps --no-build api`. 0.43.0
+runs on schema 57 as it is (two added nullable columns it never reads); banners already uploaded stay in the store.
+
+### API 0.43.0 and Meldiq Web 0.5.0-beta-73bbdda (2026-10-27, 00:19 UTC, owner's go-ahead in the brief)
+
+The Meldling round (meldiq-web `docs/MELDIQ_MELDLING_REPORT.md`). API (branch `meldling-api` on `internal-beta` 59c7916):
+Discord server import (`docs/DISCORD_IMPORT.md`; **off until the `DISCORD_*` settings exist**), self-only encrypted
+controls (`audience: "self"`, channel read state across a person's browsers), features `discord-import` and
+`self-controls`. **Migration 056** adds four `discord_*` tables; nothing existing changes. Web (branch `meldling` on
+`ai-workforce-web`): Meldling across the app, its typing indicator, the Discover page, Invite people with a link, Import
+from Discord.
+
+| Step | Result |
+|---|---|
+| Checks before | server **1,099 passed** / 11 skipped, `tsc` clean; web `tsc -b`, lint, format, 513 unit tests (contracts from this API), browser tests Chromium + phone width against 0.43.0: 61 passed, 1 known-intermittent `viewports` failure that passed 7 of 7 rerun (report §Verification) |
+| Pre-flight | running 0.42.0; VPS `server/` byte-equal to 59c7916; web 9e42f38; 48 GB free |
+| Backup | `backups/pre-0.43.0-20261027T000517Z`: integrity ok, schema 55, 43 users, `.env` + `compose.yaml` copies; image tagged `0.42.0-rollback`; sources kept as `server.pre-0.43.0` |
+| Build | 19 files synced (exactly this release's) plus `scripts/validate-env.sh`; `docker build -t griip-internal-messaging-api:0.43.0 server` (`build-0.43.0.log`, done) |
+| Rehearsal | backup copy, `--network none`, env without FCM lines: healthy, 0.43.0, schema 56 (migration applied), integrity ok, 43 users; removed after |
+| Switch | image 0.43.0, `validate-env.sh` 0 errors ("Discord import off"), `config -q`, `up -d --no-deps --no-build api`: healthy, 0 restarts |
+| Checks after | `/healthz` 0.43.0 on both hosts; Discord routes answer "Authentication required" signed out; `verify.sh` clean; live schema 56, integrity ok; 0 errors in the log; backup `post-0.43.0-20261027T002049Z` verified |
+| Web | release `0.5.0-beta-73bbdda` (sha256 checked) with the live settings; CSP, site and `config.json` byte-identical; `verify.sh` all passed (API 0.43.0 through the site); intro and invitation pages show Meldling without console errors |
+
+Not checked in production: signed-in flows (no production test account), and Discord import (no Discord application).
+
+Rollback: web (`bash /root/meldiq-web-0.5.0-beta-73bbdda/rollback.sh`, back to 9e42f38) first, then the API image
+`0.42.0-rollback` with `up -d --no-deps --no-build api`. 0.42.0 runs on schema 56 as it is (only new tables).
+
 ### API 0.42.0 and Meldiq Web 0.5.0-beta-9e42f38 (2026-10-26, 22:26 UTC, owner's go-ahead)
 
 The community-first redesign (meldiq-web `docs/MELDIQ_COMMUNITY_FIRST_REPORT.md`). API (branch `community-first-api`, 4

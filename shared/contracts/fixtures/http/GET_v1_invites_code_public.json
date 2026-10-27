@@ -2,7 +2,9 @@
   "community": {
     "name": "Apply Lab",
     "description": null,
-    "memberCount": 4
+    "memberCount": 4,
+    "accent": null,
+    "banner": false
   },
   "invitesPaused": false
 }

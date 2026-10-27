@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "discord_not_allowed",
+    "message": "You need to own that Discord server or have Manage Server there to import it."
+  }
+}

@@ -45,6 +45,7 @@ import historyRoutes from "../modules/messaging/history/routes.js";
 import messageRoutes from "../modules/messaging/messagesRoutes.js";
 import orgRoutes from "../modules/organizations/orgsRoutes.js";
 import addMembersRoutes from "../modules/organizations/addMembers.js";
+import discordRoutes from "../modules/organizations/discord/routes.js";
 import roleRoutes from "../modules/organizations/rolesRoutes.js";
 import { Entitlements } from "../modules/administration/entitlements.js";
 import opsRoutes from "../modules/administration/ops/routes.js";
@@ -73,7 +74,7 @@ import { ApiError } from "../shared/errors.js";
 import { now } from "../shared/utilities/util.js";
 import wsRoutes from "../modules/realtime/ws.js";
 
-export const VERSION = "0.42.0";
+export const VERSION = "0.44.0";
 /**
  * The client API this server speaks and the oldest client API it accepts. Clients refuse a server whose
  * minClientApi is newer than theirs; servers from before these fields existed count as API 1.
@@ -346,7 +347,7 @@ export async function buildApp(
     passkeys: ctx.accounts.passkeys.available ? { webOrigins: ctx.accounts.passkeys.webOrigins } : null,
   }));
 
-  for (const r of [authRoutes, userRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, expressionRoutes, wsRoutes]) {
+  for (const r of [authRoutes, userRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, expressionRoutes, discordRoutes, wsRoutes]) {
     await app.register(async (scope) => r(scope, ctx));
   }
   await app.register(async (scope) => opsRoutes(scope, ctx, VERSION));
@@ -454,6 +455,12 @@ export function serverFeatures(config: Config, directUploads = false): string[] 
     "reminders",
     // Round 6: voice rooms (docs/VOICE_ROOMS.md).
     "voice-rooms",
+    // API 0.43.0: importing a Discord server's structure (GET /v1/discord/status says whether it's set up), and
+    // self-only encrypted controls (audience "self": a read in one browser clears the person's others).
+    "discord-import",
+    "self-controls",
+    // API 0.44.0: a community's accent colour and banner (docs/COMMUNITY_BRANDING.md).
+    "community-branding",
   ];
   if (config.accounts.legacy.migration) f.push("legacy-migration");
   if (directUploads) f.push("direct-upload");
