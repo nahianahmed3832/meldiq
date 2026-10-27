@@ -130,6 +130,31 @@ Passkeys failed in the app installed from Google Play: Play signs it with its ap
 
 Rollback: copy the backup's `.env` back and recreate `api` the same way.
 
+### API 0.43.0 and Meldiq Web 0.5.0-beta-73bbdda (2026-10-27, 00:19 UTC, owner's go-ahead in the brief)
+
+The Meldling round (meldiq-web `docs/MELDIQ_MELDLING_REPORT.md`). API (branch `meldling-api` on `internal-beta` 59c7916):
+Discord server import (`docs/DISCORD_IMPORT.md`; **off until the `DISCORD_*` settings exist**), self-only encrypted
+controls (`audience: "self"`, channel read state across a person's browsers), features `discord-import` and
+`self-controls`. **Migration 056** adds four `discord_*` tables; nothing existing changes. Web (branch `meldling` on
+`ai-workforce-web`): Meldling across the app, its typing indicator, the Discover page, Invite people with a link, Import
+from Discord.
+
+| Step | Result |
+|---|---|
+| Checks before | server **1,099 passed** / 11 skipped, `tsc` clean; web `tsc -b`, lint, format, 513 unit tests (contracts from this API), browser tests Chromium + phone width against 0.43.0: 61 passed, 1 known-intermittent `viewports` failure that passed 7 of 7 rerun (report §Verification) |
+| Pre-flight | running 0.42.0; VPS `server/` byte-equal to 59c7916; web 9e42f38; 48 GB free |
+| Backup | `backups/pre-0.43.0-20261027T000517Z`: integrity ok, schema 55, 43 users, `.env` + `compose.yaml` copies; image tagged `0.42.0-rollback`; sources kept as `server.pre-0.43.0` |
+| Build | 19 files synced (exactly this release's) plus `scripts/validate-env.sh`; `docker build -t griip-internal-messaging-api:0.43.0 server` (`build-0.43.0.log`, done) |
+| Rehearsal | backup copy, `--network none`, env without FCM lines: healthy, 0.43.0, schema 56 (migration applied), integrity ok, 43 users; removed after |
+| Switch | image 0.43.0, `validate-env.sh` 0 errors ("Discord import off"), `config -q`, `up -d --no-deps --no-build api`: healthy, 0 restarts |
+| Checks after | `/healthz` 0.43.0 on both hosts; Discord routes answer "Authentication required" signed out; `verify.sh` clean; live schema 56, integrity ok; 0 errors in the log; backup `post-0.43.0-20261027T002049Z` verified |
+| Web | release `0.5.0-beta-73bbdda` (sha256 checked) with the live settings; CSP, site and `config.json` byte-identical; `verify.sh` all passed (API 0.43.0 through the site); intro and invitation pages show Meldling without console errors |
+
+Not checked in production: signed-in flows (no production test account), and Discord import (no Discord application).
+
+Rollback: web (`bash /root/meldiq-web-0.5.0-beta-73bbdda/rollback.sh`, back to 9e42f38) first, then the API image
+`0.42.0-rollback` with `up -d --no-deps --no-build api`. 0.42.0 runs on schema 56 as it is (only new tables).
+
 ### API 0.42.0 and Meldiq Web 0.5.0-beta-9e42f38 (2026-10-26, 22:26 UTC, owner's go-ahead)
 
 The community-first redesign (meldiq-web `docs/MELDIQ_COMMUNITY_FIRST_REPORT.md`). API (branch `community-first-api`, 4
