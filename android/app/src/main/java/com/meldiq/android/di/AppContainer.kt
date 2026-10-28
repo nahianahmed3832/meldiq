@@ -106,6 +106,10 @@ class AppContainer(
     /** Batch B9: a community's own emoji and stickers. */
     val expressions = com.meldiq.android.data.repo.ExpressionRepository(app, api, profile.id)
     val federation = com.meldiq.android.data.repo.FederationRepository(api)
+    /** Meldiq Mojo: plans, Sparks and gifts bought through Google Play and verified by the server (docs/MOJO_ANDROID.md). */
+    val mojo = com.meldiq.android.data.billing.MojoRepository(
+        com.meldiq.android.data.billing.HttpMojoBackend(api), com.meldiq.android.data.billing.PlayBilling(app), scope,
+    ).also { m -> scope.launch { messages.entitlementsChanged.collect { m.refreshEntitlements() } } }
     /** Encrypted message history on the server (docs/MESSAGE_HISTORY.md). */
     val history = com.meldiq.android.data.repo.HistorySync(api, db, session, features, conversations, scope)
     val profiles = com.meldiq.android.data.repo.ProfileRepository(app, api, users, session, profile.id)
@@ -194,6 +198,7 @@ class AppContainer(
     }
 
     fun close() {
+        mojo.close()
         voicePlayer.stop()
         realtime.stop()
         scope.cancel()

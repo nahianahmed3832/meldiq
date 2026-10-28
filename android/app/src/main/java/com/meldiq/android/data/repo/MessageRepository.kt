@@ -125,6 +125,7 @@ class MessageRepository(
     val orgEvents: SharedFlow<String> = signals.orgEvents
     /** Batch B6: someone sent, accepted, cancelled or removed a connection with you (screens reload their lists). */
     val connectionsChanged: SharedFlow<Unit> = signals.connectionsChanged
+    val entitlementsChanged: SharedFlow<Unit> = signals.entitlementsChanged
     val orgDeleted: SharedFlow<String> = signals.orgDeleted
     /** Reminders that went off or changed on another device ("reminder.due", "reminders.changed"): their ids. */
     val reminderEvents: SharedFlow<String> = signals.reminderEvents

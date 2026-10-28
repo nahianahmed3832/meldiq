@@ -24,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.Call
 import androidx.compose.material.icons.outlined.EmojiEmotions
@@ -40,6 +41,7 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -190,6 +192,7 @@ fun YouScreen(nav: NavHostController) {
         }
         item(key = "user-settings") {
             SettingsGroup(stringResource(R.string.wp_settings_user_group)) {
+                MojoRow(onClick = { nav.navigate(Routes.MOJO) })
                 MenuRow(Icons.Outlined.AccountCircle, stringResource(R.string.wp_settings_profile), onClick = { nav.navigate(Routes.EDIT_PROFILE) })
                 MenuRow(Icons.Outlined.Palette, stringResource(R.string.wp_style_title), onClick = { nav.navigate(Routes.PROFILE_STYLE) })
                 MenuRow(Icons.Outlined.Shield, stringResource(R.string.wp_safety_title), onClick = { nav.navigate(Routes.ACCOUNT_SAFETY) })
@@ -335,4 +338,17 @@ private fun StatusMenuSheet(mine: com.meldiq.android.data.api.UserDto?, now: Lon
         if (presenceModes) com.meldiq.android.ui.screens.profile.PresenceRow(mine?.presenceMode, mine?.presenceUntil, now) { onPick(YouSheet.Presence) }
         Spacer(Modifier.height(12.dp))
     }
+}
+
+/** Meldiq Mojo's row: the plan this account is on, or what Mojo adds (one quiet line, never a pop-up). */
+@Composable
+private fun MojoRow(onClick: () -> Unit) {
+    val mojo = com.meldiq.android.ui.LocalContainer.current.mojo
+    val state by mojo.state.collectAsState()
+    LaunchedEffect(Unit) { if (state.entitlements == null) mojo.refresh() }
+    val key = com.meldiq.android.data.billing.MojoPlans.currentKey(state.entitlements)
+    val name = state.catalog?.plan(key)?.name
+    val sub = if (key != com.meldiq.android.data.billing.MojoPlans.FREE && name != null) stringResource(R.string.mojo_entry_sub_plan, name)
+        else stringResource(R.string.mojo_entry_sub_free)
+    MenuRow(Icons.Outlined.AutoAwesome, stringResource(R.string.mojo_title), subtitle = sub, onClick = onClick)
 }

@@ -119,6 +119,8 @@ object Routes {
     const val EDIT_PROFILE = "profile/edit"
     /** Settings › Account safety (API 0.46.0): two-step sign-in, email change, standing, bug reports. */
     const val ACCOUNT_SAFETY = "account/safety"
+    /** Meldiq Mojo: plans, Sparks and gifts (docs/MOJO_ANDROID.md). */
+    const val MOJO = "mojo"
     /** Settings › Profile style (API 0.45.0–0.46.0): frame, banner, name style and worn tag. */
     const val PROFILE_STYLE = "profile/style"
     const val ACCOUNTS = "accounts"
@@ -340,6 +342,7 @@ private fun MainNav(container: AppContainer, pendingConversation: String?, pendi
             composable(Routes.EDIT_PROFILE) { com.meldiq.android.ui.screens.profile.EditProfileScreen(nav) }
             composable(Routes.PROFILE_STYLE) { com.meldiq.android.ui.screens.profile.ProfileStyleScreen(nav) }
             composable(Routes.ACCOUNT_SAFETY) { com.meldiq.android.ui.screens.account.AccountSafetyScreen(nav) }
+            composable(Routes.MOJO) { com.meldiq.android.ui.screens.mojo.MojoScreen(nav) }
             composable(Routes.ACCOUNTS) { com.meldiq.android.ui.screens.profile.AccountsScreen(nav) }
             composable(Routes.CHAT_SETTINGS) { com.meldiq.android.ui.screens.profile.ChatSettingsScreen(nav) }
             composable(Routes.NOTIFICATION_SETTINGS) { com.meldiq.android.ui.screens.profile.NotificationSettingsScreen(nav) }

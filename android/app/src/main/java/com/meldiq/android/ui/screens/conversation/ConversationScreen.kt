@@ -900,6 +900,8 @@ fun ConversationScreen(nav: NavHostController, conversationId: String, threadRoo
                         CircleIconButton(Icons.Outlined.Close, stringResource(R.string.b5_send_no_preview), { vm.dismissPreview() }, size = 36.dp, tint = c.textSecondary)
                     }
                 }
+                val mojoState by vm.c.mojo.state.collectAsStateWithLifecycle()
+                val mojoChars = mojoState.catalog?.plan(com.meldiq.android.data.billing.MojoPlans.currentKey(mojoState.entitlements))?.messageChars ?: 0
                 Composer(
                     text = field,
                     onText = { field = it; vm.typingChanged(it.text) },
@@ -927,6 +929,8 @@ fun ConversationScreen(nav: NavHostController, conversationId: String, threadRoo
                     onSeekDraft = vm::seekDraft,
                     focus = composerFocus,
                     aux = composerAux,
+                    charLimit = mojoChars,
+                    onSeeMojo = { nav.navigate(com.meldiq.android.ui.Routes.MOJO) },
                 )
             }
         }
@@ -1337,6 +1341,9 @@ private fun Composer(
     onSeekDraft: (Long) -> Unit,
     focus: FocusRequester? = null,
     aux: MutableState<ComposerAux.State> = remember { mutableStateOf(ComposerAux.State()) },
+    /** Meldiq Mojo: the plan's characters per message (0: unknown, the server alone decides). */
+    charLimit: Int = 0,
+    onSeeMojo: (() -> Unit)? = null,
 ) {
     val c = Griip.colors
     // Round 7: typing hides attach and emoji; 2 s without typing brings them back. Keyed on the generation, so newer
@@ -1383,6 +1390,8 @@ private fun Composer(
                     CircleIconButton(Icons.Rounded.Close, stringResource(R.string.b5_cancel), onCancelContext, size = 36.dp, tint = c.textSecondary)
                 }
             }
+            val counter = remember(text.text, charLimit) { com.meldiq.android.data.billing.MojoPlans.counter(text.text, charLimit) }
+            CharCounter(counter, charLimit, onSeeMojo)
             Row(verticalAlignment = Alignment.Bottom) {
                 AnimatedVisibility(
                     showAux,
@@ -1419,7 +1428,8 @@ private fun Composer(
                 ) { Icon(Icons.Outlined.EmojiEmotions, null, tint = c.textSecondary, modifier = Modifier.size(22.dp)) }
                 }
                 Spacer(Modifier.width(6.dp))
-                val enabled = text.text.isNotBlank()
+                // Over the plan's limit: nothing is cut; Send waits until the message fits (the server checks again).
+                val enabled = text.text.isNotBlank() && counter !is com.meldiq.android.data.billing.MojoPlans.Counter.Over
                 val recordLabel = stringResource(R.string.b5_record_voice)
                 val sendLabel = stringResource(R.string.b5_send_message)
                 val sendClick = stringResource(R.string.b5_send)
@@ -1442,6 +1452,30 @@ private fun Composer(
                         contentAlignment = Alignment.Center,
                     ) { Icon(Icons.AutoMirrored.Rounded.Send, null, tint = if (enabled) c.onAction else c.textTertiary, modifier = Modifier.size(22.dp)) }
                 }
+            }
+        }
+    }
+}
+
+/** How many characters are left near the plan's limit, and by how much a draft is over it (docs/MOJO_ANDROID.md). */
+@Composable
+private fun CharCounter(counter: com.meldiq.android.data.billing.MojoPlans.Counter, limit: Int, onSeeMojo: (() -> Unit)?) {
+    val c = Griip.colors
+    when (counter) {
+        com.meldiq.android.data.billing.MojoPlans.Counter.Hidden -> Unit
+        is com.meldiq.android.data.billing.MojoPlans.Counter.Near -> Text(
+            stringResource(R.string.mojo_composer_left, counter.left), style = Griip.type.caption, color = c.textTertiary,
+            textAlign = androidx.compose.ui.text.style.TextAlign.End, modifier = Modifier.fillMaxWidth().padding(end = 12.dp, bottom = 4.dp),
+        )
+        is com.meldiq.android.data.billing.MojoPlans.Counter.Over -> Row(
+            Modifier.fillMaxWidth().padding(start = 12.dp, end = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                stringResource(R.string.mojo_composer_over, counter.by, "%,d".format(limit)), style = Griip.type.caption, color = c.danger,
+                modifier = Modifier.weight(1f).semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite },
+            )
+            if (onSeeMojo != null) androidx.compose.material3.TextButton(onSeeMojo) {
+                Text(stringResource(R.string.mojo_composer_upgrade), style = Griip.type.caption.copy(fontWeight = FontWeight.Bold), color = c.primary)
             }
         }
     }
