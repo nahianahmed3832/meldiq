@@ -157,20 +157,20 @@ export async function stripeSetup(api: StripeSetupApi, opts: StripeSetupOptions)
  * price becomes a new version (subscribers keep theirs). Trial and grace days are 0: free periods are grants
  * (grants.ts), and the grace period isn't decided yet.
  */
-export function publishMojoPlans(
+export async function publishMojoPlans(
   catalog: PlanCatalog,
   provider: string,
   prices: StripeSetupResult["prices"],
   actor: string,
   t: number,
-): string[] {
+): Promise<string[]> {
   const done: string[] = [];
   for (const p of MOJO_PRICES) {
     const terms = { interval: "month" as const, currency: "USD", amountMinor: p.amountMinor, providerPriceRef: prices[p.tier], trialDays: 0, graceDays: 0, limits: {}, notes: "", quotaPlanId: null };
     let plan = catalog.byKey(p.tier);
     if (!plan) {
-      plan = catalog.create(p.tier, { name: p.name, description: "", segment: "personal", public: true, audience: "personal" }, terms, actor, t);
-      catalog.publish(plan.id, provider, actor, t);
+      plan = await catalog.create(p.tier, { name: p.name, description: "", segment: "personal", public: true, audience: "personal" }, terms, actor, t);
+      await catalog.publish(plan.id, provider, actor, t);
       done.push(`${p.name}: created and published at ${prices[p.tier]}`);
       continue;
     }
@@ -179,8 +179,8 @@ export function publishMojoPlans(
       done.push(`${p.name}: already published at ${prices[p.tier]}`);
       continue;
     }
-    catalog.saveDraft(plan.id, terms, actor, t);
-    catalog.publish(plan.id, provider, actor, t);
+    await catalog.saveDraft(plan.id, terms, actor, t);
+    await catalog.publish(plan.id, provider, actor, t);
     done.push(`${p.name}: new version published at ${prices[p.tier]}`);
   }
   return done;

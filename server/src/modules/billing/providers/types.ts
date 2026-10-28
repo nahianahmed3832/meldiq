@@ -20,6 +20,11 @@ export interface BillingProvider {
   verifyWebhook(headers: Readonly<Record<string, string | string[] | undefined>>, rawBody: string, now: number): NormalizedEvent;
   /** Starts a hosted checkout for [priceRef]; [reference] must come back in the subscription events it produces. */
   createCheckout(input: CheckoutInput): Promise<{ sessionRef: string; url: string | null }>;
+  /**
+   * Starts a hosted one-time payment (a gift, docs/MOJO.md): [reference] comes back in its checkout events. Absent:
+   * this provider can't take one-time payments.
+   */
+  createPaymentCheckout?(input: PaymentCheckoutInput): Promise<{ sessionRef: string; url: string | null }>;
   /** Creates the provider's customer for an owner (once: the caller stores it and reuses it). */
   createCustomer?(input: { owner: OwnerRef; email: string | null; name: string | null }): Promise<string>;
   /** A hosted page where the customer manages payment methods, invoices and cancellation. */
@@ -47,6 +52,21 @@ export interface CheckoutInput {
   /** Where the provider sends the browser afterwards (fixed by the server's configuration, never by the client). */
   successUrl: string;
   cancelUrl: string;
+  /** How many of the price (the Spark add-on's number of Sparks; 1 for a plan). */
+  quantity?: number;
+}
+
+/** A one-time payment the server prices itself (a gift): never an amount a client sent. */
+export interface PaymentCheckoutInput {
+  reference: string;
+  customerRef: string | null;
+  owner: OwnerRef;
+  currency: string;
+  amountMinor: number;
+  /** What the receipt and the payment page call it ("Mojo Plus for 3 months, a gift"). */
+  productName: string;
+  successUrl: string;
+  cancelUrl: string;
 }
 
 export class WebhookRejected extends Error {
@@ -68,6 +88,8 @@ export interface SubscriptionSnapshot {
   trialEnd: number | null;
   cancelAtPeriodEnd: boolean;
   canceledAt: number | null;
+  /** How many of the price (the Spark add-on's number of Sparks); 1 when the provider doesn't say. */
+  quantity?: number;
 }
 
 export interface InvoiceSnapshot {
@@ -93,6 +115,11 @@ export interface CheckoutSnapshot {
   outcome: "completed" | "expired" | "payment_failed";
   subscriptionRef: string | null;
   customerRef: string | null;
+  /** "payment": a one-time payment (a gift); absent or "subscription": a plan's checkout. */
+  mode?: "subscription" | "payment";
+  /** One-time payments: whether the money is in (a completed bank payment can still be on its way), and its reference. */
+  paid?: boolean;
+  paymentRef?: string | null;
 }
 
 /** A refund or a dispute on a customer's payment: recorded with the owner's subscription, never applied on its own. */
@@ -106,6 +133,8 @@ export interface PaymentSnapshot {
   affectedMinor: number;
   /** The provider's word for where it stands (a dispute's status; "refunded"/"partially_refunded"). */
   state: string;
+  /** The payment it's about (a gift's payment is found by it). */
+  paymentRef?: string | null;
 }
 
 export type NormalizedEvent =

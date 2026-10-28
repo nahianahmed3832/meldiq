@@ -1,4 +1,4 @@
-import type { DB } from "../../infrastructure/database/db.js";
+import type { RowReader, Where } from "../../infrastructure/database/rows/index.js";
 import type { SubscriptionRow } from "./subscriptions.js";
 
 /**
@@ -10,19 +10,26 @@ export interface After {
   id: string;
 }
 
-export function subscriptionRows(db: DB, q: { status?: string; plan?: string; org?: string; after?: After; limit: number }): SubscriptionRow[] {
-  const where: string[] = [];
-  const params: unknown[] = [];
-  if (q.status) (where.push("s.status = ?"), params.push(q.status));
-  if (q.org) (where.push("s.org_id = ?"), params.push(q.org));
-  if (q.plan) (where.push("p.key = ?"), params.push(q.plan));
-  if (q.after) (where.push("(s.created_at < ? OR (s.created_at = ? AND s.id < ?))"), params.push(q.after.createdAt, q.after.createdAt, q.after.id));
-  return db
-    .prepare(
-      `SELECT s.* FROM billing_subscriptions s JOIN billing_plan_versions v ON v.id = s.plan_version_id JOIN billing_plans p ON p.id = v.plan_id
-       ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY s.created_at DESC, s.id DESC LIMIT ?`,
-    )
-    .all(...params, q.limit + 1) as SubscriptionRow[];
+/** Keyset paging on (time, id) descending: rows at or before [after]'s time (the same-time rows are cut by [pageAfter]). */
+function afterWhere(timeColumn: string, after: After | undefined): Where {
+  return after ? { [timeColumn]: { lte: after.createdAt } } : {};
+}
+
+/** The page after [after] of rows sorted (time, id) descending: one more than [limit], like the SQL it replaces. */
+function pageAfter<R extends { id: string }>(rows: R[], time: (r: R) => number, after: After | undefined, limit: number): R[] {
+  const rest = after ? rows.filter((r) => time(r) < after.createdAt || (time(r) === after.createdAt && r.id < after.id)) : rows;
+  return rest.sort((a, b) => time(b) - time(a) || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0)).slice(0, limit + 1);
+}
+
+export function subscriptionRows(rows: RowReader, q: { status?: string; plan?: string; org?: string; after?: After; limit: number }): SubscriptionRow[] {
+  const where: Where = { ...afterWhere("created_at", q.after) };
+  if (q.status) where.status = q.status;
+  if (q.org) where.org_id = q.org;
+  if (q.plan) {
+    const plan = rows.get<{ id: string }>("billing_plans", { key: q.plan });
+    where.plan_version_id = { in: plan ? rows.all<{ id: string }>("billing_plan_versions", { where: { plan_id: plan.id } }).map((v) => v.id) : [] };
+  }
+  return pageAfter(rows.all<SubscriptionRow>("billing_subscriptions", { where }), (r) => r.created_at, q.after, q.limit);
 }
 
 export interface HistoryRow {
@@ -52,15 +59,15 @@ export interface InvoiceRow {
 export type EventStatus = "received" | "processed" | "ignored" | "failed" | "dead";
 
 /** A subscription's latest history, invoices and provider events, newest first, [limit] of each. */
-export function subscriptionRecords(db: DB, id: string, limit: number) {
+export function subscriptionRecords(rows: RowReader, id: string, limit: number) {
   return {
-    history: db
-      .prepare("SELECT at, from_status, to_status, plan_version_id, source, detail FROM billing_subscription_history WHERE subscription_id = ? ORDER BY id DESC LIMIT ?")
-      .all(id, limit) as HistoryRow[],
-    invoices: db.prepare("SELECT * FROM billing_invoices WHERE subscription_id = ? ORDER BY issued_at DESC LIMIT ?").all(id, limit) as InvoiceRow[],
-    events: db
-      .prepare("SELECT id, type, status, received_at, last_error FROM billing_provider_events WHERE subscription_id = ? ORDER BY received_at DESC LIMIT ?")
-      .all(id, limit) as { id: string; type: string; status: EventStatus; received_at: number; last_error: string | null }[],
+    history: rows.all<HistoryRow>("billing_subscription_history", { where: { subscription_id: id }, orderBy: [["id", "desc"]], limit }),
+    invoices: rows.all<InvoiceRow>("billing_invoices", { where: { subscription_id: id }, orderBy: [["issued_at", "desc"]], limit }),
+    events: rows.all<{ id: string; type: string; status: EventStatus; received_at: number; last_error: string | null }>("billing_provider_events", {
+      where: { subscription_id: id },
+      orderBy: [["received_at", "desc"]],
+      limit,
+    }),
   };
 }
 
@@ -80,15 +87,9 @@ export interface EventListRow {
   subscription_id: string | null;
 }
 
-export function eventRows(db: DB, q: { status?: string; after?: After; limit: number }): EventListRow[] {
-  const where: string[] = [];
-  const params: unknown[] = [];
-  if (q.status) (where.push("status = ?"), params.push(q.status));
-  if (q.after) (where.push("(received_at < ? OR (received_at = ? AND id < ?))"), params.push(q.after.createdAt, q.after.createdAt, q.after.id));
-  return db
-    .prepare(
-      `SELECT id, provider, event_ref, type, status, attempts, provider_created_at, received_at AS created_at, processed_at, next_attempt_at, last_error, subscription_id
-       FROM billing_provider_events ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY received_at DESC, id DESC LIMIT ?`,
-    )
-    .all(...params, q.limit + 1) as EventListRow[];
+export function eventRows(rows: RowReader, q: { status?: string; after?: After; limit: number }): EventListRow[] {
+  const where: Where = { ...afterWhere("received_at", q.after) };
+  if (q.status) where.status = q.status;
+  const all = rows.all<Omit<EventListRow, "created_at"> & { received_at: number }>("billing_provider_events", { where });
+  return pageAfter(all, (r) => r.received_at, q.after, q.limit).map(({ received_at, ...e }) => ({ ...e, created_at: received_at }));
 }

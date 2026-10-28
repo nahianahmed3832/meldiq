@@ -82,6 +82,7 @@ import type { MeldiqMongo } from "./infrastructure/database/mongo/client.js";
 import { describeTables } from "./infrastructure/database/mongo/catalog.js";
 import { type Rows, SqliteRows } from "./infrastructure/database/rows/index.js";
 import { openWorkspaceRows, WORKSPACE_DOMAINS } from "./app/workspaceRows.js";
+import { openBillingRows } from "./app/billingRows.js";
 import { MongoRelayStore } from "./modules/messaging/relay/mongoStore.js";
 import { PLATFORM_ADMIN_COMMANDS, runPlatformAdminCommand } from "./modules/platformAdmin/index.js";
 import { MongoFileStore } from "./modules/files/mongoStore.js";
@@ -440,8 +441,12 @@ switch (cmd) {
       console.error("No billing provider is configured (BILLING_PROVIDER): set it to stripe first");
       process.exit(1);
     }
-    const catalog = new PlanCatalog(db);
-    for (const line of publishMojoPlans(catalog, provider.id, { go, plus }, "cli", now())) console.log(line);
+    const mongo = cfg.mongo ? await openMongo(cfg.mongo, db) : undefined;
+    const rows = await openBillingRows(db, mongo, console);
+    const catalog = new PlanCatalog(rows);
+    for (const line of await publishMojoPlans(catalog, provider.id, { go, plus }, "cli", now())) console.log(line);
+    await rows.settled();
+    await mongo?.close();
     break;
   }
   case "table-counts": {

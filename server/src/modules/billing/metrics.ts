@@ -1,4 +1,4 @@
-import type { DB } from "../../infrastructure/database/db.js";
+import type { RowReader } from "../../infrastructure/database/rows/index.js";
 import { grantsPlan, SUBSCRIPTION_STATUSES, type SubscriptionStatus } from "./lifecycle.js";
 
 /**
@@ -13,22 +13,53 @@ type Money = { currency: string; amountMinor: number }[];
 const money = (rows: { currency: string; n: number | null }[]): Money =>
   rows.filter((r) => (r.n ?? 0) > 0).map((r) => ({ currency: r.currency, amountMinor: r.n ?? 0 }));
 
-/** A subscription's status at [at] (from its history), or null when it didn't exist yet. */
-const STATUS_AT = `(SELECT h.to_status FROM billing_subscription_history h WHERE h.subscription_id = s.id AND h.at <= ? ORDER BY h.id DESC LIMIT 1)`;
+interface SubRow {
+  id: string;
+  status: SubscriptionStatus;
+  past_due_since: number | null;
+  plan_version_id: string;
+  cancel_at_period_end: number;
+  created_at: number;
+  trial_end: number | null;
+}
+interface HistRow {
+  id: number;
+  subscription_id: string;
+  at: number;
+  from_status: string | null;
+  to_status: string;
+}
+interface InvRow {
+  status: string;
+  currency: string;
+  amount_due_minor: number;
+  amount_paid_minor: number;
+  amount_refunded_minor: number;
+  paid_at: number | null;
+  updated_at: number;
+}
 
-export function billingMetrics(db: DB, days: number, t: number) {
+/** Sums [value] per currency over [rows] (SQL's SUM … GROUP BY currency). */
+function perCurrency<R extends { currency: string }>(rows: readonly R[], value: (r: R) => number): Money {
+  const sums = new Map<string, number>();
+  for (const r of rows) sums.set(r.currency, (sums.get(r.currency) ?? 0) + value(r));
+  return money([...sums].map(([currency, n]) => ({ currency, n })));
+}
+
+export function billingMetrics(rows: RowReader, days: number, t: number) {
   const since = t - days * DAY_MS;
-  const statusRows = db.prepare("SELECT status, COUNT(*) n FROM billing_subscriptions GROUP BY status").all() as { status: SubscriptionStatus; n: number }[];
-  const byStatus = Object.fromEntries(SUBSCRIPTION_STATUSES.map((s) => [s, statusRows.find((r) => r.status === s)?.n ?? 0])) as Record<SubscriptionStatus, number>;
+  const subs = rows.all<SubRow>("billing_subscriptions");
+  const byStatus = Object.fromEntries(SUBSCRIPTION_STATUSES.map((s) => [s, subs.filter((x) => x.status === s).length])) as Record<SubscriptionStatus, number>;
 
   // Subscriptions granting a plan now, with their terms, for plan distribution and the MRR estimate.
-  const live = db
-    .prepare(
-      `SELECT s.status, s.past_due_since, v.grace_days, v.interval, v.currency, v.amount_minor, p.key plan_key, p.name plan_name, s.cancel_at_period_end
-       FROM billing_subscriptions s JOIN billing_plan_versions v ON v.id = s.plan_version_id JOIN billing_plans p ON p.id = v.plan_id
-       WHERE s.status IN ('trialing', 'active', 'past_due')`,
-    )
-    .all() as { status: SubscriptionStatus; past_due_since: number | null; grace_days: number; interval: "month" | "year"; currency: string; amount_minor: number; plan_key: string; plan_name: string; cancel_at_period_end: number }[];
+  const versions = new Map(rows.all<{ id: string; plan_id: string; grace_days: number; interval: "month" | "year"; currency: string; amount_minor: number }>("billing_plan_versions").map((v) => [v.id, v]));
+  const plans = new Map(rows.all<{ id: string; key: string; name: string }>("billing_plans").map((p) => [p.id, p]));
+  const live = subs.flatMap((s) => {
+    const v = versions.get(s.plan_version_id);
+    const p = v ? plans.get(v.plan_id) : undefined;
+    if (!v || !p || !["trialing", "active", "past_due"].includes(s.status)) return [];
+    return [{ ...s, grace_days: v.grace_days, interval: v.interval, currency: v.currency, amount_minor: v.amount_minor, plan_key: p.key, plan_name: p.name }];
+  });
   const granting = live.filter((s) => grantsPlan({ status: s.status, pastDueSince: s.past_due_since, graceDays: s.grace_days }, t));
   const byPlan = new Map<string, { key: string; name: string; subscriptions: number }>();
   for (const s of granting) byPlan.set(s.plan_key, { key: s.plan_key, name: s.plan_name, subscriptions: (byPlan.get(s.plan_key)?.subscriptions ?? 0) + 1 });
@@ -42,33 +73,37 @@ export function billingMetrics(db: DB, days: number, t: number) {
   const currencies = [...new Set([...monthly.keys(), ...yearly.keys()])].sort();
   const mrr = currencies.map((currency) => ({ currency, amountMinor: (monthly.get(currency) ?? 0) + Math.floor((yearly.get(currency) ?? 0) / 12) }));
 
-  const one = (sql: string, ...p: unknown[]) => (db.prepare(sql).get(...p) as { n: number | null }).n ?? 0;
-  const started = one("SELECT COUNT(*) n FROM billing_subscriptions WHERE created_at >= ?", since);
-  const trialsStarted = one("SELECT COUNT(*) n FROM billing_subscription_history WHERE from_status IS NULL AND to_status = 'trialing' AND at >= ?", since);
-  const trialConversions = one("SELECT COUNT(*) n FROM billing_subscription_history WHERE from_status = 'trialing' AND to_status = 'active' AND at >= ?", since);
-  const trialsEnded = one("SELECT COUNT(*) n FROM billing_subscription_history WHERE from_status = 'trialing' AND to_status != 'trialing' AND at >= ?", since);
-  const canceled = one("SELECT COUNT(*) n FROM billing_subscription_history WHERE to_status = 'canceled' AND from_status != 'canceled' AND at >= ?", since);
-  const paidAtStart = one(`SELECT COUNT(*) n FROM billing_subscriptions s WHERE ${STATUS_AT} IN ('active', 'past_due')`, since);
-  const paidAtStartCanceled = one(
-    `SELECT COUNT(*) n FROM billing_subscriptions s WHERE ${STATUS_AT} IN ('active', 'past_due') AND EXISTS (SELECT 1 FROM billing_subscription_history h WHERE h.subscription_id = s.id AND h.to_status = 'canceled' AND h.at > ?)`,
-    since,
-    since,
-  );
-  const trialsEndingSoon = one("SELECT COUNT(*) n FROM billing_subscriptions WHERE status = 'trialing' AND trial_end BETWEEN ? AND ?", t, t + 7 * DAY_MS);
+  const history = rows.all<HistRow>("billing_subscription_history", { orderBy: [["id", "asc"]] });
+  const recent = history.filter((h) => h.at >= since);
+  const started = subs.filter((s) => s.created_at >= since).length;
+  const trialsStarted = recent.filter((h) => h.from_status === null && h.to_status === "trialing").length;
+  const trialConversions = recent.filter((h) => h.from_status === "trialing" && h.to_status === "active").length;
+  const trialsEnded = recent.filter((h) => h.from_status === "trialing" && h.to_status !== "trialing").length;
+  const canceled = recent.filter((h) => h.to_status === "canceled" && h.from_status !== "canceled").length;
+  // Each subscription's status at the window's start: its last history entry at or before it.
+  const statusAt = new Map<string, string>();
+  for (const h of history) if (h.at <= since) statusAt.set(h.subscription_id, h.to_status);
+  const paidAtStartIds = subs.filter((s) => ["active", "past_due"].includes(statusAt.get(s.id) ?? "")).map((s) => s.id);
+  const paidAtStart = paidAtStartIds.length;
+  const canceledSince = new Set(history.filter((h) => h.to_status === "canceled" && h.at > since).map((h) => h.subscription_id));
+  const paidAtStartCanceled = paidAtStartIds.filter((id) => canceledSince.has(id)).length;
+  const trialsEndingSoon = subs.filter((s) => s.status === "trialing" && s.trial_end !== null && s.trial_end >= t && s.trial_end <= t + 7 * DAY_MS).length;
 
-  const collected = money(db.prepare("SELECT currency, SUM(amount_paid_minor) n FROM billing_invoices WHERE status = 'paid' AND paid_at >= ? GROUP BY currency").all(since) as { currency: string; n: number }[]);
-  const refunds = money(db.prepare("SELECT currency, SUM(amount_refunded_minor) n FROM billing_invoices WHERE updated_at >= ? GROUP BY currency").all(since) as { currency: string; n: number }[]);
-  const outstanding = money(
-    db.prepare("SELECT currency, SUM(amount_due_minor - amount_paid_minor) n FROM billing_invoices WHERE status IN ('open', 'payment_failed') GROUP BY currency").all() as { currency: string; n: number }[],
-  );
-  const failedPayments = one("SELECT COUNT(*) n FROM billing_invoices WHERE status = 'payment_failed' AND updated_at >= ?", since);
+  const invoices = rows.all<InvRow>("billing_invoices");
+  const collected = perCurrency(invoices.filter((i) => i.status === "paid" && (i.paid_at ?? 0) >= since), (i) => i.amount_paid_minor);
+  const refunds = perCurrency(invoices.filter((i) => i.updated_at >= since), (i) => i.amount_refunded_minor);
+  const outstanding = perCurrency(invoices.filter((i) => i.status === "open" || i.status === "payment_failed"), (i) => i.amount_due_minor - i.amount_paid_minor);
+  const failedPayments = invoices.filter((i) => i.status === "payment_failed" && i.updated_at >= since).length;
 
-  const eventRows = db.prepare("SELECT status, COUNT(*) n FROM billing_provider_events WHERE received_at >= ? GROUP BY status").all(since) as { status: string; n: number }[];
-  const rejections = db
-    .prepare("SELECT reason, SUM(count) n FROM billing_webhook_rejections WHERE day >= ? GROUP BY reason")
-    .all(new Date(since).toISOString().slice(0, 10)) as { reason: string; n: number }[];
-  const backlog = db.prepare("SELECT COUNT(*) n, MIN(received_at) oldest FROM billing_provider_events WHERE status IN ('received', 'failed')").get() as { n: number; oldest: number | null };
-  const lastReceivedAt = (db.prepare("SELECT MAX(received_at) at FROM billing_provider_events").get() as { at: number | null }).at;
+  const events = rows.all<{ status: string; received_at: number }>("billing_provider_events");
+  const eventRows = ["received", "processed", "ignored", "failed", "dead"].map((status) => ({ status, n: events.filter((e) => e.status === status && e.received_at >= since).length }));
+  const sinceDay = new Date(since).toISOString().slice(0, 10);
+  const rejectionSums = new Map<string, number>();
+  for (const r of rows.all<{ reason: string; count: number; day: string }>("billing_webhook_rejections")) if (r.day >= sinceDay) rejectionSums.set(r.reason, (rejectionSums.get(r.reason) ?? 0) + r.count);
+  const rejections = [...rejectionSums].map(([reason, n]) => ({ reason, n }));
+  const pending = events.filter((e) => e.status === "received" || e.status === "failed");
+  const backlog = { n: pending.length, oldest: pending.length ? Math.min(...pending.map((e) => e.received_at)) : null };
+  const lastReceivedAt = events.length ? Math.max(...events.map((e) => e.received_at)) : null;
 
   return {
     generatedAt: t,
@@ -89,7 +124,7 @@ export function billingMetrics(db: DB, days: number, t: number) {
     },
     money: { mrrEstimate: mrr, collected, refunds, outstanding, failedPayments },
     webhooks: {
-      byStatus: Object.fromEntries(["received", "processed", "ignored", "failed", "dead"].map((s) => [s, eventRows.find((r) => r.status === s)?.n ?? 0])),
+      byStatus: Object.fromEntries(eventRows.map((r) => [r.status, r.n])),
       rejected: rejections.map((r) => ({ reason: r.reason, count: r.n })),
       backlog: backlog.n,
       oldestBacklogAt: backlog.oldest,

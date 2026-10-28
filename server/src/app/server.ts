@@ -13,6 +13,7 @@ import type { Mailer } from "../infrastructure/mail/mailer.js";
 import accountRoutes from "../modules/accounts/routes.js";
 import { Authz } from "../modules/organizations/authz.js";
 import { orgMemberIds } from "../modules/organizations/index.js";
+import { openBillingRows } from "./billingRows.js";
 import { type Config, effectiveFileMaxBytes } from "./config.js";
 import { federationClientRoutes, federationPeerRoutes } from "../modules/federation/routes.js";
 import { Federation } from "../modules/federation/service.js";
@@ -165,6 +166,7 @@ export async function buildApp(
     if (!opts.mongo)
       app.addHook("onClose", async () => {
         await ctx.ws?.settled();
+        await ctx.billing?.rows.settled();
         await mongo.close();
       });
   }
@@ -193,7 +195,14 @@ export async function buildApp(
   ctx.relationships = ctx.mongo?.owns("relationships") ? new MongoRelationshipStore(ctx.mongo) : new SqliteRelationshipStore(db);
   ctx.calls = ctx.mongo?.owns("calls") ? new MongoCallStore(ctx.mongo) : new SqliteCallStore(db);
   ctx.reportSealer = ReportSealer.load(process.env, config.dataDir);
-  ctx.billing = new Billing(db, config.billing, app.log, Date.now, (id) => ctx.quotas.planExists(id));
+  // Billing (plans, subscriptions, Meldiq Spark, gifts): rows in SQLite, or MongoDB when MONGODB_DOMAINS includes it.
+  ctx.billing = new Billing(await openBillingRows(db, ctx.mongo, app.log), config.billing, app.log, Date.now, (id) => ctx.quotas.planExists(id));
+  if (ctx.billing.rows.backend === "mongodb") {
+    app.addHook("onSend", async (_req, _reply, payload) => {
+      await ctx.billing.rows.settled();
+      return payload;
+    });
+  }
   // Entitlement changes reach every signed-in device at once (they also refresh on their own): the account's own
   // sessions for a personal subscription, every member for an organization's.
   ctx.billing.onChange = (owner) => {

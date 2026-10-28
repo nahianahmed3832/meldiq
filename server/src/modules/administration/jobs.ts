@@ -113,7 +113,7 @@ export async function runCleanup(ctx: AppContext): Promise<CleanupResult> {
     auditPruned: 0,
     platformAdmin: new PlatformAdminStore(db).purgeExpired(t),
     quotaReservations: ctx.quotas ? ctx.quotas.expireReservations() : 0,
-    billing: ctx.billing ? ctx.billing.sweep() : 0,
+    billing: ctx.billing ? await ctx.billing.sweep() : 0,
     reportsPurged: 0,
     guestsExpired: 0,
   };

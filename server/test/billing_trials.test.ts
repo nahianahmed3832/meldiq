@@ -79,12 +79,12 @@ describe("with trials and invite links", () => {
       },
       { mailer, billingProvider: new StripeProvider({ secretKey: SK, webhookSecret: WHSEC, allowPromotionCodes: false, api: stripe }) },
     );
-    publishMojoPlans(h.ctx.billing.catalog, "stripe", { go: "price_go", plus: "price_plus" }, "test", Date.now());
+    await publishMojoPlans(h.ctx.billing.catalog, "stripe", { go: "price_go", plus: "price_plus" }, "test", Date.now());
   });
   afterAll(async () => h.close());
 
   it("publish Mojo Go and Mojo Plus once, at their prices, and say trials are on", async () => {
-    expect(publishMojoPlans(h.ctx.billing.catalog, "stripe", { go: "price_go", plus: "price_plus" }, "test", Date.now())).toEqual([
+    expect(await publishMojoPlans(h.ctx.billing.catalog, "stripe", { go: "price_go", plus: "price_plus" }, "test", Date.now())).toEqual([
       "Mojo Go: already published at price_go",
       "Mojo Plus: already published at price_plus",
     ]);
@@ -126,7 +126,7 @@ describe("with trials and invite links", () => {
     const inviterCreated = (await h.ctx.accounts.store.accountById(inviter.accountId))!.created_at;
     const ie = await ent(inviter);
     expect(ie.personal.trial.source).toBe("signup");
-    const bonus = h.ctx.db.prepare("SELECT starts_at, ends_at FROM billing_grants WHERE account_id = ? AND source = 'referral_inviter'").get(inviter.accountId) as any;
+    const bonus = h.ctx.billing.rows.get<{ starts_at: number; ends_at: number }>("billing_grants", { account_id: inviter.accountId, source: "referral_inviter" }) as any;
     expect(bonus.starts_at).toBe(inviterCreated + 14 * DAY);
     expect(bonus.ends_at - bonus.starts_at).toBe(30 * DAY);
     await expectStatus(friend.req("POST", "/v2/billing/referral/claim", { code: info.code }), 409);
@@ -143,7 +143,7 @@ describe("with trials and invite links", () => {
       expect((await ent(f)).personal.trial.source).toBe("invite");
     }
     expect(await inviter.req("GET", "/v2/billing/referral")).toMatchObject({ invited: 4, bonusDaysThisYear: 90 });
-    const total = h.ctx.db.prepare("SELECT SUM(ends_at - starts_at) d FROM billing_grants WHERE account_id = ? AND source = 'referral_inviter'").get(inviter.accountId) as any;
+    const total = { d: h.ctx.billing.rows.all<{ starts_at: number; ends_at: number }>("billing_grants", { where: { account_id: inviter.accountId, source: "referral_inviter" } }).reduce((n, g) => n + g.ends_at - g.starts_at, 0) } as any;
     expect(total.d).toBe(90 * DAY);
   });
 
@@ -151,17 +151,17 @@ describe("with trials and invite links", () => {
     const inviter = await signedIn("oldinviter");
     const { code } = await inviter.req("GET", "/v2/billing/referral");
     // An account that signed up 8 days ago.
-    expect(() => h.ctx.billing.grants.claim({ accountId: "acc_eight_days_old", createdAt: Date.now() - 8 * DAY, userId: null }, code)).toThrow(/last few days/);
-    expect(h.ctx.db.prepare("SELECT COUNT(*) n FROM billing_referrals WHERE invitee_account_id = 'acc_eight_days_old'").get()).toEqual({ n: 0 });
+    await expect(h.ctx.billing.grants.claim({ accountId: "acc_eight_days_old", createdAt: Date.now() - 8 * DAY, userId: null }, code)).rejects.toThrow(/last few days/);
+    expect(h.ctx.billing.rows.count("billing_referrals", { invitee_account_id: "acc_eight_days_old" })).toBe(0);
   });
 
-  it("start an existing account's trial on launch day, not at its old sign-up time", () => {
+  it("start an existing account's trial on launch day, not at its old sign-up time", async () => {
     const launch = Date.now() - 2 * DAY;
-    const grants = new Grants(h.ctx.db, { startsAt: launch, planKey: "plus", days: 14, referralDays: 30, referralCapDays: 90, claimWindowDays: 7 }, () => Date.now());
-    grants.ensureSignupTrial({ accountId: "acc_veteran", createdAt: Date.now() - 400 * DAY, userId: null });
+    const grants = new Grants(h.ctx.billing.rows, { startsAt: launch, planKey: "plus", days: 14, referralDays: 30, referralCapDays: 90, claimWindowDays: 7 }, () => Date.now());
+    await grants.ensureSignupTrial({ accountId: "acc_veteran", createdAt: Date.now() - 400 * DAY, userId: null });
     expect(grants.active("acc_veteran", Date.now())).toMatchObject({ starts_at: launch, ends_at: launch + 14 * DAY, source: "signup_trial" });
-    const before = new Grants(h.ctx.db, { startsAt: Date.now() + DAY, planKey: "plus", days: 14, referralDays: 30, referralCapDays: 90, claimWindowDays: 7 }, () => Date.now());
-    before.ensureSignupTrial({ accountId: "acc_early", createdAt: Date.now(), userId: null });
+    const before = new Grants(h.ctx.billing.rows, { startsAt: Date.now() + DAY, planKey: "plus", days: 14, referralDays: 30, referralCapDays: 90, claimWindowDays: 7 }, () => Date.now());
+    await before.ensureSignupTrial({ accountId: "acc_early", createdAt: Date.now(), userId: null });
     expect(before.active("acc_early", Date.now() + 2 * DAY)).toBeNull();
   });
 

@@ -142,52 +142,42 @@ export class AdminBilling {
     return this.planView(plan, this.ctx.billing.catalog.subscriberCounts());
   }
 
-  createPlan(p: AdminPrincipal, b: { key: string; terms: PlanTerms; reason: string } & PlanMeta, meta: RequestMeta) {
-    const plan = this.ctx.db.transaction(() => {
-      const created = this.ctx.billing.catalog.create(b.key, b, b.terms, p.account.id, now());
-      this.record(p, "billing.plan_create", "billing_plan", created.id, b.reason, meta, { key: b.key, name: b.name });
-      return created;
-    })();
-    return this.one(plan.id);
+  // Billing's rows (SQLite or MongoDB) and the console's audit are separate stores: each change is made, then recorded.
+  async createPlan(p: AdminPrincipal, b: { key: string; terms: PlanTerms; reason: string } & PlanMeta, meta: RequestMeta) {
+    const created = await this.ctx.billing.catalog.create(b.key, b, b.terms, p.account.id, now());
+    this.record(p, "billing.plan_create", "billing_plan", created.id, b.reason, meta, { key: b.key, name: b.name });
+    return this.one(created.id);
   }
 
-  updatePlan(p: AdminPrincipal, planId: string, b: PlanMeta & { reason: string }, meta: RequestMeta) {
-    this.ctx.db.transaction(() => {
-      this.ctx.billing.catalog.updateMeta(planId, b, now());
-      this.record(p, "billing.plan_update", "billing_plan", planId, b.reason, meta, { name: b.name, public: b.public });
-    })();
+  async updatePlan(p: AdminPrincipal, planId: string, b: PlanMeta & { reason: string }, meta: RequestMeta) {
+    await this.ctx.billing.catalog.updateMeta(planId, b, now());
+    this.record(p, "billing.plan_update", "billing_plan", planId, b.reason, meta, { name: b.name, public: b.public });
     return this.one(planId);
   }
 
-  saveDraft(p: AdminPrincipal, planId: string, terms: PlanTerms, reason: string, meta: RequestMeta) {
-    this.ctx.db.transaction(() => {
-      const v = this.ctx.billing.catalog.saveDraft(planId, terms, p.account.id, now());
-      this.record(p, "billing.plan_draft", "billing_plan", planId, reason, meta, {
-        version: v.version,
-        price: `${terms.amountMinor} ${terms.currency}/${terms.interval}`,
-        providerPriceRef: terms.providerPriceRef,
-        limits: JSON.stringify(terms.limits),
-      });
-    })();
+  async saveDraft(p: AdminPrincipal, planId: string, terms: PlanTerms, reason: string, meta: RequestMeta) {
+    const v = await this.ctx.billing.catalog.saveDraft(planId, terms, p.account.id, now());
+    this.record(p, "billing.plan_draft", "billing_plan", planId, reason, meta, {
+      version: v.version,
+      price: `${terms.amountMinor} ${terms.currency}/${terms.interval}`,
+      providerPriceRef: terms.providerPriceRef,
+      limits: JSON.stringify(terms.limits),
+    });
     return this.one(planId);
   }
 
   /** Publishes the draft for new subscribers. Existing subscribers keep the version they're on. */
-  publish(p: AdminPrincipal, planId: string, reason: string, meta: RequestMeta) {
+  async publish(p: AdminPrincipal, planId: string, reason: string, meta: RequestMeta) {
     const provider = this.ctx.billing.provider;
     if (!provider) throw new ApiError(409, "billing_unavailable", this.ctx.billing.unavailableReason ?? "Billing isn't available");
-    this.ctx.db.transaction(() => {
-      const { published, retired } = this.ctx.billing.catalog.publish(planId, provider.id, p.account.id, now());
-      this.record(p, "billing.plan_publish", "billing_plan", planId, reason, meta, { version: published.version, provider: provider.id, retiredVersion: retired?.version ?? null });
-    })();
+    const { published, retired } = await this.ctx.billing.catalog.publish(planId, provider.id, p.account.id, now());
+    this.record(p, "billing.plan_publish", "billing_plan", planId, reason, meta, { version: published.version, provider: provider.id, retiredVersion: retired?.version ?? null });
     return this.one(planId);
   }
 
-  archive(p: AdminPrincipal, planId: string, reason: string, meta: RequestMeta) {
-    this.ctx.db.transaction(() => {
-      this.ctx.billing.catalog.archive(planId, now());
-      this.record(p, "billing.plan_archive", "billing_plan", planId, reason, meta, {});
-    })();
+  async archive(p: AdminPrincipal, planId: string, reason: string, meta: RequestMeta) {
+    await this.ctx.billing.catalog.archive(planId, now());
+    this.record(p, "billing.plan_archive", "billing_plan", planId, reason, meta, {});
     return this.one(planId);
   }
 
@@ -213,7 +203,7 @@ export class AdminBilling {
   }
 
   subscriptions(q: { status?: string; plan?: string; org?: string; cursor?: string; limit: number }) {
-    const rows = subscriptionRows(this.ctx.db, { ...q, after: decodeCursor(q.cursor) });
+    const rows = subscriptionRows(this.ctx.billing.rows, { ...q, after: decodeCursor(q.cursor) });
     const { rows: shown, nextCursor } = page(rows, q.limit);
     const names = orgNames(this.ctx.ws, [...new Set(shown.flatMap((s) => (s.org_id ? [s.org_id] : [])))]);
     const t = now();
@@ -227,7 +217,7 @@ export class AdminBilling {
     const names = orgNames(this.ctx.ws, s.org_id ? [s.org_id] : []);
     const v = this.ctx.billing.catalog.version(s.plan_version_id)!;
     const versionOf = (vid: string) => this.ctx.billing.catalog.version(vid)?.version ?? null;
-    const { history, invoices, events } = subscriptionRecords(this.ctx.db, id, DETAIL_ROWS);
+    const { history, invoices, events } = subscriptionRecords(this.ctx.billing.rows, id, DETAIL_ROWS);
     return {
       subscription: {
         ...this.summary(s, names, t),
@@ -270,7 +260,7 @@ export class AdminBilling {
   // ───────────── Provider events and figures ─────────────
 
   events(q: { status?: string; cursor?: string; limit: number }) {
-    const rows = eventRows(this.ctx.db, { status: q.status, after: decodeCursor(q.cursor), limit: q.limit });
+    const rows = eventRows(this.ctx.billing.rows, { status: q.status, after: decodeCursor(q.cursor), limit: q.limit });
     const { rows: shown, nextCursor } = page(rows, q.limit);
     return {
       events: shown.map((e) => ({
@@ -291,13 +281,13 @@ export class AdminBilling {
     };
   }
 
-  replay(p: AdminPrincipal, eventId: string, reason: string, meta: RequestMeta) {
-    const status = this.ctx.billing.webhooks.replay(eventId);
+  async replay(p: AdminPrincipal, eventId: string, reason: string, meta: RequestMeta) {
+    const status = await this.ctx.billing.webhooks.replay(eventId);
     this.record(p, "billing.event_replay", "billing_event", eventId, reason, meta, { status });
     return { status };
   }
 
   metrics(days: number) {
-    return { setup: this.setup(), ...billingMetrics(this.ctx.db, days, now()), definitions: BILLING_DEFINITIONS };
+    return { setup: this.setup(), ...billingMetrics(this.ctx.billing.rows, days, now()), definitions: BILLING_DEFINITIONS };
   }
 }

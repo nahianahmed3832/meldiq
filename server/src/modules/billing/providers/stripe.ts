@@ -7,6 +7,7 @@ import {
   type InvoiceSnapshot,
   type NormalizedEvent,
   type OwnerRef,
+  type PaymentCheckoutInput,
   type PaymentSnapshot,
   type SubscriptionSnapshot,
   WebhookRejected,
@@ -100,6 +101,8 @@ export function subscriptionSnapshot(sub: Stripe.Subscription): SubscriptionSnap
     // A cancellation scheduled for a date (cancel_at) also ends the subscription without renewing it.
     cancelAtPeriodEnd: sub.cancel_at_period_end || sub.cancel_at !== null,
     canceledAt: ms(sub.canceled_at),
+    // The Spark add-on is bought by quantity (the customer portal may change it); plans are always 1.
+    quantity: typeof item.quantity === "number" && item.quantity >= 0 ? item.quantity : 1,
   };
 }
 
@@ -129,7 +132,7 @@ function invoiceSnapshot(inv: Stripe.Invoice, eventType: string): InvoiceSnapsho
 }
 
 function checkoutSnapshot(s: Stripe.Checkout.Session, eventType: string): CheckoutSnapshot | null {
-  if (s.mode !== "subscription") return null;
+  if (s.mode !== "subscription" && s.mode !== "payment") return null;
   const outcome =
     eventType === "checkout.session.expired" ? "expired" : eventType === "checkout.session.async_payment_failed" ? "payment_failed" : "completed";
   return {
@@ -138,6 +141,10 @@ function checkoutSnapshot(s: Stripe.Checkout.Session, eventType: string): Checko
     outcome,
     subscriptionRef: idOf(s.subscription),
     customerRef: idOf(s.customer),
+    mode: s.mode === "payment" ? "payment" : "subscription",
+    // A completed checkout paid by a delayed method (a bank debit) is paid only at async_payment_succeeded.
+    paid: s.payment_status === "paid" || s.payment_status === "no_payment_required",
+    paymentRef: idOf(s.payment_intent),
   };
 }
 
@@ -150,6 +157,7 @@ function refundSnapshot(c: Stripe.Charge): PaymentSnapshot {
     amountMinor: c.amount,
     affectedMinor: c.amount_refunded,
     state: c.refunded ? "refunded" : "partially_refunded",
+    paymentRef: idOf(c.payment_intent),
   };
 }
 
@@ -253,7 +261,7 @@ export class StripeProvider implements BillingProvider {
         mode: "subscription",
         client_reference_id: input.reference,
         ...(input.customerRef ? { customer: input.customerRef } : {}),
-        line_items: [{ price: input.priceRef, quantity: 1 }],
+        line_items: [{ price: input.priceRef, quantity: input.quantity ?? 1 }],
         subscription_data: {
           metadata,
           ...(input.trialEndsAt ? { trial_end: Math.floor(input.trialEndsAt / 1000) } : input.trialDays > 0 ? { trial_period_days: input.trialDays } : {}),
@@ -264,6 +272,26 @@ export class StripeProvider implements BillingProvider {
         allow_promotion_codes: this.opts.allowPromotionCodes,
       },
       `meldiq-checkout-${input.reference}`,
+    );
+    return { sessionRef: session.id, url: session.url };
+  }
+
+  /** A one-time payment priced by the server (a gift): the amount and the name come from the catalog, never a client. */
+  async createPaymentCheckout(input: PaymentCheckoutInput): Promise<{ sessionRef: string; url: string | null }> {
+    const metadata = { [META_CHECKOUT]: input.reference, meldiq_owner_kind: input.owner.kind, meldiq_owner_id: input.owner.id };
+    const session = await this.api.createCheckoutSession(
+      {
+        mode: "payment",
+        client_reference_id: input.reference,
+        ...(input.customerRef ? { customer: input.customerRef } : {}),
+        line_items: [{ quantity: 1, price_data: { currency: input.currency.toLowerCase(), unit_amount: input.amountMinor, product_data: { name: input.productName } } }],
+        payment_intent_data: { metadata },
+        metadata,
+        success_url: input.successUrl,
+        cancel_url: input.cancelUrl,
+        allow_promotion_codes: this.opts.allowPromotionCodes,
+      },
+      `meldiq-payment-${input.reference}`,
     );
     return { sessionRef: session.id, url: session.url };
   }

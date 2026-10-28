@@ -63,8 +63,8 @@ export default async function billingRoutes(app: FastifyInstance, ctx: AppContex
     req.billingSession = { accountId: s.account_id, userId: s.user_id };
     // A personal subscription or free period from before the account had an encryption identity learns it here (quota plans).
     if (s.user_id) {
-      ctx.billing.subscriptions.linkOwnerUser(s.account_id, s.user_id);
-      ctx.billing.grants.linkUser(s.account_id, s.user_id);
+      await ctx.billing.subscriptions.linkOwnerUser(s.account_id, s.user_id);
+      await ctx.billing.grants.linkUser(s.account_id, s.user_id);
     }
   };
   const session = (req: FastifyRequest): BillingSession => {
@@ -96,7 +96,7 @@ export default async function billingRoutes(app: FastifyInstance, ctx: AppContex
   const accountWithTrial = async (s: BillingSession) => {
     const account = await ctx.accounts.store.accountById(s.accountId);
     if (!account) throw unauthorized();
-    ctx.billing.grants.ensureSignupTrial({ accountId: account.id, createdAt: account.created_at, userId: s.userId });
+    await ctx.billing.grants.ensureSignupTrial({ accountId: account.id, createdAt: account.created_at, userId: s.userId });
     return account;
   };
 
@@ -118,13 +118,13 @@ export default async function billingRoutes(app: FastifyInstance, ctx: AppContex
   });
 
   // Invite links (docs/BILLING.md › Trials and invite links).
-  app.get("/v2/billing/referral", authed, async (req) => ctx.billing.grants.stats(session(req).accountId));
+  app.get("/v2/billing/referral", authed, async (req) => await ctx.billing.grants.stats(session(req).accountId));
 
   app.post("/v2/billing/referral/claim", providerCall, async (req) => {
     const s = session(req);
     const { code } = parse(ReferralClaimBody, req.body);
     const account = await accountWithTrial(s);
-    const claimed = ctx.billing.grants.claim({ accountId: account.id, createdAt: account.created_at, userId: s.userId }, code);
+    const claimed = await ctx.billing.grants.claim({ accountId: account.id, createdAt: account.created_at, userId: s.userId }, code);
     const inviter = ctx.billing.grants.inviterOf(code);
     ctx.audit({ actorId: s.userId ?? s.accountId, action: "billing.referral", target: inviter, detail: `inviter_days:${claimed.inviterDays}` });
     for (const accountId of [account.id, inviter]) if (accountId) ctx.billing.onChange?.({ kind: "account", accountId });

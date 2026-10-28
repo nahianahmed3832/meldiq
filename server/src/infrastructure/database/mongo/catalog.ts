@@ -24,7 +24,8 @@ export type TableDomain =
   | "reports"
   | "relationships"
   | "federation"
-  | "platform";
+  | "platform"
+  | "billing";
 
 /**
  * Tables that never go to MongoDB, and why. They are either SQLite's own bookkeeping or short-lived security material
@@ -227,18 +228,22 @@ export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
   ai_channel_posts: "platform",
   // Billing (migration 061): the plan catalog, checkouts, subscriptions, invoices and provider events. Kept in SQLite in
   // every mode, like the rest of the platform tables.
-  billing_plans: "platform",
-  billing_plan_versions: "platform",
-  billing_checkouts: "platform",
-  billing_subscriptions: "platform",
-  billing_subscription_history: "platform",
-  billing_invoices: "platform",
-  billing_provider_events: "platform",
-  billing_webhook_rejections: "platform",
-  billing_customers: "platform",
-  billing_grants: "platform",
-  billing_referral_codes: "platform",
-  billing_referrals: "platform",
+  billing_plans: "billing",
+  billing_plan_versions: "billing",
+  billing_checkouts: "billing",
+  billing_subscriptions: "billing",
+  billing_subscription_history: "billing",
+  billing_invoices: "billing",
+  billing_provider_events: "billing",
+  billing_webhook_rejections: "billing",
+  billing_customers: "billing",
+  billing_grants: "billing",
+  billing_referral_codes: "billing",
+  billing_referrals: "billing",
+  // Meldiq Mojo's perks (API 0.54.0, docs/MOJO.md).
+  spark_assignments: "billing",
+  mojo_gifts: "billing",
+  mojo_profile: "billing",
 };
 
 export interface ColumnSpec {

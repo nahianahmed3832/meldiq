@@ -208,12 +208,12 @@ describe("with Stripe in test mode", () => {
     await c.signIn();
     return c;
   };
-  const historyOf = (subRef: string) =>
-    h.ctx.db.prepare("SELECT h.from_status, h.to_status, h.detail FROM billing_subscription_history h JOIN billing_subscriptions s ON s.id = h.subscription_id WHERE s.provider_subscription_ref = ? ORDER BY h.id").all(subRef) as {
-      from_status: string | null;
-      to_status: string;
-      detail: string;
-    }[];
+  const historyOf = (subRef: string) => {
+    const s = h.ctx.billing.rows.get<{ id: string }>("billing_subscriptions", { provider_subscription_ref: subRef });
+    return h.ctx.billing.rows
+      .all<{ from_status: string | null; to_status: string; detail: string }>("billing_subscription_history", { where: { subscription_id: s?.id ?? "" }, orderBy: [["id", "asc"]] })
+      .map(({ from_status, to_status, detail }) => ({ from_status, to_status, detail }));
+  };
 
   beforeAll(async () => {
     const provider = new StripeProvider({ secretKey: SK, webhookSecret: WHSEC, allowPromotionCodes: false, api: stripe });
@@ -295,7 +295,7 @@ describe("with Stripe in test mode", () => {
       expect(stripe.expired).toEqual([stripe.sessions.at(-2)!.id]);
       expect(stripe.customers).toHaveLength(1);
       expect(stripe.sessions.at(-1)!.params.customer).toBe("cus_fake_1");
-      expect(h.ctx.db.prepare("SELECT status FROM billing_checkouts WHERE id = ?").get(firstCheckout)).toEqual({ status: "superseded" });
+      expect(h.ctx.billing.rows.get<{ status: string }>("billing_checkouts", { id: firstCheckout })?.status).toBe("superseded");
     });
 
     it("grants nothing when the browser comes back from Checkout", async () => {
@@ -574,6 +574,6 @@ describe("another provider normalized into the same entitlements (isolated test 
     expect((await notify(again)).body.status).toBe("processed");
     const e = await dana.req("GET", "/v2/billing/entitlements");
     expect(e.personal).toMatchObject({ plan: { key: "premium" }, standing: "entitled", subscription: { provider: "teststore" } });
-    expect(h.ctx.db.prepare("SELECT COUNT(*) n FROM billing_subscriptions").get()).toEqual({ n: 1 });
+    expect(h.ctx.billing.rows.count("billing_subscriptions")).toBe(1);
   });
 });
