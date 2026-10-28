@@ -2,7 +2,7 @@
 <!-- Orbit 2.0 account strings (docs/LANGUAGES.md). Generated from strings_account.py. -->
 <resources>
     <string name="acct_signup_title">Create your account</string>
-    <string name="acct_signup_subtitle">Your name, email and a password. Messages stay end-to-end encrypted.</string>
+    <string name="acct_signup_subtitle">Your name, email and a password.</string>
     <string name="acct_signup_submit">Create account</string>
     <string name="acct_name">Your name</string>
     <string name="acct_name_hint">Shown to the people you talk to</string>
@@ -57,7 +57,7 @@
     <string name="acct_reset_submit">Save new password</string>
     <string name="acct_password_changed">Password changed. Sign in with the new one.</string>
     <string name="acct_setup_title">Unlock your messages</string>
-    <string name="acct_setup_subtitle">You\'re signed in. Your messages are end-to-end encrypted, so this phone needs your account\'s keys.</string>
+    <string name="acct_setup_subtitle">You\'re signed in. This phone needs your account\'s keys to finish signing in.</string>
     <string name="acct_setup_link">Approve from another phone</string>
     <string name="acct_setup_link_sub">A phone already signed in approves this one</string>
     <string name="acct_setup_key">Use my recovery key</string>

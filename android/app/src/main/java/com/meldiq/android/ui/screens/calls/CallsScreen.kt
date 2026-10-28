@@ -109,7 +109,7 @@ fun CallsScreen(nav: NavHostController) {
                 item {
                     EmptyState(
                         Icons.Outlined.Call, "No calls yet",
-                        "Voice and video calls are end-to-end encrypted when the call screen says so. Your call history stays on this device.",
+                        "Voice and video calls travel over encrypted connections; the call screen shows their state. Your call history is kept on Meldiq's servers.",
                         action = "Start a call", onAction = { nav.navigate(Routes.NEW_CHAT + "?mode=call") },
                     )
                 }

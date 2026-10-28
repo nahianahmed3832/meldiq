@@ -2,7 +2,7 @@
 <!-- Orbit 2.0 account strings (docs/LANGUAGES.md). Generated from strings_account.py. -->
 <resources>
     <string name="acct_signup_title">আপনার অ্যাকাউন্ট তৈরি করুন</string>
-    <string name="acct_signup_subtitle">আপনার নাম, ইমেইল ও একটি পাসওয়ার্ড। বার্তাগুলো এন্ড-টু-এন্ড এনক্রিপ্টেড থাকে।</string>
+    <string name="acct_signup_subtitle">আপনার নাম, ইমেইল আর একটি পাসওয়ার্ড।</string>
     <string name="acct_signup_submit">অ্যাকাউন্ট তৈরি করুন</string>
     <string name="acct_name">আপনার নাম</string>
     <string name="acct_name_hint">যাদের সঙ্গে কথা বলেন তারা দেখবেন</string>
@@ -57,7 +57,7 @@
     <string name="acct_reset_submit">নতুন পাসওয়ার্ড সংরক্ষণ করুন</string>
     <string name="acct_password_changed">পাসওয়ার্ড বদলানো হয়েছে। নতুনটি দিয়ে সাইন ইন করুন।</string>
     <string name="acct_setup_title">আপনার বার্তা আনলক করুন</string>
-    <string name="acct_setup_subtitle">আপনি সাইন ইন করেছেন। বার্তাগুলো এন্ড-টু-এন্ড এনক্রিপ্টেড, তাই এই ফোনে আপনার অ্যাকাউন্টের কী লাগবে।</string>
+    <string name="acct_setup_subtitle">আপনি সাইন ইন করেছেন। সাইন ইন শেষ করতে এই ফোনে আপনার অ্যাকাউন্টের কী দরকার।</string>
     <string name="acct_setup_link">অন্য ফোন থেকে অনুমোদন দিন</string>
     <string name="acct_setup_link_sub">আগে থেকে সাইন-ইন করা একটি ফোন এটি অনুমোদন করবে</string>
     <string name="acct_setup_key">আমার রিকভারি কী ব্যবহার করুন</string>

@@ -27,7 +27,7 @@
     <string name="wp_badge_bug_hunter">Bug Hunter</string>
     <string name="wp_about_me">About me</string>
     <string name="wp_style_title">Profile style</string>
-    <string name="wp_style_sub">Your frame, banner and name style. Everyone who sees your profile sees them; they aren\'t end-to-end encrypted.</string>
+    <string name="wp_style_sub">Your frame, banner and name style. Everyone who sees your profile sees them.</string>
     <string name="wp_style_preview">Preview</string>
     <string name="wp_style_frame">Avatar frame</string>
     <string name="wp_style_effect">Banner effect</string>

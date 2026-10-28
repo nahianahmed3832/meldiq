@@ -89,7 +89,6 @@ fun AccountSecurityCard(modifier: Modifier = Modifier, onEditProfile: (() -> Uni
     AccountSection(R.string.ux_how_you_sign_in)
     GlassCard(Modifier.fillMaxWidth().padding(horizontal = Space.gutter), contentPadding = PaddingValues(6.dp)) {
         MenuRow(Icons.Outlined.Password, stringResource(R.string.acct_settings_password), subtitle = stringResource(R.string.acct_settings_password_sub), onClick = { changing = true })
-        KeyBackupRow()
         RecoveryCodesRow()
     }
     PasskeysSection()

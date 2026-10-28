@@ -156,7 +156,7 @@
     <string name="app_save">সেটিংস সংরক্ষণ</string>
     <string name="app_saved">সেটিংস সংরক্ষিত</string>
     <string name="app_notifications">চ্যানেল বিজ্ঞপ্তি</string>
-    <string name="app_notifications_sub">আপডেট Meldiq-এর সার্ভার পোস্ট করে, এগুলো এন্ড-টু-এন্ড এনক্রিপ্টেড নয়। চ্যানেলের সবাই দেখেন।</string>
+    <string name="app_notifications_sub">আপডেট Meldiq-এর সার্ভার পোস্ট করে। চ্যানেলের সবাই এগুলো দেখেন।</string>
     <string name="app_link_title">এই কমিউনিটি লিংক করুন</string>
     <string name="app_link_needs_own">আগে নিজের অ্যাকাউন্ট সংযুক্ত করুন: এটি দেখায় কোন প্রতিষ্ঠান লিংক করতে পারবেন।</string>
     <string name="app_linked_to">%1$s-এর সঙ্গে লিংক করা</string>
@@ -247,7 +247,7 @@
     <string name="send_start">শুরু (YYYY-MM-DD HH:MM)</string>
     <string name="send_end">শেষ (YYYY-MM-DD HH:MM)</string>
     <string name="send_location">স্থান (ঐচ্ছিক)</string>
-    <string name="send_warning">%1$s আপনার নামে ঠিক এই ঘরগুলোর লেখা পাবে। এই লেখা Meldiq-এর এন্ড-টু-এন্ড এনক্রিপশনের বাইরে যাবে।</string>
+    <string name="send_warning">%1$s আপনার হয়ে এই ঘরগুলোতে যা আছে ঠিক তা-ই পাবে।</string>
     <string name="send_do">পাঠান</string>
     <string name="send_done">%1$s তৈরি হয়েছে</string>
     <string name="send_bad_time">YYYY-MM-DD HH:MM ফরম্যাট ব্যবহার করুন</string>

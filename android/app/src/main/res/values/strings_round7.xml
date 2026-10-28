@@ -41,7 +41,7 @@
     <string name="bulk_state_cancelled">Stopped</string>
     <string name="search_title">Search</string>
     <string name="search_hint">People, channels, messages or files</string>
-    <string name="search_scope_note">People, channels, communities and groups are searched on the server, only where you have access. Messages, files and pins are end-to-end encrypted, so they\'re searched on this phone only.</string>
+    <string name="search_scope_note">Searched on Meldiq\'s server, only in what you have access to: people, channels, communities, groups and messages.</string>
     <string name="search_filter_all">All</string>
     <string name="search_messages">Messages</string>
     <string name="search_files">Files</string>

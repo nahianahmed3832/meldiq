@@ -174,7 +174,7 @@
     <string name="welcome_title_1">设计即隐私。</string>
     <string name="welcome_title_2">连接每一个人。</string>
     <string name="welcome_body">消息、社区频道和通话在离开你的手机之前就已加密。</string>
-    <string name="welcome_trust">端到端加密 · 密钥只保存在这部手机上</string>
+    <string name="welcome_trust">你的聊天在每台设备上 · 安全保存在 Meldiq 的服务器上</string>
     <string name="welcome_sign_up">注册</string>
     <string name="welcome_log_in">登录</string>
     <string name="signup_title">创建你的账户</string>

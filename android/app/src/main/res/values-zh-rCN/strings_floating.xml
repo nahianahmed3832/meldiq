@@ -39,4 +39,23 @@
     <string name="call_you">你</string>
     <string name="call_started_streaming">%1$s 开始了直播</string>
     <string name="call_watch">观看</string>
+    <string name="pf_links">链接</string>
+    <string name="pf_now">现在</string>
+    <string name="pf_online">在线</string>
+    <string name="pf_last_seen">最后在线 %1$s</string>
+    <string name="pf_not_shown">未显示</string>
+    <string name="pf_member_since">加入时间</string>
+    <string name="pf_meldiq_since">加入 Meldiq</string>
+    <string name="pf_joined_here">加入 %1$s</string>
+    <string name="pf_roles">身份组</string>
+    <string name="pf_mutual_one">1 个共同社区</string>
+    <string name="pf_mutual">%1$d 个共同社区</string>
+    <string name="pf_message_hint">发消息给 @%1$s</string>
+    <string name="pf_send">发送给 %1$s</string>
+    <string name="pf_more">%1$s 的更多选项</string>
+    <string name="pf_close">关闭</string>
+    <string name="pf_copy_username">复制用户名</string>
+    <string name="pf_unavailable">你无法查看此个人资料。</string>
+    <string name="srv_notice">你的消息现在保存在 Meldiq 的服务器上，因此会出现在你登录的每台设备上。它们通过加密连接传输；对话成员可以阅读，在举报或法律要求时 Meldiq 的工作人员也可以。</string>
+    <string name="srv_notice_ok">知道了</string>
 </resources>

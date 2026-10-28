@@ -39,4 +39,23 @@ Add me there: @%2$s</string>
     <string name="call_you">You</string>
     <string name="call_started_streaming">%1$s started streaming</string>
     <string name="call_watch">Watch</string>
+    <string name="pf_links">Links</string>
+    <string name="pf_now">Now</string>
+    <string name="pf_online">Online</string>
+    <string name="pf_last_seen">Last seen %1$s</string>
+    <string name="pf_not_shown">Not shown</string>
+    <string name="pf_member_since">Member since</string>
+    <string name="pf_meldiq_since">Joined Meldiq</string>
+    <string name="pf_joined_here">Joined %1$s</string>
+    <string name="pf_roles">Roles</string>
+    <string name="pf_mutual_one">1 mutual community</string>
+    <string name="pf_mutual">%1$d mutual communities</string>
+    <string name="pf_message_hint">Message @%1$s</string>
+    <string name="pf_send">Send to %1$s</string>
+    <string name="pf_more">More for %1$s</string>
+    <string name="pf_close">Close</string>
+    <string name="pf_copy_username">Copy username</string>
+    <string name="pf_unavailable">This profile isn\'t available to you.</string>
+    <string name="srv_notice">Your messages now live on Meldiq\'s servers, so they\'re on every device you sign in to. They travel over encrypted connections; members of a conversation can read it, and Meldiq\'s staff can when a report or the law requires it.</string>
+    <string name="srv_notice_ok">Got it</string>
 </resources>

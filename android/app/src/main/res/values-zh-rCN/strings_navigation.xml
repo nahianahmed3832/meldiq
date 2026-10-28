@@ -204,7 +204,7 @@
     <string name="rp_to_community">发送给 %1$s 的管理员。他们不会看到是你举报的。</string>
     <string name="rp_to_meldiq">发送给 Meldiq 团队。</string>
     <string name="rp_shared">会分享的内容</string>
-    <string name="rp_shared_message">这条消息以及它之前最多 %1$d 条消息（按你看到的内容）。消息是端到端加密的，除非你发送此举报，否则不会分享任何内容。</string>
+    <string name="rp_shared_message">此消息及其之前最多 %1$d 条消息（按你所见）将随举报发送给管理员。</string>
     <string name="rp_shared_person">被举报的人、原因和你的备注。</string>
     <string name="rp_note">补充说明（可选）</string>
     <string name="rp_send">发送举报</string>
@@ -315,12 +315,12 @@
     <string name="b5_channel_info">频道信息</string>
     <string name="b5_contact">联系人</string>
     <string name="b5_copy_link">复制消息链接</string>
-    <string name="b5_e2e_intro">这里的消息在你的设备上端到端加密。服务器只转发加密副本；如果成员把历史记录保存在服务器上，也会用只有他们自己设备才有的密钥加密存储。</string>
+    <string name="b5_e2e_intro">这里的消息和文件保存在 Meldiq 的服务器上，并通过加密连接（TLS）传输。此对话的成员可以阅读它们；在举报或法律要求时，Meldiq 的工作人员也可以。</string>
     <string name="b5_edit">编辑</string>
     <string name="b5_edit_name_topic">编辑名称和主题</string>
     <string name="b5_editing">正在编辑消息</string>
     <string name="b5_emoji">表情和动画表情</string>
-    <string name="b5_file_warning">文件经过端到端加密，服务器无法扫描病毒。只有在你信任发送者并且预期收到此文件时才打开。</string>
+    <string name="b5_file_warning">Meldiq 不会扫描文件中的病毒。只有在你信任发送者并且预期收到此文件时才打开它。</string>
     <string name="b5_forward_files">文件会为该聊天重新加密并上传。</string>
     <string name="b5_forward_text">它会作为一条新消息发送，并标记为转发。</string>
     <string name="b5_forward_to_q">转发给 %1$s？</string>
@@ -334,7 +334,7 @@
     <string name="b5_info_read">已读</string>
     <string name="b5_info_relay">中继已接收</string>
     <string name="b5_info_sent">发送时间</string>
-    <string name="b5_info_signed">端到端加密 · 由此设备签名</string>
+    <string name="b5_info_signed">保存在 Meldiq 的服务器上</string>
     <string name="b5_info_status">状态</string>
     <string name="b5_join">加入</string>
     <string name="b5_jump_latest">跳到最新消息</string>
@@ -463,7 +463,7 @@
     <string name="b6b_add_photo">添加群组照片</string>
     <string name="b6b_change_photo">更换群组照片</string>
     <string name="b6b_remove_photo">移除群组照片</string>
-    <string name="b6b_photo_sub">群组中的所有人都能看到。与群组名称一样，它不是端到端加密的。</string>
+    <string name="b6b_photo_sub">群组中的每个人都能看到它。</string>
     <string name="b6b_photo_uploading">正在上传…</string>
     <string name="b6b_title">在线状态</string>
     <string name="b6b_auto">在线</string>

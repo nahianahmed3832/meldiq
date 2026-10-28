@@ -124,10 +124,31 @@ class MessageReceiver(
         }
     }
 
+    /**
+     * A stored message or change (API 0.56.0, docs/SERVER_MESSAGES.md): from the delivery queue, a history page, the
+     * summary or search. Applied as a decrypted envelope was: nothing to open, the server already checked who may send
+     * and change what. [history]: loaded, not just arrived: shown, never counted unread, notified, rung or marked read.
+     */
+    suspend fun ingest(e: com.meldiq.android.data.api.StoredEventDto, queueId: Long = 0, history: Boolean = false) {
+        if (myUserId == null) throw ApiException(0, "not_signed_in", "Not signed in yet")
+        val item = StoredEvents.queueItem(e, queueId)
+        val existing = db.messages().get(e.id)
+        if (existing != null && e.cls == "message" && existing.kind != "undecryptable") return // already here
+        val payload = json.decodeFromJsonElement(Payload.serializer(), e.payload)
+        val conv = db.conversations().get(e.conversationId) ?: runCatching { conversations.refreshOne(e.conversationId) }.getOrNull()
+        if (db.users().get(e.senderUserId)?.displayName.isNullOrEmpty()) runCatching { users.fetch(e.senderUserId) }
+        apply(payload, item, conv, e.senderUserId == myUserId, e.serverTs, history)
+    }
+
     private suspend fun handleItem(item: QueueItem) {
         // Never "succeed" without a session: that would acknowledge (and lose) the item unprocessed.
         val me = myUserId ?: throw ApiException(0, "not_signed_in", "Not signed in yet")
         val myDevice = myDeviceId ?: throw ApiException(0, "not_signed_in", "Not signed in yet")
+        // API 0.56.0: a stored message, sent as it is (no envelope to open).
+        if (item.kind == "message") {
+            val event = item.payload.event ?: throw EnvelopeException("malformed message")
+            return ingest(event, item.id)
+        }
         if (item.kind == "receipt") {
             if (item.payload.status == "delivered") {
                 val m = db.messages().get(item.messageId) ?: return
@@ -162,7 +183,7 @@ class MessageReceiver(
         apply(payload, item, conv, item.senderUserId == me, p.serverTs ?: item.createdAt)
     }
 
-    private suspend fun apply(pl: Payload, item: QueueItem, conv: ConversationEntity?, mine: Boolean, serverTs: Long) {
+    private suspend fun apply(pl: Payload, item: QueueItem, conv: ConversationEntity?, mine: Boolean, serverTs: Long, history: Boolean = false) {
         val me = myUserId ?: throw ApiException(0, "not_signed_in", "Not signed in yet")
         when (pl.type) {
             "text" -> {
@@ -182,6 +203,14 @@ class MessageReceiver(
                 )
                 if (db.messages().insertIgnore(m) == -1L) return
                 replayPending(item.conversationId, item.messageId, conv, me)
+                if (history) {
+                    // Loaded history: the list's preview follows the newest message (the server's summary sets unread counts).
+                    if (pl.threadRoot == null) {
+                        val sender = if (mine) "You" else db.users().get(item.senderUserId)?.displayName ?: "Someone"
+                        db.conversations().bumpPreview(item.conversationId, item.messageId, MessagePreview.of(pl), serverTs, sender, 0, 0)
+                    }
+                    return
+                }
                 val viewing = appState.foreground.value && appState.viewingConversation.value == item.conversationId
                 val mention = MentionNotify.isMention(mine, me in received.ids, received.all, conv?.let { countsEveryoneOf(it) } ?: true)
                 // A muted conversation still notifies when someone mentions you by name; @everyone respects the mute.
@@ -244,6 +273,7 @@ class MessageReceiver(
             }
             "read" -> {
                 val upTo = pl.upTo ?: return
+                if (mine && history) return
                 if (mine) {
                     // Read on another of this person's devices: cleared here too, unless something newer arrived since.
                     val latest = db.messages().latestIncoming(item.conversationId)
@@ -256,6 +286,7 @@ class MessageReceiver(
                 }
             }
             "call_key_request" -> {
+                if (history) return // an old request is history, not a live call
                 // Only the call's creator answers, in the call's own conversation, while the call is live (T5.3).
                 val callId = pl.callId ?: return
                 val k = db.calls().key(callId) ?: return
@@ -268,6 +299,8 @@ class MessageReceiver(
                 sendControl(item.conversationId, Payload(type = "call_invite", callId = callId, video = call.video, e2eeKey = k.key))
             }
             "call_invite" -> {
+                // An old call's invitation is history: the call log shows the call; it doesn't ring or set a key.
+                if (history) return
                 val callId = pl.callId ?: return
                 val key = pl.e2eeKey ?: return
                 if (db.calls().key(callId) != null) {

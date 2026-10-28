@@ -6,7 +6,7 @@
     <string name="sec_padlock_attention">নিরাপত্তার বিবরণ: একটি নিরাপত্তা কী বদলেছে</string>
     <string name="sec_title">নিরাপত্তা</string>
     <string name="sec_this_person">এই ব্যক্তি</string>
-    <string name="sec_messages">বার্তা এন্ড-টু-এন্ড এনক্রিপ্টেড</string>
+    <string name="sec_messages">মেসেজ Meldiq-এর সার্ভারে রাখা হয়</string>
     <string name="sec_messages_body">বার্তা, প্রতিক্রিয়া, পোল ও সম্পাদনা এই ফোনেই প্রত্যেক সদস্যের ডিভাইসের জন্য এনক্রিপ্ট হয়। Meldiq-এর সার্ভার শুধু এনক্রিপ্টেড কপি পৌঁছে দেয় ও রাখে।</string>
     <string name="sec_files">ফাইল আপলোডের আগেই এনক্রিপ্ট হয়</string>
     <string name="sec_files_body">ছবি, ভিডিও, ভয়েস বার্তা ও ফাইল এই ফোনেই এনক্রিপ্ট হয়; সার্ভার সেগুলো খুলতে বা স্ক্যান করতে পারে না।</string>
@@ -24,7 +24,7 @@
     <string name="sec_keys_changed_body">তাঁর নিরাপত্তা নম্বর যাচাই না করা পর্যন্ত তাঁর সঙ্গে বার্তা বন্ধ থাকবে।</string>
     <string name="sec_other_servers">অন্য সার্ভারে সদস্য আছেন</string>
     <string name="sec_other_servers_body">দুটি সার্ভারই শুধু এনক্রিপ্টেড কপি পৌঁছে দেয়, পৌঁছানো পর্যন্ত সর্বোচ্চ ৭ দিন রাখে।</string>
-    <string name="sec_app_updates">অ্যাপ আপডেট এন্ড-টু-এন্ড এনক্রিপ্টেড নয়</string>
+    <string name="sec_app_updates">অ্যাপ আপডেট Meldiq-এর সার্ভার পোস্ট করে</string>
     <string name="sec_app_updates_body">যুক্ত অ্যাপ এই চ্যানেলে যা পোস্ট করে তা Meldiq-এর সার্ভারের মধ্য দিয়ে যায় এবং অ্যাপ আপডেট হিসেবে চিহ্নিত থাকে।</string>
     <string name="sec_metadata">সার্ভার কী দেখতে পায়</string>
     <string name="sec_metadata_body">এই কথোপকথনে কারা আছেন, বার্তা কখন পাঠানো হয় ও কত বড়। বিষয়বস্তু নয়।</string>
@@ -35,7 +35,7 @@
     <string name="intro_page">%2$d-এর মধ্যে %1$d নম্বর পৃষ্ঠা</string>
     <string name="intro_soon">শীঘ্রই আসছে</string>
     <string name="intro_talk_title">এক জায়গায় কথা বলুন</string>
-    <string name="intro_talk_body">থ্রেড, পোল ও ফাইলসহ চ্যানেল, গ্রুপ আর সরাসরি বার্তা। সবকিছু আপনার ফোনেই এন্ড-টু-এন্ড এনক্রিপ্টেড।</string>
+    <string name="intro_talk_body">থ্রেড, পোল আর ফাইলসহ চ্যানেল, গ্রুপ ও সরাসরি মেসেজ, আপনার সাইন ইন করা প্রতিটি ডিভাইসে।</string>
     <string name="intro_remind_title">কিছুই ভুলবেন না</string>
     <string name="intro_remind_body">বার্তা পরে দেখার জন্য রাখুন আর রিমাইন্ডার দিন। আপনি যে সব ডিভাইসে সাইন ইন করেছেন, সবখানে পৌঁছায়, রিস্টার্টের পরেও।</string>
     <string name="intro_voice_title">কথা বলে মিটিয়ে নিন</string>

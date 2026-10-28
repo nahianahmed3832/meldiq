@@ -177,7 +177,7 @@ private fun EditProfileForm(u: UserDto, onSaved: (UserDto) -> Unit, onPrivacy: (
                     )
                 }
                 Text(
-                    "Photo: ${ProfileRules.audienceSummary(privacy.getValue(PrivacyField.PHOTO))} · not end-to-end encrypted",
+                    "Photo: ${ProfileRules.audienceSummary(privacy.getValue(PrivacyField.PHOTO))}",
                     style = Griip.type.caption, color = c.textTertiary, modifier = Modifier.padding(top = 6.dp),
                 )
                 if (photoRev == null) ChipRow(Modifier.padding(top = 6.dp)) { (0..7).forEach { i -> PillChip("${i + 1}", color == i, { color = i }) } }

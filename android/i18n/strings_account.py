@@ -4,7 +4,7 @@
 S = {
 # Sign-up
 "acct_signup_title": ("Create your account", "创建你的账户", "আপনার অ্যাকাউন্ট তৈরি করুন"),
-"acct_signup_subtitle": ("Your name, email and a password. Messages stay end-to-end encrypted.", "填写姓名、邮箱和密码。消息始终端到端加密。", "আপনার নাম, ইমেইল ও একটি পাসওয়ার্ড। বার্তাগুলো এন্ড-টু-এন্ড এনক্রিপ্টেড থাকে।"),
+"acct_signup_subtitle": ("Your name, email and a password.", "你的姓名、邮箱和密码。", "আপনার নাম, ইমেইল আর একটি পাসওয়ার্ড।"),
 "acct_signup_submit": ("Create account", "创建账户", "অ্যাকাউন্ট তৈরি করুন"),
 "acct_name": ("Your name", "你的名字", "আপনার নাম"),
 "acct_name_hint": ("Shown to the people you talk to", "会显示给与你交流的人", "যাদের সঙ্গে কথা বলেন তারা দেখবেন"),
@@ -63,7 +63,7 @@ S = {
 "acct_password_changed": ("Password changed. Sign in with the new one.", "密码已更改，请使用新密码登录。", "পাসওয়ার্ড বদলানো হয়েছে। নতুনটি দিয়ে সাইন ইন করুন।"),
 # Encryption on this phone
 "acct_setup_title": ("Unlock your messages", "解锁你的消息", "আপনার বার্তা আনলক করুন"),
-"acct_setup_subtitle": ("You're signed in. Your messages are end-to-end encrypted, so this phone needs your account's keys.", "你已登录。消息采用端到端加密，所以这台手机需要你账户的密钥。", "আপনি সাইন ইন করেছেন। বার্তাগুলো এন্ড-টু-এন্ড এনক্রিপ্টেড, তাই এই ফোনে আপনার অ্যাকাউন্টের কী লাগবে।"),
+"acct_setup_subtitle": ("You're signed in. This phone needs your account's keys to finish signing in.", "你已登录。这部手机需要你账户的密钥来完成登录。", "আপনি সাইন ইন করেছেন। সাইন ইন শেষ করতে এই ফোনে আপনার অ্যাকাউন্টের কী দরকার।"),
 "acct_setup_link": ("Approve from another phone", "从另一台手机批准", "অন্য ফোন থেকে অনুমোদন দিন"),
 "acct_setup_link_sub": ("A phone already signed in approves this one", "由一台已登录的手机批准这台手机", "আগে থেকে সাইন-ইন করা একটি ফোন এটি অনুমোদন করবে"),
 "acct_setup_key": ("Use my recovery key", "使用恢复密钥", "আমার রিকভারি কী ব্যবহার করুন"),

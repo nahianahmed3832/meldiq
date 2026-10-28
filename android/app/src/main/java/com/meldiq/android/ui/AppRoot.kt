@@ -162,7 +162,8 @@ object Routes {
     fun applications(orgId: String) = "applications/$orgId"
     fun expressions(orgId: String) = "expressions/$orgId"
     fun usage(orgId: String) = "usage/$orgId"
-    fun user(id: String) = "user/$id"
+    /** Someone's profile; [orgId]: the community it was opened from (their roles and when they joined it). */
+    fun user(id: String, orgId: String? = null) = "user/$id" + (orgId?.let { "?org=$it" } ?: "")
     /**
      * The bottom bar (2026-10-21): Home (communities), DMs, Activity and You. Everything else opens over them, with Back.
      */
@@ -339,7 +340,10 @@ private fun MainNav(container: AppContainer, pendingConversation: String?, pendi
             composable("expressions/{orgId}") { com.meldiq.android.ui.screens.community.ExpressionsScreen(nav, it.arguments?.getString("orgId").orEmpty()) }
             composable("applications/{orgId}") { com.meldiq.android.ui.screens.moderation.ApplicationsScreen(nav, it.arguments?.getString("orgId").orEmpty()) }
             composable("usage/{orgId}") { com.meldiq.android.ui.screens.workspace.UsageScreen(nav, it.arguments?.getString("orgId").orEmpty()) }
-            composable("user/{id}") { UserProfileScreen(nav, it.arguments!!.getString("id")!!) }
+            composable(
+                "user/{id}?org={org}",
+                arguments = listOf(androidx.navigation.navArgument("org") { type = androidx.navigation.NavType.StringType; nullable = true; defaultValue = null }),
+            ) { UserProfileScreen(nav, it.arguments!!.getString("id")!!, it.arguments?.getString("org")) }
             composable(Routes.DEVICES) { DevicesScreen(nav) }
             composable(Routes.SECURITY) { SecurityScreen(nav) }
             composable(Routes.SERVERS) { ServersScreen(nav) }

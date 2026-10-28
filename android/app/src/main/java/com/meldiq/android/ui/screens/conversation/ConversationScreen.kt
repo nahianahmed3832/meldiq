@@ -716,7 +716,7 @@ fun ConversationScreen(nav: NavHostController, conversationId: String, threadRoo
                     EmptyState(
                         Icons.Rounded.Lock, stringResource(R.string.b5_say_hello),
                         if (remoteMembers.isNotEmpty()) {
-                            "${remoteMembers.first().displayName} is on another server (${GlobalAddress.serverOf(remoteMembers.first().username) ?: "elsewhere"}). Messages are end-to-end encrypted on your device; both servers only relay encrypted copies, kept for at most 7 days until delivered."
+                            "${remoteMembers.first().displayName} is on another server (${GlobalAddress.serverOf(remoteMembers.first().username) ?: "elsewhere"}). Messages travel between both servers over encrypted connections; each server keeps what its members see."
                         } else {
                             stringResource(R.string.b5_e2e_intro)
                         },

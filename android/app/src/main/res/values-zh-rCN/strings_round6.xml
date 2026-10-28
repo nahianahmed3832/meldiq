@@ -6,7 +6,7 @@
     <string name="sec_padlock_attention">安全详情：有安全密钥已更改</string>
     <string name="sec_title">安全</string>
     <string name="sec_this_person">此人</string>
-    <string name="sec_messages">消息端到端加密</string>
+    <string name="sec_messages">消息保存在 Meldiq 的服务器上</string>
     <string name="sec_messages_body">消息、回应、投票和编辑都会在此手机上为每位成员的设备加密。Meldiq 服务器只转发和存储加密副本。</string>
     <string name="sec_files">文件在上传前加密</string>
     <string name="sec_files_body">照片、视频、语音消息和文件在此手机上加密，服务器无法打开或扫描它们。</string>
@@ -24,7 +24,7 @@
     <string name="sec_keys_changed_body">在你核对对方的安全码之前，与其的消息会暂停。</string>
     <string name="sec_other_servers">有成员在其他服务器上</string>
     <string name="sec_other_servers_body">两台服务器都只转发加密副本，送达前最多保留 7 天。</string>
-    <string name="sec_app_updates">应用更新未端到端加密</string>
+    <string name="sec_app_updates">应用更新由 Meldiq 的服务器发布</string>
     <string name="sec_app_updates_body">已连接应用在此频道发布的内容会经过 Meldiq 服务器，并标记为应用更新。</string>
     <string name="sec_metadata">服务器能看到什么</string>
     <string name="sec_metadata_body">此对话有哪些成员、消息何时发送以及大小，但看不到内容。</string>
@@ -35,7 +35,7 @@
     <string name="intro_page">第 %1$d 页，共 %2$d 页</string>
     <string name="intro_soon">即将推出</string>
     <string name="intro_talk_title">在一个地方畅聊</string>
-    <string name="intro_talk_body">频道、群组和私信，支持话题、投票和文件。所有内容都在你的手机上端到端加密。</string>
+    <string name="intro_talk_body">频道、群组和私信，带有话题、投票和文件，在你登录的每台设备上。</string>
     <string name="intro_remind_title">不再遗漏</string>
     <string name="intro_remind_body">将消息保存到稍后处理并设置提醒。提醒会送达你登录的每台设备，重启后也不会丢失。</string>
     <string name="intro_voice_title">当面聊清楚</string>

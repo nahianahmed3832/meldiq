@@ -31,7 +31,7 @@ S = {
 "auth_help_lost_email_sub": ("Use one of your saved recovery codes to move the account to a new address", "使用你保存的恢复码之一，将账号转到新邮箱", "সংরক্ষিত একটি রিকভারি কোড দিয়ে অ্যাকাউন্টটি নতুন ঠিকানায় সরান"),
 "auth_help_back_signin": ("Back to sign in", "返回登录", "সাইন ইনে ফিরে যান"),
 "auth_help_unlock_title": ("Other ways to unlock", "其他解锁方式", "আনলক করার অন্য উপায়"),
-"auth_help_unlock_body": ("Your messages are end-to-end encrypted, so this phone needs your account's keys. If the email code can't reach you, use one of these.", "你的消息经过端到端加密，所以这台手机需要你账号的密钥。如果收不到邮件验证码，请使用以下方式之一。", "আপনার বার্তা এন্ড-টু-এন্ড এনক্রিপ্টেড, তাই এই ফোনে অ্যাকাউন্টের কী লাগবে। ইমেইলের কোড না পেলে এর একটি ব্যবহার করুন।"),
+"auth_help_unlock_body": ("This phone needs your account's keys to finish signing in. If the email code can't reach you, use one of these.", "这部手机需要你账户的密钥来完成登录。如果收不到邮箱验证码，请使用以下方式之一。", "সাইন ইন শেষ করতে এই ফোনে আপনার অ্যাকাউন্টের কী দরকার। ইমেইল কোড না পেলে এগুলোর একটি ব্যবহার করুন।"),
 "auth_help_back_unlock": ("Back to the email code", "返回邮件验证码", "ইমেইল কোডে ফিরে যান"),
 "kb_setup_checking": ("Checking for a backup of your keys…", "正在检查你的密钥备份…", "আপনার কী-এর ব্যাকআপ খোঁজা হচ্ছে…"),
 "kb_setup_check_failed": ("Couldn't check whether your keys are backed up. Try again, or use another way below.", "无法检查你的密钥是否已备份。请重试，或使用下面的其他方式。", "আপনার কী ব্যাকআপ আছে কি না দেখা যায়নি। আবার চেষ্টা করুন, বা নিচের অন্য উপায় ব্যবহার করুন।"),

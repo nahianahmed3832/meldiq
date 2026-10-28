@@ -211,7 +211,7 @@ private fun AddServerSheet(
             StatusBanner(it.message, if (it.ok) BannerKind.Success else BannerKind.Error)
             if (it.ok && it.cleartext) {
                 Spacer(Modifier.height(8.dp))
-                StatusBanner("Unencrypted connection (http): use it only for local testing. Message content stays end-to-end encrypted; metadata and sign-in tokens don't.", BannerKind.Warning, icon = Icons.Rounded.GppMaybe)
+                StatusBanner("Unencrypted connection (http): use it only for local testing. Messages, files and sign-in tokens travel in the clear.", BannerKind.Warning, icon = Icons.Rounded.GppMaybe)
             }
         }
         if (duplicate != null) {

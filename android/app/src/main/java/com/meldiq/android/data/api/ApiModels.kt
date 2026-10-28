@@ -116,7 +116,14 @@ import kotlinx.serialization.json.JsonObject
     val privacy: Map<String, String>? = null,
     /** Workspace member lists (servers with `custom-roles`): the custom roles this person holds there. */
     val customRoles: List<RoleRef> = emptyList(),
+    /** API 0.54.0: the Meldiq Mojo badge they show (Go or Plus, with Meldiq Check), when they show one. */
+    val mojo: MojoMarkDto? = null,
+    /** API 0.55.0+ profiles: when they joined Meldiq, and the communities you share with when they joined each. */
+    val memberSince: Long? = null,
+    val mutualCommunities: List<MutualCommunityDto>? = null,
 )
+@Serializable data class MojoMarkDto(val badge: String, val check: Boolean = false)
+@Serializable data class MutualCommunityDto(val id: String, val name: String, val photoRev: Long? = null, val joinedAt: Long = 0)
 @Serializable data class MeRes(val user: UserDto, val deviceId: String)
 @Serializable data class UserRes(val user: UserDto)
 @Serializable data class UsersRes(val users: List<UserDto> = emptyList(), val members: List<UserDto> = emptyList())
@@ -269,7 +276,33 @@ object ChannelFormat {
     val status: String? = null, val at: Long? = null,
     /** The server attested @everyone on this copy (servers from 2026-10-17). */
     val mentionAll: Boolean? = null,
+    /** API 0.56.0, items of kind "message" (`v` 2): the stored message or change itself (docs/SERVER_MESSAGES.md). */
+    val event: StoredEventDto? = null,
 )
+
+// ───────── Server-stored messages (API 0.56.0, owner's decision 2026-10-28, docs/SERVER_MESSAGES.md) ─────────
+/** A stored message or change, as the server serves it in pages, search, the summary and the queue's "message" items. */
+@Serializable data class StoredEventDto(
+    val id: String, val conversationId: String, val senderUserId: String, val senderDeviceId: String? = null,
+    val cls: String = "message", val payload: kotlinx.serialization.json.JsonObject, val sentAt: Long, val serverTs: Long,
+    val mentionAll: Boolean = false, val importedBy: String? = null,
+)
+@Serializable data class SendStoredReq(
+    val conversationId: String, val messageId: String, val cls: String, val sentAt: Long, val payload: kotlinx.serialization.json.JsonObject,
+    val mentionAll: Boolean? = null, val audience: String? = null,
+)
+@Serializable data class SendStoredRes(val messageId: String, val serverTs: Long, val duplicate: Boolean = false)
+/** Newest first; [changes] oldest first, applied like live controls. */
+@Serializable data class HistoryPageRes(val messages: List<StoredEventDto> = emptyList(), val changes: List<StoredEventDto> = emptyList(), val more: Boolean = false)
+@Serializable data class SummaryEntry(val conversationId: String, val last: StoredEventDto? = null, val readUpTo: Long = 0, val unread: Int = 0, val mentions: Int = 0)
+@Serializable data class SummaryRes(val conversations: List<SummaryEntry> = emptyList())
+@Serializable data class StoredSearchRes(val messages: List<StoredEventDto> = emptyList())
+@Serializable data class ImportItemDto(
+    val id: String, val conversationId: String, val senderUserId: String, val cls: String, val sentAt: Long, val serverTs: Long,
+    val payload: kotlinx.serialization.json.JsonObject,
+)
+@Serializable data class ImportReq(val items: List<ImportItemDto>)
+@Serializable data class ImportRes(val added: Int = 0, val skipped: Int = 0)
 @Serializable data class QueueItem(
     val id: Long, val kind: String, val conversationId: String, val messageId: String, val senderUserId: String,
     val senderDeviceId: String, val createdAt: Long, val expiresAt: Long, val payload: QueuePayload,

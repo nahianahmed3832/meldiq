@@ -156,7 +156,7 @@
     <string name="app_save">保存设置</string>
     <string name="app_saved">设置已保存</string>
     <string name="app_notifications">频道通知</string>
-    <string name="app_notifications_sub">更新由 Meldiq 服务器发布，不是端到端加密的。频道中的所有人都能看到。</string>
+    <string name="app_notifications_sub">更新由 Meldiq 的服务器发布。频道中的每个人都能看到。</string>
     <string name="app_link_title">关联此社区</string>
     <string name="app_link_needs_own">请先连接你自己的账户：它会显示你可以关联的社区。</string>
     <string name="app_linked_to">已关联到 %1$s</string>
@@ -247,7 +247,7 @@
     <string name="send_start">开始（YYYY-MM-DD HH:MM）</string>
     <string name="send_end">结束（YYYY-MM-DD HH:MM）</string>
     <string name="send_location">地点（可选）</string>
-    <string name="send_warning">%1$s 会以你的身份收到这些字段中的内容。这些文字将离开 Meldiq 的端到端加密。</string>
+    <string name="send_warning">%1$s 会以你的身份收到这些字段中的内容。</string>
     <string name="send_do">发送</string>
     <string name="send_done">已创建 %1$s</string>
     <string name="send_bad_time">请使用 YYYY-MM-DD HH:MM 格式</string>

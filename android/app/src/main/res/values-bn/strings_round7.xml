@@ -41,7 +41,7 @@
     <string name="bulk_state_cancelled">থামানো হয়েছে</string>
     <string name="search_title">খুঁজুন</string>
     <string name="search_hint">মানুষ, চ্যানেল, বার্তা বা ফাইল</string>
-    <string name="search_scope_note">মানুষ, চ্যানেল, কমিউনিটি ও গ্রুপ সার্ভারে খোঁজা হয়, শুধু যেখানে আপনার অ্যাক্সেস আছে। বার্তা, ফাইল ও পিন এন্ড-টু-এন্ড এনক্রিপ্টেড, তাই শুধু এই ফোনেই খোঁজা হয়।</string>
+    <string name="search_scope_note">Meldiq-এর সার্ভারে খোঁজা হয়, শুধু যেখানে আপনার অ্যাক্সেস আছে: মানুষ, চ্যানেল, কমিউনিটি, গ্রুপ আর মেসেজ।</string>
     <string name="search_filter_all">সব</string>
     <string name="search_messages">বার্তা</string>
     <string name="search_files">ফাইল</string>

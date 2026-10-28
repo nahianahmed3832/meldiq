@@ -186,6 +186,7 @@ private fun ChatsHome(nav: NavHostController, request: DmListRequest) {
     val scrolled by remember { derivedStateOf { list.firstVisibleItemIndex > 0 || list.firstVisibleItemScrollOffset > 0 } }
     val fabVisible by com.meldiq.android.ui.screens.home.rememberFabVisible(list)
     val barPadding = com.meldiq.android.ui.LocalTabBarPadding.current
+    var serverNoticeSeen by remember { mutableStateOf(container.messages.history.noticeSeen) }
 
     Box(Modifier.fillMaxSize().background(c.background)) {
         LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 88.dp + barPadding)) {
@@ -212,6 +213,13 @@ private fun ChatsHome(nav: NavHostController, request: DmListRequest) {
                 }
             }
             item(key = "connection") { ConnectionBanner(conn, Modifier.padding(horizontal = Space.gutter, vertical = 4.dp)) { container.realtime.reconnectNow() } }
+            // API 0.56.0 (the owner's decision of 2026-10-28): said once, plainly, where messages are kept now.
+            if (!archivedView && !serverNoticeSeen) item(key = "server-notice") {
+                StatusBanner(
+                    stringResource(R.string.srv_notice), BannerKind.Info, Modifier.padding(horizontal = Space.gutter, vertical = 4.dp),
+                    action = stringResource(R.string.srv_notice_ok), onAction = { container.messages.history.noticeSeen = true; serverNoticeSeen = true },
+                )
+            }
             // The floating redesign (2026-10-28): invite friends to Meldiq itself (community invitations stay in each community),
             // and a small Meldiq Mojo card.
             if (!archivedView && query.isBlank()) {
@@ -508,7 +516,7 @@ private fun RemoteContactSheet(r: ResolveRes, call: Boolean, myKey: ByteArray?, 
             Spacer(Modifier.height(8.dp))
         }
         if (call && remote) {
-            Text("The call is hosted by your server; ${r.user.displayName} joins through theirs. Media stays end-to-end encrypted.", style = Griip.type.caption, color = c.textTertiary)
+            Text("The call is hosted by your server; ${r.user.displayName} joins through theirs. Media travels over encrypted connections.", style = Griip.type.caption, color = c.textTertiary)
             Spacer(Modifier.height(8.dp))
         }
         PillButton(if (call) "Call" else "Message", onMessage, Modifier.fillMaxWidth(), height = 50.dp)

@@ -168,7 +168,7 @@ fun BatchComposer(
                 }
                 risky.forEach { Text("“${it.item.name}”: ${it.risk}", style = Griip.type.caption, color = c.textPrimary, modifier = Modifier.padding(top = 4.dp)) }
                 Text(
-                    "Files are end-to-end encrypted, so the server can't scan them for viruses. Only send files you trust.",
+                    "Meldiq doesn't scan files for viruses. Only send files you trust.",
                     style = Griip.type.caption, color = c.textSecondary, modifier = Modifier.padding(top = 6.dp),
                 )
             }

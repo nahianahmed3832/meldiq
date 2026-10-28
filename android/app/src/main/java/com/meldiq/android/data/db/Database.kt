@@ -85,12 +85,24 @@ interface ConversationDao {
     @Query("UPDATE conversations SET unreadCount = unreadCount + :unreadInc, mentionCount = mentionCount + :mentionInc WHERE id = :id")
     suspend fun bumpUnread(id: String, unreadInc: Int, mentionInc: Int)
 
+    /** The server's summary (API 0.56.0): unread messages and mentions as the server counts them. */
+    @Query("UPDATE conversations SET unreadCount = :unread, mentionCount = :mentions WHERE id = :id")
+    suspend fun setCounts(id: String, unread: Int, mentions: Int)
+
     @Query("SELECT COALESCE(SUM(unreadCount), 0) FROM conversations WHERE muted = 0 AND removed = 0 AND archivedAt IS NULL AND (request IS NULL OR request != 'incoming')")
     fun observeTotalUnread(): Flow<Int>
 }
 
 @Dao
 interface MessageDao {
+    /** Messages earlier versions kept on this phone, for the one-time upload to the server (API 0.56.0). */
+    @Query("SELECT * FROM messages WHERE kind = 'text' AND deleted = 0 AND serverTs IS NOT NULL ORDER BY sortTs")
+    suspend fun keptForImport(): List<MessageEntity>
+
+    /** Empties the working copy: everything the server has; messages still being sent, or failed, stay (API 0.56.0). */
+    @Query("DELETE FROM messages WHERE id NOT IN (SELECT messageId FROM outbox) AND status NOT IN ('SENDING', 'FAILED', 'HELD')")
+    suspend fun clearStored()
+
     @Query("SELECT * FROM messages WHERE conversationId = :cid AND threadRootId IS NULL ORDER BY sortTs DESC LIMIT :limit")
     fun observeLatest(cid: String, limit: Int): Flow<List<MessageEntity>>
 

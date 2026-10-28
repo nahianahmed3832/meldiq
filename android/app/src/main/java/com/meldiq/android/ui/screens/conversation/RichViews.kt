@@ -136,7 +136,7 @@ fun LocationShareSheet(loc: SharedLocation?, locating: Boolean, problem: String?
         Spacer(Modifier.height(8.dp))
         GriipTextField(label, { label = it.take(RichRules.MAX_LABEL) }, "Place name (optional)", placeholder = "Office, home, café…")
         Text(
-            "Sent once, end-to-end encrypted. Meldiq doesn't track your location or share it again. No map service is contacted to show this.",
+            "Sent once and kept with the message. Meldiq doesn't track your location or share it again. No map service is contacted to show this.",
             style = Griip.type.caption, color = c.textSecondary, modifier = Modifier.padding(vertical = 8.dp),
         )
         if (problem != null && !locating) PillButton("Try again", onRetry, Modifier.fillMaxWidth(), tone = ButtonTone.Glass)

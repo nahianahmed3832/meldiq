@@ -112,7 +112,7 @@
     <string name="mojo_play_missing">Purchases aren\'t open in Google Play yet. You can still see what each plan includes.</string>
     <string name="mojo_why_title">Why subscriptions?</string>
     <string name="mojo_why_body">Meldiq has no outside investors. We pay for the servers, storage, voice and video bandwidth, and the moderation and development tools that keep it running. Subscriptions help cover those real costs, and anything left helps us keep improving Meldiq. Talking with people stays free.</string>
-    <string name="mojo_still_free">Still free for everyone: messages, voice and video calls, screen share, communities, emoji and stickers, polls, and end-to-end encryption.</string>
+    <string name="mojo_still_free">Still free for everyone: messages, voice and video calls, screen share, communities, emoji and stickers, and polls.</string>
     <string name="mojo_fine_print">Payment is taken by Google Play with the methods it offers in your country; Meldiq never sees your card. Subscriptions renew every month until you cancel in Google Play.</string>
     <string name="mojo_composer_left">%1$d left</string>
     <string name="mojo_composer_over">%1$d over your plan\'s %2$s</string>

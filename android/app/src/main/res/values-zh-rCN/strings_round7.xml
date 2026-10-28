@@ -41,7 +41,7 @@
     <string name="bulk_state_cancelled">已停止</string>
     <string name="search_title">搜索</string>
     <string name="search_hint">联系人、频道、消息或文件</string>
-    <string name="search_scope_note">联系人、频道、社区和群组在服务器上搜索，仅限你有权访问的内容。消息、文件和置顶内容采用端到端加密，因此只在此手机上搜索。</string>
+    <string name="search_scope_note">在 Meldiq 的服务器上搜索，仅限你有权访问的内容：用户、频道、社区、群组和消息。</string>
     <string name="search_filter_all">全部</string>
     <string name="search_messages">消息</string>
     <string name="search_files">文件</string>

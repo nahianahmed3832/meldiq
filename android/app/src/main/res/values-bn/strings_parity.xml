@@ -27,7 +27,7 @@
     <string name="wp_badge_bug_hunter">বাগ হান্টার</string>
     <string name="wp_about_me">আমার সম্পর্কে</string>
     <string name="wp_style_title">প্রোফাইল স্টাইল</string>
-    <string name="wp_style_sub">আপনার ফ্রেম, ব্যানার ও নামের স্টাইল। যারা আপনার প্রোফাইল দেখেন তারা সবাই এগুলো দেখেন; এগুলো এন্ড-টু-এন্ড এনক্রিপ্টেড নয়।</string>
+    <string name="wp_style_sub">আপনার ফ্রেম, ব্যানার আর নামের স্টাইল। যে আপনার প্রোফাইল দেখে, সে-ই এগুলো দেখে।</string>
     <string name="wp_style_preview">প্রিভিউ</string>
     <string name="wp_style_frame">অ্যাভাটার ফ্রেম</string>
     <string name="wp_style_effect">ব্যানার ইফেক্ট</string>

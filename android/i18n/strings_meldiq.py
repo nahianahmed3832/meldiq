@@ -82,7 +82,7 @@ S = {
 "poll_pick_one": ("Choose one", "选择一项", "একটি বেছে নিন"),
 "poll_close": ("Close poll", "结束投票", "পোল বন্ধ করুন"),
 "poll_retract": ("Take back my vote", "撤回我的投票", "আমার ভোট ফিরিয়ে নিন"),
-"poll_encrypted": ("Votes are end-to-end encrypted like messages.", "投票与消息一样进行端到端加密。", "ভোটও বার্তার মতো এন্ড-টু-এন্ড এনক্রিপ্টেড।"),
+"poll_encrypted": ("Votes are kept on Meldiq's servers, like messages.", "投票与消息一样保存在 Meldiq 的服务器上。", "ভোটগুলো মেসেজের মতোই Meldiq-এর সার্ভারে রাখা হয়।"),
 # Stickers and emoji
 "stickers_tab": ("Stickers", "贴纸", "স্টিকার"),
 "emoji_tab": ("Emoji", "表情", "ইমোজি"),
@@ -115,7 +115,7 @@ S = {
 "conv_files": ("Files", "文件", "ফাইল"),
 "conv_pinned": ("Pinned · %1$d", "置顶 · %1$d", "পিন করা · %1$d"),
 "conv_saved": ("Saved · %1$d", "已保存 · %1$d", "সংরক্ষিত · %1$d"),
-"conv_encrypted": ("End-to-end encrypted", "端到端加密", "এন্ড-টু-এন্ড এনক্রিপ্টেড"),
+"conv_encrypted": ("Stored on Meldiq's servers", "保存在 Meldiq 的服务器上", "Meldiq-এর সার্ভারে রাখা"),
 "conv_you": ("You", "你", "আপনি"),
 "conv_edited": ("edited", "已编辑", "সম্পাদিত"),
 "conv_forwarded": ("Forwarded", "已转发", "ফরোয়ার্ড করা"),

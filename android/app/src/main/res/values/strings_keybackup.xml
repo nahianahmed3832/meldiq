@@ -29,7 +29,7 @@
     <string name="auth_help_lost_email_sub">Use one of your saved recovery codes to move the account to a new address</string>
     <string name="auth_help_back_signin">Back to sign in</string>
     <string name="auth_help_unlock_title">Other ways to unlock</string>
-    <string name="auth_help_unlock_body">Your messages are end-to-end encrypted, so this phone needs your account\'s keys. If the email code can\'t reach you, use one of these.</string>
+    <string name="auth_help_unlock_body">This phone needs your account\'s keys to finish signing in. If the email code can\'t reach you, use one of these.</string>
     <string name="auth_help_back_unlock">Back to the email code</string>
     <string name="kb_setup_checking">Checking for a backup of your keys…</string>
     <string name="kb_setup_check_failed">Couldn\'t check whether your keys are backed up. Try again, or use another way below.</string>

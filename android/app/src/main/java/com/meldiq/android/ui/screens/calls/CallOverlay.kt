@@ -421,9 +421,9 @@ fun CallOverlay() {
 private fun SecurityPill(s: CallUiState) {
     val c = Griip.colors
     val (icon, text, tint) = when (s.security) {
-        MediaSecurity.E2eeActive -> Triple(Icons.Rounded.GppGood, "End-to-end encrypted", c.primaryBright)
+        MediaSecurity.E2eeActive -> Triple(Icons.Rounded.GppGood, "Encrypted call", c.primaryBright)
         MediaSecurity.E2eeProblem -> Triple(Icons.Rounded.GppMaybe, "Encryption problem", c.warning)
-        MediaSecurity.TransportOnly -> Triple(Icons.Rounded.GppMaybe, "Not end-to-end encrypted", c.warning)
+        MediaSecurity.TransportOnly -> Triple(Icons.Rounded.GppMaybe, "Encrypted in transit", c.warning)
         // Not verified: no decrypted media proves the key yet. A peer with the wrong key stays here, because
         // WebRTC doesn't report those failures (MediaSecurityTracker), so this must not look like success.
         MediaSecurity.Unknown -> Triple(Icons.Rounded.Shield, if (s.waitingForKey) "Getting encryption key…" else "Verifying encryption…", Color.White.copy(alpha = 0.8f))
@@ -841,7 +841,7 @@ private fun VerificationPanel(s: CallUiState, modifier: Modifier, onClose: () ->
         Spacer(Modifier.height(8.dp))
         if (code == null) {
             Text(
-                "This call isn't end-to-end encrypted, so there is no code to compare. Turn on encrypted calls in Settings › Calls.",
+                "This call has no media key, so there is no code to compare. Turn on encrypted calls in Settings › Calls.",
                 style = Griip.type.bodySmall, color = Color.White.copy(alpha = 0.85f),
             )
             return@Column
@@ -854,7 +854,7 @@ private fun VerificationPanel(s: CallUiState, modifier: Modifier, onClose: () ->
             style = Griip.type.bodySmall, color = Color.White,
         )
         Text(
-            "Derived from this call's encryption key, which the caller sent through your end-to-end encrypted chat. If they match, " +
+            "Derived from this call's encryption key, which the caller sent through your chat. If they match, " +
                 "your media is encrypted with the same key on both ends and no one replaced it. To be sure who you're talking to, " +
                 "compare safety numbers in the person's profile. A new call has a new code.",
             style = Griip.type.caption, color = Color.White.copy(alpha = 0.8f), modifier = Modifier.padding(top = 6.dp),

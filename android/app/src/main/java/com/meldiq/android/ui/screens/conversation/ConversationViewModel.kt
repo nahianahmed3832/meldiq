@@ -70,7 +70,12 @@ class ConversationViewModel(val c: AppContainer, val conversationId: String, val
         .map { l -> l.associate { it.root to com.meldiq.android.data.model.ForumRules.Replies(it.n, it.lastTs) } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
+    /** The server keeps older messages than this conversation has loaded (API 0.56.0). */
+    private var serverHasOlder = true
+
     init {
+        // API 0.56.0: messages are served by the server; the newest page loads as the conversation opens.
+        viewModelScope.launch { runCatching { serverHasOlder = c.messages.history.loadLatest(conversationId) } }
         // An open thread is seen up to its newest message, including replies that arrive while it's open (Activity).
         if (threadRoot != null) viewModelScope.launch {
             messages.collect { list -> list.maxOfOrNull { it.sortTs }?.let { c.threadSeen.markSeen(threadRoot, it) } }
@@ -197,6 +202,8 @@ class ConversationViewModel(val c: AppContainer, val conversationId: String, val
 
     fun loadMore() {
         if (messages.value.size >= limit.value) limit.value += 60
+        // Near the oldest loaded message: the server's next page (API 0.56.0).
+        if (serverHasOlder) viewModelScope.launch { runCatching { serverHasOlder = c.messages.history.loadOlder(conversationId) } }
     }
 
     /**
@@ -486,6 +493,8 @@ class ConversationViewModel(val c: AppContainer, val conversationId: String, val
     /** Loads older messages until [id] is in the list (a search result further back), up to a bound. */
     /** [found] gets the message's index in the (newly loaded) list. */
     fun loadUntil(id: String, found: (Int) -> Unit) = viewModelScope.launch {
+        // API 0.56.0: a message further back is loaded from the server first, with the ones around it.
+        if (messages.value.none { it.id == id }) runCatching { c.messages.history.loadAround(conversationId, id) }
         repeat(MAX_LOAD_ROUNDS) {
             val idx = messages.value.indexOfFirst { it.id == id }
             if (idx >= 0) { found(idx); return@launch }

@@ -39,4 +39,23 @@
     <string name="call_you">আপনি</string>
     <string name="call_started_streaming">%1$s স্ট্রিম শুরু করেছেন</string>
     <string name="call_watch">দেখুন</string>
+    <string name="pf_links">লিংক</string>
+    <string name="pf_now">এখন</string>
+    <string name="pf_online">অনলাইন</string>
+    <string name="pf_last_seen">শেষ দেখা %1$s</string>
+    <string name="pf_not_shown">দেখানো হয় না</string>
+    <string name="pf_member_since">সদস্য যেদিন থেকে</string>
+    <string name="pf_meldiq_since">Meldiq-এ যোগ দিয়েছেন</string>
+    <string name="pf_joined_here">%1$s-এ যোগ দিয়েছেন</string>
+    <string name="pf_roles">রোল</string>
+    <string name="pf_mutual_one">১টি কমন কমিউনিটি</string>
+    <string name="pf_mutual">%1$dটি কমন কমিউনিটি</string>
+    <string name="pf_message_hint">\@%1$s-কে মেসেজ করুন</string>
+    <string name="pf_send">%1$s-কে পাঠান</string>
+    <string name="pf_more">%1$s-এর জন্য আরও</string>
+    <string name="pf_close">বন্ধ করুন</string>
+    <string name="pf_copy_username">ইউজারনেম কপি করুন</string>
+    <string name="pf_unavailable">এই প্রোফাইলটি আপনার জন্য উপলব্ধ নয়।</string>
+    <string name="srv_notice">আপনার মেসেজ এখন Meldiq-এর সার্ভারে থাকে, তাই আপনার সাইন ইন করা প্রতিটি ডিভাইসে পাবেন। এগুলো এনক্রিপ্টেড সংযোগে আসা-যাওয়া করে; কথোপকথনের সদস্যরা পড়তে পারেন, আর রিপোর্ট বা আইনের প্রয়োজনে Meldiq-এর কর্মীরাও পারেন।</string>
+    <string name="srv_notice_ok">বুঝেছি</string>
 </resources>

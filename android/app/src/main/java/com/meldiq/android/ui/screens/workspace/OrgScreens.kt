@@ -170,14 +170,14 @@ fun MembersScreen(nav: NavHostController, orgId: String) {
                     }
                 },
                 trailing = { ArrowKnob() },
-                onClick = { if (canManage || u.id == container.session.session?.userId) manage = u else nav.navigate(Routes.user(u.id)) },
+                onClick = { if (canManage || u.id == container.session.session?.userId) manage = u else nav.navigate(Routes.user(u.id, orgId)) },
             )
         }
         }
     }
     manage?.let { u ->
         detail?.let { d ->
-            MemberSheet(d, u, ownerCount, onDismiss = { manage = null }, onOpenProfile = { manage = null; nav.navigate(Routes.user(u.id)) }) { reload++ }
+            MemberSheet(d, u, ownerCount, onDismiss = { manage = null }, onOpenProfile = { manage = null; nav.navigate(Routes.user(u.id, orgId)) }) { reload++ }
         }
     }
     @Suppress("UNUSED_VARIABLE") val s = scope

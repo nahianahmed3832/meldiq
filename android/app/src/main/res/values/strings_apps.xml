@@ -156,7 +156,7 @@
     <string name="app_save">Save settings</string>
     <string name="app_saved">Settings saved</string>
     <string name="app_notifications">Channel notifications</string>
-    <string name="app_notifications_sub">Updates are posted by Meldiq\'s server and aren\'t end-to-end encrypted. Everyone in the channel sees them.</string>
+    <string name="app_notifications_sub">Updates are posted by Meldiq\'s server. Everyone in the channel sees them.</string>
     <string name="app_link_title">Link this community</string>
     <string name="app_link_needs_own">Connect your own account first: it shows which communities you can link.</string>
     <string name="app_linked_to">Linked to %1$s</string>
@@ -247,7 +247,7 @@
     <string name="send_start">Starts (YYYY-MM-DD HH:MM)</string>
     <string name="send_end">Ends (YYYY-MM-DD HH:MM)</string>
     <string name="send_location">Place (optional)</string>
-    <string name="send_warning">%1$s receives exactly what\'s in these fields, as you. This text leaves Meldiq\'s end-to-end encryption.</string>
+    <string name="send_warning">%1$s receives exactly what\'s in these fields, as you.</string>
     <string name="send_do">Send</string>
     <string name="send_done">Created %1$s</string>
     <string name="send_bad_time">Use the format YYYY-MM-DD HH:MM</string>

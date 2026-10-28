@@ -76,7 +76,7 @@
     <string name="poll_pick_one">Choose one</string>
     <string name="poll_close">Close poll</string>
     <string name="poll_retract">Take back my vote</string>
-    <string name="poll_encrypted">Votes are end-to-end encrypted like messages.</string>
+    <string name="poll_encrypted">Votes are kept on Meldiq\'s servers, like messages.</string>
     <string name="stickers_tab">Stickers</string>
     <string name="emoji_tab">Emoji</string>
     <string name="animated_tab">Animated</string>
@@ -106,7 +106,7 @@
     <string name="conv_files">Files</string>
     <string name="conv_pinned">Pinned · %1$d</string>
     <string name="conv_saved">Saved · %1$d</string>
-    <string name="conv_encrypted">End-to-end encrypted</string>
+    <string name="conv_encrypted">Stored on Meldiq\'s servers</string>
     <string name="conv_you">You</string>
     <string name="conv_edited">edited</string>
     <string name="conv_forwarded">Forwarded</string>

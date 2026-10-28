@@ -166,7 +166,7 @@ S = {
 "app_saved": ("Settings saved", "设置已保存", "সেটিংস সংরক্ষিত"),
 # Workspace connection and channel notifications
 "app_notifications": ("Channel notifications", "频道通知", "চ্যানেল বিজ্ঞপ্তি"),
-"app_notifications_sub": ("Updates are posted by Meldiq's server and aren't end-to-end encrypted. Everyone in the channel sees them.", "更新由 Meldiq 服务器发布，不是端到端加密的。频道中的所有人都能看到。", "আপডেট Meldiq-এর সার্ভার পোস্ট করে, এগুলো এন্ড-টু-এন্ড এনক্রিপ্টেড নয়। চ্যানেলের সবাই দেখেন।"),
+"app_notifications_sub": ("Updates are posted by Meldiq's server. Everyone in the channel sees them.", "更新由 Meldiq 的服务器发布。频道中的每个人都能看到。", "আপডেট Meldiq-এর সার্ভার পোস্ট করে। চ্যানেলের সবাই এগুলো দেখেন।"),
 "app_link_title": ("Link this community", "关联此社区", "এই কমিউনিটি লিংক করুন"),
 "app_link_needs_own": ("Connect your own account first: it shows which communities you can link.", "请先连接你自己的账户：它会显示你可以关联的社区。", "আগে নিজের অ্যাকাউন্ট সংযুক্ত করুন: এটি দেখায় কোন প্রতিষ্ঠান লিংক করতে পারবেন।"),
 "app_linked_to": ("Linked to %1$s", "已关联到 %1$s", "%1$s-এর সঙ্গে লিংক করা"),
@@ -264,7 +264,7 @@ S = {
 "send_start": ("Starts (YYYY-MM-DD HH:MM)", "开始（YYYY-MM-DD HH:MM）", "শুরু (YYYY-MM-DD HH:MM)"),
 "send_end": ("Ends (YYYY-MM-DD HH:MM)", "结束（YYYY-MM-DD HH:MM）", "শেষ (YYYY-MM-DD HH:MM)"),
 "send_location": ("Place (optional)", "地点（可选）", "স্থান (ঐচ্ছিক)"),
-"send_warning": ("%1$s receives exactly what's in these fields, as you. This text leaves Meldiq's end-to-end encryption.", "%1$s 会以你的身份收到这些字段中的内容。这些文字将离开 Meldiq 的端到端加密。", "%1$s আপনার নামে ঠিক এই ঘরগুলোর লেখা পাবে। এই লেখা Meldiq-এর এন্ড-টু-এন্ড এনক্রিপশনের বাইরে যাবে।"),
+"send_warning": ("%1$s receives exactly what's in these fields, as you.", "%1$s 会以你的身份收到这些字段中的内容。", "%1$s আপনার হয়ে এই ঘরগুলোতে যা আছে ঠিক তা-ই পাবে।"),
 "send_do": ("Send", "发送", "পাঠান"),
 "send_done": ("Created %1$s", "已创建 %1$s", "%1$s তৈরি হয়েছে"),
 "send_bad_time": ("Use the format YYYY-MM-DD HH:MM", "请使用 YYYY-MM-DD HH:MM 格式", "YYYY-MM-DD HH:MM ফরম্যাট ব্যবহার করুন"),

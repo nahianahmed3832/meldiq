@@ -46,7 +46,7 @@ S = {
 # Universal search
 "search_title": ("Search", "搜索", "খুঁজুন"),
 "search_hint": ("People, channels, messages or files", "联系人、频道、消息或文件", "মানুষ, চ্যানেল, বার্তা বা ফাইল"),
-"search_scope_note": ("People, channels, communities and groups are searched on the server, only where you have access. Messages, files and pins are end-to-end encrypted, so they're searched on this phone only.", "联系人、频道、社区和群组在服务器上搜索，仅限你有权访问的内容。消息、文件和置顶内容采用端到端加密，因此只在此手机上搜索。", "মানুষ, চ্যানেল, কমিউনিটি ও গ্রুপ সার্ভারে খোঁজা হয়, শুধু যেখানে আপনার অ্যাক্সেস আছে। বার্তা, ফাইল ও পিন এন্ড-টু-এন্ড এনক্রিপ্টেড, তাই শুধু এই ফোনেই খোঁজা হয়।"),
+"search_scope_note": ("Searched on Meldiq's server, only in what you have access to: people, channels, communities, groups and messages.", "在 Meldiq 的服务器上搜索，仅限你有权访问的内容：用户、频道、社区、群组和消息。", "Meldiq-এর সার্ভারে খোঁজা হয়, শুধু যেখানে আপনার অ্যাক্সেস আছে: মানুষ, চ্যানেল, কমিউনিটি, গ্রুপ আর মেসেজ।"),
 "search_filter_all": ("All", "全部", "সব"),
 "search_messages": ("Messages", "消息", "বার্তা"),
 "search_files": ("Files", "文件", "ফাইল"),

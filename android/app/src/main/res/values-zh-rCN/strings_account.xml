@@ -2,7 +2,7 @@
 <!-- Orbit 2.0 account strings (docs/LANGUAGES.md). Generated from strings_account.py. -->
 <resources>
     <string name="acct_signup_title">创建你的账户</string>
-    <string name="acct_signup_subtitle">填写姓名、邮箱和密码。消息始终端到端加密。</string>
+    <string name="acct_signup_subtitle">你的姓名、邮箱和密码。</string>
     <string name="acct_signup_submit">创建账户</string>
     <string name="acct_name">你的名字</string>
     <string name="acct_name_hint">会显示给与你交流的人</string>
@@ -57,7 +57,7 @@
     <string name="acct_reset_submit">保存新密码</string>
     <string name="acct_password_changed">密码已更改，请使用新密码登录。</string>
     <string name="acct_setup_title">解锁你的消息</string>
-    <string name="acct_setup_subtitle">你已登录。消息采用端到端加密，所以这台手机需要你账户的密钥。</string>
+    <string name="acct_setup_subtitle">你已登录。这部手机需要你账户的密钥来完成登录。</string>
     <string name="acct_setup_link">从另一台手机批准</string>
     <string name="acct_setup_link_sub">由一台已登录的手机批准这台手机</string>
     <string name="acct_setup_key">使用恢复密钥</string>

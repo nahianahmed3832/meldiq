@@ -29,7 +29,7 @@
     <string name="auth_help_lost_email_sub">使用你保存的恢复码之一，将账号转到新邮箱</string>
     <string name="auth_help_back_signin">返回登录</string>
     <string name="auth_help_unlock_title">其他解锁方式</string>
-    <string name="auth_help_unlock_body">你的消息经过端到端加密，所以这台手机需要你账号的密钥。如果收不到邮件验证码，请使用以下方式之一。</string>
+    <string name="auth_help_unlock_body">这部手机需要你账户的密钥来完成登录。如果收不到邮箱验证码，请使用以下方式之一。</string>
     <string name="auth_help_back_unlock">返回邮件验证码</string>
     <string name="kb_setup_checking">正在检查你的密钥备份…</string>
     <string name="kb_setup_check_failed">无法检查你的密钥是否已备份。请重试，或使用下面的其他方式。</string>

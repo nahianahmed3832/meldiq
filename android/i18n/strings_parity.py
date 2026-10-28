@@ -32,7 +32,7 @@ S = {
 "wp_about_me": ("About me", "关于我", "আমার সম্পর্কে"),
 # Settings › Profile style and Community appearance
 "wp_style_title": ("Profile style", "个人资料样式", "প্রোফাইল স্টাইল"),
-"wp_style_sub": ("Your frame, banner and name style. Everyone who sees your profile sees them; they aren't end-to-end encrypted.", "你的头像框、横幅和名字样式。所有能看到你资料的人都会看到；它们不是端到端加密的。", "আপনার ফ্রেম, ব্যানার ও নামের স্টাইল। যারা আপনার প্রোফাইল দেখেন তারা সবাই এগুলো দেখেন; এগুলো এন্ড-টু-এন্ড এনক্রিপ্টেড নয়।"),
+"wp_style_sub": ("Your frame, banner and name style. Everyone who sees your profile sees them.", "你的头像框、横幅和名字样式。所有能看到你个人资料的人都能看到。", "আপনার ফ্রেম, ব্যানার আর নামের স্টাইল। যে আপনার প্রোফাইল দেখে, সে-ই এগুলো দেখে।"),
 "wp_style_preview": ("Preview", "预览", "প্রিভিউ"),
 "wp_style_frame": ("Avatar frame", "头像框", "অ্যাভাটার ফ্রেম"),
 "wp_style_effect": ("Banner effect", "横幅效果", "ব্যানার ইফেক্ট"),

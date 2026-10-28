@@ -29,7 +29,7 @@
     <string name="auth_help_lost_email_sub">সংরক্ষিত একটি রিকভারি কোড দিয়ে অ্যাকাউন্টটি নতুন ঠিকানায় সরান</string>
     <string name="auth_help_back_signin">সাইন ইনে ফিরে যান</string>
     <string name="auth_help_unlock_title">আনলক করার অন্য উপায়</string>
-    <string name="auth_help_unlock_body">আপনার বার্তা এন্ড-টু-এন্ড এনক্রিপ্টেড, তাই এই ফোনে অ্যাকাউন্টের কী লাগবে। ইমেইলের কোড না পেলে এর একটি ব্যবহার করুন।</string>
+    <string name="auth_help_unlock_body">সাইন ইন শেষ করতে এই ফোনে আপনার অ্যাকাউন্টের কী দরকার। ইমেইল কোড না পেলে এগুলোর একটি ব্যবহার করুন।</string>
     <string name="auth_help_back_unlock">ইমেইল কোডে ফিরে যান</string>
     <string name="kb_setup_checking">আপনার কী-এর ব্যাকআপ খোঁজা হচ্ছে…</string>
     <string name="kb_setup_check_failed">আপনার কী ব্যাকআপ আছে কি না দেখা যায়নি। আবার চেষ্টা করুন, বা নিচের অন্য উপায় ব্যবহার করুন।</string>

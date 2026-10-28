@@ -204,7 +204,7 @@
     <string name="rp_to_community">Goes to the moderators of %1$s. They won\'t see that it was you.</string>
     <string name="rp_to_meldiq">Goes to Meldiq\'s team.</string>
     <string name="rp_shared">What\'s shared</string>
-    <string name="rp_shared_message">This message and up to %1$d messages before it, as you see them. Messages are end-to-end encrypted, so nothing is shared unless you send this report.</string>
+    <string name="rp_shared_message">This message and up to %1$d messages before it, as you see them, go to the moderators with your report.</string>
     <string name="rp_shared_person">Who you\'re reporting, the reason and your note.</string>
     <string name="rp_note">Add details (optional)</string>
     <string name="rp_send">Send report</string>
@@ -315,12 +315,12 @@
     <string name="b5_channel_info">Channel info</string>
     <string name="b5_contact">Contact</string>
     <string name="b5_copy_link">Copy message link</string>
-    <string name="b5_e2e_intro">Messages here are end-to-end encrypted on your device. The server relays encrypted copies and, if members keep their history there, stores it encrypted with keys only their own devices have.</string>
+    <string name="b5_e2e_intro">Messages and files here are kept on Meldiq\'s servers and travel over encrypted connections (TLS). Members of this conversation can read them, and Meldiq\'s staff can when a report or the law requires it.</string>
     <string name="b5_edit">Edit</string>
     <string name="b5_edit_name_topic">Edit name &amp; topic</string>
     <string name="b5_editing">Editing message</string>
     <string name="b5_emoji">Emoji and animated emoji</string>
-    <string name="b5_file_warning">Files are end-to-end encrypted, so the server can\'t scan them for viruses. Open it only if you trust the sender and expected this file.</string>
+    <string name="b5_file_warning">Meldiq doesn\'t scan files for viruses. Open it only if you trust the sender and expected this file.</string>
     <string name="b5_forward_files">The files are encrypted again for that chat and uploaded.</string>
     <string name="b5_forward_text">It\'s sent as a new message, marked as forwarded.</string>
     <string name="b5_forward_to_q">Forward to %1$s?</string>
@@ -334,7 +334,7 @@
     <string name="b5_info_read">Read by</string>
     <string name="b5_info_relay">Accepted by relay</string>
     <string name="b5_info_sent">Sent</string>
-    <string name="b5_info_signed">End-to-end encrypted · signed by this device</string>
+    <string name="b5_info_signed">Kept on Meldiq\'s servers</string>
     <string name="b5_info_status">Status</string>
     <string name="b5_join">Join</string>
     <string name="b5_jump_latest">Jump to latest message</string>
@@ -463,7 +463,7 @@
     <string name="b6b_add_photo">Add a group photo</string>
     <string name="b6b_change_photo">Change group photo</string>
     <string name="b6b_remove_photo">Remove group photo</string>
-    <string name="b6b_photo_sub">Everyone in the group sees it. Like the group\'s name, it isn\'t end-to-end encrypted.</string>
+    <string name="b6b_photo_sub">Everyone in the group sees it.</string>
     <string name="b6b_photo_uploading">Uploading…</string>
     <string name="b6b_title">Presence</string>
     <string name="b6b_auto">Online</string>

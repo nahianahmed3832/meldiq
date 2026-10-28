@@ -27,7 +27,7 @@
     <string name="wp_badge_bug_hunter">漏洞猎人</string>
     <string name="wp_about_me">关于我</string>
     <string name="wp_style_title">个人资料样式</string>
-    <string name="wp_style_sub">你的头像框、横幅和名字样式。所有能看到你资料的人都会看到；它们不是端到端加密的。</string>
+    <string name="wp_style_sub">你的头像框、横幅和名字样式。所有能看到你个人资料的人都能看到。</string>
     <string name="wp_style_preview">预览</string>
     <string name="wp_style_frame">头像框</string>
     <string name="wp_style_effect">横幅效果</string>

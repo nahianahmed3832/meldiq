@@ -174,7 +174,7 @@
     <string name="welcome_title_1">নকশাতেই গোপনীয়।</string>
     <string name="welcome_title_2">সবার সঙ্গে সংযুক্ত।</string>
     <string name="welcome_body">মেসেজ, কমিউনিটি চ্যানেল ও কল আপনার ফোন ছাড়ার আগেই এনক্রিপ্ট হয়।</string>
-    <string name="welcome_trust">এন্ড-টু-এন্ড এনক্রিপ্টেড · আপনার কী এই ফোনেই থাকে</string>
+    <string name="welcome_trust">প্রতিটি ডিভাইসে আপনার চ্যাট · Meldiq-এর সার্ভারে নিরাপদে রাখা</string>
     <string name="welcome_sign_up">সাইন আপ</string>
     <string name="welcome_log_in">লগ ইন</string>
     <string name="signup_title">আপনার অ্যাকাউন্ট তৈরি করুন</string>

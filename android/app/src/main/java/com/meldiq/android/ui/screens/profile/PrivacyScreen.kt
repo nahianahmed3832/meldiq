@@ -64,7 +64,7 @@ import kotlinx.coroutines.launch
 private data class FieldRow(val field: PrivacyField, val icon: ImageVector, val title: String, val explain: String)
 
 private val PROFILE_ROWS = listOf(
-    FieldRow(PrivacyField.PHOTO, Icons.Outlined.PhotoCamera, "Profile photo", "Not end-to-end encrypted: the server stores it to show it."),
+    FieldRow(PrivacyField.PHOTO, Icons.Outlined.PhotoCamera, "Profile photo", "The server stores it to show it."),
     FieldRow(PrivacyField.NAME, Icons.Outlined.Person, "First and last name", "Your display name is always shown in chats."),
     FieldRow(PrivacyField.BIO, Icons.Outlined.ShortText, "Bio", ""),
     FieldRow(PrivacyField.BIRTHDAY, Icons.Outlined.Cake, "Birthday", ""),
@@ -139,8 +139,8 @@ fun PrivacyScreen(nav: NavHostController) {
             GlassCard(Modifier.fillMaxWidth().padding(horizontal = Space.gutter, vertical = 14.dp)) {
                 MenuRow(
                     Icons.Outlined.Info, "What these settings don't hide",
-                    subtitle = "Messages and calls are end-to-end encrypted. To deliver them, servers still see your username, display name, " +
-                        "who you talk to and when, and message sizes. People on other servers see your username, display name and address.",
+                    subtitle = "Messages and files are kept on Meldiq's servers and travel over encrypted connections (TLS). Servers see your messages, username, display name, " +
+                        "and who you talk to and when. People on other servers see your username, display name and address.",
                     trailing = null,
                 )
             }

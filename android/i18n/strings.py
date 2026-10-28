@@ -177,7 +177,7 @@ S = {
 "welcome_title_1": ("Private by design.", "设计即隐私。", "নকশাতেই গোপনীয়।"),
 "welcome_title_2": ("Connected by everyone.", "连接每一个人。", "সবার সঙ্গে সংযুক্ত।"),
 "welcome_body": ("Messages, community channels and calls, encrypted on your phone before they leave it.", "消息、社区频道和通话在离开你的手机之前就已加密。", "মেসেজ, কমিউনিটি চ্যানেল ও কল আপনার ফোন ছাড়ার আগেই এনক্রিপ্ট হয়।"),
-"welcome_trust": ("End-to-end encrypted · Your keys stay on this phone", "端到端加密 · 密钥只保存在这部手机上", "এন্ড-টু-এন্ড এনক্রিপ্টেড · আপনার কী এই ফোনেই থাকে"),
+"welcome_trust": ("Your chats on every device · Kept safe on Meldiq's servers", "你的聊天在每台设备上 · 安全保存在 Meldiq 的服务器上", "প্রতিটি ডিভাইসে আপনার চ্যাট · Meldiq-এর সার্ভারে নিরাপদে রাখা"),
 "welcome_sign_up": ("Sign up", "注册", "সাইন আপ"),
 "welcome_log_in": ("Log in", "登录", "লগ ইন"),
 "signup_title": ("Create your account", "创建你的账户", "আপনার অ্যাকাউন্ট তৈরি করুন"),

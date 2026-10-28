@@ -6,7 +6,7 @@
     <string name="sec_padlock_attention">Security details: a security key changed</string>
     <string name="sec_title">Security</string>
     <string name="sec_this_person">this person</string>
-    <string name="sec_messages">Messages are end-to-end encrypted</string>
+    <string name="sec_messages">Messages are kept on Meldiq\'s servers</string>
     <string name="sec_messages_body">Messages, reactions, polls and edits are encrypted on this phone for each member\'s devices. Meldiq\'s server only relays and stores encrypted copies.</string>
     <string name="sec_files">Files are encrypted before upload</string>
     <string name="sec_files_body">Photos, videos, voice messages and files are encrypted on this phone; the server can\'t open them or scan them.</string>
@@ -24,7 +24,7 @@
     <string name="sec_keys_changed_body">Messages with that person are paused until you check their safety number.</string>
     <string name="sec_other_servers">Members on another server</string>
     <string name="sec_other_servers_body">Both servers relay encrypted copies only, kept for at most 7 days until delivered.</string>
-    <string name="sec_app_updates">App updates aren\'t end-to-end encrypted</string>
+    <string name="sec_app_updates">App updates are posted by Meldiq\'s server</string>
     <string name="sec_app_updates_body">What connected apps post in this channel goes through Meldiq\'s server and is labelled as an app update.</string>
     <string name="sec_metadata">What the server can see</string>
     <string name="sec_metadata_body">Who is in this conversation, when messages are sent and how large they are. Not their content.</string>
@@ -35,7 +35,7 @@
     <string name="intro_page">Page %1$d of %2$d</string>
     <string name="intro_soon">Coming soon</string>
     <string name="intro_talk_title">Talk in one place</string>
-    <string name="intro_talk_body">Channels, groups and direct messages with threads, polls and files. Everything is end-to-end encrypted on your phone.</string>
+    <string name="intro_talk_body">Channels, groups and direct messages with threads, polls and files, on every device you sign in to.</string>
     <string name="intro_remind_title">Never lose track</string>
     <string name="intro_remind_body">Save messages for later and set reminders. They reach every device you\'re signed in on, even after a restart.</string>
     <string name="intro_voice_title">Talk it through</string>
