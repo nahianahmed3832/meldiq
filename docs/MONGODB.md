@@ -1,8 +1,11 @@
 # MongoDB in Meldiq (2026-10-19)
 
 How Meldiq moves its server-side data to MongoDB: what lives there today, what stays in SQLite for now and why, how a
-domain is migrated, verified and rolled back, and what production still needs. Code: `server/src/mongo/`. Status: **since 2026-10-28 05:20 UTC production keeps seven domains in MongoDB Atlas** (accounts, preferences, history,
-reports, relationships, relay, files; API 0.51.1, `docs/DEPLOYMENT.md`); the other six domains stay in SQLite.
+domain is migrated, verified and rolled back, and what production still needs. Code: `server/src/infrastructure/database/`.
+Status: **production keeps eight domains in MongoDB Atlas** since 2026-10-28 (accounts, preferences, history, reports,
+relationships, relay and files at 05:20 UTC, billing at 11:28 UTC; API 0.54.0, `docs/DEPLOYMENT.md`). **Every domain can
+now live in MongoDB** (this branch, 2026-10-28): the rest moves with `docs/MONGODB_CUTOVER_RUNBOOK.md`, after which
+SQLite holds no domain data and is retired on the owner's word (§6a).
 
 ## 1. Target architecture
 
@@ -35,7 +38,10 @@ state that could split a domain between the stores (`src/mongo/index.ts`):
 | accounts | accounts, account_sessions, account_codes, legacy_tickets | SQLite (prod) | **Yes** (`MongoAccountStore`) |
 | preferences | nav_preferences (new 2026-10-19) | SQLite (prod default) | **Yes** (`MongoPreferenceStore`) |
 | integrations | *retired 2026-10-21 with the apps (COMMUNITY_REBUILD_2026-10-21.md)*: listed in `MONGODB_DOMAINS` it is ignored; its SQLite tables stay for `admin retired-data` | — | No |
-| identity | users, devices, user_blocks, push_endpoints, registration_invites | SQLite | Copy and verify only |
+| identity | users, devices, user_blocks, push_endpoints, fcm_tokens, reminders, reminder_occurrences, registration_invites, loadtest_registrations | SQLite (prod) | **Yes** (rows, 2026-10-28, §4a). Referenced by almost every other domain, so it moves last (§6a) |
+| safety | account_passkeys, account_passkey_challenges, account_totp, account_totp_backup, account_email_changes, account_warnings, bug_reports (split from accounts 2026-10-28: they were written to SQLite while accounts were already in MongoDB) | SQLite (prod) | **Yes** (rows, §4a) |
+| platform | the Platform Admin Console (grants, console passkeys, the hash-chained audit, incidents, restrictions, settings, alerts), quotas (policies, plans, counters, events, reservations), telemetry rollups (activity, traffic, presence and resource hours, session clients, epochs) and the retired AI tables | SQLite (prod) | **Yes** (rows, §4a) |
+| ephemeral | auth_challenges, pairing_requests, sessions, federation_nonces, platform_admin_challenges, platform_admin_enrolments, platform_admin_sessions, presence_samples, resource_samples, discord_oauth_states (minutes to days) | SQLite (prod) | **Yes** (rows, §4a); copied at the switch so nobody is signed out |
 | workspace | orgs, org_members, org_roles, org_role_members, channel_categories, channel_overwrites, org_bans, join_applications, invitations, org_deletions, audit_log, meetings, meeting_participants, community_onboarding, onboarding_answers, community_expressions, org_entitlements, usage_daily, analytics_daily, discord_connections, discord_imports, discord_import_items, and the retired tables (branches, teams, workflows, documents, inbox, …; `admin retired-data`) | SQLite (prod) | **Yes**, with conversations (rows, 2026-10-28, §4a) |
 | conversations | conversations, conversation_members, mention_all_events | SQLite (prod) | **Yes**, with workspace (rows, §4a); needs files and calls in MongoDB too (their SQLite rows reference conversations) |
 | relay | delivery_queue, submitted_messages | SQLite (prod default) | **Yes** (`MongoRelayStore`, 2026-10-22, Architecture 1.0 D1: one transaction per accepted message, numeric queue ids from a counter that starts above every SQLite id; tests run on both stores) |
@@ -44,12 +50,11 @@ state that could split a domain between the stores (`src/mongo/index.ts`):
 | history | history_accounts, history_items | SQLite (prod default) | **Yes** (`MongoHistoryStore`, 2026-10-21; `docs/product/MELDIQ_MONGODB_MIGRATION.md` §5) |
 | reports | reports | SQLite (prod default) | **Yes** (`MongoReportStore`, 2026-10-21, batch B4; one document per report, no transactions needed) |
 | relationships | connections, dm_requests, messaging_settings | SQLite (prod default) | **Yes** (`MongoRelationshipStore`, 2026-10-22, batch B6; one document per pair, request or person; tests run on both stores with `MELDIQ_TEST_MONGO_DOMAINS=relationships`) |
-| federation | federation_blocks, federation_domains, federation_inbox, federation_outbox, federation_peers | SQLite | Copy and verify only |
+| federation | federation_blocks, federation_domains, federation_inbox, federation_outbox, federation_peers | SQLite (off in prod) | **Yes** (rows, §4a) |
 | billing | billing_plans, billing_plan_versions, billing_checkouts, billing_subscriptions, billing_subscription_history, billing_invoices, billing_provider_events, billing_webhook_rejections, billing_customers, billing_grants, billing_referral_codes, billing_referrals, spark_assignments, mojo_gifts, mojo_profile | SQLite (prod) | **Yes** (rows, 2026-10-28, API 0.54.0: plans, subscriptions, webhooks, free periods, Meldiq Spark and gifts; a webhook's changes and its processed mark are one unit; docs/MOJO.md) |
 
-**Never copied** (`EXCLUDED_TABLES`): `auth_challenges` (2-minute nonces), `pairing_requests` (10 minutes, carries the
-sealed identity bundle for a new device), `sessions` (v1 token hashes, 7 days; v1 apps sign in again by signature on
-their own), `federation_nonces` (replay protection), and SQLite's own `sqlite_sequence` / `schema_migrations`.
+**Never copied** (`EXCLUDED_TABLES`): SQLite's own `sqlite_sequence` and `schema_migrations`. The short-lived sign-in
+tables were left out too until 2026-10-28; with everything moving they are the `ephemeral` domain, copied like the rest.
 
 ### Why the remaining domains took longer
 
@@ -67,8 +72,10 @@ verified (`admin mongo-dryrun`), so the data model is proven even where the code
 - One collection per table, same name. A document is the row itself (same field names, so the code's row types fit
   both stores) plus `_id`: the primary key, an object of a composite key's columns (`{ user_id, workspace_id }`), or the
   rowid for the one table without a key (`mention_all_events`).
-- **Validators** (`$jsonSchema`, `validationLevel: strict`) and **indexes** are derived from the live SQLite schema by
-  `describeTables`, so they can't drift: NOT NULL → required; column types → BSON types; UNIQUE and plain indexes carry
+- **Validators** (`$jsonSchema`, `validationLevel: strict`) and **indexes** are derived from the schema the migrations
+  create, checked in as `src/infrastructure/database/schema.generated.ts` (`npm run schema` after adding a migration;
+  `test/schema.test.ts` fails while it and the migrations disagree), so they can't drift and the server needs no SQLite
+  file to know its tables (`tableSpecs()`; tools that read a SQLite file, like `mongo-migrate`, use `describeTables`): NOT NULL → required; column types → BSON types; UNIQUE and plain indexes carry
   over; `COLLATE NOCASE` → collation `{ locale: "en", strength: 2 }`; `WHERE col IS NOT NULL` partial indexes → partial
   filters; a UNIQUE nullable column becomes a partial unique index (SQLite allows many NULLs, MongoDB wouldn't).
   A unique partial index with any other condition stops the build until someone maps it by hand.
@@ -85,15 +92,20 @@ verified (`admin mongo-dryrun`), so the data model is proven even where the code
   revocation, preferences (`rev` compare-and-set). Two concurrent requests can't both win, on either store.
 - **Transactions** only where several account documents change together (legacy link). `MeldiqMongo.transaction` carries
   the session through `AsyncLocalStorage`. Accounts in MongoDB require a replica set or Atlas (checked at start).
-- **Steps that also write SQLite** (identity rows, invitation uses) are single store methods (`createAccount`,
-  `linkIdentity`, `bindDeviceWith`). SQLite runs them in one transaction with the account rows; MongoDB runs them as a
-  saga: the SQLite part in its own transaction, and the side that went first is undone if the other fails. A crash in
-  between is repaired by the next attempt (`identity.ts › enroll` releases a link to an identity that was never written).
+- **Steps that also write identity rows** (users, devices, registration invite uses) are single store methods
+  (`createAccount`, `linkIdentity`, `bindDeviceWith`) that take the identity rows' writer. SQLite runs them in one
+  transaction with the account rows; MongoDB runs them as a saga: the identity part as its own rows unit, and the side
+  that went first is undone if the other fails. A crash in between is repaired by the next attempt
+  (`identity.ts › enroll` releases a link to an identity that was never written).
+- **Steps across domains** are units in a fixed order, each safe to repeat: signing up with a community invite creates
+  the account (identity), then joins the community (workspace) and removes the account again if that fails; deleting an
+  account anonymises the identity and removes its devices, then ends its sessions, then leaves its conversations;
+  removing a device marks it revoked first, so every later check refuses it even if a later step fails.
 - Reads that combine stores: a session's account comes from MongoDB (`$lookup`, one round trip); the user's and device's
-  state from SQLite.
+  state from the identity rows (memory).
 - The WebSocket still re-checks the session on every frame, now asynchronously and in order.
 
-## 4a. Rows: workspace and conversations (2026-10-28)
+## 4a. Rows: workspace and conversations, then every other domain (2026-10-28)
 
 Communities and conversations are read on every request, mostly by authorisation (`authz.ts`), which decides whether a
 message may be sent. Their ~350 statements now go through **rows** (`src/infrastructure/database/rows`), one small
@@ -120,10 +132,21 @@ query language with SQLite's semantics (NULL, `!=`, `IN`, NOCASE, ordering) on b
 - **Authorisation stays synchronous.** The plan in §6 said `authz.ts` would become async; it doesn't need to: it reads
   rows, which are in memory in MongoDB mode, so the message path makes no extra round trip and every `authz` caller
   is unchanged. Only writes wait for MongoDB.
-- **One process only.** The in-memory copy is the truth between writes, so a second API process on the same database
-  would read stale rows. The server already requires one process (the WebSocket hub is in memory); scaling out needs
-  a change feed first.
-- **Memory**: the whole workspace and conversations data set is held in the API's memory. For scale: all 159 production
+- **Every other domain too** (2026-10-28): billing, then identity, safety, platform, federation and ephemeral, each its
+  own rows (`ctx.identity`, `ctx.safety`, `ctx.platform`, `ctx.fed`, `ctx.ephemeral`; `src/app/domainRows.ts`). Joins
+  across them are lookups by id in memory; SQL aggregates (analytics, quota counters) are computed from rows. The
+  query language compares text in ranges too (`{ day: { gte: "2026-10-01" } }`, SQLite's order). A quota check and
+  its reservation are one unit of the platform rows (reservations live there, not in `ephemeral`, for that reason).
+- **Other processes' writes** (the operator CLI: `admin disable`, `reg-invite`, a console grant, `fed-block`) reach the
+  API through a **change stream** per rows instance, filtered by collection name (allowed on Atlas M0): each changed
+  document is read again and its current state applied in the write queue, between the API's own units, so memory
+  never goes back to an older version; the API's own transactions are recognised by their session and skipped. A
+  stream the driver can't resume is reopened and memory brought to the collections again. Covered by
+  `test/rows.test.ts` (two processes) and the console suite (the CLI revoking a grant ends the session at once).
+- **One API process only.** The in-memory copy is the truth between writes and the WebSocket hub is in memory: a second
+  API process would follow writes through the change stream, but its units could still race the first's. Scaling out
+  needs more than this.
+- **Memory**: every rows domain is held in the API's memory once it is in MongoDB. For scale: all 159 production
   tables together came to 17.3 MiB as documents on 2026-10-28 (`MONGODB_ATLAS_FREE_REPORT_2026-10-28.md`); these two
   domains are a part of that, not yet measured on their own (`admin mongo-estimate --domain workspace`). `usage_daily`, `analytics_daily` and `audit_log` grow with time; retention prunes the audit log
   (`AUDIT_RETENTION_DAYS`).
@@ -142,7 +165,7 @@ query language with SQLite's semantics (NULL, `!=`, `IN`, NOCASE, ordering) on b
 | `MONGODB_URI` | unset | Connection string. Unset: everything stays in SQLite exactly as before. Never logged (redacted). |
 | `MONGODB_DB` | `meldiq` | Database name |
 | `MONGODB_STORAGE_LIMIT_MB` | `0` (no check) | The deployment's storage limit; `mongo-migrate` and `mongo-dryrun` refuse to start when the projected usage would pass 70% of it (§7a). Set `512` on an Atlas Free (M0) cluster |
-| `MONGODB_DOMAINS` | empty | Comma list of domains whose home is MongoDB: `accounts`, `preferences`, `history`, `reports`, `relationships`, `relay`, `files`, `calls`, `workspace`, `conversations` and `billing` (the last two together, and only with `files` and `calls`; `integrations` is retired and ignored) |
+| `MONGODB_DOMAINS` | empty | Comma list of domains whose home is MongoDB: `accounts`, `preferences`, `history`, `reports`, `relationships`, `relay`, `files`, `calls`, `workspace`, `conversations`, `billing`, `safety`, `platform`, `federation`, `ephemeral`, `identity` (`workspace` and `conversations` together, and only with `files` and `calls`; a domain SQLite still references can't be listed without the domains that reference it, so `identity` comes last; `integrations` is retired and ignored) |
 | `MONGODB_MAX_POOL` | `20` | Connection pool size (1–200) |
 | `MONGODB_TIMEOUT_MS` | `5000` | Server selection and connect timeout; socket timeout is 6× this |
 
@@ -172,10 +195,15 @@ whole restore and changes nothing), verifies, and marks SQLite as the home again
 `MONGODB_DOMAINS`; start the API. MongoDB keeps its copy. An old image that doesn't know MongoDB must only be started
 after this step, or it would serve SQLite's stale copy.
 
-**Next domains, in order** (relay and files done 2026-10-22, calls and workspace + conversations 2026-10-28, §4a):
-identity → platform. Federation (off in production, its tables empty there) is ported last. Each needs its SQL moved
-behind a store or rows, the full suite run on both stores (`MELDIQ_TEST_MONGO_DOMAINS`), and a migration rehearsal. The relay's MongoDB store exists and passes the suite, but it is the message hot
-path: its production cutover waits for a load test of sending and acknowledging against the Atlas cluster.
+## 6a. Retiring SQLite (2026-10-28)
+
+Every domain's code runs on MongoDB (§4a), the schema is checked in (§3), and the full suite passes on SQLite and with
+every domain in MongoDB. The production move, stage by stage with `MONGODB_DOMAINS` at each step, backups, rehearsals on
+a copy and rollback, is `docs/MONGODB_CUTOVER_RUNBOOK.md`. The order follows the references SQLite enforces (a SQLite
+table can't point at a MongoDB one; the server checks this at start): platform and federation any time, calls before
+workspace + conversations, identity last with safety and ephemeral. Once everything is in MongoDB the server reads no
+domain data from SQLite (it still opens a SQLite file for `schema_migrations` and starts on an empty one); the file and
+its backups stay until the owner confirms production, and only the owner removes them.
 
 ## 7. Backups and recovery
 
@@ -210,8 +238,12 @@ freeze, so capacity is measured before anything moves (`src/infrastructure/datab
 
 ## 8. Verification and smoke tests
 
-- Automated: `npx vitest run` (SQLite) and `MELDIQ_TEST_MONGO_DOMAINS=accounts,preferences npx vitest run` (the same
-  378 tests with accounts and preferences in MongoDB). `test/mongo_migration.test.ts` covers the catalog, validators,
+- Automated: `npx vitest run` (SQLite) and, with every domain in MongoDB,
+  `MELDIQ_TEST_MONGO_DOMAINS=accounts,preferences,history,reports,relationships,relay,files,calls,workspace,conversations,billing,safety,platform,federation,ephemeral,identity npx vitest run --maxWorkers=3`
+  (the same suites; test servers reuse emptied databases, and set-up hooks get more time, since creating ~170
+  collections per database is MongoDB's slowest step). `test/schema.test.ts` checks the checked-in schema against the
+  migrations and every stage of the cutover runbook against the reference rule; `test/rows.test.ts` runs the rows
+  behaviour on both stores and two processes writing the same collections. `test/mongo_migration.test.ts` covers the catalog, validators,
   unique indexes, copying synthetic data (people, an organisation, channels, queued ciphertext, binary history,
   preferences, an Orbit 2.0 account), re-runs, resuming after an interruption, prune, tampering detection, rollback
   (including refusal on broken references), the authority guards and the TLS rule. `test/account_store_races.test.ts`
@@ -231,15 +263,18 @@ freeze, so capacity is measured before anything moves (`src/infrastructure/datab
 | Settings, push registration, server profiles | Phone (shared preferences) | Device-local |
 | Starred, sections, collapsed groups, mutes | **Server since 2026-10-19** (`nav_preferences`), cached on the phone | Were phone-only; muted flags are merged up once per workspace |
 | Selected workspace | Server (`accounts.selected_workspace_id`) + phone cache | |
-| Accounts, sessions (hashes), codes (hashes), legacy tickets | Server: SQLite, MongoDB-ready | `accounts` domain |
-| Users (public keys, profile), devices (public keys), blocks, push endpoints | Server SQLite | `identity` domain |
-| Orgs, members, roles, branches, teams, invitations (hashed codes), audit | Server SQLite | `workspace` domain |
-| Conversations and members | Server SQLite | `conversations` domain |
-| Queued ciphertext (≤ 7 days), idempotency, calls | Server SQLite | `relay` domain |
-| File metadata | Server SQLite | `files` domain; file bytes in S3 (`griipbuddy-orbit-media-sg`) or the VPS disk |
-| Encrypted history items | Server SQLite | `history` domain (opaque ciphertext) |
+| Accounts, sessions (hashes), codes (hashes), legacy tickets | Server: MongoDB (since 2026-10-28) | `accounts` domain |
+| Users (public keys, profile), devices (public keys), blocks, push endpoints, reminders (sealed) | Server: SQLite, moving to MongoDB (runbook) | `identity` domain |
+| Passkeys, two-step secrets (sealed), email changes, staff warnings, bug reports | Server: SQLite, moving to MongoDB | `safety` domain |
+| Console grants and audit, incidents, quotas, telemetry rollups | Server: SQLite, moving to MongoDB | `platform` domain |
+| Orgs, members, roles, branches, teams, invitations (hashed codes), audit | Server: SQLite, moving to MongoDB | `workspace` domain |
+| Conversations and members | Server: SQLite, moving to MongoDB | `conversations` domain |
+| Queued ciphertext (≤ 7 days), idempotency | Server: MongoDB (since 2026-10-28) | `relay` domain |
+| Calls and their participants | Server: SQLite, moving to MongoDB | `calls` domain |
+| File metadata | Server: MongoDB (since 2026-10-28) | `files` domain; file bytes in S3 (`griipbuddy-orbit-media-sg`) or the VPS disk |
+| Encrypted history items | Server: MongoDB (since 2026-10-28) | `history` domain (opaque ciphertext) |
 | Profile and organisation photos | S3 (or VPS disk), revision in the users/orgs rows | Not end-to-end encrypted (published by their owners) |
-| Federation peers, outbox | Server SQLite | `federation` domain; server keys in a file under DATA_DIR, never in a database |
+| Federation peers, outbox | Server: SQLite, moving to MongoDB (federation off in production) | `federation` domain; server keys in a file under DATA_DIR, never in a database |
 
 Production dependencies and risks: one API process (in-memory WebSocket hub), SQLite on one VPS volume, backups on the
 same VPS, MongoDB not provisioned, cross-store steps for accounts (sagas, §4), latency of a remote MongoDB on every v2

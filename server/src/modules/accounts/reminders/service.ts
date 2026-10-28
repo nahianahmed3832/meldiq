@@ -1,3 +1,4 @@
+import type { RowReader, RowWriter } from "../../../infrastructure/database/rows/index.js";
 import type { AppContext } from "../../../app/context.js";
 import { ApiError } from "../../../shared/errors.js";
 import { now } from "../../../shared/utilities/util.js";
@@ -112,19 +113,16 @@ export class ReminderService {
 
   constructor(private readonly ctx: AppContext) {}
 
-  private row(userId: string, id: string): ReminderRow {
-    const r = this.ctx.db.prepare("SELECT * FROM reminders WHERE id = ? AND user_id = ?").get(id, userId) as ReminderRow | undefined;
-    if (!r) throw notFound();
-    return r;
+  private row(userId: string, id: string, r: RowReader = this.ctx.identity): ReminderRow {
+    const row = r.get<ReminderRow>("reminders", { id, user_id: userId });
+    if (!row) throw notFound();
+    return row;
   }
 
   list(userId: string, state?: ReminderState): ReminderView[] {
-    const rows = (
-      state
-        ? this.ctx.db.prepare("SELECT * FROM reminders WHERE user_id = ? AND state = ? ORDER BY due_at, id LIMIT 1000").all(userId, state)
-        : this.ctx.db.prepare("SELECT * FROM reminders WHERE user_id = ? ORDER BY due_at, id LIMIT 1000").all(userId)
-    ) as ReminderRow[];
-    return rows.map(view);
+    return this.ctx.identity
+      .all<ReminderRow>("reminders", { where: { user_id: userId, ...(state ? { state } : {}) }, orderBy: [["due_at", "asc"], ["id", "asc"]], limit: 1000 })
+      .map(view);
   }
 
   get(userId: string, id: string): ReminderView {
@@ -132,87 +130,92 @@ export class ReminderService {
   }
 
   /** Creates [input] (or returns it unchanged when the same id was already created by this person: a retried request). */
-  create(userId: string, deviceId: string, input: ReminderInput): ReminderView {
-    const existing = this.ctx.db.prepare("SELECT * FROM reminders WHERE id = ?").get(input.id) as ReminderRow | undefined;
-    if (existing) {
-      if (existing.user_id !== userId) throw new ApiError(409, "reminder_id_taken", "Choose another reminder id");
-      return view(existing);
-    }
-    const active = (this.ctx.db.prepare("SELECT COUNT(*) AS n FROM reminders WHERE user_id = ? AND state IN ('scheduled','fired')").get(userId) as { n: number }).n;
-    if (active >= MAX_ACTIVE_REMINDERS) throw new ApiError(409, "too_many_reminders", `You can have up to ${MAX_ACTIVE_REMINDERS} reminders waiting. Finish or delete some first.`);
+  async create(userId: string, deviceId: string, input: ReminderInput): Promise<ReminderView> {
     const t = now();
     const rule = input.repeat ? { ...input.repeat, timeZone: input.timeZone } : null;
     // A repeating reminder's first due time comes from its rule (so it matches the local time exactly), and is never
     // an occurrence that already passed.
     const dueAt = rule ? nextOccurrence(rule, Math.max(t, input.dueAt - 1)) : input.dueAt;
-    this.ctx.db
-      .prepare(
-        `INSERT INTO reminders (id, user_id, sealed, due_at, time_zone, recurrence, local_time, anchor_date, state, rev, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'scheduled', 1, ?, ?)`,
-      )
-      .run(input.id, userId, input.sealed, dueAt, input.timeZone, rule?.recurrence ?? null, rule?.localTime ?? null, rule?.anchorDate ?? null, t, t);
-    const created = this.row(userId, input.id);
-    this.changed(userId, created, deviceId);
-    return view(created);
+    const { row, isNew } = await this.ctx.identity.write((w) => {
+      const existing = w.get<ReminderRow>("reminders", { id: input.id });
+      if (existing) {
+        if (existing.user_id !== userId) throw new ApiError(409, "reminder_id_taken", "Choose another reminder id");
+        return { row: existing, isNew: false };
+      }
+      if (w.count("reminders", { user_id: userId, state: { in: ["scheduled", "fired"] } }) >= MAX_ACTIVE_REMINDERS) {
+        throw new ApiError(409, "too_many_reminders", `You can have up to ${MAX_ACTIVE_REMINDERS} reminders waiting. Finish or delete some first.`);
+      }
+      w.insert("reminders", {
+        id: input.id,
+        user_id: userId,
+        sealed: input.sealed,
+        due_at: dueAt,
+        time_zone: input.timeZone,
+        recurrence: rule?.recurrence ?? null,
+        local_time: rule?.localTime ?? null,
+        anchor_date: rule?.anchorDate ?? null,
+        state: "scheduled",
+        rev: 1,
+        created_at: t,
+        updated_at: t,
+      });
+      return { row: this.row(userId, input.id, w), isNew: true };
+    });
+    if (isNew) this.changed(userId, row, deviceId);
+    return view(row);
   }
 
   /**
    * Edits, snoozes, reschedules, completes or dismisses. [patch.rev] must be the current one (another device may have
    * changed it meanwhile: 409 with the current copy). A new due time or rule puts the reminder back to scheduled.
    */
-  update(userId: string, deviceId: string, id: string, patch: ReminderPatch): ReminderView {
-    const r = this.row(userId, id);
-    if (r.rev !== patch.rev) throw new ApiError(409, "stale_reminder", "This reminder changed on another device.", { current: view(r) });
+  async update(userId: string, deviceId: string, id: string, patch: ReminderPatch): Promise<ReminderView> {
     const t = now();
-    const timeZone = patch.timeZone ?? r.time_zone;
-    const repeat = patch.repeat === undefined ? (ruleOf(r) ? { recurrence: r.recurrence!, localTime: r.local_time!, anchorDate: r.anchor_date! } : null) : patch.repeat;
-    const rescheduled = patch.dueAt !== undefined || patch.repeat !== undefined || patch.timeZone !== undefined;
-    let dueAt = patch.dueAt ?? r.due_at;
-    if (repeat && rescheduled && patch.dueAt === undefined) dueAt = nextOccurrence({ ...repeat, timeZone }, t);
-    let state: ReminderState = patch.state ?? r.state;
-    if (rescheduled && patch.state === undefined) state = "scheduled";
-    const finished = state === "done" || state === "dismissed";
-    const res = this.ctx.db
-      .prepare(
-        `UPDATE reminders SET sealed = ?, due_at = ?, time_zone = ?, recurrence = ?, local_time = ?, anchor_date = ?, state = ?,
-           attempts = CASE WHEN ? THEN 0 ELSE attempts END, next_attempt_at = CASE WHEN ? THEN NULL ELSE next_attempt_at END,
-           last_error = CASE WHEN ? THEN NULL ELSE last_error END,
-           completed_at = ?, rev = rev + 1, updated_at = ? WHERE id = ? AND user_id = ? AND rev = ?`,
-      )
-      .run(
-        patch.sealed ?? r.sealed,
-        dueAt,
-        timeZone,
-        repeat?.recurrence ?? null,
-        repeat?.localTime ?? null,
-        repeat?.anchorDate ?? null,
-        state,
-        rescheduled ? 1 : 0,
-        rescheduled ? 1 : 0,
-        rescheduled ? 1 : 0,
-        finished ? (r.completed_at ?? t) : null,
-        t,
-        id,
-        userId,
-        patch.rev,
+    const updated = await this.ctx.identity.write((w) => {
+      const r = this.row(userId, id, w);
+      if (r.rev !== patch.rev) throw new ApiError(409, "stale_reminder", "This reminder changed on another device.", { current: view(r) });
+      const timeZone = patch.timeZone ?? r.time_zone;
+      const repeat = patch.repeat === undefined ? (ruleOf(r) ? { recurrence: r.recurrence!, localTime: r.local_time!, anchorDate: r.anchor_date! } : null) : patch.repeat;
+      const rescheduled = patch.dueAt !== undefined || patch.repeat !== undefined || patch.timeZone !== undefined;
+      let dueAt = patch.dueAt ?? r.due_at;
+      if (repeat && rescheduled && patch.dueAt === undefined) dueAt = nextOccurrence({ ...repeat, timeZone }, t);
+      let state: ReminderState = patch.state ?? r.state;
+      if (rescheduled && patch.state === undefined) state = "scheduled";
+      const finished = state === "done" || state === "dismissed";
+      w.update(
+        "reminders",
+        { id, user_id: userId, rev: patch.rev },
+        {
+          sealed: patch.sealed ?? r.sealed,
+          due_at: dueAt,
+          time_zone: timeZone,
+          recurrence: repeat?.recurrence ?? null,
+          local_time: repeat?.localTime ?? null,
+          anchor_date: repeat?.anchorDate ?? null,
+          state,
+          ...(rescheduled ? { attempts: 0, next_attempt_at: null, last_error: null } : {}),
+          completed_at: finished ? (r.completed_at ?? t) : null,
+          rev: r.rev + 1,
+          updated_at: t,
+        },
       );
-    if (res.changes !== 1) throw new ApiError(409, "stale_reminder", "This reminder changed on another device.", { current: view(this.row(userId, id)) });
-    const updated = this.row(userId, id);
+      return this.row(userId, id, w);
+    });
     this.changed(userId, updated, deviceId);
     return view(updated);
   }
 
-  delete(userId: string, deviceId: string, id: string): void {
+  async delete(userId: string, deviceId: string, id: string): Promise<void> {
     const r = this.row(userId, id);
-    this.ctx.db.prepare("DELETE FROM reminders WHERE id = ? AND user_id = ?").run(id, userId);
+    await this.ctx.identity.write((w) => w.delete("reminders", { id, user_id: userId }));
     this.ctx.hub.sendToUser(userId, { t: "reminders.changed", id: r.id, deleted: true }, deviceId);
   }
 
   /** A device showed the occurrence that fired at [firedAt]. */
-  ack(userId: string, id: string, firedAt: number): void {
+  async ack(userId: string, id: string, firedAt: number): Promise<void> {
     const r = this.row(userId, id);
     if (r.fired_at !== firedAt) return;
-    this.ctx.db.prepare("UPDATE reminders SET delivered_at = ? WHERE id = ? AND user_id = ? AND fired_at = ?").run(now(), id, userId, firedAt);
+    await this.ctx.identity.write((w) => w.update("reminders", { id, user_id: userId, fired_at: firedAt }, { delivered_at: now() }));
   }
 
   private changed(userId: string, r: ReminderRow, exceptDeviceId?: string): void {
@@ -222,16 +225,15 @@ export class ReminderService {
   // ───────────── Firing ─────────────
 
   /** Fires every reminder that is due at [t]. Safe to run twice for the same time or after a crash. */
-  tick(t = now()): TickResult {
+  async tick(t = now()): Promise<TickResult> {
     const result: TickResult = { fired: 0, retried: 0, failed: 0 };
-    const due = this.ctx.db
-      .prepare(
-        "SELECT * FROM reminders WHERE state = 'scheduled' AND due_at <= ? AND (next_attempt_at IS NULL OR next_attempt_at <= ?) ORDER BY due_at LIMIT ?",
-      )
-      .all(t, t, BATCH) as ReminderRow[];
+    const due = this.ctx.identity
+      .all<ReminderRow>("reminders", { where: { state: "scheduled", due_at: { lte: t } }, orderBy: [["due_at", "asc"]] })
+      .filter((r) => r.next_attempt_at === null || r.next_attempt_at <= t)
+      .slice(0, BATCH);
     for (const r of due) {
       try {
-        this.fire(r, t);
+        await this.fire(r, t);
         result.fired++;
       } catch (err) {
         const attempts = r.attempts + 1;
@@ -239,10 +241,10 @@ export class ReminderService {
         this.ctx.log.warn({ reminderId: r.id, attempts, errorType: err instanceof Error ? err.name : typeof err }, "reminder delivery failed");
         if (gaveUp) {
           // Move on (a repeating reminder to its next occurrence) rather than retry for ever; the app shows "failed".
-          this.advance(r, t, "failed");
+          await this.ctx.identity.write((w) => this.advance(w, r, t, "failed"));
           result.failed++;
         } else {
-          this.ctx.db.prepare("UPDATE reminders SET attempts = ?, next_attempt_at = ?, last_error = 'retrying' WHERE id = ? AND rev = ?").run(attempts, t + retryDelayMs(attempts), r.id, r.rev);
+          await this.ctx.identity.write((w) => w.update("reminders", { id: r.id, rev: r.rev }, { attempts, next_attempt_at: t + retryDelayMs(attempts), last_error: "retrying" }));
           result.retried++;
         }
       }
@@ -252,14 +254,14 @@ export class ReminderService {
 
   /**
    * One occurrence: recorded first (so a crash after delivering can't deliver it again), delivered, then the reminder
-   * moves on. The record and the move are one transaction; delivery is to whoever is reachable right now.
+   * moves on. The record and the move are one unit; delivery is to whoever is reachable right now.
    */
-  private fire(r: ReminderRow, t: number): void {
-    const firstTime = this.ctx.db.transaction(() => {
-      const inserted = this.ctx.db.prepare("INSERT OR IGNORE INTO reminder_occurrences (reminder_id, occurrence_at, fired_at) VALUES (?, ?, ?)").run(r.id, r.due_at, t).changes === 1;
-      this.advance(r, t, null);
+  private async fire(r: ReminderRow, t: number): Promise<void> {
+    const firstTime = await this.ctx.identity.write((w) => {
+      const inserted = w.insert("reminder_occurrences", { reminder_id: r.id, occurrence_at: r.due_at, fired_at: t }, { orIgnore: true }).inserted;
+      this.advance(w, r, t, null);
       return inserted;
-    })();
+    });
     if (!firstTime) return;
     // Best effort from here: the fired state is stored, so a device that misses this event still finds the reminder
     // when it next syncs (GET /v1/reminders), and shows it then.
@@ -272,43 +274,41 @@ export class ReminderService {
     }
   }
 
-  private advance(r: ReminderRow, t: number, error: "failed" | null): void {
+  private advance(w: RowWriter, r: ReminderRow, t: number, error: "failed" | null): void {
     const rule = ruleOf(r);
-    if (rule) {
-      this.ctx.db
-        .prepare("UPDATE reminders SET due_at = ?, fired_at = ?, attempts = 0, next_attempt_at = NULL, last_error = ?, rev = rev + 1, updated_at = ? WHERE id = ? AND rev = ?")
-        .run(nextOccurrence(rule, Math.max(t, r.due_at)), t, error, t, r.id, r.rev);
-    } else {
-      this.ctx.db
-        .prepare("UPDATE reminders SET state = 'fired', fired_at = ?, attempts = 0, next_attempt_at = NULL, last_error = ?, rev = rev + 1, updated_at = ? WHERE id = ? AND rev = ?")
-        .run(t, error, t, r.id, r.rev);
-    }
+    const moved = { fired_at: t, attempts: 0, next_attempt_at: null, last_error: error, rev: r.rev + 1, updated_at: t };
+    if (rule) w.update("reminders", { id: r.id, rev: r.rev }, { ...moved, due_at: nextOccurrence(rule, Math.max(t, r.due_at)) });
+    else w.update("reminders", { id: r.id, rev: r.rev }, { ...moved, state: "fired" });
   }
 
   /** Old occurrence records and long-finished reminders (run by the cleanup job). */
-  purge(t = now()): number {
-    const occ = this.ctx.db.prepare("DELETE FROM reminder_occurrences WHERE fired_at <= ?").run(t - OCCURRENCE_KEEP_MS).changes;
-    const finished = this.ctx.db.prepare("DELETE FROM reminders WHERE state IN ('done','dismissed') AND completed_at <= ?").run(t - FINISHED_KEEP_MS).changes;
-    return occ + finished;
+  purge(t = now()): Promise<number> {
+    return this.ctx.identity.write(
+      (w) =>
+        w.delete("reminder_occurrences", { fired_at: { lte: t - OCCURRENCE_KEEP_MS } }) +
+        w.delete("reminders", { state: { in: ["done", "dismissed"] }, completed_at: { lte: t - FINISHED_KEEP_MS } }),
+    );
   }
 
   /** Starts the firing loop (every [intervalMs]); stop() ends it. A tick never overlaps the previous one. */
   start(intervalMs: number): void {
     if (this.timer || intervalMs <= 0) return;
     this.timer = setInterval(() => {
-      if (this.running || !this.ctx.db.open) return;
+      if (this.running) return;
       this.running = true;
       const t0 = performance.now();
-      try {
-        const r = this.tick();
-        this.ctx.metrics?.recordJob("reminders.tick", performance.now() - t0);
-        if (r.fired || r.retried || r.failed) this.ctx.log.info(r, "reminders fired");
-      } catch (err) {
-        this.ctx.metrics?.recordJob("reminders.tick", performance.now() - t0, err);
-        this.ctx.log.error({ errorType: err instanceof Error ? err.name : typeof err }, "reminder tick failed");
-      } finally {
-        this.running = false;
-      }
+      this.tick()
+        .then((r) => {
+          this.ctx.metrics?.recordJob("reminders.tick", performance.now() - t0);
+          if (r.fired || r.retried || r.failed) this.ctx.log.info(r, "reminders fired");
+        })
+        .catch((err) => {
+          this.ctx.metrics?.recordJob("reminders.tick", performance.now() - t0, err);
+          this.ctx.log.error({ errorType: err instanceof Error ? err.name : typeof err }, "reminder tick failed");
+        })
+        .finally(() => {
+          this.running = false;
+        });
     }, intervalMs);
     this.timer.unref();
   }

@@ -31,7 +31,7 @@ export class MongoRelayStore implements RelayStore {
 
   constructor(
     private readonly mongo: MeldiqMongo,
-    /** For the SQLite steps of an acceptance and to start the counter above SQLite's ids. */
+    /** To start the counter above SQLite's ids (a queue moved from SQLite; afterwards the counter holds the floor). */
     private readonly db: DB,
     private readonly log: Pick<FastifyBaseLogger, "error">,
   ) {
@@ -45,8 +45,8 @@ export class MongoRelayStore implements RelayStore {
     return d ? strip(d) : null;
   }
 
-  async accept(sub: Submission, items: QueueInsert[], sqliteSteps?: () => void): Promise<QueueItemRow[]> {
-    const rows = await this.mongo.transaction(async () => {
+  async accept(sub: Submission, items: QueueInsert[]): Promise<QueueItemRow[]> {
+    return this.mongo.transaction(async () => {
       const session = this.mongo.session();
       try {
         await this.submitted.insertOne({ _id: sub.message_id, ...sub }, { session });
@@ -56,16 +56,6 @@ export class MongoRelayStore implements RelayStore {
       }
       return this.insert(items);
     });
-    if (sqliteSteps) {
-      try {
-        this.db.transaction(sqliteSteps)();
-      } catch (err) {
-        // The message is accepted and queued; only its side records (conversation time, @everyone, federation outbox)
-        // are missing. A retry answers as a duplicate, so failing here would lose nothing more: log it instead.
-        this.log.error({ err, messageId: sub.message_id }, "relay: SQLite steps after an accepted message failed");
-      }
-    }
-    return rows;
   }
 
   async enqueue(items: QueueInsert[]): Promise<QueueItemRow[]> {

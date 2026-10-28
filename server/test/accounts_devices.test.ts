@@ -76,7 +76,7 @@ describe("device setup after sign-in", () => {
   it("starts fresh with the password: new identity, other devices removed, server history gone", async () => {
     const c = await AccountClient.ready(h.baseUrl, mailer, "fresh");
     const old = c.deviceId;
-    h.ctx.db.prepare("INSERT INTO history_items (user_id, tag, conv_tag, seq, ts, body, size, updated_at) VALUES (?, 't1', 'c1', 1, 1, x'00', 1, 1)").run(c.userId);
+    await h.ctx.history.put(c.userId, [{ tag: "t1", conv: "c1", ts: 1, body: Buffer.from([0]) }], { maxItems: 100, maxBytes: 1_000_000, maxTotalBytes: 1_000_000_000 }, 1);
     const lost = new AccountClient(h.baseUrl, c.email);
     await lost.signIn();
     await expectStatus(lost.req("POST", "/v2/account/identity/reset", await lost.deviceBody("register", { password: "wrong password!!", identityKey: lost.identityKeyB64 })), 401);
@@ -84,8 +84,8 @@ describe("device setup after sign-in", () => {
     expect(r).toMatchObject({ result: "identity", userId: c.userId });
     const me = await lost.req("GET", "/v1/users/me");
     expect(me.user.identityKey).toBe(lost.identityKeyB64);
-    expect((h.ctx.db.prepare("SELECT revoked_at FROM devices WHERE id = ?").get(old) as { revoked_at: number | null }).revoked_at).not.toBeNull();
-    expect(h.ctx.db.prepare("SELECT COUNT(*) n FROM history_items WHERE user_id = ?").get(c.userId)).toEqual({ n: 0 });
+    expect(h.ctx.identity.get<{ revoked_at: number | null }>("devices", { id: old })!.revoked_at).not.toBeNull();
+    expect(await h.ctx.history.items(c.userId, 0, 10)).toEqual([]);
     await expectStatus(c.req("GET", "/v2/account"), 401);
   });
 });

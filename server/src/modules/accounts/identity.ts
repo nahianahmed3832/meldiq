@@ -3,7 +3,8 @@ import { DAY_MS } from "../../app/middleware/abuse.js";
 import type { AppContext } from "../../app/context.js";
 import { canonical, isValidPublicKey, verifyEd25519 } from "../../shared/utilities/crypto.js";
 import { joinOrgByInvite, type OrgInviteRow } from "../organizations/invites.js";
-import { notifyKeyChange, revokeDeviceRows, zUsername } from "../auth/routes.js";
+import { notifyKeyChange, revokeDevices, zUsername } from "../auth/routes.js";
+import type { RowWriter } from "../../infrastructure/database/rows/index.js";
 import { evictUserDevicesFromCalls } from "../calls/routes.js";
 import { deleteHistoryAfterCommit } from "../messaging/history/routes.js";
 import { ApiError, badRequest } from "../../shared/errors.js";
@@ -32,9 +33,9 @@ function requireKeys(d: DeviceKeys, identityKey: string): void {
   }
 }
 
-function requireProof(ctx: AppContext, purpose: "register" | "add-device", d: DeviceKeys, nonce: string, signature: string): void {
+async function requireProof(ctx: AppContext, purpose: "register" | "add-device", d: DeviceKeys, nonce: string, signature: string): Promise<void> {
   if (!verifyEd25519(d.signingKey, canonical.authProof(purpose, nonce, d.signingKey), signature)) throw new ApiError(401, "invalid_proof", "Invalid proof signature");
-  if (!consumeChallenge(ctx, nonce)) throw new ApiError(401, "invalid_proof", "The challenge expired or was already used. Try again.");
+  if (!(await consumeChallenge(ctx, nonce))) throw new ApiError(401, "invalid_proof", "The challenge expired or was already used. Try again.");
 }
 
 /** A unique-constraint failure as the person should hear it: their device key was used before, or the username is taken. */
@@ -60,21 +61,19 @@ function freeUsername(ctx: AppContext, wanted: string | undefined, name: string)
   if (wanted) {
     const parsed = zUsername.safeParse(wanted);
     if (!parsed.success) throw new ApiError(400, "bad_username", parsed.error.issues[0]?.message ?? "That username isn't allowed");
-    if (ctx.db.prepare("SELECT 1 FROM users WHERE username = ?").get(parsed.data)) throw new ApiError(409, "username_taken", "That username is already taken");
+    if (ctx.identity.get("users", { username: parsed.data })) throw new ApiError(409, "username_taken", "That username is already taken");
     return parsed.data;
   }
   for (let i = 0; i < USERNAME_ATTEMPTS; i++) {
     const c = usernameCandidate(name);
-    if (zUsername.safeParse(c).success && !ctx.db.prepare("SELECT 1 FROM users WHERE username = ?").get(c)) return c;
+    if (zUsername.safeParse(c).success && !ctx.identity.get("users", { username: c })) return c;
   }
   return `meldiq${crypto.randomBytes(5).toString("hex")}`;
 }
 
-function insertDevice(ctx: AppContext, userId: string, d: DeviceKeys, t: number): string {
+function insertDevice(w: RowWriter, userId: string, d: DeviceKeys, t: number): string {
   const deviceId = newId("d");
-  ctx.db
-    .prepare("INSERT INTO devices (id, user_id, name, signing_key, encryption_key, certificate, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
-    .run(deviceId, userId, d.name, d.signingKey, d.encryptionKey, d.certificate, t);
+  w.insert("devices", { id: deviceId, user_id: userId, name: d.name, signing_key: d.signingKey, encryption_key: d.encryptionKey, certificate: d.certificate, created_at: t });
   return deviceId;
 }
 
@@ -93,7 +92,7 @@ export class IdentityService {
     let a = (await this.accounts.store.accountById(s.account_id))!;
     // A link interrupted half-way (MongoDB accounts: the account was claimed, the identity's rows never written) is
     // undone, so the person can set up encryption again instead of being stuck.
-    if (a.user_id && !this.ctx.db.prepare("SELECT 1 FROM users WHERE id = ?").get(a.user_id)) {
+    if (a.user_id && !this.ctx.identity.get("users", { id: a.user_id })) {
       await this.accounts.store.releaseIdentity(a.id, a.user_id, now());
       a = (await this.accounts.store.accountById(s.account_id))!;
     }
@@ -104,7 +103,7 @@ export class IdentityService {
     if (!body.identityKey) throw new ApiError(400, "identity_required", "This account has no encryption keys yet: send the new identity key");
     requireKeys(body.device, body.identityKey);
     const username = freeUsername(this.ctx, body.username, a.name);
-    requireProof(this.ctx, "register", body.device, body.nonce, body.signature);
+    await requireProof(this.ctx, "register", body.device, body.nonce, body.signature);
     const t = now();
     const abuse = this.ctx.config.abuse;
     const limitedUntil = this.ctx.config.registrationMode === "open" && abuse.newAccountDays > 0 ? t + abuse.newAccountDays * DAY_MS : null;
@@ -113,11 +112,18 @@ export class IdentityService {
     let deviceId: string | null;
     try {
       // The identity's rows and the account's link to them: both or neither (AccountStore.linkIdentity).
-      deviceId = await this.accounts.store.linkIdentity(a.id, userId, s.id, t, () => {
-        this.ctx.db
-          .prepare("INSERT INTO users (id, username, display_name, identity_key, avatar_color, created_at, updated_at, limited_until) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-          .run(userId, username, a.name, identityKey, crypto.randomInt(0, AVATAR_COLORS), t, t, limitedUntil);
-        return insertDevice(this.ctx, userId, body.device, t);
+      deviceId = await this.accounts.store.linkIdentity(a.id, userId, s.id, t, (w) => {
+        w.insert("users", {
+          id: userId,
+          username,
+          display_name: a.name,
+          identity_key: identityKey,
+          avatar_color: crypto.randomInt(0, AVATAR_COLORS),
+          created_at: t,
+          updated_at: t,
+          limited_until: limitedUntil,
+        });
+        return insertDevice(w, userId, body.device, t);
       });
     } catch (e) {
       throw uniqueConflict(e);
@@ -152,29 +158,27 @@ export class IdentityService {
   }
 
   private async addDevice(s: ActiveSession, a: AccountRow, userId: string, body: EnrollDeviceBody): Promise<EnrollResponse> {
-    const user = this.ctx.db.prepare("SELECT username, identity_key FROM users WHERE id = ?").get(userId) as { username: string; identity_key: string };
+    const user = this.ctx.identity.get<{ username: string; identity_key: string }>("users", { id: userId })!;
     if (body.identityKey && body.identityKey !== user.identity_key) {
       throw new ApiError(409, "identity_mismatch", "This account already has encryption keys. Restore them with your recovery key or from another device, or start fresh.");
     }
     requireKeys(body.device, user.identity_key);
-    const known = this.ctx.db.prepare("SELECT id, user_id, revoked_at FROM devices WHERE signing_key = ?").get(body.device.signingKey) as
-      | { id: string; user_id: string; revoked_at: number | null }
-      | undefined;
+    const known = this.ctx.identity.get<{ id: string; user_id: string; revoked_at: number | null }>("devices", { signing_key: body.device.signingKey });
     if (known && (known.user_id !== userId || known.revoked_at)) {
       throw new ApiError(409, "device_key_retired", "These device keys can't be used again. The app will make new ones.");
     }
-    requireProof(this.ctx, "add-device", body.device, body.nonce, body.signature);
+    await requireProof(this.ctx, "add-device", body.device, body.nonce, body.signature);
     if (known) {
       await this.accounts.store.bindSessionDevice(s.id, known.id);
       return { userId, deviceId: known.id, username: user.username, result: "existing" };
     }
     const max = this.ctx.config.abuse.maxDevicesPerUser;
-    const active = (this.ctx.db.prepare("SELECT COUNT(*) n FROM devices WHERE user_id = ? AND revoked_at IS NULL").get(userId) as { n: number }).n;
+    const active = this.ctx.identity.count("devices", { user_id: userId, revoked_at: null });
     if (max > 0 && active >= max) {
       throw new ApiError(409, "too_many_devices", "This account has as many devices as it can have. Remove one you no longer use (Settings › Devices).");
     }
     const t = now();
-    const deviceId = await this.accounts.store.bindDeviceWith(s.id, () => insertDevice(this.ctx, userId, body.device, t));
+    const deviceId = await this.accounts.store.bindDeviceWith(s.id, (w) => insertDevice(w, userId, body.device, t));
     this.ctx.audit({ actorId: userId, action: "device.add", target: deviceId, detail: `account:${a.id}` });
     notifyKeyChange(this.ctx, userId);
     return { userId, deviceId, username: user.username, result: "device" };
@@ -191,32 +195,31 @@ export class IdentityService {
     if (!a.user_id) return this.createIdentity(s, a, { ...body, username: undefined });
     const userId = a.user_id;
     requireKeys(body.device, body.identityKey);
-    requireProof(this.ctx, "register", body.device, body.nonce, body.signature);
+    await requireProof(this.ctx, "register", body.device, body.nonce, body.signature);
     const t = now();
-    const others = (this.ctx.db.prepare("SELECT id FROM devices WHERE user_id = ? AND revoked_at IS NULL").all(userId) as { id: string }[]).map((r) => r.id);
+    const others = this.ctx.identity.all<{ id: string }>("devices", { where: { user_id: userId, revoked_at: null } }).map((r) => r.id);
     let deviceId: string;
     try {
       // The session is bound to the new device with the same step, so it isn't ended with the old devices if it was on
       // one of them.
-      deviceId = await this.accounts.store.bindDeviceWith(s.id, () => {
-        this.ctx.db.prepare("UPDATE users SET identity_key = ?, updated_at = ? WHERE id = ?").run(body.identityKey, t, userId);
-        const id = insertDevice(this.ctx, userId, body.device, t);
-        for (const d of others) revokeDeviceRows(this.ctx, d, t);
-        this.ctx.db.prepare("DELETE FROM history_items WHERE user_id = ?").run(userId);
-        this.ctx.db.prepare("DELETE FROM history_accounts WHERE user_id = ?").run(userId);
-        return id;
+      deviceId = await this.accounts.store.bindDeviceWith(s.id, (w) => {
+        w.update("users", { id: userId }, { identity_key: body.identityKey, updated_at: t });
+        // The old devices are refused from this step on; revokeDevices below finishes removing them.
+        if (others.length) w.update("devices", { id: { in: others }, revoked_at: null }, { revoked_at: t });
+        return insertDevice(w, userId, body.device, t);
       });
     } catch (e) {
       throw uniqueConflict(e);
     }
+    await revokeDevices(this.ctx, others, t);
     await this.accounts.revokeSessions(a.id, "identity_reset", s.id);
-    // History is encrypted under the old identity: unreadable now, so it goes (SQLite's copy went with the reset).
+    // History is encrypted under the old identity: unreadable now, so it goes.
     await deleteHistoryAfterCommit(this.ctx, userId, "identity reset");
     for (const d of others) this.ctx.hub.disconnectDevice(d, "encryption reset");
     this.ctx.audit({ actorId: userId, action: "identity.reset", target: userId, detail: `devices:${others.length}` });
     notifyKeyChange(this.ctx, userId);
     await evictUserDevicesFromCalls(this.ctx, userId);
-    const username = (this.ctx.db.prepare("SELECT username FROM users WHERE id = ?").get(userId) as { username: string }).username;
+    const username = this.ctx.identity.get<{ username: string }>("users", { id: userId })!.username;
     return { userId, deviceId, username, result: "identity" };
   }
 }

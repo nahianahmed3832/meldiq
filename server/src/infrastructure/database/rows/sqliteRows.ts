@@ -47,7 +47,7 @@ export function whereSql(spec: TableSpec, where: Where | undefined): { sql: stri
         params.push(v.ne);
       }
     } else {
-      const [op, n] = Object.entries(v)[0] as [string, number];
+      const [op, n] = Object.entries(v)[0] as [string, number | string];
       parts.push(`${c} ${{ gt: ">", gte: ">=", lt: "<", lte: "<=" }[op]} ?`);
       params.push(n);
     }
@@ -111,6 +111,8 @@ export class SqliteRows implements Rows {
     return (this.db.prepare(s.sql).get(...s.params) as { n: number }).n;
   }
 
+  async close(): Promise<void> {}
+
   /** SQLite units are durable when write returns. */
   settled(): Promise<void> {
     return Promise.resolve();
@@ -118,10 +120,18 @@ export class SqliteRows implements Rows {
 
   write<T>(fn: (w: RowWriter) => T): Promise<T> {
     try {
-      return Promise.resolve(this.db.transaction(() => fn(this.writer)).immediate());
+      return Promise.resolve(this.writeSync(fn));
     } catch (e) {
       return Promise.reject(e);
     }
+  }
+
+  /**
+   * A unit run synchronously: for a SQLite step that must include these rows in its own transaction (inside one, the
+   * unit is a savepoint of it). Only SQLite rows have it; code that works on both stores uses [write].
+   */
+  writeSync<T>(fn: (w: RowWriter) => T): T {
+    return this.db.transaction(() => fn(this.writer)).immediate();
   }
 
   private columns(spec: TableSpec, row: Row): string[] {

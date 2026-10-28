@@ -14,6 +14,7 @@ import accountRoutes from "../modules/accounts/routes.js";
 import { Authz } from "../modules/organizations/authz.js";
 import { orgMemberIds } from "../modules/organizations/index.js";
 import { openBillingRows } from "./billingRows.js";
+import { openDomainRows } from "./domainRows.js";
 import { Gifts, Mojo } from "../modules/billing/index.js";
 import { availableUser, blockedEitherWay, namesOf } from "../modules/accounts/index.js";
 import { type Config, effectiveFileMaxBytes } from "./config.js";
@@ -169,12 +170,33 @@ export async function buildApp(
       app.addHook("onClose", async () => {
         await ctx.ws?.settled();
         await ctx.billing?.rows.settled();
+        for (const r of [ctx.identity, ctx.platform, ctx.fed, ctx.safety, ctx.ephemeral]) await r?.settled();
         await mongo.close();
       });
   }
   // Communities and conversations: authorisation reads them synchronously, wherever they live.
   ctx.ws = await openWorkspaceRows(db, ctx.mongo, app.log);
   ctx.authz = new Authz(ctx.ws);
+  ctx.identity = await openDomainRows(db, "identity", ctx.mongo, app.log);
+  ctx.platform = await openDomainRows(db, "platform", ctx.mongo, app.log);
+  ctx.fed = await openDomainRows(db, "federation", ctx.mongo, app.log);
+  ctx.safety = await openDomainRows(db, "safety", ctx.mongo, app.log);
+  ctx.ephemeral = await openDomainRows(db, "ephemeral", ctx.mongo, app.log);
+  // Registered after the MongoDB client's own hook, so it runs before it (onClose hooks run last-in first-out): the rows
+  // stop following other processes' writes while the client is still open.
+  app.addHook("onClose", async () => {
+    for (const r of [ctx.ws, ctx.billing?.rows, ctx.identity, ctx.platform, ctx.fed, ctx.safety, ctx.ephemeral]) {
+      await r?.settled();
+      await r?.close();
+    }
+  });
+  for (const r of [ctx.identity, ctx.platform, ctx.fed, ctx.safety, ctx.ephemeral]) {
+    if (r.backend !== "mongodb") continue;
+    app.addHook("onSend", async (_req, _reply, payload) => {
+      await r.settled();
+      return payload;
+    });
+  }
   // A response leaves once the units its request queued are durable (audit entries, metering), as when they were part
   // of SQLite's transaction: a client that reads right after sees them. SQLite's units are durable already.
   if (ctx.ws.backend === "mongodb") {
@@ -207,7 +229,7 @@ export async function buildApp(
   }
   // Entitlement changes reach every signed-in device at once (they also refresh on their own): the account's own
   // sessions for a personal subscription, every member for an organization's.
-  ctx.userNames = (ids) => new Map(namesOf(db, ids).map((u) => [u.id, u.displayName]));
+  ctx.userNames = (ids) => new Map(namesOf(ctx.identity, ids).map((u) => [u.id, u.displayName]));
   ctx.mojo = new Mojo(ctx.billing, ctx.billing.rows, {
     isMember: (orgId, userId) => !!ctx.authz.orgRole(orgId, userId),
     enforce: config.mojoEnforce,
@@ -236,12 +258,13 @@ export async function buildApp(
   };
   // A workspace's subscription adds its plan's limits between operator overrides and server-wide limits.
   ctx.entitlements = new Entitlements(config.entitlements, { db, rows: ctx.ws }, (orgId, t) => ctx.billing.subscriptions.planLimits(orgId, t));
-  ctx.usage = new UsageMeter(db, ctx.ws, ctx.files, ctx.calls);
-  ctx.quotas = new QuotaEngine(db, Date.now, (scope, t) => ctx.billing.quotaPlanFor(scope, t));
+  ctx.usage = new UsageMeter(ctx.identity, ctx.ws, ctx.files, ctx.calls);
+  ctx.quotas = new QuotaEngine(ctx.platform, Date.now, (scope, t) => ctx.billing.quotaPlanFor(scope, t));
   // AI and AI Workforce were removed in API 0.47.0 (docs/AI_REMOVAL.md): their tables stay, unread.
   // Activity, traffic, concurrency and resources (docs/ANALYTICS_DEFINITIONS.md): written once a minute.
   ctx.telemetry = new Telemetry(ctx);
-  ctx.telemetry.recordVersion(VERSION);
+  await ctx.telemetry.init();
+  await ctx.telemetry.recordVersion(VERSION);
   if (config.telemetryTickMs > 0) ctx.telemetry.start(config.telemetryTickMs);
   app.addHook("onClose", async () => ctx.telemetry.stop());
   ctx.reminders = new ReminderService(ctx);
@@ -251,9 +274,12 @@ export async function buildApp(
   ctx.meetings = new MeetingService(ctx);
   ctx.meetings.start(config.workflowTickMs > 0 ? 30_000 : 0);
   app.addHook("onClose", async () => ctx.meetings.stop());
-  // Branches and teams become roles and categories once (docs/COMMUNITY_REBUILD_2026-10-21.md §6); idempotent.
-  const migrated = runCommunityMigration(ctx);
-  if (migrated.converted > 0) app.log.info({ ...migrated }, "community migration converted branches and teams");
+  // Branches and teams become roles and categories once (docs/COMMUNITY_REBUILD_2026-10-21.md §6); idempotent. A
+  // conversion of SQLite's data: with communities in MongoDB it ran long before, and SQLite's copy is left alone.
+  if (ctx.ws.backend === "sqlite") {
+    const migrated = runCommunityMigration(ctx);
+    if (migrated.converted > 0) app.log.info({ ...migrated }, "community migration converted branches and teams");
+  }
 
   if (config.fcm && !config.push) ctx.hub.onQueuedOffline = (deviceId) => ctx.fcm?.queued(deviceId);
   if (config.trustProxy === true) {
@@ -262,7 +288,7 @@ export async function buildApp(
   if (config.federation) ctx.federation = new Federation(ctx, config.federation);
   if (config.fcm) {
     // Firebase wake-ups (docs/PUSH_FCM.md) beside UnifiedPush; the hub's hooks call both (set before UnifiedPush's).
-    const fcm = new FcmService(db, ctx.hub, config.fcm, app.log);
+    const fcm = new FcmService(ctx.identity, ctx.hub, config.fcm, app.log);
     fcm.metrics = ctx.metrics;
     ctx.fcm = fcm;
     app.addHook("preClose", (done) => {
@@ -290,7 +316,7 @@ export async function buildApp(
     ctx.metrics.recordRequest(req.method, req.routeOptions?.url ?? "unmatched", reply.statusCode, reply.elapsedTime);
     ctx.telemetry.onResponse(req, reply);
     // Requests per person per day (docs/QUOTAS.md): observed and warned only, and only once an operator governs it.
-    if (req.auth && ctx.quotas.hasPolicies("api.requests")) ctx.quotas.charge("api.requests", scopesFor(req.auth.userId, null), 1);
+    if (req.auth && ctx.quotas.hasPolicies("api.requests")) await ctx.quotas.charge("api.requests", scopesFor(req.auth.userId, null), 1);
   });
 
   // Attachment uploads are streamed to disk by their route (size and quota enforced while reading),

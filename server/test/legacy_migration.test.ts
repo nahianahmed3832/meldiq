@@ -129,7 +129,7 @@ describe("legacy account migration", () => {
 
   it("refuses a disabled legacy account", async () => {
     const legacy = await h.client("legacydisabled");
-    h.ctx.db.prepare("UPDATE users SET disabled_at = ? WHERE id = ?").run(Date.now(), legacy.userId);
+    await h.ctx.identity.write((w) => w.update("users", { id: legacy.userId }, { disabled_at: Date.now() }));
     expect((await expectStatus(legacy.req("POST", "/v2/migration/legacy/verify", await legacyProof(legacy)), 403)).error.code).toBe("account_disabled");
   });
 });

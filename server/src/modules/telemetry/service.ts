@@ -45,9 +45,18 @@ export class Telemetry {
       clock,
     });
     ctx.hub.onBytesOut = (userId, bytes) => this.activity.addTraffic(userId, "ws.out", bytes, this.clock());
-    // When collection began (kept from the first start): figures before it are never shown as zero.
-    const epoch = ctx.db.prepare("INSERT OR IGNORE INTO telemetry_epochs (kind, started_at) VALUES (?, ?)");
-    for (const kind of ["activity", "presence", "resources", "traffic"]) epoch.run(kind, this.clock());
+  }
+
+  /** Records when collection began (kept from the first start): figures before it are never shown as zero. */
+  init(): Promise<void> {
+    return this.epochs(["activity", "presence", "resources", "traffic"]);
+  }
+
+  private epochs(kinds: string[]): Promise<void> {
+    const t = this.clock();
+    return this.ctx.platform.write((w) => {
+      for (const kind of kinds) w.insert("telemetry_epochs", { kind, started_at: t }, { orIgnore: true });
+    });
   }
 
   classify(headers: Record<string, string | string[] | undefined>): ClientInfo {
@@ -85,14 +94,13 @@ export class Telemetry {
   }
 
   /** Records that this server version started (the console's version history: the first start of each version). */
-  recordVersion(version: string): void {
-    this.ctx.db.prepare("INSERT OR IGNORE INTO telemetry_epochs (kind, started_at) VALUES (?, ?)").run(`version:${version}`, this.clock());
+  recordVersion(version: string): Promise<void> {
+    return this.epochs([`version:${version}`]);
   }
 
   /** When collection of [kind] began on this server (first start with this version), or null. */
   since(kind: "activity" | "presence" | "resources" | "traffic"): number | null {
-    const row = this.ctx.db.prepare("SELECT started_at FROM telemetry_epochs WHERE kind = ?").get(kind) as { started_at: number } | undefined;
-    return row?.started_at ?? null;
+    return this.ctx.platform.get<{ started_at: number }>("telemetry_epochs", { kind })?.started_at ?? null;
   }
 
   start(intervalMs = 60_000): void {
@@ -102,20 +110,21 @@ export class Telemetry {
     this.timer.unref();
   }
 
-  stop(): void {
+  /** Stops sampling and writes what was gathered (before the stores close). */
+  async stop(): Promise<void> {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     this.resources.stop();
     try {
-      this.flush();
+      await this.flush();
     } catch (e) {
       this.ctx.log.warn({ err: e }, "telemetry final flush failed");
     }
   }
 
   /** Writes the counters gathered so far (also on shutdown). */
-  flush(): number {
-    return this.activity.flush(this.ctx.db, (ids) => signupTimes(this.ctx.db, ids));
+  flush(): Promise<number> {
+    return this.activity.flush(this.ctx.platform, (ids) => signupTimes(this.ctx.identity, ids));
   }
 
   /** The once-a-minute job: flush, sample presence and resources, roll up finished hours, and trim old rows. */
@@ -124,12 +133,12 @@ export class Telemetry {
     await this.ctx.metrics
       .timeJob("telemetry.minute", async () => {
         const t = this.clock();
-        this.flush();
+        await this.flush();
         await this.samplePresence(t);
         await this.sampleResources(t);
-        this.rollup(t);
+        await this.rollup(t);
         if (t - this.lastRetentionAt > HOUR_MS) {
-          this.trim(t);
+          await this.trim(t);
           this.lastRetentionAt = t;
         }
       })
@@ -164,12 +173,21 @@ export class Telemetry {
     const s = this.ctx.hub.stats;
     const prev = this.last ?? s;
     const delta = (k: keyof RealtimeStats) => Math.max(0, s[k] - prev[k]);
-    this.ctx.db
-      .prepare(
-        `INSERT OR REPLACE INTO presence_samples (minute, users, active_users, devices, sockets, connects, disconnects, abnormal, auth_failures, calls, call_people, platforms)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(Math.floor(t / 60_000), now.users, now.activeUsers, now.devices, now.sockets, delta("connects"), delta("disconnects"), delta("abnormal"), delta("authFailures"), now.calls.calls, now.calls.participants, JSON.stringify(now.platforms));
+    const sample = {
+      minute: Math.floor(t / 60_000),
+      users: now.users,
+      active_users: now.activeUsers,
+      devices: now.devices,
+      sockets: now.sockets,
+      connects: delta("connects"),
+      disconnects: delta("disconnects"),
+      abnormal: delta("abnormal"),
+      auth_failures: delta("authFailures"),
+      calls: now.calls.calls,
+      call_people: now.calls.participants,
+      platforms: JSON.stringify(now.platforms),
+    };
+    await this.ctx.ephemeral.write((w) => w.upsert("presence_samples", sample, "replace"));
     this.last = { ...s };
   }
 
@@ -200,52 +218,74 @@ export class Telemetry {
     if (m?.p50Ms !== null && m?.p50Ms !== undefined) samples.push({ series: "api.latency.p50_ms", value: m.p50Ms });
     if (m?.p95Ms !== null && m?.p95Ms !== undefined) samples.push({ series: "api.latency.p95_ms", value: m.p95Ms });
     if (m?.p99Ms !== null && m?.p99Ms !== undefined) samples.push({ series: "api.latency.p99_ms", value: m.p99Ms });
-    const insert = this.ctx.db.prepare("INSERT OR REPLACE INTO resource_samples (minute, series, value) VALUES (?, ?, ?)");
-    this.ctx.db.transaction(() => {
-      for (const s of samples) insert.run(minute, s.series, s.value);
-    })();
+    await this.ctx.ephemeral.write((w) => {
+      for (const s of samples) w.upsert("resource_samples", { minute, series: s.series, value: s.value }, "replace");
+    });
   }
 
-  /** Hourly rollups for every finished hour not yet rolled up (idempotent). */
-  rollup(t: number): void {
+  /** Hourly rollups for every finished hour not yet rolled up (idempotent): minute samples into the platform rows. */
+  async rollup(t: number): Promise<void> {
     const hour = Math.floor(t / HOUR_MS) - 1;
     if (hour <= this.lastRollupHour) return;
-    const db = this.ctx.db;
-    const first = this.lastRollupHour ? this.lastRollupHour + 1 : hour - 1;
-    db.transaction(() => {
-      for (let h = Math.max(first, hour - 48); h <= hour; h++) {
-        const from = h * 60;
-        const to = from + 59;
-        db.prepare(
-          `INSERT OR REPLACE INTO resource_hourly (hour, series, avg, min, max, samples)
-           SELECT ?, series, AVG(value), MIN(value), MAX(value), COUNT(*) FROM resource_samples WHERE minute >= ? AND minute <= ? GROUP BY series`,
-        ).run(h, from, to);
-        const p = db
-          .prepare(
-            `SELECT COUNT(*) n, MAX(users) peak, AVG(users) avg, MAX(sockets) sockets, SUM(connects) c, SUM(disconnects) d, SUM(abnormal) a, SUM(auth_failures) f
-               FROM presence_samples WHERE minute >= ? AND minute <= ?`,
-          )
-          .get(from, to) as { n: number; peak: number | null; avg: number | null; sockets: number | null; c: number | null; d: number | null; a: number | null; f: number | null };
-        if (p.n > 0) {
-          db.prepare(
-            "INSERT OR REPLACE INTO presence_hourly (hour, peak_users, avg_users, peak_sockets, connects, disconnects, abnormal, auth_failures, samples) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-          ).run(h, p.peak ?? 0, p.avg ?? 0, p.sockets ?? 0, p.c ?? 0, p.d ?? 0, p.a ?? 0, p.f ?? 0, p.n);
+    const first = Math.max(this.lastRollupHour ? this.lastRollupHour + 1 : hour - 1, hour - 48);
+    const { ephemeral } = this.ctx;
+    const resources = ephemeral.all<{ minute: number; series: string; value: number }>("resource_samples", { where: { minute: { gte: first * 60 } } }).filter((r) => r.minute <= hour * 60 + 59);
+    const presence = ephemeral.all<PresenceRow>("presence_samples", { where: { minute: { gte: first * 60 } } }).filter((r) => r.minute <= hour * 60 + 59);
+    await this.ctx.platform.write((w) => {
+      for (let h = first; h <= hour; h++) {
+        const inHour = (r: { minute: number }) => Math.floor(r.minute / 60) === h;
+        const bySeries = new Map<string, number[]>();
+        for (const r of resources.filter(inHour)) bySeries.set(r.series, [...(bySeries.get(r.series) ?? []), r.value]);
+        for (const [series, values] of bySeries) {
+          w.upsert("resource_hourly", { hour: h, series, avg: sum(values) / values.length, min: Math.min(...values), max: Math.max(...values), samples: values.length }, "replace");
         }
+        const p = presence.filter(inHour);
+        if (p.length === 0) continue;
+        w.upsert(
+          "presence_hourly",
+          {
+            hour: h,
+            peak_users: Math.max(...p.map((x) => x.users)),
+            avg_users: sum(p.map((x) => x.users)) / p.length,
+            peak_sockets: Math.max(...p.map((x) => x.sockets)),
+            connects: sum(p.map((x) => x.connects)),
+            disconnects: sum(p.map((x) => x.disconnects)),
+            abnormal: sum(p.map((x) => x.abnormal)),
+            auth_failures: sum(p.map((x) => x.auth_failures)),
+            samples: p.length,
+          },
+          "replace",
+        );
       }
-    })();
+    });
     this.lastRollupHour = hour;
   }
 
   /** Deletes rows past their retention (counts only; the hourly rollups keep the long view). */
-  trim(t: number): void {
-    const db = this.ctx.db;
+  async trim(t: number): Promise<void> {
     const day = (days: number) => new Date(t - days * DAY_MS).toISOString().slice(0, 10);
-    db.prepare("DELETE FROM presence_samples WHERE minute < ?").run(Math.floor((t - RETENTION.presenceMinutesDays * DAY_MS) / 60_000));
-    db.prepare("DELETE FROM resource_samples WHERE minute < ?").run(Math.floor((t - RETENTION.resourceMinutesDays * DAY_MS) / 60_000));
-    db.prepare("DELETE FROM presence_hourly WHERE hour < ?").run(Math.floor((t - RETENTION.hourlyDays * DAY_MS) / HOUR_MS));
-    db.prepare("DELETE FROM resource_hourly WHERE hour < ?").run(Math.floor((t - RETENTION.hourlyDays * DAY_MS) / HOUR_MS));
-    db.prepare("DELETE FROM activity_daily WHERE day < ?").run(day(RETENTION.activityDays));
-    db.prepare("DELETE FROM traffic_user_daily WHERE day < ?").run(day(RETENTION.trafficDays));
-    db.prepare("DELETE FROM session_clients WHERE last_seen_at < ?").run(t - RETENTION.activityDays * DAY_MS);
+    await this.ctx.ephemeral.write((w) => {
+      w.delete("presence_samples", { minute: { lt: Math.floor((t - RETENTION.presenceMinutesDays * DAY_MS) / 60_000) } });
+      w.delete("resource_samples", { minute: { lt: Math.floor((t - RETENTION.resourceMinutesDays * DAY_MS) / 60_000) } });
+    });
+    await this.ctx.platform.write((w) => {
+      w.delete("presence_hourly", { hour: { lt: Math.floor((t - RETENTION.hourlyDays * DAY_MS) / HOUR_MS) } });
+      w.delete("resource_hourly", { hour: { lt: Math.floor((t - RETENTION.hourlyDays * DAY_MS) / HOUR_MS) } });
+      w.delete("activity_daily", { day: { lt: day(RETENTION.activityDays) } });
+      w.delete("traffic_user_daily", { day: { lt: day(RETENTION.trafficDays) } });
+      w.delete("session_clients", { last_seen_at: { lt: t - RETENTION.activityDays * DAY_MS } });
+    });
   }
 }
+
+interface PresenceRow {
+  minute: number;
+  users: number;
+  sockets: number;
+  connects: number;
+  disconnects: number;
+  abnormal: number;
+  auth_failures: number;
+}
+
+const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);

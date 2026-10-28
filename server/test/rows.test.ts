@@ -238,6 +238,20 @@ describe.each(backends)("rows on %s", (_name, make) => {
     expect(rows.get("orgs", { id: "o1" })).toMatchObject({ name: "O1" });
   });
 
+  it("compares text in ranges as SQLite does (code units; days as text)", async () => {
+    const { rows } = await make();
+    await rows.write((w) => {
+      w.insert("orgs", org("o1", "alpha"));
+      w.insert("orgs", org("o2", "beta"));
+      w.insert("orgs", org("o3", "gamma"));
+    });
+    const slugs = (where: Record<string, unknown>) => rows.all<{ slug: string }>("orgs", { where: where as never, orderBy: [["slug", "asc"]] }).map((o) => o.slug);
+    expect(slugs({ slug: { gte: "beta" } })).toEqual(["beta", "gamma"]);
+    expect(slugs({ slug: { lt: "beta" } })).toEqual(["alpha"]);
+    expect(slugs({ slug: { gt: "b" } })).toEqual(["beta", "gamma"]);
+    expect(slugs({ slug: { lte: "BETA" } })).toEqual(["alpha", "beta"]); // a NOCASE column folds ASCII case first
+  });
+
   it("keeps everything across a restart (MongoDB: loaded again from the collections)", async () => {
     const { rows, reopen } = await make();
     if (!reopen) return;
@@ -253,5 +267,56 @@ describe.each(backends)("rows on %s", (_name, make) => {
     expect(again.count("org_members", { org_id: "o1" })).toBe(1);
     const next = await again.write((w) => w.insert("audit_log", { at: T, action: "y" }));
     expect(next.id).toBe(last + 1); // the counter survives even with no rows left
+  });
+});
+
+describe("rows on MongoDB, written by two processes", () => {
+  const poll = async (check: () => boolean) => {
+    for (let i = 0; i < 100 && !check(); i++) await new Promise((r) => setTimeout(r, 50));
+    return check();
+  };
+
+  it("follows another process's inserts, updates, deletes and counters, and never goes back to an older version", async () => {
+    const { specs } = schema();
+    const cfg = mongoConfig({ MONGODB_URI: uri, MONGODB_DB: testDbName("follow") }, "development", (_n, d) => d)!;
+    const server = await MeldiqMongo.connect(cfg, specs);
+    const cli = await MeldiqMongo.connect(cfg, specs);
+    opened.push(server, cli);
+    const api = await MongoRows.open(server, specs);
+    const operator = await MongoRows.open(cli, specs);
+    try {
+      // Arrange: the API process has a row of its own.
+      await api.write((w) => w.insert("orgs", org("o1", "acme")));
+      await expect(poll(() => !!operator.get("orgs", { id: "o1" }))).resolves.toBe(true);
+
+      // Act: the operator's process changes it, adds and removes rows, and uses an AUTOINCREMENT counter.
+      await operator.write((w) => {
+        w.update("orgs", { id: "o1" }, { name: "Renamed" });
+        w.insert("orgs", org("o2", "beta"));
+        w.insert("audit_log", { at: T, action: "operator" });
+      });
+      const operatorId = operator.all<{ id: number }>("audit_log", { orderBy: [["id", "desc"]], limit: 1 })[0]!.id;
+      await operator.write((w) => w.delete("orgs", { id: "o2" }));
+
+      // Assert: the API's memory has all of it, with its indexes (lookups by slug), and its next id is past the operator's.
+      await expect(poll(() => api.get<{ name: string }>("orgs", { slug: "acme" })?.name === "Renamed" && !api.get("orgs", { id: "o2" }))).resolves.toBe(true);
+      await expect(poll(() => api.count("audit_log") === 1)).resolves.toBe(true);
+      const mine = await api.write((w) => w.insert("audit_log", { at: T, action: "api" }));
+      expect(mine.id).toBe(operatorId + 1);
+      // A row the operator added to a table without a key doesn't get its rowid reused by the API.
+      await operator.write((w) => w.insert("mention_all_events", { conversation_id: "c1", user_id: "u1", message_id: "op", at: T }));
+      await expect(poll(() => api.count("mention_all_events") === 1)).resolves.toBe(true);
+      await api.write((w) => w.insert("mention_all_events", { conversation_id: "c1", user_id: "u1", message_id: "api", at: T }));
+      await expect(poll(() => operator.count("mention_all_events") === 2)).resolves.toBe(true);
+      expect(api.count("mention_all_events")).toBe(2);
+      // The API's own later write isn't undone by the events of the earlier ones.
+      await api.write((w) => w.update("orgs", { id: "o1" }, { name: "Mine" }));
+      await new Promise((r) => setTimeout(r, 300));
+      expect(api.get("orgs", { id: "o1" })).toMatchObject({ name: "Mine" });
+      await expect(poll(() => operator.get<{ name: string }>("orgs", { id: "o1" })?.name === "Mine")).resolves.toBe(true);
+    } finally {
+      await api.close();
+      await operator.close();
+    }
   });
 });

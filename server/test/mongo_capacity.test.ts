@@ -88,7 +88,7 @@ describe("estimateStorage", { timeout: 60_000 }, () => {
   });
 
   it("projects against the live deployment", async () => {
-    const tables = domainTables(h.ctx.db, ["relay"]);
+    const tables = domainTables(["relay"]);
     const mongo = await MeldiqMongo.connect(cfg(testDbName("cap")), tables);
     opened.push(mongo);
     const estimate = estimateStorage(h.ctx.db, tables);

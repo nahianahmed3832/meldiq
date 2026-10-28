@@ -1,14 +1,12 @@
 import { profileMediaBlobs } from "./profileMedia.js";
 import crypto from "node:crypto";
 import type { AppContext } from "../../app/context.js";
-import type { DB } from "../../infrastructure/database/db.js";
 import type { RowReader, RowWriter } from "../../infrastructure/database/rows/index.js";
-import { rowsByIds } from "../../infrastructure/database/byIds.js";
 import { compareText } from "../../shared/utilities/sqlText.js";
 import { conversationPeers } from "../messaging/index.js";
 import { photoBlobId } from "./photos.js";
 import { processBlobDeletes, queueBlobDelete } from "../files/routes.js";
-import { revokeDeviceRows } from "../auth/routes.js";
+import { revokeDevices } from "../auth/routes.js";
 import { evictUserDevicesFromCalls } from "../calls/routes.js";
 import { deleteHistoryAfterCommit } from "../messaging/history/routes.js";
 import { notifyConversation, notifyOrg, removeFromWorkspace } from "../organizations/orgsRoutes.js";
@@ -64,8 +62,6 @@ export function soleOwnedWorkspaces(rows: RowReader, userId: string): OwnedWorks
     .map((o) => ({ id: o.id, name: o.name, members: rows.count("org_members", { org_id: o.id }) }));
 }
 
-const ids = (db: DB, sql: string, ...args: unknown[]): string[] => (db.prepare(sql).all(...args) as { id: string }[]).map((r) => r.id);
-
 /** The person's password-checked request: `DELETE /v2/account`. */
 export async function deleteOwnAccount(
   ctx: AppContext,
@@ -110,13 +106,15 @@ export async function eraseAccount(ctx: AppContext, accounts: Accounts, account:
   if (userId) result = await eraseIdentity(ctx, userId, actorId, t);
   await accounts.recovery.store.deleteForAccount(account.id);
   await accounts.keyBackups.store.deleteForAccount(account.id);
-  accounts.passkeys.removeAll(account.id);
+  await accounts.passkeys.removeAll(account.id);
   // API 0.46.0: two-step sign-in, an email change in progress, bug reports and staff warnings.
-  accounts.totp.remove(account.id);
-  accounts.emailChange.remove(account.id);
+  await accounts.totp.remove(account.id);
+  await accounts.emailChange.remove(account.id);
   if (userId) {
-    ctx.db.prepare("DELETE FROM bug_reports WHERE user_id = ?").run(userId);
-    ctx.db.prepare("DELETE FROM account_warnings WHERE user_id = ?").run(userId);
+    await ctx.safety.write((w) => {
+      w.delete("bug_reports", { user_id: userId });
+      w.delete("account_warnings", { user_id: userId });
+    });
   }
   await accounts.store.deleteAccount(account.id);
   // Counts only: the email, username and profile are gone, and the audit log mustn't keep them.
@@ -129,9 +127,12 @@ export async function eraseAccount(ctx: AppContext, accounts: Accounts, account:
   return result;
 }
 
-/** Leaves every workspace, then anonymises the identity in one transaction, then tells everyone concerned. */
+/**
+ * Leaves every workspace, then anonymises the identity and removes its devices (identity rows), then takes it out of
+ * conversations (workspace rows), then tells everyone concerned. Each step can be repeated if a later one fails.
+ */
 async function eraseIdentity(ctx: AppContext, userId: string, actorId: string | null, t: number): Promise<AccountDeletionResult> {
-  const { db, ws } = ctx;
+  const { ws } = ctx;
   const orgs = ws.all<{ org_id: string }>("org_members", { where: { user_id: userId } }).map((m) => m.org_id);
   // Each community exactly as if the person left it: roles, meetings, channels, arrangement.
   for (const orgId of orgs) await removeFromWorkspace(ctx, orgId, userId, actorId ?? userId, "left");
@@ -139,8 +140,8 @@ async function eraseIdentity(ctx: AppContext, userId: string, actorId: string | 
   const peers = conversationPeers(ctx, userId);
   const mine = ws.all<{ conversation_id: string }>("conversation_members", { where: { user_id: userId } }).map((m) => m.conversation_id);
   const memberships = ws.all<{ id: string; type: string }>("conversations", { where: { id: { in: mine } } }).map((c) => ({ id: c.id, type: c.type }));
-  const devices = ids(db, "SELECT id FROM devices WHERE user_id = ?", userId);
-  const photoRev = (db.prepare("SELECT photo_rev FROM users WHERE id = ?").get(userId) as { photo_rev: number | null } | undefined)?.photo_rev ?? null;
+  const devices = ctx.identity.all<{ id: string }>("devices", { where: { user_id: userId } }).map((d) => d.id);
+  const media = ctx.identity.get<{ id: string; photo_rev: number | null; avatar_media: string | null; profile_banner: string | null }>("users", { id: userId });
 
   // Calls may not be in SQLite: the live rooms of conversations that may be removed are read first (SQLite cascades its
   // calls inside the transaction below).
@@ -148,18 +149,29 @@ async function eraseIdentity(ctx: AppContext, userId: string, actorId: string | 
   for (const c of await ctx.calls.liveIn(memberships.filter((m) => m.type !== "CHANNEL").map((m) => m.id))) {
     liveRooms.set(c.conversation_id, [...(liveRooms.get(c.conversation_id) ?? []), c.room_name]);
   }
+  // The identity first: anonymous, its devices removed and its sessions over, so nothing acts for it any more.
+  await ctx.identity.write((w) => {
+    anonymize(w, userId, t);
+    deletePersonalIdentityRecords(w, userId);
+  });
+  for (const b of media ? profileMediaBlobs(media) : []) queueBlobDelete(ctx, "profile-photos", b);
+  if (media?.photo_rev) queueBlobDelete(ctx, "profile-photos", photoBlobId(userId, media.photo_rev));
+  queueBlobDelete(ctx, "profile-photos", userId); // a photo saved before revisions existed
+  await revokeDevices(ctx, devices, t);
+  await ctx.ephemeral.write((w) => {
+    w.delete("sessions", { user_id: userId });
+    // A link-a-device approval still holds the sealed identity key for the new device.
+    w.delete("pairing_requests", { approved_user_id: userId });
+  });
   let removed: string[] = [];
-  // One unit: its SQL (devices, sessions, the profile) commits with it in SQLite, or just before it (MongoDB).
   await ws.write((w) => {
-    for (const d of devices) revokeDeviceRows(ctx, d, t);
-    deletePersonalRecords(db, w, userId);
+    deletePersonalRecords(w, userId);
     // Messages and receipts the account sent that haven't been delivered: nobody can verify them once it's gone.
     ctx.relay.forgetSender(userId);
     // Unfinished direct uploads: their objects or parts are removed by the retention job.
     ctx.files.forgetUploader(userId);
     leaveConversations(w, userId, memberships);
-    anonymize(ctx, userId, photoRev, t);
-    removed = memberships.filter((m) => m.type !== "CHANNEL" && !hasLiveMember(db, w, m.id)).map((m) => m.id);
+    removed = memberships.filter((m) => m.type !== "CHANNEL" && !hasLiveMember(ctx.identity, w, m.id)).map((m) => m.id);
     for (const c of removed) removeConversation(ctx, w, c);
   });
   const rooms = removed.flatMap((c) => liveRooms.get(c) ?? []);
@@ -186,22 +198,17 @@ async function eraseIdentity(ctx: AppContext, userId: string, actorId: string | 
   return { deletedAt: t, identity: true, devices: devices.length, conversations: kept.length, workspaces: orgs.length };
 }
 
-/** Everything held only for this identity: queues both ways, history, blocks, approvals, uploads, reminders. */
-function deletePersonalRecords(db: DB, w: RowWriter, userId: string): void {
+/** What workspace rows hold only for this identity: @everyone counts and onboarding answers. */
+function deletePersonalRecords(w: RowWriter, userId: string): void {
   w.delete("mention_all_events", { user_id: userId });
   // Batch B8b: what they answered to communities' onboarding questions.
   w.delete("onboarding_answers", { user_id: userId });
-  for (const sql of [
-    "DELETE FROM sessions WHERE user_id = ?",
-    // A link-a-device approval still holds the sealed identity key for the new device.
-    "DELETE FROM pairing_requests WHERE approved_user_id = ?",
-    "DELETE FROM history_items WHERE user_id = ?",
-    "DELETE FROM history_accounts WHERE user_id = ?",
-    "DELETE FROM reminders WHERE user_id = ?",
-  ]) {
-    db.prepare(sql).run(userId);
-  }
-  db.prepare("DELETE FROM user_blocks WHERE user_id = ? OR blocked_user_id = ?").run(userId, userId);
+}
+
+/** What identity rows hold only for this identity: reminders and blocks both ways (history: deleteHistoryAfterCommit). */
+function deletePersonalIdentityRecords(w: RowWriter, userId: string): void {
+  w.delete("reminders", { user_id: userId });
+  w.delete("user_blocks", { $or: [{ user_id: userId }, { blocked_user_id: userId }] });
 }
 
 /** Leaves every group and channel still held (workspace channels went with the workspaces). Direct conversations stay. */
@@ -218,29 +225,38 @@ function keepGroupAdmin(w: RowWriter, convId: string): void {
   if (eldest) w.update("conversation_members", { conversation_id: convId, user_id: eldest.user_id }, { role: "ADMIN" });
 }
 
-/** Clears every personal field, frees the username, unnames the devices, and queues the photo's removal. */
-function anonymize(ctx: AppContext, userId: string, photoRev: number | null, t: number): void {
+/** Clears every personal field, frees the username and unnames the devices (the caller queues the photo's removal). */
+function anonymize(w: RowWriter, userId: string, t: number): void {
+  const u = w.get<{ disabled_at: number | null; deleted_at: number | null }>("users", { id: userId });
+  if (!u) return;
   // "-" is never allowed in a username, so the placeholder can't collide with a real one; the old name is free again.
   const placeholder = `deleted-${crypto.randomBytes(8).toString("hex")}`;
-  // API 0.45.0: the animated avatar and banner go with the photo.
-  const media = ctx.db.prepare("SELECT id, avatar_media, profile_banner FROM users WHERE id = ?").get(userId) as { id: string; avatar_media: string | null; profile_banner: string | null } | undefined;
-  for (const b of media ? profileMediaBlobs(media) : []) queueBlobDelete(ctx, "profile-photos", b);
-  ctx.db
-    .prepare(
-      `UPDATE users SET username = ?, display_name = ?, status_text = NULL, status_emoji = NULL, status_expires_at = NULL, notifications_paused_until = NULL, avatar_color = 0, first_name = NULL, last_name = NULL,
-         birthday = NULL, phone = NULL, photo_rev = NULL, avatar_media = NULL, profile_banner = NULL, profile_style = NULL, about_me = NULL, profile_links = NULL, privacy = NULL, username_changed_at = NULL, limited_until = NULL,
-         disabled_at = COALESCE(disabled_at, ?), deleted_at = COALESCE(deleted_at, ?), updated_at = ? WHERE id = ?`,
-    )
-    .run(placeholder, DELETED_DISPLAY_NAME, t, t, t, userId);
-  ctx.db.prepare("UPDATE devices SET name = '' WHERE user_id = ?").run(userId);
-  if (photoRev) queueBlobDelete(ctx, "profile-photos", photoBlobId(userId, photoRev));
-  queueBlobDelete(ctx, "profile-photos", userId); // a photo saved before revisions existed
+  w.update(
+    "users",
+    { id: userId },
+    {
+      username: placeholder,
+      display_name: DELETED_DISPLAY_NAME,
+      ...Object.fromEntries(ANONYMIZED_FIELDS.map((f) => [f, null])),
+      avatar_color: 0,
+      disabled_at: u.disabled_at ?? t,
+      deleted_at: u.deleted_at ?? t,
+      updated_at: t,
+    },
+  );
+  w.update("devices", { user_id: userId }, { name: "" });
 }
 
+/** Profile fields a deleted account no longer has (API 0.45.0: the animated avatar and banner go with the photo). */
+const ANONYMIZED_FIELDS = [
+  "status_text", "status_emoji", "status_expires_at", "notifications_paused_until", "first_name", "last_name", "birthday", "phone", "photo_rev",
+  "avatar_media", "profile_banner", "profile_style", "about_me", "profile_links", "privacy", "username_changed_at", "limited_until",
+] as const;
+
 /** Whether anyone who still has an account is in the conversation. */
-function hasLiveMember(db: DB, rows: RowReader, convId: string): boolean {
+function hasLiveMember(identity: RowReader, rows: RowReader, convId: string): boolean {
   const members = rows.all<{ user_id: string }>("conversation_members", { where: { conversation_id: convId } }).map((m) => m.user_id);
-  return rowsByIds<{ deleted_at: number | null }>(db, "users", "id", members, "deleted_at").some((u) => u.deleted_at === null);
+  return identity.count("users", { id: { in: members }, deleted_at: null }) > 0;
 }
 
 /** Removes a group or direct conversation nobody is left in, with its files and queued items (its calls: the caller). */

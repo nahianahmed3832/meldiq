@@ -28,13 +28,8 @@ export interface UserExtras {
 
 /** Last qualifying activity and temporary-suspension ends for [ids] (one query each). */
 export function userExtras(ctx: AppContext, ids: string[]): Map<string, UserExtras> {
-  const active = analytics.userLastActive(ctx.db, ids);
-  const until = new Map(
-    (ctx.db.prepare("SELECT user_id, until FROM platform_restrictions WHERE user_id IN (SELECT value FROM json_each(?))").all(JSON.stringify(ids)) as { user_id: string; until: number | null }[]).map((r) => [
-      r.user_id,
-      r.until,
-    ]),
-  );
+  const active = analytics.userLastActive(ctx, ids);
+  const until = new Map(ctx.platform.all<{ user_id: string; until: number | null }>("platform_restrictions", { where: { user_id: { in: ids } } }).map((r) => [r.user_id, r.until]));
   return new Map(ids.map((id) => [id, { lastActiveAt: active.get(id)?.lastAt ?? null, suspendedUntil: until.get(id) ?? null }]));
 }
 
@@ -76,8 +71,8 @@ export class AdminUsers {
     let ids: string[] | undefined;
     let notIds: string[] | undefined;
     const t = now();
-    if (q.activity === "active7d") ids = analytics.activeUserIds(this.ctx.db, utcDay(t - 6 * DAY_MS), utcDay(t), ACTIVITY_FILTER_LIMIT);
-    if (q.activity === "inactive30d") notIds = analytics.activeUserIds(this.ctx.db, utcDay(t - 29 * DAY_MS), utcDay(t), ACTIVITY_FILTER_LIMIT);
+    if (q.activity === "active7d") ids = analytics.activeUserIds(this.ctx, utcDay(t - 6 * DAY_MS), utcDay(t), ACTIVITY_FILTER_LIMIT);
+    if (q.activity === "inactive30d") notIds = analytics.activeUserIds(this.ctx, utcDay(t - 29 * DAY_MS), utcDay(t), ACTIVITY_FILTER_LIMIT);
     let text = q.q || undefined;
     // An email address finds the person behind that account, for admins who may see addresses.
     if (text?.includes("@") && can(p.grant.role, "users.view_email")) {
@@ -86,7 +81,7 @@ export class AdminUsers {
       ids = ids ? ids.filter((id) => found.includes(id)) : found;
       text = undefined;
     }
-    const rows = searchUsers(this.ctx.db, {
+    const rows = searchUsers(this.ctx.identity, {
       q: text,
       status: q.status,
       after,
@@ -102,7 +97,7 @@ export class AdminUsers {
   }
 
   private target(userId: string): UserSummaryRow {
-    const u = userSummary(this.ctx.db, userId);
+    const u = userSummary(this.ctx.identity, userId);
     if (!u) throw notFound("No such person");
     return u;
   }
@@ -112,10 +107,12 @@ export class AdminUsers {
     const account = await this.ctx.accounts.store.accountByUserId(userId);
     const showEmail = can(p.grant.role, "users.view_email");
     const t = now();
-    const interventions = this.ctx.db
-      .prepare("SELECT at, action, outcome, actor_role, reason FROM platform_audit WHERE target_type = 'user' AND target_id = ? AND action != 'user.view' ORDER BY id DESC LIMIT ?")
-      .all(userId, EVENTS_SHOWN) as { at: number; action: string; outcome: string; actor_role: string | null; reason: string | null }[];
-    this.audit.record({ action: "user.view", outcome: "success", actorAccountId: p.account.id, actorRole: p.grant.role, targetType: "user", targetId: userId, requestId: meta.requestId, network: networkKey(meta.ip), detail: { email: showEmail && !!account } });
+    const interventions = this.ctx.platform.all<{ at: number; action: string; outcome: string; actor_role: string | null; reason: string | null }>("platform_audit", {
+      where: { target_type: "user", target_id: userId, action: { ne: "user.view" } },
+      orderBy: [["id", "desc"]],
+      limit: EVENTS_SHOWN,
+    });
+    await this.audit.record({ action: "user.view", outcome: "success", actorAccountId: p.account.id, actorRole: p.grant.role, targetType: "user", targetId: userId, requestId: meta.requestId, network: networkKey(meta.ip), detail: { email: showEmail && !!account } });
     return {
       user: userView(u, userExtras(this.ctx, [userId]).get(userId)),
       account: account
@@ -129,7 +126,7 @@ export class AdminUsers {
             passkeys: this.ctx.accounts.passkeys.list(account.id).passkeys.length,
           }
         : null,
-      devices: userDevices(this.ctx.db, userId).map((d) => ({ id: d.id, name: d.name, createdAt: d.created_at, lastSeenAt: d.last_seen_at, revokedAt: d.revoked_at })),
+      devices: userDevices(this.ctx.identity, userId).map((d) => ({ id: d.id, name: d.name, createdAt: d.created_at, lastSeenAt: d.last_seen_at, revokedAt: d.revoked_at })),
       memberships: membershipsOf(this.ctx.ws, userId).map((m) => ({ orgId: m.org_id, name: m.name, kind: m.kind, role: m.role, joinedAt: m.joined_at, customRoles: m.custom_roles ? m.custom_roles.split(CUSTOM_ROLE_SEPARATOR) : [] })),
       platformRole: account ? (this.store.activeGrant(account.id)?.role ?? null) : null,
       securityEvents: securityEvents(this.ctx.ws, account ? [userId, account.id] : [userId], EVENTS_SHOWN),
@@ -142,7 +139,7 @@ export class AdminUsers {
     const account = await this.ctx.accounts.store.accountByUserId(u.id);
     const why = p.account.user_id === u.id ? "self" : account && this.store.activeGrant(account.id) && p.grant.role !== "super_admin" ? "platform_admin" : null;
     if (why) {
-      this.audit.record({ action, outcome: "denied", actorAccountId: p.account.id, actorRole: p.grant.role, targetType: "user", targetId: u.id, reason, requestId: meta.requestId, network: networkKey(meta.ip), detail: { why } });
+      await this.audit.record({ action, outcome: "denied", actorAccountId: p.account.id, actorRole: p.grant.role, targetType: "user", targetId: u.id, reason, requestId: meta.requestId, network: networkKey(meta.ip), detail: { why } });
       throw forbidden(why === "self" ? "You can't do that to your own account." : "Only a super admin can do that to a platform admin.");
     }
     return account;
@@ -153,9 +150,9 @@ export class AdminUsers {
     const accountSessions = account ? (await this.ctx.accounts.store.activeSessions(account.id, t)).length : 0;
     if (account) {
       await this.ctx.accounts.service.revokeSessions(account.id, reason);
-      this.store.revokeAccountSessions(account.id, reason, t);
+      await this.store.revokeAccountSessions(account.id, reason, t);
     }
-    const legacySessions = endLegacySessions(this.ctx, userId);
+    const legacySessions = await endLegacySessions(this.ctx, userId);
     this.ctx.hub.disconnectUser(userId, reason);
     return { accountSessions, legacySessions };
   }
@@ -168,20 +165,17 @@ export class AdminUsers {
     const t = now();
     if (until !== undefined && until <= t + 60_000) throw badRequest("A temporary suspension ends at least a minute from now.");
     // A suspension's end (temporary) or none (until lifted); lifting removes it. Kept beside users.disabled_at.
-    if (suspend) {
-      this.ctx.db
-        .prepare(
-          `INSERT INTO platform_restrictions (user_id, kind, until, reason, set_by, set_at) VALUES (?, 'suspension', ?, ?, ?, ?)
-           ON CONFLICT (user_id) DO UPDATE SET until = excluded.until, reason = excluded.reason, set_by = excluded.set_by, set_at = excluded.set_at`,
-        )
-        .run(userId, until ?? null, reason, p.account.id, t);
-    } else this.ctx.db.prepare("DELETE FROM platform_restrictions WHERE user_id = ?").run(userId);
-    const changedIdentity = setIdentitySuspended(this.ctx.db, userId, suspend ? t : null);
+    const restriction = { until: until ?? null, reason, set_by: p.account.id, set_at: t };
+    await this.ctx.platform.write((w) => {
+      if (suspend) w.upsert("platform_restrictions", { user_id: userId, kind: "suspension", ...restriction }, restriction);
+      else w.delete("platform_restrictions", { user_id: userId });
+    });
+    const changedIdentity = await setIdentitySuspended(this.ctx.identity, userId, suspend ? t : null);
     const changedAccount = !!account && (suspend ? account.disabled_at === null : account.disabled_at !== null);
     if (account && changedAccount) await this.ctx.accounts.store.updateAccount(account.id, { disabled_at: suspend ? t : null }, t);
     const ended = suspend ? await this.endSessions(userId, account, "suspended", t) : null;
     const changed = changedIdentity || changedAccount;
-    this.audit.record({
+    await this.audit.record({
       action,
       outcome: "success",
       actorAccountId: p.account.id,
@@ -200,7 +194,7 @@ export class AdminUsers {
     const u = this.target(userId);
     const account = await this.guard(p, u, "user.sessions_revoke", reason, meta);
     const ended = await this.endSessions(userId, account, "admin_revoked", now());
-    this.audit.record({ action: "user.sessions_revoke", outcome: "success", actorAccountId: p.account.id, actorRole: p.grant.role, targetType: "user", targetId: userId, reason, requestId: meta.requestId, network: networkKey(meta.ip), detail: ended });
+    await this.audit.record({ action: "user.sessions_revoke", outcome: "success", actorAccountId: p.account.id, actorRole: p.grant.role, targetType: "user", targetId: userId, reason, requestId: meta.requestId, network: networkKey(meta.ip), detail: ended });
     return ended;
   }
 }

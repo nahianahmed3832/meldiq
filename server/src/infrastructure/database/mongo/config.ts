@@ -3,7 +3,25 @@
  * SQLite exactly as before. MONGODB_DOMAINS lists the data that is authoritative in MongoDB instead; each domain moves
  * as a whole, with its own migration (src/mongo/migrate.ts), so no table ever has two writable copies.
  */
-export const MONGO_DOMAINS = ["accounts", "preferences", "history", "reports", "relationships", "relay", "files", "calls", "workspace", "conversations", "billing"] as const;
+export const MONGO_DOMAINS = [
+  "accounts",
+  "preferences",
+  "history",
+  "reports",
+  "relationships",
+  "relay",
+  "files",
+  "calls",
+  "workspace",
+  "conversations",
+  "billing",
+  // 2026-10-28: the rest, so SQLite can be retired (docs/MONGODB.md › Retiring SQLite).
+  "safety",
+  "platform",
+  "federation",
+  "ephemeral",
+  "identity",
+] as const;
 /**
  * Domains that no longer exist: "integrations" went with the apps (docs/COMMUNITY_REBUILD_2026-10-21.md). A server
  * still configured with one starts and ignores it, so an unchanged environment file can't stop a deploy.

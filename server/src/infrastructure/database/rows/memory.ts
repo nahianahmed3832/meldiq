@@ -85,7 +85,7 @@ function matchCond(spec: TableSpec, col: string, v: unknown, cond: Cond): boolea
     return !equal(spec, col, v, cond.ne);
   }
   if (v === null || v === undefined) return false;
-  const [op, n] = Object.entries(cond)[0] as [string, number];
+  const [op, n] = Object.entries(cond)[0] as [string, number | string];
   const c = compare(spec, col, v, n);
   return op === "gt" ? c > 0 : op === "gte" ? c >= 0 : op === "lt" ? c < 0 : c <= 0;
 }
@@ -280,25 +280,58 @@ export abstract class MemoryRows implements Rows {
     return this.queue.then(() => undefined);
   }
 
+  async close(): Promise<void> {}
+
   private publish(overlay: Overlay, counters: Map<string, number>): void {
-    for (const [table, staged] of overlay) {
-      const s = this.state(table);
-      for (const [k, row] of staged) {
-        const old = s.rows.get(k);
-        for (const [col, ix] of s.indexes) {
-          if (old) ix.get(hashable(norm(s.spec, col, old[col])))?.delete(k);
-          if (row) {
-            const h = hashable(norm(s.spec, col, row[col]));
-            let set = ix.get(h);
-            if (!set) ix.set(h, (set = new Set()));
-            set.add(k);
-          }
-        }
-        if (row) s.rows.set(k, row);
-        else s.rows.delete(k);
+    for (const [table, staged] of overlay) for (const [k, row] of staged) this.setCommitted(table, k, row);
+    for (const [table, last] of counters) this.bumpCounter(table, last);
+  }
+
+  /** Sets (or removes, with null) one committed row, keeping the indexes right. */
+  private setCommitted(table: string, k: string, row: Row | null): void {
+    const s = this.state(table);
+    const old = s.rows.get(k);
+    for (const [col, ix] of s.indexes) {
+      if (old) ix.get(hashable(norm(s.spec, col, old[col])))?.delete(k);
+      if (row) {
+        const h = hashable(norm(s.spec, col, row[col]));
+        let set = ix.get(h);
+        if (!set) ix.set(h, (set = new Set()));
+        set.add(k);
       }
     }
-    for (const [table, last] of counters) this.bumpCounter(table, last);
+    if (row) s.rows.set(k, row);
+    else s.rows.delete(k);
+  }
+
+  /**
+   * Runs [fn] in the write queue, between units: for changes another process committed (MongoRows follows them), so
+   * they never interleave with a unit of this one.
+   */
+  protected between(fn: () => Promise<void>): Promise<void> {
+    const p = this.queue.then(fn);
+    this.queue = p.catch(() => undefined);
+    return p;
+  }
+
+  /** The current committed state of one row, as another process left it: [row], or gone (null). */
+  protected applyExternal(table: string, row: Row | null, key: string): void {
+    const s = this.state(table);
+    if (row && s.spec.autoincrement) this.bumpCounter(table, Number(row[s.spec.primaryKey[0]]));
+    this.setCommitted(table, key, row);
+  }
+
+  /** The row key a committed row has (a rowid table: from its rowid). */
+  protected keyOf(table: string, row: Row, rowid?: number): string {
+    return rowKey(this.state(table).spec, row, rowid);
+  }
+
+  /** Forgets every committed row (before loading them all again). */
+  protected clearCommitted(): void {
+    for (const s of this.tables.values()) {
+      s.rows.clear();
+      s.indexes.clear();
+    }
   }
 
   // Used by Unit.

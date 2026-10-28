@@ -18,8 +18,8 @@ describe("invite-only registration (T1.6)", () => {
   afterAll(async () => h.close());
 
   const fresh = (name: string) => new GriipClient(h.baseUrl, `${name}${crypto.randomBytes(3).toString("hex")}`, name);
-  const users = () => (h.ctx.db.prepare("SELECT COUNT(*) n FROM users").get() as { n: number }).n;
-  const invite = (maxUses = 1, days = 1) => createRegistrationInvite(h.ctx.db, { maxUses, days, note: "test" });
+  const users = () => h.ctx.identity.count("users");
+  const invite = (maxUses = 1, days = 1) => createRegistrationInvite(h.ctx.identity, { maxUses, days, note: "test" });
 
   it("refuses registration without a code or with an unknown one, creating nothing", async () => {
     const before = users();
@@ -29,26 +29,26 @@ describe("invite-only registration (T1.6)", () => {
   });
 
   it("a registration invite admits up to its use limit and stores only a hash of the code", async () => {
-    const { id, code } = invite(2);
+    const { id, code } = await invite(2);
     await fresh("first").register(code);
     await fresh("second").register(code.toLowerCase().replace(/-/g, " ")); // typed loosely
     expect((await expectStatus(fresh("third").register(code), 403)).error.code).toBe("invalid_invite");
-    const row = h.ctx.db.prepare("SELECT * FROM registration_invites WHERE id = ?").get(id) as Record<string, unknown>;
+    const row = h.ctx.identity.get<Record<string, unknown>>("registration_invites", { id })!;
     expect(row.uses).toBe(2);
     expect(JSON.stringify(row)).not.toContain(code.replace(/-/g, ""));
   });
 
   it("expired and revoked registration invites are refused", async () => {
-    const expired = invite();
-    h.ctx.db.prepare("UPDATE registration_invites SET expires_at = ? WHERE id = ?").run(Date.now() - 1, expired.id);
+    const expired = await invite();
+    await h.ctx.identity.write((w) => w.update("registration_invites", { id: expired.id }, { expires_at: Date.now() - 1 }));
     await expectStatus(fresh("late").register(expired.code), 403);
-    const revoked = invite();
-    h.ctx.db.prepare("UPDATE registration_invites SET revoked_at = ? WHERE id = ?").run(Date.now(), revoked.id);
+    const revoked = await invite();
+    await h.ctx.identity.write((w) => w.update("registration_invites", { id: revoked.id }, { revoked_at: Date.now() }));
     await expectStatus(fresh("revoked").register(revoked.code), 403);
   });
 
   it("a community invite registers the person and joins them to its community and role in one step", async () => {
-    const owner = await fresh("owner").register(invite().code);
+    const owner = await fresh("owner").register((await invite()).code);
     const org = (await owner.req("POST", "/v1/orgs", { name: "Gate Co" })).org.id;
     const role = (await owner.req("POST", `/v1/orgs/${org}/roles`, { name: "Sales", permissions: [], denies: [] })).role.id;
     const code = (await owner.req("POST", `/v1/orgs/${org}/invites`, { role: "MEMBER", roleId: role, maxUses: 1 })).invite.code;
@@ -61,7 +61,7 @@ describe("invite-only registration (T1.6)", () => {
   });
 
   it("existing accounts keep signing in normally", async () => {
-    const c = await fresh("returning").register(invite().code);
+    const c = await fresh("returning").register((await invite()).code);
     c.token = "";
     await c.login();
     expect(c.token.length).toBeGreaterThan(20);

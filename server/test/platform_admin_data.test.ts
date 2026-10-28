@@ -28,7 +28,7 @@ beforeAll(async () => {
 });
 afterAll(async () => h.close());
 
-const lastAudit = (action: string) => h.ctx.db.prepare("SELECT * FROM platform_audit WHERE action = ? ORDER BY id DESC LIMIT 1").get(action) as any;
+const lastAudit = (action: string) => h.ctx.platform.get<any>("platform_audit", { action }, [["id", "desc"]]);
 const as = (role: string) => admins[role].browser;
 
 describe("overview", () => {
@@ -80,7 +80,7 @@ describe("people", () => {
     const support = admins.support_admin;
     await support.browser.expect(400, "POST", `/admin/v1/users/${person.userId}/suspend`, { reason: "spam" });
     // Step-up: an old passkey check is refused until the admin confirms again.
-    h.ctx.db.prepare("UPDATE platform_admin_sessions SET reauth_at = 0 WHERE account_id = ?").run(support.account.accountId);
+    await h.ctx.ephemeral.write((w) => w.update("platform_admin_sessions", { account_id: support.account.accountId }, { reauth_at: 0 }));
     expect((await support.browser.req("POST", `/admin/v1/users/${person.userId}/suspend`, REASON)).body.error.code).toBe("reauth_required");
     const { options } = await support.browser.expect(200, "POST", "/admin/v1/auth/reauth/options", {});
     await support.browser.expect(200, "POST", "/admin/v1/auth/reauth", { response: support.passkey.get(options) });

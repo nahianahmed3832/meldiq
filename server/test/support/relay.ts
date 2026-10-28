@@ -20,7 +20,7 @@ export async function queuedCount(h: { ctx: AppContext }, where: (r: QueueItemRo
 
 /** The ids of a user's devices (to filter queue items by person). */
 export function deviceIdsOf(h: { ctx: AppContext }, userId: string): Set<string> {
-  return new Set((h.ctx.db.prepare("SELECT id FROM devices WHERE user_id = ?").all(userId) as { id: string }[]).map((d) => d.id));
+  return new Set(h.ctx.identity.all<{ id: string }>("devices", { where: { user_id: userId } }).map((d) => d.id));
 }
 
 /** Replaces a queued item's payload in place (to simulate what a recipient might receive). */

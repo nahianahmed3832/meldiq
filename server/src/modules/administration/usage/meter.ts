@@ -1,5 +1,4 @@
-import type { DB } from "../../../infrastructure/database/db.js";
-import type { Rows, RowWriter } from "../../../infrastructure/database/rows/index.js";
+import type { RowReader, Rows, RowWriter } from "../../../infrastructure/database/rows/index.js";
 import { rowsByIds } from "../../../infrastructure/database/byIds.js";
 import type { CallStore } from "../../calls/index.js";
 import type { FileStore } from "../../files/index.js";
@@ -49,7 +48,8 @@ export class UsageMeter {
   private lastSnapshot = 0;
 
   constructor(
-    private readonly db: DB,
+    /** Devices, for who was active (the identity domain). */
+    private readonly identity: RowReader,
     /** Communities, their conversations and the usage rows (the workspace domain). */
     private readonly rows: Rows,
     /** Stored file sizes live with the files module (SQLite or MongoDB). */
@@ -61,7 +61,7 @@ export class UsageMeter {
 
   /** Adds [n] to a counter for today (no-op without a workspace). Never throws into the caller. */
   async add(orgId: string | null | undefined, metric: Counter, n = 1): Promise<void> {
-    if (!orgId || n <= 0 || !this.db.open) return;
+    if (!orgId || n <= 0) return;
     const key = { org_id: orgId, day: utcDay(this.clock()), metric };
     await this.rows
       .write((w) => {
@@ -102,7 +102,7 @@ export class UsageMeter {
     for (const { id } of orgs) {
       const members = this.rows.all<{ user_id: string }>("org_members", { where: { org_id: id } }).map((m) => m.user_id);
       const seen = new Set(
-        rowsByIds<{ user_id: string; last_seen_at: number | null }>(this.db, "devices", "user_id", members, "user_id, last_seen_at")
+        rowsByIds<{ user_id: string; last_seen_at: number | null }>(this.identity, "devices", "user_id", members, "user_id, last_seen_at")
           .filter((d) => d.last_seen_at !== null && d.last_seen_at > activeSince)
           .map((d) => d.user_id),
       );

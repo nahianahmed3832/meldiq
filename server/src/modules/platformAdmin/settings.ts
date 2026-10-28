@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import type { DB } from "../../infrastructure/database/db.js";
+import type { RowReader, RowWriter } from "../../infrastructure/database/rows/index.js";
 import { ApiError } from "../../shared/errors.js";
 
 /**
@@ -65,28 +65,24 @@ export type SettingValue<K extends SettingKey> = z.infer<(typeof SETTINGS)[K]["s
 export const isSettingKey = (k: string): k is SettingKey => Object.hasOwn(SETTINGS, k);
 
 /** The current value of [key] (its default when never set, or when a stored value no longer fits its schema). */
-export function platformSetting<K extends SettingKey>(db: DB, key: K): SettingValue<K> {
-  const row = db.prepare("SELECT value FROM platform_settings WHERE key = ?").get(key) as { value: string } | undefined;
+export function platformSetting<K extends SettingKey>(platform: RowReader, key: K): SettingValue<K> {
+  const row = platform.get<{ value: string }>("platform_settings", { key });
   if (!row) return SETTINGS[key].default as SettingValue<K>;
   const parsed = SETTINGS[key].schema.safeParse(JSON.parse(row.value));
   return (parsed.success ? parsed.data : SETTINGS[key].default) as SettingValue<K>;
 }
 
-export function settingMeta(db: DB, key: SettingKey): { updatedBy: string | null; updatedAt: number | null } {
-  const row = db.prepare("SELECT updated_by, updated_at FROM platform_settings WHERE key = ?").get(key) as { updated_by: string; updated_at: number } | undefined;
+export function settingMeta(platform: RowReader, key: SettingKey): { updatedBy: string | null; updatedAt: number | null } {
+  const row = platform.get<{ updated_by: string; updated_at: number }>("platform_settings", { key });
   return { updatedBy: row?.updated_by ?? null, updatedAt: row?.updated_at ?? null };
 }
 
-/** Validates and stores [value]; returns the previous value (for the audit's before/after). */
-export function writeSetting(db: DB, key: SettingKey, value: unknown, actor: string, at: number): { before: unknown; after: unknown } {
+/** Validates and stores [value] in the caller's platform unit [w]; returns the previous value (for the audit's before/after). */
+export function writeSetting(w: RowWriter, key: SettingKey, value: unknown, actor: string, at: number): { before: unknown; after: unknown } {
   const parsed = SETTINGS[key].schema.safeParse(value);
   if (!parsed.success) throw new ApiError(400, "invalid_policy", `${SETTINGS[key].label}: ${parsed.error.issues[0]?.message ?? "not a valid value"}`);
-  const before = platformSetting(db, key);
-  db.prepare("INSERT INTO platform_settings (key, value, updated_by, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_by = excluded.updated_by, updated_at = excluded.updated_at").run(
-    key,
-    JSON.stringify(parsed.data),
-    actor,
-    at,
-  );
+  const before = platformSetting(w, key);
+  const stored = { value: JSON.stringify(parsed.data), updated_by: actor, updated_at: at };
+  w.upsert("platform_settings", { key, ...stored }, stored);
   return { before, after: parsed.data };
 }

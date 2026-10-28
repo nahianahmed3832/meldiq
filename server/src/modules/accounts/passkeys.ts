@@ -9,7 +9,7 @@ import {
   verifyRegistrationResponse,
 } from "@simplewebauthn/server";
 import type { AppContext } from "../../app/context.js";
-import type { DB } from "../../infrastructure/database/db.js";
+import type { Rows } from "../../infrastructure/database/rows/index.js";
 import { ApiError, notFound } from "../../shared/errors.js";
 import { now } from "../../shared/utilities/util.js";
 import type { PasskeyLoginBody, PasskeyRegisterBody } from "../../shared/contracts/http/accounts.js";
@@ -67,8 +67,8 @@ export class PasskeyService {
     private readonly accounts: AccountService,
   ) {}
 
-  private get db(): DB {
-    return this.ctx.db;
+  private get rows(): Rows {
+    return this.ctx.safety;
   }
 
   private get cfg(): PasskeyConfig {
@@ -129,30 +129,31 @@ export class PasskeyService {
   }
 
   list(accountId: string): { available: boolean; passkeys: PasskeyView[] } {
-    const rows = this.db.prepare("SELECT * FROM account_passkeys WHERE account_id = ? ORDER BY created_at").all(accountId) as PasskeyRow[];
+    const rows = this.rows.all<PasskeyRow>("account_passkeys", { where: { account_id: accountId }, orderBy: [["created_at", "asc"]] });
     return { available: this.available, passkeys: rows.map(view) };
   }
 
   private count(accountId: string): number {
-    return (this.db.prepare("SELECT COUNT(*) AS n FROM account_passkeys WHERE account_id = ?").get(accountId) as { n: number }).n;
+    return this.rows.count("account_passkeys", { account_id: accountId });
   }
 
-  private saveChallenge(purpose: "register" | "login", accountId: string | null, challenge: string): string {
+  private async saveChallenge(purpose: "register" | "login", accountId: string | null, challenge: string): Promise<string> {
     const id = randomBytes(18).toString("base64url");
     const t = now();
-    this.db.prepare("DELETE FROM account_passkey_challenges WHERE expires_at <= ?").run(t);
-    this.db
-      .prepare("INSERT INTO account_passkey_challenges (id, purpose, account_id, challenge, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)")
-      .run(id, purpose, accountId, challenge, t, t + CEREMONY_MS);
+    await this.rows.write((w) => {
+      w.delete("account_passkey_challenges", { expires_at: { lte: t } });
+      w.insert("account_passkey_challenges", { id, purpose, account_id: accountId, challenge, created_at: t, expires_at: t + CEREMONY_MS });
+    });
     return id;
   }
 
   /** The challenge of ceremony [id] for [purpose] (and [accountId] when adding), used up whether or not it then verifies. */
-  private takeChallenge(id: string, purpose: "register" | "login", accountId: string | null): string {
-    const row = this.db.prepare("SELECT * FROM account_passkey_challenges WHERE id = ?").get(id) as
-      | { purpose: string; account_id: string | null; challenge: string; expires_at: number }
-      | undefined;
-    if (row) this.db.prepare("DELETE FROM account_passkey_challenges WHERE id = ?").run(id);
+  private async takeChallenge(id: string, purpose: "register" | "login", accountId: string | null): Promise<string> {
+    const row = await this.rows.write((w) => {
+      const r = w.get<{ purpose: string; account_id: string | null; challenge: string; expires_at: number }>("account_passkey_challenges", { id });
+      if (r) w.delete("account_passkey_challenges", { id });
+      return r;
+    });
     if (!row || row.purpose !== purpose || row.account_id !== accountId || row.expires_at <= now()) {
       throw new ApiError(401, "challenge_expired", "That took too long. Try again.");
     }
@@ -165,7 +166,7 @@ export class PasskeyService {
     const rpID = this.rpId(rpId);
     const account = (await this.accounts.store.accountById(s.account_id))!;
     if (this.count(account.id) >= MAX_PASSKEYS) throw new ApiError(409, "passkey_limit", "This account already has as many passkeys as it can. Remove one first.");
-    const existing = this.db.prepare("SELECT id, transports FROM account_passkeys WHERE account_id = ?").all(account.id) as { id: string; transports: string | null }[];
+    const existing = this.rows.all<{ id: string; transports: string | null }>("account_passkeys", { where: { account_id: account.id } });
     const options = await generateRegistrationOptions({
       rpName: RP_NAME,
       rpID,
@@ -179,12 +180,12 @@ export class PasskeyService {
       supportedAlgorithmIDs: ALGORITHMS,
       timeout: CEREMONY_MS,
     });
-    return { challengeId: this.saveChallenge("register", account.id, options.challenge), options: options as unknown as Record<string, unknown> };
+    return { challengeId: await this.saveChallenge("register", account.id, options.challenge), options: options as unknown as Record<string, unknown> };
   }
 
   async register(s: ActiveSession, body: PasskeyRegisterBody): Promise<{ passkey: PasskeyView }> {
     const expected = this.expected();
-    const expectedChallenge = this.takeChallenge(body.challengeId, "register", s.account_id);
+    const expectedChallenge = await this.takeChallenge(body.challengeId, "register", s.account_id);
     if (this.count(s.account_id) >= MAX_PASSKEYS) throw new ApiError(409, "passkey_limit", "This account already has as many passkeys as it can. Remove one first.");
     const result = await verifyRegistrationResponse({
       response: body.response as unknown as RegistrationResponseJSON,
@@ -196,7 +197,7 @@ export class PasskeyService {
       throw new ApiError(401, "passkey_failed", "That passkey couldn't be verified. Try again.");
     }
     const { credential, credentialBackedUp } = result.registrationInfo;
-    if (this.db.prepare("SELECT 1 FROM account_passkeys WHERE id = ?").get(credential.id)) {
+    if (this.rows.get("account_passkeys", { id: credential.id })) {
       throw new ApiError(401, "passkey_failed", "That passkey is already registered.");
     }
     const t = now();
@@ -211,26 +212,30 @@ export class PasskeyService {
       created_at: t,
       last_used_at: null,
     };
-    this.db
-      .prepare(
-        "INSERT INTO account_passkeys (id, account_id, public_key, counter, transports, name, backed_up, created_at, last_used_at) VALUES (@id, @account_id, @public_key, @counter, @transports, @name, @backed_up, @created_at, @last_used_at)",
-      )
-      .run(row);
+    try {
+      await this.rows.write((w) => w.insert("account_passkeys", { ...row }));
+    } catch (e) {
+      // The same passkey registered twice at once: one of them wins.
+      if (String(e).includes("UNIQUE")) throw new ApiError(401, "passkey_failed", "That passkey is already registered.");
+      throw e;
+    }
     this.ctx.audit({ actorId: s.user_id, action: "account.passkey_added", target: s.account_id });
     return { passkey: view(row) };
   }
 
-  remove(s: ActiveSession, id: string): { ok: true } {
-    const r = this.db.prepare("DELETE FROM account_passkeys WHERE id = ? AND account_id = ?").run(id, s.account_id);
-    if (r.changes === 0) throw notFound("No such passkey");
+  async remove(s: ActiveSession, id: string): Promise<{ ok: true }> {
+    const removed = await this.rows.write((w) => w.delete("account_passkeys", { id, account_id: s.account_id }));
+    if (removed === 0) throw notFound("No such passkey");
     this.ctx.audit({ actorId: s.user_id, action: "account.passkey_removed", target: s.account_id });
     return { ok: true };
   }
 
   /** Account deletion: its passkeys go too (no foreign key, see migration 045). */
-  removeAll(accountId: string): void {
-    this.db.prepare("DELETE FROM account_passkeys WHERE account_id = ?").run(accountId);
-    this.db.prepare("DELETE FROM account_passkey_challenges WHERE account_id = ?").run(accountId);
+  removeAll(accountId: string): Promise<void> {
+    return this.rows.write((w) => {
+      w.delete("account_passkeys", { account_id: accountId });
+      w.delete("account_passkey_challenges", { account_id: accountId });
+    });
   }
 
   // ───────────── Signing in ─────────────
@@ -239,13 +244,13 @@ export class PasskeyService {
     const rpID = this.rpId(rpId);
     // Discoverable passkeys: the platform offers whichever of the person's passkeys it holds for this server.
     const options = await generateAuthenticationOptions({ rpID, userVerification: "required", allowCredentials: [], timeout: CEREMONY_MS });
-    return { challengeId: this.saveChallenge("login", null, options.challenge), options: options as unknown as Record<string, unknown> };
+    return { challengeId: await this.saveChallenge("login", null, options.challenge), options: options as unknown as Record<string, unknown> };
   }
 
   async login(body: PasskeyLoginBody, ip: string, reply: { header: (k: string, v: string) => unknown }): Promise<SessionResponse> {
     const expected = this.expected();
-    const expectedChallenge = this.takeChallenge(body.challengeId, "login", null);
-    const row = this.db.prepare("SELECT * FROM account_passkeys WHERE id = ?").get(body.response.id) as PasskeyRow | undefined;
+    const expectedChallenge = await this.takeChallenge(body.challengeId, "login", null);
+    const row = this.rows.get<PasskeyRow>("account_passkeys", { id: body.response.id });
     if (!row) throw new ApiError(401, "passkey_unknown", "This passkey isn't registered here. Sign in with your password and add it again.");
     const result = await verifyAuthenticationResponse({
       response: body.response as unknown as AuthenticationResponseJSON,
@@ -262,9 +267,8 @@ export class PasskeyService {
     if (!result.verified || !this.checkPair(result.authenticationInfo.rpID, result.authenticationInfo.origin)) {
       throw new ApiError(401, "passkey_failed", "That passkey couldn't be verified. Try again, or sign in with your password.");
     }
-    this.db
-      .prepare("UPDATE account_passkeys SET counter = ?, backed_up = ?, last_used_at = ? WHERE id = ?")
-      .run(result.authenticationInfo.newCounter, result.authenticationInfo.credentialBackedUp ? 1 : 0, now(), row.id);
+    const info = result.authenticationInfo;
+    await this.rows.write((w) => w.update("account_passkeys", { id: row.id }, { counter: info.newCounter, backed_up: info.credentialBackedUp ? 1 : 0, last_used_at: now() }));
     return this.accounts.loginWithPasskey(row.account_id, body, ip, reply);
   }
 }

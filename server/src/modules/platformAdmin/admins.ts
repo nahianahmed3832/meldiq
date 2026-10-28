@@ -26,7 +26,7 @@ export class AdminAdmins {
   private async entry(g: AdminGrantRow, t: number) {
     const account = await this.ctx.accounts.store.accountById(g.account_id);
     const granter = g.granted_by ? await this.ctx.accounts.store.accountById(g.granted_by) : undefined;
-    const lastSignIn = this.ctx.db.prepare("SELECT MAX(at) AS at FROM platform_audit WHERE action IN ('admin.login', 'admin.enrol') AND outcome = 'success' AND actor_account_id = ?").get(g.account_id) as { at: number | null };
+    const lastSignIn = { at: this.ctx.platform.get<{ at: number }>("platform_audit", { action: { in: ["admin.login", "admin.enrol"] }, outcome: "success", actor_account_id: g.account_id }, [["at", "desc"]])?.at ?? null };
     const enrolment = this.store.enrolment(g.account_id);
     return {
       accountId: g.account_id,
@@ -58,17 +58,17 @@ export class AdminAdmins {
   }
 
   /** Refuses with [message] (403), recording the attempt. */
-  private deny(p: AdminPrincipal, action: string, target: string, reason: string, meta: RequestMeta, why: string, message: string): never {
-    this.audit.record({ action, outcome: "denied", actorAccountId: p.account.id, actorRole: p.grant.role, targetType: "admin", targetId: target, reason, requestId: meta.requestId, network: networkKey(meta.ip), detail: { why } });
+  private async deny(p: AdminPrincipal, action: string, target: string, reason: string, meta: RequestMeta, why: string, message: string): Promise<never> {
+    await this.audit.record({ action, outcome: "denied", actorAccountId: p.account.id, actorRole: p.grant.role, targetType: "admin", targetId: target, reason, requestId: meta.requestId, network: networkKey(meta.ip), detail: { why } });
     throw forbidden(message);
   }
 
   /** The checks every change to another admin passes: not oneself, and never leaving no super admin. */
-  private guard(p: AdminPrincipal, action: string, accountId: string, reason: string, meta: RequestMeta, newRole: PlatformRole | null): AdminGrantRow | undefined {
-    if (accountId === p.account.id) this.deny(p, action, accountId, reason, meta, "self", "You can't change your own console access. Ask another super admin.");
+  private async guard(p: AdminPrincipal, action: string, accountId: string, reason: string, meta: RequestMeta, newRole: PlatformRole | null): Promise<AdminGrantRow | undefined> {
+    if (accountId === p.account.id) await this.deny(p, action, accountId, reason, meta, "self", "You can't change your own console access. Ask another super admin.");
     const current = this.store.activeGrant(accountId);
     if (current?.role === "super_admin" && newRole !== "super_admin" && this.store.activeSuperAdmins() <= 1) {
-      this.deny(p, action, accountId, reason, meta, "last_super_admin", "That's the last super admin. Make someone else a super admin first.");
+      await this.deny(p, action, accountId, reason, meta, "last_super_admin", "That's the last super admin. Make someone else a super admin first.");
     }
     return current;
   }
@@ -77,31 +77,31 @@ export class AdminAdmins {
     const account = await this.ctx.accounts.store.accountByEmail(email);
     const problem = grantProblem(account);
     if (problem || !account) throw badRequest(problem ?? "No account has that email address.");
-    const current = this.guard(p, grantActionFor(account.id, this.store), account.id, reason, meta, role);
+    const current = await this.guard(p, grantActionFor(account.id, this.store), account.id, reason, meta, role);
     if (current?.role === role) throw new ApiError(409, "conflict", "That account already has this role.");
-    const code = grantAdmin(this.store, this.audit, account, role, actorOf(p, meta), reason);
+    const code = await grantAdmin(this.store, this.audit, account, role, actorOf(p, meta), reason);
     return { admin: await this.entryOf(account.id), enrolmentCode: code };
   }
 
   async changeRole(p: AdminPrincipal, accountId: string, role: PlatformRole, reason: string, meta: RequestMeta) {
-    const current = this.guard(p, "admin.role_change", accountId, reason, meta, role);
+    const current = await this.guard(p, "admin.role_change", accountId, reason, meta, role);
     if (!current) throw notFound("No active console admin has that account.");
     if (current.role === role) return { admin: await this.entryOf(accountId), enrolmentCode: null };
     const account = await this.ctx.accounts.store.accountById(accountId);
-    grantAdmin(this.store, this.audit, account, role, actorOf(p, meta), reason);
+    await grantAdmin(this.store, this.audit, account, role, actorOf(p, meta), reason);
     return { admin: await this.entryOf(accountId), enrolmentCode: null };
   }
 
   async revoke(p: AdminPrincipal, accountId: string, reason: string, meta: RequestMeta) {
-    this.guard(p, "admin.revoke", accountId, reason, meta, null);
-    if (!revokeAdmin(this.store, this.audit, accountId, actorOf(p, meta), reason)) throw notFound("No active console admin has that account.");
+    await this.guard(p, "admin.revoke", accountId, reason, meta, null);
+    if (!(await revokeAdmin(this.store, this.audit, accountId, actorOf(p, meta), reason))) throw notFound("No active console admin has that account.");
     return { admin: await this.entryOf(accountId), enrolmentCode: null };
   }
 
   async resetPasskeys(p: AdminPrincipal, accountId: string, reason: string, meta: RequestMeta) {
-    this.guard(p, "admin.passkeys_reset", accountId, reason, meta, this.store.activeGrant(accountId)?.role ?? null);
+    await this.guard(p, "admin.passkeys_reset", accountId, reason, meta, this.store.activeGrant(accountId)?.role ?? null);
     if (!this.store.activeGrant(accountId)) throw notFound("No active console admin has that account.");
-    const code = resetAdminPasskeys(this.store, this.audit, accountId, actorOf(p, meta), reason);
+    const code = await resetAdminPasskeys(this.store, this.audit, accountId, actorOf(p, meta), reason);
     return { admin: await this.entryOf(accountId), enrolmentCode: code };
   }
 
@@ -120,12 +120,12 @@ export class AdminAdmins {
     };
   }
 
-  revokeSession(p: AdminPrincipal, sessionId: string, reason: string, meta: RequestMeta) {
+  async revokeSession(p: AdminPrincipal, sessionId: string, reason: string, meta: RequestMeta) {
     const s = this.store.session(sessionId);
     if (!s || s.revoked_at !== null) throw notFound("No such active console session");
     if (s.id === p.session.id) throw badRequest("That's this session: sign out instead.");
-    this.store.revokeSession(s.id, "admin_revoked", now());
-    this.audit.record({
+    await this.store.revokeSession(s.id, "admin_revoked", now());
+    await this.audit.record({
       action: "admin.session_revoke",
       outcome: "success",
       actorAccountId: p.account.id,

@@ -100,7 +100,7 @@ export default async function expressionRoutes(app: FastifyInstance, ctx: AppCon
   };
   const view = (r: ExpressionRow, locked?: "slots" | "plan") => ({
     id: r.id, orgId: r.org_id, kind: r.kind, name: r.name, animated: !!r.animated, sha256: r.sha256, size: r.size,
-    createdBy: (db.prepare("SELECT display_name FROM users WHERE id = ?").get(r.created_by) as { display_name: string } | undefined)?.display_name ?? null,
+    createdBy: ctx.identity.get<{ display_name: string }>("users", { id: r.created_by })?.display_name ?? null,
     createdAt: r.created_at,
     // Kept, shown in messages already sent, but not offered for new ones until there's room again.
     ...(locked ? { locked } : {}),

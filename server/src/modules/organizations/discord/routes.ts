@@ -44,7 +44,7 @@ interface ConnectionRow {
 }
 
 export default async function discordRoutes(app: FastifyInstance, ctx: AppContext) {
-  const { db, ws } = ctx;
+  const { ws } = ctx;
   const auth = { preHandler: requireAuth(ctx) };
   const limited = (max: number) => ({ preHandler: requireAuth(ctx), config: { rateLimit: { max, timeWindow: "1 minute" } } });
   const client = ctx.config.discord ? new DiscordClient(ctx.config.discord) : null;
@@ -58,7 +58,9 @@ export default async function discordRoutes(app: FastifyInstance, ctx: AppContex
   // Expired connections are never read (each read asks for unexpired ones); the sweep only tidies them away.
   const sweep = () => {
     const t = now();
-    db.prepare("DELETE FROM discord_oauth_states WHERE expires_at <= ?").run(t);
+    if (ctx.ephemeral.count("discord_oauth_states", { expires_at: { lte: t } }) > 0) {
+      ctx.ephemeral.write((w) => w.delete("discord_oauth_states", { expires_at: { lte: t } })).catch((err) => ctx.log.error({ err }, "discord: sweeping sign-in states failed"));
+    }
     if (ws.count("discord_connections", { expires_at: { lte: t } }) === 0) return;
     ws.write((w) => w.delete("discord_connections", { expires_at: { lte: t } })).catch((err) => ctx.log.error({ err }, "discord: sweeping connections failed"));
   };
@@ -107,7 +109,7 @@ export default async function discordRoutes(app: FastifyInstance, ctx: AppContex
     sweep();
     const state = crypto.randomBytes(32).toString("base64url");
     const t = now();
-    db.prepare("INSERT INTO discord_oauth_states (state_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)").run(sha256Hex(state), me(req).userId, t, t + STATE_TTL_MS);
+    await ctx.ephemeral.write((w) => w.insert("discord_oauth_states", { state_hash: sha256Hex(state), user_id: me(req).userId, created_at: t, expires_at: t + STATE_TTL_MS }));
     return { url: c.authorizeUrl(state) };
   });
 
@@ -117,8 +119,8 @@ export default async function discordRoutes(app: FastifyInstance, ctx: AppContex
     const body = parse(DiscordCallbackBody, req.body);
     sweep();
     // Single use, this account's own, unexpired: otherwise someone else's Discord sign-in could be attached here.
-    const used = db.prepare("DELETE FROM discord_oauth_states WHERE state_hash = ? AND user_id = ? AND expires_at > ?").run(sha256Hex(body.state), userId, now());
-    if (used.changes !== 1) throw new ApiError(400, "bad_request", "That Discord sign-in has expired or wasn't started here. Connect Discord again.");
+    const used = await ctx.ephemeral.write((w) => w.delete("discord_oauth_states", { state_hash: sha256Hex(body.state), user_id: userId, expires_at: { gt: now() } }));
+    if (used !== 1) throw new ApiError(400, "bad_request", "That Discord sign-in has expired or wasn't started here. Connect Discord again.");
     const { accessToken, guildId: tokenGuild } = await c.exchangeCode(body.code).catch(discordFailure);
     let discordUserId: string;
     let guildId: string | null;

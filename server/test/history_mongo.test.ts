@@ -56,7 +56,7 @@ describe("history in MongoDB", () => {
     const c = await AccountClient.ready(h.baseUrl, mailer, "orphan");
     await put(c, 4);
     // As if the account was deleted while MongoDB was unreachable: SQLite says deleted, MongoDB still holds history.
-    h.ctx.db.prepare("UPDATE users SET deleted_at = 1 WHERE id = ?").run(c.userId);
+    await h.ctx.identity.write((w) => w.update("users", { id: c.userId }, { deleted_at: 1 }));
     const kept = await AccountClient.ready(h.baseUrl, mailer, "kept");
     await put(kept, 1);
     await runCleanup(h.ctx);

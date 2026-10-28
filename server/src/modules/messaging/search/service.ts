@@ -58,9 +58,9 @@ export function searchPeople(ctx: AppContext, userId: string, q: string, orgId?:
   const term = q.replace(/^@/, "").toLowerCase();
   // Anyone by their exact username; by part of a name, people in a community the searcher belongs to (not as a guest).
   const findable = (u: any) => u.disabled_at == null && u.home_server_id == null && u.kind === "person" && u.id !== userId;
-  const exact = (ctx.db.prepare("SELECT * FROM users WHERE username = ? COLLATE NOCASE").all(term) as any[]).filter(findable);
+  const exact = ctx.identity.all<any>("users", { where: { username: term } }).filter(findable);
   const mates = orgMates(ctx, userId, orgId);
-  const partial = rowsByIds<any>(ctx.db, "users", "id", mates).filter((u) => findable(u) && (likeContains(u.username, term) || likeContains(u.display_name, term)));
+  const partial = rowsByIds<any>(ctx.identity, "users", "id", mates).filter((u) => findable(u) && (likeContains(u.username, term) || likeContains(u.display_name, term)));
   const rows = [...new Map([...exact, ...partial].map((u) => [u.id, u])).values()].slice(0, MAX_CANDIDATES);
   const visible = rows.filter((u) => {
     const r = relation(ctx, userId, u.id);

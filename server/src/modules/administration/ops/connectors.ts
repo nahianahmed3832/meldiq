@@ -76,7 +76,6 @@ const finish = (r: Row, t: number): ConnectorStatus => {
   return { ...rest, ...signal, state: stateFor(r.missing, signal, t, flags) };
 };
 
-const sqlCount = (ctx: AppContext, sql: string, ...p: unknown[]): number => (ctx.db.prepare(sql).get(...p) as { n: number | null }).n ?? 0;
 
 /** Platform services: email, storage, push, calls, database. */
 function platformRows(ctx: AppContext, metrics: readonly ProviderMetric[], storage: Signal): Row[] {
@@ -114,7 +113,7 @@ function platformRows(ctx: AppContext, metrics: readonly ProviderMetric[], stora
       category: "push",
       missing: cfg.push ? [] : ["PUSH_UNIFIEDPUSH_HOSTS"],
       detail: "Wakes phones without Google services (for example through ntfy). Wake-ups carry no content.",
-      usage: { devices: sqlCount(ctx, "SELECT COUNT(*) AS n FROM push_endpoints") },
+      usage: { devices: ctx.identity.count("push_endpoints") },
       checkable: false,
       ownerAction: null,
       docs: "docs/PUSH_SERVER.md",
@@ -126,7 +125,7 @@ function platformRows(ctx: AppContext, metrics: readonly ProviderMetric[], stora
       category: "push",
       missing: cfg.fcm ? [] : ["FCM_PROJECT_ID", "FCM_SERVICE_ACCOUNT_FILE"],
       detail: "Wakes Android phones through Google. Wake-ups carry no content.",
-      usage: { devices: sqlCount(ctx, "SELECT COUNT(*) AS n FROM fcm_tokens") },
+      usage: { devices: ctx.identity.count("fcm_tokens") },
       checkable: !!cfg.fcm,
       ownerAction: cfg.fcm ? null : "Create a Firebase project for com.meldiq.android, add the app's google-services.json to the build, and give the server a service account with the Firebase Cloud Messaging API role.",
       docs: "docs/PUSH_FCM.md",

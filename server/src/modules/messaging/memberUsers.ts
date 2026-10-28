@@ -13,9 +13,9 @@ export interface MemberRow {
  * A conversation's members with their user rows: members live with conversations (SQLite or MongoDB, ctx.ws), users in
  * SQLite, so the join runs here. Members whose user row is gone are left out, as the SQL join did. In no order.
  */
-export function memberUsers<U extends Record<string, unknown>>(ctx: Pick<AppContext, "db" | "ws">, conversationId: string, columns = "*"): { member: MemberRow; user: U }[] {
+export function memberUsers<U extends Record<string, unknown>>(ctx: Pick<AppContext, "identity" | "ws">, conversationId: string, columns = "*"): { member: MemberRow; user: U }[] {
   const members = ctx.ws.all<MemberRow>("conversation_members", { where: { conversation_id: conversationId } });
-  const users = mapByIds<U>(ctx.db, "users", "id", members.map((m) => m.user_id), columns);
+  const users = mapByIds<U>(ctx.identity, "users", "id", members.map((m) => m.user_id), columns);
   return members.flatMap((member) => {
     const user = users.get(member.user_id);
     return user ? [{ member, user }] : [];

@@ -262,7 +262,7 @@ export default async function communityRoutes(app: FastifyInstance, ctx: AppCont
   const overwriteView = (orgId: string, o: Overwrite) => {
     if (o.subject === EVERYONE) return { subject: o.subject, kind: "everyone", label: "@everyone", color: null, allow: o.allow, deny: o.deny };
     if (o.subject.startsWith(USER_PREFIX)) {
-      const u = db.prepare("SELECT display_name FROM users WHERE id = ?").get(o.subject.slice(USER_PREFIX.length)) as { display_name: string } | undefined;
+      const u = ctx.identity.get<{ display_name: string }>("users", { id: o.subject.slice(USER_PREFIX.length) });
       return { subject: o.subject, kind: "member", label: u?.display_name ?? "Former member", color: null, allow: o.allow, deny: o.deny };
     }
     const r = ws.get<{ name: string; color: string | null }>("org_roles", { id: o.subject, org_id: orgId });
@@ -373,7 +373,7 @@ export default async function communityRoutes(app: FastifyInstance, ctx: AppCont
   app.get("/v1/communities/:id/preview", discoverRate, async (req) => {
     const userId = me(req).userId;
     const { id } = parse(IdParams, req.params);
-    requireStanding(db, userId, "join_community");
+    requireStanding(ctx.safety, userId, "join_community");
     const o = ws.get<any>("orgs", { id });
     const member = o ? authz.orgRole(o.id, userId) !== null : false;
     if (!o || (o.visibility !== "public" && !member)) throw notFound("Community not found");
@@ -422,7 +422,7 @@ export default async function communityRoutes(app: FastifyInstance, ctx: AppCont
     const { orgId } = parse(OrgParams, req.params);
     authz.requirePermission(orgId, me(req).userId, "members.ban", "Your role doesn't include bans");
     const bans = ws.all<{ user_id: string; reason: string | null; banned_at: number; banned_by: string }>("org_bans", { where: { org_id: orgId }, orderBy: [["banned_at", "desc"]] });
-    const people = mapByIds<{ id: string; display_name: string; username: string }>(db, "users", "id", [...bans.map((b) => b.user_id), ...bans.map((b) => b.banned_by)], "id, display_name, username");
+    const people = mapByIds<{ id: string; display_name: string; username: string }>(ctx.identity, "users", "id", [...bans.map((b) => b.user_id), ...bans.map((b) => b.banned_by)], "id, display_name, username");
     // An inner join on the banned person (a ban of someone unknown here isn't listed), a left join on who banned them.
     const rows = bans
       .flatMap((b) => {
@@ -441,7 +441,7 @@ export default async function communityRoutes(app: FastifyInstance, ctx: AppCont
     const body = parse(BanBody, req.body);
     authz.requireOrgMember(orgId, actor);
     if (body.userId === actor) throw badRequest("You can't ban yourself");
-    if (!db.prepare("SELECT 1 FROM users WHERE id = ?").get(body.userId)) throw notFound("User not found");
+    if (!ctx.identity.get("users", { id: body.userId })) throw notFound("User not found");
     const targetRole = authz.orgRole(orgId, body.userId);
     if (!banAllowed(authz.actor(orgId, actor)!, targetRole, targetRole ? authz.permissions(orgId, body.userId) : undefined)) {
       throw forbidden(targetRole === "OWNER" ? "Owners can't be banned" : "You can't ban this person");

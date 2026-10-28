@@ -64,6 +64,17 @@ export interface AppContext {
    * MongoDB with an in-memory copy when MONGODB_DOMAINS includes "workspace" and "conversations" (app/workspaceRows.ts).
    */
   ws: Rows;
+  /**
+   * The rest of the data, one rows store per domain (docs/MONGODB.md › Retiring SQLite): SQLite, or MongoDB with an
+   * in-memory copy when MONGODB_DOMAINS includes it. identity: people and devices; platform: the console, quotas and
+   * telemetry; federation; safety: passkeys, two-step, warnings, bug reports; ephemeral: sessions and other short-lived
+   * sign-in material and samples.
+   */
+  identity: Rows;
+  platform: Rows;
+  fed: Rows;
+  safety: Rows;
+  ephemeral: Rows;
   /** Present when MONGODB_URI is set: the domains in MONGODB_DOMAINS live there (docs/MONGODB.md). */
   mongo?: MeldiqMongo;
   /** Plan-based limits (src/entitlements.ts, docs/PLANS.md): none by default. */

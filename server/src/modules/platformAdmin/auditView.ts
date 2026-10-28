@@ -1,4 +1,6 @@
 import type { AppContext } from "../../app/context.js";
+import type { Where } from "../../infrastructure/database/rows/index.js";
+import { likeStarts } from "../../shared/utilities/sqlText.js";
 import { now } from "../../shared/utilities/util.js";
 import type { AuditOutcome, AuditRow, PlatformAudit } from "./audit.js";
 
@@ -14,7 +16,6 @@ export interface AuditQuery {
   limit: number;
 }
 
-const likePrefix = (s: string) => `${s.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 
 function parseDetail(text: string | null): Record<string, string | number | boolean | null> | null {
   if (!text) return null;
@@ -36,22 +37,20 @@ export class AdminAuditView {
   ) {}
 
   async search(q: AuditQuery) {
-    const where: string[] = ["1 = 1"];
-    const args: (string | number)[] = [];
-    const add = (sql: string, v: string | number | undefined) => {
-      if (v === undefined || v === "") return;
-      where.push(sql);
-      args.push(v);
+    const where: Where = {};
+    const set = (col: string, v: string | number | undefined) => {
+      if (v !== undefined && v !== "") where[col] = v;
     };
-    add("actor_account_id = ?", q.actor);
-    if (q.action) add("action LIKE ? ESCAPE '\\'", likePrefix(q.action));
-    add("target_type = ?", q.targetType);
-    add("target_id = ?", q.targetId);
-    add("outcome = ?", q.outcome);
-    add("at >= ?", q.from);
-    add("at <= ?", q.to);
-    add("id < ?", q.cursor);
-    const rows = this.ctx.db.prepare(`SELECT * FROM platform_audit WHERE ${where.join(" AND ")} ORDER BY id DESC LIMIT ?`).all(...args, q.limit + 1) as AuditRow[];
+    set("actor_account_id", q.actor);
+    set("target_type", q.targetType);
+    set("target_id", q.targetId);
+    set("outcome", q.outcome);
+    if (q.from !== undefined) where.at = { gte: q.from };
+    if (q.cursor !== undefined) where.id = { lt: q.cursor };
+    const rows = this.ctx.platform
+      .all<AuditRow>("platform_audit", { where, orderBy: [["id", "desc"]] })
+      .filter((r) => (q.to === undefined || r.at <= q.to) && (!q.action || likeStarts(r.action, q.action)))
+      .slice(0, q.limit + 1);
     const shown = rows.slice(0, q.limit);
     const names = new Map<string, string>();
     for (const id of new Set(shown.map((r) => r.actor_account_id).filter((i): i is string => !!i))) {

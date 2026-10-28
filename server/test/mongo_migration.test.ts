@@ -69,8 +69,10 @@ describe("catalog", () => {
     for (const t of all) expect(t in EXCLUDED_TABLES || t in TABLE_DOMAINS).toBe(true);
     expect(tables).toContain("accounts");
     expect(tables).toContain("delivery_queue");
-    // Short-lived security material never goes to MongoDB.
-    for (const t of ["sessions", "auth_challenges", "pairing_requests", "federation_nonces", "schema_migrations"]) expect(tables).not.toContain(t);
+    // Short-lived security material is its own domain (copied at the switch, so nobody is signed out); SQLite's own
+    // bookkeeping never goes to MongoDB.
+    for (const t of ["sessions", "auth_challenges", "pairing_requests", "federation_nonces"]) expect(TABLE_DOMAINS[t]).toBe("ephemeral");
+    expect(tables).not.toContain("schema_migrations");
   });
 
   it("derives validators and indexes from the schema", () => {
@@ -204,9 +206,9 @@ describe("migration", HEAVY, () => {
 describe("rollback (MongoDB back to SQLite)", HEAVY, () => {
   it("restores the domain's tables, including writes made after the cutover", async () => {
     const dbName = testDbName("rb");
-    const m = await MeldiqMongo.connect(cfg(dbName), domainTables(h.ctx.db, ["preferences"]));
+    const m = await MeldiqMongo.connect(cfg(dbName), domainTables(["preferences"]));
     opened.push(m);
-    const tables = domainTables(h.ctx.db, ["preferences"]);
+    const tables = domainTables(["preferences"]);
     await migrateToMongo(h.ctx.db, m, tables);
     // After the cutover a new preference was written to MongoDB only.
     await m.db.collection("nav_preferences").insertOne({
@@ -220,9 +222,9 @@ describe("rollback (MongoDB back to SQLite)", HEAVY, () => {
   });
 
   it("refuses a restore that would leave broken references, and changes nothing", async () => {
-    const m = await MeldiqMongo.connect(cfg(testDbName("rb")), domainTables(h.ctx.db, ["preferences"]));
+    const m = await MeldiqMongo.connect(cfg(testDbName("rb")), domainTables(["preferences"]));
     opened.push(m);
-    const tables = domainTables(h.ctx.db, ["preferences"]);
+    const tables = domainTables(["preferences"]);
     await migrateToMongo(h.ctx.db, m, tables);
     await m.db.collection("nav_preferences").insertOne({
       _id: { user_id: "u_nobody", workspace_id: "personal" } as never, user_id: "u_nobody", workspace_id: "personal",
@@ -238,9 +240,9 @@ describe("authority guards", () => {
   it("refuses to use MongoDB for a domain whose rows are still only in SQLite, then accepts it once migrated", async () => {
     const config = cfg(testDbName("auth"), ["preferences"]);
     await expect(openMongo(config, h.ctx.db)).rejects.toThrow(/still only in SQLite/);
-    const m = await MeldiqMongo.connect(config, domainTables(h.ctx.db, ["preferences"]));
+    const m = await MeldiqMongo.connect(config, domainTables(["preferences"]));
     opened.push(m);
-    await migrateToMongo(h.ctx.db, m, domainTables(h.ctx.db, ["preferences"]));
+    await migrateToMongo(h.ctx.db, m, domainTables(["preferences"]));
     await setAuthority(m, "preferences", "mongodb", "test");
     const ok = await openMongo(config, h.ctx.db);
     expect(await authorityOf(ok, "preferences")).toBe("mongodb");

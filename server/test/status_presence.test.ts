@@ -35,7 +35,7 @@ describe("statuses", () => {
     expect(await memberOf(bob, dm, ada.userId)).toMatchObject({ statusText: "In a meeting", statusEmoji: "📅" });
 
     // Its end time passes (written directly: the server checks the time on every read).
-    h.ctx.db.prepare("UPDATE users SET status_expires_at = ? WHERE id = ?").run(Date.now() - 1, ada.userId);
+    await h.ctx.identity.write((w) => w.update("users", { id: ada.userId }, { status_expires_at: Date.now() - 1 }));
     const after = (await ada.req("GET", "/v1/users/me")).user;
     expect(after.statusText).toBeUndefined();
     expect(after.statusEmoji).toBeUndefined();

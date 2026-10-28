@@ -62,7 +62,8 @@ beforeAll(async () => {
   bob = await B.client("bob", "Bob");
   await alice.connect();
   await bob.connect();
-}, 60_000);
+  // Three servers: with every domain in MongoDB each first start creates its collections (vitest.config.ts).
+}, process.env.MELDIQ_TEST_MONGO_DOMAINS ? 180_000 : 60_000);
 
 afterAll(async () => {
   for (const h of [A, B, C]) await h?.close();
@@ -91,7 +92,7 @@ describe("global identity and discovery", () => {
   });
 
   it("shadows of remote users can't sign in, aren't searchable, and can't join local groups", async () => {
-    const shadow = A.ctx.db.prepare("SELECT * FROM users WHERE id = ?").get(bob.userId) as any;
+    const shadow = A.ctx.identity.get<any>("users", { id: bob.userId });
     expect(shadow.home_server_id).toBe(B.ctx.federation!.serverId);
     expect(shadow.username).toBe(`${bob.username}:b.test`);
     const s = await alice.req("GET", `/v1/users/search?q=${encodeURIComponent(bob.username)}`);
@@ -152,7 +153,7 @@ describe("cross-server messaging", () => {
     const before = bob.received.length;
     const fedA = A.ctx.federation!;
     const peerB = await fedA.resolver.server(B.ctx.federation!.serverId);
-    const lastKey = (B.ctx.db.prepare("SELECT item_key FROM federation_inbox ORDER BY rowid DESC LIMIT 1").get() as { item_key: string }).item_key.split("|")[1];
+    const lastKey = B.ctx.fed.get<{ item_key: string }>("federation_inbox", {}, [["expires_at", "desc"]])!.item_key.split("|")[1];
     const r = await fedA.request(peerB, "POST", "/fed/v1/deliver", { items: [{ key: lastKey, kind: "envelope" }], senders: [] });
     expect(r.json.results[0]).toMatchObject({ status: "accepted" });
     await new Promise((res) => setTimeout(res, 300));
@@ -169,8 +170,8 @@ describe("cross-server messaging", () => {
       fed.cfg.outboxMaxPerPeer = old;
     }
     // Expired items are dropped, never delivered late.
-    fed.enqueue(B.ctx.federation!.serverId, "receipt", "test:expired", { k: 1 }, 1, Date.now() - 1);
-    expect(fed.cleanup().outbox).toBeGreaterThanOrEqual(1);
+    await fed.enqueue(B.ctx.federation!.serverId, "receipt", "test:expired", { k: 1 }, 1, Date.now() - 1);
+    expect((await fed.cleanup()).outbox).toBeGreaterThanOrEqual(1);
   });
 });
 
@@ -295,7 +296,7 @@ describe("adversarial servers and requests", () => {
     const r2 = await fedC.request(peerB, "POST", "/fed/v1/deliver", { items: [{ ...forged, key: "forged-2" }], senders: [] });
     expect(r2.json.results[0]).toMatchObject({ status: "rejected", code: "sender_not_from_peer" });
     // Alice's shadow on B is still bound to A.
-    expect((B.ctx.db.prepare("SELECT home_server_id h FROM users WHERE id = ?").get(alice.userId) as any).h).toBe(A.ctx.federation!.serverId);
+    expect(B.ctx.identity.get<any>("users", { id: alice.userId }).home_server_id).toBe(A.ctx.federation!.serverId);
   });
 
   it("rejects unsigned, replayed, misdirected and unregistered-server requests", async () => {
@@ -324,13 +325,13 @@ describe("adversarial servers and requests", () => {
     const fakeKeys = A.ctx.federation!.entry(mallory.userId)!;
     const substituted = { ...real, identityKey: fakeKeys.identityKey, devices: fakeKeys.devices.map((d) => ({ ...d, id: real.devices[0].id })) };
     const peerA = await B.ctx.federation!.resolver.server(A.ctx.federation!.serverId);
-    B.ctx.db.prepare("DELETE FROM devices WHERE id = ?").run(mallory.deviceId); // (not on B anyway)
-    B.ctx.federation!.upsertShadow(peerA, substituted); // the server accepts what Alice's home server says…
+    await B.ctx.identity.write((w) => w.delete("devices", { id: mallory.deviceId })); // (not on B anyway)
+    await B.ctx.federation!.upsertShadow(peerA, substituted); // the server accepts what Alice's home server says…
     bob.clearKeyCache();
     // …but Bob's client pinned Alice's real key on first contact and refuses to encrypt to the new one.
     await expect(bob.send(conv, { type: "text", text: "to-substituted-key" })).rejects.toThrow(/identity/i);
     expect(bob.pins.get(alice.userId)).toBe(alice.identityKeyB64);
-    B.ctx.federation!.upsertShadow(peerA, real); // the genuine directory entry restores normal sending
+    await B.ctx.federation!.upsertShadow(peerA, real); // the genuine directory entry restores normal sending
     bob.clearKeyCache();
     await bob.send(conv, { type: "text", text: "after-restore" });
     await flushAll();
@@ -376,12 +377,12 @@ describe("server lifecycle seen from home servers", () => {
   });
 
   it("honours an operator's server block", async () => {
-    B.ctx.db.prepare("INSERT INTO federation_blocks (server_id, reason, created_at) VALUES (?, 'test', ?)").run(C.ctx.federation!.serverId, Date.now());
+    await B.ctx.fed.write((w) => w.insert("federation_blocks", { server_id: C.ctx.federation!.serverId, reason: "test", created_at: Date.now() }));
     try {
       const c1 = await C.client("carol");
       await expect(c1.req("GET", `/v1/federation/resolve?address=${encodeURIComponent(`@${bob.username}:b.test`)}`)).rejects.toMatchObject({ status: 403 });
     } finally {
-      B.ctx.db.prepare("DELETE FROM federation_blocks WHERE server_id = ?").run(C.ctx.federation!.serverId);
+      await B.ctx.fed.write((w) => w.delete("federation_blocks", { server_id: C.ctx.federation!.serverId }));
     }
   });
 
@@ -406,8 +407,10 @@ describe("resilience", () => {
   it("keeps resolving and delivering with one of three core nodes down (the acceptance criterion)", async () => {
     await cores[2].app.close();
     // Forget cached bindings so this lookup must reach a live quorum (2 of 3).
-    B.ctx.db.prepare("DELETE FROM federation_domains").run();
-    B.ctx.db.prepare("DELETE FROM federation_peers").run();
+    await B.ctx.fed.write((w) => {
+      w.delete("federation_domains", {});
+      w.delete("federation_peers", {});
+    });
     const r = await bob.req("GET", `/v1/federation/resolve?address=${encodeURIComponent(`@${alice.username}:a.test`)}`);
     expect(r.user.id).toBe(alice.userId);
     expect(r.server.verifiedBy).toBe(2);

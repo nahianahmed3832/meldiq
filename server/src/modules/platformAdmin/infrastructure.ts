@@ -82,7 +82,7 @@ export class AdminInfrastructure {
   /** A connector check that sends nothing to anyone (sign in to SMTP, list storage, FCM token, Mongo ping). Audited. */
   async check(p: AdminPrincipal, id: string, meta: RequestMeta) {
     const result = await checkConnector(this.ctx, id);
-    this.audit.record({
+    await this.audit.record({
       action: "connector.check",
       outcome: result.ok ? "success" : "failed",
       actorAccountId: p.account.id,

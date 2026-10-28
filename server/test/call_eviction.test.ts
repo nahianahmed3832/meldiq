@@ -211,7 +211,7 @@ describe("eviction when LiveKit misbehaves", () => {
     const b = await h.client("disb");
     const group = (await owner.req("POST", "/v1/conversations/group", { name: "Dis", memberIds: [a.userId, b.userId] })).conversation.id;
     const call = await callWith(group, owner, a, b);
-    h.ctx.db.prepare("UPDATE users SET disabled_at = ? WHERE id = ?").run(Date.now(), a.userId); // what `admin disable` writes
+    await h.ctx.identity.write((w) => w.update("users", { id: a.userId }, { disabled_at: Date.now() })); // what `admin disable` writes
     await runCleanup(h.ctx);
     expect(lk.inRoom(call.room, a)).toBe(false);
     expect(lk.inRoom(call.room, b)).toBe(true);

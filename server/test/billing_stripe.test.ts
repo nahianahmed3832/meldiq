@@ -223,7 +223,7 @@ describe("with Stripe in test mode", () => {
     );
     admin = await consoleAdmin(h, mailer, "billing_admin", "stripeadmin");
     quotaPlanId = "qp_premium";
-    h.ctx.db.prepare("INSERT INTO quota_plans (id, name, description, created_by, created_at) VALUES (?, 'Premium allowances', '', 'test', ?)").run(quotaPlanId, Date.now());
+    await h.ctx.platform.write((w) => w.insert("quota_plans", { id: quotaPlanId, name: "Premium allowances", description: "", created_by: "test", created_at: Date.now() }));
     await plan("premium", "personal", "price_premium_month", { quotaPlanId, trialDays: 7 });
     await plan("premiumyear", "personal", "price_premium_year", { interval: "year", amountMinor: 5000, quotaPlanId });
     await plan("team", "organization", "price_team_month", { limits: { members: 3 }, graceDays: 0 });

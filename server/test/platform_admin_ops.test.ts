@@ -37,7 +37,7 @@ beforeAll(async () => {
 afterAll(async () => h.close());
 
 const as = (role: string) => admins[role].browser;
-const lastAudit = (action: string) => h.ctx.db.prepare("SELECT * FROM platform_audit WHERE action = ? ORDER BY id DESC LIMIT 1").get(action) as any;
+const lastAudit = (action: string) => h.ctx.platform.get<any>("platform_audit", { action }, [["id", "desc"]]);
 
 describe("billing status and limits", () => {
   it("say there is no billing, and list server-wide limits", async () => {
@@ -227,7 +227,7 @@ describe("admin management", () => {
     // Nobody else can manage admins at all, so the last super admin can't be removed through the API. (The
     // last-super-admin check in admins.ts is defence in depth for that case.)
     // Step-up applies to admin management too.
-    h.ctx.db.prepare("UPDATE platform_admin_sessions SET reauth_at = 0 WHERE account_id = ?").run(second.account.accountId);
+    await h.ctx.ephemeral.write((w) => w.update("platform_admin_sessions", { account_id: second.account.accountId }, { reauth_at: 0 }));
     expect((await second.browser.req("POST", "/admin/v1/admins", { email: "nobody@example.test", role: "auditor", reason: REASON })).body.error.code).toBe("reauth_required");
   });
 });

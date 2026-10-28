@@ -22,7 +22,7 @@ describe.each([
 
   const signUp = async (name: string, inviteCode?: string) => {
     const c = new AccountClient(h.baseUrl, email(name), PASSWORD, name);
-    await c.req("POST", "/v2/auth/register", { name, email: c.email, password: PASSWORD, inviteCode: inviteCode ?? createRegistrationInvite(h.ctx.db, { maxUses: 1, days: 1 }).code });
+    await c.req("POST", "/v2/auth/register", { name, email: c.email, password: PASSWORD, inviteCode: inviteCode ?? (await createRegistrationInvite(h.ctx.identity, { maxUses: 1, days: 1 })).code });
     await c.req("POST", "/v2/auth/email/verify", { email: c.email, code: mailer.verifyCode(c.email), password: PASSWORD });
     return c;
   };
@@ -102,13 +102,13 @@ describe.each([
     // The other one found the identity already there (same device), or was refused (told to try again, or its proof was
     // for making an identity, not adding a device): never a second identity.
     for (const r of results.filter((x) => x.result !== "identity")) expect(r.result === "existing" || (r.status >= 400 && r.status < 500)).toBe(true);
-    const users = h.ctx.db.prepare("SELECT COUNT(*) n FROM users WHERE identity_key = ?").get(c.identityKeyB64) as { n: number };
+    const users = { n: h.ctx.identity.count("users", { identity_key: c.identityKeyB64 }) };
     expect(users.n).toBe(1);
   });
 
   it("a code works once even when sent twice at the same moment", async () => {
     const c = new AccountClient(h.baseUrl, email("twice"), PASSWORD, "twice");
-    await c.req("POST", "/v2/auth/register", { name: "twice", email: c.email, password: PASSWORD, inviteCode: createRegistrationInvite(h.ctx.db, { maxUses: 1, days: 1 }).code });
+    await c.req("POST", "/v2/auth/register", { name: "twice", email: c.email, password: PASSWORD, inviteCode: (await createRegistrationInvite(h.ctx.identity, { maxUses: 1, days: 1 })).code });
     await c.signIn().catch(() => undefined);
     await c.req("POST", "/v2/auth/password/forgot", { email: c.email }).catch(() => undefined);
     const code = mailer.verifyCode(c.email);
@@ -119,13 +119,13 @@ describe.each([
   });
 
   it("two sign-ups for one address at once make one account and use one invite", async () => {
-    const invite = createRegistrationInvite(h.ctx.db, { maxUses: 5, days: 1 });
+    const invite = await createRegistrationInvite(h.ctx.identity, { maxUses: 5, days: 1 });
     const address = email("samemail");
     await Promise.all(
       [1, 2].map(() => new AccountClient(h.baseUrl, address).req("POST", "/v2/auth/register", { name: "Same", email: address, password: PASSWORD, inviteCode: invite.code })),
     );
     expect(await accountRows(h).passwordHash(address)).toBeDefined();
-    const uses = (h.ctx.db.prepare("SELECT uses FROM registration_invites WHERE id = ?").get(invite.id) as { uses: number }).uses;
+    const uses = h.ctx.identity.get<{ uses: number }>("registration_invites", { id: invite.id })!.uses;
     expect(uses).toBe(1);
   });
 
@@ -157,7 +157,7 @@ describe.each([
   it("removing an unverified sign-up removes its sessions and codes too", async () => {
     const address = email("unverified");
     await new AccountClient(h.baseUrl, address).req("POST", "/v2/auth/register", {
-      name: "U", email: address, password: PASSWORD, inviteCode: createRegistrationInvite(h.ctx.db, { maxUses: 1, days: 1 }).code,
+      name: "U", email: address, password: PASSWORD, inviteCode: (await createRegistrationInvite(h.ctx.identity, { maxUses: 1, days: 1 })).code,
     });
     const a = (await h.ctx.accounts.store.accountByEmail(address))!;
     expect(await h.ctx.accounts.store.code(a.id, "verify_email")).toBeDefined();

@@ -157,16 +157,13 @@ export async function endCallRow(ctx: AppContext, c: CallRow, reason: string): P
  * also still hold `voice.connect` there (a timeout or a changed permission takes it away).
  */
 export function callAdmission(ctx: AppContext, conversationId: string): (userId: string, deviceId: string) => boolean {
-  const device = ctx.db.prepare(
-    "SELECT d.revoked_at, u.disabled_at FROM devices d JOIN users u ON u.id = d.user_id WHERE d.id = ? AND d.user_id = ?",
-  );
   const conv = ctx.authz.conversation(conversationId);
   const voiceChannel = conv && conv.voice && conv.type === "CHANNEL" && conv.org_id ? conv : null;
   return (userId, deviceId) => {
     if (!ctx.ws.get("conversation_members", { conversation_id: conversationId, user_id: userId })) return false;
     if (voiceChannel && !ctx.authz.canConnectVoice(voiceChannel, userId)) return false;
-    const d = device.get(deviceId, userId) as { revoked_at: number | null; disabled_at: number | null } | undefined;
-    return !!d && !d.revoked_at && !d.disabled_at;
+    const d = ctx.identity.get<{ revoked_at: number | null }>("devices", { id: deviceId, user_id: userId });
+    return !!d && !d.revoked_at && !!ctx.identity.get("users", { id: userId, disabled_at: null });
   };
 }
 
@@ -283,7 +280,7 @@ export async function evictUserDevicesFromCalls(ctx: AppContext, userId: string)
  * home server forwards (federation, `/fed/v1/calls/:id/:action`). The caller has already been checked as a member.
  */
 export function callActions(ctx: AppContext) {
-  const { db, authz } = ctx;
+  const { authz } = ctx;
   const load = (id: string) => loadCall(ctx, id);
   const broadcast = (c: CallRow, event: CallEventName, extra: CallEventExtras = {}) => broadcastCall(ctx, c, event, extra);
   const endCall = (c: CallRow, reason: string) => endCallRow(ctx, c, reason);
@@ -298,7 +295,7 @@ export function callActions(ctx: AppContext) {
     const room = !!conv?.voice;
     if (room && conv && !authz.canConnectVoice(conv, userId)) throw forbidden("You can't join this voice channel");
     const canSpeak = !room || !conv || authz.canSpeakInVoice(conv, userId);
-    const u = db.prepare("SELECT display_name FROM users WHERE id = ?").get(userId) as { display_name: string };
+    const u = ctx.identity.get<{ display_name: string }>("users", { id: userId })!;
     const token = await ctx.livekit.token({
       room: c.room_name,
       identity: `${userId}.${deviceId}`,
@@ -380,7 +377,7 @@ export function callActions(ctx: AppContext) {
 
 /** Sends a call event to one person: over their sockets here, or to their home server if they're on another one. */
 export async function notifyCallUser(ctx: AppContext, c: CallRow, userId: string, event: CallEventName, extra: CallEventExtras = {}): Promise<void> {
-  const home = (ctx.db.prepare("SELECT home_server_id h FROM users WHERE id = ?").get(userId) as { h: string | null } | undefined)?.h;
+  const home = ctx.identity.get<{ home_server_id: string | null }>("users", { id: userId })?.home_server_id;
   if (home) {
     if (!c.host_server_id) await ctx.federation?.relayCall(c, event, extra, userId);
     return;
@@ -395,7 +392,7 @@ export async function notifyCallUser(ctx: AppContext, c: CallRow, userId: string
 
 export default async function callRoutes(app: FastifyInstance, ctx: AppContext) {
   const auth = { preHandler: requireAuth(ctx) };
-  const { db, authz } = ctx;
+  const { authz } = ctx;
   const actions = callActions(ctx);
   const load = (id: string) => loadCall(ctx, id);
   const broadcast = (c: CallRow, event: CallEventName, extra: CallEventExtras = {}) => broadcastCall(ctx, c, event, extra);
@@ -461,7 +458,7 @@ export default async function callRoutes(app: FastifyInstance, ctx: AppContext) 
     if (conv.org_id) ctx.audit({ actorId: userId, orgId: conv.org_id, action: "call.start", target: conv.id, detail: body.video ? "video" : "voice" });
     // Ring everyone else (people on another server through their home server). The media E2EE key is NOT in this
     // event: the caller sends it as an end-to-end encrypted control message through the normal messaging path.
-    const callerName = (db.prepare("SELECT display_name FROM users WHERE id = ?").get(userId) as { display_name: string }).display_name;
+    const callerName = ctx.identity.get<{ display_name: string }>("users", { id: userId })!.display_name;
     for (const m of memberIds(conv.id)) {
       if (m === userId) continue;
       await notifyCallUser(ctx, c, m, "ring", { from: { userId, displayName: callerName } });

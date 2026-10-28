@@ -17,7 +17,7 @@ import { rowsByIds } from "../../infrastructure/database/byIds.js";
 
 export default async function messageRoutes(app: FastifyInstance, ctx: AppContext) {
   const auth = { preHandler: requireAuth(ctx) };
-  const { db, authz } = ctx;
+  const { authz } = ctx;
 
   /**
    * Accept an end-to-end encrypted envelope and fan it out into per-device delivery queues.
@@ -28,7 +28,7 @@ export default async function messageRoutes(app: FastifyInstance, ctx: AppContex
     const { userId, deviceId } = me(req);
     const e = parse(Envelope, req.body);
     // API 0.46.0: a suspended account can't send (account standing); controls and receipts still flow.
-    if (e.cls === "message") requireStanding(ctx.db, userId, "send_message");
+    if (e.cls === "message") requireStanding(ctx.safety, userId, "send_message");
     const conv = authz.requireMember(e.conversationId, userId);
     if (!authz.canPost(conv, userId)) {
       const timedOut = conv.org_id ? authz.timeoutUntil(conv.org_id, userId) : null;
@@ -57,7 +57,7 @@ export default async function messageRoutes(app: FastifyInstance, ctx: AppContex
     const earlier = await retry();
     if (earlier) return earlier;
 
-    const sender = db.prepare("SELECT signing_key FROM devices WHERE id = ?").get(deviceId) as { signing_key: string };
+    const sender = ctx.identity.get<{ signing_key: string }>("devices", { id: deviceId })!;
     const signed = canonical.envelope({
       messageId: e.messageId,
       conversationId: e.conversationId,
@@ -115,7 +115,7 @@ export default async function messageRoutes(app: FastifyInstance, ctx: AppContex
         .filter(({ user }) => user.disabled_at == null && user.kind === "person" && (!selfOnly || user.id === userId))
         .map(({ user }) => [user.id, user]),
     );
-    const expected = rowsByIds<{ id: string; user_id: string; revoked_at: number | null }>(db, "devices", "user_id", people.keys(), "id, user_id, revoked_at")
+    const expected = rowsByIds<{ id: string; user_id: string; revoked_at: number | null }>(ctx.identity, "devices", "user_id", people.keys(), "id, user_id, revoked_at")
       .filter((d) => d.revoked_at == null && d.id !== deviceId)
       .map((d) => ({ id: d.id, user_id: d.user_id, home_server_id: people.get(d.user_id)!.home_server_id }));
     const expectedIds = new Map(expected.map((d) => [d.id, d.user_id]));
@@ -133,9 +133,7 @@ export default async function messageRoutes(app: FastifyInstance, ctx: AppContex
     const ownerOf = new Map(expected.map((d) => [d.id, d.user_id]));
     if ([...homeOf.values()].some((h) => h) && !ctx.federation) throw new ApiError(503, "federation_disabled", "This server no longer federates");
     // People who blocked the sender don't get the message (the sender isn't told).
-    const blockedBy = new Set(
-      (db.prepare("SELECT user_id FROM user_blocks WHERE blocked_user_id = ?").all(userId) as { user_id: string }[]).map((r) => r.user_id),
-    );
+    const blockedBy = new Set(ctx.identity.all<{ user_id: string }>("user_blocks", { where: { blocked_user_id: userId } }).map((r) => r.user_id));
     const items: QueueInsert[] = [];
     const remote: { home: string; deviceId: string; payload: string }[] = [];
     for (const r of e.recipients) {
@@ -184,23 +182,7 @@ export default async function messageRoutes(app: FastifyInstance, ctx: AppContex
     };
     let inserted: QueueItemRow[];
     try {
-      inserted = await ctx.relay.accept(submission, items, () => {
-        // Devices of people on other servers go to the federation outbox (same ciphertext, same per-device key wrap).
-        for (const r of remote) {
-          ctx.federation!.routeRemote(r.home, {
-            key: `env:${e.messageId}:${deviceId}:${r.deviceId}`,
-            kind: "envelope",
-            conversationId: conv.id,
-            messageId: e.messageId,
-            senderUserId: userId,
-            senderDeviceId: deviceId,
-            recipientDeviceId: r.deviceId,
-            payload: r.payload,
-            createdAt: t,
-            expiresAt,
-          });
-        }
-      });
+      inserted = await ctx.relay.accept(submission, items);
     } catch (err) {
       // The same id accepted by a concurrent request: answer as the retry it is.
       if (err instanceof DuplicateSubmission) {
@@ -208,6 +190,25 @@ export default async function messageRoutes(app: FastifyInstance, ctx: AppContex
         if (dup) return dup;
       }
       throw err;
+    }
+    // Devices of people on other servers go to the federation outbox (same ciphertext, same per-device key wrap), once
+    // the message is accepted. The message is accepted and queued here either way; a retry answers as a duplicate, so
+    // an outbox that fails now is logged rather than failing the send.
+    for (const r of remote) {
+      await ctx
+        .federation!.routeRemote(r.home, {
+          key: `env:${e.messageId}:${deviceId}:${r.deviceId}`,
+          kind: "envelope",
+          conversationId: conv.id,
+          messageId: e.messageId,
+          senderUserId: userId,
+          senderDeviceId: deviceId,
+          recipientDeviceId: r.deviceId,
+          payload: r.payload,
+          createdAt: t,
+          expiresAt,
+        })
+        .catch((err) => ctx.log.error({ err, messageId: e.messageId }, "federation outbox: an accepted message wasn't queued for its server"));
     }
     // What the message changes about its conversation, once it's accepted (the conversation may not be in SQLite).
     if (mentionAll || e.cls === "message") {
@@ -248,12 +249,14 @@ export default async function messageRoutes(app: FastifyInstance, ctx: AppContex
  * sender's devices for DM/group messages. Receipts are routing metadata, not content.
  */
 export async function acknowledge(ctx: AppContext, userId: string, deviceId: string, ids: number[]): Promise<number> {
-  const { db } = ctx;
   const t = now();
   const taken = await ctx.relay.take(deviceId, ids);
   const receipts: QueueInsert[] = [];
 
-  const senderDevices = db.prepare("SELECT d.id, u.home_server_id FROM devices d JOIN users u ON u.id = d.user_id WHERE d.user_id = ? AND d.revoked_at IS NULL");
+  const senderDevices = (senderId: string) => {
+    const home = ctx.identity.get<{ home_server_id: string | null }>("users", { id: senderId })?.home_server_id ?? null;
+    return ctx.identity.all<{ id: string }>("devices", { where: { user_id: senderId, revoked_at: null } }).map((d) => ({ id: d.id, home_server_id: home }));
+  };
   for (const row of taken) {
     if (row.kind !== "envelope" || row.sender_user_id === userId) continue;
     const cls = (JSON.parse(row.payload) as { cls?: string }).cls;
@@ -262,12 +265,12 @@ export async function acknowledge(ctx: AppContext, userId: string, deviceId: str
     if (type !== "DM" && type !== "GROUP") continue;
     const payload = JSON.stringify({ status: "delivered", at: t });
     const expiresAt = t + ctx.config.queueTtlSeconds * 1000;
-    for (const d of senderDevices.all(row.sender_user_id) as { id: string; home_server_id: string | null }[]) {
+    for (const d of senderDevices(row.sender_user_id)) {
       if (d.home_server_id) {
         // The sender is on another server: the receipt travels back through federation (best effort: a full
         // outbox drops the receipt rather than failing this acknowledgement).
         try {
-          ctx.federation?.routeRemote(d.home_server_id, {
+          await ctx.federation?.routeRemote(d.home_server_id, {
             key: `rcpt:${row.message_id}:${deviceId}:${d.id}`,
             kind: "receipt",
             conversationId: row.conversation_id,

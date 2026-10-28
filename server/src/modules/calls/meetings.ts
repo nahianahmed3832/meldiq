@@ -80,7 +80,7 @@ export class MeetingService {
   }
 
   private name(id: string): string | null {
-    return (this.ctx.db.prepare("SELECT display_name FROM users WHERE id = ?").get(id) as { display_name: string } | undefined)?.display_name ?? null;
+    return this.ctx.identity.get<{ display_name: string }>("users", { id })?.display_name ?? null;
   }
 
   view(m: MeetingRow, userId: string) {

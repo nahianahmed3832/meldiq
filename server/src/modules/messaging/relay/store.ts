@@ -59,11 +59,9 @@ export interface RelayStore {
   submission(messageId: string): Promise<Submission | null>;
   /**
    * Records [sub] and queues [items] (one per recipient device) atomically. Throws DuplicateSubmission when the id is
-   * already taken. Returns the stored items, ids assigned. [sqliteSteps]: what else the acceptance changes in SQLite
-   * (conversation times, @everyone records, the federation outbox): the SQLite store runs it in the same transaction;
-   * the MongoDB store in its own SQLite transaction right after its commit.
+   * already taken. Returns the stored items, ids assigned.
    */
-  accept(sub: Submission, items: QueueInsert[], sqliteSteps?: () => void): Promise<QueueItemRow[]>;
+  accept(sub: Submission, items: QueueInsert[]): Promise<QueueItemRow[]>;
   /** Queues items that may already be there (receipts, federated deliveries): an existing one is skipped, not returned. */
   enqueue(items: QueueInsert[]): Promise<QueueItemRow[]>;
   /** A device's items that haven't expired, in id order. */
@@ -96,7 +94,7 @@ export class SqliteRelayStore implements RelayStore {
     return (this.db.prepare("SELECT * FROM submitted_messages WHERE message_id = ?").get(messageId) as Submission | undefined) ?? null;
   }
 
-  async accept(sub: Submission, items: QueueInsert[], sqliteSteps?: () => void): Promise<QueueItemRow[]> {
+  async accept(sub: Submission, items: QueueInsert[]): Promise<QueueItemRow[]> {
     const ins = this.insert();
     return this.db.transaction(() => {
       const taken = this.db
@@ -105,9 +103,7 @@ export class SqliteRelayStore implements RelayStore {
         )
         .run(sub.message_id, sub.sender_device_id, sub.sender_user_id, sub.conversation_id, sub.recipient_count, sub.server_ts, sub.expires_at);
       if (taken.changes === 0) throw new DuplicateSubmission(sub.message_id);
-      const rows = items.map((i) => ins(i)).filter((r): r is QueueItemRow => r !== undefined);
-      sqliteSteps?.();
-      return rows;
+      return items.map((i) => ins(i)).filter((r): r is QueueItemRow => r !== undefined);
     })();
   }
 

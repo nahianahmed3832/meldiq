@@ -1,7 +1,6 @@
 import { endNewAccountLimits, hasNewAccountLimits } from "../../app/middleware/abuse.js";
 import type { AppContext } from "../../app/context.js";
-import type { DB } from "../../infrastructure/database/db.js";
-import type { RowReader, RowWriter } from "../../infrastructure/database/rows/index.js";
+import type { RowReader, Rows, RowWriter } from "../../infrastructure/database/rows/index.js";
 import { type Authz, parsePermissionList } from "./authz.js";
 import { roleAssignmentRefusal } from "./permissions/rules.js";
 import { ApiError } from "../../shared/errors.js";
@@ -103,27 +102,41 @@ export function inviteAlreadySatisfied(authz: Authz, rows: RowReader, inv: OrgIn
 }
 
 /** A usable registration invite for this code. */
-export function findRegistrationInvite(db: DB, code: string): RegistrationInviteRow | undefined {
-  // Load-test invites (purpose 'loadtest') only work on the load-test path (modules/auth/loadtestProvisioning.ts).
-  const inv = db.prepare("SELECT * FROM registration_invites WHERE code_hash = ? AND purpose = 'registration'").get(sha256Hex(normalizeCode(code))) as
-    | RegistrationInviteRow
-    | undefined;
+export function findRegistrationInvite(identity: RowReader, code: string): RegistrationInviteRow | undefined {
+  // Load-test invites (purpose 'loadtest') only work on the load-test path (modules/accounts/loadtest.ts).
+  const inv = identity.get<RegistrationInviteRow>("registration_invites", { code_hash: sha256Hex(normalizeCode(code)), purpose: "registration" });
   return usable(inv) ? inv : undefined;
+}
+
+/** Takes one use of a registration invite inside the identity unit [w]; false when it can no longer be used. */
+export function consumeRegistrationInvite(w: RowWriter, inviteId: string): boolean {
+  const inv = w.get<RegistrationInviteRow>("registration_invites", { id: inviteId });
+  if (!inv || !usable(inv)) return false;
+  w.update("registration_invites", { id: inviteId }, { uses: inv.uses + 1 });
+  return true;
 }
 
 /**
  * Operator-only: creates a registration invite and returns its code, which is never stored.
  * Called from the admin CLI and tests; no HTTP route exposes it.
  */
-export function createRegistrationInvite(db: DB, opts: { maxUses: number; days: number; note?: string | null }): { id: string; code: string } {
+export async function createRegistrationInvite(identity: Rows, opts: { maxUses: number; days: number; note?: string | null }): Promise<{ id: string; code: string }> {
   if (!Number.isInteger(opts.maxUses) || opts.maxUses < 1 || opts.maxUses > 1000) throw new Error("uses must be 1–1000");
   if (!(opts.days > 0 && opts.days <= 30)) throw new Error("days must be more than 0 and at most 30");
   const code = humanCode(12);
   const id = newId("rinv");
   const t = now();
-  db.prepare(
-    "INSERT INTO registration_invites (id, code_hash, code_hint, note, max_uses, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-  ).run(id, sha256Hex(code), code.slice(-4), opts.note ?? null, opts.maxUses, t, t + Math.round(opts.days * 86_400_000));
+  await identity.write((w) =>
+    w.insert("registration_invites", {
+      id,
+      code_hash: sha256Hex(code),
+      code_hint: code.slice(-4),
+      note: opts.note ?? null,
+      max_uses: opts.maxUses,
+      created_at: t,
+      expires_at: t + Math.round(opts.days * 86_400_000),
+    }),
+  );
   return { id, code: `${code.slice(0, 4)}-${code.slice(4, 8)}-${code.slice(8)}` };
 }
 
@@ -134,7 +147,7 @@ export function createRegistrationInvite(db: DB, opts: { maxUses: number; days: 
  * Part of the caller's write unit [w].
  */
 export function joinOrgByInvite(ctx: AppContext, w: RowWriter, inv: OrgInviteRow, userId: string, t: number, consume = true): { orgId: string; inviteId: string; role: string } {
-  const { db, authz } = ctx;
+  const { authz } = ctx;
   const existing = authz.orgRole(inv.org_id, userId);
   const rank: Record<string, number> = { GUEST: 0, MEMBER: 1, ADMIN: 2, OWNER: 3 };
   if (authz.isBanned(inv.org_id, userId)) throw new ApiError(403, "banned", "You've been banned from this community");
@@ -159,7 +172,10 @@ export function joinOrgByInvite(ctx: AppContext, w: RowWriter, inv: OrgInviteRow
   if (consume) consumeInviteUse(w, inv.id);
   // An invitation from an established member ends new-account limits (docs/ABUSE_CONTROLS.md). One from an account
   // still under them doesn't, so nobody can vouch for their own extra accounts.
-  if (!hasNewAccountLimits(db, inv.created_by, t)) endNewAccountLimits(db, userId);
+  // The identity rows' own unit (in SQLite it joins the caller's transaction); losing it only leaves the limits on.
+  if (!hasNewAccountLimits(ctx.identity, inv.created_by, t)) {
+    void endNewAccountLimits(ctx.identity, userId).catch((e) => ctx.log.error({ err: e }, "new-account limits not ended"));
+  }
   authz.autoJoinScope(w, inv.org_id, userId, t);
   return { orgId: inv.org_id, inviteId: inv.id, role };
 }

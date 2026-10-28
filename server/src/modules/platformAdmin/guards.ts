@@ -65,7 +65,7 @@ export function requirePermission(auth: AdminAuthService, audit: PlatformAudit, 
     await session(req);
     const p = principal(req);
     if (!can(p.grant.role, permission)) {
-      audit.record({
+      await audit.record({
         action: "admin.permission",
         outcome: "denied",
         actorAccountId: p.account.id,

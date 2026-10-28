@@ -1,5 +1,6 @@
 import { Binary, type IndexDescription } from "mongodb";
 import type { DB } from "../db.js";
+import { SCHEMA } from "../schema.generated.js";
 
 /**
  * How every SQLite table maps to a MongoDB collection (docs/MONGODB.md). Documents are the rows themselves (same field
@@ -25,7 +26,9 @@ export type TableDomain =
   | "relationships"
   | "federation"
   | "platform"
-  | "billing";
+  | "billing"
+  | "safety"
+  | "ephemeral";
 
 /**
  * Tables that never go to MongoDB, and why. They are either SQLite's own bookkeeping or short-lived security material
@@ -34,9 +37,17 @@ export type TableDomain =
 export const EXCLUDED_TABLES: Readonly<Record<string, string>> = {
   sqlite_sequence: "SQLite internal",
   schema_migrations: "SQLite migration bookkeeping (MongoDB has its own: orbit_meta)",
+};
+
+/**
+ * Short-lived tables (the "ephemeral" domain, 2026-10-28): sign-in material and samples that matter for minutes, hours or
+ * days. They were never copied while their home was SQLite (a copy would only widen what a database copy exposes); with
+ * everything moving to MongoDB they live there like the rest, and are copied at the switch so nobody is signed out.
+ */
+export const EPHEMERAL_TABLES: Readonly<Record<string, string>> = {
   auth_challenges: "sign-in nonces, valid for 2 minutes",
   pairing_requests: "device pairing in progress (10 minutes), carries sealed identity material for the new device",
-  sessions: "v1 session token hashes (7 days); v1 apps sign in again by signature on their own",
+  sessions: "v1 session token hashes (7 days)",
   federation_nonces: "replay protection for signed server requests, minutes",
   // The Platform Admin Console (migration 046): sign-in material that is worthless after minutes or hours.
   platform_admin_challenges: "console passkey ceremonies in progress, 5 minutes",
@@ -45,12 +56,12 @@ export const EXCLUDED_TABLES: Readonly<Record<string, string>> = {
   // Platform Admin 2.0 (migration 048): per-minute telemetry, worth little once its hourly rollup exists.
   presence_samples: "per-minute concurrency samples, 30 days (presence_hourly keeps the long view)",
   resource_samples: "per-minute resource samples, 7 days (resource_hourly keeps the long view)",
-  quota_reservations: "quota reservations in flight, minutes",
   // Discord import (migration 056): a sign-in with Discord in progress, 10 minutes.
   discord_oauth_states: "Discord sign-in states in progress, 10 minutes",
 };
 
 export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
+  ...(Object.fromEntries(Object.keys(EPHEMERAL_TABLES).map((t) => [t, "ephemeral"])) as Record<string, TableDomain>),
   accounts: "accounts",
   account_sessions: "accounts",
   account_codes: "accounts",
@@ -61,15 +72,15 @@ export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
   // Keys backed up under the password (2026-10-21, docs/KEY_BACKUP.md).
   account_key_backups: "accounts",
   account_key_unlocks: "accounts",
-  // Passkeys (2026-10-23, docs/PASSKEYS.md); kept in SQLite in either mode.
-  account_passkeys: "accounts",
-  account_passkey_challenges: "accounts",
-  // Account safety (API 0.46.0, docs/ACCOUNT_SAFETY.md); kept in SQLite in either mode, like passkeys.
-  account_totp: "accounts",
-  account_totp_backup: "accounts",
-  account_email_changes: "accounts",
-  account_warnings: "accounts",
-  bug_reports: "accounts",
+  // Passkeys (2026-10-23, docs/PASSKEYS.md) and account safety (API 0.46.0, docs/ACCOUNT_SAFETY.md): the "safety" domain,
+  // apart from "accounts" because they were written to SQLite while the accounts were already in MongoDB.
+  account_passkeys: "safety",
+  account_passkey_challenges: "safety",
+  account_totp: "safety",
+  account_totp_backup: "safety",
+  account_email_changes: "safety",
+  account_warnings: "safety",
+  bug_reports: "safety",
   nav_preferences: "preferences",
   // Apps and connected accounts (2026-10-19): removed with the community rebuild; the tables stay (src/retiredData.ts).
   integration_installs: "integrations",
@@ -174,14 +185,13 @@ export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
   federation_inbox: "federation",
   federation_outbox: "federation",
   federation_peers: "federation",
-  // The Platform Admin Console (migration 046): grants, console passkeys, the append-only audit and incidents. Kept in
-  // SQLite in every mode (copy and verify only, like identity).
+  // The Platform Admin Console (migration 046): grants, console passkeys, the append-only audit and incidents.
   platform_admins: "platform",
   platform_admin_passkeys: "platform",
   platform_audit: "platform",
   platform_incidents: "platform",
   platform_incident_events: "platform",
-  // Platform Admin 2.0 (migration 048): telemetry, quotas, AI providers, settings and alerts. Kept in SQLite in every mode.
+  // Platform Admin 2.0 (migration 048): telemetry, quotas, AI providers, settings and alerts.
   activity_daily: "platform",
   telemetry_epochs: "platform",
   traffic_user_daily: "platform",
@@ -193,6 +203,8 @@ export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
   quota_policies: "platform",
   quota_counters: "platform",
   quota_events: "platform",
+  // Short-lived, but a reservation and the counters it holds change in one unit, so they live together.
+  quota_reservations: "platform",
   ai_providers: "platform",
   ai_models: "platform",
   ai_usage: "platform",
@@ -202,7 +214,7 @@ export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
   alert_deliveries: "platform",
   platform_restrictions: "platform",
   // AI Workforce (migration 049): model capabilities and routing, the catalog's state, communities' agents, jobs,
-  // files' records, approvals and agent posts. Kept in SQLite in every mode, like the rest of the platform tables.
+  // files' records, approvals and agent posts.
   ai_model_capabilities: "platform",
   ai_routing: "platform",
   ai_agent_templates: "platform",
@@ -226,8 +238,7 @@ export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
   ai_files: "platform",
   ai_approvals: "platform",
   ai_channel_posts: "platform",
-  // Billing (migration 061): the plan catalog, checkouts, subscriptions, invoices and provider events. Kept in SQLite in
-  // every mode, like the rest of the platform tables.
+  // Billing (migration 061): the plan catalog, checkouts, subscriptions, invoices and provider events.
   billing_plans: "billing",
   billing_plan_versions: "billing",
   billing_checkouts: "billing",
@@ -299,7 +310,55 @@ function parseDefault(raw: string | null): ColumnSpec["default"] {
 /** Columns stored as JSON text in SQLite and as embedded documents in MongoDB. */
 const JSON_COLUMNS: Readonly<Record<string, readonly string[]>> = { nav_preferences: ["doc"] };
 
-/** Reads the live schema: every table that maps to a collection, in name order. Fails on a table nobody classified. */
+/** A table as the migrations create it, before its domain is assigned (the checked-in schema's entries). */
+export type TableShape = Omit<TableSpec, "domain">;
+
+let specs: TableSpec[] | null = null;
+
+/**
+ * Every table the migrations create, from the checked-in schema (src/infrastructure/database/schema.generated.ts,
+ * written by `npm run schema`), with its domain: what the server and the rows layer run on, no database needed.
+ */
+export function tableSpecs(): TableSpec[] {
+  specs ??= SCHEMA.map((t) => {
+    const domain = TABLE_DOMAINS[t.name];
+    if (!domain) throw new Error(`Table ${t.name} has no MongoDB domain: classify it in src/infrastructure/database/mongo/catalog.ts`);
+    return { ...t, domain };
+  });
+  return specs;
+}
+
+/** The checked-in schema file's text for [tables] (scripts/schema.ts writes it; test/schema.test.ts compares it). */
+export function schemaSource(tables: readonly TableSpec[]): string {
+  // One line per column, index and foreign key: small, and a migration's change reads clearly in a diff.
+  const list = (items: readonly unknown[]) => (items.length ? `[\n${items.map((i) => `      ${JSON.stringify(i)},`).join("\n")}\n    ]` : "[]");
+  const table = (t: TableSpec) =>
+    [
+      "  {",
+      `    name: ${JSON.stringify(t.name)},`,
+      `    columns: ${list(t.columns)},`,
+      `    primaryKey: ${JSON.stringify(t.primaryKey)},`,
+      `    indexes: ${list(t.indexes)},`,
+      `    foreignKeys: ${list(t.foreignKeys)},`,
+      `    autoincrement: ${t.autoincrement},`,
+      "  },",
+    ].join("\n");
+  return [
+    "// Generated by `npm run schema` (scripts/schema.ts) from migrations/: do not edit. Add a migration and run it again.",
+    'import type { TableShape } from "./mongo/catalog.js";',
+    "",
+    "export const SCHEMA: readonly TableShape[] = [",
+    ...tables.map(table),
+    "];",
+    "",
+  ].join("\n");
+}
+
+/**
+ * Reads the schema of a SQLite database: every table that maps to a collection, in name order. Fails on a table nobody
+ * classified. For tools that read a SQLite file (migration to MongoDB, snapshots) and for the schema's generator; the
+ * server itself runs on [tableSpecs].
+ */
 export function describeTables(db: DB): TableSpec[] {
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all() as { name: string }[];
   const specs: TableSpec[] = [];

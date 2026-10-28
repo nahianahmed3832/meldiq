@@ -148,7 +148,7 @@ describe("registration with an invitation", () => {
   afterAll(async () => h.close());
 
   it("isn't limited per network: each invitation is already limited by its own uses", async () => {
-    const { code } = createRegistrationInvite(h.ctx.db, { maxUses: 3, days: 1 });
+    const { code } = await createRegistrationInvite(h.ctx.identity, { maxUses: 3, days: 1 });
     await from(h, "203.0.113.60").register(code);
     await from(h, "203.0.113.60").register(code);
     await from(h, "203.0.113.60").register(code);
