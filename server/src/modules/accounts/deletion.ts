@@ -78,6 +78,10 @@ export async function deleteOwnAccount(
   if (body.confirmEmail !== account.email.toLowerCase()) {
     throw new ApiError(400, "confirm_mismatch", "Type your account's email address exactly to delete your account. Nothing was deleted.");
   }
+  // Deleting the account doesn't stop the provider charging it (docs/BILLING.md › Account deletion): cancel first.
+  if (ctx.billing.renewsPersonal(account.id)) {
+    throw new ApiError(409, "subscription_active", "Your subscription still renews. Cancel it from the billing page first; nothing was deleted.");
+  }
   return eraseAccount(ctx, accounts, account, account.user_id);
 }
 

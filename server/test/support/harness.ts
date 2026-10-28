@@ -4,6 +4,7 @@ import path from "node:path";
 import { buildApp, type BuiltApp } from "../../src/app/server.js";
 import { loadConfig } from "../../src/app/config.js";
 import type { Mailer } from "../../src/infrastructure/mail/mailer.js";
+import type { BillingProvider } from "../../src/modules/billing/providers/types.js";
 import type { PushDeps } from "../../src/modules/notifications/service.js";
 import { type ContractCheck, contractCheck } from "./contracts.js";
 import { GriipClient } from "./griipClient.js";
@@ -22,9 +23,13 @@ let counter = 0;
 
 /**
  * [push]: replaces DNS and the network for push wake-ups (test/push_wakeup.test.ts). [mailer]: receives account emails
- * (test/support/accounts.ts MemoryMailer); without one, MAIL_TRANSPORT decides (none by default).
+ * (test/support/accounts.ts MemoryMailer); without one, MAIL_TRANSPORT decides (none by default). [billingProvider]:
+ * replaces the configured billing provider (a Stripe adapter talking to a fake API, or a test store adapter).
  */
-export async function startServer(env: Record<string, string> = {}, opts: { push?: PushDeps; mailer?: Mailer } = {}): Promise<Harness> {
+export async function startServer(
+  env: Record<string, string> = {},
+  opts: { push?: PushDeps; mailer?: Mailer; billingProvider?: BillingProvider } = {},
+): Promise<Harness> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "griip-test-"));
   const config = loadConfig({
     DATA_DIR: dir,
@@ -52,6 +57,7 @@ export async function startServer(env: Record<string, string> = {}, opts: { push
     ...testMongoEnv(env),
     ...env,
   } as NodeJS.ProcessEnv);
+  if (opts.billingProvider) config.billing = { ...config.billing, provider: opts.billingProvider, unavailableReason: null };
   const contracts = contractCheck();
   const built = await buildApp(config, { logger: false, push: opts.push, mailer: opts.mailer, contracts: contracts.observer });
   await built.app.listen({ host: "127.0.0.1", port: 0 });

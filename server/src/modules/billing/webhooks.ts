@@ -4,7 +4,7 @@ import { ApiError, conflict, notFound } from "../../shared/errors.js";
 import { newId } from "../../shared/utilities/util.js";
 import type { BillingProvider, NormalizedEvent } from "./providers/types.js";
 import { WebhookRejected } from "./providers/types.js";
-import { BillingEventError, type Subscriptions } from "./subscriptions.js";
+import { type ApplyOutcome, BillingEventError, type Subscriptions } from "./subscriptions.js";
 
 /**
  * Provider webhooks (docs/BILLING.md › Webhooks). A delivery is trusted only after its signature verifies; it is then
@@ -37,7 +37,12 @@ const RETRY_BATCH = 50;
 
 export const retryDelay = (attempts: number) => Math.min(RETRY_BASE_MS * 2 ** Math.max(attempts - 1, 0), RETRY_MAX_MS);
 
+/** Told after an event's changes are committed (reconciliation and change notices; never inside the transaction). */
+export type AfterApply = (event: NormalizedEvent, outcome: ApplyOutcome) => void;
+
 export class BillingWebhooks {
+  afterApply: AfterApply | null = null;
+
   constructor(
     private readonly db: DB,
     private readonly provider: BillingProvider | null,
@@ -86,15 +91,18 @@ export class BillingWebhooks {
     const event = JSON.parse(row.summary) as NormalizedEvent;
     const t = this.clock();
     try {
-      const outcome = this.db.transaction(() => {
-        if (event.kind === "subscription") return this.subscriptions.applySnapshot(row.provider, event.subscription, event.createdAt, row.id, t);
+      const outcome = this.db.transaction((): ApplyOutcome | null => {
+        if (event.kind === "subscription") return this.subscriptions.applySnapshot(row.provider, event.subscription, event.createdAt, `provider_event:${row.id}`, t);
         if (event.kind === "invoice") return this.subscriptions.applyInvoice(row.provider, event.invoice, event.createdAt, t);
+        if (event.kind === "checkout") return this.subscriptions.applyCheckout(row.provider, event.checkout, t);
+        if (event.kind === "payment") return this.subscriptions.applyPayment(row.provider, event.payment, `provider_event:${row.id}`, t);
         return null;
       })();
       const status: EventStatus = outcome && outcome.result === "applied" ? "processed" : "ignored";
       this.db
         .prepare("UPDATE billing_provider_events SET status = ?, attempts = attempts + 1, processed_at = ?, next_attempt_at = NULL, last_error = NULL, subscription_id = ? WHERE id = ?")
         .run(status, t, outcome?.subscriptionId ?? null, row.id);
+      if (outcome && status === "processed") this.notifyApplied(event, outcome);
       return status;
     } catch (e) {
       const code = e instanceof BillingEventError ? e.code : "internal_error";
@@ -105,6 +113,14 @@ export class BillingWebhooks {
         .prepare("UPDATE billing_provider_events SET status = ?, attempts = ?, next_attempt_at = ?, last_error = ? WHERE id = ?")
         .run(status, attempts, status === "failed" ? t + retryDelay(attempts) : null, code, row.id);
       return status;
+    }
+  }
+
+  private notifyApplied(event: NormalizedEvent, outcome: ApplyOutcome): void {
+    try {
+      this.afterApply?.(event, outcome);
+    } catch (e) {
+      this.log.error({ err: e }, "billing after-apply hook failed");
     }
   }
 

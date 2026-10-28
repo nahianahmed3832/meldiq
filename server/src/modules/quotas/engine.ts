@@ -107,7 +107,14 @@ export class QuotaEngine {
   constructor(
     private readonly db: DB,
     private readonly clock: () => number = Date.now,
+    /** The quota plan a granting subscription puts a person or organization on (billing), after operator assignments. */
+    private readonly subscribedPlan: (scope: Scope, t: number) => string | null = () => null,
   ) {}
+
+  /** Whether [id] is a quota plan that can still be assigned (not archived). */
+  planExists(id: string): boolean {
+    return !!this.db.prepare("SELECT 1 FROM quota_plans WHERE id = ? AND archived_at IS NULL").get(id);
+  }
 
   private policies(key: string): PolicyRow[] {
     if (!this.cache) {
@@ -123,11 +130,11 @@ export class QuotaEngine {
     return this.policies(key).length > 0;
   }
 
-  /** The plan [scope] is on, if any. */
+  /** The plan [scope] is on, if any: an operator's assignment first, else the one its subscription grants. */
   planOf(scope: Scope): string | null {
     if (scope.type !== "org" && scope.type !== "user") return null;
     const row = this.db.prepare("SELECT plan_id FROM quota_plan_members WHERE scope_type = ? AND scope_id = ?").get(scope.type, scope.id) as { plan_id: string } | undefined;
-    return row?.plan_id ?? null;
+    return row?.plan_id ?? this.subscribedPlan(scope, this.clock());
   }
 
   /** The policy that applies to [scope] for [key] at [t], following the resolution order above. */

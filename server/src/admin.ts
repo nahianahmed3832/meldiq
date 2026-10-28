@@ -31,6 +31,13 @@
  *   storage-orphans [--delete]     stored files no record refers to, older than a day (dry run; --delete queues them
  *                                  for the retention job)
  *   table-counts                   rows in every table, as JSON (no content; backup manifests and migration checks)
+ *   stripe-setup [--replace-webhook] [--emit-env]
+ *                                  Meldiq Mojo in Stripe (test keys only, unless --live): product, prices, webhook,
+ *                                  portal (docs/BILLING.md; deploy/scripts/stripe-setup.sh runs it). --emit-env prints
+ *                                  the settings for .env, the webhook's signing secret included: only for that script
+ *   billing-mojo-plans <goPriceId> <plusPriceId>
+ *                                  publish Mojo Go and Mojo Plus in the plan catalog at those prices (needs
+ *                                  BILLING_PROVIDER=stripe)
  *   mongo-status | mongo-estimate | mongo-migrate | mongo-verify | mongo-rollback | mongo-dryrun
  *                                  MongoDB domains and migration (src/mongo/admin.ts, docs/MONGODB.md)
  *   retired-data [--purge --yes]   rows left in the tables of modules the community rebuild removed (apps, inbox,
@@ -49,6 +56,10 @@ import { Accounts } from "./modules/accounts/index.js";
 import { Authz } from "./modules/organizations/authz.js";
 import { backupDatabase, verifyBackup } from "./modules/administration/backup.js";
 import { loadConfig } from "./app/config.js";
+import Stripe from "stripe";
+import { PlanCatalog } from "./modules/billing/catalog.js";
+import { stripeKeyMode } from "./modules/billing/providers/stripe.js";
+import { publishMojoPlans, stripeSetup, stripeSetupApi } from "./modules/billing/stripeSetup.js";
 import { openDatabase } from "./infrastructure/database/db.js";
 import { ServerIdentity } from "./modules/federation/identity.js";
 import { Hub } from "./modules/realtime/hub.js";
@@ -335,6 +346,45 @@ switch (cmd) {
         2,
       ),
     );
+    break;
+  }
+  case "stripe-setup": {
+    const key = (process.env.STRIPE_SECRET_KEY ?? "").trim();
+    const mode = stripeKeyMode(key);
+    if (!mode || (mode === "live" && !rest.includes("--live"))) {
+      console.error(mode === "live" ? "STRIPE_SECRET_KEY is a live key: add --live once live billing is approved" : "Set STRIPE_SECRET_KEY (sk_test_… or rk_test_…) first");
+      process.exit(1);
+    }
+    const site = (process.env.MELDIQ_SITE_URL ?? "https://meldiq.app").replace(/\/$/, "");
+    const api = (process.env.PUBLIC_API_URL ?? "https://msg.meldiq.app").replace(/\/$/, "");
+    const result = await stripeSetup(stripeSetupApi(new Stripe(key, { maxNetworkRetries: 2, appInfo: { name: "Meldiq setup" } })), {
+      webhookUrl: `${api}/v1/billing/webhooks/stripe`,
+      siteUrl: site,
+      replaceWebhook: rest.includes("--replace-webhook"),
+    });
+    console.error(`Stripe (${mode} mode):\n  ${result.steps.join("\n  ")}`);
+    if (rest.includes("--emit-env")) {
+      // Read by deploy/scripts/stripe-setup.sh only, which writes them to .env without showing them.
+      console.log(`ENV BILLING_RETURN_URL=${site}/account/billing`);
+      console.log(`ENV STRIPE_PORTAL_CONFIGURATION=${result.portalConfiguration}`);
+      if (result.webhook.secret) console.log(`ENV STRIPE_WEBHOOK_SECRET=${result.webhook.secret}`);
+      console.log(`PRICES ${result.prices.go} ${result.prices.plus}`);
+    } else console.log(JSON.stringify({ ...result, webhook: { ...result.webhook, secret: result.webhook.secret ? "(created; not shown)" : null } }, null, 2));
+    break;
+  }
+  case "billing-mojo-plans": {
+    const [go, plus] = rest;
+    if (!go?.startsWith("price_") || !plus?.startsWith("price_")) {
+      console.error("usage: billing-mojo-plans <goPriceId> <plusPriceId>");
+      process.exit(1);
+    }
+    const provider = cfg.billing.provider;
+    if (!provider) {
+      console.error("No billing provider is configured (BILLING_PROVIDER): set it to stripe first");
+      process.exit(1);
+    }
+    const catalog = new PlanCatalog(db);
+    for (const line of publishMojoPlans(catalog, provider.id, { go, plus }, "cli", now())) console.log(line);
     break;
   }
   case "table-counts": {

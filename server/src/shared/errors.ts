@@ -154,6 +154,7 @@ export const ERROR_CODES = {
   org_quota_exceeded: { status: [429], meaning: "This workspace has reached its file storage limit. Older files expire after 7 days." },
   own_report: { status: [403], meaning: "This report is about you: another moderator handles it" },
   owner_only: { status: [400], meaning: "Only the owner can do that." },
+  subscription_active: { status: [409], meaning: "Your subscription still renews. Cancel it from the billing page first; nothing was deleted." },
   owns_workspaces: { status: [409], meaning: "You're the only owner of a workspace. Make someone else an owner, or delete the workspace, first. Nothing was deleted." },
   passkey_failed: { status: [401], meaning: "That passkey couldn't be verified. Try again, or sign in with your password." },
   passkey_limit: { status: [409], meaning: "This account already has as many passkeys as it can. Remove one first." },

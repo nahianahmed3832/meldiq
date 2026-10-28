@@ -130,6 +130,47 @@ Passkeys failed in the app installed from Google Play: Play signs it with its ap
 
 Rollback: copy the backup's `.env` back and recreate `api` the same way.
 
+### API 0.53.0: Meldiq Mojo trials, invite links and the Stripe setup command (2026-10-28, 08:26 UTC, owner's go-ahead: "Deploy API 0.53.0 to production now (trials off, billing off), same procedure as 0.52.0, and verify it.")
+
+Free Mojo Plus periods (14-day trial, 30 days for both through an invite link, inviter up to 90 days a year), the
+invite-link routes, `admin.js stripe-setup` / `billing-mojo-plans` and `scripts/stripe-setup-remote.sh`
+(docs/BILLING.md › Trials and invite links, › Stripe setup). Migration **063** (three new billing tables). Off in
+production: no `BILLING_TRIAL_STARTS_AT`, `BILLING_PROVIDER` unset. Uncommitted on internal-beta.
+
+| Step | Result |
+|---|---|
+| Checks before | billing, trials, Stripe, contracts, architecture and MongoDB-catalog suites 92/92; full suite 1,011 passed, 12 timeouts under machine load (load average ~12), all 5 affected files passing alone; `tsc` clean; `docs/api` regenerated |
+| Pre-flight | running 0.52.0 healthy, 0 restarts; the only source differences were the 0.53.0 changes; `.env` has no `BILLING_*`/`STRIPE_*`; no build running; 42 GB free |
+| Backup | `backups/pre-0.53.0-20261028T082408Z`: integrity ok, schema 62, 43 users, `.env` + `compose.yaml` copies; image tagged `0.52.0-rollback`; sources kept as `server.pre-0.53.0` |
+| Build | 16 server files + `scripts/stripe-setup.sh`, `scripts/stripe-setup-remote.sh`, `.env.example` synced; parity 0 differences; `docker build --network host` → `0.53.0` |
+| Rehearsal | backup copy, `--network none`: healthy, schema 63, the three tables present, integrity ok, 0 foreign-key violations, 43 users / 11 orgs, `/v2/billing/plans` `trial: null`, `stripe-setup` present (refuses without a key), 0 errors; **0.52.0-rollback on the migrated copy: healthy, 0 errors**. Removed after |
+| Switch | `compose.yaml` image 0.53.0; `config -q` ok; `up -d --no-deps --no-build api` at 08:26:30, healthy 08:26:38; LiveKit and ntfy not restarted (validator's MongoDB line: the known false positive, see 0.52.0) |
+| Checks after | `/healthz` 0.53.0, `mongodb: true` on both API hosts; `verify.sh` 0 restarts; schema 63, 0 grants; 0 warnings/errors, live 200s; plans `{available:false, plans:[], trial:null}` through meldiq.app; referral, claim and entitlements without a token 401; Stripe webhook 404; sign-in route answers; web, admin console and website 200 |
+
+Rollback: `image: griip-internal-messaging-api:0.52.0-rollback`, then `up -d --no-deps --no-build api` (rehearsed on
+schema 63).
+
+### API 0.52.0: Meldiq Mojo billing foundation (2026-10-28, 07:19 UTC, owner's go-ahead: "Deploy API 0.52.0 to production with BILLING_PROVIDER=none for now, following docs/DEPLOYMENT.md, and verify it.")
+
+Stripe provider, subscriptions owned by a person's account, one customer per owner, the `unpaid` state, the v2
+billing and entitlements routes, account deletion refused while a subscription renews (docs/BILLING.md › Meldiq Mojo
+and Stripe). Migration **062** (billing tables only, SQLite). `BILLING_PROVIDER` stays unset (= none): nothing can be
+bought, and the Stripe webhook route answers 404. Uncommitted on internal-beta (ff6408b + the 0.52.0 changes; the owner
+will say where to push).
+
+| Step | Result |
+|---|---|
+| Checks before | server full suite 1,017 passed / 10 skipped (SQLite); MongoDB mode (7 domains, 3 workers) 962 passed, 6 failed under load, the 11 affected files 118/118 alone; billing + account suites in MongoDB mode 105/105; `tsc` clean; `docs/api` regenerated |
+| Pre-flight | running 0.51.1 healthy; VPS `server/` (tests excluded) byte-equal to ff6408b (`rsync -c` dry run: 0 differences); no build running; 42 GB free; `.env` has no `BILLING_*` |
+| Backup | `backups/pre-0.52.0-20261028T071622Z`: integrity ok, schema 61, 43 users, `.env` + `compose.yaml` copies; image tagged `0.51.1-rollback`; sources kept as `server.pre-0.52.0`. Production had 0 billing plans, subscriptions, checkouts and invoices. (Atlas holds the seven MongoDB domains, untouched by this release; Free tier has no Atlas backup.) |
+| Build | 26 files synced (plus `scripts/validate-env.sh`, `.env.example`), parity 0 differences; `docker build --network host` → `0.52.0` |
+| Rehearsal | backup copy, `--network none`, MongoDB/push settings left out: healthy, 0.52.0, schema 62, `billing_customers` and the owner columns present, integrity ok, 0 foreign-key violations, 43 users / 11 orgs, `/v2/billing/plans` empty, 0 errors. Then **0.51.1-rollback on the migrated copy: healthy, 0 errors** (rollback proven). Removed after |
+| Switch | `compose.yaml` image 0.52.0; `config -q` ok; `up -d --no-deps --no-build api` at 07:19:34, healthy 07:19:41; LiveKit and ntfy not restarted. `validate-env.sh`: billing ok (none); its "MONGODB_DOMAINS needs MONGODB_URI" is a false positive since the 05:20 cutover: the URI's `&` breaks `. .env` in bash, while Docker reads the file literally (the API is connected) |
+| Checks after | `/healthz` 0.52.0, `mongodb: true` on msg.meldiq.app and msg.griipbuddy.cloud; `verify.sh` 0 restarts (api, livekit, ntfy); schema 62; 0 warnings/errors in the log, live traffic 200s and WebSockets; `GET /v2/billing/plans` `{available:false, plans:[]}` direct and through meldiq.app; entitlements/checkout without or with a bad token 401; `/v1/billing/webhooks/stripe` 404; `/v1/orgs/:id/billing` signed out 401; sign-in route answers; web.meldiq.app and admin.meldiq.app 200; meldiq.app/pricing shows Mojo Go and Mojo Plus as not on sale |
+
+Rollback: `image: griip-internal-messaging-api:0.51.1-rollback` in `compose.yaml`, then `up -d --no-deps --no-build api`
+(it runs on schema 62, rehearsed). Full restore: `scripts/restore.sh` with the pre-0.52.0 archive.
+
 ### API 0.51.1 and the MongoDB Atlas cutover (2026-10-28, 05:20 UTC, owner's go-ahead: "finish all sql migration to mongodb atlas and make it as primary database")
 
 Seven domains now live in MongoDB Atlas (project `Meldiq`, `Cluster0`, M0 Free, AWS Singapore, user `meldiq_api` with

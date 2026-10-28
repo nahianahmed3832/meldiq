@@ -122,6 +122,8 @@ export const ServerEvent = z.discriminatedUnion("t", [
    */
   z.strictObject({ t: z.literal("user.updated"), userId: id }),
   z.strictObject({ t: z.literal("connections.updated") }),
+  // docs/BILLING.md › Entitlements API: refetch GET /v2/billing/entitlements.
+  z.strictObject({ t: z.literal("entitlements.changed"), scope: z.enum(["account", "org"]), orgId: id.optional() }),
   z.strictObject({ t: z.literal("prefs.updated"), workspaceId: id, rev: z.number().int().nonnegative() }),
   z.strictObject({ t: z.literal("reminders.changed"), id, rev: z.number().int().nonnegative().optional(), deleted: z.literal(true).optional() }),
   z.strictObject({ t: z.literal("reminder.due"), id, occurrenceAt: time, firedAt: time }),

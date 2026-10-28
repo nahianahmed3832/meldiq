@@ -114,6 +114,7 @@ export class AdminBilling {
       description: plan.description,
       segment: plan.segment,
       public: plan.public === 1,
+      audience: plan.audience,
       status: plan.status,
       createdAt: plan.created_at,
       updatedAt: plan.updated_at,
@@ -198,7 +199,8 @@ export class AdminBilling {
     const plan = this.ctx.billing.catalog.plan(v.plan_id)!;
     return {
       id: s.id,
-      org: { id: s.org_id, name: names.get(s.org_id) ?? null },
+      owner: { kind: s.owner_kind, id: s.org_id ?? s.account_id! },
+      org: s.org_id ? { id: s.org_id, name: names.get(s.org_id) ?? null } : null,
       plan: { key: plan.key, name: plan.name, version: v.version },
       status: s.status,
       standing: this.ctx.billing.subscriptions.standingOf(s, t),
@@ -214,7 +216,7 @@ export class AdminBilling {
   subscriptions(q: { status?: string; plan?: string; org?: string; cursor?: string; limit: number }) {
     const rows = subscriptionRows(this.ctx.db, { ...q, after: decodeCursor(q.cursor) });
     const { rows: shown, nextCursor } = page(rows, q.limit);
-    const names = orgNames(this.ctx.db, [...new Set(shown.map((s) => s.org_id))]);
+    const names = orgNames(this.ctx.db, [...new Set(shown.flatMap((s) => (s.org_id ? [s.org_id] : [])))]);
     const t = now();
     return { subscriptions: shown.map((s) => this.summary(s, names, t)), nextCursor };
   }
@@ -223,7 +225,7 @@ export class AdminBilling {
     const s = this.ctx.billing.subscriptions.get(id);
     if (!s) throw notFound("No such subscription");
     const t = now();
-    const names = orgNames(this.ctx.db, [s.org_id]);
+    const names = orgNames(this.ctx.db, s.org_id ? [s.org_id] : []);
     const v = this.ctx.billing.catalog.version(s.plan_version_id)!;
     const versionOf = (vid: string) => this.ctx.billing.catalog.version(vid)?.version ?? null;
     const { history, invoices, events } = subscriptionRecords(this.ctx.db, id, DETAIL_ROWS);
@@ -253,7 +255,7 @@ export class AdminBilling {
         issuedAt: i.issued_at,
         paidAt: i.paid_at,
       })),
-      limits: limitsOf(this.ctx, s.org_id),
+      limits: s.org_id ? limitsOf(this.ctx, s.org_id) : [],
       events: events.map((e) => ({ id: e.id, type: e.type, status: e.status, receivedAt: e.received_at, lastError: e.last_error })),
     };
   }

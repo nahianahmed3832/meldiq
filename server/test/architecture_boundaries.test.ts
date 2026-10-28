@@ -124,7 +124,11 @@ const TABLE_OWNERS: Readonly<Record<string, string>> = {
   // Billing (migration 061).
   ...owned(
     "billing",
-    "billing_plans billing_plan_versions billing_checkouts billing_subscriptions billing_subscription_history billing_invoices billing_provider_events billing_webhook_rejections",
+    "billing_plans billing_plan_versions billing_checkouts billing_subscriptions billing_subscription_history billing_invoices billing_provider_events billing_webhook_rejections billing_customers " +
+      // Migration 062 rebuilds three tables through these names (they exist only during the migration).
+      "billing_checkouts_rebuilt billing_subscriptions_rebuilt billing_invoices_rebuilt " +
+      // Migration 063: trials and invite links.
+      "billing_grants billing_referral_codes billing_referrals",
   ),
   ...owned("quotas", "quota_plans quota_plan_members quota_policies quota_counters quota_reservations quota_events"),
   ...owned("ai", "ai_providers ai_models ai_usage ai_model_capabilities ai_routing"),

@@ -62,7 +62,17 @@ case "${BILLING_PROVIDER:-none}" in
   sandbox)
     if [ "${#BILLING_SANDBOX_WEBHOOK_SECRET}" -ge 32 ]; then warn "BILLING_PROVIDER=sandbox: test mode, no real money; not for production customers"
     else err "BILLING_SANDBOX_WEBHOOK_SECRET must be at least 32 characters with BILLING_PROVIDER=sandbox"; fi ;;
-  *) err "BILLING_PROVIDER must be none or sandbox (${BILLING_PROVIDER})" ;;
+  stripe)
+    case "${STRIPE_SECRET_KEY:-}" in
+      sk_test_*|rk_test_*) warn "BILLING_PROVIDER=stripe with a test key: Stripe test mode, no real money" ;;
+      sk_live_*|rk_live_*)
+        if [ "${BILLING_ALLOW_LIVE:-}" = "true" ] && [ "${APP_ENV:-}" = "production" ]; then warn "BILLING_PROVIDER=stripe with a LIVE key: real charges"
+        else err "STRIPE_SECRET_KEY is a live key: needs BILLING_ALLOW_LIVE=true and APP_ENV=production"; fi ;;
+      *) err "STRIPE_SECRET_KEY must be a Stripe secret key (sk_test_… or rk_test_…) with BILLING_PROVIDER=stripe" ;;
+    esac
+    case "${STRIPE_WEBHOOK_SECRET:-}" in whsec_*) ok "STRIPE_WEBHOOK_SECRET set" ;; *) err "STRIPE_WEBHOOK_SECRET must be the endpoint's signing secret (whsec_…)" ;; esac
+    case "${BILLING_RETURN_URL:-}" in https://*) ok "BILLING_RETURN_URL ${BILLING_RETURN_URL}" ;; *) err "BILLING_RETURN_URL must be the website's https billing page (e.g. https://meldiq.app/account/billing)" ;; esac ;;
+  *) err "BILLING_PROVIDER must be none, sandbox or stripe (${BILLING_PROVIDER})" ;;
 esac
 
 # Platform Admin 2.0: the credentials key, if set, must be 32 bytes (hex or base64); the server refuses to start otherwise.

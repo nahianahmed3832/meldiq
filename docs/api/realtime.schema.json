@@ -921,6 +921,32 @@
           "properties": {
             "t": {
               "type": "string",
+              "const": "entitlements.changed"
+            },
+            "scope": {
+              "type": "string",
+              "enum": [
+                "account",
+                "org"
+              ]
+            },
+            "orgId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          "required": [
+            "t",
+            "scope"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "t": {
+              "type": "string",
               "const": "prefs.updated"
             },
             "workspaceId": {
