@@ -520,8 +520,15 @@ class CallManager(
         // Microphone and camera publish side by side (LiveKit locks each source on its own; round 7, bug 7). A listener
         // publishes nothing: the token would refuse it anyway.
         if (!media.canSpeak) _state.update { it.copy(notice = CallFailure.LISTEN_ONLY) }
+        // The user panel's microphone and headphones (Settings.joinMuted / joinDeafened): the call starts as they say.
+        val joinMuted = settings.current.joinMuted || settings.current.joinDeafened
+        if (settings.current.joinDeafened) {
+            micBeforeDeafen = !settings.current.joinMuted
+            _state.update { it.copy(deafened = true) }
+            applyDeafen(r)
+        }
         if (media.canSpeak) coroutineScope {
-            launch {
+            if (!joinMuted) launch {
                 try {
                     r.localParticipant.setMicrophoneEnabled(true)
                     stage("mic on")

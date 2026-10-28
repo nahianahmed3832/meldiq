@@ -212,6 +212,12 @@ private fun ChatsHome(nav: NavHostController, request: DmListRequest) {
                 }
             }
             item(key = "connection") { ConnectionBanner(conn, Modifier.padding(horizontal = Space.gutter, vertical = 4.dp)) { container.realtime.reconnectNow() } }
+            // The floating redesign (2026-10-28): invite friends to Meldiq itself (community invitations stay in each community),
+            // and a small Meldiq Mojo card.
+            if (!archivedView && query.isBlank()) {
+                item(key = "invite-meldiq") { MeldiqInviteCard(Modifier.padding(horizontal = Space.gutter, vertical = 4.dp)) }
+                item(key = "mojo-promo") { MojoPromoCard({ nav.navigate(Routes.MOJO) }, Modifier.padding(horizontal = Space.gutter, vertical = 4.dp)) }
+            }
             if (liveCall != null) item(key = "live-call") {
                 val title = listTitle(liveCall, me)
                 StatusBanner(

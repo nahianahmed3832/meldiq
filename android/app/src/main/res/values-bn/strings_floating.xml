@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Floating redesign strings (docs/FLOATING_REDESIGN_ANDROID.md). Generated from strings_floating.py. -->
+<resources>
+    <string name="palette_midnight">মিডনাইট</string>
+    <string name="up_status_cd">%1$s: আপনার স্ট্যাটাস</string>
+    <string name="up_mic_mute">মিউট করুন</string>
+    <string name="up_mic_unmute">আনমিউট করুন</string>
+    <string name="up_next_mic_off">কল মিউট অবস্থায় শুরু করুন</string>
+    <string name="up_next_mic_on">মাইক্রোফোন চালু রেখে কল শুরু করুন</string>
+    <string name="up_next_deafen">শব্দ বন্ধ রেখে কল শুরু করুন</string>
+    <string name="up_next_undeafen">সবাইকে শুনে কল শুরু করুন</string>
+    <string name="sw_close">সেটিংস বন্ধ করুন</string>
+    <string name="sw_my_account">আমার অ্যাকাউন্ট</string>
+    <string name="sw_my_profile">আমার প্রোফাইল</string>
+    <string name="sw_voice_audio">ভয়েস ও অডিও</string>
+    <string name="sw_appearance">চেহারা</string>
+    <string name="sw_advanced">উন্নত</string>
+    <string name="spark_entry_sub">লেভেল, আপনার Spark, দিন ও আরও নিন</string>
+    <string name="dm_invite_title">বন্ধুদের Meldiq-এ আমন্ত্রণ জানান</string>
+    <string name="dm_invite_body">তাদের Meldiq-এর লিংক আর আপনার ইউজারনেম পাঠান।</string>
+    <string name="dm_invite_action">আমন্ত্রণ</string>
+    <string name="dm_invite_text">Meldiq-এ আমার সাথে যোগ দিন, বন্ধু আর কমিউনিটির জন্য প্রাইভেট মেসেঞ্জার: %1$s
+সেখানে আমাকে যোগ করুন: @%2$s</string>
+    <string name="dm_invite_text_plain">Meldiq-এ আমার সাথে যোগ দিন, বন্ধু আর কমিউনিটির জন্য প্রাইভেট মেসেঞ্জার: %1$s</string>
+    <string name="dm_mojo_action">প্ল্যান দেখুন</string>
+    <string name="spark_goal_title">Spark লক্ষ্য</string>
+    <string name="spark_goal_none">এখনো কোনো লেভেল নেই</string>
+    <string name="spark_goal_active_one">১টি Spark</string>
+    <string name="spark_goal_active">%1$dটি Spark</string>
+    <string name="spark_goal_cd">Spark লক্ষ্য: %1$s, %2$s। %3$s</string>
+    <string name="spark_chip_cd">Spark লেভেল %1$d</string>
+    <string name="spark_link_sub">লেভেল, আপনার Spark ও আরও Spark</string>
+    <string name="spark_hero_yours">আপনার কাছে %1$dটি Spark · %2$dটি দেওয়ার জন্য তৈরি</string>
+    <string name="spark_communities">আপনার কমিউনিটি</string>
+    <string name="call_live">লাইভ</string>
+    <string name="call_speaking">কথা বলছেন</string>
+    <string name="call_more">আরও</string>
+    <string name="call_chat">চ্যাট</string>
+    <string name="call_you">আপনি</string>
+    <string name="call_started_streaming">%1$s স্ট্রিম শুরু করেছেন</string>
+    <string name="call_watch">দেখুন</string>
+</resources>

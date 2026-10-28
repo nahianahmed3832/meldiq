@@ -42,7 +42,7 @@ fun UnreadMarkerView(marker: UnreadMarker, modifier: Modifier = Modifier) {
         UnreadMarker.None -> Unit
         UnreadMarker.Dot -> Box(modifier.size(8.dp).clip(Shapes.pill).background(c.textPrimary))
         is UnreadMarker.Count -> Pill(marker.text, if (marker.direct) c.primary else c.surfaceVariant, if (marker.direct) c.onPrimary else c.textPrimary, modifier)
-        is UnreadMarker.Mention -> Pill(marker.text, c.badge, c.onBadge, modifier)
+        is UnreadMarker.Mention -> Pill(marker.text, c.mention, c.onMention, modifier)
     }
 }
 

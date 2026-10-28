@@ -1,6 +1,7 @@
 package com.meldiq.android.ui.screens.calls
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,6 +44,7 @@ import com.meldiq.android.call.AudioRouteKind
 import com.meldiq.android.call.CallAudioPolicy
 import com.meldiq.android.call.CallPhase
 import com.meldiq.android.call.CallUiState
+import com.meldiq.android.ui.components.CallColors
 import com.meldiq.android.ui.components.CallControlButton
 import com.meldiq.android.ui.components.GlassSheet
 import com.meldiq.android.ui.components.pressable
@@ -51,10 +53,12 @@ import com.meldiq.android.ui.theme.Shapes
 import com.meldiq.android.ui.theme.Space
 
 /**
- * The call's controls (UI-003), the same five in every kind of call: microphone, camera, audio output, screen share and
- * end/leave. The output control used to be replaced by "Flip camera" whenever the camera was on, so video calls and
- * screen sharing lost it; flipping the camera now lives on your own preview ([FlipCameraButton]). Five 60 dp buttons
- * fit a 360 dp phone; nothing is dropped as the call changes (rules in [CallControlsRules], unit-tested).
+ * The call's controls (UI-003), the same five in every kind of call: microphone, camera, end/leave, screen share and
+ * audio output. The output control used to be replaced by "Flip camera" whenever the camera was on, so video calls and
+ * screen sharing lost it; flipping the camera now lives on your own preview ([FlipCameraButton]). The floating redesign
+ * (2026-10-28, the owner's call reference): one rounded charcoal bar of round buttons with the red hang-up in the middle;
+ * labels are read by TalkBack. Five 56 dp buttons fit a 360 dp phone; nothing is dropped as the call changes (rules in
+ * [CallControlsRules], unit-tested).
  */
 @Composable
 fun CallControlBar(
@@ -68,21 +72,26 @@ fun CallControlBar(
 ) {
     Row(
         // Capped width: in landscape the controls stay a compact group instead of spreading across the screen.
-        modifier.widthIn(max = 520.dp).fillMaxWidth().clip(Shapes.hero).background(Color.Black.copy(alpha = 0.35f)).padding(vertical = 12.dp, horizontal = 4.dp),
+        modifier.widthIn(max = 520.dp).fillMaxWidth().clip(Shapes.hero).background(CallColors.bar)
+            .border(1.dp, CallColors.barBorder, Shapes.hero).padding(vertical = 12.dp, horizontal = 6.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         // A listener (voice channel without speaking rights) can't turn the microphone or camera on: the buttons say so.
         CallControlButton(
             if (s.micOn) Icons.Rounded.Mic else Icons.Rounded.MicOff, if (s.listenOnly) "Listening" else if (s.micOn) "Mute" else "Unmute", onMic,
-            active = !s.micOn, enabled = !s.listenOnly,
+            active = !s.micOn, enabled = !s.listenOnly, showLabel = false, size = 56.dp,
         )
-        CallControlButton(if (s.cameraOn) Icons.Rounded.Videocam else Icons.Rounded.VideocamOff, "Camera", onCamera, active = s.cameraOn, enabled = !s.listenOnly)
-        AudioRouteButton(s.audioRoute, s.audioRoutes, onAudio)
+        CallControlButton(
+            if (s.cameraOn) Icons.Rounded.Videocam else Icons.Rounded.VideocamOff, "Camera", onCamera,
+            active = s.cameraOn, enabled = !s.listenOnly, showLabel = false, size = 56.dp,
+        )
+        CallControlButton(Icons.Rounded.CallEnd, CallControlsRules.endLabel(s), onEnd, danger = true, showLabel = false, size = 60.dp)
         CallControlButton(
             if (s.screenSharing) Icons.Rounded.StopScreenShare else Icons.Rounded.ScreenShare, if (s.screenSharing) "Stop share" else "Share", onShare,
-            active = s.screenSharing, enabled = CallControlsRules.canShare(s),
+            active = s.screenSharing, enabled = CallControlsRules.canShare(s), showLabel = false, size = 56.dp,
         )
-        CallControlButton(Icons.Rounded.CallEnd, CallControlsRules.endLabel(s), onEnd, danger = true)
+        AudioRouteButton(s.audioRoute, s.audioRoutes, onAudio)
     }
 }
 
@@ -91,7 +100,7 @@ fun CallControlBar(
 fun AudioRouteButton(current: AudioRoute?, routes: List<AudioRoute>, onClick: () -> Unit, modifier: Modifier = Modifier) {
     CallControlButton(
         routeIcon(current?.kind), current?.label ?: "Audio", onClick, modifier,
-        active = current?.kind == AudioRouteKind.Speaker,
+        active = current?.kind == AudioRouteKind.Speaker, showLabel = false, size = 56.dp,
     )
 }
 

@@ -65,7 +65,7 @@ class MeldiqPalettesTest {
 
     @Test
     fun everyPresetIsReadableInLightAndDarkMode() {
-        assertEquals(listOf("meldiq", "graphite", "aurora", "sunset", "meadow"), MeldiqPalettes.ALL.map { it.id })
+        assertEquals(listOf("meldiq", "midnight", "graphite", "aurora", "sunset", "meadow"), MeldiqPalettes.ALL.map { it.id })
         MeldiqPalettes.ALL.forEach { p ->
             assertReadable("${p.label} light", p.light)
             assertReadable("${p.label} dark", p.dark)
@@ -80,9 +80,30 @@ class MeldiqPalettesTest {
         assertEquals(MeldiqPalettes.ALL.first(), MeldiqPalettes.of("orbit")) // an older accent id
         assertEquals(LightColors, MeldiqPalettes.colors("meldiq", dark = false))
         assertEquals(DarkColors, MeldiqPalettes.colors("meldiq", dark = true))
-        // As Meldiq Web: deep navy ground, pink only for mentions.
-        assertEquals(Color(0xFF0B1020), MeldiqPalettes.of("meldiq").dark.background)
-        assertEquals(Color(0xFFFF5FA8), MeldiqPalettes.of("meldiq").dark.badge)
+        // As Meldiq Web's floating redesign (2026-10-28): near-black frame, charcoal panels, one lime with near-black
+        // text on it, pink only for mentions.
+        val d = MeldiqPalettes.of("meldiq").dark
+        assertEquals(Color(0xFF040404), d.background)
+        assertEquals(Color(0xFF141414), d.surface)
+        assertEquals(Color(0xFFF4FFAC), d.actionStart)
+        assertEquals(Color(0xFF0B0B0B), d.onAction)
+        assertEquals(Color(0xFFFF5C93), d.mention)
+        val l = MeldiqPalettes.of("meldiq").light
+        assertEquals(Color(0xFFD4EE4E), l.actionStart)
+        assertEquals(Color(0xFF4D5C00), l.primary)
+        // The navy look stays selectable as Midnight.
+        assertEquals(Color(0xFF0B1020), MeldiqPalettes.of("midnight").dark.background)
+        assertEquals(Color(0xFFFF5FA8), MeldiqPalettes.of("midnight").dark.badge)
+    }
+
+    @Test
+    fun mentionsAreReadableInEveryPreset() {
+        MeldiqPalettes.ALL.forEach { p ->
+            for (c in listOf(p.light, p.dark)) {
+                assertContrast("${p.label} mention count", c.onMention, c.mention, 4.5)
+                assertContrast("${p.label} mention against its row", c.mention, c.surface, 3.0)
+            }
+        }
     }
 
     @Test

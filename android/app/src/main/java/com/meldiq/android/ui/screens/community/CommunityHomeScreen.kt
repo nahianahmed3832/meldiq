@@ -157,6 +157,9 @@ fun CommunityHomeScreen(nav: NavHostController) {
         tagsAvailable = container.features.has(ServerFeatures.FORUM_TAGS) == true
     }
     fun toast(text: String) = Toast.makeText(ctx, text, Toast.LENGTH_SHORT).show()
+    // The community's Meldiq Spark goal (floating redesign, 2026-10-28): read when it's opened and after its Sparks sheet closes.
+    var sparks by remember { mutableStateOf<Pair<String, com.meldiq.android.data.billing.OrgSparks>?>(null) }
+    var sparksRead by remember { androidx.compose.runtime.mutableIntStateOf(0) }
 
     val list = NavPrefsRules.railOrdered(WorkspaceList.normalize(orgs.orEmpty()), railOrder) { it.id }
     val org = list.firstOrNull { it.id == selectedId }
@@ -171,6 +174,12 @@ fun CommunityHomeScreen(nav: NavHostController) {
         onboardingPending = o != null && o.onboarding && runCatching { container.guide.onboarding(o.id).answered == null }.getOrDefault(false)
     }
     val orgId = org?.id
+    LaunchedEffect(orgId, sparksRead) {
+        val id = orgId ?: return@LaunchedEffect
+        container.mojo.orgSparks(id).getOrNull()?.let { sparks = id to it }
+    }
+    val sparkGoal = sparks?.takeIf { it.first == orgId }?.second?.takeIf { it.levels.any { l -> l.level > 0 } }?.let(com.meldiq.android.data.billing.SparkGoalRules::of)
+    val openSparks: (() -> Unit)? = if (org != null && org.myRole != "GUEST") ({ sheet = PanelSheet.Spark }) else null
     val view = views[orgId] ?: com.meldiq.android.data.repo.CommunityViewPrefs.View()
     val orgPrefs = orgId?.let { navPrefs[it] } ?: NavPrefsDto()
     val personalPrefs = navPrefs[NavPreferences.PERSONAL] ?: NavPrefsDto()
@@ -197,6 +206,10 @@ fun CommunityHomeScreen(nav: NavHostController) {
     val hiddenCount = remember(channels, hidden) { channels.count { it.id in hidden } }
     val badges = remember(convs) { CommunityPanelRules.rail(convs) }
     val usersById = remember(users) { users.associateBy { it.id } }
+    // Who shares their screen in the call this phone is in, for the voice channel's "Live" chips.
+    val liveSharers = remember(call.participants, call.screenSharing) {
+        call.participants.filter { it.screen != null || (it.isLocal && call.screenSharing) }.map { it.userId }.toSet()
+    }
     val liveCall = if (call.phase == CallPhase.Idle) convs.firstOrNull { it.activeCallId != null && it.type != "CHANNEL" } else null
 
     fun categoryOf(key: String) = d?.categories?.firstOrNull { ("category:" + it.id) == key }
@@ -240,7 +253,8 @@ fun CommunityHomeScreen(nav: NavHostController) {
             contentPadding = PaddingValues(bottom = barPadding),
             onArrange = if (communityPrefs && list.size > 1) ({ sheet = PanelSheet.Arrange }) else null,
         )
-        Box(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(topStart = 16.dp)).background(c.surface)) {
+        // The floating redesign (2026-10-28): the channel list is a rounded panel floating on the frame.
+        Box(Modifier.weight(1f).fillMaxHeight().padding(top = 4.dp, end = 8.dp).clip(com.meldiq.android.ui.theme.Shapes.panel).background(c.surface)) {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = barPadding + 16.dp)) {
                 if (org != null && settings.communityColors) item(key = "banner") { CommunityBanner(org.id, org.accent, org.bannerRev) }
                 if (org != null) item(key = "header") {
@@ -249,7 +263,11 @@ fun CommunityHomeScreen(nav: NavHostController) {
                         onMenu = { sheet = PanelSheet.Community },
                         onSearch = { nav.navigate(Routes.SEARCH) },
                         onInvite = if (d?.permissions?.canInvite == true) ({ sheet = PanelSheet.Invite }) else null,
+                        sparkLevel = sparkGoal?.level ?: 0, onSpark = openSparks,
                     )
+                }
+                if (sparkGoal != null && openSparks != null) item(key = "spark-goal") {
+                    com.meldiq.android.ui.screens.mojo.SparkGoalCard(sparkGoal, openSparks, Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
                 }
                 item(key = "connection") { ConnectionBanner(conn, Modifier.padding(horizontal = 8.dp, vertical = 2.dp)) { container.realtime.reconnectNow() } }
                 item(key = "notification-problems") {
@@ -344,7 +362,7 @@ fun CommunityHomeScreen(nav: NavHostController) {
                     items(section.shown, key = { "ch-" + it.id }) { ch ->
                         Column(listItemMotion()) {
                             PanelChannelRow(ch, ch.id == selectedChannel, onClick = { open(ch) }, onLongPress = { sheet = PanelSheet.Channel(ch.id) }, live = liveCalls[ch.id])
-                            if (ch.voice) ch.conv?.let { conv -> roomPeople(conv).takeIf { it.isNotEmpty() }?.let { PanelVoicePeople(it, usersById) } }
+                            if (ch.voice) ch.conv?.let { conv -> roomPeople(conv).takeIf { it.isNotEmpty() }?.let { PanelVoicePeople(it, usersById, live = if (call.conversationId == ch.id) liveSharers else emptySet()) } }
                         }
                     }
                 }
@@ -512,7 +530,10 @@ fun CommunityHomeScreen(nav: NavHostController) {
         is PanelSheet.CategoryLevel -> CategoryLevelSheet(s.name, orgPrefs, s.categoryId, onPick = { level ->
             container.navPrefs.setCategoryLevel(org.id, s.categoryId, level)
         }, onDismiss = { if (sheet == s) sheet = null })
-        PanelSheet.Spark -> com.meldiq.android.ui.screens.mojo.CommunitySparkSheet(org, onSeePlans = { sheet = null; nav.navigate(Routes.MOJO) }) { if (sheet == s) sheet = null }
+        PanelSheet.Spark -> com.meldiq.android.ui.screens.mojo.CommunitySparkSheet(org, onSeePlans = { sheet = null; nav.navigate(Routes.SPARK) }) {
+            if (sheet == s) sheet = null
+            sparksRead++
+        }
         PanelSheet.Browse -> {
             val all = remember(channels, d?.categories) {
                 CommunityPanelRules.sections(channels, d?.categories.orEmpty(), emptySet(), keepEmpty = false)

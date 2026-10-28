@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Floating redesign strings (docs/FLOATING_REDESIGN_ANDROID.md). Generated from strings_floating.py. -->
+<resources>
+    <string name="palette_midnight">午夜</string>
+    <string name="up_status_cd">%1$s：你的状态</string>
+    <string name="up_mic_mute">静音</string>
+    <string name="up_mic_unmute">取消静音</string>
+    <string name="up_next_mic_off">通话开始时静音</string>
+    <string name="up_next_mic_on">通话开始时打开麦克风</string>
+    <string name="up_next_deafen">通话开始时关闭声音</string>
+    <string name="up_next_undeafen">通话开始时收听所有人</string>
+    <string name="sw_close">关闭设置</string>
+    <string name="sw_my_account">我的账户</string>
+    <string name="sw_my_profile">我的个人资料</string>
+    <string name="sw_voice_audio">语音和音频</string>
+    <string name="sw_appearance">外观</string>
+    <string name="sw_advanced">高级</string>
+    <string name="spark_entry_sub">等级、你的 Spark、赠送和获取更多</string>
+    <string name="dm_invite_title">邀请好友加入 Meldiq</string>
+    <string name="dm_invite_body">发送 Meldiq 链接和你的用户名给他们。</string>
+    <string name="dm_invite_action">邀请</string>
+    <string name="dm_invite_text">来 Meldiq 找我吧，这是一个面向好友和社区的私密通讯应用：%1$s
+在那里添加我：@%2$s</string>
+    <string name="dm_invite_text_plain">来 Meldiq 找我吧，这是一个面向好友和社区的私密通讯应用：%1$s</string>
+    <string name="dm_mojo_action">查看方案</string>
+    <string name="spark_goal_title">Spark 目标</string>
+    <string name="spark_goal_none">尚无等级</string>
+    <string name="spark_goal_active_one">1 个 Spark</string>
+    <string name="spark_goal_active">%1$d 个 Spark</string>
+    <string name="spark_goal_cd">Spark 目标：%1$s，%2$s。%3$s</string>
+    <string name="spark_chip_cd">Spark 等级 %1$d</string>
+    <string name="spark_link_sub">等级、你的 Spark 和更多 Spark</string>
+    <string name="spark_hero_yours">你持有 %1$d 个 Spark · %2$d 个可赠送</string>
+    <string name="spark_communities">你的社区</string>
+    <string name="call_live">直播中</string>
+    <string name="call_speaking">正在讲话</string>
+    <string name="call_more">更多</string>
+    <string name="call_chat">聊天</string>
+    <string name="call_you">你</string>
+    <string name="call_started_streaming">%1$s 开始了直播</string>
+    <string name="call_watch">观看</string>
+</resources>

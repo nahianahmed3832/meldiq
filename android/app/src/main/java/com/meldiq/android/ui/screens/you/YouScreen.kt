@@ -93,8 +93,8 @@ import com.meldiq.android.ui.theme.Space
 private enum class YouSheet { StatusMenu, Status, Pause, Drafts, Presence }
 
 /**
- * The You tab (docs/product/MELDIQ_COMMUNITY_CHAT_SPEC.md §1): your profile and status, pausing notifications, your own
- * things (threads, Later, reminders, drafts and sent messages, calls), Get started, and every settings screen. These
+ * The You tab (docs/product/MELDIQ_COMMUNITY_CHAT_SPEC.md §1): the user panel (your profile and status, microphone,
+ * headphones and the Settings window), your own things (Later, reminders, drafts and sent messages, calls) and Get started. These
  * were Home's cards and its profile sheet before Home became the communities' channel list.
  */
 @Composable
@@ -131,12 +131,8 @@ fun YouScreen(nav: NavHostController) {
     val openSaved = saved.count { !it.done }
     val overdue = saved.count { com.meldiq.android.data.model.ReminderTimes.overdue(it.remindAt, it.done, now) }
     val reminderGroups = remember(reminderList) { com.meldiq.android.data.model.ReminderRules.group(reminderList.filter { it.content?.source != "later" }) }
+    // Threads live on the Activity tab: no second way there from You (the floating redesign: no duplicated controls).
     val cards = listOfNotNull(
-        QuickCard(
-            Icons.Outlined.Forum, stringResource(R.string.home_card_threads),
-            if (threadUnseen > 0) stringResource(R.string.home_threads_new, threadUnseen) else stringResource(R.string.home_threads_none),
-            active = threadUnseen > 0, onClick = { nav.switchTab(Routes.ACTIVITY) },
-        ),
         QuickCard(
             Icons.Outlined.BookmarkBorder, stringResource(R.string.later_title),
             when {
@@ -175,6 +171,7 @@ fun YouScreen(nav: NavHostController) {
         StartStep(stringResource(R.string.cm_discover), done = (orgs?.size ?: 0) > 1, optional = true) { nav.navigate(Routes.DISCOVER) },
     )
     val barPadding = LocalTabBarPadding.current
+    val settingsWindow = com.meldiq.android.ui.screens.profile.LocalSettingsWindow.current
 
     LazyColumn(Modifier.fillMaxSize().background(c.background).statusBarsPadding(), contentPadding = PaddingValues(bottom = barPadding + 16.dp)) {
         item(key = "title") {
@@ -183,44 +180,22 @@ fun YouScreen(nav: NavHostController) {
                 modifier = Modifier.padding(horizontal = Space.gutter, vertical = 12.dp).semantics { heading() },
             )
         }
-        // As Meldiq Web's phone You tab (v4, 2026-10-28): you (banner, look, styled name and Status), your shortcuts, then
-        // User settings and App settings as plain grouped lists.
-        item(key = "profile") { YouCard(me, myName, handle, meUser, myStatus, now, statusFeatures, onProfile = { nav.navigate(Routes.EDIT_PROFILE) }, onStatus = { sheet = YouSheet.StatusMenu }) }
+        // The floating redesign (2026-10-28): the user panel (you, status, microphone, headphones, Settings) is the one place
+        // for your profile and settings; Settings opens as a window over this screen. Below it, your own things.
+        item(key = "panel") {
+            UserPanel(
+                me, myName, handle, meUser, myStatus, now, onStatus = { sheet = YouSheet.StatusMenu }, onSettings = settingsWindow::show,
+                modifier = Modifier.padding(horizontal = Space.gutter, vertical = 4.dp),
+            )
+        }
         item(key = "cards") { QuickAccessRow(cards, Modifier.padding(vertical = 8.dp)) }
         if (orgs != null && StartRules.visible(settings.setupDismissed, startSteps)) item(key = "start") {
             StartChecklist(startSteps, onHide = { container.settings.update { it.copy(setupDismissed = true) } })
         }
-        item(key = "user-settings") {
-            SettingsGroup(stringResource(R.string.wp_settings_user_group)) {
-                MojoRow(onClick = { nav.navigate(Routes.MOJO) })
-                MenuRow(Icons.Outlined.AccountCircle, stringResource(R.string.wp_settings_profile), onClick = { nav.navigate(Routes.EDIT_PROFILE) })
-                MenuRow(Icons.Outlined.Palette, stringResource(R.string.wp_style_title), onClick = { nav.navigate(Routes.PROFILE_STYLE) })
-                MenuRow(Icons.Outlined.Shield, stringResource(R.string.wp_safety_title), onClick = { nav.navigate(Routes.ACCOUNT_SAFETY) })
-                MenuRow(Icons.Outlined.Lock, stringResource(R.string.settings_privacy), onClick = { nav.navigate(Routes.PRIVACY) })
-                MenuRow(Icons.Outlined.Devices, stringResource(R.string.wp_settings_devices), onClick = { nav.navigate(Routes.DEVICES) })
-                MenuRow(Icons.Outlined.People, stringResource(R.string.contacts_title), onClick = { nav.navigate(Routes.CONTACTS) })
-            }
-        }
-        item(key = "app-settings") {
-            SettingsGroup(stringResource(R.string.wp_settings_app_group)) {
-                MenuRow(Icons.Outlined.ColorLens, stringResource(R.string.chat_appearance), onClick = { nav.navigate(Routes.CHAT_SETTINGS) }, trailing = { ValueChevron(com.meldiq.android.ui.screens.profile.appearanceValue()) })
-                MenuRow(Icons.Outlined.Notifications, stringResource(R.string.settings_notifications), onClick = { nav.navigate(Routes.NOTIFICATION_SETTINGS) }, trailing = { ValueChevron(com.meldiq.android.ui.screens.profile.notificationsValue()) })
-                MenuRow(Icons.Outlined.Headphones, stringResource(R.string.settings_calls), onClick = { nav.navigate(Routes.CALL_SETTINGS) })
-                MenuRow(Icons.Outlined.Storage, stringResource(R.string.settings_storage), onClick = { nav.navigate(Routes.STORAGE) })
-                MenuRow(Icons.Outlined.Language, stringResource(R.string.settings_language), onClick = { nav.navigate(Routes.LANGUAGE) }, trailing = { ValueChevron(com.meldiq.android.ui.screens.profile.languageValue()) })
-                MenuRow(Icons.Outlined.Settings, stringResource(R.string.wp_more_settings), subtitle = stringResource(R.string.wp_more_settings_sub), onClick = { nav.navigate(Routes.PROFILE) })
-            }
-        }
-        item(key = "accounts") {
-            SettingsGroup(null) {
-                MenuRow(Icons.Outlined.Call, stringResource(R.string.home_call_history), onClick = { nav.navigate(Routes.CALLS) })
-                MenuRow(Icons.AutoMirrored.Outlined.Logout, stringResource(R.string.home_accounts), onClick = { nav.navigate(Routes.ACCOUNTS) })
-            }
-        }
     }
 
     when (sheet) {
-        YouSheet.StatusMenu -> StatusMenuSheet(myStatus, now, presenceModes, onPick = { sheet = it }, onDismiss = { sheet = null })
+        YouSheet.StatusMenu -> StatusMenuSheet(myStatus, now, presenceModes, onPick = { sheet = it }, onProfile = { sheet = null; nav.navigate(Routes.EDIT_PROFILE) }, onDismiss = { sheet = null })
         YouSheet.Status -> com.meldiq.android.ui.screens.profile.StatusSheet(myStatus, onDismiss = { sheet = null })
         YouSheet.Pause -> com.meldiq.android.ui.screens.profile.PauseSheet(myStatus?.notificationsPausedUntil, onDismiss = { sheet = null })
         YouSheet.Presence -> com.meldiq.android.ui.screens.profile.PresenceSheet(myStatus?.presenceMode, onDismiss = { sheet = null })
@@ -269,60 +244,9 @@ private fun DraftsSentSheet(
     }
 }
 
-/**
- * You (as Meldiq Web's phone You card, v4): your banner behind you when you have one, your animated and framed avatar,
- * your styled name and tag, @username and status; tapping it edits your profile, Status sets presence, status and pauses.
- */
-@Composable
-private fun YouCard(
-    me: String?, name: String, handle: String?, meUser: com.meldiq.android.data.db.UserEntity?, mine: com.meldiq.android.data.api.UserDto?, now: Long,
-    statusFeatures: Boolean, onProfile: () -> Unit, onStatus: () -> Unit,
-) {
-    val c = Griip.colors
-    val look = mine?.let { com.meldiq.android.data.model.PersonLook(it.avatarMedia, it.profileStyle, it.tag) } ?: com.meldiq.android.data.model.PersonLooks.of(meUser?.lookJson)
-    val hasBanner = mine?.profileBanner != null || mine?.profileStyle?.accent != null || mine?.profileStyle?.effect != null
-    GlassCard(Modifier.fillMaxWidth().padding(horizontal = Space.gutter, vertical = 4.dp), shape = Shapes.hero, contentPadding = PaddingValues(0.dp)) {
-        Column(Modifier.fillMaxWidth()) {
-            if (hasBanner && me != null) {
-                com.meldiq.android.ui.components.ProfileBannerView(me, mine?.profileBanner, mine?.profileStyle, Modifier.fillMaxWidth().height(YOU_BANNER))
-            }
-            Row(Modifier.fillMaxWidth().pressable(onProfile).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                com.meldiq.android.ui.components.LookAvatar(me, name.ifBlank { "?" }, meUser?.avatarColor ?: 0, meUser?.photoRev, look, size = 60.dp, online = true, presence = meUser?.presence)
-                Spacer(Modifier.width(14.dp))
-                Column(Modifier.weight(1f)) {
-                    com.meldiq.android.ui.components.StyledName(name, look, Griip.type.title, c.textPrimary)
-                    handle?.let { Text("@$it", style = Griip.type.bodySmall, color = c.textSecondary, maxLines = 1) }
-                    if (statusFeatures) {
-                        com.meldiq.android.ui.screens.profile.StatusRules.line(mine, now)?.let { Text(it, style = Griip.type.caption, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                    }
-                }
-                Spacer(Modifier.width(8.dp))
-                PillButton(stringResource(R.string.wp_status), onStatus, tone = ButtonTone.Glass, height = 40.dp, leadingIcon = Icons.Outlined.EmojiEmotions)
-            }
-        }
-    }
-}
-
-private val YOU_BANNER = 96.dp
-
-/** A titled group of rows on one surface (as the web's "User settings" and "App settings"); [title] null: no heading. */
-@Composable
-private fun SettingsGroup(title: String?, content: @Composable () -> Unit) {
-    val c = Griip.colors
-    Column(Modifier.fillMaxWidth().padding(top = 14.dp)) {
-        title?.let {
-            Text(
-                it.uppercase(), style = Griip.type.caption.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, letterSpacing = 0.6.sp), color = c.textTertiary,
-                modifier = Modifier.padding(horizontal = Space.gutter + 4.dp, vertical = 6.dp).semantics { heading() },
-            )
-        }
-        GlassCard(Modifier.fillMaxWidth().padding(horizontal = Space.gutter), contentPadding = PaddingValues(4.dp)) { content() }
-    }
-}
-
 /** Status (as the web's profile menu): what you're doing, pausing notifications, and how you appear. */
 @Composable
-private fun StatusMenuSheet(mine: com.meldiq.android.data.api.UserDto?, now: Long, presenceModes: Boolean, onPick: (YouSheet) -> Unit, onDismiss: () -> Unit) {
+private fun StatusMenuSheet(mine: com.meldiq.android.data.api.UserDto?, now: Long, presenceModes: Boolean, onPick: (YouSheet) -> Unit, onProfile: () -> Unit, onDismiss: () -> Unit) {
     GlassSheet(onDismiss, title = stringResource(R.string.wp_status)) {
         val line = com.meldiq.android.ui.screens.profile.StatusRules.line(mine, now)
         val until = mine?.statusExpiresAt?.takeIf { line != null }
@@ -336,19 +260,7 @@ private fun StatusMenuSheet(mine: com.meldiq.android.data.api.UserDto?, now: Lon
             onClick = { onPick(YouSheet.Pause) },
         )
         if (presenceModes) com.meldiq.android.ui.screens.profile.PresenceRow(mine?.presenceMode, mine?.presenceUntil, now) { onPick(YouSheet.Presence) }
+        MenuRow(Icons.Outlined.AccountCircle, stringResource(R.string.sw_my_profile), onClick = onProfile)
         Spacer(Modifier.height(12.dp))
     }
-}
-
-/** Meldiq Mojo's row: the plan this account is on, or what Mojo adds (one quiet line, never a pop-up). */
-@Composable
-private fun MojoRow(onClick: () -> Unit) {
-    val mojo = com.meldiq.android.ui.LocalContainer.current.mojo
-    val state by mojo.state.collectAsState()
-    LaunchedEffect(Unit) { if (state.entitlements == null) mojo.refresh() }
-    val key = com.meldiq.android.data.billing.MojoPlans.currentKey(state.entitlements)
-    val name = state.catalog?.plan(key)?.name
-    val sub = if (key != com.meldiq.android.data.billing.MojoPlans.FREE && name != null) stringResource(R.string.mojo_entry_sub_plan, name)
-        else stringResource(R.string.mojo_entry_sub_free)
-    MenuRow(Icons.Outlined.AutoAwesome, stringResource(R.string.mojo_title), subtitle = sub, onClick = onClick)
 }

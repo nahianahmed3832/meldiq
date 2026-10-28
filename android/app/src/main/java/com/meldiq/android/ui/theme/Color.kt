@@ -78,6 +78,9 @@ data class GriipColors(
     /** Unread counters and notification dots; they carry [onBadge] digits. */
     val badge: Color,
     val onBadge: Color,
+    /** Mentions of you (pink on Meldiq, as Meldiq Web's --mention-badge); they carry [onMention]. Other presets use [badge]. */
+    val mention: Color = badge,
+    val onMention: Color = onBadge,
 )
 
 val LightColors: GriipColors get() = MeldiqPalettes.colors(MeldiqPalettes.DEFAULT, dark = false)

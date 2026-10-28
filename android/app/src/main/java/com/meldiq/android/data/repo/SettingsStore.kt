@@ -32,6 +32,12 @@ data class Settings(
     /** Batch B11: the last screen-share choice ("TEXT" or "GAME") and whether app sound went with it. */
     val shareMode: String = "TEXT",
     val shareAppSound: Boolean = false,
+    /**
+     * The user panel's microphone and headphones outside a call (as Meldiq Web, 2026-10-28): the next call starts with the
+     * microphone off, or deafened (hearing nobody, microphone off). In a call they mute and deafen that call instead.
+     */
+    val joinMuted: Boolean = false,
+    val joinDeafened: Boolean = false,
     // Chats (2026-10-17, docs/SETTINGS.md).
     /** Animated emoji move in chats (still when off, or when the system's animations are off). */
     val animatedEmoji: Boolean = true,
@@ -121,6 +127,8 @@ class SettingsStore(
         noiseReduction = prefs.getBoolean("noiseReduction", true),
         shareMode = prefs.getString("shareMode", null) ?: "TEXT",
         shareAppSound = prefs.getBoolean("shareAppSound", false),
+        joinMuted = prefs.getBoolean("joinMuted", false),
+        joinDeafened = prefs.getBoolean("joinDeafened", false),
         animatedEmoji = prefs.getBoolean("animatedEmoji", true),
         linkOpening = runCatching { LinkOpening.valueOf(prefs.getString("linkOpening", null)!!) }.getOrDefault(LinkOpening.IN_APP),
         linkPreviews = prefs.getBoolean("linkPreviews", false),
@@ -168,6 +176,8 @@ class SettingsStore(
             .putBoolean("noiseReduction", n.noiseReduction)
             .putString("shareMode", n.shareMode)
             .putBoolean("shareAppSound", n.shareAppSound)
+            .putBoolean("joinMuted", n.joinMuted)
+            .putBoolean("joinDeafened", n.joinDeafened)
             .putBoolean("animatedEmoji", n.animatedEmoji)
             .putString("linkOpening", n.linkOpening.name)
             .putBoolean("linkPreviews", n.linkPreviews)

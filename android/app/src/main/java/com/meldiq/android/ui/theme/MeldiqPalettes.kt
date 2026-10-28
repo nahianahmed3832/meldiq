@@ -6,8 +6,11 @@ import androidx.compose.ui.graphics.Color
 /**
  * The Meldiq palettes (2026-10-19, from the owner's three-theme reference and the logo; docs/DESIGN_SYSTEM.md):
  *
- * - **Meldiq** (default since 2026-10-28, as Meldiq Web's community-first palette): deep navy surfaces, the logo's
- *   cyan, blue and violet for selection and actions, pink only for mentions, white for unread.
+ * - **Meldiq** (default since the floating redesign, 2026-10-28, as Meldiq Web's `meldiq` plate): a near-black frame,
+ *   charcoal panels floating on it and one restrained lime for primary actions, selection and unread; pink only for
+ *   mentions. Light mode: a pale grey frame, white panels and a deeper lime.
+ * - **Midnight** (the default from Meldiq Web's community-first design until the floating redesign): deep navy
+ *   surfaces, the logo's cyan, blue and violet for selection and actions, pink only for mentions, white for unread.
  * - **Graphite** (default from round 6 to 2026-10-28): the professional workspace look for long working days. Dark mode is
  *   charcoal canvas, slate bars and cards, inset inputs, flat (no gradient) header and one restrained indigo accent
  *   taken from the logo's ribbon. Light mode is the same design in neutral greys.
@@ -35,6 +38,10 @@ object MeldiqPalettes {
         val bubbleOutgoing: Long, val onBubbleOutgoing: Long, val bubbleOutgoingMeta: Long, val navIndicator: Long,
         /** Search field and chips on the header; null keeps the translucent white used on gradient headers. */
         val headerField: Long? = null,
+        /** Mention badges; null uses [badge]. */
+        val mention: Long? = null, val onMention: Long? = null,
+        /** The call screen's ground; null keeps the shared deep navy. */
+        val callStage: Long? = null,
     )
 
     private fun shared(t: Tones, dark: Boolean): GriipColors {
@@ -60,7 +67,7 @@ object MeldiqPalettes {
             shadow = if (dark) Color.Black.copy(alpha = 0.32f) else Color(0xFF1A1C3A).copy(alpha = 0.07f),
             scrim = Color.Black.copy(alpha = if (dark) 0.6f else 0.42f),
             bubbleIncoming = c(t.surface),
-            callStage = Color(0xFF070B1F),
+            callStage = Color(t.callStage ?: 0xFF070B1F),
             actionStart = c(t.action), actionEnd = c(t.action),
             heroStart = c(t.headerStart), heroMid = c(t.headerMid), heroEnd = c(t.headerEnd),
             background = c(t.background), surface = c(t.surface), surfaceVariant = c(t.surfaceVariant), border = c(t.border),
@@ -72,13 +79,37 @@ object MeldiqPalettes {
             accentStart = c(t.accentStart), accentEnd = c(t.accentEnd), onAccent = c(t.onAccent),
             headerField = t.headerField?.let(c) ?: Color.White.copy(alpha = if (dark) 0.10f else 0.70f),
             badge = c(t.badge), onBadge = c(t.onBadge),
+            mention = c(t.mention ?: t.badge), onMention = c(t.onMention ?: t.onBadge),
         )
     }
 
-    // Meldiq Web's `data-palette="meldiq"` tokens (styles/tokens.css), one for one where Android has the same role; the light
-    // teal accent is a shade deeper than the web's #0e7fa0 and the dark violet a shade lighter than its #8b5cf6, as both read
-    // about 4.3:1 here where Android draws text on or in them (4.5:1 is the rule).
+    // Meldiq Web's `data-palette="meldiq"` tokens (styles/tokens.css, the floating redesign 2026-10-28), one for one where
+    // Android has the same role: --bg, --surface, --surface-raised, --border, --text-1/2/3, --accent (the call to action, with
+    // near-black --on-accent), --accent-soft and --accent-text (links). Where Android draws accent-coloured text on the light
+    // frame it uses --accent-text (#4d5c00) and a deeper lime than the web's --accent-2 (#4d7c0f reads 4.0:1 on the frame); the
+    // light outline is a shade darker than --outline so inputs keep 3:1 on the frame.
     private val meldiqLight = Tones(
+        background = 0xFFECECEC, surface = 0xFFFFFFFF, surfaceVariant = 0xFFF2F2F0, border = 0xFFE4E4E0, outline = 0xFF7A7B74,
+        textPrimary = 0xFF0B0B0B, textSecondary = 0xFF3F403B, textTertiary = 0xFF63645D,
+        primary = 0xFF4D5C00, primaryBright = 0xFF5D6F00, primaryDeep = 0xFF3D4900, primarySoft = 0xFFF2F9D2, onPrimary = 0xFFFFFFFF,
+        action = 0xFFD4EE4E, onAction = 0xFF0B0B0B, accentStart = 0xFF4D5C00, accentEnd = 0xFF3F6A08, onAccent = 0xFFFFFFFF,
+        headerStart = 0xFFECECEC, headerMid = 0xFFECECEC, headerEnd = 0xFFECECEC, badge = 0xFF0B0B0B, onBadge = 0xFFF4FFAC,
+        bubbleOutgoing = 0xFFF2F6DC, onBubbleOutgoing = 0xFF0B0B0B, bubbleOutgoingMeta = 0xFF3F403B, navIndicator = 0xFFEEF5CF,
+        headerField = 0xFFFFFFFF, mention = 0xFFD61F62, onMention = 0xFFFFFFFF,
+    )
+    private val meldiqDark = Tones(
+        background = 0xFF040404, surface = 0xFF141414, surfaceVariant = 0xFF1D1D1D, border = 0xFF242424, outline = 0xFF6B6B66,
+        textPrimary = 0xFFF6F6F3, textSecondary = 0xFFBDBDB7, textTertiary = 0xFF8F8F89,
+        primary = 0xFFECF99C, primaryBright = 0xFFFAFFD1, primaryDeep = 0xFFF4FFAC, primarySoft = 0xFF262918, onPrimary = 0xFF0B0B0B,
+        action = 0xFFF4FFAC, onAction = 0xFF0B0B0B, accentStart = 0xFFF4FFAC, accentEnd = 0xFFB8E85A, onAccent = 0xFF0B0B0B,
+        headerStart = 0xFF040404, headerMid = 0xFF040404, headerEnd = 0xFF040404, badge = 0xFFF4FFAC, onBadge = 0xFF0B0B0B,
+        bubbleOutgoing = 0xFF222419, onBubbleOutgoing = 0xFFF6F6F3, bubbleOutgoingMeta = 0xFFBDBDB7, navIndicator = 0xFF2A2A2A,
+        headerField = 0xFF141414, mention = 0xFFFF5C93, onMention = 0xFF0B0B0B, callStage = 0xFF050505,
+    )
+    // Midnight: Meldiq Web's `data-palette="midnight"` (the navy default before the floating redesign). The light teal accent is
+    // a shade deeper than the web's #0e7fa0 and the dark violet a shade lighter than its #8b5cf6, as both read about 4.3:1 here
+    // where Android draws text on or in them (4.5:1 is the rule).
+    private val midnightLight = Tones(
         background = 0xFFF4F6FB, surface = 0xFFFFFFFF, surfaceVariant = 0xFFEEF1F8, border = 0xFFE1E6F0, outline = 0xFF7F88A4,
         textPrimary = 0xFF121933, textSecondary = 0xFF434C6B, textTertiary = 0xFF5F6887,
         primary = 0xFF3A5BD9, primaryBright = 0xFF4A6BE6, primaryDeep = 0xFF2C48B8, primarySoft = 0xFFE6ECFD, onPrimary = 0xFFFFFFFF,
@@ -87,7 +118,7 @@ object MeldiqPalettes {
         bubbleOutgoing = 0xFFEAF0FE, onBubbleOutgoing = 0xFF121933, bubbleOutgoingMeta = 0xFF434C6B, navIndicator = 0xFFE6EAF6,
         headerField = 0xFFEEF1F8,
     )
-    private val meldiqDark = Tones(
+    private val midnightDark = Tones(
         background = 0xFF0B1020, surface = 0xFF10172B, surfaceVariant = 0xFF151D34, border = 0xFF1F2944, outline = 0xFF6B7598,
         textPrimary = 0xFFEEF2FF, textSecondary = 0xFFB4BDDB, textTertiary = 0xFF8A94B6,
         primary = 0xFF7AA2FF, primaryBright = 0xFF9AB8FF, primaryDeep = 0xFFA9C2FF, primarySoft = 0xFF1B2850, onPrimary = 0xFF0A1230,
@@ -165,6 +196,7 @@ object MeldiqPalettes {
 
     val ALL: List<Preset> = listOf(
         Preset("meldiq", "Meldiq", shared(meldiqLight, false), shared(meldiqDark, true)),
+        Preset("midnight", "Midnight", shared(midnightLight, false), shared(midnightDark, true)),
         Preset("graphite", "Graphite", shared(graphiteLight, false), shared(graphiteDark, true)),
         Preset("aurora", "Aurora", shared(auroraLight, false), shared(auroraDark, true)),
         Preset("sunset", "Sunset", shared(sunsetLight, false), shared(sunsetDark, true)),

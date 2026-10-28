@@ -41,7 +41,7 @@ enum class ButtonTone { Primary, Glass, Danger }
 
 /**
  * The app's button: a pill with centred label (and optional leading icon or progress). The palette's action fill for
- * the main action (emerald, charcoal on ivory, peach → pink on cocoa), outlined for secondary ones, red-tinted for
+ * the main action (solid lime with near-black text on Meldiq), a raised neutral pill for secondary ones, red-tinted for
  * destructive ones. [height] is the minimum: the pill grows with large font sizes instead of clipping its label.
  * [showKnob] is accepted for older call sites; the redesign dropped the arrow knob.
  */
@@ -62,12 +62,12 @@ fun PillButton(
     val fill: Modifier = when (tone) {
         ButtonTone.Primary -> Modifier.background(Brush.horizontalGradient(listOf(c.actionStart, c.actionEnd)))
         ButtonTone.Danger -> Modifier.background(c.dangerSoft)
-        ButtonTone.Glass -> Modifier.background(c.surface).border(1.dp, c.outline, Shapes.pill)
+        ButtonTone.Glass -> Modifier.background(c.surfaceVariant).border(1.dp, c.border, Shapes.pill)
     }
     val fg = when (tone) {
         ButtonTone.Primary -> c.onAction
         ButtonTone.Danger -> c.danger
-        ButtonTone.Glass -> c.primary
+        ButtonTone.Glass -> c.textPrimary
     }
     Box(
         modifier
@@ -145,7 +145,11 @@ fun CircleIconButton(
     }
 }
 
-/** Large round call control (mute, camera, share, end): 64 dp, readable over video. */
+/**
+ * Large round call control (mute, camera, share, end), readable over video. The floating redesign (2026-10-28, after
+ * the owner's call reference): charcoal rounds with white glyphs, a light round for a control that is on (or muted), a
+ * red hang-up. [showLabel] false keeps the label for TalkBack only (the control bar); incoming calls show it.
+ */
 @Composable
 fun CallControlButton(
     icon: ImageVector,
@@ -157,23 +161,24 @@ fun CallControlButton(
     enabled: Boolean = true,
     /** Accept-style green action (incoming call). */
     positive: Boolean = false,
+    showLabel: Boolean = true,
+    size: Dp = 60.dp,
 ) {
-    val c = Griip.colors
     val bg = when {
-        danger -> Color(0xFFD93A2E)
+        danger -> CallColors.end
         positive -> Color(0xFF1E9E62)
-        active -> Color.White
-        else -> Color.White.copy(alpha = 0.16f)
+        active -> CallColors.controlOn
+        else -> CallColors.control
     }
     val fg = when {
         danger || positive -> Color.White
-        active -> Color(0xFF0F1513)
+        active -> Color(0xFF0B0B0B)
         else -> Color.White
     }
     androidx.compose.foundation.layout.Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             Modifier
-                .size(60.dp)
+                .size(size)
                 .clip(CircleShape)
                 .background(bg)
                 .alpha(if (enabled) 1f else 0.4f)
@@ -181,10 +186,21 @@ fun CallControlButton(
                 .semantics { contentDescription = label },
             contentAlignment = Alignment.Center,
         ) {
-            Icon(icon, null, tint = fg, modifier = Modifier.size(26.dp))
+            Icon(icon, null, tint = fg, modifier = Modifier.size(size * 0.43f))
         }
-        Spacer(Modifier.height(6.dp))
-        Text(label, style = Griip.type.caption, color = Color.White.copy(alpha = 0.9f), maxLines = 1)
+        if (showLabel) {
+            Spacer(Modifier.height(6.dp))
+            Text(label, style = Griip.type.caption, color = Color.White.copy(alpha = 0.9f), maxLines = 1)
+        }
     }
-    @Suppress("UNUSED_VARIABLE") val unused = c
+}
+
+/** The call screen's own colours (always dark, over the palette's call stage): controls, tiles and the bar. */
+object CallColors {
+    val control = Color.White.copy(alpha = 0.12f)
+    val controlOn = Color(0xFFF6F6F3)
+    val end = Color(0xFFE5484D)
+    val tile = Color.White.copy(alpha = 0.07f)
+    val bar = Color.White.copy(alpha = 0.06f)
+    val barBorder = Color.White.copy(alpha = 0.08f)
 }

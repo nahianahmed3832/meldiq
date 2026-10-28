@@ -75,6 +75,7 @@ import androidx.compose.material.icons.rounded.GppMaybe
 import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.MicOff
+import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.PhoneInTalk
 import androidx.compose.material.icons.rounded.ScreenShare
 import androidx.compose.material.icons.rounded.StopScreenShare
@@ -260,17 +261,17 @@ fun CallOverlay() {
         if (showChrome) Column(Modifier.fillMaxWidth().windowInsetsPadding(SafeTop).padding(horizontal = 14.dp, vertical = 10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (s.phase != CallPhase.Incoming) {
-                    Box(Modifier.size(48.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.14f)).pressable({ calls.minimize() }, onClickLabel = "Minimize call"), contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(48.dp).clip(CircleShape).background(com.meldiq.android.ui.components.CallColors.control).pressable({ calls.minimize() }, onClickLabel = "Minimize call"), contentAlignment = Alignment.Center) {
                         Icon(Icons.Rounded.CloseFullscreen, "Minimize call", tint = Color.White, modifier = Modifier.size(20.dp))
                     }
                     if (s.phase == CallPhase.Connected || s.phase == CallPhase.Reconnecting) {
                         Spacer(Modifier.width(8.dp))
-                        Box(Modifier.size(48.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.14f)).pressable({ details = !details; people = false }, onClickLabel = "Connection details"), contentAlignment = Alignment.Center) {
+                        Box(Modifier.size(48.dp).clip(CircleShape).background(com.meldiq.android.ui.components.CallColors.control).pressable({ details = !details; people = false }, onClickLabel = "Connection details"), contentAlignment = Alignment.Center) {
                             Icon(Icons.Rounded.NetworkCheck, "Connection details", tint = Color.White, modifier = Modifier.size(20.dp))
                         }
                         if (s.isGroup) {
                             Spacer(Modifier.width(8.dp))
-                            Box(Modifier.size(48.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.14f)).pressable({ people = !people; details = false }, onClickLabel = "People in this call"), contentAlignment = Alignment.Center) {
+                            Box(Modifier.size(48.dp).clip(CircleShape).background(com.meldiq.android.ui.components.CallColors.control).pressable({ people = !people; details = false }, onClickLabel = "People in this call"), contentAlignment = Alignment.Center) {
                                 Icon(Icons.Rounded.Groups, "People in this call", tint = Color.White, modifier = Modifier.size(20.dp))
                             }
                         }
@@ -358,7 +359,7 @@ fun CallOverlay() {
                 // Batch B10: deafen (hear nobody, be heard by nobody), beside Raise hand in voice rooms.
                 if (s.phase == CallPhase.Connected || s.phase == CallPhase.Reconnecting) {
                     Row(
-                        Modifier.padding(bottom = 10.dp).clip(Shapes.pill).background(if (s.deafened) Griip.colors.danger.copy(alpha = 0.9f) else Color.White.copy(alpha = 0.16f))
+                        Modifier.padding(bottom = 10.dp).clip(Shapes.pill).background(if (s.deafened) com.meldiq.android.ui.components.CallColors.end else com.meldiq.android.ui.components.CallColors.control)
                             .pressable({ calls.toggleDeafen() }, onClickLabel = stringResource(if (s.deafened) R.string.b10_undeafen else R.string.b10_deafen))
                             .padding(horizontal = 16.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -373,7 +374,7 @@ fun CallOverlay() {
                     val me = container.session.session?.userId
                     val raised = me != null && me in s.hands
                     Row(
-                        Modifier.padding(bottom = 10.dp).clip(Shapes.pill).background(if (raised) Griip.colors.warning.copy(alpha = 0.9f) else Color.White.copy(alpha = 0.16f))
+                        Modifier.padding(bottom = 10.dp).clip(Shapes.pill).background(if (raised) Griip.colors.warning.copy(alpha = 0.9f) else com.meldiq.android.ui.components.CallColors.control)
                             .pressable({ calls.raiseHand(!raised) }, onClickLabel = if (raised) "Lower your hand" else "Raise your hand").padding(horizontal = 16.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -502,8 +503,9 @@ private fun CallerHero(s: CallUiState, modifier: Modifier) {
 private fun ParticipantTile(p: ParticipantUi, modifier: Modifier, preferScreen: Boolean = true, compact: Boolean = false, onFlip: (() -> Unit)? = null) {
     val c = Griip.colors
     BoxWithConstraints(
-        modifier.clip(Shapes.card).background(Color.White.copy(alpha = 0.08f))
-            .border(if (p.speaking) 3.dp else 1.dp, if (p.speaking) c.primaryBright else Color.White.copy(alpha = 0.12f), Shapes.card)
+        // The floating redesign (2026-10-28, the owner's call reference): rounded tiles, a lime ring on whoever speaks.
+        modifier.clip(Shapes.card).background(com.meldiq.android.ui.components.CallColors.tile)
+            .border(if (p.speaking) 3.dp else 1.dp, if (p.speaking) c.accentStart else Color.White.copy(alpha = 0.08f), Shapes.card)
             .semantics(mergeDescendants = true) {
                 contentDescription = buildString {
                     append(if (p.isLocal) "You" else p.name)
@@ -531,19 +533,27 @@ private fun ParticipantTile(p: ParticipantUi, modifier: Modifier, preferScreen: 
                 }
             }
         }
-        Row(
-            Modifier.align(Alignment.BottomStart).padding(6.dp).clip(Shapes.pill).background(Color.Black.copy(alpha = 0.45f)).padding(horizontal = 8.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (!p.micOn) { Icon(Icons.Rounded.MicOff, null, tint = Color.White, modifier = Modifier.size(12.dp)); Spacer(Modifier.width(4.dp)) }
-            Text(if (p.isLocal) "You" else p.name, style = Griip.type.caption, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        // Name at the bottom left on a soft shade; muted or speaking in a round badge at the bottom right.
+        Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(44.dp).background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f)))))
+        Text(
+            if (p.isLocal) stringResource(R.string.call_you) else p.name, style = Griip.type.label.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold),
+            color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.align(Alignment.BottomStart).padding(start = 10.dp, end = 40.dp, bottom = 8.dp),
+        )
+        when {
+            !p.micOn -> Box(Modifier.align(Alignment.BottomEnd).padding(6.dp).size(26.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.55f)), contentAlignment = Alignment.Center) {
+                Icon(Icons.Rounded.MicOff, null, tint = Color.White, modifier = Modifier.size(15.dp))
+            }
+            p.speaking -> Box(Modifier.align(Alignment.BottomEnd).padding(6.dp).size(26.dp).clip(CircleShape).background(c.accentStart), contentAlignment = Alignment.Center) {
+                Icon(Icons.Rounded.GraphicEq, null, tint = c.onAccent, modifier = Modifier.size(15.dp))
+            }
         }
         Row(Modifier.align(Alignment.TopEnd).padding(6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             if (p.connectionWeak) TileBadge(Icons.Rounded.SignalCellularConnectedNoInternet0Bar, Griip.colors.warning)
             if (p.e2eeProblem) TileBadge(Icons.Rounded.GppMaybe, Griip.colors.warning)
         }
         // Your own camera tile carries the camera switch (the control bar keeps the audio output instead).
-        if (p.isLocal && p.camera != null && onFlip != null && !compact) FlipCameraButton(onFlip, Modifier.align(Alignment.BottomEnd).padding(6.dp))
+        if (p.isLocal && p.camera != null && onFlip != null && !compact) FlipCameraButton(onFlip, Modifier.align(Alignment.TopStart).padding(6.dp))
     }
 }
 
@@ -593,7 +603,7 @@ private fun ScreenStage(
         if (sharers.size > 1) ShareTray(sharers, sharer.identity, onWatch)
         Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
             // Keyed by whose screen it is, so switching shares binds the new track instead of reusing the old renderer.
-            key(sharer.identity) { VideoTile(sharer.screen, Modifier.fillMaxSize(), fit = true) }
+            key(sharer.identity) { VideoTile(sharer.screen, Modifier.fillMaxSize().padding(horizontal = 8.dp).clip(Shapes.panel).background(com.meldiq.android.ui.components.CallColors.tile), fit = true) }
             if (showChrome) ScreenLabel(sharer.name, Modifier.align(Alignment.TopCenter))
         }
         Row(
@@ -604,7 +614,7 @@ private fun ScreenStage(
             participants.forEach { p ->
                 key(p.identity) {
                     Box {
-                        ParticipantTile(p, Modifier.size(92.dp, 120.dp), preferScreen = false, compact = true)
+                        ParticipantTile(p, Modifier.size(148.dp, 104.dp), preferScreen = false, compact = true)
                         if (p.isLocal && p.camera != null) FlipCameraButton(onFlip, Modifier.align(Alignment.TopEnd).padding(4.dp))
                     }
                 }

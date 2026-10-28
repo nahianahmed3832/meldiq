@@ -95,7 +95,7 @@ fun CommunityBanner(orgId: String, accent: String?, bannerRev: Long?) {
 
 /** The panel's header: the community's name (opens its sheet), search and invite. */
 @Composable
-fun PanelHeader(name: String, memberLine: String?, onMenu: () -> Unit, onSearch: () -> Unit, onInvite: (() -> Unit)?) {
+fun PanelHeader(name: String, memberLine: String?, onMenu: () -> Unit, onSearch: () -> Unit, onInvite: (() -> Unit)?, sparkLevel: Int = 0, onSpark: (() -> Unit)? = null) {
     val c = Griip.colors
     Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(start = 4.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Row(
@@ -103,7 +103,14 @@ fun PanelHeader(name: String, memberLine: String?, onMenu: () -> Unit, onSearch:
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f, fill = false)) {
-                Text(name, style = Griip.type.titleSmall.copy(fontWeight = FontWeight.Bold), color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.semantics { heading() })
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(name, style = Griip.type.titleSmall.copy(fontWeight = FontWeight.Bold), color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false).semantics { heading() })
+                    // The community's Meldiq Spark level, like a server boost badge (floating redesign, 2026-10-28).
+                    if (sparkLevel > 0) {
+                        Spacer(Modifier.width(6.dp))
+                        com.meldiq.android.ui.screens.mojo.SparkLevelChip(sparkLevel, onClick = onSpark)
+                    }
+                }
                 memberLine?.let { Text(it, style = Griip.type.caption, color = c.textSecondary, maxLines = 1) }
             }
             Icon(Icons.Rounded.KeyboardArrowRight, null, tint = c.textSecondary, modifier = Modifier.size(20.dp))
@@ -223,7 +230,7 @@ fun PanelChannelRow(
 
 /** The people in a voice channel's call, under its row (avatars and names, at most [shown]). */
 @Composable
-fun PanelVoicePeople(people: List<String>, users: Map<String, UserEntity>, shown: Int = 6) {
+fun PanelVoicePeople(people: List<String>, users: Map<String, UserEntity>, shown: Int = 6, live: Set<String> = emptySet()) {
     val c = Griip.colors
     Column(Modifier.fillMaxWidth().padding(start = RowIndent + 38.dp, end = 12.dp, bottom = 4.dp)) {
         people.take(shown).forEach { id ->
@@ -231,7 +238,15 @@ fun PanelVoicePeople(people: List<String>, users: Map<String, UserEntity>, shown
             Row(Modifier.heightIn(min = 28.dp).semantics { contentDescription = u?.displayName ?: "" }, verticalAlignment = Alignment.CenterVertically) {
                 Avatar(u?.displayName ?: "?", u?.avatarColor ?: id.hashCode(), size = 20.dp)
                 Spacer(Modifier.width(8.dp))
-                Text(u?.displayName ?: "…", style = Griip.type.bodySmall, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(u?.displayName ?: "…", style = Griip.type.bodySmall, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                // Sharing their screen in the call you're in (the floating redesign's lime "Live" chip).
+                if (id in live) {
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        stringResource(R.string.call_live), style = Griip.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.onAction,
+                        modifier = Modifier.clip(Shapes.pill).background(c.actionStart).padding(horizontal = 8.dp, vertical = 1.dp),
+                    )
+                }
             }
         }
         if (people.size > shown) Text(stringResource(R.string.nv_and_more, people.size - shown), style = Griip.type.caption, color = c.textTertiary)

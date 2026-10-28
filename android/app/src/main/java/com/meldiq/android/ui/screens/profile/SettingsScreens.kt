@@ -119,122 +119,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * The Settings tab (2026-10-17, docs/SETTINGS.md): profile, accounts, then one entry per area. Every control persists
- * (SettingsStore on this phone; profile and privacy on the server).
+ * Older links to the Settings page (`Routes.PROFILE`, `Routes.SETTINGS`): since the floating redesign (2026-10-28)
+ * Settings is a window over the current screen ([SettingsWindow]), so the link goes back and opens it there.
  */
 @Composable
 fun SettingsHub(nav: NavHostController) {
-    val container = LocalContainer.current
-    val app = LocalContext.current.applicationContext as GriipApp
-    val c = Griip.colors
-    val session = container.session.session
-    val me by container.db.users().observe(session?.userId ?: "").collectAsStateWithLifecycle(null)
-    val settings by container.settings.state.collectAsStateWithLifecycle()
-    val registry by app.profiles.state.collectAsStateWithLifecycle()
-    LaunchedEffect(Unit) { session?.userId?.let { runCatching { container.users.fetch(it) } } }
-    val name = me?.displayName?.takeIf { it.isNotEmpty() } ?: session?.displayName ?: ""
-    var versionTaps by remember { mutableIntStateOf(0) }
-    val scope = rememberCoroutineScope()
-
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding())) {
-        item { GriipTopBar(stringResource(R.string.settings_title), onBack = { nav.popBackStack() }) }
-        item {
-            GlassCard(Modifier.fillMaxWidth().padding(horizontal = Space.gutter, vertical = 6.dp), onClick = { nav.navigate(Routes.EDIT_PROFILE) }, contentPadding = PaddingValues(14.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    UserAvatar(session?.userId, name, me?.avatarColor ?: 0, me?.photoRev, size = 60.dp)
-                    Spacer(Modifier.width(14.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(name, style = Griip.type.title, color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text("@${session?.username}", style = Griip.type.bodySmall, color = c.textSecondary, maxLines = 1)
-                        me?.statusText?.let { Text(it, style = Griip.type.caption, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                    }
-                    CircleIconButton(Icons.Outlined.AlternateEmail, stringResource(R.string.settings_edit_profile), { nav.navigate(Routes.EDIT_PROFILE) }, tint = c.primary)
-                }
-            }
-        }
-        item {
-            GlassCard(Modifier.fillMaxWidth().padding(horizontal = Space.gutter, vertical = 6.dp), contentPadding = PaddingValues(4.dp)) {
-                MenuRow(
-                    Icons.Outlined.People, stringResource(R.string.settings_accounts),
-                    subtitle = stringResource(R.string.settings_accounts_sub, registry.ids.size), onClick = { nav.navigate(Routes.ACCOUNTS) },
-                )
-            }
-        }
-        item {
-            GlassCard(Modifier.fillMaxWidth().padding(horizontal = Space.gutter, vertical = 6.dp), contentPadding = PaddingValues(4.dp)) {
-                MenuRow(Icons.Outlined.ChatBubbleOutline, stringResource(R.string.settings_chats), subtitle = stringResource(R.string.settings_chats_sub), onClick = { nav.navigate(Routes.CHAT_SETTINGS) }, trailing = { com.meldiq.android.ui.components.ValueChevron(appearanceValue()) })
-                MenuRow(Icons.Outlined.Lock, stringResource(R.string.settings_privacy), subtitle = stringResource(R.string.settings_privacy_sub), tint = c.lavender, tintBg = c.lavenderSoft, onClick = { nav.navigate(Routes.PRIVACY) })
-                // As Meldiq Web's My Account and My Profile (API 0.45.0–0.46.0).
-                MenuRow(Icons.Outlined.Shield, stringResource(R.string.wp_safety_title), subtitle = stringResource(R.string.wp_safety_sub), tint = c.lavender, tintBg = c.lavenderSoft, onClick = { nav.navigate(Routes.ACCOUNT_SAFETY) })
-                MenuRow(Icons.Outlined.Palette, stringResource(R.string.wp_style_title), subtitle = stringResource(R.string.wp_style_frame) + ", " + stringResource(R.string.wp_style_banner).lowercase() + ", " + stringResource(R.string.wp_style_name_font).lowercase(), onClick = { nav.navigate(Routes.PROFILE_STYLE) })
-                MenuRow(Icons.Outlined.Notifications, stringResource(R.string.settings_notifications), subtitle = stringResource(R.string.settings_notifications_sub), tint = c.peach, tintBg = c.peachSoft, onClick = { nav.navigate(Routes.NOTIFICATION_SETTINGS) }, trailing = { com.meldiq.android.ui.components.ValueChevron(notificationsValue()) })
-                MenuRow(Icons.Outlined.Call, stringResource(R.string.settings_calls), subtitle = stringResource(R.string.settings_calls_sub), onClick = { nav.navigate(Routes.CALL_SETTINGS) })
-                MenuRow(Icons.Outlined.Storage, stringResource(R.string.settings_storage), subtitle = stringResource(R.string.settings_storage_sub), tint = c.textSecondary, tintBg = c.surfaceVariant, onClick = { nav.navigate(Routes.STORAGE) })
-                MenuRow(
-                    Icons.Outlined.Language, stringResource(R.string.settings_language),
-                    subtitle = AppLanguage.current(LocalContext.current).let { if (it == "system") stringResource(R.string.lang_system) else AppLanguage.nativeName(it) },
-                    tint = c.textSecondary, tintBg = c.surfaceVariant, onClick = { nav.navigate(Routes.LANGUAGE) },
-                )
-            }
-        }
-        item {
-            // Platform admins only (PLATFORM_ADMIN_USER_IDS on the server): the server's own health (round 7).
-            var platformAdmin by remember { mutableStateOf(false) }
-            LaunchedEffect(Unit) { platformAdmin = runCatching { container.api.get<com.meldiq.android.data.api.PlatformMeRes>("/v1/platform/me").platformAdmin }.getOrDefault(false) }
-            if (platformAdmin) {
-                GlassCard(Modifier.fillMaxWidth().padding(horizontal = Space.gutter, vertical = 6.dp), contentPadding = PaddingValues(4.dp)) {
-                    MenuRow(
-                        Icons.Outlined.MonitorHeart, stringResource(R.string.ops_health), subtitle = stringResource(R.string.ops_health_sub),
-                        tint = c.success, tintBg = c.successSoft, onClick = { nav.navigate(Routes.SERVICE_HEALTH) },
-                    )
-                }
-            }
-        }
-        item {
-            // What Android or the phone maker has silenced or blocked, with a link to fix each one.
-            val problems = com.meldiq.android.ui.screens.home.rememberNotificationProblems(settings)
-            if (problems.isNotEmpty()) com.meldiq.android.ui.screens.home.NotificationProblems(problems, Modifier.padding(horizontal = Space.gutter, vertical = 6.dp))
-        }
-        item {
-            GlassCard(Modifier.fillMaxWidth().padding(horizontal = Space.gutter, vertical = 6.dp), contentPadding = PaddingValues(4.dp)) {
-                var address by remember { mutableStateOf<String?>(null) }
-                LaunchedEffect(Unit) { address = runCatching { container.federation.info()?.address }.getOrNull() }
-                val clipboard = androidx.compose.ui.platform.LocalClipboard.current
-                address?.let { a ->
-                    MenuRow(
-                        Icons.Outlined.AlternateEmail, a, subtitle = stringResource(R.string.settings_address_sub),
-                        onClick = { scope.launch { clipboard.setClipEntry(androidx.compose.ui.platform.ClipEntry(android.content.ClipData.newPlainText("address", a))) } },
-                        trailing = null,
-                    )
-                }
-                MenuRow(
-                    Icons.Outlined.Info, stringResource(R.string.settings_about),
-                    subtitle = stringResource(R.string.settings_about_sub, BuildConfig.VERSION_NAME),
-                    tint = c.textSecondary, tintBg = c.surfaceVariant,
-                    onClick = {
-                        // Seven taps on About show the developer options (the server setup); seven more hide them.
-                        versionTaps++
-                        if (versionTaps >= 7) {
-                            versionTaps = 0
-                            container.settings.update { it.copy(developerMode = !it.developerMode) }
-                        } else if (versionTaps == 1) nav.navigate(Routes.SECURITY)
-                    },
-                )
-                MenuRow(
-                    Icons.Outlined.AutoStories, stringResource(R.string.settings_intro), subtitle = stringResource(R.string.settings_intro_sub),
-                    tint = c.textSecondary, tintBg = c.surfaceVariant, onClick = { nav.navigate(Routes.INTRO) },
-                )
-                if (settings.developerMode) {
-                    MenuRow(
-                        Icons.Outlined.Dns, stringResource(R.string.settings_developer), subtitle = container.session.serverUrl,
-                        tint = c.textSecondary, tintBg = c.surfaceVariant, onClick = { nav.navigate(Routes.SERVERS) },
-                    )
-                }
-            }
-            if (container.session.serverUrl.startsWith("http://")) {
-                StatusBanner(stringResource(R.string.settings_cleartext_warning), BannerKind.Warning, Modifier.padding(horizontal = Space.gutter, vertical = 8.dp))
-            }
-        }
+    val window = LocalSettingsWindow.current
+    LaunchedEffect(Unit) {
+        nav.popBackStack()
+        window.show()
     }
 }
 

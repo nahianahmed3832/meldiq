@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Floating redesign strings (docs/FLOATING_REDESIGN_ANDROID.md). Generated from strings_floating.py. -->
+<resources>
+    <string name="palette_midnight">Midnight</string>
+    <string name="up_status_cd">%1$s: your status</string>
+    <string name="up_mic_mute">Mute</string>
+    <string name="up_mic_unmute">Unmute</string>
+    <string name="up_next_mic_off">Start calls muted</string>
+    <string name="up_next_mic_on">Start calls with the microphone on</string>
+    <string name="up_next_deafen">Start calls deafened</string>
+    <string name="up_next_undeafen">Start calls hearing everyone</string>
+    <string name="sw_close">Close settings</string>
+    <string name="sw_my_account">My Account</string>
+    <string name="sw_my_profile">My Profile</string>
+    <string name="sw_voice_audio">Voice &amp; Audio</string>
+    <string name="sw_appearance">Appearance</string>
+    <string name="sw_advanced">Advanced</string>
+    <string name="spark_entry_sub">Levels, your Sparks, give and get more</string>
+    <string name="dm_invite_title">Invite friends to Meldiq</string>
+    <string name="dm_invite_body">Send them a link to Meldiq and your username.</string>
+    <string name="dm_invite_action">Invite</string>
+    <string name="dm_invite_text">Join me on Meldiq, the private messenger for friends and communities: %1$s
+Add me there: @%2$s</string>
+    <string name="dm_invite_text_plain">Join me on Meldiq, the private messenger for friends and communities: %1$s</string>
+    <string name="dm_mojo_action">See plans</string>
+    <string name="spark_goal_title">Spark goal</string>
+    <string name="spark_goal_none">No level yet</string>
+    <string name="spark_goal_active_one">1 Spark</string>
+    <string name="spark_goal_active">%1$d Sparks</string>
+    <string name="spark_goal_cd">Spark goal: %1$s, %2$s. %3$s</string>
+    <string name="spark_chip_cd">Spark level %1$d</string>
+    <string name="spark_link_sub">Levels, your Sparks and more Sparks</string>
+    <string name="spark_hero_yours">You hold %1$d Sparks · %2$d ready to give</string>
+    <string name="spark_communities">Your communities</string>
+    <string name="call_live">Live</string>
+    <string name="call_speaking">Speaking</string>
+    <string name="call_more">More</string>
+    <string name="call_chat">Chat</string>
+    <string name="call_you">You</string>
+    <string name="call_started_streaming">%1$s started streaming</string>
+    <string name="call_watch">Watch</string>
+</resources>

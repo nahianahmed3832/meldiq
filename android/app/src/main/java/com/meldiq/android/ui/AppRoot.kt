@@ -105,7 +105,7 @@ object Routes {
     const val WORKSPACE = "workspace"
     /** Channels & categories: arranging the selected community's channel list. */
     const val CHANNELS_MANAGE = "workspace/channels"
-    /** Settings (profile, account, privacy, appearance, notifications, calls, about), from your avatar on Home. */
+    /** Kept for older links: Settings is a window over the current screen since 2026-10-28 (`SettingsWindow`). */
     const val PROFILE = "profile"
     const val JOIN = "join"
     const val NEW_CHAT = "newchat"
@@ -121,6 +121,8 @@ object Routes {
     const val ACCOUNT_SAFETY = "account/safety"
     /** Meldiq Mojo: plans, Sparks and gifts (docs/MOJO_ANDROID.md). */
     const val MOJO = "mojo"
+    /** Settings › Meldiq Spark (floating redesign, 2026-10-28): levels, your Sparks, give, move, take back and buy. */
+    const val SPARK = "spark"
     /** Settings › Profile style (API 0.45.0–0.46.0): frame, banner, name style and worn tag. */
     const val PROFILE_STYLE = "profile/style"
     const val ACCOUNTS = "accounts"
@@ -272,6 +274,9 @@ private fun MainNav(container: AppContainer, pendingConversation: String?, pendi
     // LocalTabBarPadding below their content instead.
     val density = androidx.compose.ui.platform.LocalDensity.current
     var barHeight by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    // Settings opens as a window over the current screen (floating redesign, 2026-10-28).
+    val settingsWindow = remember { com.meldiq.android.ui.screens.profile.SettingsWindow() }
+    CompositionLocalProvider(com.meldiq.android.ui.screens.profile.LocalSettingsWindow provides settingsWindow) {
     Box(Modifier.fillMaxSize()) {
         val motion = rememberNavMotion()
         androidx.compose.runtime.CompositionLocalProvider(LocalTabBarPadding provides with(density) { barHeight.toDp() }) {
@@ -343,6 +348,7 @@ private fun MainNav(container: AppContainer, pendingConversation: String?, pendi
             composable(Routes.PROFILE_STYLE) { com.meldiq.android.ui.screens.profile.ProfileStyleScreen(nav) }
             composable(Routes.ACCOUNT_SAFETY) { com.meldiq.android.ui.screens.account.AccountSafetyScreen(nav) }
             composable(Routes.MOJO) { com.meldiq.android.ui.screens.mojo.MojoScreen(nav) }
+            composable(Routes.SPARK) { com.meldiq.android.ui.screens.mojo.SparkScreen(nav) }
             composable(Routes.ACCOUNTS) { com.meldiq.android.ui.screens.profile.AccountsScreen(nav) }
             composable(Routes.CHAT_SETTINGS) { com.meldiq.android.ui.screens.profile.ChatSettingsScreen(nav) }
             composable(Routes.NOTIFICATION_SETTINGS) { com.meldiq.android.ui.screens.profile.NotificationSettingsScreen(nav) }
@@ -381,6 +387,8 @@ private fun MainNav(container: AppContainer, pendingConversation: String?, pendi
                 modifier = Modifier.onSizeChanged { barHeight = it.height },
             )
         }
+        com.meldiq.android.ui.screens.profile.SettingsWindowHost(nav, settingsWindow)
+    }
     }
 }
 

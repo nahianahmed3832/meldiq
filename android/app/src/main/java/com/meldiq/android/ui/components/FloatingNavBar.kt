@@ -44,12 +44,12 @@ import com.meldiq.android.ui.theme.Griip
 import com.meldiq.android.ui.theme.Motion
 
 private val BarHeight = 64.dp
-private val BarShape = RoundedCornerShape(32.dp)
+private val BarShape = RoundedCornerShape(28.dp)
 private val ItemShape = RoundedCornerShape(24.dp)
 
 /**
- * The bottom navigation (UI-002, restyled 2026-10-19 after the owner's reference): a full-width bar on the surface
- * colour with a hairline above it and the tabs (Home, DMs, Activity). The selected tab's icon sits in a soft pill in the
+ * The bottom navigation (UI-002; floating since 2026-10-28): a rounded bar on the surface colour floating on the frame,
+ * with the tabs (Home, DMs, Activity). The selected tab's icon sits in a soft pill in the
  * palette's indicator colour with a bold label; the others are quiet. No action button: each screen offers its own New
  * action. It's drawn over the screens: tab screens keep [com.meldiq.android.ui.LocalTabBarPadding] below their content.
  */
@@ -61,19 +61,14 @@ fun FloatingNavBar(
     modifier: Modifier = Modifier,
 ) {
     val c = Griip.colors
-    Column(modifier.fillMaxWidth().background(c.surface)) {
-        Box(Modifier.fillMaxWidth().height(1.dp).background(c.border))
+    // The floating redesign (2026-10-28): a rounded charcoal bar floating on the frame, with the frame's gap around it.
+    Box(modifier.fillMaxWidth().navigationBarsPadding().padding(start = 10.dp, end = 10.dp, bottom = 8.dp), contentAlignment = Alignment.Center) {
         Row(
-            Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 8.dp, vertical = 6.dp),
+            Modifier.widthIn(max = 560.dp).fillMaxWidth().clip(BarShape).background(c.surface).border(1.dp, c.border, BarShape)
+                .padding(horizontal = 6.dp, vertical = 4.dp).heightIn(min = BarHeight).selectableGroup(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
         ) {
-            Row(
-                Modifier.weight(1f, fill = false).widthIn(max = 520.dp).heightIn(min = BarHeight).selectableGroup(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                items.forEach { item -> NavTab(item, item.route == selectedRoute, Modifier.weight(1f)) { onSelect(item) } }
-            }
+            items.forEach { item -> NavTab(item, item.route == selectedRoute, Modifier.weight(1f)) { onSelect(item) } }
         }
     }
 }

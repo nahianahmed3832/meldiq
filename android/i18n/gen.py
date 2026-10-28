@@ -16,10 +16,11 @@ from strings_community import S as COMMUNITY
 from strings_navigation import S as NAVIGATION
 from strings_parity import S as PARITY
 from strings_mojo import S as MOJO
+from strings_floating import S as FLOATING
 res = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "app", "src", "main", "res")
 # Every key must be unique across the tables (Android merges them into one namespace).
 _seen = {}
-for _name, _table in [("strings", S), ("strings_account", ACCOUNT), ("strings_workspace", WORKSPACE), ("strings_apps", APPS), ("strings_meldiq", MELDIQ), ("strings_round6", ROUND6), ("strings_round7", ROUND7), ("strings_meldiq2", MELDIQ2), ("strings_round3", ROUND3), ("strings_keybackup", KEYBACKUP), ("strings_community", COMMUNITY), ("strings_navigation", NAVIGATION), ("strings_parity", PARITY), ("strings_mojo", MOJO)]:
+for _name, _table in [("strings", S), ("strings_account", ACCOUNT), ("strings_workspace", WORKSPACE), ("strings_apps", APPS), ("strings_meldiq", MELDIQ), ("strings_round6", ROUND6), ("strings_round7", ROUND7), ("strings_meldiq2", MELDIQ2), ("strings_round3", ROUND3), ("strings_keybackup", KEYBACKUP), ("strings_community", COMMUNITY), ("strings_navigation", NAVIGATION), ("strings_parity", PARITY), ("strings_mojo", MOJO), ("strings_floating", FLOATING)]:
     for _k in _table:
         if _k in _seen:
             raise SystemExit(f"duplicate string key {_k!r} in {_name} and {_seen[_k]}")
@@ -137,3 +138,10 @@ for lang, folder, idx in [("en", "values", 0), ("zh", "values-zh-rCN", 1), ("bn"
     mj.append('</resources>')
     open(f"{res}/{folder}/strings_mojo.xml", "w").write("\n".join(mj) + "\n")
     print(folder, "mojo", len(MOJO))
+    # The floating redesign (2026-10-28): strings_floating.py.
+    fl = ['<?xml version="1.0" encoding="utf-8"?>', '<!-- Floating redesign strings (docs/FLOATING_REDESIGN_ANDROID.md). Generated from strings_floating.py. -->', '<resources>']
+    for k, v in FLOATING.items():
+        fl.append(f'    <string name="{k}">{esc(v[idx])}</string>')
+    fl.append('</resources>')
+    open(f"{res}/{folder}/strings_floating.xml", "w").write("\n".join(fl) + "\n")
+    print(folder, "floating", len(FLOATING))

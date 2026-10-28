@@ -21,19 +21,22 @@ object Space {
     val screen = 24.dp
 }
 
-/** Consistent, modest radii: 16 dp for prominent surfaces, 12 dp for cards and fields, 8 dp for small parts. */
+/**
+ * Radii. The floating redesign (2026-10-28, as Meldiq Web's `--r-card` and `--r-panel`): 18 dp cards, 24 dp panels, sheets
+ * and dialogs, pill buttons; 14 dp tiles and 12 dp icon tiles, 8 dp for small parts.
+ */
 object Shapes {
-    val hero = RoundedCornerShape(16.dp)
-    val card = RoundedCornerShape(12.dp)
-    val tile = RoundedCornerShape(12.dp)
+    val hero = RoundedCornerShape(24.dp)
+    val card = RoundedCornerShape(18.dp)
+    val tile = RoundedCornerShape(14.dp)
     val iconTile = RoundedCornerShape(12.dp)
     val small = RoundedCornerShape(8.dp)
     /** Inputs on focused forms (sign-up, sign-in). */
     val field = RoundedCornerShape(16.dp)
-    /** Large panels and choice cards in the Meldiq direction (2026-10-18). */
+    /** Floating panels: the channel list, Settings, choice cards. */
     val panel = RoundedCornerShape(24.dp)
     val pill = RoundedCornerShape(percent = 50)
-    val sheet = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+    val sheet = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
     /** Message bubbles: 18 dp, with a 6 dp corner toward the sender on the first bubble of a run. */
     val bubble = 18.dp
     val bubbleTail = 6.dp

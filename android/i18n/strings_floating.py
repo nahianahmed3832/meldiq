@@ -1,0 +1,47 @@
+# The floating redesign on Android (2026-10-28, docs/FLOATING_REDESIGN_ANDROID.md): the Meldiq and Midnight palettes, the
+# user panel, the Settings window, the Meldiq invitation and Mojo card in Messages, Meldiq Spark in Settings and in each
+# community, and the call screen. key: (English, Simplified Chinese, Bengali). Product names stay in English.
+S = {
+"palette_midnight": ("Midnight", "午夜", "মিডনাইট"),
+# User panel
+"up_status_cd": ("%1$s: your status", "%1$s：你的状态", "%1$s: আপনার স্ট্যাটাস"),
+"up_mic_mute": ("Mute", "静音", "মিউট করুন"),
+"up_mic_unmute": ("Unmute", "取消静音", "আনমিউট করুন"),
+"up_next_mic_off": ("Start calls muted", "通话开始时静音", "কল মিউট অবস্থায় শুরু করুন"),
+"up_next_mic_on": ("Start calls with the microphone on", "通话开始时打开麦克风", "মাইক্রোফোন চালু রেখে কল শুরু করুন"),
+"up_next_deafen": ("Start calls deafened", "通话开始时关闭声音", "শব্দ বন্ধ রেখে কল শুরু করুন"),
+"up_next_undeafen": ("Start calls hearing everyone", "通话开始时收听所有人", "সবাইকে শুনে কল শুরু করুন"),
+# Settings window
+"sw_close": ("Close settings", "关闭设置", "সেটিংস বন্ধ করুন"),
+"sw_my_account": ("My Account", "我的账户", "আমার অ্যাকাউন্ট"),
+"sw_my_profile": ("My Profile", "我的个人资料", "আমার প্রোফাইল"),
+"sw_voice_audio": ("Voice & Audio", "语音和音频", "ভয়েস ও অডিও"),
+"sw_appearance": ("Appearance", "外观", "চেহারা"),
+"sw_advanced": ("Advanced", "高级", "উন্নত"),
+"spark_entry_sub": ("Levels, your Sparks, give and get more", "等级、你的 Spark、赠送和获取更多", "লেভেল, আপনার Spark, দিন ও আরও নিন"),
+# Messages: invite to Meldiq, Mojo card
+"dm_invite_title": ("Invite friends to Meldiq", "邀请好友加入 Meldiq", "বন্ধুদের Meldiq-এ আমন্ত্রণ জানান"),
+"dm_invite_body": ("Send them a link to Meldiq and your username.", "发送 Meldiq 链接和你的用户名给他们。", "তাদের Meldiq-এর লিংক আর আপনার ইউজারনেম পাঠান।"),
+"dm_invite_action": ("Invite", "邀请", "আমন্ত্রণ"),
+"dm_invite_text": ("Join me on Meldiq, the private messenger for friends and communities: %1$s\nAdd me there: @%2$s", "来 Meldiq 找我吧，这是一个面向好友和社区的私密通讯应用：%1$s\n在那里添加我：@%2$s", "Meldiq-এ আমার সাথে যোগ দিন, বন্ধু আর কমিউনিটির জন্য প্রাইভেট মেসেঞ্জার: %1$s\nসেখানে আমাকে যোগ করুন: @%2$s"),
+"dm_invite_text_plain": ("Join me on Meldiq, the private messenger for friends and communities: %1$s", "来 Meldiq 找我吧，这是一个面向好友和社区的私密通讯应用：%1$s", "Meldiq-এ আমার সাথে যোগ দিন, বন্ধু আর কমিউনিটির জন্য প্রাইভেট মেসেঞ্জার: %1$s"),
+"dm_mojo_action": ("See plans", "查看方案", "প্ল্যান দেখুন"),
+# Spark in a community
+"spark_goal_title": ("Spark goal", "Spark 目标", "Spark লক্ষ্য"),
+"spark_goal_none": ("No level yet", "尚无等级", "এখনো কোনো লেভেল নেই"),
+"spark_goal_active_one": ("1 Spark", "1 个 Spark", "১টি Spark"),
+"spark_goal_active": ("%1$d Sparks", "%1$d 个 Spark", "%1$dটি Spark"),
+"spark_goal_cd": ("Spark goal: %1$s, %2$s. %3$s", "Spark 目标：%1$s，%2$s。%3$s", "Spark লক্ষ্য: %1$s, %2$s। %3$s"),
+"spark_chip_cd": ("Spark level %1$d", "Spark 等级 %1$d", "Spark লেভেল %1$d"),
+"spark_link_sub": ("Levels, your Sparks and more Sparks", "等级、你的 Spark 和更多 Spark", "লেভেল, আপনার Spark ও আরও Spark"),
+"spark_hero_yours": ("You hold %1$d Sparks · %2$d ready to give", "你持有 %1$d 个 Spark · %2$d 个可赠送", "আপনার কাছে %1$dটি Spark · %2$dটি দেওয়ার জন্য তৈরি"),
+"spark_communities": ("Your communities", "你的社区", "আপনার কমিউনিটি"),
+# Calls
+"call_live": ("Live", "直播中", "লাইভ"),
+"call_speaking": ("Speaking", "正在讲话", "কথা বলছেন"),
+"call_more": ("More", "更多", "আরও"),
+"call_chat": ("Chat", "聊天", "চ্যাট"),
+"call_you": ("You", "你", "আপনি"),
+"call_started_streaming": ("%1$s started streaming", "%1$s 开始了直播", "%1$s স্ট্রিম শুরু করেছেন"),
+"call_watch": ("Watch", "观看", "দেখুন"),
+}

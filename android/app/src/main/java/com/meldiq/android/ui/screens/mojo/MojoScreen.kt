@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.navigation.NavHostController
+import androidx.compose.material.icons.outlined.Bolt
 import com.meldiq.android.R
 import com.meldiq.android.data.billing.MojoNotice
 import com.meldiq.android.data.billing.MojoPlans
@@ -99,8 +100,16 @@ fun MojoScreen(nav: NavHostController) {
                 }
                 item(key = "benefits") { BenefitCards(catalog) }
                 item(key = "compare") { CompareTable(catalog, state.offers) }
+                // Meldiq Spark has its own page since the floating redesign (2026-10-28): one card here leads there.
                 item(key = "sparks") {
-                    SparkSection(catalog, state.entitlements, state.offers, state.busy, state.me, onBuy = ::buy)
+                    com.meldiq.android.ui.components.GlassCard(
+                        Modifier.fillMaxWidth().padding(horizontal = Space.gutter), onClick = { nav.navigate(com.meldiq.android.ui.Routes.SPARK) },
+                    ) {
+                        com.meldiq.android.ui.components.MenuRow(
+                            androidx.compose.material.icons.Icons.Outlined.Bolt, stringResource(R.string.mojo_spark_title),
+                            subtitle = stringResource(R.string.spark_link_sub), onClick = { nav.navigate(com.meldiq.android.ui.Routes.SPARK) },
+                        )
+                    }
                 }
                 state.me?.let { me ->
                     item(key = "badge") { BadgeCard(me) }

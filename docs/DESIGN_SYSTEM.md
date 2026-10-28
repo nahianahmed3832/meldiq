@@ -1,6 +1,11 @@
 # Meldiq — Design System
 
-> **2026-10-19 round 6: Graphite is the default (current).** The owner found the pastel look uncomfortable for long
+> **2026-10-28, the floating redesign (current).** As Meldiq Web: a near-black frame, charcoal panels floating on it, one
+> restrained lime for primary actions, selection and unread, pink only for mentions; 18 dp cards, 24 dp panels and sheets,
+> pill buttons; the user panel, Settings as a window, Meldiq Spark goals and the restyled call screen. The navy default of
+> 2026-10-26 stays as **Midnight**. Tokens, rules and screens: [FLOATING_REDESIGN_ANDROID.md](FLOATING_REDESIGN_ANDROID.md).
+
+> **2026-10-19 round 6: Graphite was the default (superseded).** The owner found the pastel look uncomfortable for long
 > working days and asked for a professional dark theme by default, inspired by the way dark collaboration apps layer
 > charcoal surfaces (Meldiq's own design: nothing copied). New installs start in **dark mode with Graphite**; existing
 > installs move once (`designVersion` 2: "follow the system" becomes dark, an explicit Light or Dark choice is kept, the
