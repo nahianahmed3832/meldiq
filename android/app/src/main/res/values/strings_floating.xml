@@ -56,6 +56,6 @@ Add me there: @%2$s</string>
     <string name="pf_close">Close</string>
     <string name="pf_copy_username">Copy username</string>
     <string name="pf_unavailable">This profile isn\'t available to you.</string>
-    <string name="srv_notice">Your messages now live on Meldiq\'s servers, so they\'re on every device you sign in to. They travel over encrypted connections; members of a conversation can read it, and Meldiq\'s staff can when a report or the law requires it.</string>
+    <string name="srv_notice">Your messages now live on Meldiq\'s servers, so they\'re on every device you sign in to. They travel over encrypted connections; members of a conversation can read them, and Meldiq\'s staff can when a report or the law requires it.</string>
     <string name="srv_notice_ok">Got it</string>
 </resources>

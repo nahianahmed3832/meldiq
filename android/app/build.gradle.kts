@@ -62,6 +62,8 @@ val releaseEnvironment = setting("meldiq.environment")?.takeIf { it != "developm
 require(debugEnvironment in environments && releaseEnvironment in environments) { "meldiq.environment must be one of $environments" }
 
 android {
+    // Robolectric screenshot tests read the app's resources (strings, fonts, drawables).
+    testOptions { unitTests.isIncludeAndroidResources = true }
     // The app has its own language setting (docs/LANGUAGES.md): every language must be in every install, so the Play
     // bundle isn't split by language.
     bundle {
@@ -207,6 +209,10 @@ dependencies {
     implementation(libs.mlkit.language.id)
 
     testImplementation(libs.junit)
+    // Screenshots of the design on the JVM (Robolectric's native graphics), run with -Pmeldiq.screenshots=true.
+    testImplementation(libs.robolectric)
+    testImplementation(platform(libs.compose.bom))
+    testImplementation(libs.compose.ui.test.junit4)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.sqlite.jdbc) // runs Room migration SQL on the JVM (MigrationsTest)
     testImplementation(libs.okhttp.mockwebserver) // resumable-download tests
@@ -219,4 +225,10 @@ dependencies {
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.espresso)
     debugImplementation(libs.compose.ui.test.manifest)
+}
+
+// Screenshot tests (src/test/.../screenshots) run only when asked: ./gradlew :app:testDebugUnitTest -Pmeldiq.screenshots=true
+tasks.withType<Test>().configureEach {
+    systemProperty("meldiq.screenshots", (project.findProperty("meldiq.screenshots") ?: "false").toString())
+    systemProperty("meldiq.screenshots.dir", layout.buildDirectory.dir("screenshots").get().asFile.absolutePath)
 }

@@ -259,7 +259,7 @@ private fun mojoValue(): String {
 }
 
 @Composable
-private fun WindowGroup(title: String, content: @Composable () -> Unit) {
+internal fun WindowGroup(title: String, content: @Composable () -> Unit) {
     val c = Griip.colors
     Column(Modifier.fillMaxWidth().padding(top = 12.dp)) {
         Text(

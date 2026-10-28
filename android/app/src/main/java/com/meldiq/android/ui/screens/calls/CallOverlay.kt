@@ -500,7 +500,7 @@ private fun CallerHero(s: CallUiState, modifier: Modifier) {
  * avatar and name. Shows mute, speaking (LiveKit's own signal), a weak connection, and an encryption problem.
  */
 @Composable
-private fun ParticipantTile(p: ParticipantUi, modifier: Modifier, preferScreen: Boolean = true, compact: Boolean = false, onFlip: (() -> Unit)? = null) {
+internal fun ParticipantTile(p: ParticipantUi, modifier: Modifier, preferScreen: Boolean = true, compact: Boolean = false, onFlip: (() -> Unit)? = null) {
     val c = Griip.colors
     BoxWithConstraints(
         // The floating redesign (2026-10-28, the owner's call reference): rounded tiles, a lime ring on whoever speaks.

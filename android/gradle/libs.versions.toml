@@ -1,4 +1,5 @@
 [versions]
+robolectric = "4.16"
 agp = "8.13.2"
 kotlin = "2.2.21"
 ksp = "2.2.21-2.0.5"
@@ -33,6 +34,7 @@ tink = "1.23.0"
 playBilling = "9.1.0"
 
 [libraries]
+robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 play-billing-ktx = { module = "com.android.billingclient:billing-ktx", version.ref = "playBilling" }
 androidx-work = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
 unifiedpush-connector = { module = "org.unifiedpush.android:connector", version.ref = "unifiedpush" }

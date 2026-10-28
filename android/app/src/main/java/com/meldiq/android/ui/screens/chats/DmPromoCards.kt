@@ -64,6 +64,13 @@ fun MeldiqInviteCard(modifier: Modifier = Modifier) {
         runCatching { ctx.startActivity(Intent.createChooser(send, chooser)) }
         Unit
     }
+    MeldiqInviteCardContent(share, modifier)
+}
+
+/** The invitation as drawn; [onInvite] opens the share sheet. */
+@Composable
+internal fun MeldiqInviteCardContent(onInvite: () -> Unit, modifier: Modifier = Modifier) {
+    val c = Griip.colors
     Row(
         modifier.fillMaxWidth().clip(Shapes.card).background(c.primarySoft).border(1.dp, c.border, Shapes.card).padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -77,7 +84,7 @@ fun MeldiqInviteCard(modifier: Modifier = Modifier) {
             Text(stringResource(R.string.dm_invite_body), style = Griip.type.caption, color = c.textSecondary, maxLines = 2)
         }
         Spacer(Modifier.width(8.dp))
-        PillButton(stringResource(R.string.dm_invite_action), share, height = 40.dp)
+        PillButton(stringResource(R.string.dm_invite_action), onInvite, height = 40.dp)
     }
 }
 
@@ -91,6 +98,13 @@ fun MojoPromoCard(onOpen: () -> Unit, modifier: Modifier = Modifier) {
     val key = MojoPlans.currentKey(state.entitlements)
     val name = state.catalog?.plan(key)?.name
     val line = if (key != MojoPlans.FREE && name != null) stringResource(R.string.mojo_entry_sub_plan, name) else stringResource(R.string.mojo_entry_sub_free)
+    MojoPromoRow(line, onOpen, modifier)
+}
+
+/** The Mojo card as drawn: [line] says the plan or what Mojo adds. */
+@Composable
+internal fun MojoPromoRow(line: String, onOpen: () -> Unit, modifier: Modifier = Modifier) {
+    val c = Griip.colors
     Row(
         modifier.fillMaxWidth().clip(Shapes.card).background(c.surface).border(1.dp, c.border, Shapes.card)
             .pressable(onOpen, onClickLabel = stringResource(R.string.dm_mojo_action)).padding(12.dp),

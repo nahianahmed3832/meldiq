@@ -86,6 +86,15 @@ with a lime ring on whoever speaks, the name at the bottom left and a round mute
 right; a shared screen sits on a rounded stage above a filmstrip of wider tiles. In a voice channel's list, people
 sharing their screen in the call you're in carry a lime **Live** chip.
 
+## Screenshots
+
+Rendered from the app's own components and theme on the JVM (Robolectric native graphics), in
+[`docs/screenshots/android-floating-2026-10-29`](screenshots/android-floating-2026-10-29): the community with its Spark goal
+and level chip, Messages with the notice, the Meldiq invitation and the Mojo card, the user panel over the Settings window,
+a community call, the Spark goals, light mode and the Midnight palette. Make them again with
+`./gradlew :app:testDebugUnitTest -Pmeldiq.screenshots=true --tests '*DesignScreenshotsTest*'` (they land in
+`android/app/build/screenshots`; skipped in ordinary test runs). The data in them is made up.
+
 ## Not done here
 
 - The owner's 2026-10-28 decision to drop end-to-end encryption and keep messages on the server only: waits for the API

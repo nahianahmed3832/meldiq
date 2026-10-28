@@ -22,7 +22,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -81,9 +80,44 @@ fun UserPanel(
     val hasBanner = me != null && (mine?.profileBanner != null || mine?.profileStyle?.accent != null)
     val line = StatusRules.line(mine, now) ?: handle?.let { "@$it" }.orEmpty()
 
+    UserPanelContent(
+        name, line, audio, inCall,
+        avatar = { com.meldiq.android.ui.components.LookAvatar(me, name.ifBlank { "?" }, meUser?.avatarColor ?: 0, meUser?.photoRev, look, size = 44.dp, online = true, presence = meUser?.presence) },
+        styledName = { com.meldiq.android.ui.components.StyledName(name, look, Griip.type.titleSmall, c.textPrimary) },
+        banner = if (hasBanner && me != null) ({ m: Modifier -> com.meldiq.android.ui.components.ProfileBannerView(me, mine?.profileBanner, mine?.profileStyle, m) }) else null,
+        onStatus = onStatus,
+        onMic = {
+            if (inCall) container.calls.toggleMic()
+            else container.settings.update { s -> UserPanelRules.toggleJoinMic(s.joinMuted, s.joinDeafened).let { (m, d) -> s.copy(joinMuted = m, joinDeafened = d) } }
+        },
+        onDeafen = {
+            if (inCall) container.calls.toggleDeafen()
+            else container.settings.update { it.copy(joinDeafened = !it.joinDeafened) }
+        },
+        onSettings = onSettings, modifier = modifier,
+    )
+}
+
+/** The user panel as drawn, from its state (the wrapper above reads it from the app; screenshot tests pass it). */
+@Composable
+internal fun UserPanelContent(
+    name: String,
+    line: String,
+    audio: UserPanelRules.Audio,
+    inCall: Boolean,
+    avatar: @Composable () -> Unit,
+    styledName: @Composable () -> Unit,
+    banner: (@Composable (Modifier) -> Unit)?,
+    onStatus: () -> Unit,
+    onMic: () -> Unit,
+    onDeafen: () -> Unit,
+    onSettings: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val c = Griip.colors
     Box(modifier.fillMaxWidth().clip(Shapes.card).background(c.surface).border(1.dp, c.border, Shapes.card)) {
-        if (hasBanner && me != null) {
-            com.meldiq.android.ui.components.ProfileBannerView(me, mine?.profileBanner, mine?.profileStyle, Modifier.matchParentSize())
+        if (banner != null) {
+            banner(Modifier.matchParentSize())
             // The banner stays behind a scrim so the name, status and buttons read on any picture.
             Box(Modifier.matchParentSize().background(Brush.horizontalGradient(listOf(c.surface.copy(alpha = 0.92f), c.surface.copy(alpha = 0.55f)))))
         }
@@ -92,10 +126,10 @@ fun UserPanel(
                 Modifier.weight(1f).clip(Shapes.tile).pressable(onStatus, onClickLabel = stringResource(R.string.up_status_cd, name)).padding(4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                com.meldiq.android.ui.components.LookAvatar(me, name.ifBlank { "?" }, meUser?.avatarColor ?: 0, meUser?.photoRev, look, size = 44.dp, online = true, presence = meUser?.presence)
+                avatar()
                 Spacer(Modifier.width(Space.md))
                 Column(Modifier.weight(1f)) {
-                    com.meldiq.android.ui.components.StyledName(name, look, Griip.type.titleSmall, c.textPrimary)
+                    styledName()
                     if (line.isNotEmpty()) Text(line, style = Griip.type.caption, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
@@ -107,10 +141,7 @@ fun UserPanel(
                         else -> if (audio.micOff) R.string.up_next_mic_on else R.string.up_next_mic_off
                     },
                 ),
-                {
-                    if (inCall) container.calls.toggleMic()
-                    else container.settings.update { s -> UserPanelRules.toggleJoinMic(s.joinMuted, s.joinDeafened).let { (m, d) -> s.copy(joinMuted = m, joinDeafened = d) } }
-                },
+                onMic,
                 tint = if (audio.micOff) c.danger else c.textPrimary, size = 40.dp,
             )
             CircleIconButton(
@@ -121,14 +152,10 @@ fun UserPanel(
                         else -> if (audio.deafened) R.string.up_next_undeafen else R.string.up_next_deafen
                     },
                 ),
-                {
-                    if (inCall) container.calls.toggleDeafen()
-                    else container.settings.update { it.copy(joinDeafened = !it.joinDeafened) }
-                },
+                onDeafen,
                 tint = if (audio.deafened) c.danger else c.textPrimary, size = 40.dp,
             )
             CircleIconButton(Icons.Outlined.Settings, stringResource(R.string.settings_title), onSettings, size = 40.dp)
         }
     }
-    @Suppress("UNUSED_VARIABLE") val unused = Color.Transparent
 }

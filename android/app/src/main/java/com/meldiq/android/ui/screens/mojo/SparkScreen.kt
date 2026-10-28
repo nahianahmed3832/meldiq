@@ -121,7 +121,7 @@ fun SparkScreen(nav: NavHostController) {
 private const val MAX_GOALS = 12
 
 @Composable
-private fun SparkHero(total: Int?, free: Int?) {
+internal fun SparkHero(total: Int?, free: Int?) {
     val c = Griip.colors
     Column(
         Modifier.fillMaxWidth().padding(horizontal = Space.gutter).clip(Shapes.hero)
