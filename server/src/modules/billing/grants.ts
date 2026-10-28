@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import type { RowReader, Rows, RowWriter } from "../../infrastructure/database/rows/index.js";
+import type { RowReader, Rows, RowWriter, Where } from "../../infrastructure/database/rows/index.js";
 import { ApiError, conflict, notFound } from "../../shared/errors.js";
 import { newId } from "../../shared/utilities/util.js";
 import type { TrialConfig } from "./config.js";
@@ -10,7 +10,8 @@ import type { TrialConfig } from "./config.js";
  * until then"; the entitlements read it like a subscription that doesn't renew. Nothing a client says creates one:
  * the trial comes from the account's own sign-up time, a referral from a code the server issued to someone else.
  */
-export type GrantSource = "signup_trial" | "referral_invitee" | "referral_inviter" | "gift";
+export type GrantSource = "signup_trial" | "referral_invitee" | "referral_inviter" | "gift" | "operator";
+export const GRANT_SOURCES: readonly GrantSource[] = ["signup_trial", "referral_invitee", "referral_inviter", "gift", "operator"];
 
 export interface GrantRow {
   id: string;
@@ -22,6 +23,17 @@ export interface GrantRow {
   starts_at: number;
   ends_at: number;
   created_at: number;
+}
+
+/** Who gave an operator grant and why, and whether an operator ended a grant early (billing_grant_notes, API 0.58.0). */
+export interface GrantNoteRow {
+  grant_id: string;
+  granted_by: string | null;
+  note: string | null;
+  ended_at: number | null;
+  ended_by: string | null;
+  original_starts_at: number | null;
+  original_ends_at: number | null;
 }
 
 /** What the server knows about an account for its grants (accounts.created_at is its sign-up time). */
@@ -44,9 +56,14 @@ export function newReferralCode(): string {
 export class Grants {
   constructor(
     private readonly rows: Rows,
-    readonly config: TrialConfig | null,
+    private readonly program: () => TrialConfig | null,
     private readonly clock: () => number = Date.now,
   ) {}
+
+  /** The program as it applies now (program.ts: the console's settings, else the environment). */
+  get config(): TrialConfig | null {
+    return this.program();
+  }
 
   /** The account's grant that applies at [t] (the one lasting longest when several overlap), if any. */
   active(accountId: string, t: number): GrantRow | null {
@@ -190,5 +207,109 @@ export class Grants {
   /** The account owning [code], for the realtime notice after a claim. */
   inviterOf(code: string): string | null {
     return this.rows.get<{ account_id: string }>("billing_referral_codes", { code: code.trim().toUpperCase() })?.account_id ?? null;
+  }
+
+  // ───────────── The console (API 0.58.0) ─────────────
+
+  /**
+   * A free period an operator gives: [days] of [planKey], after whatever free period of that plan or a higher one the
+   * account already has. Works whether or not the trial program is on.
+   */
+  async give(a: GrantAccount, g: { planKey: string; days: number; actor: string; note: string; laterThan: readonly string[] }): Promise<GrantRow> {
+    const t = this.clock();
+    const id = newId("grt");
+    await this.rows.write((w) => {
+      const from = Math.max(t, this.latestEnd(a.accountId, g.laterThan, t, w) ?? 0);
+      w.insert("billing_grants", {
+        id, account_id: a.accountId, user_id: a.userId, plan_key: g.planKey, source: "operator", starts_at: from, ends_at: from + g.days * DAY_MS, created_at: t,
+      });
+      w.insert("billing_grant_notes", { grant_id: id, granted_by: g.actor, note: g.note });
+    });
+    return this.get(id)!;
+  }
+
+  get(id: string): GrantRow | null {
+    return this.rows.get<GrantRow>("billing_grants", { id }) ?? null;
+  }
+
+  /** Notes kept for [ids] (operator details, early endings). */
+  notes(ids: readonly string[]): Map<string, GrantNoteRow> {
+    if (ids.length === 0) return new Map();
+    return new Map(this.rows.all<GrantNoteRow>("billing_grant_notes", { where: { grant_id: { in: [...ids] } } }).map((n) => [n.grant_id, n]));
+  }
+
+  /**
+   * Ends a grant early. Its dates are shortened so every reader sees it over (to now, or to an instant already past if
+   * it hadn't started); the original dates and who ended it are kept in billing_grant_notes. Ending one that has
+   * already run out changes nothing.
+   */
+  async end(id: string, actor: string): Promise<{ grant: GrantRow; changed: boolean }> {
+    const t = this.clock();
+    const g = this.get(id);
+    if (!g) throw notFound("No such free period");
+    if (g.ends_at <= t) return { grant: g, changed: false };
+    const starts = Math.min(g.starts_at, t - 1);
+    await this.rows.write((w) => {
+      w.update("billing_grants", { id }, { starts_at: starts, ends_at: t });
+      const note = { ended_at: t, ended_by: actor, original_starts_at: g.starts_at, original_ends_at: g.ends_at };
+      w.upsert("billing_grant_notes", { grant_id: id, ...note }, note);
+    });
+    return { grant: this.get(id)!, changed: true };
+  }
+
+  /** Grants newest first, keyset-paged by (created_at, id); one row more than [limit] says another page follows. */
+  list(q: { accountId?: string; source?: GrantSource; state?: "active" | "upcoming" | "over"; after?: { createdAt: number; id: string } | null; limit: number }): GrantRow[] {
+    const t = this.clock();
+    const where: Where = {};
+    if (q.accountId) where.account_id = q.accountId;
+    if (q.source) where.source = q.source;
+    if (q.state === "active") Object.assign(where, { starts_at: { lte: t }, ends_at: { gt: t } });
+    else if (q.state === "upcoming") Object.assign(where, { starts_at: { gt: t } });
+    else if (q.state === "over") where.ends_at = { lte: t };
+    const after = q.after;
+    return this.rows
+      .all<GrantRow>("billing_grants", { where, orderBy: [["created_at", "desc"], ["id", "desc"]] })
+      .filter((r) => !after || r.created_at < after.createdAt || (r.created_at === after.createdAt && r.id < after.id))
+      .slice(0, q.limit + 1);
+  }
+
+  /** Program figures for the console: free periods running now by source, invites, and bonus days given. */
+  figures(t: number) {
+    const running = this.rows.all<GrantRow>("billing_grants", { where: { starts_at: { lte: t }, ends_at: { gt: t } } });
+    const referrals = this.rows.all<{ inviter_account_id: string; inviter_days: number; created_at: number }>("billing_referrals");
+    return {
+      accountsInFreePeriod: new Set(running.map((g) => g.account_id)).size,
+      activeBySource: Object.fromEntries(GRANT_SOURCES.map((s) => [s, running.filter((g) => g.source === s).length])) as Record<GrantSource, number>,
+      referrals: {
+        total: referrals.length,
+        last30Days: referrals.filter((r) => r.created_at > t - 30 * DAY_MS).length,
+        inviters: new Set(referrals.map((r) => r.inviter_account_id)).size,
+        bonusDaysGiven: referrals.reduce((n, r) => n + r.inviter_days, 0),
+        atCap: referrals.filter((r) => r.inviter_days === 0).length,
+      },
+    };
+  }
+
+  /** Recent invites, newest first. */
+  referrals(limit: number) {
+    return this.rows.all<{ id: string; inviter_account_id: string; invitee_account_id: string; code: string; inviter_days: number; created_at: number }>("billing_referrals", {
+      orderBy: [["created_at", "desc"], ["id", "desc"]],
+      limit,
+    });
+  }
+
+  /** The account's invite code if it has made one (the console never makes one for it). */
+  existingCode(accountId: string): string | null {
+    return this.rows.get<{ code: string }>("billing_referral_codes", { account_id: accountId })?.code ?? null;
+  }
+
+  invitedCount(accountId: string): number {
+    return this.rows.count("billing_referrals", { inviter_account_id: accountId });
+  }
+
+  /** Who invited [accountId], if it joined through a link. */
+  invitedBy(accountId: string): { inviterAccountId: string; at: number } | null {
+    const r = this.rows.get<{ inviter_account_id: string; created_at: number }>("billing_referrals", { invitee_account_id: accountId });
+    return r ? { inviterAccountId: r.inviter_account_id, at: r.created_at } : null;
   }
 }

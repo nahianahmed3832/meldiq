@@ -30,9 +30,9 @@ export type OrgLimitsResolver = (orgId: string) => { key: string; limit: number 
 const DAY_MS = 86_400_000;
 
 /** A free period's view: where it comes from and when it ends (null for organizations and paid plans). */
-type TrialView = { source: "signup" | "invite" | "invite_bonus" | "gift"; endsAt: number } | null;
+type TrialView = { source: "signup" | "invite" | "invite_bonus" | "gift" | "operator"; endsAt: number } | null;
 
-const TRIAL_SOURCE = { signup_trial: "signup", referral_invitee: "invite", referral_inviter: "invite_bonus", gift: "gift" } as const;
+const TRIAL_SOURCE = { signup_trial: "signup", referral_invitee: "invite", referral_inviter: "invite_bonus", gift: "gift", operator: "operator" } as const;
 
 function grant(billing: Billing, owner: BillingOwner, t: number, showSubscription: boolean) {
   const paid = subscriptionGrant(billing, owner, t, showSubscription);

@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { zEmail } from "./accounts.js";
 import { zCount, zTime } from "./primitives.js";
 import { ENTITLEMENT_KEY_VALUES, zCursor, zLimit, zReason } from "./platformAdmin.js";
 
@@ -200,4 +201,203 @@ export const AdminBillingMetrics = z.strictObject({
     lastReceivedAt: zTime.nullable(),
   }),
   definitions: z.array(z.strictObject({ key: z.string(), label: z.string(), definition: z.string(), kind: z.enum(["measured", "calculated", "estimate"]) })),
+});
+// ───────────── Meldiq Mojo: trials, invite links and free periods (API 0.58.0) ─────────────
+
+export const GRANT_SOURCE_VALUES = ["signup_trial", "referral_invitee", "referral_inviter", "gift", "operator"] as const;
+const zId = z.string().min(3).max(64).regex(/^[A-Za-z0-9_-]+$/);
+const zDays = (max: number) => z.number().int().min(0).max(max);
+
+/** The trial and invite program: whether it's on, from when, which plan it gives and for how long. */
+export const zProgramSettings = z.strictObject({
+  enabled: z.boolean(),
+  /** Trials and invite links count from here (null while off; turning it on without a date starts it now). */
+  startsAt: zTime.nullable(),
+  planKey: zPlanKey,
+  /** Every account's trial. */
+  days: zDays(365),
+  /** The trial through an invite link, and each inviter's bonus. */
+  referralDays: zDays(365),
+  /** At most this many bonus days per inviter in any 365 days. */
+  referralCapDays: zDays(3650),
+  /** An invite link counts only for an account at most this many days old. */
+  claimWindowDays: zDays(90),
+});
+
+/** Saves the console's program, or ({ useEnvironment: true }) hands the decision back to the server's environment. */
+export const AdminProgramBody = z.union([z.strictObject({ useEnvironment: z.literal(true), reason: zReason }), zProgramSettings.extend({ reason: zReason })]);
+
+export const AdminMojoGrantsQuery = z.strictObject({
+  account: zId.optional(),
+  source: z.enum(GRANT_SOURCE_VALUES).optional(),
+  state: z.enum(["active", "upcoming", "over"]).optional(),
+  cursor: zCursor.optional(),
+  limit: zLimit,
+});
+
+/** A free period an operator gives: to an account by id (from its page) or by email (needs users.view_email). */
+export const AdminMojoGrantBody = z
+  .strictObject({ accountId: zId.optional(), email: zEmail.optional(), days: z.number().int().min(1).max(365), planKey: zPlanKey.optional(), reason: zReason })
+  .refine((b) => (b.accountId === undefined) !== (b.email === undefined), "Name the account by id or by email, not both");
+export const AdminMojoGrantParams = z.strictObject({ grantId: zId });
+export const AdminMojoAccountParams = z.strictObject({ accountId: zId });
+
+const zAccountRef = z.strictObject({
+  accountId: z.string(),
+  name: z.string().nullable(),
+  /** Only with users.view_email. */
+  email: z.string().nullable(),
+  /** The account's person in the console (users), once it has signed in to an app. */
+  userId: z.string().nullable(),
+});
+const zAdminRef = z.strictObject({ accountId: z.string(), name: z.string().nullable() });
+
+export const AdminMojoGrant = z.strictObject({
+  id: z.string(),
+  account: zAccountRef,
+  planKey: z.string(),
+  source: z.enum(GRANT_SOURCE_VALUES),
+  startsAt: zTime,
+  endsAt: zTime,
+  createdAt: zTime,
+  /** active: gives the plan now; upcoming: starts later (after another free period); over: ran out; ended: an operator ended it. */
+  state: z.enum(["active", "upcoming", "over", "ended"]),
+  grantedBy: zAdminRef.nullable(),
+  note: z.string().nullable(),
+  endedAt: zTime.nullable(),
+  endedBy: zAdminRef.nullable(),
+});
+export const AdminMojoGrantsPage = z.strictObject({ grants: z.array(AdminMojoGrant), nextCursor: z.string().nullable() });
+export const AdminMojoGrantChanged = z.strictObject({ grant: AdminMojoGrant, changed: z.boolean() });
+
+export const AdminProgram = z.strictObject({
+  /** console: saved here; environment: the server's BILLING_TRIAL_* settings (none saved here yet). */
+  source: z.enum(["console", "environment"]),
+  settings: zProgramSettings,
+  /** On and started: new accounts get a trial and invite links count. */
+  live: z.boolean(),
+  environment: zProgramSettings,
+  updatedBy: zAdminRef.nullable(),
+  updatedAt: zTime.nullable(),
+  /** Plans a free period can give (personal ones first). */
+  plans: z.array(z.strictObject({ key: z.string(), name: z.string(), audience: z.enum(["personal", "organization"]), status: z.enum(["draft", "active", "archived"]), hasLimits: z.boolean() })),
+  /** Things to know before relying on the settings (a plan that doesn't exist yet, and so on). */
+  warnings: z.array(z.string()),
+  figures: z.strictObject({
+    accountsInFreePeriod: zCount,
+    activeBySource: z.record(z.enum(GRANT_SOURCE_VALUES), zCount),
+    referrals: z.strictObject({ total: zCount, last30Days: zCount, inviters: zCount, bonusDaysGiven: zCount, atCap: zCount }),
+  }),
+  referrals: z.array(z.strictObject({ id: z.string(), inviter: zAccountRef, invitee: zAccountRef, inviterDays: zCount, createdAt: zTime })),
+});
+
+export const AdminMojoAccount = z.strictObject({
+  account: zAccountRef.extend({ createdAt: zTime }),
+  /** What the account has now: a subscription's plan, a free period's, or none. */
+  current: z.strictObject({
+    plan: z.strictObject({ key: z.string(), name: z.string() }).nullable(),
+    from: z.enum(["subscription", "free_period", "none"]),
+    accessUntil: zTime.nullable(),
+    renews: z.boolean().nullable(),
+  }),
+  subscriptionId: z.string().nullable(),
+  grants: z.array(AdminMojoGrant),
+  referral: z.strictObject({ code: z.string().nullable(), invited: zCount, bonusDaysThisYear: zCount, invitedBy: zAccountRef.nullable() }),
+});
+
+// ───────────── Meldiq Mojo: enforcement, limits, gifts and Sparks (API 0.58.0, docs/MOJO.md › Running Mojo from the console) ─────────────
+
+const zPlanLimits = z.strictObject({
+  messageChars: z.number().int().optional(),
+  uploadBytes: z.number().int().optional(),
+  sparks: z.number().int().optional(),
+  customItems: z.number().int().optional(),
+});
+const zLevelLimits = z.strictObject({
+  sparks: z.number().int().optional(),
+  emojiSlots: z.number().int().optional(),
+  uploadBytes: z.number().int().optional(),
+  voiceKbps: z.number().int().optional(),
+});
+
+/** The console's controls: enforcement (null: MOJO_ENFORCE decides) and changes to the built-in numbers (absent keys keep them). */
+export const AdminMojoControlsBody = z.strictObject({
+  enforce: z.enum(["on", "off", "auto"]).nullable(),
+  plans: z.strictObject({ free: zPlanLimits.optional(), go: zPlanLimits.optional(), plus: zPlanLimits.optional() }),
+  levels: z.strictObject({ "1": zLevelLimits.optional(), "2": zLevelLimits.optional(), "3": zLevelLimits.optional() }),
+  reason: zReason,
+});
+
+const zPlanPerksView = z.strictObject({
+  key: z.enum(["free", "go", "plus"]),
+  name: z.string(),
+  listPriceMinor: zCount,
+  messageChars: zCount,
+  uploadBytes: zCount,
+  screen: z.array(z.string()),
+  sparks: zCount,
+  badge: z.enum(["go", "plus"]).nullable(),
+  check: z.boolean(),
+  customItems: zCount,
+  bots: zCount,
+  botReview: z.enum(["regular", "priority"]),
+});
+const zLevelView = z.strictObject({
+  level: zCount,
+  sparks: zCount,
+  emojiSlots: zCount,
+  stickerSlots: zCount,
+  uploadBytes: zCount.nullable(),
+  voiceKbps: zCount,
+  screen: z.array(z.string()),
+});
+
+export const AdminMojoControls = z.strictObject({
+  /** Whether plan limits apply now, and why. */
+  enforced: z.boolean(),
+  enforce: z.strictObject({ console: z.enum(["on", "off", "auto"]).nullable(), environment: z.enum(["on", "off", "auto"]), effective: z.enum(["on", "off", "auto"]) }),
+  /** The numbers in effect (built-in values with the console's changes), and the built-in ones for comparison. */
+  plans: z.array(zPlanPerksView),
+  builtInPlans: z.array(zPlanPerksView),
+  levels: z.array(zLevelView),
+  builtInLevels: z.array(zLevelView),
+  overrides: z.strictObject({ plans: z.record(z.string(), z.record(z.string(), z.number())), levels: z.record(z.string(), z.record(z.string(), z.number())) }),
+  bounds: z.record(z.string(), z.strictObject({ min: z.number(), max: z.number() })),
+  /** The server's own cap on any file (FILE_MAX_BYTES): a plan's larger limit can't go above it. */
+  serverFileMaxBytes: zCount,
+  catalogVersion: z.string(),
+  updatedBy: zAdminRef.nullable(),
+  updatedAt: zTime.nullable(),
+  figures: z.strictObject({
+    accountsByPlan: z.record(z.string(), zCount),
+    sparks: z.strictObject({ assigned: zCount, communitiesWithSparks: zCount, byLevel: z.record(z.string(), zCount) }),
+    gifts: z.record(z.string(), zCount),
+  }),
+});
+
+export const AdminMojoGiftsQuery = z.strictObject({ status: z.enum(["pending", "paid", "redeemed", "refunded", "expired", "failed"]).optional(), cursor: zCursor.optional(), limit: zLimit });
+/** Gifts as metadata: who, which plan, how long, paid or started. The note people write isn't shown in the console. */
+export const AdminMojoGiftsPage = z.strictObject({
+  gifts: z.array(
+    z.strictObject({
+      id: z.string(),
+      buyer: zAccountRef,
+      recipientUserId: z.string(),
+      planKey: z.string(),
+      months: zCount,
+      currency: z.string(),
+      amountMinor: zCount,
+      status: z.string(),
+      provider: z.string(),
+      createdAt: zTime,
+      paidAt: zTime.nullable(),
+      redeemedAt: zTime.nullable(),
+    }),
+  ),
+  nextCursor: z.string().nullable(),
+});
+
+/** The communities with the most active Sparks, and their level. */
+export const AdminMojoSparks = z.strictObject({
+  communities: z.array(z.strictObject({ orgId: z.string(), name: z.string().nullable(), active: zCount, level: zCount, nextAt: zCount.nullable() })),
 });

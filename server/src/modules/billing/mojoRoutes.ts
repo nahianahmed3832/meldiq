@@ -9,7 +9,7 @@ import { me, requireAuth } from "../auth/index.js";
 import { orgNames } from "../organizations/index.js";
 import type { GiftRow } from "./gifts.js";
 import type { PlayVerifyStatus } from "./play.js";
-import { catalogView, MAX_SPARK_LEVEL, SPARK_LEVELS, SPARK_PLAN_KEY } from "./perks.js";
+import { catalogView, MAX_SPARK_LEVEL, SPARK_PLAN_KEY } from "./perks.js";
 import type { CheckoutStarter } from "./service.js";
 
 interface MojoSession {
@@ -53,7 +53,7 @@ export function mojoRoutes(app: FastifyInstance, ctx: AppContext, h: MojoRouteHe
       return o ? { currency: o.currency, amountMinor: o.amountMinor } : null;
     };
     return {
-      ...catalogView(),
+      ...catalogView(ctx.billing.mojoControls.plans(), ctx.billing.mojoControls.levels(), ctx.billing.mojoControls.version()),
       enforced: ctx.mojo.enforced(),
       onSale: {
         mode: ctx.billing.provider?.mode ?? null,
@@ -211,13 +211,14 @@ export function mojoRoutes(app: FastifyInstance, ctx: AppContext, h: MojoRouteHe
     const t = now();
     const level = ctx.mojo.levelOf(orgId, t);
     const { active, ...perks } = level;
-    const next = level.level < MAX_SPARK_LEVEL ? SPARK_LEVELS[level.level + 1]! : null;
+    const levels = ctx.billing.mojoControls.levels();
+    const next = level.level < MAX_SPARK_LEVEL ? levels[level.level + 1]! : null;
     const total = ctx.mojo.sparkSlots(userId, t).total;
     const mine = ctx.mojo
       .assignmentsOf(userId)
       .map((a, i) => ({ id: a.id, orgId: a.org_id, assignedAt: a.assigned_at, paused: i >= total }))
       .filter((a) => a.orgId === orgId)
       .map(({ orgId: _o, ...a }) => a);
-    return { level: level.level, active, next: next ? { level: next.level, needs: next.sparks - active } : null, perks, levels: [...SPARK_LEVELS], mine };
+    return { level: level.level, active, next: next ? { level: next.level, needs: next.sparks - active } : null, perks, levels: [...levels], mine };
   });
 }

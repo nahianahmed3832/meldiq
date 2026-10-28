@@ -358,6 +358,42 @@ tests `server/test/billing_trials.test.ts`.
 - Abuse limits: verified email needed to sign in at all; one invite per account; 7-day window; the inviter's yearly cap.
   Operators can see referrals in `billing_referrals` (audit action `billing.referral`).
 
+## Running trials from the console (0.58.0, owner's request 2026-10-29)
+
+The trial and invite program and every free period are run from the Platform Admin Console (admin.meldiq.app ›
+Subscriptions & Billing › **Trials & invites** and **Free periods**, and a **Meldiq Mojo** tab on each person's page).
+Code: `billing/program.ts`, `platformAdmin/mojo.ts`, migration `067_mojo_console.sql`, tests
+`server/test/billing_program.test.ts`; console `src/ui/pages/billing/{Program,FreePeriods,mojo}.tsx`, `MojoPanel.tsx`.
+
+- **Where the program comes from.** Once an operator saves it in the console, the `billing_program` row decides; until
+  then the environment (`BILLING_TRIAL_*` above) does, exactly as in 0.53.0. "Use the server's settings" deletes the row
+  and hands the decision back to the environment. Every request reads the row (one primary-key lookup), so a change
+  applies at once: the public price list's `trial`, new sign-up trials, invite claims, and the website's wording.
+- **What the console sets:** on/off, start time (empty = now; accounts created before it get their trial from it), the
+  plan key, trial days, invite days, the inviter's yearly cap and the claim window. A claim window of 0 with invite days
+  is refused. Warnings: a plan key with no plan yet, an organization plan, a future start, a cap of 0.
+- **Turning it off** stops new trials and invite bonuses (claims answer 409). Free periods already given keep their
+  dates. Changing the number of days applies to new free periods only.
+- **Free periods by hand** (`source = operator`, shown to the person as `trial.source = "operator"`, a free period
+  from the Meldiq team; `gift` stays a friend's paid gift): days of a plan, added after any free period of the same or
+  a higher plan the account already has, with the operator and the reason kept on the row. Give from a
+  person's page (by account), or by email (roles with `users.view_email` only). Who gave it and why are kept in
+  `billing_grant_notes`. **Ending** a free period shortens its dates to now (or to an instant already past, if it
+  hadn't started), so every reader sees it over; its original dates and who ended it go in `billing_grant_notes`.
+  Paid subscriptions are never changed here.
+- **Why a separate notes table:** billing lives in MongoDB in production, and changing `billing_grants`' columns would
+  change its collection validator, which the API's `readWrite`-only database user can't update (`collMod`). So
+  `billing_grants` keeps its columns; only SQLite's source check is widened.
+- Devices are told at once (`entitlements.changed`) after a gift or an ending.
+- Permissions: viewing `billing.view`; changing `billing.manage` (super and billing admins), with a fresh passkey check
+  and a written reason. Audit actions `billing.program_update` (before/after), `billing.grant_give`, `billing.grant_end`.
+- Routes: `GET|PUT /admin/v1/billing/program`, `GET|POST /admin/v1/billing/grants`,
+  `POST /admin/v1/billing/grants/:grantId/end`, `GET /admin/v1/billing/accounts/:accountId`.
+- **Rollback to 0.57.1** works on the 067 schema (`billing_grants` keeps its columns; the new tables are ignored): the
+  console's program and Mojo controls stop applying (the environment decides again); ended grants stay ended (their
+  dates were shortened). An operator grant has a source 0.57.1 doesn't name, so that person's entitlements answer
+  would fail its contract: end operator grants before rolling back.
+
 ## Stripe setup (one command, test mode)
 
 Needs API 0.53.0 or later in production. From the `meldiq_android` folder on your Mac:

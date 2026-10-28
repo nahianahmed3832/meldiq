@@ -1,4 +1,8 @@
 import type { RowReader, Where } from "../../infrastructure/database/rows/index.js";
+import type { GiftRow } from "./gifts.js";
+import type { GrantRow } from "./grants.js";
+import type { SparkAssignmentRow } from "./mojo.js";
+import type { Billing } from "./service.js";
 import type { SubscriptionRow } from "./subscriptions.js";
 
 /**
@@ -92,4 +96,44 @@ export function eventRows(rows: RowReader, q: { status?: string; after?: After; 
   if (q.status) where.status = q.status;
   const all = rows.all<Omit<EventListRow, "created_at"> & { received_at: number }>("billing_provider_events", { where });
   return pageAfter(all, (r) => r.received_at, q.after, q.limit).map(({ received_at, ...e }) => ({ ...e, created_at: received_at }));
+}
+
+// ───────────── Meldiq Mojo in the console (API 0.58.0) ─────────────
+
+/** Accounts on each plan now (a granting subscription or a free period), Sparks by level, and gifts by state. */
+export function mojoFigures(billing: Billing, levelOf: (orgId: string, t: number) => number, t: number) {
+  const byPlan = new Map<string, Set<string>>();
+  const add = (plan: string | undefined, account: string | null) => {
+    if (plan && account) byPlan.set(plan, (byPlan.get(plan) ?? new Set()).add(account));
+  };
+  for (const s of billing.rows.all<SubscriptionRow>("billing_subscriptions", { where: { owner_kind: "account" } })) {
+    if (billing.subscriptions.isAddonVersion(s.plan_version_id) || !billing.subscriptions.grants(s, t)) continue;
+    const v = billing.catalog.version(s.plan_version_id);
+    add(v ? billing.catalog.plan(v.plan_id)?.key : undefined, s.account_id);
+  }
+  for (const g of billing.rows.all<GrantRow>("billing_grants", { where: { starts_at: { lte: t }, ends_at: { gt: t } } })) add(g.plan_key, g.account_id);
+  const assignments = billing.rows.all<SparkAssignmentRow>("spark_assignments", { where: { removed_at: null } });
+  const orgs = [...new Set(assignments.map((a) => a.org_id))];
+  const byLevel: Record<string, number> = { "0": 0, "1": 0, "2": 0, "3": 0 };
+  for (const o of orgs) {
+    const level = String(levelOf(o, t));
+    byLevel[level] = (byLevel[level] ?? 0) + 1;
+  }
+  const gifts: Record<string, number> = {};
+  for (const g of billing.rows.all<GiftRow>("mojo_gifts")) gifts[g.status] = (gifts[g.status] ?? 0) + 1;
+  return { accountsByPlan: Object.fromEntries([...byPlan].map(([k, v]) => [k, v.size])), sparks: { assigned: assignments.length, communitiesWithSparks: orgs.length, byLevel }, gifts };
+}
+
+/** Gifts newest first, keyset-paged by (created_at, id); one row more than [limit] says another page follows. */
+export function giftRows(billing: Billing, q: { status?: string; after: { createdAt: number; id: string } | null; limit: number }): GiftRow[] {
+  const after = q.after;
+  return billing.rows
+    .all<GiftRow>("mojo_gifts", { where: q.status ? { status: q.status } : {}, orderBy: [["created_at", "desc"], ["id", "desc"]] })
+    .filter((g) => !after || g.created_at < after.createdAt || (g.created_at === after.createdAt && g.id < after.id))
+    .slice(0, q.limit + 1);
+}
+
+/** Communities with at least one Spark given to them (active or paused). */
+export function sparkOrgIds(billing: Billing): string[] {
+  return [...new Set(billing.rows.all<SparkAssignmentRow>("spark_assignments", { where: { removed_at: null } }).map((a) => a.org_id))];
 }

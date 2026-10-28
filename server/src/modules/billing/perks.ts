@@ -111,8 +111,13 @@ export const MAX_SPARK_LEVEL = 3;
  * total for Levels 1, 2 and 3). Capped at 3: more never shows a level 4.
  */
 export function sparkLevel(active: number): SparkLevel {
-  let reached = SPARK_LEVELS[0]!;
-  for (const l of SPARK_LEVELS) if (active >= l.sparks) reached = l;
+  return sparkLevelIn(SPARK_LEVELS, active);
+}
+
+/** The level [active] Sparks give among [levels] (operators may change the thresholds: controls.ts). */
+export function sparkLevelIn(levels: readonly SparkLevel[], active: number): SparkLevel {
+  let reached = levels[0]!;
+  for (const l of levels) if (active >= l.sparks) reached = l;
   return reached;
 }
 
@@ -149,14 +154,18 @@ export function ciphertextCeilingB64(messageChars: number, hardMax: number): num
   return Math.min(hardMax, Math.ceil(((plaintext + 16) * 4) / 3) + 4);
 }
 
-/** The whole catalog as clients read it (GET /v2/mojo/catalog). */
-export function catalogView() {
+/** The whole catalog as clients read it (GET /v2/mojo/catalog), with operators' changes when given (controls.ts). */
+export function catalogView(
+  plans: Readonly<Record<PlanKey, PlanPerks>> = PLAN_PERKS,
+  levels: readonly SparkLevel[] = SPARK_LEVELS,
+  version: string = CATALOG_VERSION,
+) {
   return {
-    version: CATALOG_VERSION,
+    version,
     units: { mb: MB, gb: GB },
-    plans: PLAN_KEYS.map((k) => PLAN_PERKS[k]),
+    plans: PLAN_KEYS.map((k) => plans[k]),
     screenPresets: Object.values(SCREEN_PRESETS),
-    spark: { listPriceMinor: SPARK_LIST_PRICE_MINOR, interval: "month" as const, maxPurchase: SPARK_MAX_PURCHASE, levels: SPARK_LEVELS },
+    spark: { listPriceMinor: SPARK_LIST_PRICE_MINOR, interval: "month" as const, maxPurchase: SPARK_MAX_PURCHASE, levels },
     gifts: { months: GIFT_MONTHS, noteMax: GIFT_NOTE_MAX },
   };
 }

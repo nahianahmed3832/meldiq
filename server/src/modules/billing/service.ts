@@ -8,7 +8,9 @@ import { type BillingOwner, ownerRef } from "./owners.js";
 import type { BillingProvider } from "./providers/types.js";
 import { ownerWhere, type SubscriptionRow, Subscriptions } from "./subscriptions.js";
 import { isAddonPlanKey, SPARK_MAX_PURCHASE, SPARK_PLAN_KEY } from "./perks.js";
+import { MojoControls } from "./controls.js";
 import { Grants } from "./grants.js";
+import { BillingProgram } from "./program.js";
 import { BillingWebhooks } from "./webhooks.js";
 
 const CHECKOUT_TTL_MS = 24 * 3_600_000;
@@ -38,6 +40,10 @@ export class Billing {
   readonly returnUrl: string | null;
   readonly webReturnUrl: string | null;
   readonly grants: Grants;
+  /** The trial and invite program: the console's settings, else the environment (program.ts, API 0.58.0). */
+  readonly program: BillingProgram;
+  /** Mojo's enforcement and limits as operators set them in the console (controls.ts, API 0.58.0). */
+  readonly mojoControls: MojoControls;
   private readonly portalConfiguration: string | null;
   /** Told when an owner's subscription (and so its entitlements) may have changed (server.ts: realtime notices). */
   onChange: ((owner: BillingOwner) => void) | null = null;
@@ -56,7 +62,9 @@ export class Billing {
     this.catalog = new PlanCatalog(rows, quotaPlanExists);
     this.subscriptions = new Subscriptions(rows, this.catalog);
     this.webhooks = new BillingWebhooks(rows, config.provider, this.subscriptions, log, clock);
-    this.grants = new Grants(rows, config.trials, clock);
+    this.program = new BillingProgram(rows, config.trials);
+    this.mojoControls = new MojoControls(rows);
+    this.grants = new Grants(rows, () => this.program.current(), clock);
     this.portalConfiguration = config.portalConfiguration;
     this.webhooks.afterApply = (event, outcome) => {
       if (outcome.owner) this.changed(outcome.owner);
@@ -67,7 +75,8 @@ export class Billing {
     };
   }
 
-  private changed(owner: BillingOwner): void {
+  /** Tells devices an owner's entitlements may have changed (also after an operator gives or ends a free period). */
+  changed(owner: BillingOwner): void {
     try {
       this.onChange?.(owner);
     } catch (e) {

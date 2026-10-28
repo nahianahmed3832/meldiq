@@ -117,3 +117,24 @@ Levels at 2, 5 and 8 active Sparks in total (the owner's decision, 2026-10-28; A
   - **2 GB uploads** go straight to S3 (multipart), so the VPS isn't in the data path. Storage cost grows with
     retention.
   - Billing rows are small (well under 1 MB for thousands of subscribers): Atlas M0 is fine for them.
+
+## Running Mojo from the console (API 0.58.0, owner's request 2026-10-29)
+
+Admin console › Subscriptions & Billing › **Meldiq Mojo** (`GET|PUT /admin/v1/billing/mojo`, `billing.view` to read,
+`billing.manage` with a passkey check and a reason to change; audit action `mojo.controls_update` with before and
+after). Code: `billing/controls.ts`, `platformAdmin/mojo.ts`; table `mojo_controls` (migration 067); tests in
+`server/test/billing_program.test.ts`.
+
+- **Enforcement:** "on", "off" or "auto" (the same meaning as `MOJO_ENFORCE`), or "use the server's setting". The
+  console's choice wins over `MOJO_ENFORCE`. Production today: `MOJO_ENFORCE` unset (auto), nothing on sale, so no plan
+  limit applies until an operator turns enforcement on or Mojo goes on sale.
+- **Numbers:** per plan, characters per message, largest file, included Sparks and custom emoji/stickers; per Spark
+  level 1–3, the Sparks needed, emoji slots, largest file and voice bitrate. Bounds: characters 100–20,000, files
+  1 MB–5 GB, Sparks 0–100, custom items and slots 0–5,000, voice 16–510 kbps; level thresholds must rise (Level 1 at
+  least 1). Names, prices, badges and screen presets can't change here; a key never set keeps the value in perks.ts.
+- Applies at once: every limit is read through `Mojo` on each request; `GET /v2/mojo/catalog` serves the numbers in
+  effect with `version` = perks.ts's version plus `+<time of the change>`, so apps refresh when it changes.
+- A plan's file limit never goes above the server's `FILE_MAX_BYTES` (production: 1 GiB), as before.
+- Lowering a limit never deletes anything: over a limit, items lock as described above.
+- Read-only views: gifts as metadata (`GET /admin/v1/billing/gifts`; the note people write isn't shown) and the
+  communities with Sparks and their level (`GET /admin/v1/billing/sparks`).

@@ -19,7 +19,14 @@ import {
   AdminBillingEventParams,
   AdminBillingEventsQuery,
   AdminBillingMetricsQuery,
+  AdminMojoAccountParams,
+  AdminMojoControlsBody,
+  AdminMojoGiftsQuery,
+  AdminMojoGrantBody,
+  AdminMojoGrantParams,
+  AdminMojoGrantsQuery,
   AdminPlanCreate,
+  AdminProgramBody,
   AdminPlanMeta,
   AdminBillingPlanParams,
   AdminPlanTerms,
@@ -34,12 +41,14 @@ import type { AdminDeps } from "./dataRoutes.js";
 import { metaOf, principal, requirePermission } from "./guards.js";
 import { AdminIncidents } from "./incidents.js";
 import { AdminInfrastructure } from "./infrastructure.js";
+import { AdminMojo } from "./mojo.js";
 import type { Permission } from "./permissions.js";
 
 /** Billing status and limits, infrastructure, incidents, the audit viewer and admin management (phase 4). */
 export default async function adminOpsRoutes(app: FastifyInstance, d: AdminDeps) {
   const needs = (permission: Permission) => ({ preHandler: requirePermission(d.auth, d.audit, permission) });
   const billing = new AdminBilling(d.ctx, d.audit);
+  const mojo = new AdminMojo(d.ctx, d.audit);
   const infra = new AdminInfrastructure(d.ctx, d.audit, d.version);
   const incidents = new AdminIncidents(d.ctx, d.store, d.audit);
   const auditView = new AdminAuditView(d.ctx, d.audit);
@@ -81,6 +90,21 @@ export default async function adminOpsRoutes(app: FastifyInstance, d: AdminDeps)
     const { eventId } = parse(AdminBillingEventParams, req.params);
     return billing.replay(principal(req), eventId, parse(AdminReasonBody, req.body).reason, metaOf(req));
   });
+
+  // ── Meldiq Mojo: the trial and invite program, free periods (docs/BILLING.md › Running trials from the console) ──
+  app.get("/admin/v1/billing/program", needs("billing.view"), async (req) => mojo.program(principal(req)));
+  app.put("/admin/v1/billing/program", needs("billing.manage"), async (req) => mojo.setProgram(principal(req), parse(AdminProgramBody, req.body), metaOf(req)));
+  app.get("/admin/v1/billing/grants", needs("billing.view"), async (req) => mojo.grants(principal(req), parse(AdminMojoGrantsQuery, req.query)));
+  app.post("/admin/v1/billing/grants", needs("billing.manage"), async (req) => mojo.give(principal(req), parse(AdminMojoGrantBody, req.body), metaOf(req)));
+  app.post("/admin/v1/billing/grants/:grantId/end", needs("billing.manage"), async (req) => {
+    const { grantId } = parse(AdminMojoGrantParams, req.params);
+    return mojo.end(principal(req), grantId, parse(AdminReasonBody, req.body).reason, metaOf(req));
+  });
+  app.get("/admin/v1/billing/accounts/:accountId", needs("billing.view"), async (req) => mojo.account(principal(req), parse(AdminMojoAccountParams, req.params).accountId));
+  app.get("/admin/v1/billing/mojo", needs("billing.view"), async () => mojo.controls());
+  app.put("/admin/v1/billing/mojo", needs("billing.manage"), async (req) => mojo.setControls(principal(req), parse(AdminMojoControlsBody, req.body), metaOf(req)));
+  app.get("/admin/v1/billing/gifts", needs("billing.view"), async (req) => mojo.gifts(principal(req), parse(AdminMojoGiftsQuery, req.query)));
+  app.get("/admin/v1/billing/sparks", needs("billing.view"), async () => mojo.sparks());
 
   // ── Infrastructure ──
   app.get("/admin/v1/infrastructure", needs("health.view"), async () => infra.report());

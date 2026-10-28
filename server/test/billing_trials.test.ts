@@ -160,10 +160,10 @@ describe("with trials and invite links", () => {
 
   it("start an existing account's trial on launch day, not at its old sign-up time", async () => {
     const launch = Date.now() - 2 * DAY;
-    const grants = new Grants(h.ctx.billing.rows, { startsAt: launch, planKey: "plus", days: 14, referralDays: 30, referralCapDays: 90, claimWindowDays: 7 }, () => Date.now());
+    const grants = new Grants(h.ctx.billing.rows, () => ({ startsAt: launch, planKey: "plus", days: 14, referralDays: 30, referralCapDays: 90, claimWindowDays: 7 }), () => Date.now());
     await grants.ensureSignupTrial({ accountId: "acc_veteran", createdAt: Date.now() - 400 * DAY, userId: null });
     expect(grants.active("acc_veteran", Date.now())).toMatchObject({ starts_at: launch, ends_at: launch + 14 * DAY, source: "signup_trial" });
-    const before = new Grants(h.ctx.billing.rows, { startsAt: Date.now() + DAY, planKey: "plus", days: 14, referralDays: 30, referralCapDays: 90, claimWindowDays: 7 }, () => Date.now());
+    const before = new Grants(h.ctx.billing.rows, () => ({ startsAt: Date.now() + DAY, planKey: "plus", days: 14, referralDays: 30, referralCapDays: 90, claimWindowDays: 7 }), () => Date.now());
     await before.ensureSignupTrial({ accountId: "acc_early", createdAt: Date.now(), userId: null });
     expect(before.active("acc_early", Date.now() + 2 * DAY)).toBeNull();
   });

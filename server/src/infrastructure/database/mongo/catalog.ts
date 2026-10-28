@@ -255,6 +255,9 @@ export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
   // Meldiq Mojo's perks (API 0.54.0, docs/MOJO.md).
   spark_assignments: "billing",
   mojo_gifts: "billing",
+  billing_program: "billing",
+  mojo_controls: "billing",
+  billing_grant_notes: "billing",
   mojo_profile: "billing",
   // Google Play purchases (API 0.55.0, docs/MOJO_ANDROID.md).
   billing_play_purchases: "billing",

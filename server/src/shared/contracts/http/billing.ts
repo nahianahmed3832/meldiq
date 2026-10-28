@@ -138,7 +138,8 @@ const zGrant = {
   /** The quota plan (storage and transfer allowances) the subscription puts its owner on. */
   quotaPlanId: z.string().nullable(),
   /** A free period giving the plan (no subscription): the account's trial, an invite, or an invite bonus. */
-  trial: z.strictObject({ source: z.enum(["signup", "invite", "invite_bonus"]), endsAt: zTime }).nullable(),
+  /** A free period: the account's trial, an invite, an invite bonus, a gift from a friend, or days from the Meldiq team ("operator", API 0.58.0). */
+  trial: z.strictObject({ source: z.enum(["signup", "invite", "invite_bonus", "gift", "operator"]), endsAt: zTime }).nullable(),
   /** Billing details: the account's own, and an organization's for its owners only. */
   subscription: z
     .strictObject({

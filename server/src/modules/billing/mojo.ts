@@ -3,13 +3,12 @@ import { ApiError, conflict, forbidden, notFound } from "../../shared/errors.js"
 import { newId } from "../../shared/utilities/util.js";
 import {
   isPlanKey,
-  PLAN_PERKS,
   PLAN_RANK,
   type PlanKey,
   type PlanPerks,
   type ScreenPresetId,
   SPARK_PLAN_KEY,
-  sparkLevel,
+  sparkLevelIn,
   type SparkLevel,
   unionPresets,
 } from "./perks.js";
@@ -86,7 +85,7 @@ export class Mojo {
   }
 
   perksOf(userId: string, t = this.clock()): PlanPerks {
-    return PLAN_PERKS[this.planOf(userId, t)];
+    return this.billing.mojoControls.plans()[this.planOf(userId, t)];
   }
 
   // ───────────── Sparks ─────────────
@@ -119,7 +118,7 @@ export class Mojo {
   /** The server's level now and what it gives everyone in it. */
   levelOf(orgId: string | null, t = this.clock()): SparkLevel & { active: number } {
     const active = orgId ? this.activeFor(orgId, t).length : 0;
-    return { ...sparkLevel(active), active };
+    return { ...sparkLevelIn(this.billing.mojoControls.levels(), active), active };
   }
 
   /** Gives one of [userId]'s free Sparks to [orgId], where they must be a member. */
@@ -188,7 +187,8 @@ export class Mojo {
 
   /** Whether plan limits apply now (see [MojoEnforce]). Sparks, levels, gifts and badges work either way. */
   enforced(): boolean {
-    const mode = this.deps.enforce ?? "auto";
+    // The console's choice wins over MOJO_ENFORCE (controls.ts).
+    const mode = this.billing.mojoControls.enforce() ?? this.deps.enforce ?? "auto";
     if (mode !== "auto") return mode === "on";
     if (this.deps.storeOnSale?.()) return true;
     const provider = this.billing.provider;
@@ -218,7 +218,7 @@ export class Mojo {
   /** Screen-share ceilings [userId] may use in [orgId]: their plan's and the server level's together. */
   screenPresets(userId: string, orgId: string | null, t = this.clock()): ScreenPresetId[] {
     // Not enforced: every preset, as before plans existed.
-    if (!this.enforced()) return unionPresets(PLAN_PERKS.plus.screen, ["720p30", "720p60", "1080p30"]);
+    if (!this.enforced()) return unionPresets(this.billing.mojoControls.plans().plus.screen, ["720p30", "720p60", "1080p30"]);
     return unionPresets(this.perksOf(userId, t).screen, this.levelOf(orgId, t).screen);
   }
 
