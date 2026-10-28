@@ -1,8 +1,8 @@
 # MongoDB in Meldiq (2026-10-19)
 
 How Meldiq moves its server-side data to MongoDB: what lives there today, what stays in SQLite for now and why, how a
-domain is migrated, verified and rolled back, and what production still needs. Code: `server/src/mongo/`. Status as of
-this document: **implemented and tested against a local, throwaway MongoDB only. Nothing in production uses MongoDB.**
+domain is migrated, verified and rolled back, and what production still needs. Code: `server/src/mongo/`. Status: **since 2026-10-28 05:20 UTC production keeps seven domains in MongoDB Atlas** (accounts, preferences, history,
+reports, relationships, relay, files; API 0.51.1, `docs/DEPLOYMENT.md`); the other six domains stay in SQLite.
 
 ## 1. Target architecture
 

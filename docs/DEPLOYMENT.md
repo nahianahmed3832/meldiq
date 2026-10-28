@@ -130,6 +130,33 @@ Passkeys failed in the app installed from Google Play: Play signs it with its ap
 
 Rollback: copy the backup's `.env` back and recreate `api` the same way.
 
+### API 0.51.1 and the MongoDB Atlas cutover (2026-10-28, 05:20 UTC, owner's go-ahead: "finish all sql migration to mongodb atlas and make it as primary database")
+
+Seven domains now live in MongoDB Atlas (project `Meldiq`, `Cluster0`, M0 Free, AWS Singapore, user `meldiq_api` with
+`readWrite` on `meldiq` and `meldiq_rehearsal` only, access list `72.60.107.88/32`): **accounts, preferences, history,
+reports, relationships, relay, files**. Everything else (identity, workspace, conversations, calls, federation, platform)
+stays in SQLite: its code has no MongoDB store yet. internal-beta `05611f8` (local, not pushed).
+
+| Step | Result |
+|---|---|
+| First attempt (04:59–05:04 UTC, image 0.51.0) | backup ok; API stopped 04:59:53; all seven domains migrated and verified; the API then **crash-looped**: at start `ensureSchema` ran `collMod` on existing collections, which Atlas refuses to a `readWrite` user. `.env` restored, API back on SQLite at **05:04:25** (outage ~4.5 min, no data lost: MongoDB never accepted a write) |
+| Fix 0.51.1 | `ensureSchema` skips `collMod` when the validator matches (test added); full suite 988 passed, 1 unrelated flake (`platform_admin_auth` audit regex vs a random id; 20/20 alone, twice). Image built with `docker build --network host` (inside Docker's build network the Node headers download timed out). Proven against Atlas before the retry: 0.51.0 reproduced the `collMod` refusal, 0.51.1 connected with all seven domains configured |
+| Backup | `backups/pre-mongo-cutover-20261028T051820Z` (integrity ok, 43 users, `.env` + `compose.yaml`); each `mongo-migrate` also snapshot SQLite first (`/data/backups/pre-mongo-<domain>-*`); image `0.51.0-rollback` tagged |
+| Write freeze | API stopped 05:18:32 → healthy 05:20:52 (**2 min 20 s**) |
+| Migration | `mongo-migrate <d> --yes --prune` × 7 with `MONGODB_STORAGE_LIMIT_MB=512` (Atlas usage ~23 MiB); each verified (counts, id sets, row hashes, checksums), then `mongo-verify` × 7 again: all match |
+| Switch | `.env` += `MONGODB_URI` (from `.env.mongodb`), `MONGODB_DB=meldiq`, `MONGODB_STORAGE_LIMIT_MB=512`, `MONGODB_DOMAINS=preferences,reports,relationships,history,accounts,files,relay`; `compose.yaml` image 0.51.1; `up -d --no-deps --no-build --force-recreate api`: healthy, 0 restarts |
+| Checks after | `/healthz` 0.51.1 `mongodb: true` on both hosts; `verify.sh` 0 restarts (api, livekit, ntfy); 0 errors, 0 warnings; live traffic 37×200; `mongo-status` in the container: transactions true, 8.4 ms; MongoDB already ahead of SQLite (relay 17,947 vs 17,873, history 2,038 vs 2,035): new writes go to Atlas |
+
+Rollback (any time; writes made in MongoDB since the cutover come back): stop the API; for each domain
+`docker compose … run --rm api node dist/admin.js mongo-rollback <domain> --yes` (or `docker run` with the volume and
+`.env`); remove the four `MONGODB_*` lines from `.env` (copy: `.env.before-mongo-cutover-20261028T051820Z`); start the API
+(0.51.1 is fine on SQLite; `0.51.0-rollback` too). SQLite's copy of the seven domains is frozen as of 05:18 UTC and must
+not be emptied (owner's rule; and the other six domains live only there).
+
+Free-tier caveats now in force: no Atlas backups (schedule an encrypted `mongodump --gzip` off the VPS), 500 connections,
+10 GB in/out per 7 days, 512 MiB including indexes (~23 MiB used); every API start now needs Atlas reachable, and
+`/healthz` answers 503 while it isn't.
+
 ### API 0.51.0 (2026-10-28, 03:34 UTC, owner's go-ahead: "continue the runbook up to cutover, including the 0.51.0 deploy")
 
 MongoDB capacity tooling for the Atlas Free migration (docs/MONGODB_ATLAS_FREE_REPORT_2026-10-28.md): `admin

@@ -3,12 +3,13 @@
 Owner's brief: a separate, free Atlas environment for Meldiq (project `Meldiq`, M0 cluster `Meldiq-Free`, database
 `meldiq`), a verified migration of Meldiq's SQL data, the shared backend on MongoDB, GriipBuddy untouched.
 
-**Outcome (round 2, verified): the Atlas cluster does NOT exist yet and NO data was migrated to Atlas.** The
-restricted Atlas identity can read the `Meldiq` project but can't create anything (§1, B1). Everything else is
-verified: the production SQLite source was measured read-only (31,703 rows → 25.84 MiB estimated, about 5% of the Free
-limit), and a full migration of a production snapshot into a local throwaway replica set copied and verified all 159
-tables. The backend, the production web build and the Android unit suite were then tested against it (§5b). Production
-is unchanged (API 0.50.0 on SQLite); no cutover, nothing destructive.
+**Outcome (final, 2026-10-28 05:20 UTC, verified): seven domains are migrated and MongoDB Atlas is their primary
+store in production** (accounts, preferences, history, reports, relationships, relay, files), on the Free M0 `Cluster0`
+in project `Meldiq`, API 0.51.1. Downtime 2 min 20 s, after a first attempt at 05:02 crash-looped and was rolled back
+(~4.5 min outage, no data lost; `docs/DEPLOYMENT.md`). The other six domains (identity, workspace, conversations, calls,
+federation, platform) **still live in SQLite**: their code has no MongoDB store, so their data can't move yet. **SQLite
+was not deleted**: it holds those six domains (production can't run without them) and the frozen rollback copy of the
+seven. No paid Atlas resource exists; GriipBuddy's project and containers were not touched.
 
 ## 1. Blockers (owner)
 
@@ -222,9 +223,23 @@ URI must use TLS (`mongodb+srv://` does). `/healthz` reports `mongodb: true|fals
 | GriipBuddy | Untouched: "Project 0" never queried; no GriipBuddy container or database touched on the VPS |
 | Source identified and measured (read-only) | **Yes**: `/data/griip.sqlite`, schema 061, 31,703 rows to copy, integrity ok |
 | Capacity reviewed | **Yes**: 25.84 MiB estimated, 20.3 MiB measured after a copy, about 4–5% of 512 MiB |
-| Data migrated to Atlas | **No** (by design: cutover needs your go-ahead) |
+| Data migrated to Atlas | **Yes, seven domains** (§8b): verified twice before the switch; Atlas is their primary store since 05:20 UTC |
 | Full migration rehearsal on a production snapshot (local) | **Yes, verified** (§5b) |
 | Backend on MongoDB | Seven domains migrated and exercised on real data; six domains still SQLite-only (§3) |
-| Production cutover | **Not done, not enabled**: production unchanged, `MONGODB_*` unset on the VPS |
+| Production cutover | **Done for seven domains** (05:20 UTC, API 0.51.1, `mongodb: true`); six domains remain in SQLite; SQLite not deleted |
 | Local copies of production data | Deleted after the rehearsal (§5b): snapshot, working copies, local replica set |
 | Code | Uncommitted in `meldiq_android/server` (`internal-beta` checkout). The temporary smoke test and the test-only web worktree (`f78407e`) were removed. |
+
+## 8b. Production cutover (2026-10-28)
+
+| Attempt | Result |
+|---|---|
+| 1 (04:59–05:04 UTC, 0.51.0) | Seven domains migrated and verified; the API crash-looped on start (`collMod` refused to `readWrite`); rolled back to SQLite at 05:04:25 |
+| 2 (05:18–05:20 UTC, 0.51.1) | Re-copied with `--prune`, verified twice; API healthy on MongoDB, 0 restarts, 0 errors; live traffic answered 200; new writes in Atlas within minutes |
+
+Atlas after the cutover: ~23 MiB of 512 MiB. Rollback and Free-tier caveats: `docs/DEPLOYMENT.md` › API 0.51.1.
+
+**What "all of SQL" still needs** (not done): MongoDB stores for identity, workspace + conversations (with `authz.ts`
+made async), calls, federation and platform, roughly 800 synchronous statements, each with the full suite on both stores
+and its own rehearsed cutover (`MONGODB.md` §6). Only after all thirteen domains live in MongoDB and an observation
+period passes can SQLite be retired, and its deletion is the owner's own step.
