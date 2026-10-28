@@ -156,7 +156,11 @@ fun MembersScreen(nav: NavHostController, orgId: String) {
         items(g.members, key = { it.id }) { u ->
             ListCard(
                 u.displayName, Modifier.padding(horizontal = 8.dp, vertical = 1.dp),
-                subtitle = "@${u.username}" + (u.title?.let { " · $it" } ?: ""),
+                // API 0.56.0: what they're playing comes first, as Discord's member list shows it (docs/ACTIVITY_STATUS.md).
+                subtitle = listOfNotNull(
+                    com.meldiq.android.ui.components.rememberActivity(u.id)?.let { com.meldiq.android.ui.components.activityLabel(it, withElapsed = false) },
+                    "@${u.username}" + (u.title?.let { " · $it" } ?: ""),
+                ).joinToString(" · "),
                 // API 0.46.0: member lists carry each person's look (animated avatar, frame, worn tag), as on Meldiq Web.
                 leading = { com.meldiq.android.ui.components.LookAvatar(u.id, u.displayName, u.avatarColor, u.photoRev, com.meldiq.android.data.model.PersonLook(u.avatarMedia, u.profileStyle, u.tag), size = 46.dp, online = u.online) },
                 meta = {

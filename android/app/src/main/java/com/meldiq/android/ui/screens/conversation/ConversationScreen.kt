@@ -517,11 +517,15 @@ fun ConversationScreen(nav: NavHostController, conversationId: String, threadRoo
         otherServers = remoteServers.size.coerceAtLeast(if (remoteMembers.isNotEmpty()) 1 else 0),
         callMediaE2ee = chatSettings.mediaE2ee,
     )
+    // API 0.56.0: a DM's header says what the other person is playing (docs/ACTIVITY_STATUS.md).
+    val peerActivity = com.meldiq.android.ui.components.rememberActivity(if (conv?.type == "DM") peer?.id else null)
+    val peerActivityLabel = peerActivity?.let { com.meldiq.android.ui.components.activityLabel(it) }
     val subtitle = when {
         threadRoot != null && conv?.type == "CHANNEL" -> androidx.compose.ui.res.stringResource(com.meldiq.android.R.string.nv_thread_in, conv?.name.orEmpty())
         threadRoot != null -> stringResource(R.string.b5_thread)
         typing.isNotEmpty() -> if (isGroup) stringResource(R.string.b5_typing_named, typing.first()) else stringResource(R.string.b5_typing)
         conv?.type == "DM" && peer != null && remoteMembers.isNotEmpty() -> "@${peer.username}"
+        conv?.type == "DM" && peerActivityLabel != null -> peerActivityLabel
         conv?.type == "DM" -> listOfNotNull(
             when {
                 peerUser?.online != true -> stringResource(R.string.b5_last_seen, TimeFmt.relative(peerUser?.lastSeenAt))

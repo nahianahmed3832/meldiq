@@ -363,6 +363,11 @@ fun UserProfileScreen(nav: NavHostController, userId: String) {
                             Text(shown, style = Griip.type.caption, color = if (u.online == true) c.success else c.textTertiary)
                         }
                         u.statusText?.let { Spacer(Modifier.height(6.dp)); Text(it, style = Griip.type.bodySmall, color = c.textSecondary) }
+                        // API 0.56.0: what they're playing, live (docs/ACTIVITY_STATUS.md).
+                        com.meldiq.android.ui.components.rememberActivity(u.id)?.let { a ->
+                            Spacer(Modifier.height(6.dp))
+                            com.meldiq.android.ui.components.PlayingLine(a, style = Griip.type.bodySmall, color = c.textPrimary)
+                        }
                         Spacer(Modifier.height(14.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             PillButton("Message", {

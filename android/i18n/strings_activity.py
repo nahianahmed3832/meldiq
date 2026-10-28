@@ -1,0 +1,43 @@
+# Activity status (API 0.56.0, 2026-10-29, docs/ACTIVITY_STATUS.md): "Playing …" on profiles, DMs and member lists,
+# and Settings > Privacy > Activity privacy. key: (English, Simplified Chinese, Bengali). Game names stay as they are.
+S = {
+# The line others see
+"act_playing": ("Playing %1$s", "正在玩 %1$s", "%1$s খেলছেন"),
+"act_just_started": ("just started", "刚刚开始", "এইমাত্র শুরু"),
+"act_minutes": ("%1$d min", "%1$d 分钟", "%1$d মিনিট"),
+"act_hours": ("%1$d h %2$d min", "%1$d 小时 %2$d 分钟", "%1$d ঘণ্টা %2$d মিনিট"),
+"act_cd_game": ("Game", "游戏", "গেম"),
+# Settings
+"act_title": ("Activity privacy", "活动隐私", "অ্যাক্টিভিটি গোপনীয়তা"),
+"act_section": ("Activity", "活动", "অ্যাক্টিভিটি"),
+"act_row_on": ("Sharing what you play", "正在分享你在玩的游戏", "আপনি কী খেলছেন তা শেয়ার হচ্ছে"),
+"act_row_off": ("Off", "关闭", "বন্ধ"),
+"act_share": ("Share what I'm playing", "分享我正在玩的游戏", "আমি কী খেলছি তা শেয়ার করুন"),
+"act_share_sub": ("Shows \"Playing …\" on your profile, in DMs and in your communities' member lists", "在你的个人资料、私信和社区成员列表中显示“正在玩……”", "আপনার প্রোফাইলে, ডিএম-এ এবং কমিউনিটির সদস্য তালিকায় \"… খেলছেন\" দেখায়"),
+"act_explain": (
+    "When this is on, Meldiq checks which app is on your screen about every 30 seconds while it's connected. Only games are ever reported: the game's name and when you started. Other apps are never kept or sent. People who can see when you're online see it, never while you appear invisible, and it ends when you close the game or Meldiq disconnects.",
+    "开启后，Meldiq 在连接期间大约每 30 秒查看一次屏幕上的应用。只会报告游戏：游戏名称和开始时间。其他应用绝不会被保存或发送。能看到你在线状态的人可以看到它，你隐身时绝不显示；关闭游戏或 Meldiq 断开连接时即结束。",
+    "এটি চালু থাকলে, Meldiq সংযুক্ত থাকার সময় প্রায় প্রতি ৩০ সেকেন্ডে দেখে আপনার স্ক্রিনে কোন অ্যাপ আছে। শুধু গেমের তথ্যই পাঠানো হয়: গেমের নাম আর কখন শুরু করেছেন। অন্য অ্যাপের তথ্য কখনো রাখা বা পাঠানো হয় না। যারা আপনার অনলাইন থাকা দেখতে পায় তারাই এটি দেখে, আপনি অদৃশ্য থাকলে কখনো নয়; গেম বন্ধ করলে বা Meldiq সংযোগ হারালে এটি শেষ হয়।",
+),
+"act_disclosure_title": ("Allow Meldiq to see which app you're using?", "允许 Meldiq 查看你正在使用的应用？", "আপনি কোন অ্যাপ ব্যবহার করছেন তা Meldiq-কে দেখতে দেবেন?"),
+"act_disclosure_body": (
+    "To show \"Playing …\", Meldiq needs Android's Usage access, which lets it see which app is in the foreground. Meldiq uses it only to recognise games, sends only the game's name and start time to your Meldiq server, and never collects, stores or shares the other apps you use. You can turn this off at any time here or in Android's Usage access settings.",
+    "为了显示“正在玩……”，Meldiq 需要 Android 的“使用情况访问权限”，以便查看前台运行的应用。Meldiq 仅用它来识别游戏，只把游戏名称和开始时间发送到你的 Meldiq 服务器，绝不收集、存储或分享你使用的其他应用。你可以随时在这里或 Android 的“使用情况访问权限”设置中关闭。",
+    "\"… খেলছেন\" দেখাতে Meldiq-এর Android-এর ইউসেজ অ্যাক্সেস লাগবে, যা দিয়ে সামনে কোন অ্যাপ চলছে তা দেখা যায়। Meldiq এটি শুধু গেম চিনতে ব্যবহার করে, আপনার Meldiq সার্ভারে শুধু গেমের নাম আর শুরুর সময় পাঠায়, আর আপনার ব্যবহৃত অন্য অ্যাপের তথ্য কখনো সংগ্রহ, সংরক্ষণ বা শেয়ার করে না। যেকোনো সময় এখানে বা Android-এর ইউসেজ অ্যাক্সেস সেটিংসে এটি বন্ধ করতে পারবেন।",
+),
+"act_disclosure_agree": ("Agree and continue", "同意并继续", "সম্মত হয়ে এগিয়ে যান"),
+"act_disclosure_cancel": ("Not now", "暂不", "এখন নয়"),
+"act_access_off": ("Usage access is off", "使用情况访问权限已关闭", "ইউসেজ অ্যাক্সেস বন্ধ"),
+"act_access_off_sub": ("Allow Meldiq in Android's Usage access settings so it can recognise games", "在 Android 的“使用情况访问权限”设置中允许 Meldiq，以便识别游戏", "গেম চেনার জন্য Android-এর ইউসেজ অ্যাক্সেস সেটিংসে Meldiq-কে অনুমতি দিন"),
+"act_access_open": ("Open Usage access", "打开使用情况访问权限", "ইউসেজ অ্যাক্সেস খুলুন"),
+"act_access_on": ("Usage access allowed", "已允许使用情况访问权限", "ইউসেজ অ্যাক্সেসের অনুমতি আছে"),
+"act_access_on_sub": ("Remove it any time in Android's Usage access settings", "可随时在 Android 的“使用情况访问权限”设置中移除", "যেকোনো সময় Android-এর ইউসেজ অ্যাক্সেস সেটিংস থেকে সরাতে পারবেন"),
+"act_background": ("Keep \"Stay connected in background\" on so Meldiq notices games while you play", "请保持“后台保持连接”开启，这样 Meldiq 才能在你玩游戏时识别游戏", "খেলার সময় Meldiq যেন গেম চিনতে পারে সেজন্য \"ব্যাকগ্রাউন্ডে সংযুক্ত থাকুন\" চালু রাখুন"),
+"act_server_missing": ("This server doesn't show activities yet.", "此服务器暂不支持显示活动。", "এই সার্ভার এখনো অ্যাক্টিভিটি দেখায় না।"),
+"act_now": ("Now", "现在", "এখন"),
+"act_now_none": ("No game on screen right now", "当前屏幕上没有游戏", "এখন স্ক্রিনে কোনো গেম নেই"),
+"act_games": ("Games", "游戏", "গেম"),
+"act_games_empty": ("Games you play show up here once Meldiq notices them. Turn one off to never show it.", "Meldiq 识别到你玩的游戏后会显示在这里。关闭某个游戏即可永不显示。", "Meldiq যে গেমগুলো খেয়াল করে সেগুলো এখানে দেখাবে। কোনোটি বন্ধ করলে সেটি আর কখনো দেখাবে না।"),
+"act_game_shown": ("Shown to others", "对他人显示", "অন্যরা দেখতে পায়"),
+"act_game_hidden": ("Never shown", "从不显示", "কখনো দেখানো হয় না"),
+}

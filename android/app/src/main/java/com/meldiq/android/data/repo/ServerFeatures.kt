@@ -135,6 +135,8 @@ class ServerFeatures(private val api: ApiClient, private val clock: () -> Long =
         const val ACCOUNT_STANDING = "account-standing"
         const val BUG_REPORTS = "bug-reports"
         const val PROFILE_LINKS = "profile-links"
+        /** API 0.56.0: "Playing …" activities (docs/ACTIVITY_STATUS.md). */
+        const val ACTIVITY_STATUS = "activity-status"
         /** Custom workspace roles and delegated permissions (2026-10-19, docs/WORKSPACE_ROLES.md). */
         const val CUSTOM_ROLES = "custom-roles"
         private const val TTL_MS = 5 * 60_000L

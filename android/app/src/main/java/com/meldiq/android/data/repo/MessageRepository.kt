@@ -119,6 +119,7 @@ class MessageRepository(
     val typing: StateFlow<Map<String, Map<String, Long>>> = signals.typing
     val callInvites: SharedFlow<IncomingCallKey> = signals.callInvites
     val callFrames: SharedFlow<ServerEvent.Call> = signals.callFrames
+    val activityFrames: SharedFlow<ServerEvent.Activity> = signals.activityFrames
     /** Round 7: a meeting starting in ten minutes (its id), and a workspace whose meetings changed (its id). */
     val meetingSoon: SharedFlow<String> = signals.meetingSoon
     val meetingUpdates: SharedFlow<String> = signals.meetingUpdates
