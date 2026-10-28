@@ -200,7 +200,7 @@
     <string name="mtg_soon_body">১০ মিনিট পরে #%1$s-এ</string>
     <string name="dev_title">API কী ও ওয়েবহুক</string>
     <string name="dev_menu_sub">নিজের টুল এই কমিউনিটিতে যুক্ত করুন</string>
-    <string name="dev_intro">কী ও ওয়েবহুক শুধু কমিউনিটির তথ্য পায়: কখনো বার্তা (এন্ড-টু-এন্ড এনক্রিপ্টেড), প্রাইভেট চ্যানেল, সীমিত ডকুমেন্ট, ইমেইল বা ফোন নম্বর নয়। নির্মাতা এই অনুমতি হারালে এগুলো কাজ বন্ধ করে।</string>
+    <string name="dev_intro">কী আর ওয়েবহুক শুধু কমিউনিটির বিবরণ পায়: কখনো মেসেজ, প্রাইভেট চ্যানেল, সীমিত ডকুমেন্ট, ইমেইল বা ফোন নম্বর নয়। যিনি বানিয়েছেন তিনি এই অনুমতি হারালে এগুলো কাজ বন্ধ করে।</string>
     <string name="dev_keys">API কী</string>
     <string name="dev_new_key">নতুন কী</string>
     <string name="dev_revoked">বাতিল</string>

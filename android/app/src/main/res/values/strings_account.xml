@@ -102,7 +102,7 @@
     <string name="acct_settings_password_save">Change</string>
     <string name="acct_settings_logout">Sign out</string>
     <string name="acct_settings_logout_sub">Messages stay on this phone for when you sign in again</string>
-    <string name="acct_settings_logout_body">You\'ll need your email and password to sign in again. Your encrypted messages stay on this phone; to remove them, use Sign out &amp; erase.</string>
+    <string name="acct_settings_logout_body">You\'ll need your email and password to sign in again. Your messages stay on Meldiq\'s servers.</string>
     <string name="acct_settings_sessions">Signed-in apps</string>
     <string name="acct_settings_loading">Loading…</string>
     <string name="acct_settings_this_phone">this phone</string>

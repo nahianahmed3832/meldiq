@@ -17,7 +17,7 @@
     <string name="settings_calls">Calls</string>
     <string name="settings_calls_sub">Encryption, echo and noise, check your mic and camera</string>
     <string name="settings_storage">Data &amp; Storage</string>
-    <string name="settings_storage_sub">Message history on the server, encrypted backup, storage on this phone</string>
+    <string name="settings_storage_sub">Downloaded files and storage on this phone</string>
     <string name="settings_language">Language</string>
     <string name="settings_address_sub">Your address on the Meldiq network. Share it so people on other servers can message you. Tap to copy.</string>
     <string name="settings_about">About Meldiq</string>
@@ -175,7 +175,7 @@
     <string name="auth_error_unknown">Something went wrong. Please try again.</string>
     <string name="welcome_title_1">Private by design.</string>
     <string name="welcome_title_2">Connected by everyone.</string>
-    <string name="welcome_body">Messages, community channels and calls, encrypted on your phone before they leave it.</string>
+    <string name="welcome_body">Messages, community channels and calls, on every device you sign in to.</string>
     <string name="welcome_trust">Your chats on every device · Kept safe on Meldiq\'s servers</string>
     <string name="welcome_sign_up">Sign up</string>
     <string name="welcome_log_in">Log in</string>

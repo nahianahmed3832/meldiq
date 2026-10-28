@@ -200,7 +200,7 @@
     <string name="mtg_soon_body">In #%1$s in 10 minutes</string>
     <string name="dev_title">API keys &amp; webhooks</string>
     <string name="dev_menu_sub">Connect your own tools to this community</string>
-    <string name="dev_intro">Keys and webhooks reach community details only: never messages (they\'re end-to-end encrypted), private channels, restricted documents, emails or phone numbers. They stop working if the person who made them loses this permission.</string>
+    <string name="dev_intro">Keys and webhooks reach community details only: never messages, private channels, restricted documents, emails or phone numbers. They stop working if the person who made them loses this permission.</string>
     <string name="dev_keys">API keys</string>
     <string name="dev_new_key">New key</string>
     <string name="dev_revoked">Revoked</string>

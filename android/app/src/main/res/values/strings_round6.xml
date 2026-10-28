@@ -7,9 +7,9 @@
     <string name="sec_title">Security</string>
     <string name="sec_this_person">this person</string>
     <string name="sec_messages">Messages are kept on Meldiq\'s servers</string>
-    <string name="sec_messages_body">Messages, reactions, polls and edits are encrypted on this phone for each member\'s devices. Meldiq\'s server only relays and stores encrypted copies.</string>
+    <string name="sec_messages_body">Messages, reactions, polls and edits are kept on Meldiq\'s servers and travel over encrypted connections (TLS). Members of this conversation can read them, and Meldiq\'s staff can when a report or the law requires it.</string>
     <string name="sec_files">Files are encrypted before upload</string>
-    <string name="sec_files_body">Photos, videos, voice messages and files are encrypted on this phone; the server can\'t open them or scan them.</string>
+    <string name="sec_files_body">Photos, videos, voice messages and files are kept on Meldiq\'s servers for the members of this conversation. Meldiq doesn\'t scan them for viruses.</string>
     <string name="sec_calls_e2ee">Calls are end-to-end encrypted</string>
     <string name="sec_calls_e2ee_body">Call audio and video use a key only the participants have. The call screen confirms it once media is decrypting.</string>
     <string name="sec_calls_transport">Calls are encrypted in transit only</string>
@@ -52,7 +52,7 @@
     <string name="recover_code_help">One of the codes you saved when you set them up. Each code works once.</string>
     <string name="recover_new_email">New email address</string>
     <string name="recover_new_email_invalid">Enter a different, valid email address</string>
-    <string name="recover_history_note">This gets you back into your account. Your encrypted messages still need your encryption recovery key or another signed-in phone.</string>
+    <string name="recover_history_note">This gets you back into your account, with all your messages.</string>
     <string name="recover_confirm_title">Confirm your new address</string>
     <string name="recover_confirm_subtitle">We sent a 6-digit code to %1$s. Enter it and choose a new password.</string>
     <string name="recover_confirm_submit">Recover account</string>

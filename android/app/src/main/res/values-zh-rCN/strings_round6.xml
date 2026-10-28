@@ -7,9 +7,9 @@
     <string name="sec_title">安全</string>
     <string name="sec_this_person">此人</string>
     <string name="sec_messages">消息保存在 Meldiq 的服务器上</string>
-    <string name="sec_messages_body">消息、回应、投票和编辑都会在此手机上为每位成员的设备加密。Meldiq 服务器只转发和存储加密副本。</string>
+    <string name="sec_messages_body">消息、回应、投票和编辑保存在 Meldiq 的服务器上，并通过加密连接（TLS）传输。此对话的成员可以阅读；在举报或法律要求时，Meldiq 的工作人员也可以。</string>
     <string name="sec_files">文件在上传前加密</string>
-    <string name="sec_files_body">照片、视频、语音消息和文件在此手机上加密，服务器无法打开或扫描它们。</string>
+    <string name="sec_files_body">照片、视频、语音消息和文件保存在 Meldiq 的服务器上，供此对话的成员使用。Meldiq 不会扫描其中的病毒。</string>
     <string name="sec_calls_e2ee">通话端到端加密</string>
     <string name="sec_calls_e2ee_body">通话音视频使用只有参与者拥有的密钥。媒体开始解密后，通话界面会显示确认。</string>
     <string name="sec_calls_transport">通话仅在传输中加密</string>
@@ -52,7 +52,7 @@
     <string name="recover_code_help">设置时保存的其中一个恢复码。每个码只能使用一次。</string>
     <string name="recover_new_email">新邮箱地址</string>
     <string name="recover_new_email_invalid">请输入另一个有效的邮箱地址</string>
-    <string name="recover_history_note">这能让你重新进入账户。你的加密消息仍需要加密恢复密钥或另一台已登录的手机。</string>
+    <string name="recover_history_note">这样可以让你重新进入账户，所有消息都在。</string>
     <string name="recover_confirm_title">确认新地址</string>
     <string name="recover_confirm_subtitle">我们已向 %1$s 发送 6 位验证码。请输入并设置新密码。</string>
     <string name="recover_confirm_submit">恢复账户</string>

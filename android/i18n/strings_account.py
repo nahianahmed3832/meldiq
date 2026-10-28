@@ -112,7 +112,7 @@ S = {
 "acct_settings_password_save": ("Change", "更改", "বদলান"),
 "acct_settings_logout": ("Sign out", "退出登录", "সাইন আউট"),
 "acct_settings_logout_sub": ("Messages stay on this phone for when you sign in again", "消息会保留在本机，方便你再次登录", "আবার সাইন ইন করলে ব্যবহারের জন্য বার্তাগুলো এই ফোনে থাকবে"),
-"acct_settings_logout_body": ("You'll need your email and password to sign in again. Your encrypted messages stay on this phone; to remove them, use Sign out & erase.", "再次登录需要邮箱和密码。加密消息会保留在本机；如需删除，请使用“退出并清除”。", "আবার সাইন ইন করতে ইমেইল ও পাসওয়ার্ড লাগবে। এনক্রিপ্টেড বার্তাগুলো এই ফোনে থাকবে; সেগুলো মুছতে \"সাইন আউট ও মুছুন\" ব্যবহার করুন।"),
+"acct_settings_logout_body": ("You'll need your email and password to sign in again. Your messages stay on Meldiq's servers.", "再次登录需要你的邮箱和密码。你的消息保留在 Meldiq 的服务器上。", "আবার সাইন ইন করতে আপনার ইমেইল ও পাসওয়ার্ড লাগবে। আপনার মেসেজ Meldiq-এর সার্ভারে থাকে।"),
 "acct_settings_sessions": ("Signed-in apps", "已登录的应用", "সাইন-ইন করা অ্যাপ"),
 "acct_settings_loading": ("Loading…", "正在加载…", "লোড হচ্ছে…"),
 "acct_settings_this_phone": ("this phone", "本机", "এই ফোন"),

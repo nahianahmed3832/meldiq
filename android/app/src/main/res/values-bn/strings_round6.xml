@@ -7,9 +7,9 @@
     <string name="sec_title">নিরাপত্তা</string>
     <string name="sec_this_person">এই ব্যক্তি</string>
     <string name="sec_messages">মেসেজ Meldiq-এর সার্ভারে রাখা হয়</string>
-    <string name="sec_messages_body">বার্তা, প্রতিক্রিয়া, পোল ও সম্পাদনা এই ফোনেই প্রত্যেক সদস্যের ডিভাইসের জন্য এনক্রিপ্ট হয়। Meldiq-এর সার্ভার শুধু এনক্রিপ্টেড কপি পৌঁছে দেয় ও রাখে।</string>
+    <string name="sec_messages_body">মেসেজ, রিঅ্যাকশন, পোল আর এডিট Meldiq-এর সার্ভারে রাখা হয় এবং এনক্রিপ্টেড সংযোগে (TLS) আসা-যাওয়া করে। এই কথোপকথনের সদস্যরা পড়তে পারেন, আর রিপোর্ট বা আইনের প্রয়োজনে Meldiq-এর কর্মীরাও পারেন।</string>
     <string name="sec_files">ফাইল আপলোডের আগেই এনক্রিপ্ট হয়</string>
-    <string name="sec_files_body">ছবি, ভিডিও, ভয়েস বার্তা ও ফাইল এই ফোনেই এনক্রিপ্ট হয়; সার্ভার সেগুলো খুলতে বা স্ক্যান করতে পারে না।</string>
+    <string name="sec_files_body">ছবি, ভিডিও, ভয়েস মেসেজ আর ফাইল এই কথোপকথনের সদস্যদের জন্য Meldiq-এর সার্ভারে রাখা হয়। Meldiq এগুলোতে ভাইরাস স্ক্যান করে না।</string>
     <string name="sec_calls_e2ee">কল এন্ড-টু-এন্ড এনক্রিপ্টেড</string>
     <string name="sec_calls_e2ee_body">কলের অডিও ও ভিডিও এমন কী ব্যবহার করে যা শুধু অংশগ্রহণকারীদের কাছে আছে। মিডিয়া ডিক্রিপ্ট হতে শুরু করলে কল স্ক্রিন তা নিশ্চিত করে।</string>
     <string name="sec_calls_transport">কল শুধু পথে এনক্রিপ্টেড</string>
@@ -52,7 +52,7 @@
     <string name="recover_code_help">সেট আপ করার সময় রাখা কোডগুলোর একটি। প্রতিটি কোড একবারই কাজ করে।</string>
     <string name="recover_new_email">নতুন ইমেইল ঠিকানা</string>
     <string name="recover_new_email_invalid">ভিন্ন একটি সঠিক ইমেইল ঠিকানা লিখুন</string>
-    <string name="recover_history_note">এতে আপনি অ্যাকাউন্টে ফিরে যাবেন। এনক্রিপ্টেড বার্তার জন্য এখনো এনক্রিপশন রিকভারি কী বা সাইন ইন করা অন্য ফোন লাগবে।</string>
+    <string name="recover_history_note">এতে আপনি সব মেসেজসহ আপনার অ্যাকাউন্টে ফিরে যাবেন।</string>
     <string name="recover_confirm_title">নতুন ঠিকানা নিশ্চিত করুন</string>
     <string name="recover_confirm_subtitle">%1$s-এ ৬ অঙ্কের একটি কোড পাঠিয়েছি। সেটি লিখে নতুন পাসওয়ার্ড বেছে নিন।</string>
     <string name="recover_confirm_submit">অ্যাকাউন্ট ফিরিয়ে আনুন</string>

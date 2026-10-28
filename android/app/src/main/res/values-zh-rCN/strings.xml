@@ -15,7 +15,7 @@
     <string name="settings_calls">通话</string>
     <string name="settings_calls_sub">加密、回声与降噪，检查麦克风和摄像头</string>
     <string name="settings_storage">数据与存储</string>
-    <string name="settings_storage_sub">服务器上的消息记录、加密备份、本机存储</string>
+    <string name="settings_storage_sub">已下载的文件和这部手机上的存储</string>
     <string name="settings_language">语言</string>
     <string name="settings_address_sub">你在 Meldiq 网络上的地址。分享给其他服务器上的人，他们就能给你发消息。点按复制。</string>
     <string name="settings_about">关于 Meldiq</string>
@@ -173,7 +173,7 @@
     <string name="auth_error_unknown">出了点问题，请重试。</string>
     <string name="welcome_title_1">设计即隐私。</string>
     <string name="welcome_title_2">连接每一个人。</string>
-    <string name="welcome_body">消息、社区频道和通话在离开你的手机之前就已加密。</string>
+    <string name="welcome_body">消息、社区频道和通话，在你登录的每台设备上。</string>
     <string name="welcome_trust">你的聊天在每台设备上 · 安全保存在 Meldiq 的服务器上</string>
     <string name="welcome_sign_up">注册</string>
     <string name="welcome_log_in">登录</string>

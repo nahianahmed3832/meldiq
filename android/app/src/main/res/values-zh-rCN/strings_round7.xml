@@ -200,7 +200,7 @@
     <string name="mtg_soon_body">10 分钟后在 #%1$s</string>
     <string name="dev_title">API 密钥和 Webhook</string>
     <string name="dev_menu_sub">将你自己的工具连接到此社区</string>
-    <string name="dev_intro">密钥和 Webhook 只能访问社区信息：绝不包括消息（端到端加密）、私密频道、受限文档、邮箱或电话号码。如果创建者失去此权限，它们将停止工作。</string>
+    <string name="dev_intro">密钥和 Webhook 只能访问社区详情：绝不包括消息、私密频道、受限文档、邮箱或电话号码。如果创建者失去此权限，它们将停止工作。</string>
     <string name="dev_keys">API 密钥</string>
     <string name="dev_new_key">新建密钥</string>
     <string name="dev_revoked">已撤销</string>

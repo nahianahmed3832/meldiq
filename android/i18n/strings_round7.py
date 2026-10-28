@@ -212,7 +212,7 @@ S = {
 # Developer platform
 "dev_title": ("API keys & webhooks", "API 密钥和 Webhook", "API কী ও ওয়েবহুক"),
 "dev_menu_sub": ("Connect your own tools to this community", "将你自己的工具连接到此社区", "নিজের টুল এই কমিউনিটিতে যুক্ত করুন"),
-"dev_intro": ("Keys and webhooks reach community details only: never messages (they're end-to-end encrypted), private channels, restricted documents, emails or phone numbers. They stop working if the person who made them loses this permission.", "密钥和 Webhook 只能访问社区信息：绝不包括消息（端到端加密）、私密频道、受限文档、邮箱或电话号码。如果创建者失去此权限，它们将停止工作。", "কী ও ওয়েবহুক শুধু কমিউনিটির তথ্য পায়: কখনো বার্তা (এন্ড-টু-এন্ড এনক্রিপ্টেড), প্রাইভেট চ্যানেল, সীমিত ডকুমেন্ট, ইমেইল বা ফোন নম্বর নয়। নির্মাতা এই অনুমতি হারালে এগুলো কাজ বন্ধ করে।"),
+"dev_intro": ("Keys and webhooks reach community details only: never messages, private channels, restricted documents, emails or phone numbers. They stop working if the person who made them loses this permission.", "密钥和 Webhook 只能访问社区详情：绝不包括消息、私密频道、受限文档、邮箱或电话号码。如果创建者失去此权限，它们将停止工作。", "কী আর ওয়েবহুক শুধু কমিউনিটির বিবরণ পায়: কখনো মেসেজ, প্রাইভেট চ্যানেল, সীমিত ডকুমেন্ট, ইমেইল বা ফোন নম্বর নয়। যিনি বানিয়েছেন তিনি এই অনুমতি হারালে এগুলো কাজ বন্ধ করে।"),
 "dev_keys": ("API keys", "API 密钥", "API কী"),
 "dev_new_key": ("New key", "新建密钥", "নতুন কী"),
 "dev_revoked": ("Revoked", "已撤销", "বাতিল"),

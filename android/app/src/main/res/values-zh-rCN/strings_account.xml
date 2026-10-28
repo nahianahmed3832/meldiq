@@ -102,7 +102,7 @@
     <string name="acct_settings_password_save">更改</string>
     <string name="acct_settings_logout">退出登录</string>
     <string name="acct_settings_logout_sub">消息会保留在本机，方便你再次登录</string>
-    <string name="acct_settings_logout_body">再次登录需要邮箱和密码。加密消息会保留在本机；如需删除，请使用“退出并清除”。</string>
+    <string name="acct_settings_logout_body">再次登录需要你的邮箱和密码。你的消息保留在 Meldiq 的服务器上。</string>
     <string name="acct_settings_sessions">已登录的应用</string>
     <string name="acct_settings_loading">正在加载…</string>
     <string name="acct_settings_this_phone">本机</string>

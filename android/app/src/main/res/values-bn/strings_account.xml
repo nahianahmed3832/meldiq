@@ -102,7 +102,7 @@
     <string name="acct_settings_password_save">বদলান</string>
     <string name="acct_settings_logout">সাইন আউট</string>
     <string name="acct_settings_logout_sub">আবার সাইন ইন করলে ব্যবহারের জন্য বার্তাগুলো এই ফোনে থাকবে</string>
-    <string name="acct_settings_logout_body">আবার সাইন ইন করতে ইমেইল ও পাসওয়ার্ড লাগবে। এনক্রিপ্টেড বার্তাগুলো এই ফোনে থাকবে; সেগুলো মুছতে \"সাইন আউট ও মুছুন\" ব্যবহার করুন।</string>
+    <string name="acct_settings_logout_body">আবার সাইন ইন করতে আপনার ইমেইল ও পাসওয়ার্ড লাগবে। আপনার মেসেজ Meldiq-এর সার্ভারে থাকে।</string>
     <string name="acct_settings_sessions">সাইন-ইন করা অ্যাপ</string>
     <string name="acct_settings_loading">লোড হচ্ছে…</string>
     <string name="acct_settings_this_phone">এই ফোন</string>
