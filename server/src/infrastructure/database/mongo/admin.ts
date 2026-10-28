@@ -67,6 +67,15 @@ function printReports(reports: TableReport[]): boolean {
   return ok;
 }
 
+/**
+ * Empties a throwaway database collection by collection: a least-privilege user (`readWrite` on it, as on Atlas) may drop
+ * collections but not the database itself. A database left without collections disappears on its own.
+ */
+async function dropAllCollections(mongo: MeldiqMongo): Promise<void> {
+  const collections = await mongo.db.listCollections({}, { nameOnly: true }).toArray();
+  for (const { name } of collections) await mongo.db.collection(name).drop();
+}
+
 function domainArg(arg: string | undefined): MongoDomain {
   if (!arg || !(MONGO_DOMAINS as readonly string[]).includes(arg)) {
     throw new Error(`name a domain: ${MONGO_DOMAINS.join(", ")}`);
@@ -217,7 +226,7 @@ export async function runMongoCommand(cmd: string, rest: string[], cfg: Config, 
       const mongo = await connect(cfg, tables, dbName);
       try {
         if (!(await capacityAllows(cfg, source, mongo, tables))) {
-          await mongo.db.dropDatabase();
+          await dropAllCollections(mongo);
           return 1;
         }
         const first = await migrateToMongo(source, mongo, tables);
@@ -227,7 +236,7 @@ export async function runMongoCommand(cmd: string, rest: string[], cfg: Config, 
         const okSecond = printReports(second);
         const same = second.every((r, k) => r.destChecksum === first[k].destChecksum && r.destCount === first[k].destCount);
         console.log(same ? "re-run: identical" : "re-run: DIFFERENT");
-        if (!rest.includes("--keep")) await mongo.db.dropDatabase();
+        if (!rest.includes("--keep")) await dropAllCollections(mongo);
         return okFirst && okSecond && same ? 0 : 1;
       } finally {
         await mongo.close();

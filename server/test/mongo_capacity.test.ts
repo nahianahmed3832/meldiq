@@ -128,6 +128,19 @@ describe("guards", { timeout: 60_000 }, () => {
     expect(names.filter((n) => n !== "orbit_meta")).toEqual([]);
   });
 
+  it("mongo-dryrun copies, verifies and then empties its database collection by collection", async () => {
+    const dbName = testDbName("cap");
+    // A snapshot, as in production: the live test server's timers may write between the two runs.
+    const snapshot = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "meldiq-cap-")), "snapshot.sqlite");
+    await h.ctx.db.backup(snapshot);
+    const code = await runMongoCommand("mongo-dryrun", ["--snapshot", snapshot, "--db", dbName], config(testDbName("cap"), "512"), h.ctx.db);
+    expect(code).toBe(0);
+    const mongo = await MeldiqMongo.connect(cfg(dbName), []);
+    opened.push(mongo);
+    const names = (await mongo.db.listCollections({}, { nameOnly: true }).toArray()).map((c) => c.name);
+    expect(names.filter((n) => n !== "orbit_meta")).toEqual([]);
+  });
+
   it("mongo-migrate copies when there is room", async () => {
     const dbName = testDbName("cap");
     const code = await runMongoCommand("mongo-migrate", ["relay", "--yes"], config(dbName, "512"), h.ctx.db);

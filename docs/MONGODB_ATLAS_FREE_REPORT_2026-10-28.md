@@ -135,6 +135,28 @@ reach a server. The Android app never touches a database on the server: it only 
 are identical in either store mode (the server suite's contract observer checks every response, on both stores). An
 on-device run against a MongoDB-backed server (emulator `Medium_Phone_API_36.1` exists) was not done.
 
+## 5d. Round 3: rehearsal against Atlas (verified, 2026-10-28 04:10–04:20 UTC)
+
+From the VPS, in one-off `griip-internal-messaging-api:0.51.0` containers reading `.env` (FCM and MongoDB lines left out)
+plus `.env.mongodb`, on a copy of backup `pre-0.51.0-20261028T032724Z` (never `/data`); production API untouched.
+
+| Step | Result |
+|---|---|
+| Connection (`mongo-status`) | `meldiq_api` authenticated; **transactions: true**; round trip **7.7 ms median, 8.2 ms slowest** (10 pings, VPS → AWS Singapore); every domain recorded as SQLite, MongoDB counts 0 |
+| Egress | VPS host and its containers leave from `72.60.107.88`, the access-list entry |
+| `mongo-estimate --limit-mb 512` | 159 tables, 31,521 rows: 17.21 + 8.44 = **25.65 MiB, fits** |
+| `mongo-dryrun --db meldiq_rehearsal` (guard `MONGODB_STORAGE_LIMIT_MB=512`) | Guard: 1.76 MiB used, 27.41 MiB projected, fits. **First run verified, second run verified, re-run identical; 318/318 table checks ok, 0 failed** (e.g. `delivery_queue` 17,485, `history_items` 2,008) |
+| Stored on Atlas (measured before cleanup) | 160 collections, 31,681 documents, dataSize **17.23 MiB**, indexSize **11.53 MiB** → **28.76 MiB = 5.6% of 512 MiB**; storageSize 9.07 MiB compressed. Atlas reports indexes 37% above the estimate (the total 11% above): the estimate doesn't err high on Atlas; the 70% guard covers it with wide margin |
+| Cleanup | `meldiq_api` may not `dropDatabase` (Atlas `readWrite`): the 160 rehearsal collections were dropped one by one. Left on the cluster: database `meldiq` with `orbit_meta` (`schema` only), 0.035 MiB. No authority recorded: **nothing migrated** |
+| Fix | `mongo-dryrun` now empties its database collection by collection (works with `readWrite`); new test; committed, **not deployed** (0.51.0 needs `--keep` plus manual drops, as done here) |
+
+Getting the password onto the VPS took several rounds: the Claude app's built-in browser keeps its own clipboard, so
+Atlas's Copy didn't reach the Mac and Cmd+V didn't reach Atlas, and a pre-filled password field took a paste as an
+addition. `deploy/scripts/set-mongodb-uri.sh` now generates the password itself, stores it on the VPS, puts it on the
+clipboard for one paste into Atlas (in Chrome: Cmd+A, Cmd+V, check with SHOW), and clears the clipboard afterwards. Two
+passwords were exposed in chat along the way (`footwearfusionstore_db_user`'s, and an intermediate `meldiq_api` one that
+was replaced); the current `meldiq_api` password has not been shown to anyone.
+
 ## 6. Runbook: Atlas Free setup and migration (owner)
 
 Steps 2–5 are in the Atlas UI and don't touch any other project. Stop at any billing prompt.
@@ -194,12 +216,13 @@ URI must use TLS (`mongodb+srv://` does). `/healthz` reports `mongodb: true|fals
 | Database user | **`meldiq_api`, verified**: `readWrite@meldiq`, `readWrite@meldiq_rehearsal`, scoped to `Cluster0`. Also present: `footwearfusionstore_db_user` (`atlasAdmin`, from Atlas onboarding; its password was pasted in chat: rotate it, never use it for Meldiq) |
 | Access list | **Verified**: `72.60.107.88/32` "meldiq-api VPS" (added by Claude in the Atlas UI at your request) and `82.117.226.201/32` (this Mac, Atlas auto-setup) |
 | API 0.51.0 (capacity tooling) | **Live** since 2026-10-28 03:34 UTC (`docs/DEPLOYMENT.md`); MongoDB still off in the API |
-| Connection string on the VPS | **Not stored yet**: `/opt/griip-internal-messaging/.env.mongodb` doesn't exist (the first helper run didn't reach the server). Blocks the Atlas connection test, estimate against the cluster and the Atlas rehearsal |
+| Connection string on the VPS | **Stored, verified by login**: `/opt/griip-internal-messaging/.env.mongodb` (600, root); `.env` unchanged, so the API doesn't depend on Atlas |
+| Atlas rehearsal | **Passed** (§5d): 159 tables copied twice and verified, 28.76 MiB on Atlas, cleaned up |
 | Paid resources | None created (nothing was created at all) |
 | GriipBuddy | Untouched: "Project 0" never queried; no GriipBuddy container or database touched on the VPS |
 | Source identified and measured (read-only) | **Yes**: `/data/griip.sqlite`, schema 061, 31,703 rows to copy, integrity ok |
 | Capacity reviewed | **Yes**: 25.84 MiB estimated, 20.3 MiB measured after a copy, about 4–5% of 512 MiB |
-| Data migrated to Atlas | **No** (no target) |
+| Data migrated to Atlas | **No** (by design: cutover needs your go-ahead) |
 | Full migration rehearsal on a production snapshot (local) | **Yes, verified** (§5b) |
 | Backend on MongoDB | Seven domains migrated and exercised on real data; six domains still SQLite-only (§3) |
 | Production cutover | **Not done, not enabled**: production unchanged, `MONGODB_*` unset on the VPS |
