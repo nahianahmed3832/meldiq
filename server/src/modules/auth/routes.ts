@@ -1,3 +1,4 @@
+import { signupMode } from "../../app/platformControls.js";
 import crypto from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { DAY_MS, HOUR_MS, networkKey, openRegistrationsToday, SlidingWindow } from "../../app/middleware/abuse.js";
@@ -99,7 +100,7 @@ interface Admission {
  * if that fails the new account is removed again, so a refused invite never leaves an account behind.
  */
 async function admitAccount(ctx: AppContext, a: NewAccount): Promise<Admission> {
-  const inviteMode = ctx.config.registrationMode === "invite" && !a.loadtest;
+  const inviteMode = signupMode(ctx.platform, ctx.config.registrationMode) === "invite" && !a.loadtest;
   const reg = inviteMode ? findRegistrationInvite(ctx.identity, a.inviteCode!) : undefined;
   if (inviteMode && !reg) requireOrgInvite(ctx, ctx.ws, a.inviteCode!);
   const quota = await ctx.identity.write((w) => {
@@ -209,8 +210,9 @@ export default async function authRoutes(app: FastifyInstance, ctx: AppContext) 
   app.post("/v1/auth/register", strict, async (req, reply) => {
     requireLegacy(ctx, "registration");
     const body = parse(RegisterBody, req.body);
+    const mode = signupMode(ctx.platform, ctx.config.registrationMode);
     // Invite-only registration (default): checked before any key work so a missing code costs nothing.
-    if (ctx.config.registrationMode === "invite" && !body.inviteCode) {
+    if (mode === "invite" && !body.inviteCode) {
       throw new ApiError(403, "invite_required", "Registration needs an invitation code");
     }
     // An operator's load-test invite takes the load-test path in either mode: its own quotas instead of the public
@@ -232,7 +234,9 @@ export default async function authRoutes(app: FastifyInstance, ctx: AppContext) 
     }
     // Open registration is limited per network and per day, also before any key work. Only accounts actually created
     // are counted, so a refused or failed attempt doesn't use up anyone's allowance.
-    const open = ctx.config.registrationMode === "open" && !loadtest;
+    // Closed from the console (docs/PLATFORM_CONTROLS.md): only an operator's load-test invite still gets through.
+    if (mode === "closed" && !loadtest) throw new ApiError(403, "registration_closed", "New sign-ups are closed for now.");
+    const open = mode === "open" && !loadtest;
     const network = networkKey(req.ip);
     if (open) {
       const wait = Math.max(registeredFrom.hour.retryAfterMs(network), registeredFrom.day.retryAfterMs(network));

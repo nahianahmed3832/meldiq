@@ -1,3 +1,4 @@
+import { requireFeature } from "../../app/platformControls.js";
 import crypto from "node:crypto";
 import { AsyncLock } from "../../shared/utilities/lock.js";
 import type { UploadRow, UsageFilter } from "./store.js";
@@ -176,6 +177,7 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
   };
 
   app.post("/v1/attachments", auth, async (req, reply) => {
+    requireFeature(ctx.platform, "uploads");
     const { userId } = me(req);
     const { conversationId } = parse(ConversationQuery, req.query);
     const conv = ctx.authz.requireMember(conversationId, userId);
@@ -345,6 +347,7 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
   };
 
   app.post("/v1/attachments/uploads", auth, async (req, reply) => {
+    requireFeature(ctx.platform, "uploads");
     const { userId, deviceId } = me(req);
     const d = requireDirect();
     const body = parse(UploadStartBody, req.body);

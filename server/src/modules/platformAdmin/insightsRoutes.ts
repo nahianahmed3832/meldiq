@@ -1,6 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import { AdminOrgParams, AdminReasonBody, AdminUserParams } from "../../shared/contracts/http/platformAdmin.js";
 import {
+  AdminControlBody,
+  AdminControlParams,
   AdminAdjustBody,
   AdminDaysQuery,
   AdminDeleteUserBody,
@@ -30,6 +32,7 @@ import { parse } from "../../shared/validation/index.js";
 import { AlertEngine } from "./alerts.js";
 import { AdminAnalytics } from "./analyticsView.js";
 import type { AdminDeps } from "./dataRoutes.js";
+import { AdminControls } from "./controlsAdmin.js";
 import { AdminDevices } from "./devicesView.js";
 import { Exclusions } from "./exclusions.js";
 import { metaOf, principal, requirePermission } from "./guards.js";
@@ -51,6 +54,7 @@ export default async function adminInsightsRoutes(app: FastifyInstance, d: Admin
   const resources = new AdminResources(d.ctx, d.version);
   const alerts = new AlertEngine(d.ctx, d.store);
   const settings = new AdminSettings(d.ctx, d.audit, alerts, exclusions);
+  const controls = new AdminControls(d.ctx, d.audit);
   const search = new AdminSearchExport(d.ctx, d.audit, exclusions);
 
   // The console's minute job: alert rules, temporary suspensions that ended, quota reservations, exclusions for live counts.
@@ -142,6 +146,13 @@ export default async function adminInsightsRoutes(app: FastifyInstance, d: Admin
   app.put("/admin/v1/settings/:key", needs("settings.edit"), async (req) => {
     const { value, reason } = parse(AdminSettingBody, req.body);
     return settings.set(principal(req), parse(AdminSettingParams, req.params).key, value, reason, metaOf(req));
+  });
+
+  // ── Platform controls (docs/PLATFORM_CONTROLS.md) ──
+  app.get("/admin/v1/controls", needs("settings.view"), async () => controls.list());
+  app.put("/admin/v1/controls/:key", needs("controls.edit"), async (req) => {
+    const { value, reason } = parse(AdminControlBody, req.body);
+    return controls.set(principal(req), parse(AdminControlParams, req.params).key, value, reason, metaOf(req));
   });
   app.get("/admin/v1/alerts", needs("incidents.view"), async () => settings.alertsView());
   app.put("/admin/v1/alerts/:key", needs("alerts.manage"), async (req) => {

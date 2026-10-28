@@ -403,3 +403,43 @@ export const AdminSearch = z.strictObject({
 export const EXPORT_KINDS = ["users", "organizations", "devices", "audit", "incidents", "quota-events", "active-users"] as const;
 export const AdminExportParams = z.strictObject({ kind: z.enum(EXPORT_KINDS) });
 export const AdminExportQuery = z.strictObject({ from: zDay.optional(), to: zDay.optional(), reason: zReason });
+
+// ───────────── Platform controls (docs/PLATFORM_CONTROLS.md) ─────────────
+
+/** A domain name like example.com: lower-case labels of letters, digits and hyphens, at least one dot. */
+const zDomain = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(253)
+  .regex(/^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/, "A domain like example.com");
+
+export const SIGNUP_MODES = ["environment", "open", "invite", "closed"] as const;
+
+/** Each control's value: what the server does while it's set. */
+export const CONTROL_SCHEMAS = {
+  /** On: every app request answers 503 with [message]; health, server info, webhooks and the console keep working. */
+  maintenance: z.strictObject({ enabled: z.boolean(), message: z.string().trim().max(280) }),
+  /** environment: the server's REGISTRATION_MODE; open, invite (an invitation code) or closed (no new accounts). */
+  signups: z.strictObject({ mode: z.enum(SIGNUP_MODES) }),
+  /** New accounts can't use an address at these domains or their subdomains. */
+  email_domains: z.strictObject({ blocked: z.array(zDomain).max(2000) }),
+  /** Kill switches: false stops new calls (start and join), new uploads, or new organizations. */
+  features: z.strictObject({ calls: z.boolean(), uploads: z.boolean(), orgCreation: z.boolean() }),
+} as const;
+export const CONTROL_KEYS = Object.keys(CONTROL_SCHEMAS) as (keyof typeof CONTROL_SCHEMAS)[];
+
+const zControl = <T extends z.ZodType>(value: T) => z.strictObject({ value, updatedBy: zPerson.nullable(), updatedAt: zTime.nullable() });
+
+export const AdminControls = z.strictObject({
+  controls: z.strictObject({
+    maintenance: zControl(CONTROL_SCHEMAS.maintenance),
+    signups: zControl(CONTROL_SCHEMAS.signups),
+    email_domains: zControl(CONTROL_SCHEMAS.email_domains),
+    features: zControl(CONTROL_SCHEMAS.features),
+  }),
+  /** The sign-up mode the server's environment sets, and the one in force once the control is applied. */
+  signups: z.strictObject({ environment: z.enum(["open", "invite"]), effective: z.enum(["open", "invite", "closed"]) }),
+});
+export const AdminControlParams = z.strictObject({ key: z.string().max(40).regex(/^[a-z_]+$/) });
+export const AdminControlBody = z.strictObject({ value: z.unknown(), reason: zReason });

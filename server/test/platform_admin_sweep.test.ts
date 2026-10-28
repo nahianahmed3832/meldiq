@@ -96,6 +96,8 @@ const GUARDED: Record<string, Permission> = {
   // AI Workforce: the AI Control Center (docs/AI_WORKFORCE.md).
   "GET /admin/v1/settings": "settings.view",
   "PUT /admin/v1/settings/:key": "settings.edit",
+  "GET /admin/v1/controls": "settings.view",
+  "PUT /admin/v1/controls/:key": "controls.edit",
   "GET /admin/v1/alerts": "incidents.view",
   "PUT /admin/v1/alerts/:key": "alerts.manage",
   "POST /admin/v1/alerts/evaluate": "alerts.manage",

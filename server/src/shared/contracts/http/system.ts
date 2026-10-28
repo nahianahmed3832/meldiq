@@ -15,6 +15,10 @@ export const ServerInfo = z.strictObject({
   minClientApi: z.number().int().positive(),
   instanceName: z.string().nullable(),
   registration: z.enum(["open", "invite"]),
+  /** Since API 0.59.0. The sign-up mode in force, set from the console (docs/PLATFORM_CONTROLS.md): closed shows as invite in [registration]. */
+  signups: z.enum(["open", "invite", "closed"]).optional(),
+  /** Since API 0.59.0. Maintenance mode: while enabled, app requests answer 503 maintenance with [message]. */
+  maintenance: z.strictObject({ enabled: z.boolean(), message: z.string() }).optional(),
   federation: z.strictObject({ domain: z.string(), serverId: z.string(), protocols: z.array(z.string()) }).nullable(),
   version: z.string(),
   calling: z.boolean(),

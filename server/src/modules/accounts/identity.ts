@@ -1,3 +1,4 @@
+import { signupMode } from "../../app/platformControls.js";
 import crypto from "node:crypto";
 import { DAY_MS } from "../../app/middleware/abuse.js";
 import type { AppContext } from "../../app/context.js";
@@ -106,7 +107,7 @@ export class IdentityService {
     await requireProof(this.ctx, "register", body.device, body.nonce, body.signature);
     const t = now();
     const abuse = this.ctx.config.abuse;
-    const limitedUntil = this.ctx.config.registrationMode === "open" && abuse.newAccountDays > 0 ? t + abuse.newAccountDays * DAY_MS : null;
+    const limitedUntil = signupMode(this.ctx.platform, this.ctx.config.registrationMode) === "open" && abuse.newAccountDays > 0 ? t + abuse.newAccountDays * DAY_MS : null;
     const userId = newId("u");
     const identityKey = body.identityKey;
     let deviceId: string | null;

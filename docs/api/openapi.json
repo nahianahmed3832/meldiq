@@ -213,6 +213,30 @@
                         "invite"
                       ]
                     },
+                    "signups": {
+                      "type": "string",
+                      "enum": [
+                        "open",
+                        "invite",
+                        "closed"
+                      ]
+                    },
+                    "maintenance": {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "enabled",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    },
                     "federation": {
                       "anyOf": [
                         {
@@ -49342,6 +49366,7 @@
                   "discord_unreachable",
                   "dm_not_allowed",
                   "dms_paused",
+                  "email_domain_blocked",
                   "email_failed",
                   "email_in_use",
                   "email_taken",
@@ -49349,6 +49374,7 @@
                   "email_unverified",
                   "enrolment_required",
                   "federated_calls_unavailable",
+                  "feature_disabled",
                   "federation_backlog",
                   "federation_disabled",
                   "forbidden",
@@ -49385,6 +49411,7 @@
                   "legacy_verification_failed",
                   "limit_reached",
                   "login_throttled",
+                  "maintenance",
                   "media_unavailable",
                   "mention_all_not_allowed",
                   "mention_all_not_in_dm",
@@ -49421,6 +49448,7 @@
                   "secrets_unavailable",
                   "synthetic_scope",
                   "registration_limited",
+                  "registration_closed",
                   "registration_paused",
                   "reminder_id_taken",
                   "reminder_not_found",
@@ -49818,6 +49846,12 @@
       ],
       "meaning": "New direct messages between members of your community are paused for now"
     },
+    "email_domain_blocked": {
+      "status": [
+        403
+      ],
+      "meaning": "Sign-ups with addresses at this domain aren't accepted. Use another email address."
+    },
     "email_failed": {
       "status": [
         503
@@ -49859,6 +49893,12 @@
         409
       ],
       "meaning": "Calls with people on other servers aren't available yet"
+    },
+    "feature_disabled": {
+      "status": [
+        503
+      ],
+      "meaning": "This feature is switched off for now. Try again later."
     },
     "federation_backlog": {
       "status": [
@@ -50076,6 +50116,12 @@
       ],
       "meaning": "Too many wrong passwords. Wait a few minutes and try again."
     },
+    "maintenance": {
+      "status": [
+        503
+      ],
+      "meaning": "Meldiq is down for maintenance. Try again in a few minutes."
+    },
     "media_unavailable": {
       "status": [
         503
@@ -50291,6 +50337,12 @@
         429
       ],
       "meaning": "Too many new accounts from this network. Try again later, or ask for an invitation code."
+    },
+    "registration_closed": {
+      "status": [
+        403
+      ],
+      "meaning": "New sign-ups are closed for now."
     },
     "registration_paused": {
       "status": [

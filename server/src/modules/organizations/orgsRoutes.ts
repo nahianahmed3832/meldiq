@@ -1,3 +1,4 @@
+import { requireFeature } from "../../app/platformControls.js";
 import { requireStanding } from "../accounts/index.js";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { markSyntheticOrg } from "./syntheticScope.js";
@@ -158,6 +159,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
 
   // ───────────── Organisations ─────────────
   app.post("/v1/orgs", auth, async (req) => {
+    requireFeature(ctx.platform, "orgCreation");
     const { userId } = me(req);
     const body = parse(OrgCreateBody, req.body);
     requireStanding(ctx.safety, userId, "create_community");

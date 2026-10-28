@@ -27,6 +27,7 @@ const EXPECTED: Record<string, string[]> = {
     "quotas.view",
     "quotas.edit",
     "settings.view",
+    "controls.edit",
     "alerts.manage",
     "exports.create",
   ],

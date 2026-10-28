@@ -21,5 +21,6 @@ Read-only in the console:
 - **Experiments:** defined in code, switched by `EXPERIMENTS_MODE` / `EXPERIMENT_STATUS`, so every change is reviewed and deployed.
 - **Non-secret environment values:** registration mode, storage backend, analytics and experiments modes, console session settings, whether `PLATFORM_SECRETS_KEY` and `HOST_METRICS_FILE` are set, and the telemetry interval.
 
-Maintenance mode and client feature flags aren't offered: the apps don't read such a switch today, so it would change
-nothing. Service notices are written on incidents and aren't published automatically.
+Maintenance mode, sign-up switches, blocked email domains and feature kill switches are platform controls, enforced by
+the server for every app version: see `docs/PLATFORM_CONTROLS.md`. Service notices are written on incidents and aren't
+published automatically.

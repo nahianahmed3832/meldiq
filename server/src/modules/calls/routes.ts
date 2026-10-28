@@ -1,3 +1,4 @@
+import { requireFeature } from "../../app/platformControls.js";
 import crypto from "node:crypto";
 import { CallCreateBody, ConversationCallsQuery, DeclineBody, HandBody, ModerateBody } from "../../shared/contracts/http/calls.js";
 import { idParams } from "../../shared/contracts/http/primitives.js";
@@ -413,6 +414,7 @@ export default async function callRoutes(app: FastifyInstance, ctx: AppContext) 
   };
 
   app.post("/v1/calls", auth, async (req) => {
+    requireFeature(ctx.platform, "calls");
     const { userId, deviceId } = me(req);
     const body = parse(CallCreateBody, req.body);
     const conv = authz.requireMember(body.conversationId, userId);
@@ -491,6 +493,7 @@ export default async function callRoutes(app: FastifyInstance, ctx: AppContext) 
   });
 
   app.post("/v1/calls/:id/join", auth, async (req) => {
+    requireFeature(ctx.platform, "calls");
     const { userId, deviceId } = me(req);
     const { id } = parse(idParams, req.params);
     const c = await memberCall(id, userId);

@@ -1,3 +1,4 @@
+import { requireSignupAllowed, signupMode } from "../../app/platformControls.js";
 import crypto from "node:crypto";
 import { DAY_MS, HOUR_MS, networkKey, openRegistrationsToday, SlidingWindow } from "../../app/middleware/abuse.js";
 import type { AppContext } from "../../app/context.js";
@@ -133,8 +134,13 @@ export class AccountService {
    * REGISTRATION_MODE=invite: a usable registration or organisation invite, checked before anything else. Its use is
    * taken when the account is made ([register]).
    */
+  /** The sign-up mode in force: the console's control, or REGISTRATION_MODE. */
+  private signupMode() {
+    return signupMode(this.ctx.platform, this.ctx.config.registrationMode);
+  }
+
   private requireAdmission(inviteCode: string | undefined): Admission | null {
-    if (this.ctx.config.registrationMode !== "invite") return null;
+    if (this.signupMode() !== "invite") return null;
     if (!inviteCode) throw new ApiError(403, "invite_required", "Signing up needs an invitation code");
     const admission = this.findAdmission(inviteCode);
     if (!admission) throw new ApiError(403, "invalid_invite", "This invitation code is invalid, expired or already used");
@@ -191,7 +197,7 @@ export class AccountService {
   /** Open sign-up is limited per network and per day (docs/ABUSE_CONTROLS.md › Registration), before any hashing. */
   private requireRegistrationAllowance(ip: string, reply: { header: (k: string, v: string) => unknown }): string {
     const network = networkKey(ip);
-    if (this.ctx.config.registrationMode !== "open") return network;
+    if (this.signupMode() !== "open") return network;
     const wait = Math.max(this.registeredFrom.hour.retryAfterMs(network), this.registeredFrom.day.retryAfterMs(network));
     if (wait > 0) {
       reply.header("retry-after", String(Math.ceil(wait / 1000)));
@@ -205,6 +211,8 @@ export class AccountService {
   }
 
   async register(body: RegisterBody, ip: string, reply: { header: (k: string, v: string) => unknown }): Promise<void> {
+    // The console's sign-up controls (docs/PLATFORM_CONTROLS.md) come first: a closed or blocked sign-up costs nothing.
+    requireSignupAllowed(this.ctx.platform, this.ctx.config.registrationMode, body.email);
     if (!this.mailer.available) throw emailUnavailable();
     const weak = weakPassword(body.password, body.email);
     if (weak) throw weak;
@@ -213,7 +221,7 @@ export class AccountService {
     const hash = await hashPassword(body.password, this.cfg.scryptLogN);
     const t = now();
     // Every sign-up passing the checks counts for its network, new address or not, so the limit doesn't tell them apart.
-    if (this.ctx.config.registrationMode === "open") {
+    if (this.signupMode() === "open") {
       this.registeredFrom.hour.record(network, t);
       this.registeredFrom.day.record(network, t);
     }

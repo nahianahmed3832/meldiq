@@ -1,4 +1,5 @@
 import rateLimit from "@fastify/rate-limit";
+import { MAINTENANCE_RETRY_SECONDS, maintenanceError, readControl, signupMode } from "./platformControls.js";
 import { MongoRelayStore } from "../modules/messaging/relay/mongoStore.js";
 import { SqliteRelayStore } from "../modules/messaging/relay/store.js";
 import { MongoFileStore } from "../modules/files/mongoStore.js";
@@ -364,6 +365,15 @@ export async function buildApp(
     });
   }
 
+  // Maintenance mode (docs/PLATFORM_CONTROLS.md): app requests answer 503 until an operator turns it off in the console.
+  // After the CORS answer, so web apps can read the message; before rate limiting, so waiting apps don't use it up.
+  app.addHook("onRequest", async (req, reply) => {
+    const blocked = maintenanceError(ctx.platform, req.url);
+    if (!blocked) return;
+    reply.header("retry-after", String(MAINTENANCE_RETRY_SECONDS));
+    throw blocked;
+  });
+
   await app.register(rateLimit, {
     global: true,
     max: config.rateLimitPerMinute,
@@ -412,7 +422,10 @@ export async function buildApp(
     api: API_VERSION,
     minClientApi: MIN_CLIENT_API,
     instanceName: config.instanceName,
-    registration: config.registrationMode,
+    // Apps that predate "closed" know only invite and open: closed shows as invite there, so they ask for a code.
+    registration: signupMode(ctx.platform, config.registrationMode) === "open" ? "open" : "invite",
+    signups: signupMode(ctx.platform, config.registrationMode),
+    maintenance: (({ enabled, message }) => ({ enabled, message }))(readControl(ctx.platform, "maintenance")),
     // Federation (additive): this server's global identity, if it federates.
     federation: ctx.federation ? { domain: ctx.federation.domain, serverId: ctx.federation.serverId, protocols: ["griip-fed/1"] } : null,
     version: VERSION,
