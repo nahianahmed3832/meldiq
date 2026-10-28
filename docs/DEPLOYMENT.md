@@ -130,6 +130,28 @@ Passkeys failed in the app installed from Google Play: Play signs it with its ap
 
 Rollback: copy the backup's `.env` back and recreate `api` the same way.
 
+### API 0.56.0: activity status ("Playing …") and Google Play Billing's server side (2026-10-28, 18:19 UTC, owner's go-ahead: "marge and deploy to production without test, i will manually test later")
+
+Branch `release-0.56.0`: production's `subscriptions-api` (f2c7c59, 0.54.0) with `activity-status` merged, which carries
+`play-billing` (0.55.0, `docs/MOJO_ANDROID.md`) and 0.56.0 (`docs/ACTIVITY_STATUS.md`). `mongo-finish` is **not** in it.
+
+| Step | Result |
+|---|---|
+| Tests | owner chose no manual testing. Automated: activity suite 14/14; merged tree typecheck and 13 key suites 132/132; activity branch full run 1073 passed, the MongoDB-backed files that timed out under load 88/88 alone; Android 765 unit tests |
+| Pre-flight | running 0.54.0 healthy; VPS `server/` (tests excluded) byte-equal to f2c7c59 (`rsync -c` dry run: 0 differences); 42 GB free |
+| Backup | `backups/pre-0.56.0-20261028T181602Z` (SQLite snapshot 79 MB, verify json, `.env`/`compose.yaml` copies); image tagged `0.54.0-rollback`; sources kept as `server.pre-0.56.0` |
+| Build | 36 files synced (parity checked after: 0 differences); image `0.56.0` (`docker build --network host`) |
+| Rehearsal | backup copy, `--network none`, MongoDB/FCM/push settings left out: schema 65 (`065_play_purchases`), integrity ok, 43 users, 11 orgs, 165 conversations; removed after |
+| Switch | `compose.yaml` image 0.56.0, `.env` unchanged; `config -q` ok; `up -d --no-deps --no-build --force-recreate api` at 18:19:24, healthy 18:19:31 |
+| Checks after | `/healthz` 0.56.0 `mongodb: true` on msg.meldiq.app and msg.griipbuddy.cloud; server-info lists `activity-status`; `PUT /v2/me/activity` without a session 401; `verify.sh` 0 restarts, 40 GB free; 0 warnings or errors in the log |
+
+Not changed: `GOOGLE_PLAY_*` unset, so the Play endpoints answer that purchases aren't open. Activities live in the new
+`user_activities` collection in Atlas (created at start with its `expires_at` index). Not verified on a phone yet: the
+owner tests manually with a debug "Meldiq Test" build pointed at msg.meldiq.app.
+
+Rollback: `compose.yaml` image `0.54.0-rollback`; `up -d --no-deps --no-build --force-recreate api`. 0.54.0 ignores the
+`play_purchases` table and the `user_activities` collection.
+
 ### API 0.54.0 and web 2cba046: Meldiq Mojo's plans, Meldiq Spark, gifts and badges; billing in MongoDB (2026-10-28, 11:28 UTC, owner's go-ahead: "after done push for productions"; and "from now everything under mongodb")
 
 Branch `subscriptions-api` cf3187d: the billing session's 0.52.0/0.53.0 (`mojo-0.53.0` da230da), merged onto
