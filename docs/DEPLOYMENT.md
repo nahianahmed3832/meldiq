@@ -130,6 +130,32 @@ Passkeys failed in the app installed from Google Play: Play signs it with its ap
 
 Rollback: copy the backup's `.env` back and recreate `api` the same way.
 
+### API 0.54.0 and web 2cba046: Meldiq Mojo's plans, Meldiq Spark, gifts and badges; billing in MongoDB (2026-10-28, 11:28 UTC, owner's go-ahead: "after done push for productions"; and "from now everything under mongodb")
+
+Branch `subscriptions-api` cf3187d: the billing session's 0.52.0/0.53.0 (`mojo-0.53.0` da230da), merged onto
+`mongo-port-remaining` (the rows layer; calls, workspace and conversations can live in MongoDB but stay in SQLite here),
+then billing on rows and 0.54.0 (docs/MOJO.md). Web `mojo-web` 2cba046.
+
+| Step | Result |
+|---|---|
+| Tests | server: SQLite 1073 passed (0 failed); every domain incl. billing in MongoDB 969 passed in one run, the 17 files that timed out under load then 174/174 alone; web: unit 544, full browser suite (desktop and phone, calls with the native peer) 102 passed, 0 failed |
+| Build | sources kept as `server.pre-0.54.0`; 113 files synced (parity checked after); image `0.54.0` (`docker build --network host`) |
+| Backup | `backups/pre-0.54.0-20261028T112006Z`: integrity ok, schema 63, 43 users, `.env`/`compose.yaml` copies (and `*.before-switch`); image tagged `0.53.0-rollback` |
+| Rehearsal | backup copy, `--network none`, FCM and MongoDB settings left out: healthy 0.54.0, schema 64 (`064_mojo_perks`), integrity ok, 43 users, 11 orgs, 165 conversations; removed after |
+| Billing to MongoDB | every `billing_*` table had 0 rows in SQLite, so no copy was needed: `MONGODB_DOMAINS` += `billing` (`mongo-status`: authority mongodb). SQLite keeps its (empty) tables |
+| Switch | `compose.yaml` image 0.54.0; `.env` `MONGODB_DOMAINS=…,relay,billing`, `BILLING_WEB_RETURN_URL=https://web.meldiq.app/settings/mojo`; `config -q` ok; `up -d --no-deps --no-build --force-recreate api` at 11:28:08, healthy 11:28:16 (8 s), 0 restarts |
+| Checks after | `/healthz` 0.54.0 `mongodb: true` on msg.meldiq.app and msg.griipbuddy.cloud; `verify.sh` 0 restarts (api, livekit, ntfy), 41 GB free; 0 errors in the log; `GET /v2/mojo/catalog`: Free/Go/Plus, `enforced: false` (MOJO_ENFORCE=auto, nothing on sale), so nobody's limits changed |
+| Web | release 0.5.0-beta-2cba046 built against cf3187d's contracts; `verify.sh` all passed (API 0.54.0 through the origin, realtime 101); Cloudflare real-IP include kept; checked on the owner's account: Settings › Meldiq Mojo, Free plan, nothing for sale |
+
+Not changed: no payment provider (`BILLING_PROVIDER` unset), so nothing can be bought; plan limits aren't enforced until
+it is. `scripts/validate-env.sh` reports "MONGODB_DOMAINS needs MONGODB_URI" since the 05:20 cutover: it sources `.env` as
+shell, and the URI's `&` ends the assignment there (compose reads it correctly). Fix: quote the value or parse `.env`
+without the shell.
+
+Rollback: `compose.yaml` image `0.53.0-rollback`; `.env` from `backups/pre-0.54.0-20261028T112006Z/env.before-switch`
+(billing out of `MONGODB_DOMAINS`; if anything was written to billing since, `mongo-rollback billing --yes` first);
+`up -d --no-deps --no-build --force-recreate api`. Web: `bash /root/meldiq-web-0.5.0-beta-2cba046/rollback.sh`.
+
 ### API 0.53.0: Meldiq Mojo trials, invite links and the Stripe setup command (2026-10-28, 08:26 UTC, owner's go-ahead: "Deploy API 0.53.0 to production now (trials off, billing off), same procedure as 0.52.0, and verify it.")
 
 Free Mojo Plus periods (14-day trial, 30 days for both through an invite link, inviter up to 90 days a year), the
