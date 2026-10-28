@@ -32,6 +32,9 @@ sealed interface ServerEvent {
         val userId: String, val online: Boolean = false, val presence: String? = null, val lastSeenAt: Long? = null,
     ) : ServerEvent
 
+    /** API 0.56.0: someone started or stopped playing (null: nothing to show, also while they appear offline). */
+    @Serializable data class Activity(val userId: String, val activity: com.meldiq.android.activity.ActivityDto? = null) : ServerEvent
+
     /**
      * A call changed. [event] is one of [CallEvents] (unknown names are passed on and ignored by the call manager).
      * `ring` names the caller in [from]; `declined` says who in [userId] and why in [reason]; `moderated` (voice rooms)
@@ -118,6 +121,7 @@ object RealtimeCodec {
         "queue" to ServerEvent.Queue.serializer(),
         "typing" to ServerEvent.Typing.serializer(),
         "presence" to ServerEvent.Presence.serializer(),
+        "activity" to ServerEvent.Activity.serializer(),
         "call" to ServerEvent.Call.serializer(),
         "conv.updated" to ServerEvent.ConvUpdated.serializer(),
         "org.updated" to ServerEvent.OrgUpdated.serializer(),

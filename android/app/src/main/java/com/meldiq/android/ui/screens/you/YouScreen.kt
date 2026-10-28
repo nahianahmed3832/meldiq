@@ -188,6 +188,8 @@ fun YouScreen(nav: NavHostController) {
                 modifier = Modifier.padding(horizontal = Space.gutter, vertical = 4.dp),
             )
         }
+        // API 0.56.0: what you're playing, while you share it (docs/ACTIVITY_STATUS.md).
+        item(key = "activity") { com.meldiq.android.ui.components.MyPlayingLine(Modifier.padding(horizontal = Space.gutter + 4.dp, vertical = 4.dp)) }
         item(key = "cards") { QuickAccessRow(cards, Modifier.padding(vertical = 8.dp)) }
         if (orgs != null && StartRules.visible(settings.setupDismissed, startSteps)) item(key = "start") {
             StartChecklist(startSteps, onHide = { container.settings.update { it.copy(setupDismissed = true) } })

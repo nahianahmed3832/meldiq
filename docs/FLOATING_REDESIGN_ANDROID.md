@@ -86,12 +86,34 @@ with a lime ring on whoever speaks, the name at the bottom left and a round mute
 right; a shared screen sits on a rounded stage above a filmstrip of wider tiles. In a voice channel's list, people
 sharing their screen in the call you're in carry a lime **Live** chip.
 
+## Meldling art (2026-10-29)
+
+The owner's mascot art, the same files as Meldiq Web ("use these image assets on mobile app and webapp"). Originals in
+`brand/meldling/` (copied from meldiq-web `brand/meldling/`); what the web's `scripts/render-brand-assets.mjs` makes from
+them in `brand/meldling/rendered/`; `android/scripts/render_brand.py` turns those into the app's resources:
+
+| Where | File used | Android resource |
+|---|---|---|
+| Launcher icon (adaptive, on the navy ground `#070a24`) | `rendered/meldling-maskable-512.png` | `mipmap-*/ic_launcher_foreground.webp`, `values/brand_colors.xml` |
+| Themed icon, notification icon, tintable glyph | the cub's white shape from `rendered/meldling-maskable-512.png` | `mipmap-*/ic_launcher_monochrome.webp`, `drawable-*/ic_stat_meldiq.png`, `drawable-nodpi/meldling_glyph.png` |
+| Launch screen | `rendered/meldling-512.png` (rounded icon) | `drawable-*/splash_mark.webp` |
+| In-app mark (lockup, tiles) | `rendered/meldling-512.png` | `drawable-nodpi/meldiq_mark.webp` |
+| Sign-in hero | `rendered/banner.webp` | `drawable-nodpi/meldling_banner.webp` |
+| Intro pages | `rendered/waving`, `love`, `gaming`, `hello`, `all-set` `.webp` | `drawable-nodpi/meldling_<pose>.webp` |
+| Empty states | `waving` (default), `confused` (nothing found, signed out), `all-set` (caught up, nothing to review), `hello` (no communities) | same |
+| Mojo page, above what Plus adds | `rendered/plus.webp` | `drawable-nodpi/meldling_plus.webp` |
+| Meldiq Spark page hero | `rendered/spark.webp` | `drawable-nodpi/meldling_spark.webp` |
+
+Not used yet: `loading` (loading states keep their shimmer), `onboarding`, `onboarding-features`, `icon-wave`, `splash`
+and `stickers` (originals only). The Mojo hero now sits on the plate's accent ends: on the header colours it drew
+near-black on near-black on Meldiq.
+
 ## Screenshots
 
 Rendered from the app's own components and theme on the JVM (Robolectric native graphics), in
 [`docs/screenshots/android-floating-2026-10-29`](screenshots/android-floating-2026-10-29): the community with its Spark goal
 and level chip, Messages with the notice, the Meldiq invitation and the Mojo card, the user panel over the Settings window,
-a community call, the Spark goals, light mode and the Midnight palette. Make them again with
+a community call, the Spark goals, light mode, the Midnight palette, the welcome banner, the intro and the empty states. Make them again with
 `./gradlew :app:testDebugUnitTest -Pmeldiq.screenshots=true --tests '*DesignScreenshotsTest*'` (they land in
 `android/app/build/screenshots`; skipped in ordinary test runs). The data in them is made up.
 

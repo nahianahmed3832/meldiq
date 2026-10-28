@@ -12,6 +12,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -344,9 +345,11 @@ fun EmptyState(
     val c = Griip.colors
     Column(modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         if (art != null) {
+            val picture = androidx.compose.ui.res.painterResource(art)
             androidx.compose.foundation.Image(
-                androidx.compose.ui.res.painterResource(art), null,
-                Modifier.size(width = 200.dp, height = 150.dp), contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                picture, null,
+                Modifier.height(150.dp).aspectRatio(picture.intrinsicSize.width / picture.intrinsicSize.height).clip(Shapes.card),
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
             )
         } else {
             Box(Modifier.size(72.dp).clip(CircleShape).background(c.primarySoft), contentAlignment = Alignment.Center) {

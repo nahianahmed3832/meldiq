@@ -82,8 +82,10 @@ android {
         applicationId = "com.meldiq.android"
         minSdk = 26
         targetSdk = 36
-        versionCode = 19
-        versionName = "0.5.0-beta"
+        // 2026-10-29: the floating redesign, server-stored messages (API 0.57) and activity status. Above 28, the newest
+        // code used so far (0.4.8).
+        versionCode = 29
+        versionName = "0.6.0-beta"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Not the default "<applicationId>.test": that is the side-by-side debug build's id ("Meldiq Test").
         testApplicationId = "com.meldiq.android.androidtest"

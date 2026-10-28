@@ -68,7 +68,14 @@ class AppContainer(
     val analytics = com.meldiq.android.data.repo.ProductSignals(api, features, scope)
     val db: GriipDatabase = GriipDatabase.open(app, identity.databasePassphrase(), profile.dbName)
     val realtime = RealtimeClient(app, api.http, scope, { session.serverUrl }, { session.token }, { session.reauth() })
-    val users = UserRepository(api, db)
+    /** What people play (API 0.56.0, docs/ACTIVITY_STATUS.md): shown on profiles, member lists and DMs. */
+    val activities = com.meldiq.android.activity.PeopleActivity { session.session?.userId }
+    /** Activity privacy on this phone: "Share what I'm playing" (off by default) and hidden games. */
+    val activitySettings = com.meldiq.android.activity.ActivitySettings(app, profile.id)
+    val activityReporter = com.meldiq.android.activity.ActivityReporter(
+        com.meldiq.android.activity.GameDetector(app), activitySettings, api, activities, { session.session?.userId },
+    )
+    val users = UserRepository(api, db, activities)
     val directory = KeyDirectory(api, db)
     val conversations = ConversationRepository(api, db, users)
     val appState = AppState()
@@ -197,6 +204,16 @@ class AppContainer(
             }
         }
         scope.launch { realtime.state.collect { if (it == ConnState.Connected) runCatching { fcm.retryPending() } } }
+        // API 0.56.0: what people play, live; and this phone's own report while the person opted in and is connected.
+        scope.launch { messages.activityFrames.collect { activities.apply(it.userId, it.activity) } }
+        scope.launch { session.state.map { it is SessionState.SignedIn }.distinctUntilChanged().collect { if (!it) activities.clear() } }
+        scope.launch {
+            activityReporter.run(
+                combine(activitySettings.state, session.state, realtime.state) { a, s, r -> a.share && s is SessionState.SignedIn && r == ConnState.Connected }
+                    .distinctUntilChanged()
+                    .map { on -> on && features.has(com.meldiq.android.data.repo.ServerFeatures.ACTIVITY_STATUS) == true },
+            )
+        }
     }
 
     fun close() {

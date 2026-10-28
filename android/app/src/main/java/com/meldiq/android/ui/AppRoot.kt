@@ -141,6 +141,8 @@ object Routes {
     /** Public communities to find and join (docs/COMMUNITY_REBUILD_2026-10-21.md). */
     const val DISCOVER = "discover"
     const val PRIVACY = "privacy"
+    /** Activity status (docs/ACTIVITY_STATUS.md): "Share what I'm playing" and hidden games. */
+    const val ACTIVITY_PRIVACY = "activity-privacy"
     const val BLOCKED = "blocked"
     /** [message]: scroll to this message once it's loaded (batch B5 message links). */
     fun conversation(id: String, thread: String? = null, message: String? = null) =
@@ -362,6 +364,7 @@ private fun MainNav(container: AppContainer, pendingConversation: String?, pendi
             composable(Routes.SERVICE_HEALTH) { com.meldiq.android.ui.screens.profile.ServiceHealthScreen(nav) }
             composable(Routes.CONNECTORS) { com.meldiq.android.ui.screens.profile.ConnectorsScreen(nav) }
             composable(Routes.PRIVACY) { com.meldiq.android.ui.screens.profile.PrivacyScreen(nav) }
+            composable(Routes.ACTIVITY_PRIVACY) { com.meldiq.android.ui.screens.profile.ActivityPrivacyScreen(nav) }
             composable(Routes.BLOCKED) { com.meldiq.android.ui.screens.profile.BlockedUsersScreen(nav) }
         }
         }

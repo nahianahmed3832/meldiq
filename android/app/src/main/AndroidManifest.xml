@@ -22,11 +22,23 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Activity status (docs/ACTIVITY_STATUS.md): opt-in, granted by the person in Settings > Usage access; read only
+         to recognise the game in front. Google Play needs a permissions declaration and the in-app disclosure. -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
     <!-- Only Android 9 and older: "Save to Gallery" writes to shared storage. Android 10+ uses MediaStore without it. -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
 
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
+
+    <!-- Activity status: apps with a launcher icon are visible, so the game in front can be told from other apps by its
+         category and named by its label (docs/ACTIVITY_STATUS.md). Not QUERY_ALL_PACKAGES. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
 
     <application
         android:name=".GriipApp"

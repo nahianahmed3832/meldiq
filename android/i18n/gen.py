@@ -17,10 +17,11 @@ from strings_navigation import S as NAVIGATION
 from strings_parity import S as PARITY
 from strings_mojo import S as MOJO
 from strings_floating import S as FLOATING
+from strings_activity import S as ACTIVITY
 res = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "app", "src", "main", "res")
 # Every key must be unique across the tables (Android merges them into one namespace).
 _seen = {}
-for _name, _table in [("strings", S), ("strings_account", ACCOUNT), ("strings_workspace", WORKSPACE), ("strings_apps", APPS), ("strings_meldiq", MELDIQ), ("strings_round6", ROUND6), ("strings_round7", ROUND7), ("strings_meldiq2", MELDIQ2), ("strings_round3", ROUND3), ("strings_keybackup", KEYBACKUP), ("strings_community", COMMUNITY), ("strings_navigation", NAVIGATION), ("strings_parity", PARITY), ("strings_mojo", MOJO), ("strings_floating", FLOATING)]:
+for _name, _table in [("strings", S), ("strings_account", ACCOUNT), ("strings_workspace", WORKSPACE), ("strings_apps", APPS), ("strings_meldiq", MELDIQ), ("strings_round6", ROUND6), ("strings_round7", ROUND7), ("strings_meldiq2", MELDIQ2), ("strings_round3", ROUND3), ("strings_keybackup", KEYBACKUP), ("strings_community", COMMUNITY), ("strings_navigation", NAVIGATION), ("strings_parity", PARITY), ("strings_mojo", MOJO), ("strings_floating", FLOATING), ("strings_activity", ACTIVITY)]:
     for _k in _table:
         if _k in _seen:
             raise SystemExit(f"duplicate string key {_k!r} in {_name} and {_seen[_k]}")
@@ -145,3 +146,10 @@ for lang, folder, idx in [("en", "values", 0), ("zh", "values-zh-rCN", 1), ("bn"
     fl.append('</resources>')
     open(f"{res}/{folder}/strings_floating.xml", "w").write("\n".join(fl) + "\n")
     print(folder, "floating", len(FLOATING))
+    # Activity status strings (API 0.56.0, docs/ACTIVITY_STATUS.md): strings_activity.py.
+    act = ['<?xml version="1.0" encoding="utf-8"?>', '<!-- Activity status strings (docs/ACTIVITY_STATUS.md). Generated from strings_activity.py. -->', '<resources>']
+    for k, v in ACTIVITY.items():
+        act.append(f'    <string name="{k}">{esc(v[idx])}</string>')
+    act.append('</resources>')
+    open(f"{res}/{folder}/strings_activity.xml", "w").write("\n".join(act) + "\n")
+    print(folder, "activity", len(ACTIVITY))

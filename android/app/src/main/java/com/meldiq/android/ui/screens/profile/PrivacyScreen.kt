@@ -135,6 +135,9 @@ fun PrivacyScreen(nav: NavHostController) {
         }
         // Batch B6: who can message you directly, and who can send you requests.
         item { MessagingPrivacyCard() }
+        // API 0.56.0: "Share what I'm playing" (docs/ACTIVITY_STATUS.md).
+        item { SectionHeader(androidx.compose.ui.res.stringResource(com.meldiq.android.R.string.act_section), Modifier.padding(top = 14.dp, bottom = 6.dp)) }
+        item { ActivityPrivacyRow(nav) }
         item {
             GlassCard(Modifier.fillMaxWidth().padding(horizontal = Space.gutter, vertical = 14.dp)) {
                 MenuRow(

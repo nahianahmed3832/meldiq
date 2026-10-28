@@ -24,6 +24,9 @@ class MessageSignals(
     val typing: StateFlow<Map<String, Map<String, Long>>> = _typing
     private val _callInvites = MutableSharedFlow<IncomingCallKey>(extraBufferCapacity = 16)
     val callInvites: SharedFlow<IncomingCallKey> = _callInvites
+    private val _activityFrames = MutableSharedFlow<ServerEvent.Activity>(extraBufferCapacity = 64)
+    /** API 0.56.0: what people play (also null when someone goes offline: an activity shows only while they're online). */
+    val activityFrames: SharedFlow<ServerEvent.Activity> = _activityFrames
     private val _callFrames = MutableSharedFlow<ServerEvent.Call>(extraBufferCapacity = 32)
     val callFrames: SharedFlow<ServerEvent.Call> = _callFrames
     private val _orgEvents = MutableSharedFlow<String>(extraBufferCapacity = 16)
@@ -74,7 +77,11 @@ class MessageSignals(
                 if (e.on) cur[e.u] = System.currentTimeMillis() + 6000 else cur.remove(e.u)
                 m + (e.c to cur)
             }
-            is ServerEvent.Presence -> db.users().setPresence(e.userId, e.online, e.lastSeenAt, PresenceRules.stored(e.presence))
+            is ServerEvent.Presence -> {
+                db.users().setPresence(e.userId, e.online, e.lastSeenAt, PresenceRules.stored(e.presence))
+                if (!e.online) _activityFrames.tryEmit(ServerEvent.Activity(e.userId, null))
+            }
+            is ServerEvent.Activity -> _activityFrames.tryEmit(e)
             is ServerEvent.ConvUpdated -> conversations.refreshOne(e.conversationId)
             is ServerEvent.OrgUpdated -> {
                 _orgEvents.tryEmit(e.orgId)

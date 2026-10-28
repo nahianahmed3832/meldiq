@@ -121,6 +121,8 @@ import kotlinx.serialization.json.JsonObject
     /** API 0.57.0 profiles: when they joined Meldiq, and the communities you share with when they joined each. */
     val memberSince: Long? = null,
     val mutualCommunities: List<MutualCommunityDto>? = null,
+    /** API 0.56.0: what they're playing, when shown to you (docs/ACTIVITY_STATUS.md). */
+    val activity: com.meldiq.android.activity.ActivityDto? = null,
 )
 @Serializable data class MojoMarkDto(val badge: String, val check: Boolean = false)
 @Serializable data class MutualCommunityDto(val id: String, val name: String, val photoRev: Long? = null, val joinedAt: Long = 0)
@@ -153,7 +155,11 @@ import kotlinx.serialization.json.JsonObject
     val revokedAt: Long? = null, val current: Boolean = false,
 )
 @Serializable data class DevicesRes(val devices: List<MyDeviceDto>)
-@Serializable data class PresenceDto(val userId: String, val online: Boolean, val lastSeenAt: Long? = null, val presence: String? = null)
+@Serializable data class PresenceDto(
+    val userId: String, val online: Boolean, val lastSeenAt: Long? = null, val presence: String? = null,
+    /** API 0.56.0: what they're playing, when shown. */
+    val activity: com.meldiq.android.activity.ActivityDto? = null,
+)
 /** Batch B6b: PUT /v1/users/me/presence. */
 @Serializable data class PresenceReq(val mode: String, val until: Long? = null)
 @Serializable data class PresenceModeRes(val mode: String, val until: Long? = null)

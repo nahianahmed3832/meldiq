@@ -288,4 +288,25 @@ class DesignScreenshotsTest {
             Spacer(Modifier.height(8.dp))
         }
     }
+
+    @Test
+    fun welcomeWithMeldling() = shot("08-welcome-meldling") {
+        com.meldiq.android.ui.screens.onboarding.WelcomeScreen(showServer = false, onBrandTap = {}, onSignUp = {}, onLogIn = {}, onServer = {})
+    }
+
+    @Test
+    fun introWithMeldling() = shot("09-intro-meldling") {
+        com.meldiq.android.ui.screens.onboarding.IntroScreen(onDone = {})
+    }
+
+    @Test
+    fun emptyStatesWithMeldling() = shot("10-empty-states-meldling") {
+        Column(Modifier.fillMaxSize()) {
+            com.meldiq.android.ui.components.EmptyState(Icons.Outlined.Home, "No chats yet", "Start a conversation with someone you know.", Modifier.weight(1f))
+            com.meldiq.android.ui.components.EmptyState(
+                Icons.Outlined.Home, "Nothing found", "Try other words, or search everywhere.", Modifier.weight(1f),
+                art = com.meldiq.android.R.drawable.meldling_confused,
+            )
+        }
+    }
 }

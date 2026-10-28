@@ -232,6 +232,11 @@ fun UserProfileScreen(nav: NavHostController, userId: String, orgId: String? = n
                         if ("bug-hunter" in u.badges.orEmpty()) Chip(stringResource(R.string.wp_badge_bug_hunter), icon = Icons.Outlined.BugReport)
                     }
                     ProfileCardRules.statusLine(u)?.let { Text(it, style = Griip.type.body, color = c.textPrimary, modifier = Modifier.padding(top = 10.dp)) }
+                    // API 0.56.0: what they're playing, live (docs/ACTIVITY_STATUS.md).
+                    com.meldiq.android.ui.components.rememberActivity(u.id)?.let { a ->
+                        Spacer(Modifier.height(6.dp))
+                        com.meldiq.android.ui.components.PlayingLine(a, style = Griip.type.bodyMedium, color = c.textPrimary)
+                    }
                     error?.let { StatusBanner(it, BannerKind.Error, Modifier.padding(top = 10.dp)) }
 
                     if (!u.aboutMe.isNullOrBlank()) Section(stringResource(R.string.wp_about_me)) { Text(u.aboutMe, style = Griip.type.body, color = c.textPrimary) }

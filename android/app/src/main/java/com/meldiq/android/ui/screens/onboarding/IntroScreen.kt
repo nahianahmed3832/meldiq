@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -116,11 +117,13 @@ private fun IntroPageView(page: IntroPage, selected: Boolean) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
+        val art = androidx.compose.ui.res.painterResource(page.art)
         androidx.compose.foundation.Image(
-            androidx.compose.ui.res.painterResource(page.art), null,
-            Modifier.widthIn(max = MaxIntroWidth).fillMaxWidth().height(IllustrationSize * 1.25f).clearAndSetSemantics {}
-                .graphicsLayer { alpha = 0.4f + 0.6f * shown; val s = 0.9f + 0.1f * shown; scaleX = s; scaleY = s },
-            contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+            art, null,
+            Modifier.height(IllustrationSize * 1.6f).aspectRatio(art.intrinsicSize.width / art.intrinsicSize.height).clearAndSetSemantics {}
+                .graphicsLayer { alpha = 0.4f + 0.6f * shown; val s = 0.9f + 0.1f * shown; scaleX = s; scaleY = s }
+                .clip(Shapes.panel),
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
         )
         Spacer(Modifier.height(Space.xxl))
         if (page.soon) {

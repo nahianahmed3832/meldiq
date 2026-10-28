@@ -22,6 +22,7 @@ import {
 import { keyFingerprint } from "../../shared/utilities/crypto.js";
 import { allows, appearsOnline, canSeeLastSeen, type ProfileRow, privacyOf, profileView, relation, shownPresence } from "./profile.js";
 import { announcePresence } from "../realtime/ws.js";
+import { activityField, activityFor, announceActivity } from "./activity/visibility.js";
 import { announceOwnSettingsChange, announceProfileChange } from "./profileEvents.js";
 import { ApiError, badRequest, conflict, notFound } from "../../shared/errors.js";
 import { now } from "../../shared/utilities/util.js";
@@ -207,6 +208,8 @@ export default async function userRoutes(app: FastifyInstance, ctx: AppContext) 
     const until = body.mode === "auto" ? null : (body.until ?? null);
     ctx.db.prepare("UPDATE users SET presence_mode = ?, presence_until = ?, updated_at = ? WHERE id = ?").run(body.mode === "auto" ? null : body.mode, until, t, userId);
     announcePresence(ctx, userId);
+    // Invisible hides the activity too; appearing again shows it.
+    announceActivity(ctx, userId);
     return { mode: body.mode, until };
   });
 
@@ -318,6 +321,8 @@ export default async function userRoutes(app: FastifyInstance, ctx: AppContext) 
         // Batch B6b: absent when hidden, like the profile's other hidden fields.
         ...(visible ? { presence: shownPresence(ctx, u) } : {}),
         lastSeenAt: visible ? ctx.hub.lastSeenAt(u.id) : null,
+        // API 0.56.0: what they're playing, under the same rule (your own always).
+        ...activityField(activityFor(ctx, viewer, u)),
       },
     };
   });
@@ -367,7 +372,13 @@ export default async function userRoutes(app: FastifyInstance, ctx: AppContext) 
     return {
       presence: rows
         .filter((u) => list.includes(u.id))
-        .map((u) => ({ userId: u.id, online: appearsOnline(ctx, u), presence: shownPresence(ctx, u), lastSeenAt: ctx.hub.lastSeenAt(u.id) })),
+        .map((u) => ({
+          userId: u.id,
+          online: appearsOnline(ctx, u),
+          presence: shownPresence(ctx, u),
+          lastSeenAt: ctx.hub.lastSeenAt(u.id),
+          ...activityField(activityFor(ctx, userId, u)),
+        })),
     };
   });
 }

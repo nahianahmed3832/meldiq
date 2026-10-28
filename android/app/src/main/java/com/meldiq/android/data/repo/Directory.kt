@@ -166,7 +166,12 @@ class KeyDirectory(private val source: KeySource, private val pins: PinStore) {
     }
 }
 
-class UserRepository(private val api: ApiClient, private val db: GriipDatabase) {
+class UserRepository(
+    private val api: ApiClient,
+    private val db: GriipDatabase,
+    /** API 0.56.0: what people play, from the same profiles and lists (docs/ACTIVITY_STATUS.md). */
+    private val activities: com.meldiq.android.activity.PeopleActivity? = null,
+) {
     /** [withLook]: the view carries people's look (profiles, member lists); search results don't, so they keep it. */
     suspend fun remember(u: UserDto, withLook: Boolean = true) {
         val e = db.users().get(u.id)
@@ -179,6 +184,8 @@ class UserRepository(private val api: ApiClient, private val db: GriipDatabase) 
                 lookJson = if (withLook) com.meldiq.android.data.model.PersonLooks.encode(com.meldiq.android.data.model.PersonLook(u.avatarMedia, u.profileStyle, u.tag)) else e?.lookJson,
             ),
         )
+        // Search results don't carry activities; profiles and member lists do (absent: none shown to you).
+        if (withLook) activities?.seen(u.id, u.activity)
     }
 
     suspend fun search(q: String): List<UserDto> = api.get<UsersRes>("/v1/users/search?q=${java.net.URLEncoder.encode(q, "UTF-8")}").users.also { it.forEach { u -> remember(u, withLook = false) } }
@@ -187,7 +194,10 @@ class UserRepository(private val api: ApiClient, private val db: GriipDatabase) 
 
     suspend fun refreshPresence(ids: List<String>) {
         if (ids.isEmpty()) return
-        api.get<PresenceRes>("/v1/presence?ids=${ids.joinToString(",")}").presence.forEach { db.users().setPresence(it.userId, it.online, it.lastSeenAt, PresenceRules.stored(it.presence)) }
+        api.get<PresenceRes>("/v1/presence?ids=${ids.joinToString(",")}").presence.forEach {
+            db.users().setPresence(it.userId, it.online, it.lastSeenAt, PresenceRules.stored(it.presence))
+            activities?.seen(it.userId, it.activity)
+        }
     }
 
     suspend fun markVerified(userId: String) {

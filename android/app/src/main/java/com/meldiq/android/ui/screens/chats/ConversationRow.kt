@@ -210,6 +210,11 @@ fun ConversationRow(
                         com.meldiq.android.ui.components.UnreadMarkerView(marker, Modifier.semantics { contentDescription = spoken })
                     }
                 }
+                // API 0.56.0: what the other person is playing (docs/ACTIVITY_STATUS.md).
+                if (conv.type == "DM") {
+                    val peer = remember(conv.membersJson, myUserId) { ConversationRepository.peer(conv, myUserId)?.id }
+                    com.meldiq.android.ui.components.PlayingLine(com.meldiq.android.ui.components.rememberActivity(peer), Modifier.padding(top = 2.dp), withElapsed = false)
+                }
             }
         }
         if (showDivider) HorizontalDivider(Modifier.padding(start = Space.gutter + 4.dp + RowAvatar + 14.dp), thickness = 1.dp, color = c.border)
