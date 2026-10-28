@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Meldiq API",
-    "version": "0.49.0",
+    "version": "0.50.0",
     "description": "The canonical contract of the Meldiq server (docs/architecture/ARCHITECTURE_1_0_PLAN.md §4), generated from src/shared/contracts. Fields are only ever added within a version; clients ignore unknown fields. Routes not listed here exist but aren't documented yet."
   },
   "servers": [
@@ -15131,6 +15131,54 @@
                             "pattern": "^o_[A-Za-z0-9_-]+$"
                           }
                         },
+                        "railFolders": {
+                          "maxItems": 50,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^f_[A-Za-z0-9_-]{4,40}$"
+                              },
+                              "name": {
+                                "default": "",
+                                "type": "string",
+                                "maxLength": 40
+                              },
+                              "color": {
+                                "default": null,
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "pattern": "^#[0-9a-fA-F]{6}$"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "orgIds": {
+                                "minItems": 1,
+                                "maxItems": 200,
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 3,
+                                  "maxLength": 64,
+                                  "pattern": "^o_[A-Za-z0-9_-]+$"
+                                }
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name",
+                              "color",
+                              "orgIds"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
                         "mutedUntil": {
                           "type": "object",
                           "propertyNames": {
@@ -15437,6 +15485,54 @@
                             "pattern": "^o_[A-Za-z0-9_-]+$"
                           }
                         },
+                        "railFolders": {
+                          "maxItems": 50,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^f_[A-Za-z0-9_-]{4,40}$"
+                              },
+                              "name": {
+                                "default": "",
+                                "type": "string",
+                                "maxLength": 40
+                              },
+                              "color": {
+                                "default": null,
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "pattern": "^#[0-9a-fA-F]{6}$"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "orgIds": {
+                                "minItems": 1,
+                                "maxItems": 200,
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 3,
+                                  "maxLength": 64,
+                                  "pattern": "^o_[A-Za-z0-9_-]+$"
+                                }
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name",
+                              "color",
+                              "orgIds"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
                         "mutedUntil": {
                           "type": "object",
                           "propertyNames": {
@@ -15698,6 +15794,52 @@
                           "minLength": 3,
                           "maxLength": 64,
                           "pattern": "^o_[A-Za-z0-9_-]+$"
+                        }
+                      },
+                      "railFolders": {
+                        "maxItems": 50,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^f_[A-Za-z0-9_-]{4,40}$"
+                            },
+                            "name": {
+                              "default": "",
+                              "type": "string",
+                              "maxLength": 40
+                            },
+                            "color": {
+                              "default": null,
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "pattern": "^#[0-9a-fA-F]{6}$"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "orgIds": {
+                              "minItems": 1,
+                              "maxItems": 200,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 3,
+                                "maxLength": 64,
+                                "pattern": "^o_[A-Za-z0-9_-]+$"
+                              }
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "orgIds"
+                          ],
+                          "additionalProperties": false
                         }
                       },
                       "mutedUntil": {

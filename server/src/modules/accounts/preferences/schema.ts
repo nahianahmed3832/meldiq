@@ -18,7 +18,7 @@ const zMessageId = z.string().min(3).max(64).regex(/^[A-Za-z0-9_-]+$/);
 export const NOTIFY_LEVELS = ["all", "mentions", "none"] as const;
 export type NotifyLevel = (typeof NOTIFY_LEVELS)[number];
 
-export const LIMITS = { starred: 200, sections: 30, itemsPerSection: 200, collapsed: 200, notify: 1000, saved: 500, railOrder: 200, mutedUntil: 1000, categories: 200, hidden: 500 } as const;
+export const LIMITS = { starred: 200, sections: 30, itemsPerSection: 200, collapsed: 200, notify: 1000, saved: 500, railOrder: 200, mutedUntil: 1000, categories: 200, hidden: 500, railFolders: 50 } as const;
 /** Category ids as the server assigns them. */
 const zCategoryId = z.string().min(3).max(64).regex(/^cat_[A-Za-z0-9_-]+$/);
 
@@ -60,6 +60,19 @@ export const zSavedItem = z
   })
   .strict();
 
+export const zRailFolder = z
+  .object({
+    id: z.string().regex(/^f_[A-Za-z0-9_-]{4,40}$/),
+    name: z.string().trim().max(40).default(""),
+    color: z
+      .string()
+      .regex(/^#[0-9a-fA-F]{6}$/)
+      .nullable()
+      .default(null),
+    orgIds: z.array(zOrgId).min(1).max(LIMITS.railOrder),
+  })
+  .strict();
+
 export const zNavPrefs = z
   .object({
     starred: z.array(zConversationId).max(LIMITS.starred).default([]),
@@ -78,6 +91,11 @@ export const zNavPrefs = z
     community: zCommunityNotify.optional(),
     /** Personal document only: the person's communities in rail order (B2, NAV-11). Left out, the stored order is kept. */
     railOrder: z.array(zOrgId).max(LIMITS.railOrder).optional(),
+    /**
+     * API 0.50.0, personal document only: folders of communities on the rail (an id, a name, a colour, its communities
+     * in order). Where a folder sits is where its first community sits in [railOrder]. Left out, the stored ones are kept.
+     */
+    railFolders: z.array(zRailFolder).max(LIMITS.railFolders).optional(),
     /**
      * Batch B3: mutes that end by themselves, conversation id → epoch ms (any document; DMs in the personal one). Until
      * then the conversation behaves as "none". Ended ones are dropped. Left out, the stored ones are kept.
@@ -153,10 +171,23 @@ export function normalizePrefs(
     saved,
     ...(p.community ? { community: liveCommunity(p.community, at) } : {}),
     ...(p.railOrder ? { railOrder: [...new Set(p.railOrder)] } : {}),
+    ...(p.railFolders ? { railFolders: normalizeFolders(p.railFolders) } : {}),
     ...(p.mutedUntil ? { mutedUntil: Object.fromEntries(Object.entries(p.mutedUntil).filter(([id, until]) => until > at && keep(id))) } : {}),
     ...(p.categoryNotify ? { categoryNotify: p.categoryNotify } : {}),
     ...(p.hidden ? { hidden: [...new Set(p.hidden)] } : {}),
   };
+}
+
+/** Each community in at most one folder (the first wins); folders left empty are dropped; colours in lower case. */
+function normalizeFolders(folders: z.infer<typeof zRailFolder>[]): z.infer<typeof zRailFolder>[] {
+  const placed = new Set<string>();
+  const ids = new Set<string>();
+  return folders.flatMap((f) => {
+    if (ids.has(f.id)) return [];
+    ids.add(f.id);
+    const orgIds = f.orgIds.filter((id) => !placed.has(id) && (placed.add(id), true));
+    return orgIds.length ? [{ ...f, color: f.color ? f.color.toLowerCase() : null, orgIds }] : [];
+  });
 }
 
 /** Every conversation id a document mentions. */
