@@ -70,8 +70,10 @@ const zAudience = z.enum(["personal", "organization"]);
 const zOrgId = z.string().min(3).max(64).regex(/^[A-Za-z0-9_-]+$/);
 
 /** Whose billing: omit [orgId] for the signed-in account's own; with it, that organization's (its owners only). */
-export const OwnerBody = z.strictObject({ orgId: zOrgId.optional() });
-export const OwnerCheckoutBody = z.strictObject({ planKey: z.string().trim().min(1).max(40), orgId: zOrgId.optional() });
+/** Where the provider's page sends the person back: the web app ("web") or the website ("site", the default). */
+export const zReturnTo = z.enum(["web", "site"]);
+export const OwnerBody = z.strictObject({ orgId: zOrgId.optional(), returnTo: zReturnTo.optional() });
+export const OwnerCheckoutBody = z.strictObject({ planKey: z.string().trim().min(1).max(40), orgId: zOrgId.optional(), returnTo: zReturnTo.optional() });
 export const BillingOrgParams = z.strictObject({ orgId: zOrgId });
 
 export const zOffer = z.strictObject({

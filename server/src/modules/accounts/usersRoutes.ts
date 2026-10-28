@@ -113,7 +113,7 @@ export default async function userRoutes(app: FastifyInstance, ctx: AppContext) 
     return { ...(tag ? { tag } : {}), ...(badges.length ? { badges } : {}) };
   };
   const meView = (u: any) => ({
-    ...profileView(u, { self: true, contact: true, blockedByTarget: false }),
+    ...profileView(u, { self: true, contact: true, blockedByTarget: false }, ctx),
     ...tagOf(u),
     identityKey: u.identity_key,
     fingerprint: keyFingerprint(u.identity_key),
@@ -310,7 +310,7 @@ export default async function userRoutes(app: FastifyInstance, ctx: AppContext) 
     return {
       user: {
         statusText: null, // older apps expect the key
-        ...profileView(u, r),
+        ...profileView(u, r, ctx),
         ...tagOf(u),
         identityKey: u.identity_key,
         fingerprint: keyFingerprint(u.identity_key),

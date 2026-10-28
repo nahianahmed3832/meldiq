@@ -9,6 +9,7 @@ import type { S3Config } from "../infrastructure/storage/s3.js";
 import { type FcmConfig, fcmConfig } from "../modules/notifications/fcm.js";
 import { type AdminConsoleConfig, adminConsoleConfig } from "../modules/platformAdmin/config.js";
 import { type BillingConfig, billingConfig } from "../modules/billing/config.js";
+import { type MojoEnforce, mojoEnforceFrom } from "../modules/billing/mojo.js";
 
 const SEVEN_DAYS_S = 7 * 24 * 3600;
 const MiB = 1024 * 1024;
@@ -120,6 +121,8 @@ export interface Config {
   entitlements: EntitlementConfig;
   /** The billing provider (BILLING_PROVIDER, docs/BILLING.md); none by default, so nothing can be bought. */
   billing: BillingConfig;
+  /** Whether Meldiq Mojo's plan limits are enforced (MOJO_ENFORCE: on, off, or auto = once Mojo is on sale). */
+  mojoEnforce: MojoEnforce;
   /** Product experiments (docs/product/EXPERIMENTS.md): off unless EXPERIMENTS_MODE says otherwise. */
   experiments: ExperimentsConfig;
   /** Content-free daily analytics counts (ANALYTICS_ENABLED=true); off by default. */
@@ -483,6 +486,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     adminConsole: adminConsoleConfig(env, int),
     entitlements: entitlementConfig(env),
     billing: billingConfig(env),
+    mojoEnforce: mojoEnforceFrom(env),
     experiments: experimentsConfig(env),
     analyticsEnabled: (env.ANALYTICS_ENABLED ?? "").trim().toLowerCase() === "true",
     // No upload quotas by default (0: no limit; owner's decision 2026-10-18, UI-003).

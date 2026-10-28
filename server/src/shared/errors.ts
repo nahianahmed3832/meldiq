@@ -65,6 +65,12 @@ export const ERROR_CODES = {
   account_limited: { status: [403], meaning: "Your account is limited by warnings from Meldiq's staff (Settings › My Account › Account standing)." },
   bad_request: { status: [400], meaning: "Give the role a name" },
   billing_unavailable: { status: [409], meaning: "No billing provider is configured on this server, so nothing can be bought." },
+  // Meldiq Mojo (API 0.54.0, docs/MOJO.md).
+  no_sparks: { status: [409], meaning: "This account has no Meldiq Sparks: Mojo Go includes one, Mojo Plus two, and more can be bought." },
+  no_free_sparks: { status: [409], meaning: "Every Spark this account has is already given to a community." },
+  message_too_long: { status: [413], meaning: "The encrypted message is far larger than the sender's plan allows (messages are counted in the app; the server bounds their size)." },
+  upload_limit: { status: [413], meaning: "The file is larger than the sender's plan, or the community's Spark level, allows." },
+  custom_items_limit: { status: [409], meaning: "This account has added as many custom emoji and stickers as its plan allows." },
   bad_signature: { status: [400, 401], meaning: "A signature doesn't verify (a message envelope against its device, or a federated request against its server)." },
   bad_username: { status: [400], meaning: "The username isn't valid (length or characters)." },
   banned: { status: [403, 409], meaning: "You've been banned from this community" },

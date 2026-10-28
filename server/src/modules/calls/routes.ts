@@ -9,6 +9,7 @@ import { parse } from "../../shared/validation/index.js";
 import { ApiError, badRequest, conflict, forbidden, notFound } from "../../shared/errors.js";
 import { newId, now } from "../../shared/utilities/util.js";
 import { forgetSharing, isScreenShare, setSharing, sharingDevices } from "./screenShares.js";
+import { SCREEN_PRESETS, screenAllows } from "../billing/index.js";
 import type { CallRow } from "./store.js";
 import { memberUsers } from "../messaging/index.js";
 
@@ -305,7 +306,12 @@ export function callActions(ctx: AppContext) {
       metadata: JSON.stringify({ userId, deviceId }),
       canPublish: canSpeak,
     });
-    return { url: ctx.livekit.publicUrl, token, room: c.room_name, canSpeak };
+    const org = conv?.org_id ?? null;
+    const screen = ctx.mojo.screenPresets(userId, org).map((id) => {
+      const p = SCREEN_PRESETS[id];
+      return { id, width: p.width, height: p.height, fps: p.fps };
+    });
+    return { url: ctx.livekit.publicUrl, token, room: c.room_name, canSpeak, limits: { screen, voiceKbps: ctx.mojo.voiceKbps(org) } };
   };
 
   return {
@@ -645,6 +651,17 @@ export default async function callRoutes(app: FastifyInstance, ctx: AppContext) 
     } else if ((event.event === "track_published" || event.event === "track_unpublished") && pDevice && isScreenShare(event.track?.source)) {
       // Screen sharing started or stopped: members see it on the channel without joining (community-first brief §E).
       if (c.state !== "ENDED" && setSharing(ctx, c.id, pDevice, event.event === "track_published")) await broadcast((await load(c.id))!, "updated");
+      // Meldiq Mojo (docs/MOJO.md): a share larger than the person's plan and the community's level allow is muted (the
+      // apps never publish one; this stops a modified client). Frame rates aren't reported, so they're the apps' to keep.
+      const w = Number(event.track?.width ?? 0);
+      const hgt = Number(event.track?.height ?? 0);
+      if (event.event === "track_published" && pUser && w > 0 && hgt > 0 && event.track?.sid) {
+        const allowed = ctx.mojo.screenPresets(pUser, authz.conversation(c.conversation_id)?.org_id ?? null);
+        if (!screenAllows(allowed, w, hgt, null)) {
+          const r = await ctx.livekit.muteTrack(roomName, identity, event.track.sid);
+          ctx.log.info({ callId: c.id, width: w, height: hgt, result: r }, "call: screen share above the plan muted");
+        }
+      }
     } else if (event.event === "room_finished") {
       await endCall(c, "empty");
     }

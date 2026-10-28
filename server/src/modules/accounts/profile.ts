@@ -146,7 +146,7 @@ export function notificationsPaused(u: Pick<ProfileRow, "notifications_paused_un
  * The profile [r]'s viewer may see. Fields they may not see are absent (not null), so "hidden" and "empty" look the same
  * to them. The person themself also gets their privacy settings.
  */
-export function profileView(u: ProfileRow, r: Relation) {
+export function profileView(u: ProfileRow, r: Relation, ctx?: AppContext) {
   const p = privacyOf(u);
   const show = (f: PrivacyField) => allows(p[f], r);
   const view: Record<string, unknown> = {
@@ -171,7 +171,7 @@ export function profileView(u: ProfileRow, r: Relation) {
   }
   if (show("photo") && u.photo_rev) view.photoRev = u.photo_rev;
   // API 0.45.0: an animated avatar and banner under the photo's setting, and the profile's style.
-  Object.assign(view, profileMediaView(u, show("photo")));
+  Object.assign(view, profileMediaView(u, show("photo")), ctx ? mojoBadge(ctx, u.id) : {});
   if (show("birthday") && u.birthday) view.birthday = u.birthday;
   if (show("phone") && u.phone) view.phone = u.phone;
   if (r.self) {
@@ -226,7 +226,16 @@ export function memberView(ctx: AppContext, viewerId: string, u: ProfileRow, bas
 function listMedia(ctx: AppContext, u: ProfileRow, photoAllowed: boolean): Record<string, unknown> {
   const { profileBanner: _banner, ...media } = profileMediaView(u as never, photoAllowed);
   const tag = wornTag(ctx, u as never);
-  return tag ? { ...media, tag } : media;
+  return { ...media, ...(tag ? { tag } : {}), ...mojoBadge(ctx, u.id) };
+}
+
+/**
+ * The Mojo badge someone shows (API 0.54.0, docs/MOJO.md): their plan's, from verified billing only, unless they hid
+ * it. Meldiq Check comes with Mojo Plus: a membership perk, never identity verification.
+ */
+function mojoBadge(ctx: AppContext, userId: string): { mojo?: { badge: "go" | "plus"; check: boolean } } {
+  const b = ctx.mojo?.badges([userId]).get(userId);
+  return b ? { mojo: b } : {};
 }
 
 /** A user row's profile links (API 0.46.0), dropping anything malformed. */

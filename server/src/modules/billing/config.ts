@@ -18,6 +18,11 @@ export interface BillingConfig {
    * no client can send anyone elsewhere. null: the provider has no hosted pages (sandbox) or none is configured.
    */
   returnUrl: string | null;
+  /**
+   * Where checkouts and the portal started in the web app send people back (BILLING_WEB_RETURN_URL, e.g.
+   * https://web.meldiq.app/settings/mojo); null: the same page as [returnUrl].
+   */
+  webReturnUrl: string | null;
   /** Free Meldiq Mojo periods (trials and invite links, grants.ts); null: off. */
   trials: TrialConfig | null;
   /** STRIPE_PORTAL_CONFIGURATION: the customer portal configuration to open (bpc_…); null: the account's default. */
@@ -88,10 +93,12 @@ function returnUrl(raw: string | undefined, production: boolean): string {
 export function billingConfig(env: NodeJS.ProcessEnv): BillingConfig {
   const portal = (env.STRIPE_PORTAL_CONFIGURATION ?? "").trim();
   if (portal && !/^bpc_[A-Za-z0-9]+$/.test(portal)) throw new Error("STRIPE_PORTAL_CONFIGURATION must be a portal configuration id (bpc_…)");
-  return { ...providerConfig(env), trials: trialConfig(env), portalConfiguration: portal || null };
+  const production = (env.APP_ENV ?? "development") === "production";
+  const web = (env.BILLING_WEB_RETURN_URL ?? "").trim();
+  return { ...providerConfig(env), webReturnUrl: web ? returnUrl(web, production) : null, trials: trialConfig(env), portalConfiguration: portal || null };
 }
 
-function providerConfig(env: NodeJS.ProcessEnv): Omit<BillingConfig, "trials" | "portalConfiguration"> {
+function providerConfig(env: NodeJS.ProcessEnv): Omit<BillingConfig, "trials" | "portalConfiguration" | "webReturnUrl"> {
   const name = (env.BILLING_PROVIDER ?? "none").trim().toLowerCase() || "none";
   const production = (env.APP_ENV ?? "development") === "production";
   if (name === "none") return { provider: null, unavailableReason: NO_PROVIDER, returnUrl: null };

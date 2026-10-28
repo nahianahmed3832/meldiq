@@ -1,0 +1,91 @@
+import { CheckoutStarted } from "../billing.js";
+import {
+  BadgeBody,
+  BadgeSaved,
+  GiftBody,
+  GiftParams,
+  GiftRedeemed,
+  GiftStarted,
+  MojoCatalog,
+  MojoMe,
+  OrgSparks,
+  SparkAssignBody,
+  SparkAssigned,
+  SparkCheckoutBody,
+  SparkParams,
+} from "../mojo.js";
+import { OrgParams } from "../orgs.js";
+import { route, type RouteContract } from "../route.js";
+import { z } from "zod/v4";
+
+/** Meldiq Mojo, Meldiq Spark and gifts (docs/MOJO.md). */
+const tag = "Mojo";
+const Ok = z.strictObject({ ok: z.literal(true) });
+
+export const mojoRoutes: readonly RouteContract[] = [
+  route({ method: "GET", url: "/v2/mojo/catalog", tag, summary: "Free, Go and Plus with every limit, Meldiq Spark's levels, gift lengths and what's on sale (public).", auth: false, response: MojoCatalog }),
+  route({ method: "GET", url: "/v2/mojo/me", tag, summary: "The signed-in person's plan, perks, Sparks, badge and gifts.", auth: true, response: MojoMe, errors: ["device_required"] }),
+  route({
+    method: "POST",
+    url: "/v2/mojo/sparks",
+    tag,
+    summary: "Give one of your free Sparks to a community you're in.",
+    auth: true,
+    body: SparkAssignBody,
+    response: SparkAssigned,
+    errors: ["device_required", "no_sparks", "no_free_sparks", "not_found"],
+  }),
+  route({
+    method: "POST",
+    url: "/v2/mojo/sparks/:id/move",
+    tag,
+    summary: "Move one of your Sparks to another community you're in.",
+    auth: true,
+    params: SparkParams,
+    body: SparkAssignBody,
+    response: SparkAssigned,
+    errors: ["conflict", "device_required", "forbidden", "not_found"],
+  }),
+  route({ method: "DELETE", url: "/v2/mojo/sparks/:id", tag, summary: "Take one of your Sparks back.", auth: true, params: SparkParams, response: Ok, errors: ["device_required", "forbidden", "not_found"] }),
+  route({
+    method: "POST",
+    url: "/v2/mojo/sparks/checkout",
+    tag,
+    summary: "Buy more Sparks ($0.99 a month each): a hosted checkout. Nothing counts until the provider confirms.",
+    auth: true,
+    body: SparkCheckoutBody,
+    response: CheckoutStarted,
+    errors: ["bad_request", "billing_unavailable", "conflict", "forbidden", "not_found", "unavailable"],
+  }),
+  route({
+    method: "POST",
+    url: "/v2/mojo/gifts",
+    tag,
+    summary: "Buy Mojo Go or Plus for a friend for 1, 3 or 12 months: a hosted one-time payment.",
+    auth: true,
+    body: GiftBody,
+    response: GiftStarted,
+    errors: ["bad_request", "billing_unavailable", "conflict", "device_required", "forbidden", "not_found", "unavailable"],
+  }),
+  route({
+    method: "POST",
+    url: "/v2/mojo/gifts/:id/redeem",
+    tag,
+    summary: "Start a gift you received (its time follows on from free time you already have).",
+    auth: true,
+    params: GiftParams,
+    response: GiftRedeemed,
+    errors: ["conflict", "device_required", "forbidden", "not_found"],
+  }),
+  route({ method: "PUT", url: "/v2/mojo/badge", tag, summary: "Show or hide your Mojo badge (what your plan gives doesn't change).", auth: true, body: BadgeBody, response: BadgeSaved, errors: ["device_required"] }),
+  route({
+    method: "GET",
+    url: "/v1/orgs/:orgId/sparks",
+    tag,
+    summary: "A community's Spark level, what it gives everyone in it, and your own Sparks there.",
+    auth: true,
+    params: OrgParams,
+    response: OrgSparks,
+    errors: ["not_found"],
+  }),
+];

@@ -85,6 +85,16 @@ export class LiveKitService {
     }
   }
 
+  /** Mutes one published track (a screen share above the person's plan, docs/MOJO.md). */
+  async muteTrack(room: string, identity: string, trackSid: string): Promise<"muted" | "absent" | "error"> {
+    try {
+      await withTimeout(this.rooms.mutePublishedTrack(room, identity, trackSid, true));
+      return "muted";
+    } catch (e) {
+      return isNotFound(e) ? "absent" : "error";
+    }
+  }
+
   async receiveWebhook(body: string, auth: string | undefined): Promise<WebhookEvent> {
     return this.receiver.receive(body, auth);
   }

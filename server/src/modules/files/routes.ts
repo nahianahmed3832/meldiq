@@ -25,6 +25,12 @@ import { refusal, scopesFor } from "../quotas/index.js";
  * Bytes live in ctx.blobs (the server's disk or S3, docs/STORAGE_AND_DATA.md). An upload is received into a spool
  * file first (size and quota enforced while reading), then moved into the store; S3 checks it against its SHA-256.
  */
+/** A file over the sender's plan (and the community's Spark level): says the limit, decimal as people read it. */
+function uploadLimit(max: number): ApiError {
+  const label = max >= 1_000_000_000 ? `${+(max / 1_000_000_000).toFixed(1)} GB` : `${Math.round(max / 1_000_000)} MB`;
+  return new ApiError(413, "upload_limit", `Files can be up to ${label} on your plan here. Mojo raises it, and so do a community's Sparks.`, { maxBytes: max });
+}
+
 export default async function attachmentRoutes(app: FastifyInstance, ctx: AppContext) {
   const auth = { preHandler: requireAuth(ctx) };
   const cfg = ctx.config;
@@ -179,11 +185,14 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
     const declared = lengthHeader === undefined ? null : Number(lengthHeader);
     if (declared !== null && (!Number.isSafeInteger(declared) || declared <= 0)) throw badRequest("Expected a non-empty body");
     if (declared !== null && declared > cfg.attachmentMaxBytes) throw new ApiError(413, "too_large", "Attachment is too large");
+    // The person's plan, or the community's Spark level, sets the largest file (docs/MOJO.md), within the server's own.
+    const planMax = Math.min(cfg.attachmentMaxBytes, ctx.mojo.uploadBytes(userId, conv.org_id));
+    if (declared !== null && declared > planMax) throw uploadLimit(planMax);
 
     // Quotas are checked before reading the body. A body of unknown length reserves the maximum size. Checking and
     // reserving run under the quota lock, so parallel uploads see each other's reservations.
     const t = now();
-    const reserve = declared ?? cfg.attachmentMaxBytes;
+    const reserve = declared ?? planMax;
     const who = uploaderOf(userId, conv.org_id);
     admitStart(userId, reply);
     const id = newId("a");
@@ -206,7 +215,8 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
         transform(chunk: Buffer, _enc, cb) {
           size += chunk.length;
           hash.update(chunk);
-          if (size > cfg.attachmentMaxBytes || (declared !== null && size > declared)) cb(new ApiError(413, "too_large", "Attachment is too large"));
+          if (size > planMax) cb(uploadLimit(planMax));
+          else if (size > cfg.attachmentMaxBytes || (declared !== null && size > declared)) cb(new ApiError(413, "too_large", "Attachment is too large"));
           else cb(null, chunk);
         },
       });
@@ -340,6 +350,9 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
     if (!ctx.authz.canPost(conv, userId)) throw new ApiError(403, "forbidden", "You can't post in this conversation");
     if (!ctx.authz.canAttach(conv, userId)) throw new ApiError(403, "forbidden", "You can't share files in this channel");
     if (body.size > cfg.attachmentMaxBytes) throw new ApiError(413, "too_large", "Attachment is too large");
+    // Direct uploads are bound to this size (each part's URL to its exact length): the plan's limit holds at S3 too.
+    const planMax = Math.min(cfg.attachmentMaxBytes, ctx.mojo.uploadBytes(userId, conv.org_id));
+    if (body.size > planMax) throw uploadLimit(planMax);
     admitStart(userId, reply);
     const id = newId("a");
     const multipart = body.size > d.multipartThreshold;

@@ -154,10 +154,14 @@ export const PresenceQuery = z.object({ ids: z.string().max(5000) });
  * photoRev is absent without a photo everyone may see.
  */
 /** API 0.46.0: what lists add from a person's profile media (the animated avatar, the style, the worn tag). */
+/** API 0.54.0: the Mojo badge someone shows (docs/MOJO.md); "check" is Meldiq Check, a Plus perk, not verification. */
+export const MojoBadge = z.strictObject({ badge: z.enum(["go", "plus"]), check: z.boolean() });
+
 export const listMediaFields = {
   avatarMedia: AvatarMedia.optional(),
   profileStyle: ProfileStyle.optional(),
   tag: WornTag.optional(),
+  mojo: MojoBadge.optional(),
 };
 
 export const UserSummary = z.strictObject({
@@ -193,6 +197,7 @@ const profileFields = {
   profileBanner: ProfileBanner.optional(),
   profileStyle: ProfileStyle.optional(),
   tag: WornTag.optional(),
+  mojo: MojoBadge.optional(),
   /** API 0.46.0: About me and links (under the bio's setting), and badges earned (bug-hunter). */
   aboutMe: z.string().optional(),
   links: z.array(z.strictObject({ label: z.string(), url: z.string() })).optional(),

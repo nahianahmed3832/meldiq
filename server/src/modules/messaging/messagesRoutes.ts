@@ -1,6 +1,7 @@
 import { requireStanding } from "../accounts/index.js";
 import type { FastifyInstance } from "fastify";
-import { AckBody, Envelope, QueueQuery } from "../../shared/contracts/http/messaging.js";
+import { AckBody, Envelope, MAX_CIPHERTEXT_B64, QueueQuery } from "../../shared/contracts/http/messaging.js";
+import { ciphertextCeilingB64 } from "../billing/index.js";
 import { REQUEST_MESSAGE_LIMIT } from "../accounts/relationships/rules.js";
 import { type AppContext } from "../../app/context.js";
 import { me, requireAuth } from "../auth/index.js";
@@ -38,6 +39,12 @@ export default async function messageRoutes(app: FastifyInstance, ctx: AppContex
     }
     // Batch B14: a voice channel is for talking. Its calls' encrypted controls (keys) still pass; messages don't.
     if (conv.voice === 1 && e.cls === "message") throw new ApiError(403, "voice_channel", "Voice channels don't take messages");
+    // Meldiq Mojo (docs/MOJO.md): messages and edits are end-to-end encrypted, so the apps count characters and the
+    // server refuses ciphertext far larger than the sender's plan could need (1,000 / 2,000 / 5,000 characters).
+    const limits = ctx.mojo.limitsOf(userId);
+    if (limits && e.ciphertext.length > ciphertextCeilingB64(limits.messageChars, MAX_CIPHERTEXT_B64)) {
+      throw new ApiError(413, "message_too_long", `Messages can be up to ${limits.messageChars.toLocaleString("en-US")} characters on your plan`, { maxChars: limits.messageChars });
+    }
     // Clock sanity: sentAt is signed by the client; reject wildly wrong clocks (±1 day).
     if (Math.abs(e.sentAt - now()) > 24 * 3600_000) throw new ApiError(400, "bad_clock", "Device clock is too far off");
 

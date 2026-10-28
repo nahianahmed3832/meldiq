@@ -14,6 +14,8 @@ import accountRoutes from "../modules/accounts/routes.js";
 import { Authz } from "../modules/organizations/authz.js";
 import { orgMemberIds } from "../modules/organizations/index.js";
 import { openBillingRows } from "./billingRows.js";
+import { Gifts, Mojo } from "../modules/billing/index.js";
+import { availableUser, blockedEitherWay, namesOf } from "../modules/accounts/index.js";
 import { type Config, effectiveFileMaxBytes } from "./config.js";
 import { federationClientRoutes, federationPeerRoutes } from "../modules/federation/routes.js";
 import { Federation } from "../modules/federation/service.js";
@@ -81,7 +83,7 @@ import { now } from "../shared/utilities/util.js";
 import wsRoutes from "../modules/realtime/ws.js";
 import { Billing, billingRoutes } from "../modules/billing/index.js";
 
-export const VERSION = "0.53.0";
+export const VERSION = "0.54.0";
 /**
  * The client API this server speaks and the oldest client API it accepts. Clients refuse a server whose
  * minClientApi is newer than theirs; servers from before these fields existed count as API 1.
@@ -205,6 +207,26 @@ export async function buildApp(
   }
   // Entitlement changes reach every signed-in device at once (they also refresh on their own): the account's own
   // sessions for a personal subscription, every member for an organization's.
+  ctx.userNames = (ids) => new Map(namesOf(db, ids).map((u) => [u.id, u.displayName]));
+  ctx.mojo = new Mojo(ctx.billing, ctx.billing.rows, {
+    isMember: (orgId, userId) => !!ctx.authz.orgRole(orgId, userId),
+    enforce: config.mojoEnforce,
+    notifyOrg: (orgId) => ctx.hub.sendToUsers(orgMemberIds(ctx.ws, orgId), { t: "entitlements.changed", scope: "org", orgId }),
+  });
+  ctx.gifts = new Gifts(
+    ctx.billing,
+    ctx.billing.rows,
+    {
+      // A local, enabled person who hasn't blocked the buyer (nor been blocked by them): the same answer for anyone else.
+      canReceive: (recipient, buyer) => {
+        const u = availableUser(ctx, recipient);
+        return !!u && u.home_server_id === null && !(buyer && blockedEitherWay(ctx, recipient, buyer));
+      },
+      notify: (userId) => ctx.hub.sendToUser(userId, { t: "entitlements.changed", scope: "account" }),
+    },
+    app.log,
+  );
+  ctx.billing.webhooks.payments = ctx.gifts;
   ctx.billing.onChange = (owner) => {
     if (owner.kind === "org") ctx.hub.sendToUsers(orgMemberIds(ctx.ws, owner.orgId), { t: "entitlements.changed", scope: "org", orgId: owner.orgId });
     else {
@@ -505,6 +527,8 @@ export function serverFeatures(config: Config, directUploads = false): string[] 
     "profile-links",
     // API 0.50.0: folders of communities on the rail, in the personal preferences (railFolders).
     "rail-folders",
+    // API 0.54.0 (docs/MOJO.md): Meldiq Mojo's catalog and perks, Meldiq Spark levels, gifts and badges.
+    "mojo",
   ];
   if (config.accounts.legacy.migration) f.push("legacy-migration");
   if (directUploads) f.push("direct-upload");

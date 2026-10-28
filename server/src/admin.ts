@@ -35,9 +35,9 @@
  *                                  Meldiq Mojo in Stripe (test keys only, unless --live): product, prices, webhook,
  *                                  portal (docs/BILLING.md; deploy/scripts/stripe-setup.sh runs it). --emit-env prints
  *                                  the settings for .env, the webhook's signing secret included: only for that script
- *   billing-mojo-plans <goPriceId> <plusPriceId>
- *                                  publish Mojo Go and Mojo Plus in the plan catalog at those prices (needs
- *                                  BILLING_PROVIDER=stripe)
+ *   billing-mojo-plans <goPriceId> <plusPriceId> <sparkPriceId>
+ *                                  publish Mojo Go, Mojo Plus and the Meldiq Spark add-on in the plan catalog at those
+ *                                  prices (needs BILLING_PROVIDER=stripe)
  *   mongo-status | mongo-estimate | mongo-migrate | mongo-verify | mongo-rollback | mongo-dryrun
  *                                  MongoDB domains and migration (src/mongo/admin.ts, docs/MONGODB.md)
  *   retired-data [--purge --yes]   rows left in the tables of modules the community rebuild removed (apps, inbox,
@@ -431,9 +431,9 @@ switch (cmd) {
     break;
   }
   case "billing-mojo-plans": {
-    const [go, plus] = rest;
-    if (!go?.startsWith("price_") || !plus?.startsWith("price_")) {
-      console.error("usage: billing-mojo-plans <goPriceId> <plusPriceId>");
+    const [go, plus, spark] = rest;
+    if (!go?.startsWith("price_") || !plus?.startsWith("price_") || !spark?.startsWith("price_")) {
+      console.error("usage: billing-mojo-plans <goPriceId> <plusPriceId> <sparkPriceId>");
       process.exit(1);
     }
     const provider = cfg.billing.provider;
@@ -444,7 +444,7 @@ switch (cmd) {
     const mongo = cfg.mongo ? await openMongo(cfg.mongo, db) : undefined;
     const rows = await openBillingRows(db, mongo, console);
     const catalog = new PlanCatalog(rows);
-    for (const line of await publishMojoPlans(catalog, provider.id, { go, plus }, "cli", now())) console.log(line);
+    for (const line of await publishMojoPlans(catalog, provider.id, { go, plus, spark }, "cli", now())) console.log(line);
     await rows.settled();
     await mongo?.close();
     break;

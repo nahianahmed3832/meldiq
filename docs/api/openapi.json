@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Meldiq API",
-    "version": "0.53.0",
+    "version": "0.54.0",
     "description": "The canonical contract of the Meldiq server (docs/architecture/ARCHITECTURE_1_0_PLAN.md §4), generated from src/shared/contracts. Fields are only ever added within a version; clients ignore unknown fields. Routes not listed here exist but aren't documented yet."
   },
   "servers": [
@@ -97,6 +97,9 @@
     },
     {
       "name": "Billing"
+    },
+    {
+      "name": "Mojo"
     }
   ],
   "paths": {
@@ -2795,6 +2798,54 @@
                         },
                         "canSpeak": {
                           "type": "boolean"
+                        },
+                        "limits": {
+                          "type": "object",
+                          "properties": {
+                            "screen": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "width": {
+                                    "type": "integer",
+                                    "minimum": -9007199254740991,
+                                    "maximum": 9007199254740991
+                                  },
+                                  "height": {
+                                    "type": "integer",
+                                    "minimum": -9007199254740991,
+                                    "maximum": 9007199254740991
+                                  },
+                                  "fps": {
+                                    "type": "integer",
+                                    "minimum": -9007199254740991,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "width",
+                                  "height",
+                                  "fps"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "voiceKbps": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "screen",
+                            "voiceKbps"
+                          ],
+                          "additionalProperties": false
                         }
                       },
                       "required": [
@@ -3837,6 +3888,54 @@
                         },
                         "canSpeak": {
                           "type": "boolean"
+                        },
+                        "limits": {
+                          "type": "object",
+                          "properties": {
+                            "screen": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "width": {
+                                    "type": "integer",
+                                    "minimum": -9007199254740991,
+                                    "maximum": 9007199254740991
+                                  },
+                                  "height": {
+                                    "type": "integer",
+                                    "minimum": -9007199254740991,
+                                    "maximum": 9007199254740991
+                                  },
+                                  "fps": {
+                                    "type": "integer",
+                                    "minimum": -9007199254740991,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "width",
+                                  "height",
+                                  "fps"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "voiceKbps": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "screen",
+                            "voiceKbps"
+                          ],
+                          "additionalProperties": false
                         }
                       },
                       "required": [
@@ -10953,6 +11052,26 @@
                           ],
                           "additionalProperties": false
                         },
+                        "mojo": {
+                          "type": "object",
+                          "properties": {
+                            "badge": {
+                              "type": "string",
+                              "enum": [
+                                "go",
+                                "plus"
+                              ]
+                            },
+                            "check": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "badge",
+                            "check"
+                          ],
+                          "additionalProperties": false
+                        },
                         "aboutMe": {
                           "type": "string"
                         },
@@ -11401,6 +11520,26 @@
                             "orgId",
                             "text",
                             "color"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "mojo": {
+                          "type": "object",
+                          "properties": {
+                            "badge": {
+                              "type": "string",
+                              "enum": [
+                                "go",
+                                "plus"
+                              ]
+                            },
+                            "check": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "badge",
+                            "check"
                           ],
                           "additionalProperties": false
                         },
@@ -13353,6 +13492,26 @@
                             "orgId",
                             "text",
                             "color"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "mojo": {
+                          "type": "object",
+                          "properties": {
+                            "badge": {
+                              "type": "string",
+                              "enum": [
+                                "go",
+                                "plus"
+                              ]
+                            },
+                            "check": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "badge",
+                            "check"
                           ],
                           "additionalProperties": false
                         },
@@ -19677,6 +19836,26 @@
                             ],
                             "additionalProperties": false
                           },
+                          "mojo": {
+                            "type": "object",
+                            "properties": {
+                              "badge": {
+                                "type": "string",
+                                "enum": [
+                                  "go",
+                                  "plus"
+                                ]
+                              },
+                              "check": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "badge",
+                              "check"
+                            ],
+                            "additionalProperties": false
+                          },
                           "orgRole": {
                             "type": "string",
                             "enum": [
@@ -21749,6 +21928,26 @@
                                   "color"
                                 ],
                                 "additionalProperties": false
+                              },
+                              "mojo": {
+                                "type": "object",
+                                "properties": {
+                                  "badge": {
+                                    "type": "string",
+                                    "enum": [
+                                      "go",
+                                      "plus"
+                                    ]
+                                  },
+                                  "check": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "badge",
+                                  "check"
+                                ],
+                                "additionalProperties": false
                               }
                             },
                             "required": [
@@ -22578,6 +22777,26 @@
                                     "orgId",
                                     "text",
                                     "color"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                "mojo": {
+                                  "type": "object",
+                                  "properties": {
+                                    "badge": {
+                                      "type": "string",
+                                      "enum": [
+                                        "go",
+                                        "plus"
+                                      ]
+                                    },
+                                    "check": {
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "required": [
+                                    "badge",
+                                    "check"
                                   ],
                                   "additionalProperties": false
                                 }
@@ -30724,6 +30943,13 @@
                             "type": "integer",
                             "minimum": 0,
                             "maximum": 9007199254740991
+                          },
+                          "locked": {
+                            "type": "string",
+                            "enum": [
+                              "slots",
+                              "plan"
+                            ]
                           }
                         },
                         "required": [
@@ -30878,6 +31104,13 @@
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991
+                        },
+                        "locked": {
+                          "type": "string",
+                          "enum": [
+                            "slots",
+                            "plan"
+                          ]
                         }
                       },
                       "required": [
@@ -31002,6 +31235,13 @@
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991
+                        },
+                        "locked": {
+                          "type": "string",
+                          "enum": [
+                            "slots",
+                            "plan"
+                          ]
                         }
                       },
                       "required": [
@@ -33385,6 +33625,26 @@
                                     "color"
                                   ],
                                   "additionalProperties": false
+                                },
+                                "mojo": {
+                                  "type": "object",
+                                  "properties": {
+                                    "badge": {
+                                      "type": "string",
+                                      "enum": [
+                                        "go",
+                                        "plus"
+                                      ]
+                                    },
+                                    "check": {
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "required": [
+                                    "badge",
+                                    "check"
+                                  ],
+                                  "additionalProperties": false
                                 }
                               },
                               "required": [
@@ -34194,6 +34454,26 @@
                                   "color"
                                 ],
                                 "additionalProperties": false
+                              },
+                              "mojo": {
+                                "type": "object",
+                                "properties": {
+                                  "badge": {
+                                    "type": "string",
+                                    "enum": [
+                                      "go",
+                                      "plus"
+                                    ]
+                                  },
+                                  "check": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "badge",
+                                  "check"
+                                ],
+                                "additionalProperties": false
                               }
                             },
                             "required": [
@@ -34943,6 +35223,26 @@
                                   "color"
                                 ],
                                 "additionalProperties": false
+                              },
+                              "mojo": {
+                                "type": "object",
+                                "properties": {
+                                  "badge": {
+                                    "type": "string",
+                                    "enum": [
+                                      "go",
+                                      "plus"
+                                    ]
+                                  },
+                                  "check": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "badge",
+                                  "check"
+                                ],
+                                "additionalProperties": false
                               }
                             },
                             "required": [
@@ -35635,6 +35935,26 @@
                             ],
                             "additionalProperties": false
                           },
+                          "mojo": {
+                            "type": "object",
+                            "properties": {
+                              "badge": {
+                                "type": "string",
+                                "enum": [
+                                  "go",
+                                  "plus"
+                                ]
+                              },
+                              "check": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "badge",
+                              "check"
+                            ],
+                            "additionalProperties": false
+                          },
                           "joinedAt": {
                             "type": "integer",
                             "minimum": 0,
@@ -36314,6 +36634,26 @@
                                   "orgId",
                                   "text",
                                   "color"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "mojo": {
+                                "type": "object",
+                                "properties": {
+                                  "badge": {
+                                    "type": "string",
+                                    "enum": [
+                                      "go",
+                                      "plus"
+                                    ]
+                                  },
+                                  "check": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "badge",
+                                  "check"
                                 ],
                                 "additionalProperties": false
                               }
@@ -37245,6 +37585,26 @@
                                   "color"
                                 ],
                                 "additionalProperties": false
+                              },
+                              "mojo": {
+                                "type": "object",
+                                "properties": {
+                                  "badge": {
+                                    "type": "string",
+                                    "enum": [
+                                      "go",
+                                      "plus"
+                                    ]
+                                  },
+                                  "check": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "badge",
+                                  "check"
+                                ],
+                                "additionalProperties": false
                               }
                             },
                             "required": [
@@ -37981,6 +38341,26 @@
                                   "orgId",
                                   "text",
                                   "color"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "mojo": {
+                                "type": "object",
+                                "properties": {
+                                  "badge": {
+                                    "type": "string",
+                                    "enum": [
+                                      "go",
+                                      "plus"
+                                    ]
+                                  },
+                                  "check": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "badge",
+                                  "check"
                                 ],
                                 "additionalProperties": false
                               }
@@ -38996,6 +39376,26 @@
                                             "color"
                                           ],
                                           "additionalProperties": false
+                                        },
+                                        "mojo": {
+                                          "type": "object",
+                                          "properties": {
+                                            "badge": {
+                                              "type": "string",
+                                              "enum": [
+                                                "go",
+                                                "plus"
+                                              ]
+                                            },
+                                            "check": {
+                                              "type": "boolean"
+                                            }
+                                          },
+                                          "required": [
+                                            "badge",
+                                            "check"
+                                          ],
+                                          "additionalProperties": false
                                         }
                                       },
                                       "required": [
@@ -39736,6 +40136,26 @@
                                             "orgId",
                                             "text",
                                             "color"
+                                          ],
+                                          "additionalProperties": false
+                                        },
+                                        "mojo": {
+                                          "type": "object",
+                                          "properties": {
+                                            "badge": {
+                                              "type": "string",
+                                              "enum": [
+                                                "go",
+                                                "plus"
+                                              ]
+                                            },
+                                            "check": {
+                                              "type": "boolean"
+                                            }
+                                          },
+                                          "required": [
+                                            "badge",
+                                            "check"
                                           ],
                                           "additionalProperties": false
                                         }
@@ -45025,6 +45445,13 @@
                     "minLength": 3,
                     "maxLength": 64,
                     "pattern": "^[A-Za-z0-9_-]+$"
+                  },
+                  "returnTo": {
+                    "type": "string",
+                    "enum": [
+                      "web",
+                      "site"
+                    ]
                   }
                 },
                 "required": [
@@ -45093,6 +45520,13 @@
                     "minLength": 3,
                     "maxLength": 64,
                     "pattern": "^[A-Za-z0-9_-]+$"
+                  },
+                  "returnTo": {
+                    "type": "string",
+                    "enum": [
+                      "web",
+                      "site"
+                    ]
                   }
                 },
                 "additionalProperties": false
@@ -45160,6 +45594,13 @@
                     "minLength": 3,
                     "maxLength": 64,
                     "pattern": "^[A-Za-z0-9_-]+$"
+                  },
+                  "returnTo": {
+                    "type": "string",
+                    "enum": [
+                      "web",
+                      "site"
+                    ]
                   }
                 },
                 "additionalProperties": false
@@ -45311,6 +45752,1813 @@
           }
         }
       }
+    },
+    "/v2/mojo/catalog": {
+      "get": {
+        "tags": [
+          "Mojo"
+        ],
+        "summary": "Free, Go and Plus with every limit, Meldiq Spark's levels, gift lengths and what's on sale (public).",
+        "operationId": "getV2MojoCatalog",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "version": {
+                      "type": "string"
+                    },
+                    "units": {
+                      "type": "object",
+                      "properties": {
+                        "mb": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "gb": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "mb",
+                        "gb"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "plans": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string",
+                            "enum": [
+                              "free",
+                              "go",
+                              "plus"
+                            ]
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "listPriceMinor": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "messageChars": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "uploadBytes": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "screen": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "720p30",
+                                "720p60",
+                                "1080p30",
+                                "1080p60",
+                                "1440p30"
+                              ]
+                            }
+                          },
+                          "sparks": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "badge": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "go",
+                                  "plus"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "check": {
+                            "type": "boolean"
+                          },
+                          "customItems": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "bots": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "botReview": {
+                            "type": "string",
+                            "enum": [
+                              "regular",
+                              "priority"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "name",
+                          "listPriceMinor",
+                          "messageChars",
+                          "uploadBytes",
+                          "screen",
+                          "sparks",
+                          "badge",
+                          "check",
+                          "customItems",
+                          "bots",
+                          "botReview"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "screenPresets": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "enum": [
+                              "720p30",
+                              "720p60",
+                              "1080p30",
+                              "1080p60",
+                              "1440p30"
+                            ]
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "width": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "height": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "fps": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "label",
+                          "width",
+                          "height",
+                          "fps"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "spark": {
+                      "type": "object",
+                      "properties": {
+                        "listPriceMinor": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "interval": {
+                          "type": "string",
+                          "const": "month"
+                        },
+                        "maxPurchase": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "levels": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "level": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 3
+                              },
+                              "sparks": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "emojiSlots": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "stickerSlots": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "uploadBytes": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "voiceKbps": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "screen": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "enum": [
+                                    "720p30",
+                                    "720p60",
+                                    "1080p30",
+                                    "1080p60",
+                                    "1440p30"
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "level",
+                              "sparks",
+                              "emojiSlots",
+                              "stickerSlots",
+                              "uploadBytes",
+                              "voiceKbps",
+                              "screen"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "listPriceMinor",
+                        "interval",
+                        "maxPurchase",
+                        "levels"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "gifts": {
+                      "type": "object",
+                      "properties": {
+                        "months": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "noteMax": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "months",
+                        "noteMax"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "enforced": {
+                      "type": "boolean"
+                    },
+                    "onSale": {
+                      "type": "object",
+                      "properties": {
+                        "mode": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "test",
+                                "live"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "go": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "currency": {
+                                  "type": "string"
+                                },
+                                "amountMinor": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "currency",
+                                "amountMinor"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "plus": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "currency": {
+                                  "type": "string"
+                                },
+                                "amountMinor": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "currency",
+                                "amountMinor"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "spark": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "currency": {
+                                  "type": "string"
+                                },
+                                "amountMinor": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "currency",
+                                "amountMinor"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "gifts": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "mode",
+                        "go",
+                        "plus",
+                        "spark",
+                        "gifts"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "version",
+                    "units",
+                    "plans",
+                    "screenPresets",
+                    "spark",
+                    "gifts",
+                    "enforced",
+                    "onSale"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v2/mojo/me": {
+      "get": {
+        "tags": [
+          "Mojo"
+        ],
+        "summary": "The signed-in person's plan, perks, Sparks, badge and gifts.",
+        "operationId": "getV2MojoMe",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "plan": {
+                      "type": "string",
+                      "enum": [
+                        "free",
+                        "go",
+                        "plus"
+                      ]
+                    },
+                    "perks": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string",
+                          "enum": [
+                            "free",
+                            "go",
+                            "plus"
+                          ]
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "listPriceMinor": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "messageChars": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "uploadBytes": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "screen": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "720p30",
+                              "720p60",
+                              "1080p30",
+                              "1080p60",
+                              "1440p30"
+                            ]
+                          }
+                        },
+                        "sparks": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "badge": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "go",
+                                "plus"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "check": {
+                          "type": "boolean"
+                        },
+                        "customItems": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "bots": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "botReview": {
+                          "type": "string",
+                          "enum": [
+                            "regular",
+                            "priority"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "key",
+                        "name",
+                        "listPriceMinor",
+                        "messageChars",
+                        "uploadBytes",
+                        "screen",
+                        "sparks",
+                        "badge",
+                        "check",
+                        "customItems",
+                        "bots",
+                        "botReview"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "sparks": {
+                      "type": "object",
+                      "properties": {
+                        "included": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "purchased": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "total": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "free": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "assignments": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "orgId": {
+                                "type": "string"
+                              },
+                              "orgName": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "assignedAt": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "paused": {
+                                "type": "boolean"
+                              },
+                              "member": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "orgId",
+                              "orgName",
+                              "assignedAt",
+                              "paused",
+                              "member"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "subscription": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "quantity": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "status": {
+                                  "type": "string"
+                                },
+                                "renews": {
+                                  "type": "boolean"
+                                },
+                                "currentPeriodEnd": {
+                                  "anyOf": [
+                                    {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 9007199254740991
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "quantity",
+                                "status",
+                                "renews",
+                                "currentPeriodEnd"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "included",
+                        "purchased",
+                        "total",
+                        "free",
+                        "assignments",
+                        "subscription"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "badge": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "go",
+                                "plus"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "check": {
+                          "type": "boolean"
+                        },
+                        "hidden": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "check",
+                        "hidden"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "gifts": {
+                      "type": "object",
+                      "properties": {
+                        "received": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "planKey": {
+                                "type": "string",
+                                "enum": [
+                                  "go",
+                                  "plus"
+                                ]
+                              },
+                              "months": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "status": {
+                                "type": "string",
+                                "enum": [
+                                  "pending",
+                                  "paid",
+                                  "redeemed",
+                                  "refunded",
+                                  "expired",
+                                  "failed"
+                                ]
+                              },
+                              "note": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "person": {
+                                "type": "object",
+                                "properties": {
+                                  "userId": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "name": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "userId",
+                                  "name"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "currency": {
+                                "type": "string"
+                              },
+                              "amountMinor": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "paidAt": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "redeemedAt": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "planKey",
+                              "months",
+                              "status",
+                              "note",
+                              "person",
+                              "currency",
+                              "amountMinor",
+                              "paidAt",
+                              "redeemedAt"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "sent": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "planKey": {
+                                "type": "string",
+                                "enum": [
+                                  "go",
+                                  "plus"
+                                ]
+                              },
+                              "months": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "status": {
+                                "type": "string",
+                                "enum": [
+                                  "pending",
+                                  "paid",
+                                  "redeemed",
+                                  "refunded",
+                                  "expired",
+                                  "failed"
+                                ]
+                              },
+                              "note": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "person": {
+                                "type": "object",
+                                "properties": {
+                                  "userId": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "name": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "userId",
+                                  "name"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "currency": {
+                                "type": "string"
+                              },
+                              "amountMinor": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "paidAt": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "redeemedAt": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "planKey",
+                              "months",
+                              "status",
+                              "note",
+                              "person",
+                              "currency",
+                              "amountMinor",
+                              "paidAt",
+                              "redeemedAt"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "received",
+                        "sent"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "plan",
+                    "perks",
+                    "sparks",
+                    "badge",
+                    "gifts"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: device_required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/mojo/sparks": {
+      "post": {
+        "tags": [
+          "Mojo"
+        ],
+        "summary": "Give one of your free Sparks to a community you're in.",
+        "operationId": "postV2MojoSparks",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "orgId": {
+                      "type": "string"
+                    },
+                    "assignedAt": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "orgId",
+                    "assignedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: device_required, no_sparks, no_free_sparks, not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "orgId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "orgId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/mojo/sparks/{id}/move": {
+      "post": {
+        "tags": [
+          "Mojo"
+        ],
+        "summary": "Move one of your Sparks to another community you're in.",
+        "operationId": "postV2MojoSparksIdMove",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "orgId": {
+                      "type": "string"
+                    },
+                    "assignedAt": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "orgId",
+                    "assignedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: conflict, device_required, forbidden, not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "orgId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "orgId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/mojo/sparks/{id}": {
+      "delete": {
+        "tags": [
+          "Mojo"
+        ],
+        "summary": "Take one of your Sparks back.",
+        "operationId": "deleteV2MojoSparksId",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: device_required, forbidden, not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/mojo/sparks/checkout": {
+      "post": {
+        "tags": [
+          "Mojo"
+        ],
+        "summary": "Buy more Sparks ($0.99 a month each): a hosted checkout. Nothing counts until the provider confirms.",
+        "operationId": "postV2MojoSparksCheckout",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "checkoutId": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "expiresAt": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "checkoutId",
+                    "url",
+                    "expiresAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: bad_request, billing_unavailable, conflict, forbidden, not_found, unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "quantity": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20
+                  },
+                  "returnTo": {
+                    "type": "string",
+                    "enum": [
+                      "web",
+                      "site"
+                    ]
+                  }
+                },
+                "required": [
+                  "quantity"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/mojo/gifts": {
+      "post": {
+        "tags": [
+          "Mojo"
+        ],
+        "summary": "Buy Mojo Go or Plus for a friend for 1, 3 or 12 months: a hosted one-time payment.",
+        "operationId": "postV2MojoGifts",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "giftId": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "expiresAt": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "giftId",
+                    "url",
+                    "expiresAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: bad_request, billing_unavailable, conflict, device_required, forbidden, not_found, unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "recipientUserId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "planKey": {
+                    "type": "string",
+                    "enum": [
+                      "go",
+                      "plus"
+                    ]
+                  },
+                  "months": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "const": 1
+                      },
+                      {
+                        "type": "number",
+                        "const": 3
+                      },
+                      {
+                        "type": "number",
+                        "const": 12
+                      }
+                    ]
+                  },
+                  "note": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 280
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "returnTo": {
+                    "type": "string",
+                    "enum": [
+                      "web",
+                      "site"
+                    ]
+                  }
+                },
+                "required": [
+                  "recipientUserId",
+                  "planKey",
+                  "months"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/mojo/gifts/{id}/redeem": {
+      "post": {
+        "tags": [
+          "Mojo"
+        ],
+        "summary": "Start a gift you received (its time follows on from free time you already have).",
+        "operationId": "postV2MojoGiftsIdRedeem",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "startsAt": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "endsAt": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "startsAt",
+                    "endsAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: conflict, device_required, forbidden, not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/mojo/badge": {
+      "put": {
+        "tags": [
+          "Mojo"
+        ],
+        "summary": "Show or hide your Mojo badge (what your plan gives doesn't change).",
+        "operationId": "putV2MojoBadge",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "hidden": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "hidden"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: device_required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "hidden": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "hidden"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/orgs/{orgId}/sparks": {
+      "get": {
+        "tags": [
+          "Mojo"
+        ],
+        "summary": "A community's Spark level, what it gives everyone in it, and your own Sparks there.",
+        "operationId": "getV1OrgsOrgIdSparks",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "level": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 3
+                    },
+                    "active": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "next": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "level": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            },
+                            "needs": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "level",
+                            "needs"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "perks": {
+                      "type": "object",
+                      "properties": {
+                        "level": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 3
+                        },
+                        "sparks": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "emojiSlots": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "stickerSlots": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "uploadBytes": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "voiceKbps": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "screen": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "720p30",
+                              "720p60",
+                              "1080p30",
+                              "1080p60",
+                              "1440p30"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "level",
+                        "sparks",
+                        "emojiSlots",
+                        "stickerSlots",
+                        "uploadBytes",
+                        "voiceKbps",
+                        "screen"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "levels": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "level": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 3
+                          },
+                          "sparks": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "emojiSlots": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "stickerSlots": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "uploadBytes": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "voiceKbps": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "screen": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "720p30",
+                                "720p60",
+                                "1080p30",
+                                "1080p60",
+                                "1440p30"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "level",
+                          "sparks",
+                          "emojiSlots",
+                          "stickerSlots",
+                          "uploadBytes",
+                          "voiceKbps",
+                          "screen"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "mine": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "assignedAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "paused": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "assignedAt",
+                          "paused"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "level",
+                    "active",
+                    "next",
+                    "perks",
+                    "levels",
+                    "mine"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -45342,6 +47590,11 @@
                   "account_limited",
                   "bad_request",
                   "billing_unavailable",
+                  "no_sparks",
+                  "no_free_sparks",
+                  "message_too_long",
+                  "upload_limit",
+                  "custom_items_limit",
                   "bad_signature",
                   "bad_username",
                   "banned",
@@ -45632,6 +47885,36 @@
         409
       ],
       "meaning": "No billing provider is configured on this server, so nothing can be bought."
+    },
+    "no_sparks": {
+      "status": [
+        409
+      ],
+      "meaning": "This account has no Meldiq Sparks: Mojo Go includes one, Mojo Plus two, and more can be bought."
+    },
+    "no_free_sparks": {
+      "status": [
+        409
+      ],
+      "meaning": "Every Spark this account has is already given to a community."
+    },
+    "message_too_long": {
+      "status": [
+        413
+      ],
+      "meaning": "The encrypted message is far larger than the sender's plan allows (messages are counted in the app; the server bounds their size)."
+    },
+    "upload_limit": {
+      "status": [
+        413
+      ],
+      "meaning": "The file is larger than the sender's plan, or the community's Spark level, allows."
+    },
+    "custom_items_limit": {
+      "status": [
+        409
+      ],
+      "meaning": "This account has added as many custom emoji and stickers as its plan allows."
     },
     "bad_signature": {
       "status": [

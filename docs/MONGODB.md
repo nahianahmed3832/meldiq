@@ -45,6 +45,7 @@ state that could split a domain between the stores (`src/mongo/index.ts`):
 | reports | reports | SQLite (prod default) | **Yes** (`MongoReportStore`, 2026-10-21, batch B4; one document per report, no transactions needed) |
 | relationships | connections, dm_requests, messaging_settings | SQLite (prod default) | **Yes** (`MongoRelationshipStore`, 2026-10-22, batch B6; one document per pair, request or person; tests run on both stores with `MELDIQ_TEST_MONGO_DOMAINS=relationships`) |
 | federation | federation_blocks, federation_domains, federation_inbox, federation_outbox, federation_peers | SQLite | Copy and verify only |
+| billing | billing_plans, billing_plan_versions, billing_checkouts, billing_subscriptions, billing_subscription_history, billing_invoices, billing_provider_events, billing_webhook_rejections, billing_customers, billing_grants, billing_referral_codes, billing_referrals, spark_assignments, mojo_gifts, mojo_profile | SQLite (prod) | **Yes** (rows, 2026-10-28, API 0.54.0: plans, subscriptions, webhooks, free periods, Meldiq Spark and gifts; a webhook's changes and its processed mark are one unit; docs/MOJO.md) |
 
 **Never copied** (`EXCLUDED_TABLES`): `auth_challenges` (2-minute nonces), `pairing_requests` (10 minutes, carries the
 sealed identity bundle for a new device), `sessions` (v1 token hashes, 7 days; v1 apps sign in again by signature on
@@ -141,7 +142,7 @@ query language with SQLite's semantics (NULL, `!=`, `IN`, NOCASE, ordering) on b
 | `MONGODB_URI` | unset | Connection string. Unset: everything stays in SQLite exactly as before. Never logged (redacted). |
 | `MONGODB_DB` | `meldiq` | Database name |
 | `MONGODB_STORAGE_LIMIT_MB` | `0` (no check) | The deployment's storage limit; `mongo-migrate` and `mongo-dryrun` refuse to start when the projected usage would pass 70% of it (§7a). Set `512` on an Atlas Free (M0) cluster |
-| `MONGODB_DOMAINS` | empty | Comma list of domains whose home is MongoDB: `accounts`, `preferences`, `history`, `reports`, `relationships`, `relay`, `files`, `calls`, `workspace` and `conversations` (the last two together, and only with `files` and `calls`; `integrations` is retired and ignored) |
+| `MONGODB_DOMAINS` | empty | Comma list of domains whose home is MongoDB: `accounts`, `preferences`, `history`, `reports`, `relationships`, `relay`, `files`, `calls`, `workspace`, `conversations` and `billing` (the last two together, and only with `files` and `calls`; `integrations` is retired and ignored) |
 | `MONGODB_MAX_POOL` | `20` | Connection pool size (1–200) |
 | `MONGODB_TIMEOUT_MS` | `5000` | Server selection and connect timeout; socket timeout is 6× this |
 

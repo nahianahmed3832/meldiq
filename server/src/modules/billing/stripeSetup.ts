@@ -13,15 +13,22 @@ import { STRIPE_WEBHOOK_EVENTS } from "./providers/stripe.js";
  *   two prices, with Meldiq's terms and privacy links.
  */
 export const MOJO_PRICES = [
-  { tier: "go", name: "Mojo Go", lookupKey: "meldiq_mojo_go_monthly", amountMinor: 99 },
-  { tier: "plus", name: "Mojo Plus", lookupKey: "meldiq_mojo_plus_monthly", amountMinor: 399 },
+  { tier: "go", name: "Mojo Go", lookupKey: "meldiq_mojo_go_monthly", amountMinor: 99, product: "mojo" },
+  { tier: "plus", name: "Mojo Plus", lookupKey: "meldiq_mojo_plus_monthly", amountMinor: 399, product: "mojo" },
+  // Meldiq Spark (docs/MOJO.md): $0.99 per Spark per month, bought by quantity, on its own product (its own invoice line).
+  { tier: "spark", name: "Meldiq Spark", lookupKey: "meldiq_spark_monthly", amountMinor: 99, product: "spark" },
 ] as const;
+
+const PRODUCTS = {
+  mojo: { name: "Meldiq Mojo", description: "Meldiq's subscription, in two tiers: Mojo Go and Mojo Plus." },
+  spark: { name: "Meldiq Spark", description: "A server boost: each Spark you give a community unlocks more for everyone in it." },
+} as const;
 
 const META = "meldiq";
 
 /** The Stripe calls the setup makes (the real one is [stripeSetupApi]; tests use a fake). */
 export interface StripeSetupApi {
-  findProduct(): Promise<{ id: string } | null>;
+  findProduct(kind?: "mojo" | "spark"): Promise<{ id: string } | null>;
   createProduct(params: Stripe.ProductCreateParams): Promise<{ id: string }>;
   findPrice(lookupKey: string): Promise<{ id: string; unit_amount: number | null; currency: string; product: string } | null>;
   createPrice(params: Stripe.PriceCreateParams): Promise<{ id: string }>;
@@ -35,7 +42,7 @@ export interface StripeSetupApi {
 
 export function stripeSetupApi(client: Stripe): StripeSetupApi {
   return {
-    findProduct: async () => (await client.products.list({ active: true, limit: 100 })).data.find((p) => p.metadata?.[META] === "mojo") ?? null,
+    findProduct: async (kind = "mojo") => (await client.products.list({ active: true, limit: 100 })).data.find((p) => p.metadata?.[META] === kind) ?? null,
     createProduct: (params) => client.products.create(params),
     findPrice: async (lookupKey) => {
       const p = (await client.prices.list({ lookup_keys: [lookupKey], active: true, limit: 1 })).data[0];
@@ -72,27 +79,34 @@ export interface StripeSetupResult {
 
 export async function stripeSetup(api: StripeSetupApi, opts: StripeSetupOptions): Promise<StripeSetupResult> {
   const steps: string[] = [];
-  let product = await api.findProduct();
-  if (product) steps.push(`product: found ${product.id}`);
-  else {
-    product = await api.createProduct({ name: "Meldiq Mojo", description: "Meldiq's subscription, in two tiers: Mojo Go and Mojo Plus.", metadata: { [META]: "mojo" } });
-    steps.push(`product: created ${product.id}`);
+  const products = {} as Record<keyof typeof PRODUCTS, { id: string }>;
+  for (const kind of ["mojo", "spark"] as const) {
+    const found = await api.findProduct(kind);
+    if (found) {
+      products[kind] = found;
+      steps.push(`product ${PRODUCTS[kind].name}: found ${found.id}`);
+      continue;
+    }
+    products[kind] = await api.createProduct({ ...PRODUCTS[kind], metadata: { [META]: kind } });
+    steps.push(`product ${PRODUCTS[kind].name}: created ${products[kind].id}`);
   }
+  const product = products.mojo;
 
   const prices = {} as StripeSetupResult["prices"];
   for (const p of MOJO_PRICES) {
+    const productId = products[p.product].id;
     const found = await api.findPrice(p.lookupKey);
     if (found) {
       // A price never changes at Stripe: one with the wrong amount means someone made it by hand; don't sell it.
-      if (found.unit_amount !== p.amountMinor || found.currency !== "usd" || found.product !== product.id) {
-        throw new Error(`The price with lookup key ${p.lookupKey} (${found.id}) isn't ${p.amountMinor} USD cents on ${product.id}: archive it in Stripe, then run this again`);
+      if (found.unit_amount !== p.amountMinor || found.currency !== "usd" || found.product !== productId) {
+        throw new Error(`The price with lookup key ${p.lookupKey} (${found.id}) isn't ${p.amountMinor} USD cents on ${productId}: archive it in Stripe, then run this again`);
       }
       prices[p.tier] = found.id;
       steps.push(`price ${p.name}: found ${found.id}`);
       continue;
     }
     const created = await api.createPrice({
-      product: product.id,
+      product: productId,
       currency: "usd",
       unit_amount: p.amountMinor,
       recurring: { interval: "month" },

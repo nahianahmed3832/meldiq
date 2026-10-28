@@ -36,6 +36,7 @@ export class Billing {
   readonly provider: BillingProvider | null;
   readonly unavailableReason: string | null;
   readonly returnUrl: string | null;
+  readonly webReturnUrl: string | null;
   readonly grants: Grants;
   private readonly portalConfiguration: string | null;
   /** Told when an owner's subscription (and so its entitlements) may have changed (server.ts: realtime notices). */
@@ -51,6 +52,7 @@ export class Billing {
     this.provider = config.provider;
     this.unavailableReason = config.unavailableReason;
     this.returnUrl = config.returnUrl;
+    this.webReturnUrl = config.webReturnUrl;
     this.catalog = new PlanCatalog(rows, quotaPlanExists);
     this.subscriptions = new Subscriptions(rows, this.catalog);
     this.webhooks = new BillingWebhooks(rows, config.provider, this.subscriptions, log, clock);
@@ -73,7 +75,12 @@ export class Billing {
     }
   }
 
-  private requireProvider(): BillingProvider {
+  /** The page a checkout or portal sends people back to: the web app's, or the website's (never one a client names). */
+  returnTo(where: "web" | "site" | undefined): string | null {
+    return where === "web" ? (this.webReturnUrl ?? this.returnUrl) : this.returnUrl;
+  }
+
+  requireProvider(): BillingProvider {
     if (!this.provider) throw new ApiError(409, "billing_unavailable", this.unavailableReason ?? "Billing isn't available");
     return this.provider;
   }

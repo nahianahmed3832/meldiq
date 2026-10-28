@@ -26,7 +26,7 @@ import type { ReminderService } from "../modules/accounts/reminders/service.js";
 import type { BlobStore } from "../infrastructure/storage/index.js";
 import type { Telemetry } from "../modules/telemetry/index.js";
 import type { QuotaEngine } from "../modules/quotas/index.js";
-import type { Billing } from "../modules/billing/index.js";
+import type { Billing, Gifts, Mojo } from "../modules/billing/index.js";
 
 export interface AppContext {
   db: DB;
@@ -82,6 +82,12 @@ export interface AppContext {
   quotas: QuotaEngine;
   /** Plans, subscriptions, invoices and provider webhooks (modules/billing, docs/BILLING.md). */
   billing: Billing;
+  /** Meldiq Mojo's perks, Meldiq Spark levels and badges (modules/billing/mojo.ts, docs/MOJO.md). */
+  mojo: Mojo;
+  /** Gifts of Meldiq Mojo (modules/billing/gifts.ts). */
+  gifts: Gifts;
+  /** Display names of users by id (identity), for billing's views. */
+  userNames: (ids: readonly string[]) => Map<string, string>;
   log: FastifyBaseLogger;
   audit: (e: { actorId?: string | null; orgId?: string | null; action: string; target?: string | null; detail?: string | null }) => void;
 }

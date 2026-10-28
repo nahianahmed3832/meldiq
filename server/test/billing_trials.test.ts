@@ -79,18 +79,21 @@ describe("with trials and invite links", () => {
       },
       { mailer, billingProvider: new StripeProvider({ secretKey: SK, webhookSecret: WHSEC, allowPromotionCodes: false, api: stripe }) },
     );
-    await publishMojoPlans(h.ctx.billing.catalog, "stripe", { go: "price_go", plus: "price_plus" }, "test", Date.now());
+    await publishMojoPlans(h.ctx.billing.catalog, "stripe", { go: "price_go", plus: "price_plus", spark: "price_spark" }, "test", Date.now());
   });
   afterAll(async () => h.close());
 
   it("publish Mojo Go and Mojo Plus once, at their prices, and say trials are on", async () => {
-    expect(await publishMojoPlans(h.ctx.billing.catalog, "stripe", { go: "price_go", plus: "price_plus" }, "test", Date.now())).toEqual([
+    expect(await publishMojoPlans(h.ctx.billing.catalog, "stripe", { go: "price_go", plus: "price_plus", spark: "price_spark" }, "test", Date.now())).toEqual([
       "Mojo Go: already published at price_go",
       "Mojo Plus: already published at price_plus",
+      "Meldiq Spark: already published at price_spark",
     ]);
     const plans = (await h.app.inject({ method: "GET", url: "/v2/billing/plans" })).json();
     expect(PublicPlans.safeParse(plans).success).toBe(true);
     expect(plans.plans.map((p: any) => [p.key, p.name, p.amountMinor, p.currency, p.interval, p.audience])).toEqual([
+      // By name: the Spark add-on, then the plans.
+      ["spark", "Meldiq Spark", 99, "USD", "month", "personal"],
       ["go", "Mojo Go", 99, "USD", "month", "personal"],
       ["plus", "Mojo Plus", 399, "USD", "month", "personal"],
     ]);
@@ -196,8 +199,8 @@ class FakeStripeSetup implements StripeSetupApi {
   portals: { id: string }[] = [];
   calls: string[] = [];
   private n = 0;
-  async findProduct() {
-    return this.products[0] ?? null;
+  async findProduct(kind = "mojo") {
+    return this.products.find((p) => p.metadata.meldiq === kind) ?? null;
   }
   async createProduct(p: Stripe.ProductCreateParams) {
     this.calls.push("createProduct");
@@ -247,7 +250,7 @@ class FakeStripeSetup implements StripeSetupApi {
 describe("one-command Stripe setup", () => {
   const opts = { webhookUrl: "https://msg.meldiq.test/v1/billing/webhooks/stripe", siteUrl: "https://meldiq.test" };
 
-  it("creates the product, both prices, the webhook and the portal, then finds them again instead of duplicating", async () => {
+  it("creates the products, the three prices, the webhook and the portal, then finds them again instead of duplicating", async () => {
     const api = new FakeStripeSetup();
     const first = await stripeSetup(api, opts);
     expect(api.prices.map((p) => [p.lookup_key, p.unit_amount, p.currency])).toEqual(MOJO_PRICES.map((p) => [p.lookupKey, p.amountMinor, "usd"]));
@@ -255,7 +258,17 @@ describe("one-command Stripe setup", () => {
     const again = await stripeSetup(api, opts);
     expect(again.prices).toEqual(first.prices);
     expect(again.webhook).toEqual({ id: first.webhook.id, created: false, secret: null });
-    expect(api.calls.filter((c) => c.startsWith("create"))).toEqual(["createProduct", "createPrice:meldiq_mojo_go_monthly", "createPrice:meldiq_mojo_plus_monthly", "createWebhook", "createPortal"]);
+    expect(api.calls.filter((c) => c.startsWith("create"))).toEqual([
+      "createProduct",
+      "createProduct",
+      "createPrice:meldiq_mojo_go_monthly",
+      "createPrice:meldiq_mojo_plus_monthly",
+      "createPrice:meldiq_spark_monthly",
+      "createWebhook",
+      "createPortal",
+    ]);
+    // Sparks are their own product (their own line on invoices).
+    expect(api.prices.find((p) => p.lookup_key === "meldiq_spark_monthly")?.product).not.toBe(api.prices[0]!.product);
     expect(api.calls).toContain("updatePortal");
     const replaced = await stripeSetup(api, { ...opts, replaceWebhook: true });
     expect(replaced.webhook.created).toBe(true);
