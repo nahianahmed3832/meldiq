@@ -56,6 +56,7 @@ Tested in `server/test/federation_e2e.test.ts` and on two local servers with the
 | Delivery and read state | delivery receipts are server-made; read receipts are E2EE controls (timing visible) | same | no | no |
 | IP addresses | its own users' | its own users' | servers' IPs | yes |
 | Online state / typing | its own users only (not federated) | same | no | no |
+| Game being played (opt-in, `ACTIVITY_STATUS.md`) | its own users only, while they share it (not federated) | same | no | no |
 | Call participants, start/end, duration | if it hosts or mirrors the call | same | no | media endpoints |
 | IP of the remote callee | the **host's LiveKit sees the remote callee's device IP** (direct media connection) | its own user's | no | yes |
 | Group membership | not federated | — | — | — |

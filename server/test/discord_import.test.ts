@@ -113,7 +113,7 @@ describe("connecting Discord", () => {
     const s = await owner.req("GET", "/v1/discord/status");
     expect(s.configured).toBe(true);
     expect(s.connections.map((c: { id: string }) => c.id)).toEqual([connection.id]);
-    const rows = h.ctx.db.prepare("SELECT * FROM discord_connections").all() as Record<string, unknown>[];
+    const rows = h.ctx.ws.all<Record<string, unknown>>("discord_connections");
     expect(JSON.stringify(rows)).not.toContain("tok-owner");
     expect(await other.req("GET", "/v1/discord/status")).toEqual({ configured: true, connections: [] });
   });
@@ -150,22 +150,22 @@ describe("previewing and importing", () => {
     expect(org).toMatchObject({ name: "Pixel Club", visibility: "private", joinPolicy: "invite", myRole: "OWNER" });
     expect(org.photoRev).toBeGreaterThan(0);
 
-    const channels = h.ctx.db.prepare("SELECT name, kind, voice, format, category_id FROM conversations WHERE org_id = ? AND type = 'CHANNEL' ORDER BY name").all(orgId) as any[];
+    const channels = h.ctx.ws.all<any>("conversations", { where: { org_id: orgId, type: "CHANNEL" }, orderBy: [["name", "asc"]] }).map(({ name, kind, voice, format, category_id }) => ({ name, kind, voice, format, category_id }));
     expect(channels.map((c) => c.name)).toEqual(["Lounge 🎧", "Stage", "announcements", "general", "showcase", "staff-only"]);
     expect(channels.find((c) => c.name === "staff-only").kind).toBe("PRIVATE");
     expect(channels.find((c) => c.name === "announcements").kind).toBe("ANNOUNCEMENT");
     expect(channels.find((c) => c.name === "showcase").format).toBe("forum");
     expect(channels.find((c) => c.name === "Stage").voice).toBe(1);
-    const cats = h.ctx.db.prepare("SELECT id, name FROM channel_categories WHERE org_id = ? ORDER BY position").all(orgId) as { id: string; name: string }[];
+    const cats = h.ctx.ws.all<{ id: string; name: string }>("channel_categories", { where: { org_id: orgId }, orderBy: [["position", "asc"]] }).map(({ id, name }) => ({ id, name }));
     expect(cats.map((c) => c.name)).toEqual(["Info", "Voice"]);
     expect(channels.find((c) => c.name === "general").category_id).toBe(cats[0].id);
 
-    const roles = h.ctx.db.prepare("SELECT name, color, permissions FROM org_roles WHERE org_id = ? ORDER BY name").all(orgId) as any[];
+    const roles = h.ctx.ws.all<any>("org_roles", { where: { org_id: orgId }, orderBy: [["name", "asc"]] }).map(({ name, color, permissions }) => ({ name, color, permissions }));
     expect(roles).toEqual([
       { name: "Admins", color: "#E74C3C", permissions: "[]" },
       { name: "Moderators", color: "#3498DB", permissions: "[]" },
     ]);
-    const emoji = h.ctx.db.prepare("SELECT name FROM community_expressions WHERE org_id = ? ORDER BY name").all(orgId) as { name: string }[];
+    const emoji = h.ctx.ws.all<{ name: string }>("community_expressions", { where: { org_id: orgId }, orderBy: [["name", "asc"]] }).map(({ name }) => ({ name }));
     expect(emoji.map((e) => e.name)).toEqual(["party_parrot", "wave_hi"]);
 
     const writes = fake.requests.filter((q) => q.method !== "GET" && !q.path.startsWith("/api/oauth2/"));
@@ -182,7 +182,7 @@ describe("previewing and importing", () => {
       options: { icon: false, roles: true, rolePermissions: true, channels: false, emojis: false },
     });
     await finished(owner, r.import.id);
-    const roles = h.ctx.db.prepare("SELECT name, permissions FROM org_roles WHERE org_id = ? ORDER BY name").all(own) as { name: string; permissions: string }[];
+    const roles = h.ctx.ws.all<{ name: string; permissions: string }>("org_roles", { where: { org_id: own }, orderBy: [["name", "asc"]] }).map(({ name, permissions }) => ({ name, permissions }));
     expect(JSON.parse(roles.find((x) => x.name === "Moderators")!.permissions).sort()).toEqual(["members.ban", "members.remove", "members.timeout"]);
     expect(JSON.parse(roles.find((x) => x.name === "Admins")!.permissions)).toEqual([]);
   });
@@ -195,7 +195,7 @@ describe("previewing and importing", () => {
     expect(first.import.status).toBe("completed_with_errors");
     expect(first.items.find((i: { key: string }) => i.key === "emoji:400000000000000001").status).toBe("failed");
     const orgId = first.import.orgId;
-    const count = () => (h.ctx.db.prepare("SELECT COUNT(*) n FROM conversations WHERE org_id = ?").get(orgId) as { n: number }).n;
+    const count = () => h.ctx.ws.count("conversations", { org_id: orgId });
     const channelsBefore = count();
     expect(channelsBefore).toBe(6);
 
@@ -205,8 +205,8 @@ describe("previewing and importing", () => {
     expect(second.import.status).toBe("completed");
     expect(second.import.orgId).toBe(orgId);
     expect(count()).toBe(channelsBefore);
-    expect((h.ctx.db.prepare("SELECT COUNT(*) n FROM orgs WHERE name = 'Pixel Club Two'").get() as { n: number }).n).toBe(1);
-    expect((h.ctx.db.prepare("SELECT COUNT(*) n FROM community_expressions WHERE org_id = ?").get(orgId) as { n: number }).n).toBe(2);
+    expect(h.ctx.ws.count("orgs", { name: "Pixel Club Two" })).toBe(1);
+    expect(h.ctx.ws.count("community_expressions", { org_id: orgId })).toBe(2);
   });
 
   it("refuses an existing community where the person can't make those things, and a name they already own", async () => {

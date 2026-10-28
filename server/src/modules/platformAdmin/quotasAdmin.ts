@@ -5,7 +5,7 @@ import { newId, now } from "../../shared/utilities/util.js";
 import { userSummary, usernames } from "../accounts/index.js";
 import { orgNames, orgRecord } from "../organizations/index.js";
 import { isQuotaKey, periodEnd, periodOf, type PolicyRow, QUOTA_KEYS, quotaAdmin, type QuotaKey, type Scope } from "../quotas/index.js";
-import type { PlatformAudit } from "./audit.js";
+import type { AuditEntry, PlatformAudit } from "./audit.js";
 import type { AdminPrincipal } from "./auth.js";
 import type { RequestMeta } from "./credentials.js";
 
@@ -24,9 +24,9 @@ export class AdminQuotas {
   ) {}
 
   private names(rows: { scope_type: string; scope_id: string }[]): Map<string, string> {
-    const users = usernames(this.ctx.db, rows.filter((r) => r.scope_type === "user").map((r) => r.scope_id));
-    const orgs = orgNames(this.ctx.db, rows.filter((r) => r.scope_type === "org").map((r) => r.scope_id));
-    const plans = new Map(quotaAdmin.plans(this.ctx.db).map((p) => [p.id, p.name]));
+    const users = usernames(this.ctx.identity, rows.filter((r) => r.scope_type === "user").map((r) => r.scope_id));
+    const orgs = orgNames(this.ctx.ws, rows.filter((r) => r.scope_type === "org").map((r) => r.scope_id));
+    const plans = new Map(quotaAdmin.plans(this.ctx.platform).map((p) => [p.id, p.name]));
     const out = new Map<string, string>();
     for (const r of rows) {
       const name = r.scope_type === "user" ? users.get(r.scope_id) : r.scope_type === "org" ? orgs.get(r.scope_id) : r.scope_type === "plan" ? plans.get(r.scope_id) : null;
@@ -134,14 +134,14 @@ export class AdminQuotas {
   }
 
   async overview() {
-    const db = this.ctx.db;
+
     const t = now();
-    const policies = quotaAdmin.activePolicies(db);
-    const plans = quotaAdmin.plans(db);
+    const policies = quotaAdmin.activePolicies(this.ctx.platform);
+    const plans = quotaAdmin.plans(this.ctx.platform);
     // This period's busiest counters (bounded), with their limits.
     const counters = (Object.keys(QUOTA_KEYS) as QuotaKey[]).flatMap((key) => {
       const def = QUOTA_KEYS[key];
-      return quotaAdmin.topCounters(db, key, periodOf(def.period, t), 20).map((c) => ({ key, ...c }));
+      return quotaAdmin.topCounters(this.ctx.platform, key, periodOf(def.period, t), 20).map((c) => ({ key, ...c }));
     });
     const n = this.names(counters);
     const usage = counters.map((c) => {
@@ -158,7 +158,7 @@ export class AdminQuotas {
         pct: limit ? Math.round(((c.used + c.reserved) / limit) * 1000) / 10 : null,
       };
     });
-    const events = quotaAdmin.eventCounts(db, t - 86_400_000);
+    const events = quotaAdmin.eventCounts(this.ctx.platform, t - 86_400_000);
     return {
       keys: (Object.keys(QUOTA_KEYS) as QuotaKey[]).map((key) => {
         const d = QUOTA_KEYS[key];
@@ -175,14 +175,18 @@ export class AdminQuotas {
   }
 
   private requireScope(scopeType: string, scopeId: string): void {
-    if (scopeType === "user" && !userSummary(this.ctx.db, scopeId)) throw notFound("No person has that id.");
-    if (scopeType === "org" && !orgRecord(this.ctx.db, scopeId)) throw notFound("No organization has that id.");
-    if (scopeType === "plan" && !quotaAdmin.planExists(this.ctx.db, scopeId)) throw notFound("No such plan.");
+    if (scopeType === "user" && !userSummary(this.ctx.identity, scopeId)) throw notFound("No person has that id.");
+    if (scopeType === "org" && !orgRecord(this.ctx.ws, scopeId)) throw notFound("No organization has that id.");
+    if (scopeType === "plan" && !quotaAdmin.planExists(this.ctx.platform, scopeId)) throw notFound("No such plan.");
     if (scopeType === "pool" && !/^[a-z][a-z0-9_-]{1,30}$/.test(scopeId)) throw badRequest("A capacity pool is named in lower case (for example realtime).");
   }
 
-  private record(p: AdminPrincipal, action: string, targetType: string, targetId: string, reason: string, meta: RequestMeta, detail: Record<string, unknown>): void {
-    this.audit.record({ action, outcome: "success", actorAccountId: p.account.id, actorRole: p.grant.role, targetType, targetId, reason, requestId: meta.requestId, network: networkKey(meta.ip), detail: flatDetail(detail) });
+  private entry(p: AdminPrincipal, action: string, targetType: string, targetId: string, reason: string, meta: RequestMeta, detail: Record<string, unknown>): AuditEntry {
+    return { action, outcome: "success", actorAccountId: p.account.id, actorRole: p.grant.role, targetType, targetId, reason, requestId: meta.requestId, network: networkKey(meta.ip), detail: flatDetail(detail) };
+  }
+
+  private async record(p: AdminPrincipal, action: string, targetType: string, targetId: string, reason: string, meta: RequestMeta, detail: Record<string, unknown>): Promise<void> {
+    await this.audit.record(this.entry(p, action, targetType, targetId, reason, meta, detail));
   }
 
   /** How many scopes with usage this period are already over [limit] (the change's impact, shown before people rely on it). */
@@ -191,7 +195,7 @@ export class AdminQuotas {
     const period = periodOf(QUOTA_KEYS[key].period, now());
     if (scopeType === "plan") return 0;
     const target = scopeType === "global" && scopeId.startsWith("default:") ? scopeId.slice(8) : scopeType;
-    return quotaAdmin.countersOver(this.ctx.db, key, period, target, scopeId.startsWith("default:") ? null : scopeId, limit);
+    return quotaAdmin.countersOver(this.ctx.platform, key, period, target, scopeId.startsWith("default:") ? null : scopeId, limit);
   }
 
   async setPolicy(
@@ -204,9 +208,9 @@ export class AdminQuotas {
     const scopeKind = b.scopeType === "global" && b.scopeId.startsWith("default:") ? b.scopeId.slice(8) : b.scopeType;
     if (b.scopeType !== "plan" && !(def.scopes as readonly string[]).includes(scopeKind)) throw badRequest(`${def.label} can't be limited per ${scopeKind}.`);
     this.requireScope(b.scopeType, b.scopeId);
-    const before = quotaAdmin.currentPolicy(this.ctx.db, b.scopeType, b.scopeId, b.key, b.override);
-    const row = this.ctx.quotas.setPolicy({ scopeType: b.scopeType, scopeId: b.scopeId, key: b.key, limit: b.limit, mode: b.mode, hard: b.hard, warnPct: b.warnPct, gracePct: b.gracePct, override: b.override, expiresAt: b.expiresAt, reason: b.reason }, p.account.id);
-    this.record(p, b.override ? "quota.override" : "quota.policy", "quota_policy", row.id, b.reason, meta, {
+    const before = quotaAdmin.currentPolicy(this.ctx.platform, b.scopeType, b.scopeId, b.key, b.override);
+    const row = await this.ctx.quotas.setPolicy({ scopeType: b.scopeType, scopeId: b.scopeId, key: b.key, limit: b.limit, mode: b.mode, hard: b.hard, warnPct: b.warnPct, gracePct: b.gracePct, override: b.override, expiresAt: b.expiresAt, reason: b.reason }, p.account.id);
+    await this.record(p, b.override ? "quota.override" : "quota.policy", "quota_policy", row.id, b.reason, meta, {
       key: b.key,
       scope: `${b.scopeType}:${b.scopeId}`,
       before: before ? { limit: before.limit_value, mode: before.mode } : null,
@@ -228,49 +232,55 @@ export class AdminQuotas {
   }
 
   async removePolicy(p: AdminPrincipal, id: string, reason: string, meta: RequestMeta) {
-    const row = this.ctx.quotas.removePolicy(id);
+    const row = await this.ctx.quotas.removePolicy(id);
     if (!row) throw notFound("No such active policy.");
-    this.record(p, "quota.policy_remove", "quota_policy", id, reason, meta, { key: row.quota_key, scope: `${row.scope_type}:${row.scope_id}`, before: { limit: row.limit_value, mode: row.mode } });
+    await this.record(p, "quota.policy_remove", "quota_policy", id, reason, meta, { key: row.quota_key, scope: `${row.scope_type}:${row.scope_id}`, before: { limit: row.limit_value, mode: row.mode } });
     return { ok: true as const };
   }
 
-  createPlan(p: AdminPrincipal, b: { name: string; description: string; reason: string }, meta: RequestMeta) {
-    if (quotaAdmin.planNameTaken(this.ctx.db, b.name)) throw new ApiError(409, "conflict", "A plan with that name exists.");
+  async createPlan(p: AdminPrincipal, b: { name: string; description: string; reason: string }, meta: RequestMeta) {
     const id = newId("qpl");
-    quotaAdmin.createPlan(this.ctx.db, id, b.name, b.description, p.account.id, now());
-    this.record(p, "quota.plan_create", "quota_plan", id, b.reason, meta, { name: b.name });
+    await this.ctx.platform.write((w) => {
+      if (quotaAdmin.planNameTaken(w, b.name)) throw new ApiError(409, "conflict", "A plan with that name exists.");
+      quotaAdmin.createPlan(w, id, b.name, b.description, p.account.id, now());
+      this.audit.append(w, this.entry(p, "quota.plan_create", "quota_plan", id, b.reason, meta, { name: b.name }));
+    });
     return { ok: true as const };
   }
 
-  assignPlan(p: AdminPrincipal, planId: string, b: { scopeType: "org" | "user"; scopeId: string; reason: string }, meta: RequestMeta) {
+  async assignPlan(p: AdminPrincipal, planId: string, b: { scopeType: "org" | "user"; scopeId: string; reason: string }, meta: RequestMeta) {
     this.requireScope("plan", planId);
     this.requireScope(b.scopeType, b.scopeId);
-    const before = quotaAdmin.planOfScope(this.ctx.db, b.scopeType, b.scopeId);
-    quotaAdmin.assignPlan(this.ctx.db, b.scopeType, b.scopeId, planId, p.account.id, now());
-    this.record(p, "quota.plan_assign", b.scopeType === "org" ? "org" : "user", b.scopeId, b.reason, meta, { before, after: planId });
+    await this.ctx.platform.write((w) => {
+      const before = quotaAdmin.planOfScope(w, b.scopeType, b.scopeId);
+      quotaAdmin.assignPlan(w, b.scopeType, b.scopeId, planId, p.account.id, now());
+      this.audit.append(w, this.entry(p, "quota.plan_assign", b.scopeType === "org" ? "org" : "user", b.scopeId, b.reason, meta, { before, after: planId }));
+    });
     return { ok: true as const };
   }
 
-  unassignPlan(p: AdminPrincipal, b: { scopeType: "org" | "user"; scopeId: string; reason: string }, meta: RequestMeta) {
-    const before = quotaAdmin.planOfScope(this.ctx.db, b.scopeType, b.scopeId);
-    if (!before) throw notFound("That scope isn't on a plan.");
-    quotaAdmin.unassignPlan(this.ctx.db, b.scopeType, b.scopeId);
-    this.record(p, "quota.plan_unassign", b.scopeType === "org" ? "org" : "user", b.scopeId, b.reason, meta, { before });
+  async unassignPlan(p: AdminPrincipal, b: { scopeType: "org" | "user"; scopeId: string; reason: string }, meta: RequestMeta) {
+    await this.ctx.platform.write((w) => {
+      const before = quotaAdmin.planOfScope(w, b.scopeType, b.scopeId);
+      if (!before) throw notFound("That scope isn't on a plan.");
+      quotaAdmin.unassignPlan(w, b.scopeType, b.scopeId);
+      this.audit.append(w, this.entry(p, "quota.plan_unassign", b.scopeType === "org" ? "org" : "user", b.scopeId, b.reason, meta, { before }));
+    });
     return { ok: true as const };
   }
 
-  adjust(p: AdminPrincipal, b: { key: string; scopeType: Scope["type"]; scopeId: string; delta: number; reason: string }, meta: RequestMeta) {
+  async adjust(p: AdminPrincipal, b: { key: string; scopeType: Scope["type"]; scopeId: string; delta: number; reason: string }, meta: RequestMeta) {
     if (!isQuotaKey(b.key) || QUOTA_KEYS[b.key].kind !== "counter") throw badRequest("Only usage counters can be corrected.");
     if (b.delta === 0) throw badRequest("A correction changes the count.");
     this.requireScope(b.scopeType, b.scopeId);
     const before = this.ctx.quotas.usage(b.key, { type: b.scopeType, id: b.scopeId });
-    this.ctx.quotas.adjust(b.key, { type: b.scopeType, id: b.scopeId }, b.delta, p.account.id, b.reason);
-    this.record(p, "quota.adjust", "quota_counter", `${b.key}:${b.scopeType}:${b.scopeId}`, b.reason, meta, { delta: b.delta, before: before.used, period: before.period });
+    await this.ctx.quotas.adjust(b.key, { type: b.scopeType, id: b.scopeId }, b.delta, p.account.id, b.reason);
+    await this.record(p, "quota.adjust", "quota_counter", `${b.key}:${b.scopeType}:${b.scopeId}`, b.reason, meta, { delta: b.delta, before: before.used, period: before.period });
     return { ok: true as const };
   }
 
   async events(q: { key?: string; scopeType?: string; scopeId?: string; cursor?: number; limit: number }) {
-    const rows = quotaAdmin.eventsPage(this.ctx.db, { ...q, limit: q.limit + 1 });
+    const rows = quotaAdmin.eventsPage(this.ctx.platform, { ...q, limit: q.limit + 1 });
     const shown = rows.slice(0, q.limit);
     const people = await this.accountNames(shown.map((r) => r.actor).filter((a): a is string => !!a));
     return {

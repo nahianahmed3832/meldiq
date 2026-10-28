@@ -163,7 +163,7 @@ describe("deleting a channel", () => {
     await expectStatus(owner.req("GET", `/v1/conversations/${doomed.id}`), 404);
     const left = (await owner.req("GET", `/v1/orgs/${orgId}/channels`)).channels.map((c: any) => c.id);
     expect(left).not.toContain(doomed.id);
-    const audit = h.ctx.db.prepare("SELECT detail FROM audit_log WHERE action = 'channel.delete' AND target = ?").get(doomed.id) as { detail: string } | undefined;
+    const audit = h.ctx.ws.get<{ detail: string }>("audit_log", { action: "channel.delete", target: doomed.id });
     expect(audit?.detail).toContain("old-news");
   });
 
@@ -178,7 +178,7 @@ describe("deleting a channel", () => {
     const weeds = (await owner.req("POST", `/v1/orgs/${orgId}/channels`, { name: "weeds" })).channel;
     await owner.req("PUT", `/v1/conversations/${weeds.id}/overwrites`, { subject: "everyone", deny: ["messages.attach"] });
     await member.req("DELETE", `/v1/conversations/${weeds.id}`, { confirmName: "weeds" });
-    const left = h.ctx.db.prepare("SELECT COUNT(*) n FROM channel_overwrites WHERE target_type = 'channel' AND target_id = ?").get(weeds.id) as { n: number };
+    const left = { n: h.ctx.ws.count("channel_overwrites", { target_type: "channel", target_id: weeds.id }) };
     expect(left.n).toBe(0);
   });
 });

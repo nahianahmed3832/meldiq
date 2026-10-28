@@ -32,37 +32,54 @@ import { evictRemovedMember } from "../calls/routes.js";
 import { reconcileAccess } from "../organizations/communityRoutes.js";
 import { notifyConversation } from "../organizations/orgsRoutes.js";
 import { deviceDirectory } from "../accounts/usersRoutes.js";
+import { mapByIds } from "../../infrastructure/database/byIds.js";
+import { compareText } from "../../shared/utilities/sqlText.js";
+import { memberUsers } from "./memberUsers.js";
 
 export { FORUM_GUIDELINES_MAX, FORUM_TAG_LIMIT, SLOWMODE_STEPS };
 
-export function conversationView(ctx: AppContext, c: ConversationRow, userId: string) {
-  const { db, authz } = ctx;
-  const memberCount = (db.prepare("SELECT COUNT(*) n FROM conversation_members WHERE conversation_id = ?").get(c.id) as { n: number }).n;
+/** A conversation's live call (the newest) and, in a voice room, who is in it (at most 12). */
+export interface LiveCallInfo {
+  call: { id: string; video: number; state: string; created_at: number };
+  inRoom?: string[];
+}
+
+/**
+ * The live calls of [convs], read once per request: one call-store query for all of them (which may be MongoDB), plus
+ * who is present only for voice rooms with a call. [conversationView] takes the result.
+ */
+export async function liveCallsOf(ctx: AppContext, convs: readonly Pick<ConversationRow, "id" | "voice">[]): Promise<Map<string, LiveCallInfo>> {
+  const out = new Map<string, LiveCallInfo>();
+  // Newest first: the first call seen per conversation is its current one.
+  for (const call of await ctx.calls.liveIn(convs.map((c) => c.id))) if (!out.has(call.conversation_id)) out.set(call.conversation_id, { call });
+  for (const c of convs) {
+    const info = out.get(c.id);
+    if (c.voice && info) info.inRoom = [...new Set((await ctx.calls.present(info.call.id)).map((p) => p.user_id))].slice(0, 12);
+  }
+  return out;
+}
+
+export function conversationView(ctx: AppContext, c: ConversationRow, userId: string, live: ReadonlyMap<string, LiveCallInfo>) {
+  const { ws, authz } = ctx;
+  const memberCount = ws.count("conversation_members", { conversation_id: c.id });
   const myRole = authz.conversationRole(c.id, userId);
   let members: object[] | undefined;
   if (c.type !== "CHANNEL" || memberCount <= 12) {
-    members = (
-      db
-        .prepare("SELECT u.*, m.role AS conv_role FROM conversation_members m JOIN users u ON u.id = m.user_id WHERE m.conversation_id = ? AND u.kind = 'person' ORDER BY m.joined_at LIMIT 12")
-        .all(c.id) as any[]
-    ).map((u) => memberView(ctx, userId, u, { ...userSummary(u), role: u.conv_role }));
+    members = memberUsers<any>(ctx, c.id)
+      .filter(({ user }) => user.kind === "person")
+      .sort((a, b) => a.member.joined_at - b.member.joined_at)
+      .slice(0, 12)
+      .map(({ member, user }) => memberView(ctx, userId, user, { ...userSummary(user), role: member.role }));
   }
-  const call = db.prepare("SELECT id, video, state, created_at FROM calls WHERE conversation_id = ? AND state != 'ENDED' ORDER BY created_at DESC LIMIT 1").get(c.id) as
-    | { id: string; video: number; state: string; created_at: number }
-    | undefined;
+  const call = live.get(c.id)?.call;
   // Who is in a voice room right now (shown on the room before joining), at most 12 people.
-  const inRoom =
-    c.voice && call
-      ? (db.prepare("SELECT DISTINCT user_id FROM call_participants WHERE call_id = ? AND left_at IS NULL LIMIT 12").all(call.id) as { user_id: string }[]).map((r) => r.user_id)
-      : undefined;
+  const inRoom = c.voice && call ? live.get(c.id)?.inRoom : undefined;
   // Older apps group channels by scope: a channel in a category is shown to them as a team named after the category,
   // so they list categories too. Newer apps read categoryId and position (docs/COMMUNITY_REBUILD_2026-10-21.md §7).
   // categoryPosition (API 0.48.0): the category's place too, so an app orders categories right before it has loaded the
   // community's category list (no alphabetical first paint that then jumps, brief v4 §15).
-  const category = c.category_id
-    ? (db.prepare("SELECT id, name, position FROM channel_categories WHERE id = ?").get(c.category_id) as { id: string; name: string; position: number } | undefined)
-    : undefined;
-  const orgName = c.org_id ? ((db.prepare("SELECT name FROM orgs WHERE id = ?").get(c.org_id) as { name: string } | undefined)?.name ?? null) : null;
+  const category = c.category_id ? ws.get<{ id: string; name: string; position: number }>("channel_categories", { id: c.category_id }) : undefined;
+  const orgName = c.org_id ? (ws.get<{ name: string }>("orgs", { id: c.org_id })?.name ?? null) : null;
   const channel = c.type === "CHANNEL";
   return {
     id: c.id,
@@ -152,13 +169,11 @@ export function nextForumTags(prev: readonly ForumTag[], wanted: readonly { id?:
 
 /** For a conversation with people on other servers: each server's domain, directory state and queued deliveries. */
 function federationInfo(ctx: AppContext, convId: string) {
-  const rows = ctx.db
-    .prepare(
-      `SELECT DISTINCT u.home_server_id AS id, p.domain, p.state FROM conversation_members m JOIN users u ON u.id = m.user_id
-       LEFT JOIN federation_peers p ON p.server_id = u.home_server_id
-       WHERE m.conversation_id = ? AND u.home_server_id IS NOT NULL`,
-    )
-    .all(convId) as { id: string; domain: string | null; state: string | null }[];
+  const servers = [
+    ...new Set(memberUsers<{ home_server_id: string | null }>(ctx, convId, "id, home_server_id").flatMap(({ user }) => (user.home_server_id ? [user.home_server_id] : []))),
+  ];
+  const peers = mapByIds<{ server_id: string; domain: string | null; state: string | null }>(ctx.fed, "federation_peers", "server_id", servers, "server_id, domain, state");
+  const rows = servers.map((id) => ({ id, domain: peers.get(id)?.domain ?? null, state: peers.get(id)?.state ?? null }));
   if (rows.length === 0) return null;
   return {
     servers: rows.map((r) => ({ serverId: r.id, domain: r.domain, state: r.state ?? "unknown", pending: ctx.federation?.pendingFor(r.id) ?? 0 })),
@@ -180,17 +195,13 @@ export function requestView(r: DmRequestRow | null | undefined, userId: string) 
 
 export default async function conversationRoutes(app: FastifyInstance, ctx: AppContext) {
   const auth = { preHandler: requireAuth(ctx) };
-  const { db, authz } = ctx;
+  const { db, ws, authz } = ctx;
 
   app.get("/v1/conversations", auth, async (req) => {
     const { userId } = me(req);
     const { requests } = parse(ConversationListQuery, req.query);
-    const rows = db
-      .prepare(
-        `SELECT c.* FROM conversations c JOIN conversation_members m ON m.conversation_id = c.id
-         WHERE m.user_id = ? ORDER BY c.updated_at DESC`,
-      )
-      .all(userId) as ConversationRow[];
+    const mine = ws.all<{ conversation_id: string }>("conversation_members", { where: { user_id: userId } }).map((m) => m.conversation_id);
+    const rows = ws.all<ConversationRow>("conversations", { where: { id: { in: mine } }, orderBy: [["updated_at", "desc"]] });
     // Batch B6: message requests are marked; ones you declined are left out; ?requests=1 lists only those waiting for you.
     const byConv = new Map((await ctx.relationships.requestsIn(rows.filter((c) => c.type === "DM").map((c) => c.id))).map((r) => [r.conversation_id, r]));
     const shown = rows.filter((c) => {
@@ -198,7 +209,8 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
       if (r && r.recipient === userId && r.state === "declined") return false;
       return requests === "1" ? r?.recipient === userId && r.state === "pending" : true;
     });
-    return { conversations: shown.map((c) => ({ ...conversationView(ctx, c, userId), request: requestView(byConv.get(c.id), userId) })) };
+    const live = await liveCallsOf(ctx, shown);
+    return { conversations: shown.map((c) => ({ ...conversationView(ctx, c, userId, live), request: requestView(byConv.get(c.id), userId) })) };
   });
 
   /**
@@ -210,9 +222,9 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     const { userId } = me(req);
     const { id } = parse(idParams, req.params);
     authz.requireMember(id, userId);
-    const members = ctx.db
-      .prepare("SELECT u.* FROM conversation_members m JOIN users u ON u.id = m.user_id WHERE m.conversation_id = ? AND u.disabled_at IS NULL")
-      .all(id) as ProfileRow[];
+    const members = memberUsers<ProfileRow & Record<string, unknown>>(ctx, id)
+      .map(({ user }) => user)
+      .filter((u) => u.disabled_at == null);
     const online = members.filter((u) => (u.id === userId || canSeeLastSeen(ctx, userId, u)) && appearsOnline(ctx, u)).length;
     return { online, members: members.length };
   });
@@ -226,7 +238,7 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     if (!visible) throw notFound("Conversation not found");
     const r = c.type === "DM" ? await ctx.relationships.request(c.id) : null;
     if (r && r.recipient === userId && r.state === "declined") throw notFound("Conversation not found");
-    return { conversation: { ...conversationView(ctx, c, userId), request: requestView(r, userId) } };
+    return { conversation: { ...conversationView(ctx, c, userId, await liveCallsOf(ctx, [c])), request: requestView(r, userId) } };
   });
 
   app.get("/v1/conversations/:id/members", auth, async (req) => {
@@ -234,16 +246,16 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     const { id } = parse(idParams, req.params);
     const c = authz.conversation(id);
     if (!c || !(c.type === "CHANNEL" ? authz.canViewChannel(c, userId) : authz.isMember(c.id, userId))) throw notFound("Conversation not found");
-    const rows = db
-      .prepare("SELECT u.*, m.role AS conv_role, m.joined_at FROM conversation_members m JOIN users u ON u.id = m.user_id WHERE m.conversation_id = ? AND u.kind = 'person' ORDER BY m.role, u.display_name")
-      .all(id) as any[];
+    const rows = memberUsers<any>(ctx, id)
+      .filter(({ user }) => user.kind === "person")
+      .sort((a, b) => compareText(a.member.role, b.member.role) || compareText(a.user.display_name, b.user.display_name));
     return {
-      members: rows.map((u) =>
-        memberView(ctx, userId, u, {
-          ...userSummary(u),
-          role: u.conv_role,
-          joinedAt: u.joined_at,
-          orgRole: c.org_id ? authz.orgRole(c.org_id, u.id) : null,
+      members: rows.map(({ member, user }) =>
+        memberView(ctx, userId, user, {
+          ...userSummary(user),
+          role: member.role,
+          joinedAt: member.joined_at,
+          orgRole: c.org_id ? authz.orgRole(c.org_id, user.id) : null,
         }),
       ),
     };
@@ -255,9 +267,9 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     const { id } = parse(idParams, req.params);
     authz.requireMember(id, userId);
     // People only: agents left over from AI Workforce (removed in API 0.47.0) are never recipients.
-    const ids = (
-      db.prepare("SELECT m.user_id FROM conversation_members m JOIN users u ON u.id = m.user_id WHERE m.conversation_id = ? AND u.kind = 'person'").all(id) as { user_id: string }[]
-    ).map((r) => r.user_id);
+    const ids = memberUsers<{ kind: string }>(ctx, id, "id, kind")
+      .filter(({ user }) => user.kind === "person")
+      .map(({ member }) => member.user_id);
     await ctx.federation?.refreshStale(ids); // remote members' keys come from their home server, refreshed when stale
     return { users: deviceDirectory(ctx, ids) };
   });
@@ -267,12 +279,12 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     const { userId: other } = parse(DmBody, req.body);
     if (other === userId) throw badRequest("You can't start a direct conversation with yourself");
     const target = availableUser(ctx, other);
-    if (target) requireSyntheticScopeForPeople(db, userId, [other]);
+    if (target) requireSyntheticScopeForPeople(ctx.identity, userId, [other]);
     // Batch B6: unknown, disabled and blocked (either way) all answer the same, so a block isn't revealed.
     if (!target || blockedEitherWay(ctx, userId, other)) throw notAvailable();
     const key = [userId, other].sort().join("|");
     const t = now();
-    let c = db.prepare("SELECT * FROM conversations WHERE dm_key = ?").get(key) as ConversationRow | undefined;
+    let c = ws.get<ConversationRow>("conversations", { dm_key: key });
     let request: DmRequestRow | null = c ? await ctx.relationships.request(c.id) : null;
     // Opening a DM with someone whose request you had: it's yours now too, a normal DM.
     if (c && request && request.recipient === userId) {
@@ -281,14 +293,15 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
       notifyConversation(ctx, c.id);
     }
     if (!c) {
-      requireStanding(db, userId, "start_conversation");
+      requireStanding(ctx.safety, userId, "start_conversation");
       // People on other servers keep their settings there: their server decides.
       const decision = target.home_server_id ? "direct" : await dmDecision(ctx, userId, other);
       if (decision === "refused") throw new ApiError(403, "dm_not_allowed", "This person only accepts messages from people they're connected with");
       if (decision === "request") await requireRequestBudget(ctx, userId, t);
       // Batch B4: a community can pause new DMs between its members. It applies when every community the two share
       // has paused them, and neither of them moderates one of those communities (moderators can still reach people).
-      const shared = (db.prepare("SELECT a.org_id FROM org_members a JOIN org_members b ON a.org_id = b.org_id WHERE a.user_id = ? AND b.user_id = ?").all(userId, other) as { org_id: string }[]).map((r) => r.org_id);
+      const otherOrgs = new Set(ws.all<{ org_id: string }>("org_members", { where: { user_id: other } }).map((m) => m.org_id));
+      const shared = ws.all<{ org_id: string }>("org_members", { where: { user_id: userId } }).flatMap((m) => (otherOrgs.has(m.org_id) ? [m.org_id] : []));
       const t0 = now();
       const paused = shared.length > 0 && shared.every((o) => authz.pausedUntil(o, "dms", t0) !== null);
       const moderator = shared.some((o) => authz.can(o, userId, "members.timeout") || authz.can(o, other, "members.timeout"));
@@ -296,20 +309,22 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
       // With someone on another server, both servers derive the same conversation id from the two user ids.
       if (target.home_server_id && !ctx.federation) throw new ApiError(503, "federation_disabled", "This server doesn't federate");
       const id = target.home_server_id ? fedDmId(key) : newId("c");
-      db.transaction(() => {
-        db.prepare("INSERT INTO conversations (id, type, dm_key, created_by, created_at, updated_at) VALUES (?, 'DM', ?, ?, ?, ?)").run(id, key, userId, t, t);
-        const ins = db.prepare("INSERT INTO conversation_members (conversation_id, user_id, role, joined_at) VALUES (?, ?, 'MEMBER', ?)");
-        ins.run(id, userId, t);
-        ins.run(id, other, t);
-      })();
-      c = authz.conversation(id)!;
-      if (decision === "request") {
+      // Checked again inside the unit: the other person may have opened the same DM meanwhile.
+      const created = await ws.write((w) => {
+        if (w.get("conversations", { dm_key: key })) return false;
+        w.insert("conversations", { id, type: "DM", dm_key: key, created_by: userId, created_at: t, updated_at: t });
+        for (const u of [userId, other]) w.insert("conversation_members", { conversation_id: id, user_id: u, role: "MEMBER", joined_at: t });
+        return true;
+      });
+      c = ws.get<ConversationRow>("conversations", { dm_key: key })!;
+      if (!created) request = await ctx.relationships.request(c.id);
+      else if (decision === "request") {
         request = { conversation_id: id, recipient: other, sender: userId, state: "pending", sent: 0, created_at: t, answered_at: null };
         await ctx.relationships.createRequest(request);
       }
-      notifyConversation(ctx, id);
+      notifyConversation(ctx, c.id);
     }
-    return { conversation: { ...conversationView(ctx, c, userId), request: requestView(request, userId) } };
+    return { conversation: { ...conversationView(ctx, c, userId, await liveCallsOf(ctx, [c])), request: requestView(request, userId) } };
   });
 
   // ───────────── Group photo (batch B6b, Discord reference GDM-CTRL-002) ─────────────
@@ -330,7 +345,7 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     const previous = c.photo_rev ?? null;
     const rev = Math.max(now(), (previous ?? 0) + 1);
     await storePhoto(ctx, photoBlobId(id, rev), buf);
-    if (db.prepare("UPDATE conversations SET photo_rev = ?, updated_at = ? WHERE id = ?").run(rev, now(), id).changes === 0) {
+    if ((await ws.write((w) => w.update("conversations", { id }, { photo_rev: rev, updated_at: now() }))) === 0) {
       await deleteBlobNow(ctx, "profile-photos", photoBlobId(id, rev));
       throw notFound("Group not found");
     }
@@ -344,7 +359,7 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     const { id } = parse(idParams, req.params);
     const c = groupFor(id, userId, true);
     if (c.photo_rev) {
-      db.prepare("UPDATE conversations SET photo_rev = NULL, updated_at = ? WHERE id = ?").run(now(), id);
+      await ws.write((w) => w.update("conversations", { id }, { photo_rev: null, updated_at: now() }));
       await deleteBlobNow(ctx, "profile-photos", photoBlobId(id, c.photo_rev));
       notifyConversation(ctx, id);
     }
@@ -363,22 +378,22 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
   app.post("/v1/conversations/group", auth, async (req) => {
     const { userId } = me(req);
     const body = parse(GroupBody, req.body);
-    requireStanding(db, userId, "start_conversation");
+    requireStanding(ctx.safety, userId, "start_conversation");
     const ids = [...new Set(body.memberIds.filter((m) => m !== userId))];
     // Groups are server-local in this release: people on other servers can't be added (FEDERATION_PROTOCOL.md §7).
-    const found = db.prepare(`SELECT id FROM users WHERE disabled_at IS NULL AND home_server_id IS NULL AND id IN (${ids.map(() => "?").join(",")})`).all(...ids) as { id: string }[];
-    if (found.length !== ids.length) throw badRequest("One or more members do not exist or are on another server");
-    requireSyntheticScopeForPeople(db, userId, ids);
+    const found = ctx.identity.count("users", { disabled_at: null, home_server_id: null, id: { in: ids } });
+    if (found !== ids.length) throw badRequest("One or more members do not exist or are on another server");
+    requireSyntheticScopeForPeople(ctx.identity, userId, ids);
     const id = newId("c");
     const t = now();
-    db.transaction(() => {
-      db.prepare("INSERT INTO conversations (id, type, name, created_by, created_at, updated_at) VALUES (?, 'GROUP', ?, ?, ?, ?)").run(id, body.name, userId, t, t);
-      db.prepare("INSERT INTO conversation_members (conversation_id, user_id, role, joined_at) VALUES (?, ?, 'ADMIN', ?)").run(id, userId, t);
-      const ins = db.prepare("INSERT INTO conversation_members (conversation_id, user_id, role, joined_at) VALUES (?, ?, 'MEMBER', ?)");
-      for (const m of ids) ins.run(id, m, t);
-    })();
+    await ws.write((w) => {
+      w.insert("conversations", { id, type: "GROUP", name: body.name, created_by: userId, created_at: t, updated_at: t });
+      w.insert("conversation_members", { conversation_id: id, user_id: userId, role: "ADMIN", joined_at: t });
+      for (const m of ids) w.insert("conversation_members", { conversation_id: id, user_id: m, role: "MEMBER", joined_at: t });
+    });
     notifyConversation(ctx, id);
-    return { conversation: conversationView(ctx, authz.conversation(id)!, userId) };
+    const view = authz.conversation(id)!;
+    return { conversation: conversationView(ctx, view, userId, await liveCallsOf(ctx, [view])) };
   });
 
   app.patch("/v1/conversations/:id", auth, async (req) => {
@@ -393,7 +408,6 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     const nextFormat = body.format ?? c.format ?? "text";
     if (body.forumTags !== undefined && nextFormat !== "forum") throw badRequest("Only forum channels have tags");
     if (body.guidelines !== undefined && nextFormat !== "forum") throw badRequest("Only forum channels have post guidelines");
-    const tags = body.forumTags === undefined ? (c.forum_tags ?? null) : JSON.stringify(nextForumTags(forumTags(c), body.forumTags, () => newId("tag")));
     const kindChange = body.kind !== undefined && body.kind !== c.kind;
     if (body.kind !== undefined && c.type !== "CHANNEL") throw badRequest("Only channels have an access mode");
     if (kindChange) {
@@ -404,25 +418,29 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     // Private channels never auto-join; announcement channels always do; a channel made public again auto-joins the
     // people its permissions let see it, as a new channel would. Making a channel private removes nobody.
     const autoJoin = !kindChange ? c.auto_join : body.kind === "PRIVATE" ? 0 : body.kind === "ANNOUNCEMENT" ? 1 : c.kind === "PRIVATE" ? 1 : c.auto_join;
-    db.prepare("UPDATE conversations SET name = ?, topic = ?, archived_at = ?, kind = ?, auto_join = ?, format = ?, forum_tags = ?, updated_at = ? WHERE id = ?").run(
-      body.name ?? c.name,
-      body.topic === undefined ? c.topic : body.topic,
-      body.archived === undefined ? c.archived_at : body.archived ? now() : null,
-      kindChange ? body.kind : c.kind,
-      autoJoin,
-      nextFormat,
-      tags,
-      now(),
-      id,
-    );
-    if (body.guidelines !== undefined) {
-      db.prepare("UPDATE conversations SET guidelines = ? WHERE id = ?").run(body.guidelines || null, id);
-      if (c.org_id) ctx.audit({ actorId: userId, orgId: c.org_id, action: "channel.guidelines", target: id });
-    }
-    if (body.slowmodeSec !== undefined && body.slowmodeSec !== (c.slowmode_sec ?? 0)) {
-      db.prepare("UPDATE conversations SET slowmode_sec = ? WHERE id = ?").run(body.slowmodeSec, id);
-      if (c.org_id) ctx.audit({ actorId: userId, orgId: c.org_id, action: "channel.slowmode", target: id, detail: `${body.slowmodeSec}s` });
-    }
+    const slowmodeChange = body.slowmodeSec !== undefined && body.slowmodeSec !== (c.slowmode_sec ?? 0);
+    // Only what this request changes, so a concurrent edit of other fields isn't overwritten; tags from the stored row.
+    await ws.write((w) => {
+      const current = w.get<ConversationRow>("conversations", { id });
+      if (!current) return;
+      w.update(
+        "conversations",
+        { id },
+        {
+          ...(body.name !== undefined ? { name: body.name } : {}),
+          ...(body.topic !== undefined ? { topic: body.topic } : {}),
+          ...(body.archived !== undefined ? { archived_at: body.archived ? now() : null } : {}),
+          ...(kindChange ? { kind: body.kind!, auto_join: autoJoin } : {}),
+          ...(body.format !== undefined ? { format: nextFormat } : {}),
+          ...(body.forumTags !== undefined ? { forum_tags: JSON.stringify(nextForumTags(forumTags(current), body.forumTags, () => newId("tag"))) } : {}),
+          ...(body.guidelines !== undefined ? { guidelines: body.guidelines || null } : {}),
+          ...(slowmodeChange ? { slowmode_sec: body.slowmodeSec! } : {}),
+          updated_at: now(),
+        },
+      );
+    });
+    if (body.guidelines !== undefined && c.org_id) ctx.audit({ actorId: userId, orgId: c.org_id, action: "channel.guidelines", target: id });
+    if (slowmodeChange && c.org_id) ctx.audit({ actorId: userId, orgId: c.org_id, action: "channel.slowmode", target: id, detail: `${body.slowmodeSec}s` });
     if (c.org_id) {
       if (kindChange) ctx.audit({ actorId: userId, orgId: c.org_id, action: "channel.access", target: id, detail: `${c.kind}→${body.kind}` });
       if (body.archived !== undefined && body.archived !== !!c.archived_at) {
@@ -432,7 +450,8 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
       if (kindChange && body.kind !== "PRIVATE") await reconcileAccess(ctx, c.org_id);
     }
     notifyConversation(ctx, id);
-    return { conversation: conversationView(ctx, authz.conversation(id)!, userId) };
+    const view = authz.conversation(id)!;
+    return { conversation: conversationView(ctx, view, userId, await liveCallsOf(ctx, [view])) };
   });
 
   /**
@@ -453,26 +472,29 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     const orgId = c.org_id;
     // Read before the transaction: the files store may not be SQLite.
     const files = await ctx.files.attachmentIdsIn([id]);
-    const result = db
-      .transaction(() => {
-        if (!db.prepare("SELECT 1 FROM conversations WHERE id = ?").get(id)) return null;
-        const members = (db.prepare("SELECT user_id FROM conversation_members WHERE conversation_id = ?").all(id) as { user_id: string }[]).map((r) => r.user_id);
-        const rooms = (db.prepare("SELECT room_name FROM calls WHERE conversation_id = ? AND state != 'ENDED'").all(id) as { room_name: string }[]).map((r) => r.room_name);
-        // Its files and uploads, queued items, and rows without a foreign key to the conversation (members and calls
-        // cascade), and its overwrites.
-        ctx.files.forgetConversation(id);
-        ctx.relay.forgetConversation(id);
-        db.prepare("DELETE FROM mention_all_events WHERE conversation_id = ?").run(id);
-        db.prepare("DELETE FROM channel_overwrites WHERE target_type = 'channel' AND target_id = ?").run(id);
-        db.prepare("DELETE FROM conversations WHERE id = ?").run(id);
-        return { members, files, rooms };
-      })
-      .immediate();
+    // Calls may not be in SQLite either: the live rooms to close are read before the transaction too.
+    const rooms = (await ctx.calls.liveIn([id])).map((call) => call.room_name);
+    const result = await ws.write((w) => {
+      if (!w.get("conversations", { id })) return null;
+      const members = w.all<{ user_id: string }>("conversation_members", { where: { conversation_id: id } }).map((r) => r.user_id);
+      // Its files and uploads, queued items, and rows without a foreign key to the conversation (members and calls
+      // cascade), and its overwrites.
+      ctx.files.forgetConversation(id);
+      ctx.relay.forgetConversation(id);
+      w.delete("mention_all_events", { conversation_id: id });
+      w.delete("channel_overwrites", { target_type: "channel", target_id: id });
+      w.delete("conversations", { id });
+      return { members, files, rooms };
+    });
     if (!result) throw notFound("Conversation not found");
+    // SQLite cascaded its calls with the conversation; a call store elsewhere removes them itself.
+    await ctx.calls.forgetConversations([id]);
+    // Its stored messages (they may not be in SQLite).
+    await ctx.messages.deleteConversation(id);
     ctx.audit({ actorId: userId, orgId, action: "channel.delete", target: id, detail: `${c.name ?? ""} (${result.files.length} files)` });
     // Apps refresh the channel (now 404, shown as gone) and the community's channel list.
     ctx.hub.sendToUsers(new Set(result.members), { t: "conv.updated", conversationId: id });
-    const orgMembers = (db.prepare("SELECT user_id FROM org_members WHERE org_id = ?").all(orgId) as { user_id: string }[]).map((r) => r.user_id);
+    const orgMembers = ws.all<{ user_id: string }>("org_members", { where: { org_id: orgId } }).map((r) => r.user_id);
     ctx.hub.sendToUsers(new Set(orgMembers), { t: "org.updated", orgId });
     for (const room of result.rooms) await ctx.livekit?.deleteRoom(room).catch(() => {});
     await processBlobDeletes(ctx).catch(() => 0);
@@ -487,9 +509,9 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     if (c.kind === "PRIVATE") throw forbidden("Private channels require an invitation from a channel manager");
     if (c.archived_at) throw conflict("This channel is archived");
     if (!authz.scopeEligible(c, userId)) throw forbidden();
-    db.prepare("INSERT OR IGNORE INTO conversation_members (conversation_id, user_id, role, joined_at) VALUES (?, ?, 'MEMBER', ?)").run(id, userId, now());
+    await ws.write((w) => w.insert("conversation_members", { conversation_id: id, user_id: userId, role: "MEMBER", joined_at: now() }, { orIgnore: true }));
     notifyConversation(ctx, id);
-    return { conversation: conversationView(ctx, c, userId) };
+    return { conversation: conversationView(ctx, c, userId, await liveCallsOf(ctx, [c])) };
   });
 
   app.put("/v1/conversations/:id/members/:userId", auth, async (req) => {
@@ -500,7 +522,7 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     if (!c) throw notFound("Conversation not found");
     if (c.type === "DM") throw badRequest("Direct conversations have fixed members");
     if (!authz.canManageConversation(c, actor)) throw forbidden("Only managers of this conversation can add members");
-    const target = db.prepare("SELECT id FROM users WHERE id = ? AND disabled_at IS NULL").get(p.userId);
+    const target = ctx.identity.get("users", { id: p.userId, disabled_at: null });
     if (!target) throw notFound("User not found");
     if (c.type === "CHANNEL") {
       const targetOrgRole = authz.orgRole(c.org_id!, p.userId);
@@ -509,12 +531,10 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
         throw conflict("That person can't see this channel: its permissions don't include them");
       }
     } else {
-      const n = (db.prepare("SELECT COUNT(*) n FROM conversation_members WHERE conversation_id = ?").get(c.id) as { n: number }).n;
+      const n = ws.count("conversation_members", { conversation_id: c.id });
       if (n >= MAX_GROUP && !authz.isMember(c.id, p.userId)) throw conflict(`Groups are limited to ${MAX_GROUP} people`);
     }
-    db.prepare(
-      "INSERT INTO conversation_members (conversation_id, user_id, role, joined_at) VALUES (?, ?, ?, ?) ON CONFLICT(conversation_id, user_id) DO UPDATE SET role = excluded.role",
-    ).run(c.id, p.userId, role, now());
+    await ws.write((w) => w.upsert("conversation_members", { conversation_id: c.id, user_id: p.userId, role, joined_at: now() }, { role }));
     if (c.org_id) ctx.audit({ actorId: actor, orgId: c.org_id, action: "channel.member.add", target: `${c.id}:${p.userId}` });
     notifyConversation(ctx, c.id);
     return { ok: true };
@@ -535,16 +555,13 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     if (c.type === "CHANNEL" && c.kind === "ANNOUNCEMENT" && actor === p.userId && !authz.canManageConversation(c, actor)) {
       throw forbidden("Announcement channels can't be left");
     }
-    db.prepare("DELETE FROM conversation_members WHERE conversation_id = ? AND user_id = ?").run(c.id, p.userId);
-    if (c.type === "GROUP") {
+    await ws.write((w) => {
+      w.delete("conversation_members", { conversation_id: c.id, user_id: p.userId });
       // Keep at least one admin in a group.
-      const admins = (db.prepare("SELECT COUNT(*) n FROM conversation_members WHERE conversation_id = ? AND role = 'ADMIN'").get(c.id) as { n: number }).n;
-      if (admins === 0) {
-        db.prepare(
-          "UPDATE conversation_members SET role = 'ADMIN' WHERE conversation_id = ? AND user_id = (SELECT user_id FROM conversation_members WHERE conversation_id = ? ORDER BY joined_at LIMIT 1)",
-        ).run(c.id, c.id);
-      }
-    }
+      if (c.type !== "GROUP" || w.count("conversation_members", { conversation_id: c.id, role: "ADMIN" }) > 0) return;
+      const eldest = w.get<{ user_id: string }>("conversation_members", { conversation_id: c.id }, [["joined_at", "asc"]]);
+      if (eldest) w.update("conversation_members", { conversation_id: c.id, user_id: eldest.user_id }, { role: "ADMIN" });
+    });
     if (c.org_id) ctx.audit({ actorId: actor, orgId: c.org_id, action: actor === p.userId ? "channel.leave" : "channel.member.remove", target: `${c.id}:${p.userId}` });
     notifyConversation(ctx, c.id, [p.userId]);
     await evictRemovedMember(ctx, p.userId, [c.id]);

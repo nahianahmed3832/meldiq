@@ -11,6 +11,7 @@ import { ApiError, badRequest, conflict, forbidden, notFound } from "../../share
 import { newId, now } from "../../shared/utilities/util.js";
 import { deleteBlobNow } from "../files/routes.js";
 import { notifyOrg } from "./orgsRoutes.js";
+import type { RowReader } from "../../infrastructure/database/rows/index.js";
 
 /**
  * A community's own emoji and stickers (batch B9, matrix EXP-04/05). Members see and use them; people with
@@ -70,15 +71,41 @@ async function readImage(req: FastifyRequest): Promise<Buffer> {
 }
 
 export default async function expressionRoutes(app: FastifyInstance, ctx: AppContext) {
-  const { db, authz } = ctx;
+  const { db, ws, authz } = ctx;
   const auth = { preHandler: requireAuth(ctx) };
 
-  const view = (r: ExpressionRow) => ({
+  /** The community's emoji or sticker slots: its Spark level's (docs/MOJO.md); level 0 is EXPRESSION_LIMITS. */
+  const slots = (orgId: string, kind: Kind) => {
+    const level = ctx.mojo.levelOf(orgId);
+    return kind === "emoji" ? level.emojiSlots : level.stickerSlots;
+  };
+  const oldestFirst = (a: ExpressionRow, b: ExpressionRow) => a.created_at - b.created_at || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  /**
+   * Items over a limit are locked, never deleted (docs/MOJO.md): beyond the community's slots (a lower Spark level), or
+   * beyond what their adder's plan allows across communities. The oldest stay usable; upgrading unlocks the rest.
+   */
+  const lockedIn = (orgId: string, rows: ExpressionRow[]): Map<string, "slots" | "plan"> => {
+    const locked = new Map<string, "slots" | "plan">();
+    for (const kind of ["emoji", "sticker"] as const) {
+      const max = slots(orgId, kind);
+      rows.filter((r) => r.kind === kind).sort(oldestFirst).slice(max).forEach((r) => locked.set(r.id, "slots"));
+    }
+    for (const creator of new Set(rows.map((r) => r.created_by))) {
+      const limits = ctx.mojo.limitsOf(creator);
+      if (!limits) continue;
+      const theirs = ws.all<ExpressionRow>("community_expressions", { where: { created_by: creator } }).sort(oldestFirst);
+      for (const r of theirs.slice(limits.customItems)) if (r.org_id === orgId && !locked.has(r.id)) locked.set(r.id, "plan");
+    }
+    return locked;
+  };
+  const view = (r: ExpressionRow, locked?: "slots" | "plan") => ({
     id: r.id, orgId: r.org_id, kind: r.kind, name: r.name, animated: !!r.animated, sha256: r.sha256, size: r.size,
-    createdBy: (db.prepare("SELECT display_name FROM users WHERE id = ?").get(r.created_by) as { display_name: string } | undefined)?.display_name ?? null,
+    createdBy: ctx.identity.get<{ display_name: string }>("users", { id: r.created_by })?.display_name ?? null,
     createdAt: r.created_at,
+    // Kept, shown in messages already sent, but not offered for new ones until there's room again.
+    ...(locked ? { locked } : {}),
   });
-  const load = (id: string) => db.prepare("SELECT * FROM community_expressions WHERE id = ?").get(id) as ExpressionRow | undefined;
+  const load = (id: string) => ws.get<ExpressionRow>("community_expressions", { id });
   const requireManager = (orgId: string, userId: string) => {
     authz.requireOrgMember(orgId, userId);
     if (!authz.can(orgId, userId, "expressions.manage")) throw forbidden("Your role doesn't include managing emoji and stickers");
@@ -87,8 +114,9 @@ export default async function expressionRoutes(app: FastifyInstance, ctx: AppCon
   app.get("/v1/orgs/:orgId/expressions", auth, async (req) => {
     const { orgId } = parse(OrgParamsNonEmpty, req.params);
     authz.requireOrgMember(orgId, me(req).userId);
-    const rows = db.prepare("SELECT * FROM community_expressions WHERE org_id = ? ORDER BY kind, name").all(orgId) as ExpressionRow[];
-    return { expressions: rows.map(view), limits: { emoji: EXPRESSION_LIMITS.emoji, sticker: EXPRESSION_LIMITS.sticker } };
+    const rows = ws.all<ExpressionRow>("community_expressions", { where: { org_id: orgId }, orderBy: [["kind", "asc"], ["name", "asc"]] });
+    const locked = lockedIn(orgId, rows);
+    return { expressions: rows.map((r) => view(r, locked.get(r.id))), limits: { emoji: slots(orgId, "emoji"), sticker: slots(orgId, "sticker") } };
   });
 
   /** Uploads one: `?kind=emoji|sticker&name=party_parrot`, the image as the body. */
@@ -100,10 +128,18 @@ export default async function expressionRoutes(app: FastifyInstance, ctx: AppCon
     if (!EXPRESSION_NAME.test(q.name)) throw badRequest("Names are 2–32 letters, digits or _ (lowercase)");
     // Checked before the upload (a quick answer) and again just before the row is written (B13: two uploads at once
     // both passed the first check across the awaits below, giving two emoji the same name).
-    const roomFor = () => {
-      const count = (db.prepare("SELECT COUNT(*) n FROM community_expressions WHERE org_id = ? AND kind = ?").get(orgId, q.kind) as { n: number }).n;
-      if (count >= EXPRESSION_LIMITS[q.kind]) throw new ApiError(409, "limit_reached", `A community has room for ${EXPRESSION_LIMITS[q.kind]} ${q.kind === "emoji" ? "emoji" : "stickers"}`);
-      if (db.prepare("SELECT 1 FROM community_expressions WHERE org_id = ? AND kind = ? AND name = ?").get(orgId, q.kind, q.name)) throw conflict("That name is taken in this community");
+    const room = slots(orgId, q.kind);
+    const mine = ctx.mojo.limitsOf(userId)?.customItems ?? Number.MAX_SAFE_INTEGER;
+    const roomFor = (rows: RowReader = ws) => {
+      const count = rows.count("community_expressions", { org_id: orgId, kind: q.kind });
+      if (count >= room) {
+        throw new ApiError(409, "limit_reached", `This community has room for ${room} ${q.kind === "emoji" ? "emoji" : "stickers"}. Sparks give it more.`, { limit: room });
+      }
+      // One pool per person across communities (docs/MOJO.md): Free 20, Mojo Go 50, Mojo Plus 250.
+      if (rows.count("community_expressions", { created_by: userId }) >= mine) {
+        throw new ApiError(409, "custom_items_limit", `You can add up to ${mine} custom emoji and stickers on your plan. Mojo raises it.`, { limit: mine });
+      }
+      if (rows.get("community_expressions", { org_id: orgId, kind: q.kind, name: q.name })) throw conflict("That name is taken in this community");
     };
     roomFor();
     const buf = await readImage(req);
@@ -113,19 +149,28 @@ export default async function expressionRoutes(app: FastifyInstance, ctx: AppCon
     const sha256 = crypto.createHash("sha256").update(buf).digest("hex");
     await storePhoto(ctx, id, buf);
     try {
-      db.transaction(() => {
-        roomFor();
-        db.prepare(
-          "INSERT INTO community_expressions (id, org_id, kind, name, mime, animated, sha256, size, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        ).run(id, orgId, q.kind, q.name, kind.mime, kind.animated ? 1 : 0, sha256, buf.length, userId, now());
-      })();
+      await ws.write((w) => {
+        roomFor(w);
+        w.insert("community_expressions", {
+          id,
+          org_id: orgId,
+          kind: q.kind,
+          name: q.name,
+          mime: kind.mime,
+          animated: kind.animated ? 1 : 0,
+          sha256,
+          size: buf.length,
+          created_by: userId,
+          created_at: now(),
+        });
+      });
     } catch (e) {
       await deleteBlobNow(ctx, "profile-photos", id);
       throw e;
     }
     ctx.audit({ actorId: userId, orgId, action: `expression.add`, target: id, detail: `${q.kind} :${q.name}:` });
     notifyOrg(ctx, orgId);
-    return { expression: view(load(id)!) };
+    return { expression: view(load(id)!, lockedIn(orgId, ws.all<ExpressionRow>("community_expressions", { where: { org_id: orgId } })).get(id)) };
   });
 
   app.patch("/v1/expressions/:id", auth, async (req) => {
@@ -136,8 +181,10 @@ export default async function expressionRoutes(app: FastifyInstance, ctx: AppCon
     if (!r) throw notFound("Not found");
     requireManager(r.org_id, userId);
     if (!EXPRESSION_NAME.test(name)) throw badRequest("Names are 2–32 letters, digits or _ (lowercase)");
-    if (db.prepare("SELECT 1 FROM community_expressions WHERE org_id = ? AND kind = ? AND name = ? AND id != ?").get(r.org_id, r.kind, name, id)) throw conflict("That name is taken in this community");
-    db.prepare("UPDATE community_expressions SET name = ? WHERE id = ?").run(name, id);
+    await ws.write((w) => {
+      if (w.get("community_expressions", { org_id: r.org_id, kind: r.kind, name, id: { ne: id } })) throw conflict("That name is taken in this community");
+      w.update("community_expressions", { id }, { name });
+    });
     ctx.audit({ actorId: userId, orgId: r.org_id, action: "expression.rename", target: id, detail: `:${r.name}: → :${name}:` });
     notifyOrg(ctx, r.org_id);
     return { expression: view(load(id)!) };
@@ -149,7 +196,7 @@ export default async function expressionRoutes(app: FastifyInstance, ctx: AppCon
     const r = load(id);
     if (!r) return { ok: true };
     requireManager(r.org_id, userId);
-    db.prepare("DELETE FROM community_expressions WHERE id = ?").run(id);
+    await ws.write((w) => w.delete("community_expressions", { id }));
     await deleteBlobNow(ctx, "profile-photos", id);
     ctx.audit({ actorId: userId, orgId: r.org_id, action: "expression.remove", target: id, detail: `${r.kind} :${r.name}:` });
     notifyOrg(ctx, r.org_id);

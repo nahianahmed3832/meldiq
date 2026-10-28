@@ -10,7 +10,7 @@ export const ALERT_SHOWN_MS = 24 * 3_600_000;
 
 /** The people who hear about join spikes: those who can pause joining (edit the community or ban members). */
 export function safetyModerators(ctx: AppContext, orgId: string): string[] {
-  const members = ctx.db.prepare("SELECT user_id FROM org_members WHERE org_id = ?").all(orgId) as { user_id: string }[];
+  const members = ctx.ws.all<{ user_id: string }>("org_members", { where: { org_id: orgId } });
   return members.map((m) => m.user_id).filter((u) => ctx.authz.can(orgId, u, "workspace.edit") || ctx.authz.can(orgId, u, "members.ban"));
 }
 
@@ -18,13 +18,13 @@ export function safetyModerators(ctx: AppContext, orgId: string): string[] {
  * After someone joined [orgId] at [t]: when joins spike, records an alert (audited, shown to moderators for a day) and
  * tells the moderators' apps. Nothing is paused automatically: moderators decide (Security actions).
  */
-export function noteJoin(ctx: AppContext, orgId: string, t: number): void {
-  const o = ctx.db.prepare("SELECT activity_alerts, raid_alert_at FROM orgs WHERE id = ?").get(orgId) as { activity_alerts: number; raid_alert_at: number | null } | undefined;
+export async function noteJoin(ctx: AppContext, orgId: string, t: number): Promise<void> {
+  const o = ctx.ws.get<{ activity_alerts: number; raid_alert_at: number | null }>("orgs", { id: orgId });
   if (!o || !o.activity_alerts) return;
   if (o.raid_alert_at && o.raid_alert_at > t - ALERT_QUIET_MS) return;
-  const joins = (ctx.db.prepare("SELECT COUNT(*) n FROM org_members WHERE org_id = ? AND joined_at >= ?").get(orgId, t - JOIN_WINDOW_MS) as { n: number }).n;
+  const joins = ctx.ws.count("org_members", { org_id: orgId, joined_at: { gte: t - JOIN_WINDOW_MS } });
   if (joins < JOIN_SPIKE) return;
-  ctx.db.prepare("UPDATE orgs SET raid_alert_at = ?, raid_alert_count = ? WHERE id = ?").run(t, joins, orgId);
+  await ctx.ws.write((w) => w.update("orgs", { id: orgId }, { raid_alert_at: t, raid_alert_count: joins }));
   ctx.audit({ actorId: null, orgId, action: "community.activity_alert", target: orgId, detail: `${joins} joins in 10 minutes` });
   ctx.hub.sendToUsers(safetyModerators(ctx, orgId), { t: "org.alert", orgId, kind: "joins", count: joins, at: t });
 }

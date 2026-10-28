@@ -12,20 +12,19 @@ export function notAvailable(): ApiError {
 
 /** Whether either of the two blocked the other. */
 export function blockedEitherWay(ctx: AppContext, x: string, y: string): boolean {
-  return !!ctx.db.prepare("SELECT 1 FROM user_blocks WHERE (user_id = ? AND blocked_user_id = ?) OR (user_id = ? AND blocked_user_id = ?)").get(x, y, y, x);
+  return !!ctx.identity.get("user_blocks", { $or: [{ user_id: x, blocked_user_id: y }, { user_id: y, blocked_user_id: x }] });
 }
 
 /** Whether the two are both members (not guests) of at least one community. */
 export function sharesCommunity(ctx: AppContext, x: string, y: string): boolean {
-  return !!ctx.db
-    .prepare("SELECT 1 FROM org_members a JOIN org_members b ON a.org_id = b.org_id WHERE a.user_id = ? AND b.user_id = ? AND a.role != 'GUEST' AND b.role != 'GUEST' LIMIT 1")
-    .get(x, y);
+  const theirs = ctx.ws.all<{ org_id: string }>("org_members", { where: { user_id: y, role: { ne: "GUEST" } } }).map((m) => m.org_id);
+  return theirs.length > 0 && ctx.ws.count("org_members", { user_id: x, role: { ne: "GUEST" }, org_id: { in: theirs } }) > 0;
 }
 
 /** A local, enabled account (people on other servers keep their own settings there). */
 export function availableUser(ctx: AppContext, id: string): { id: string; home_server_id: string | null } | null {
   // AI agents' bot identities (kind 'agent') are no one's to message: their direct conversations start from AI agents.
-  return (ctx.db.prepare("SELECT id, home_server_id FROM users WHERE id = ? AND disabled_at IS NULL AND kind = 'person'").get(id) as { id: string; home_server_id: string | null } | undefined) ?? null;
+  return ctx.identity.get<{ id: string; home_server_id: string | null }>("users", { id, disabled_at: null, kind: "person" }) ?? null;
 }
 
 export type DmDecision = "direct" | "request" | "refused";

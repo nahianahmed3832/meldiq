@@ -277,7 +277,7 @@ export class Hub {
   pushQueued(deviceId: string, rows: QueueItemRow[], opts: { wake?: boolean } = {}): void {
     if (rows.length === 0) return;
     if (!this.isDeviceOnline(deviceId)) {
-      if (opts.wake !== false && rows.some((r) => r.kind === "envelope")) this.onQueuedOffline(deviceId);
+      if (opts.wake !== false && rows.some((r) => r.kind !== "receipt")) this.onQueuedOffline(deviceId);
       return;
     }
     const data = this.encode({ t: "queue", items: rows.map(queueItemToWire), more: false });

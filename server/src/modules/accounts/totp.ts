@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import type { AppContext } from "../../app/context.js";
-import type { DB } from "../../infrastructure/database/db.js";
+import type { Rows } from "../../infrastructure/database/rows/index.js";
 import { ApiError } from "../../shared/errors.js";
 import { humanCode, newId, normalizeCode, now, sha256Hex } from "../../shared/utilities/util.js";
 import { SecretBox } from "../../infrastructure/crypto/secretBox.js";
@@ -105,12 +105,12 @@ export class TotpService {
     this.box = new SecretBox(secretsKey);
   }
 
-  private get db(): DB {
-    return this.ctx.db;
+  private get rows(): Rows {
+    return this.ctx.safety;
   }
 
   private row(accountId: string): TotpRow | undefined {
-    return this.db.prepare("SELECT * FROM account_totp WHERE account_id = ?").get(accountId) as TotpRow | undefined;
+    return this.rows.get<TotpRow>("account_totp", { account_id: accountId });
   }
 
   enabled(accountId: string): boolean {
@@ -119,7 +119,7 @@ export class TotpService {
 
   status(accountId: string) {
     const r = this.row(accountId);
-    const left = (this.db.prepare("SELECT COUNT(*) n FROM account_totp_backup WHERE account_id = ? AND used_at IS NULL").get(accountId) as { n: number }).n;
+    const left = this.rows.count("account_totp_backup", { account_id: accountId, used_at: null });
     return { available: this.box.available, enabled: !!r?.enabled_at, enabledAt: r?.enabled_at ?? null, backupCodesLeft: r?.enabled_at ? left : 0 };
   }
 
@@ -133,11 +133,8 @@ export class TotpService {
     if (this.enabled(a.id)) throw new ApiError(409, "totp_already_on", "Two-step sign-in is already on. Turn it off first to use a new app.");
     const secret = crypto.randomBytes(TOTP.secretBytes);
     const t = now();
-    this.db
-      .prepare(
-        "INSERT INTO account_totp (account_id, secret, created_at, enabled_at, last_step) VALUES (?, ?, ?, NULL, 0) ON CONFLICT(account_id) DO UPDATE SET secret = excluded.secret, created_at = excluded.created_at, enabled_at = NULL, last_step = 0",
-      )
-      .run(a.id, this.box.seal(secret.toString("base64"), sealedFor(a.id)), t);
+    const pending = { secret: this.box.seal(secret.toString("base64"), sealedFor(a.id)), created_at: t, enabled_at: null, last_step: 0 };
+    await this.rows.write((w) => w.upsert("account_totp", { account_id: a.id, ...pending }, pending));
     const label = `${ISSUER}:${encodeURIComponent(a.email)}`;
     const b32 = base32(secret);
     this.ctx.audit({ actorId: s.user_id, action: "account.totp_setup", target: s.id });
@@ -145,7 +142,7 @@ export class TotpService {
   }
 
   /** Step 2: the first code from the app turns it on and gives the backup codes (shown once). */
-  enable(s: ActiveSession, accountId: string, code: string): { backupCodes: string[] } {
+  async enable(s: ActiveSession, accountId: string, code: string): Promise<{ backupCodes: string[] }> {
     const r = this.row(accountId);
     if (!r || r.enabled_at) throw new ApiError(409, "totp_not_pending", "Start setting up two-step sign-in again.");
     if (r.created_at + SETUP_TTL_MS < now()) throw new ApiError(409, "totp_not_pending", "That set-up took too long. Start again.");
@@ -153,12 +150,11 @@ export class TotpService {
     if (step === null) throw new ApiError(400, "totp_invalid", "That code isn't right. Check the time on your phone and try the newest code.");
     const t = now();
     const codes = Array.from({ length: TOTP.backupCodes }, () => humanCode(TOTP.backupLength));
-    this.db.transaction(() => {
-      this.db.prepare("UPDATE account_totp SET enabled_at = ?, last_step = ? WHERE account_id = ?").run(t, step, accountId);
-      this.db.prepare("DELETE FROM account_totp_backup WHERE account_id = ?").run(accountId);
-      const ins = this.db.prepare("INSERT INTO account_totp_backup (id, account_id, code_hash, created_at, used_at) VALUES (?, ?, ?, ?, NULL)");
-      for (const c of codes) ins.run(newId("tb"), accountId, backupHash(accountId, c), t);
-    })();
+    await this.rows.write((w) => {
+      w.update("account_totp", { account_id: accountId }, { enabled_at: t, last_step: step });
+      w.delete("account_totp_backup", { account_id: accountId });
+      for (const c of codes) w.insert("account_totp_backup", { id: newId("tb"), account_id: accountId, code_hash: backupHash(accountId, c), created_at: t, used_at: null });
+    });
     this.ctx.audit({ actorId: s.user_id, action: "account.totp_on", target: s.id });
     return { backupCodes: codes.map((c) => `${c.slice(0, 5)}-${c.slice(5)}`) };
   }
@@ -167,32 +163,34 @@ export class TotpService {
   async disable(s: ActiveSession, a: AccountRow, password: string, code: string): Promise<void> {
     await this.checkPassword(a, password);
     if (!this.enabled(a.id)) return;
-    this.requireCode(a.id, code);
-    this.remove(a.id);
+    await this.requireCode(a.id, code);
+    await this.remove(a.id);
     this.ctx.audit({ actorId: s.user_id, action: "account.totp_off", target: s.id });
   }
 
   /** Account deletion: everything of the account's. */
-  remove(accountId: string): void {
-    this.db.prepare("DELETE FROM account_totp WHERE account_id = ?").run(accountId);
-    this.db.prepare("DELETE FROM account_totp_backup WHERE account_id = ?").run(accountId);
+  remove(accountId: string): Promise<void> {
+    return this.rows.write((w) => {
+      w.delete("account_totp", { account_id: accountId });
+      w.delete("account_totp_backup", { account_id: accountId });
+    });
   }
 
   /**
    * At a password sign-in: nothing to do when it's off; otherwise the code (app or backup) must be right. Too many wrong
    * codes pause the account's second step for 15 minutes.
    */
-  checkSignIn(accountId: string, code: string | undefined): void {
+  async checkSignIn(accountId: string, code: string | undefined): Promise<void> {
     if (!this.enabled(accountId)) return;
     if (!code) throw new ApiError(401, "totp_required", "Enter the code from your authenticator app.");
-    this.requireCode(accountId, code);
+    await this.requireCode(accountId, code);
   }
 
-  private requireCode(accountId: string, code: string): void {
+  private async requireCode(accountId: string, code: string): Promise<void> {
     const t = now();
     const w = this.wrong.get(accountId);
     if (w && w.count >= MAX_WRONG && w.until > t) throw new ApiError(429, "totp_locked", "Too many wrong codes. Try again in 15 minutes.");
-    if (this.useCode(accountId, code.trim(), t)) {
+    if (await this.useCode(accountId, code.trim(), t)) {
       this.wrong.delete(accountId);
       return;
     }
@@ -202,16 +200,17 @@ export class TotpService {
   }
 
   /** An app code (once per step) or an unused backup code; true when it was accepted and used up. */
-  private useCode(accountId: string, code: string, at: number): boolean {
+  private async useCode(accountId: string, code: string, at: number): Promise<boolean> {
     const r = this.row(accountId);
     if (!r?.enabled_at) return false;
     const digits = code.replace(/\s/g, "");
     if (/^\d{6}$/.test(digits)) {
       const step = matchStep(this.secretOf(r), digits, at, r.last_step);
-      // Conditional: of two sign-ins racing with the same code, one wins.
-      return step !== null && this.db.prepare("UPDATE account_totp SET last_step = ? WHERE account_id = ? AND last_step < ?").run(step, accountId, step).changes === 1;
+      // Conditional, inside the unit: of two sign-ins racing with the same code, one wins.
+      return step !== null && (await this.rows.write((w) => w.update("account_totp", { account_id: accountId, last_step: { lt: step } }, { last_step: step }) === 1));
     }
-    return this.db.prepare("UPDATE account_totp_backup SET used_at = ? WHERE account_id = ? AND code_hash = ? AND used_at IS NULL").run(at, accountId, backupHash(accountId, code)).changes === 1;
+    const hash = backupHash(accountId, code);
+    return this.rows.write((w) => w.update("account_totp_backup", { account_id: accountId, code_hash: hash, used_at: null }, { used_at: at }) === 1);
   }
 
   private secretOf(r: TotpRow): Buffer {

@@ -5,7 +5,8 @@ import { IdentityService } from "./identity.js";
 import { LegacyMigrationService } from "./legacy.js";
 import { createMailer, type Mailer, meteredMailer } from "../../infrastructure/mail/mailer.js";
 import { AccountService } from "./service.js";
-import { MongoAccountStore, sqliteIdentityRows } from "./mongoStore.js";
+import { MongoAccountStore } from "./mongoStore.js";
+import { SqliteRows } from "../../infrastructure/database/rows/index.js";
 import { type AccountStore, SqliteAccountStore } from "./store.js";
 import { RecoveryService } from "./recovery.js";
 import { type RecoveryStore, SqliteRecoveryStore } from "./recoveryStore.js";
@@ -29,7 +30,6 @@ export {
   type DeviceInventoryRow,
   deviceOf,
   devicesPage,
-  latestSessionOfDevices,
   namesOf,
   type DeviceSummaryRow,
   searchUsers,
@@ -68,13 +68,13 @@ export class Accounts {
   readonly totp: TotpService;
   readonly emailChange: EmailChangeService;
 
-  private readonly db: AppContext["db"];
+  private readonly identityRows: AppContext["identity"];
 
   constructor(ctx: AppContext, opts: { mailer?: Mailer; store?: AccountStore; recoveryStore?: RecoveryStore; keyBackupStore?: KeyBackupStore } = {}) {
-    this.db = ctx.db;
+    this.identityRows = ctx.identity;
     // MONGODB_DOMAINS includes "accounts": the account rows live in MongoDB (docs/MONGODB.md).
     this.store =
-      opts.store ?? (ctx.mongo?.owns("accounts") ? new MongoAccountStore(ctx.mongo, sqliteIdentityRows(ctx.db)) : new SqliteAccountStore(ctx.db));
+      opts.store ?? (ctx.mongo?.owns("accounts") ? new MongoAccountStore(ctx.mongo, ctx.identity) : new SqliteAccountStore(ctx.db, sqliteIdentity(ctx.identity)));
     this.mailer = opts.mailer ?? createMailer(ctx.config.accounts.mail);
     this.service = new AccountService(ctx, this.store, meteredMailer(this.mailer, ctx.metrics));
     this.identity = new IdentityService(ctx, this.service);
@@ -114,7 +114,7 @@ export class Accounts {
    * this instead of reading the users table itself.
    */
   identityBlocked(userId: string): boolean {
-    const u = this.db.prepare("SELECT disabled_at, deleted_at FROM users WHERE id = ?").get(userId) as { disabled_at: number | null; deleted_at: number | null } | undefined;
+    const u = this.identityRows.get<{ disabled_at: number | null; deleted_at: number | null }>("users", { id: userId });
     return !!u && (u.disabled_at !== null || u.deleted_at !== null);
   }
 
@@ -133,3 +133,9 @@ export {
 } from "./loadtest.js";
 // Community photos made from a Discord server's icon (modules/organizations/discord).
 export { MAX_PHOTO_BYTES, photoBlobId, storePhoto } from "./photos.js";
+
+/** Accounts in SQLite keep their identity rows there too (the startup check refuses identity in MongoDB without them). */
+function sqliteIdentity(identity: AppContext["identity"]): SqliteRows {
+  if (!(identity instanceof SqliteRows)) throw new Error("Accounts in SQLite need the identity domain in SQLite too");
+  return identity;
+}

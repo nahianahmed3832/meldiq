@@ -2,7 +2,7 @@ import type { AppContext } from "../../app/context.js";
 import { networkKey } from "../../app/middleware/abuse.js";
 import { forbidden, notFound } from "../../shared/errors.js";
 import { now } from "../../shared/utilities/util.js";
-import { deviceCounts, deviceOf, type DeviceInventoryRow, devicesPage, latestSessionOfDevices, userDevices, userSummary, usernames } from "../accounts/index.js";
+import { deviceCounts, deviceOf, type DeviceInventoryRow, devicesPage, userDevices, userSummary, usernames } from "../accounts/index.js";
 import { legacySessionCount, revokeUserDevice } from "../auth/index.js";
 import { pushStatus } from "../notifications/index.js";
 import { authHistory } from "../organizations/index.js";
@@ -49,11 +49,11 @@ export class AdminDevices {
     private readonly exclusions: Exclusions,
   ) {}
 
-  private rows(devices: DeviceInventoryRow[]) {
+  private async rows(devices: DeviceInventoryRow[]) {
     const ids = devices.map((d) => d.id);
-    const push = pushStatus(this.ctx.db, ids);
-    const latest = latestSessionOfDevices(this.ctx.db, ids);
-    const clients = analytics.sessionClients(this.ctx.db, [...latest.values()]);
+    const push = pushStatus(this.ctx.identity, ids);
+    const latest = await this.ctx.accounts.store.latestSessionOfDevices(ids);
+    const clients = analytics.sessionClients(this.ctx, [...latest.values()]);
     return devices.map((d) => {
       const c = latest.has(d.id) ? clients.get(latest.get(d.id)!) : undefined;
       return {
@@ -74,30 +74,30 @@ export class AdminDevices {
     });
   }
 
-  inventory(q: { platform?: string; staleDays?: number; status?: "active" | "revoked"; cursor?: string; limit: number }) {
+  async inventory(q: { platform?: string; staleDays?: number; status?: "active" | "revoked"; cursor?: string; limit: number }) {
     const after = decodeCursor(q.cursor);
     let ids: string[] | undefined;
     if (q.platform) {
       // Devices whose latest session was seen on that platform (only devices with a v2 session are classified).
-      const sessions = new Set(analytics.sessionsOnPlatform(this.ctx.db, q.platform, 50_000));
-      const candidates = devicesPage(this.ctx.db, { status: q.status, limit: 50_000 });
-      const latest = latestSessionOfDevices(this.ctx.db, candidates.map((d) => d.id));
+      const sessions = new Set(analytics.sessionsOnPlatform(this.ctx, q.platform, 50_000));
+      const candidates = devicesPage(this.ctx.identity, { status: q.status, limit: 50_000 });
+      const latest = await this.ctx.accounts.store.latestSessionOfDevices(candidates.map((d) => d.id));
       ids = candidates.filter((d) => sessions.has(latest.get(d.id) ?? "")).map((d) => d.id);
     }
-    const rows = devicesPage(this.ctx.db, { status: q.status, staleBefore: q.staleDays ? now() - q.staleDays * DAY_MS : undefined, ids, after, limit: q.limit + 1 });
+    const rows = devicesPage(this.ctx.identity, { status: q.status, staleBefore: q.staleDays ? now() - q.staleDays * DAY_MS : undefined, ids, after, limit: q.limit + 1 });
     const { rows: shown, nextCursor } = page(rows, q.limit);
-    const counts = deviceCounts(this.ctx.db);
-    return { devices: this.rows(shown), nextCursor, counts: { active: counts.active, revoked: counts.revoked, online: this.ctx.hub.onlineDeviceCount() } };
+    const counts = deviceCounts(this.ctx.identity);
+    return { devices: await this.rows(shown), nextCursor, counts: { active: counts.active, revoked: counts.revoked, online: this.ctx.hub.onlineDeviceCount() } };
   }
 
   async ofUser(userId: string) {
-    const u = userSummary(this.ctx.db, userId);
+    const u = userSummary(this.ctx.identity, userId);
     if (!u) throw notFound("No such person");
     const t = now();
-    const own = devicesPage(this.ctx.db, { ids: userDevices(this.ctx.db, userId).map((d) => d.id), limit: 100 });
+    const own = devicesPage(this.ctx.identity, { ids: userDevices(this.ctx.identity, userId).map((d) => d.id), limit: 100 });
     const account = await this.ctx.accounts.store.accountByUserId(userId);
     const sessions = account ? await this.ctx.accounts.store.recentSessions(account.id, t - RECENT_ENDED_MS, SESSIONS_SHOWN) : [];
-    const clients = analytics.sessionClients(this.ctx.db, sessions.map((s) => s.id));
+    const clients = analytics.sessionClients(this.ctx, sessions.map((s) => s.id));
     const conns = this.ctx.hub.connections().filter((c) => c.userId === userId);
     const connectedSessions = new Set(conns.map((c) => c.sessionId).filter(Boolean));
     const sessionViews = sessions.map((s) => {
@@ -120,7 +120,7 @@ export class AdminDevices {
         connected: connectedSessions.has(s.id),
       };
     });
-    const history = authHistory(this.ctx.db, userId, AUTH_EVENTS_SHOWN).map((e) => ({
+    const history = authHistory(this.ctx.ws, userId, AUTH_EVENTS_SHOWN).map((e) => ({
       at: e.at,
       event: AUTH_LABELS[e.action] ?? e.action.replace(/^account\./, ""),
       detail: e.action === "account.login" ? (e.detail ?? "password") : null,
@@ -139,7 +139,7 @@ export class AdminDevices {
     if (failed >= 5) findings.push(`${failed} wrong passwords in the last 24 hours.`);
     if (history.some((h) => h.event.startsWith("Old refresh token"))) findings.push("A refresh token was reused: a copied token may exist (that session was revoked).");
     return {
-      devices: this.rows(own),
+      devices: await this.rows(own),
       sessions: sessionViews,
       legacySessions: legacySessionCount(this.ctx, userId),
       connections: conns.map((c) => ({ deviceId: c.deviceId, platform: c.platform, client: c.client, openedAt: c.openedAt, lastFrameAt: c.lastFrameAt })),
@@ -153,7 +153,7 @@ export class AdminDevices {
     const account = await this.ctx.accounts.store.accountByUserId(userId);
     const why = p.account.user_id === userId ? "self" : account && this.store.activeGrant(account.id) && p.grant.role !== "super_admin" ? "platform_admin" : null;
     if (why) {
-      this.audit.record({ action, outcome: "denied", actorAccountId: p.account.id, actorRole: p.grant.role, targetType: "user", targetId: userId, reason, requestId: meta.requestId, network: networkKey(meta.ip), detail: { why } });
+      await this.audit.record({ action, outcome: "denied", actorAccountId: p.account.id, actorRole: p.grant.role, targetType: "user", targetId: userId, reason, requestId: meta.requestId, network: networkKey(meta.ip), detail: { why } });
       throw forbidden(why === "self" ? "You can't do that to your own account." : "Only a super admin can do that to a platform admin.");
     }
     return account;
@@ -165,15 +165,15 @@ export class AdminDevices {
     if (!account || !s || s.account_id !== account.id) throw notFound("No such session for this person.");
     const changed = await this.ctx.accounts.store.revokeSession(sessionId, "admin_revoked", now());
     if (s.device_id) this.ctx.hub.disconnectDevice(s.device_id, "session revoked");
-    this.audit.record({ action: "user.session_revoke", outcome: "success", actorAccountId: p.account.id, actorRole: p.grant.role, targetType: "user", targetId: userId, reason, requestId: meta.requestId, network: networkKey(meta.ip), detail: { session: maskId(sessionId), changed } });
+    await this.audit.record({ action: "user.session_revoke", outcome: "success", actorAccountId: p.account.id, actorRole: p.grant.role, targetType: "user", targetId: userId, reason, requestId: meta.requestId, network: networkKey(meta.ip), detail: { session: maskId(sessionId), changed } });
     return { ok: true as const };
   }
 
   async revokeDevice(p: AdminPrincipal, userId: string, deviceId: string, reason: string, meta: RequestMeta) {
     await this.guard(p, userId, "user.device_revoke", reason, meta);
-    if (!deviceOf(this.ctx.db, userId, deviceId)) throw notFound("No such device for this person.");
+    if (!deviceOf(this.ctx.identity, userId, deviceId)) throw notFound("No such device for this person.");
     const changed = await revokeUserDevice(this.ctx, userId, deviceId, "platform_admin");
-    this.audit.record({ action: "user.device_revoke", outcome: "success", actorAccountId: p.account.id, actorRole: p.grant.role, targetType: "user", targetId: userId, reason, requestId: meta.requestId, network: networkKey(meta.ip), detail: { device: deviceId, changed } });
+    await this.audit.record({ action: "user.device_revoke", outcome: "success", actorAccountId: p.account.id, actorRole: p.grant.role, targetType: "user", targetId: userId, reason, requestId: meta.requestId, network: networkKey(meta.ip), detail: { device: deviceId, changed } });
     return { ok: true as const };
   }
 
@@ -183,7 +183,7 @@ export class AdminDevices {
     const before = this.ctx.hub.connections().filter((c) => c.userId === userId && (!deviceId || c.deviceId === deviceId)).length;
     if (deviceId) this.ctx.hub.disconnectDevice(deviceId, "closed by an operator");
     else this.ctx.hub.disconnectUser(userId, "closed by an operator");
-    this.audit.record({ action: "user.disconnect", outcome: "success", actorAccountId: p.account.id, actorRole: p.grant.role, targetType: "user", targetId: userId, reason, requestId: meta.requestId, network: networkKey(meta.ip), detail: { device: deviceId ?? null, sockets: before } });
+    await this.audit.record({ action: "user.disconnect", outcome: "success", actorAccountId: p.account.id, actorRole: p.grant.role, targetType: "user", targetId: userId, reason, requestId: meta.requestId, network: networkKey(meta.ip), detail: { device: deviceId ?? null, sockets: before } });
     return { sockets: before };
   }
 
@@ -191,7 +191,7 @@ export class AdminDevices {
   connections() {
     const all = this.ctx.hub.connections().sort((a, b) => b.openedAt - a.openedAt);
     const shown = all.slice(0, CONNECTIONS_SHOWN);
-    const names = usernames(this.ctx.db, [...new Set(shown.map((c) => c.userId))]);
+    const names = usernames(this.ctx.identity, [...new Set(shown.map((c) => c.userId))]);
     return {
       connections: shown.map((c) => ({
         userId: c.userId,
@@ -213,8 +213,8 @@ export class AdminDevices {
     const t = now();
     await this.exclusions.get(t);
     const ms = { "1h": 3_600_000, "24h": DAY_MS, "7d": 7 * DAY_MS, "30d": 30 * DAY_MS, "90d": 90 * DAY_MS }[range];
-    const live = this.ctx.telemetry.live(t);
-    const series = analytics.presenceSeries(this.ctx.db, t - ms, t);
+    const live = await this.ctx.telemetry.live(t);
+    const series = analytics.presenceSeries(this.ctx, t - ms, t);
     const totals = series.points.reduce((a, p) => ({ connects: a.connects + p.connects, disconnects: a.disconnects + p.disconnects, abnormal: a.abnormal + p.abnormal, authFailures: a.authFailures + p.authFailures }), {
       connects: 0,
       disconnects: 0,

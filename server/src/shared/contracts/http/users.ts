@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import { PresenceState } from "../realtime.js";
+import { ActivityWire, PresenceState } from "../realtime.js";
 import { UserIdParams, zName, zUsername } from "./auth.js";
 import { idParams, zTime } from "./primitives.js";
 import { route } from "./route.js";
@@ -154,10 +154,14 @@ export const PresenceQuery = z.object({ ids: z.string().max(5000) });
  * photoRev is absent without a photo everyone may see.
  */
 /** API 0.46.0: what lists add from a person's profile media (the animated avatar, the style, the worn tag). */
+/** API 0.54.0: the Mojo badge someone shows (docs/MOJO.md); "check" is Meldiq Check, a Plus perk, not verification. */
+export const MojoBadge = z.strictObject({ badge: z.enum(["go", "plus"]), check: z.boolean() });
+
 export const listMediaFields = {
   avatarMedia: AvatarMedia.optional(),
   profileStyle: ProfileStyle.optional(),
   tag: WornTag.optional(),
+  mojo: MojoBadge.optional(),
 };
 
 export const UserSummary = z.strictObject({
@@ -193,6 +197,7 @@ const profileFields = {
   profileBanner: ProfileBanner.optional(),
   profileStyle: ProfileStyle.optional(),
   tag: WornTag.optional(),
+  mojo: MojoBadge.optional(),
   /** API 0.46.0: About me and links (under the bio's setting), and badges earned (bug-hunter). */
   aboutMe: z.string().optional(),
   links: z.array(z.strictObject({ label: z.string(), url: z.string() })).optional(),
@@ -233,6 +238,12 @@ export const UserProfile = z.strictObject({
   /** Absent when hidden. */
   presence: PresenceState.optional(),
   lastSeenAt: zTime.nullable(),
+  /** API 0.56.0: what they're playing; absent when nothing is shown to you. */
+  activity: ActivityWire.optional(),
+  /** API 0.57.0: when they joined Meldiq (the profile's "Member since"). */
+  memberSince: zTime.optional(),
+  /** API 0.57.0: communities you're both in (their icon, name, and when they joined it), newest join first. */
+  mutualCommunities: z.array(z.strictObject({ id: z.string(), name: z.string(), photoRev: z.number().int().nullable(), joinedAt: zTime })).optional(),
 });
 
 /** A device's public keys, to encrypt to and verify. */
@@ -248,7 +259,14 @@ export const DirectoryEntry = z.strictObject({
   revokedDevices: z.array(DirectoryDevice.extend({ revokedAt: zTime })),
 });
 
-export const PresenceEntry = z.strictObject({ userId: z.string(), online: z.boolean(), presence: PresenceState, lastSeenAt: zTime.nullable() });
+export const PresenceEntry = z.strictObject({
+  userId: z.string(),
+  online: z.boolean(),
+  presence: PresenceState,
+  lastSeenAt: zTime.nullable(),
+  /** API 0.56.0: what they're playing, when shown. */
+  activity: ActivityWire.optional(),
+});
 
 const user = (url: string, extra: Omit<Parameters<typeof route>[0], "url" | "tag" | "auth">) => route({ url, tag: "users", auth: true, ...extra });
 

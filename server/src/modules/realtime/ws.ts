@@ -5,6 +5,7 @@ import { type AuthInfo, authenticateToken, stillAuthenticated } from "../auth/in
 import type { Conn } from "./hub.js";
 import { canSeeLastSeen, presenceModeOf, type ProfileRow, shownPresence } from "../accounts/profile.js";
 import { acknowledge } from "../messaging/messagesRoutes.js";
+import { directPeers, memberIds } from "../messaging/index.js";
 import { now } from "../../shared/utilities/util.js";
 
 /**
@@ -23,38 +24,36 @@ import { now } from "../../shared/utilities/util.js";
 export function announcePresence(ctx: AppContext, userId: string): void {
   const { db, hub } = ctx;
   if (!db.open) return; // server shutting down
-  const peers = db
-    .prepare(
-      `SELECT DISTINCT m2.user_id FROM conversation_members m1
-       JOIN conversations c ON c.id = m1.conversation_id AND c.type IN ('DM','GROUP')
-       JOIN conversation_members m2 ON m2.conversation_id = m1.conversation_id
-       WHERE m1.user_id = ? AND m2.user_id != ?`,
-    )
-    .all(userId, userId) as { user_id: string }[];
+  const peers = directPeers(ctx, userId);
   // Someone whose "last seen" is limited is announced only to the people that setting allows (src/profile.ts).
-  const u = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as ProfileRow | undefined;
+  const u = ctx.identity.get<ProfileRow>("users", { id: userId });
   if (!u) return;
-  const audience = peers.filter((p) => canSeeLastSeen(ctx, p.user_id, u));
+  const audience = peers.filter((p) => canSeeLastSeen(ctx, p, u));
   const presence = shownPresence(ctx, u);
   const online = presence !== "offline";
   hub.sendToUsers(
-    audience.map((p) => p.user_id),
+    audience,
     { t: "presence", userId, online, presence, lastSeenAt: online ? null : hub.lastSeenAt(userId) },
   );
 }
 
 /** Batch B6b: whether [userId] chose to appear offline (their connections then change nothing others see). */
 function invisible(ctx: AppContext, userId: string): boolean {
-  const u = ctx.db.prepare("SELECT presence_mode, presence_until FROM users WHERE id = ?").get(userId) as ProfileRow | undefined;
+  const u = ctx.identity.get<ProfileRow>("users", { id: userId });
   return !!u && presenceModeOf(u) === "invisible";
 }
 
 export default async function wsRoutes(app: FastifyInstance, ctx: AppContext) {
   const { db, hub, authz } = ctx;
+  /** When a device was last connected (the device list's "last seen"): best effort, never in the way of the socket. */
+  const seen = (deviceId: string) =>
+    void ctx.identity.write((w) => w.update("devices", { id: deviceId }, { last_seen_at: now() })).catch((err) => ctx.log.warn({ err }, "device last-seen not recorded"));
   const lastTyping = new Map<string, number>();
 
-  hub.onPresenceChange = (userId) => {
+  hub.onPresenceChange = (userId, online) => {
     if (!db.open) return; // server shutting down
+    // API 0.56.0: an activity ends with the person's last connection, invisible or not (docs/ACTIVITY_STATUS.md).
+    if (!online) ctx.activity.ended(userId);
     // Batch B6b: an invisible person's apps connecting and disconnecting change nothing anyone sees.
     if (invisible(ctx, userId)) return;
     announcePresence(ctx, userId);
@@ -108,7 +107,7 @@ export default async function wsRoutes(app: FastifyInstance, ctx: AppContext) {
     });
     const start = (token: string | undefined): void => {
       authenticateToken(ctx, token)
-        .then((auth) => {
+        .then(async (auth) => {
           if (!auth) {
             refuse();
             return;
@@ -117,11 +116,11 @@ export default async function wsRoutes(app: FastifyInstance, ctx: AppContext) {
           // Open connections per person and in total (docs/QUOTAS.md), when an operator governs them.
           if (ctx.quotas.hasPolicies("ws.connections")) {
             const all = hub.connections();
-            const decision = ctx.quotas.check("ws.connections", [{ type: "user", id: auth.userId }, { type: "pool", id: "realtime" }], 1, {
+            const decision = await ctx.quotas.check("ws.connections", [{ type: "user", id: auth.userId }, { type: "pool", id: "realtime" }], 1, {
               measured: { user: all.filter((c) => c.userId === auth.userId).length, pool: all.length },
             });
-            if (!decision.allowed) {
-              socket.close(4429, "connection allowance used up");
+            if (!decision.allowed || socket.readyState !== socket.OPEN) {
+              if (socket.readyState === socket.OPEN) socket.close(4429, "connection allowance used up");
               return;
             }
           }
@@ -143,7 +142,7 @@ export default async function wsRoutes(app: FastifyInstance, ctx: AppContext) {
     const conn = hub.add(socket, auth.userId, auth.deviceId);
     conn.client = client;
     conn.sessionId = auth.sessionId;
-    db.prepare("UPDATE devices SET last_seen_at = ? WHERE id = ?").run(now(), auth.deviceId);
+    seen(auth.deviceId);
     socket.send(hub.encode({ t: "hello", userId: auth.userId, deviceId: auth.deviceId, serverTime: now() }));
     void hub.onDevice(auth.deviceId, () => hub.flushBacklog(conn)).catch((err) => ctx.log.error({ err }, "backlog flush failed"));
 
@@ -215,9 +214,7 @@ export default async function wsRoutes(app: FastifyInstance, ctx: AppContext) {
           if (lastTyping.size > 5000) for (const [k, at] of lastTyping) if (now() - at > 10_000) lastTyping.delete(k); // bounded (D20)
           const conv = authz.conversation(convId);
           if (!conv || !authz.isMember(conv.id, auth.userId)) break;
-          const members = (db.prepare("SELECT user_id FROM conversation_members WHERE conversation_id = ?").all(conv.id) as { user_id: string }[])
-            .map((r) => r.user_id)
-            .filter((u) => u !== auth.userId);
+          const members = memberIds(ctx, conv.id).filter((u) => u !== auth.userId);
           if (members.length > 200) break; // large channels: skip typing fan-out
           hub.sendToUsers(members, { t: "typing", c: conv.id, u: auth.userId, on: !!msg.on });
           break;
@@ -230,7 +227,7 @@ export default async function wsRoutes(app: FastifyInstance, ctx: AppContext) {
     socket.on("close", (code: number) => {
       clearInterval(heartbeat);
       hub.remove(conn, code);
-      if (db.open) db.prepare("UPDATE devices SET last_seen_at = ? WHERE id = ?").run(now(), auth.deviceId);
+      if (db.open) seen(auth.deviceId);
     });
     return onFrame;
   };

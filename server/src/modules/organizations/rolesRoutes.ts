@@ -31,6 +31,9 @@ import { ApiError, conflict, forbidden, notFound } from "../../shared/errors.js"
 import { newId, now } from "../../shared/utilities/util.js";
 import { reconcileAccess } from "./communityRoutes.js";
 import { notifyOrg } from "./orgsRoutes.js";
+import { mapByIds } from "../../infrastructure/database/byIds.js";
+import type { RowReader } from "../../infrastructure/database/rows/index.js";
+import { compareText, foldAscii } from "../../shared/utilities/sqlText.js";
 
 /**
  * Custom workspace roles (docs/WORKSPACE_ROLES.md): a workspace's own roles on top of the protected base roles, each
@@ -78,21 +81,20 @@ function throwRefusal(r: Refusal): never {
 
 /** What a workspace uses of each limited capability (round 7 adds members, storage, workflows and more). */
 export async function planUsage(ctx: AppContext, orgId: string, customRoles: number) {
-  const n = (sql: string, ...p: unknown[]) => (ctx.db.prepare(sql).get(...p) as { n: number | null }).n ?? 0;
   return {
     "roles.custom": customRoles,
-    members: n("SELECT COUNT(*) n FROM org_members WHERE org_id = ?", orgId),
+    members: ctx.ws.count("org_members", { org_id: orgId }),
     "storage.bytes": (await ctx.files.storedUsage({ conversations: ctx.authz.conversationIdsOf(orgId), liveAt: now() })).bytes,
   };
 }
 
 export default async function roleRoutes(app: FastifyInstance, ctx: AppContext) {
   const auth = { preHandler: requireAuth(ctx) };
-  const { authz, db } = ctx;
+  const { authz, db, ws } = ctx;
 
-  const roleRow = (id: string) => db.prepare("SELECT * FROM org_roles WHERE id = ?").get(id) as RoleRow | undefined;
-  const memberCount = (roleId: string) => (db.prepare("SELECT COUNT(*) n FROM org_role_members WHERE role_id = ?").get(roleId) as { n: number }).n;
-  const holders = (roleId: string) => (db.prepare("SELECT user_id FROM org_role_members WHERE role_id = ?").all(roleId) as { user_id: string }[]).map((r) => r.user_id);
+  const roleRow = (id: string, rows: RowReader = ws) => rows.get<RoleRow>("org_roles", { id });
+  const memberCount = (roleId: string) => ws.count("org_role_members", { role_id: roleId });
+  const holders = (roleId: string) => ws.all<{ user_id: string }>("org_role_members", { where: { role_id: roleId } }).map((r) => r.user_id);
 
   /**
    * Changing what a role does (its powers, its limits, or whether it counts) changes the access of everyone holding it,
@@ -100,8 +102,7 @@ export default async function roleRoutes(app: FastifyInstance, ctx: AppContext) 
    * powers they lack, by editing a role that person holds. Owners aren't affected by roles, so they don't count.
    */
   const requireReachOverHolders = (role: RoleRow, actor: Actor, actorId: string) => {
-    const holders = db.prepare("SELECT user_id FROM org_role_members WHERE role_id = ?").all(role.id) as { user_id: string }[];
-    for (const { user_id } of holders) {
+    for (const { user_id } of ws.all<{ user_id: string }>("org_role_members", { where: { role_id: role.id } })) {
       const t = authz.actor(role.org_id, user_id);
       if (!t || t.base === "OWNER") continue;
       if (!canActOn(actor, { base: t.base, perms: t.perms, self: user_id === actorId })) {
@@ -145,16 +146,21 @@ export default async function roleRoutes(app: FastifyInstance, ctx: AppContext) 
   };
 
   /** Active roles' names are unique in a workspace (case-insensitive), and never a base role's name. */
-  const nameTaken = (orgId: string, name: string, exceptId?: string): RoleRow | { id: null } | undefined => {
+  const nameTaken = (rows: RowReader, orgId: string, name: string, exceptId?: string): RoleRow | { id: null } | undefined => {
     if (Object.values(BASE_NAMES).some((b) => b.toLowerCase() === name.trim().toLowerCase())) return { id: null };
-    return db
-      .prepare("SELECT * FROM org_roles WHERE org_id = ? AND archived_at IS NULL AND lower(name) = lower(?) AND id != ?")
-      .get(orgId, name.trim(), exceptId ?? "") as RoleRow | undefined;
+    const wanted = foldAscii(name.trim());
+    return rows.all<RoleRow>("org_roles", { where: { org_id: orgId, archived_at: null, id: { ne: exceptId ?? "" } } }).find((r) => foldAscii(r.name) === wanted);
   };
   const refuseTaken = (taken: RoleRow | { id: null }, name: string): never => {
     throw new ApiError(409, "role_name_taken", `A role called "${name.trim()}" already exists in this workspace`, taken.id ? { roleId: taken.id } : undefined);
   };
-  const activeCount = (orgId: string) => (db.prepare("SELECT COUNT(*) n FROM org_roles WHERE org_id = ? AND archived_at IS NULL").get(orgId) as { n: number }).n;
+  const activeCount = (orgId: string, rows: RowReader = ws) => rows.count("org_roles", { org_id: orgId, archived_at: null });
+  /** How many members hold each base role. */
+  const countByRole = (orgId: string): Map<OrgRole, number> => {
+    const out = new Map<OrgRole, number>();
+    for (const m of ws.all<{ role: OrgRole }>("org_members", { where: { org_id: orgId } })) out.set(m.role, (out.get(m.role) ?? 0) + 1);
+    return out;
+  };
 
   // ───────────── The catalog and the workspace's roles ─────────────
   app.get("/v1/orgs/:orgId/roles", auth, async (req) => {
@@ -163,12 +169,10 @@ export default async function roleRoutes(app: FastifyInstance, ctx: AppContext) 
     const { includeArchived } = parse(RolesQuery, req.query);
     authz.requirePermission(orgId, userId, "roles.view", "Your role doesn't include viewing roles");
     const actor = authz.actor(orgId, userId)!;
-    const rows = db
-      .prepare(`SELECT * FROM org_roles WHERE org_id = ? ${includeArchived === "true" ? "" : "AND archived_at IS NULL"} ORDER BY archived_at IS NOT NULL, position, name`)
-      .all(orgId) as RoleRow[];
-    const baseCounts = new Map(
-      (db.prepare("SELECT role, COUNT(*) n FROM org_members WHERE org_id = ? GROUP BY role").all(orgId) as { role: OrgRole; n: number }[]).map((r) => [r.role, r.n]),
-    );
+    const rows = ws
+      .all<RoleRow>("org_roles", { where: includeArchived === "true" ? { org_id: orgId } : { org_id: orgId, archived_at: null } })
+      .sort((a, b) => Number(a.archived_at !== null) - Number(b.archived_at !== null) || a.position - b.position || compareText(a.name, b.name));
+    const baseCounts = countByRole(orgId);
     return {
       catalog: PERMISSIONS,
       templates: ROLE_TEMPLATES,
@@ -222,33 +226,31 @@ export default async function roleRoutes(app: FastifyInstance, ctx: AppContext) 
     if (refusal) throwRefusal(refusal);
     const id = newId("rl");
     const t = now();
-    db.transaction(() => {
-      // Checked inside the write lock, so two creates can't both take a name or the last slot.
-      const taken = nameTaken(orgId, name);
+    await ws.write((w) => {
+      // Checked inside the write unit, so two creates can't both take a name or the last slot.
+      const taken = nameTaken(w, orgId, name);
       if (taken) refuseTaken(taken, name);
-      if (activeCount(orgId) >= MAX_ACTIVE_ROLES) throw conflict(`A workspace can have at most ${MAX_ACTIVE_ROLES} active roles. Archive one first.`);
-      ctx.entitlements.check("roles.custom", activeCount(orgId), orgId);
-      const position = ((db.prepare("SELECT MAX(position) p FROM org_roles WHERE org_id = ?").get(orgId) as { p: number | null }).p ?? 0) + 1;
-      db.prepare(
-        `INSERT INTO org_roles (id, org_id, name, description, color, icon, permissions, denies, template, position, hoist, rev, created_by, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
-      ).run(
+      if (activeCount(orgId, w) >= MAX_ACTIVE_ROLES) throw conflict(`A workspace can have at most ${MAX_ACTIVE_ROLES} active roles. Archive one first.`);
+      ctx.entitlements.check("roles.custom", activeCount(orgId, w), orgId);
+      const last = w.get<{ position: number }>("org_roles", { org_id: orgId }, [["position", "desc"]]);
+      w.insert("org_roles", {
         id,
-        orgId,
+        org_id: orgId,
         name,
-        body.description === undefined ? start.description : body.description,
-        body.color === undefined ? start.color : body.color,
-        body.icon === undefined ? start.icon : body.icon,
-        JSON.stringify(grant.permissions),
-        JSON.stringify(grant.denies),
-        start.template,
-        position,
-        body.hoist ? 1 : 0,
-        userId,
-        t,
-        t,
-      );
-    })();
+        description: body.description === undefined ? start.description : body.description,
+        color: body.color === undefined ? start.color : body.color,
+        icon: body.icon === undefined ? start.icon : body.icon,
+        permissions: JSON.stringify(grant.permissions),
+        denies: JSON.stringify(grant.denies),
+        template: start.template,
+        position: (last?.position ?? 0) + 1,
+        hoist: body.hoist ? 1 : 0,
+        rev: 1,
+        created_by: userId,
+        created_at: t,
+        updated_at: t,
+      });
+    });
     ctx.audit({ actorId: userId, orgId, action: "role.create", target: id, detail: name });
     notifyOrg(ctx, orgId);
     return { role: view(roleRow(id)!, actor) };
@@ -267,37 +269,37 @@ export default async function roleRoutes(app: FastifyInstance, ctx: AppContext) 
     const archiveFlip = body.archived !== undefined && body.archived !== (role.archived_at !== null);
     if (archiveFlip || !sameKeys(after.permissions, before.permissions) || !sameKeys(after.denies, before.denies)) requireReachOverHolders(role, actor, userId);
     const t = now();
-    const result = db.transaction(() => {
-      const current = roleRow(roleId);
+    const result = await ws.write((w) => {
+      const current = roleRow(roleId, w);
       if (!current) throw notFound("Role not found");
       if (current.rev !== body.baseRev) return { stale: current };
       const archiving = body.archived === undefined ? null : body.archived;
       const name = body.name ?? current.name;
       if ((archiving === false && current.archived_at) || (body.name && !current.archived_at)) {
-        const taken = nameTaken(current.org_id, name, current.id);
+        const taken = nameTaken(w, current.org_id, name, current.id);
         if (taken) refuseTaken(taken, name);
       }
-      if (archiving === false && current.archived_at && activeCount(current.org_id) >= MAX_ACTIVE_ROLES) {
+      if (archiving === false && current.archived_at && activeCount(current.org_id, w) >= MAX_ACTIVE_ROLES) {
         throw conflict(`A workspace can have at most ${MAX_ACTIVE_ROLES} active roles. Archive one first.`);
       }
-      db.prepare(
-        `UPDATE org_roles SET name = ?, description = ?, color = ?, icon = ?, hoist = ?, permissions = ?, denies = ?, archived_at = ?, rev = rev + 1, updated_at = ?
-         WHERE id = ? AND rev = ?`,
-      ).run(
-        name,
-        body.description === undefined ? current.description : body.description,
-        body.color === undefined ? current.color : body.color,
-        body.icon === undefined ? current.icon : body.icon,
-        body.hoist === undefined ? (current.hoist ?? 0) : body.hoist ? 1 : 0,
-        JSON.stringify(after.permissions),
-        JSON.stringify(after.denies),
-        archiving === null ? current.archived_at : archiving ? t : null,
-        t,
-        roleId,
-        body.baseRev,
+      w.update(
+        "org_roles",
+        { id: roleId, rev: body.baseRev },
+        {
+          name,
+          description: body.description === undefined ? current.description : body.description,
+          color: body.color === undefined ? current.color : body.color,
+          icon: body.icon === undefined ? current.icon : body.icon,
+          hoist: body.hoist === undefined ? (current.hoist ?? 0) : body.hoist ? 1 : 0,
+          permissions: JSON.stringify(after.permissions),
+          denies: JSON.stringify(after.denies),
+          archived_at: archiving === null ? current.archived_at : archiving ? t : null,
+          rev: current.rev + 1,
+          updated_at: t,
+        },
       );
       return { stale: null, archiveChange: archiving !== null && archiving !== (current.archived_at !== null), archiving };
-    })();
+    });
     if (result.stale) {
       throw new ApiError(409, "stale", "Someone else changed this role. Review the latest version and try again.", { role: view(result.stale, actor) });
     }
@@ -317,10 +319,10 @@ export default async function roleRoutes(app: FastifyInstance, ctx: AppContext) 
     if (refusal) throwRefusal(refusal);
     if (!role.archived_at) throw new ApiError(409, "not_archived", "Archive the role before deleting it");
     const removed = memberCount(roleId);
-    db.transaction(() => {
-      db.prepare("DELETE FROM channel_overwrites WHERE org_id = ? AND subject = ?").run(role.org_id, roleId);
-      db.prepare("DELETE FROM org_roles WHERE id = ? AND archived_at IS NOT NULL").run(roleId);
-    })();
+    await ws.write((w) => {
+      w.delete("channel_overwrites", { org_id: role.org_id, subject: roleId });
+      w.delete("org_roles", { id: roleId, archived_at: { ne: null } });
+    });
     ctx.audit({ actorId: userId, orgId: role.org_id, action: "role.delete", target: roleId, detail: `${role.name} (${removed} assignment(s))` });
     notifyOrg(ctx, role.org_id);
     return { ok: true };
@@ -332,13 +334,16 @@ export default async function roleRoutes(app: FastifyInstance, ctx: AppContext) 
     const { roleId } = parse(RoleParams, req.params);
     const { role, actor } = loadRole(roleId, userId);
     if (!actor.perms.has("roles.view") || !actor.perms.has("members.view")) throw forbidden("Your role doesn't include seeing who holds roles");
-    const rows = db
-      .prepare(
-        `SELECT u.id, u.username, u.display_name, m.role AS org_role, a.assigned_at, a.assigned_by FROM org_role_members a
-         JOIN users u ON u.id = a.user_id JOIN org_members m ON m.org_id = a.org_id AND m.user_id = a.user_id
-         WHERE a.role_id = ? ORDER BY u.display_name LIMIT 1000`,
-      )
-      .all(role.id) as { id: string; username: string; display_name: string; org_role: OrgRole; assigned_at: number; assigned_by: string }[];
+    const assigned = ws.all<{ org_id: string; user_id: string; assigned_at: number; assigned_by: string }>("org_role_members", { where: { role_id: role.id } });
+    const people = mapByIds<{ id: string; username: string; display_name: string }>(ctx.identity, "users", "id", assigned.map((a) => a.user_id), "id, username, display_name");
+    const rows = assigned
+      .flatMap((a) => {
+        const u = people.get(a.user_id);
+        const m = ws.get<{ role: OrgRole }>("org_members", { org_id: a.org_id, user_id: a.user_id });
+        return u && m ? [{ id: u.id, username: u.username, display_name: u.display_name, org_role: m.role, assigned_at: a.assigned_at, assigned_by: a.assigned_by }] : [];
+      })
+      .sort((a, b) => compareText(a.display_name, b.display_name))
+      .slice(0, 1000);
     return {
       members: rows.map((r) => ({ id: r.id, username: r.username, displayName: r.display_name, orgRole: r.org_role, assignedAt: r.assigned_at, assignedBy: r.assigned_by })),
     };
@@ -358,13 +363,13 @@ export default async function roleRoutes(app: FastifyInstance, ctx: AppContext) 
     const target = targetIn(role.org_id, p.userId, actorId);
     const refusal = roleAssignmentRefusal(actor, target, grantOf(role));
     if (refusal) throwRefusal(refusal);
-    const added = db.transaction(() => {
-      if (db.prepare("SELECT 1 FROM org_role_members WHERE role_id = ? AND user_id = ?").get(role.id, p.userId)) return false;
-      const held = (db.prepare("SELECT COUNT(*) n FROM org_role_members WHERE org_id = ? AND user_id = ?").get(role.org_id, p.userId) as { n: number }).n;
+    const added = await ws.write((w) => {
+      if (w.get("org_role_members", { role_id: role.id, user_id: p.userId })) return false;
+      const held = w.count("org_role_members", { org_id: role.org_id, user_id: p.userId });
       if (held >= MAX_ROLES_PER_MEMBER) throw conflict(`A person can hold at most ${MAX_ROLES_PER_MEMBER} roles`);
-      db.prepare("INSERT INTO org_role_members (role_id, org_id, user_id, assigned_by, assigned_at) VALUES (?, ?, ?, ?, ?)").run(role.id, role.org_id, p.userId, actorId, now());
+      w.insert("org_role_members", { role_id: role.id, org_id: role.org_id, user_id: p.userId, assigned_by: actorId, assigned_at: now() });
       return true;
-    })();
+    });
     // Assigning twice is harmless (a retry or a double tap): the same answer, no second audit entry.
     if (added) {
       ctx.audit({ actorId, orgId: role.org_id, action: "role.assign", target: `${role.id}:${p.userId}`, detail: role.name });
@@ -380,7 +385,7 @@ export default async function roleRoutes(app: FastifyInstance, ctx: AppContext) 
     const target = targetIn(role.org_id, p.userId, actorId);
     const refusal = roleRemovalRefusal(actor, target, grantOf(role));
     if (refusal) throwRefusal(refusal);
-    const removed = db.prepare("DELETE FROM org_role_members WHERE role_id = ? AND user_id = ?").run(role.id, p.userId).changes > 0;
+    const removed = (await ws.write((w) => w.delete("org_role_members", { role_id: role.id, user_id: p.userId }))) > 0;
     if (removed) {
       ctx.audit({ actorId, orgId: role.org_id, action: "role.unassign", target: `${role.id}:${p.userId}`, detail: role.name });
       await reconcileAccess(ctx, role.org_id, [p.userId]);
@@ -424,19 +429,19 @@ export default async function roleRoutes(app: FastifyInstance, ctx: AppContext) 
     const body = parse(OwnershipBody, req.body);
     authz.requirePermission(orgId, actorId, "workspace.transfer", "Only an owner can transfer ownership");
     if (body.userId === actorId) throw new ApiError(400, "bad_request", "Choose someone else to become the owner");
-    const org = db.prepare("SELECT name FROM orgs WHERE id = ?").get(orgId) as { name: string };
+    const org = ws.get<{ name: string }>("orgs", { id: orgId })!;
     if (body.confirmName.trim() !== org.name.trim()) throw new ApiError(400, "confirm_mismatch", "Type the workspace's name exactly as it appears to transfer it");
     const targetRole = authz.orgRole(orgId, body.userId);
     if (!targetRole) throw notFound("That person is not a member of this workspace");
     if (targetRole === "GUEST") throw conflict("Make this guest a member before handing them the workspace");
     if (targetRole === "OWNER") throw conflict("This person is already an owner");
-    db.transaction(() => {
-      // Checked again inside the write lock: the actor may have stopped being an owner a moment ago.
+    await ws.write((w) => {
+      // Checked again inside the write unit: the actor may have stopped being an owner a moment ago.
       if (authz.orgRole(orgId, actorId) !== "OWNER") throw forbidden("Only an owner can transfer ownership");
-      db.prepare("UPDATE org_members SET role = 'OWNER' WHERE org_id = ? AND user_id = ?").run(orgId, body.userId);
-      db.prepare("UPDATE org_members SET role = 'ADMIN' WHERE org_id = ? AND user_id = ?").run(orgId, actorId);
-      authz.autoJoinScope(orgId, body.userId, now());
-    })();
+      w.update("org_members", { org_id: orgId, user_id: body.userId }, { role: "OWNER" });
+      w.update("org_members", { org_id: orgId, user_id: actorId }, { role: "ADMIN" });
+      authz.autoJoinScope(w, orgId, body.userId, now());
+    });
     ctx.audit({ actorId, orgId, action: "org.ownership.transfer", target: body.userId, detail: `${targetRole}→OWNER; previous owner→ADMIN` });
     notifyOrg(ctx, orgId);
     return { ok: true, newOwner: body.userId, yourRole: "ADMIN" as OrgRole };
@@ -447,10 +452,7 @@ export default async function roleRoutes(app: FastifyInstance, ctx: AppContext) 
     const { userId } = me(req);
     const { orgId } = parse(OrgParams, req.params);
     authz.requirePermission(orgId, userId, "workspace.usage.view", "Your role doesn't include usage figures");
-    const count = (sql: string, ...args: unknown[]) => (db.prepare(sql).get(...args) as { n: number | null }).n ?? 0;
-    const byRole = new Map(
-      (db.prepare("SELECT role, COUNT(*) n FROM org_members WHERE org_id = ? GROUP BY role").all(orgId) as { role: OrgRole; n: number }[]).map((r) => [r.role, r.n]),
-    );
+    const byRole = countByRole(orgId);
     const t = now();
     const stored = await ctx.files.storedUsage({ conversations: authz.conversationIdsOf(orgId), liveAt: t });
     const files = { n: stored.count, bytes: stored.bytes };
@@ -467,14 +469,16 @@ export default async function roleRoutes(app: FastifyInstance, ctx: AppContext) 
         branches: 0,
         departments: 0,
         teams: 0,
-        categories: count("SELECT COUNT(*) n FROM channel_categories WHERE org_id = ?", orgId),
-        channels: count("SELECT COUNT(*) n FROM conversations WHERE org_id = ? AND type = 'CHANNEL' AND archived_at IS NULL", orgId),
-        archivedChannels: count("SELECT COUNT(*) n FROM conversations WHERE org_id = ? AND type = 'CHANNEL' AND archived_at IS NOT NULL", orgId),
+        categories: ws.count("channel_categories", { org_id: orgId }),
+        channels: ws.count("conversations", { org_id: orgId, type: "CHANNEL", archived_at: null }),
+        archivedChannels: ws.count("conversations", { org_id: orgId, type: "CHANNEL", archived_at: { ne: null } }),
       },
       // Sizes of the encrypted files the server still holds for the workspace's channels (it never sees their content).
       files: { count: files.n, bytes: files.bytes },
-      invitations: { active: count("SELECT COUNT(*) n FROM invitations WHERE org_id = ? AND revoked_at IS NULL AND expires_at > ? AND uses < max_uses", orgId, t) },
-      roles: { custom: count("SELECT COUNT(*) n FROM org_roles WHERE org_id = ? AND archived_at IS NULL", orgId) },
+      invitations: {
+        active: ws.all<{ uses: number; max_uses: number }>("invitations", { where: { org_id: orgId, revoked_at: null, expires_at: { gt: t } } }).filter((i) => i.uses < i.max_uses).length,
+      },
+      roles: { custom: ws.count("org_roles", { org_id: orgId, archived_at: null }) },
       limits: { fileMaxBytes: ctx.config.fileMaxBytes, orgStoredBytes: ctx.config.abuse.orgStoredBytes || null },
       // Round 7: measured usage over the last 30 days, per day (docs/USAGE_AND_PLANS.md). Counts and sizes only.
       metered: await (async () => {
@@ -490,7 +494,7 @@ export default async function roleRoutes(app: FastifyInstance, ctx: AppContext) 
     const { userId } = me(req);
     const { orgId } = parse(OrgParams, req.params);
     authz.requireOrgMember(orgId, userId);
-    const customRoles = (db.prepare("SELECT COUNT(*) n FROM org_roles WHERE org_id = ? AND archived_at IS NULL").get(orgId) as { n: number }).n;
+    const customRoles = ws.count("org_roles", { org_id: orgId, archived_at: null });
     return ctx.entitlements.plan(await planUsage(ctx, orgId, customRoles), orgId);
   });
 
@@ -501,13 +505,16 @@ export default async function roleRoutes(app: FastifyInstance, ctx: AppContext) 
     const { orgId } = parse(OrgParams, req.params);
     const q = parse(AuditQuery, req.query);
     authz.requirePermission(orgId, userId, "audit.view", "Your role doesn't include the audit log");
-    const rows = db
-      .prepare(
-        `SELECT a.*, u.display_name AS actor_name FROM audit_log a LEFT JOIN users u ON u.id = a.actor_id
-         WHERE a.org_id = ? AND a.id < ? AND (? IS NULL OR a.action = ? OR a.action LIKE ? ESCAPE '\\') AND (? IS NULL OR a.actor_id = ?)
-         ORDER BY a.id DESC LIMIT ?`,
-      )
-      .all(orgId, q.before ?? Number.MAX_SAFE_INTEGER, q.action ?? null, q.action ?? null, q.action ? `${q.action.replace(/[%_\\]/g, (c) => "\\" + c)}.%` : null, q.actorId ?? null, q.actorId ?? null, q.limit + 1) as any[];
+    // The action filter matches the action itself or any under it ("member" finds "member.remove"), ASCII case ignored
+    // as SQLite's LIKE did.
+    const family = q.action ? `${foldAscii(q.action)}.` : null;
+    const entries = ws.all<any>("audit_log", {
+      where: { org_id: orgId, id: { lt: q.before ?? Number.MAX_SAFE_INTEGER }, ...(q.actorId ? { actor_id: q.actorId } : {}) },
+      orderBy: [["id", "desc"]],
+    });
+    const matching = (q.action ? entries.filter((a) => a.action === q.action || foldAscii(a.action).startsWith(family!)) : entries).slice(0, q.limit + 1);
+    const actors = mapByIds<{ id: string; display_name: string }>(ctx.identity, "users", "id", matching.flatMap((a) => (a.actor_id ? [a.actor_id] : [])), "id, display_name");
+    const rows = matching.map((a) => ({ ...a, actor_name: a.actor_id ? (actors.get(a.actor_id)?.display_name ?? null) : null }));
     const page = rows.slice(0, q.limit);
     return {
       entries: page.map((r) => ({ id: r.id, at: r.at, action: r.action, actorId: r.actor_id, actorName: r.actor_name ?? null, target: r.target, detail: r.detail })),

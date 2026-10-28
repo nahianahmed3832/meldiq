@@ -49,12 +49,12 @@ export class AdminAnalytics {
   }
 
   /** DAU/WAU/MAU for the last complete UTC day and the one before, or null before collection covers them. */
-  private activeTrio(excluded: string, t: number) {
+  private activeTrio(excluded: readonly string[], t: number) {
     const since = this.collectingSince();
     const yesterday = utcDay(t - DAY_MS);
     const before = utcDay(t - 2 * DAY_MS);
     const covered = (day: string, span: number) => since !== null && analytics.addDays(day, -(span - 1)) >= utcDay(since);
-    const metric = (day: string, span: number) => (covered(day, span) || (since !== null && day >= utcDay(since) && span === 1) ? analytics.distinctActive(this.ctx.db, analytics.addDays(day, -(span - 1)), day, excluded) : null);
+    const metric = (day: string, span: number) => (covered(day, span) || (since !== null && day >= utcDay(since) && span === 1) ? analytics.distinctActive(this.ctx, analytics.addDays(day, -(span - 1)), day, excluded) : null);
     const pick = (span: number) => compare(metric(yesterday, span), metric(span === 1 ? before : analytics.addDays(yesterday, -span), span));
     return { dau: pick(1), wau: pick(7), mau: pick(30) };
   }
@@ -63,33 +63,34 @@ export class AdminAnalytics {
     const t = now();
     const ms = RANGE_MS[range];
     const ex = await this.exclusions.get(t);
-    const db = this.ctx.db;
-    const people = userCounts(db, t, 1);
-    const states = accountStateCounts(db, t);
-    const trio = this.activeTrio(ex.json, t);
+
+    const ws = this.ctx.ws;
+    const people = userCounts(this.ctx.identity, t, 1);
+    const states = accountStateCounts(this.ctx.identity, t);
+    const trio = this.activeTrio(ex.ids, t);
     const since = this.collectingSince();
     const sinceOk = (from: number) => since !== null && from >= since;
-    const activeNow = analytics.activeBetween(db, t - ms, t, ex.json);
-    const activePrev = sinceOk(t - 2 * ms) ? analytics.activeBetween(db, t - 2 * ms, t - ms, ex.json) : null;
-    const live = this.ctx.telemetry.live(t);
-    const presence = analytics.presenceSeries(db, t - ms, t);
-    const orgs = orgCounts(db, t, 1);
+    const activeNow = analytics.activeBetween(this.ctx, t - ms, t, ex.ids);
+    const activePrev = sinceOk(t - 2 * ms) ? analytics.activeBetween(this.ctx, t - 2 * ms, t - ms, ex.ids) : null;
+    const live = await this.ctx.telemetry.live(t);
+    const presence = analytics.presenceSeries(this.ctx, t - ms, t);
+    const orgs = orgCounts(ws, t, 1);
     // Organizations with at least one member active in the range (the largest ORGS_SHOWN).
     const fromDay = utcDay(t - ms);
-    const activeOrgs = since === null ? null : orgsWithMembers(db, ORGS_SHOWN).filter((o) => analytics.activeAmong(db, JSON.stringify(o.members), fromDay, utcDay(t), ex.json).users > 0).length;
-    const trafficDays = analytics.trafficDays(db, fromDay, utcDay(t), ex.json);
+    const activeOrgs = since === null ? null : orgsWithMembers(ws, ORGS_SHOWN).filter((o) => analytics.activeAmong(this.ctx, o.members, fromDay, utcDay(t), ex.ids).users > 0).length;
+    const trafficDays = analytics.trafficDays(this.ctx, fromDay, utcDay(t), ex.ids);
     const sum = (metric: string) => (since === null ? null : trafficDays.filter((d) => d.metric === metric).reduce((a, d) => a + d.value, 0));
     await this.ctx.usage.snapshot();
     const workspaceBytes = this.ctx.usage.totals(1).reduce((a, o) => a + (o.metrics["storage.bytes"] ?? 0), 0);
     const health = can(p.grant.role, "health.view");
     const requests = health
       ? {
-          requests: analytics.seriesSum(db, "api.requests", t - ms, t),
-          serverErrors: analytics.seriesSum(db, "api.errors_5xx", t - ms, t),
+          requests: analytics.seriesSum(this.ctx, "api.requests", t - ms, t),
+          serverErrors: analytics.seriesSum(this.ctx, "api.errors_5xx", t - ms, t),
           errorRate: null as number | null,
-          p50Ms: analytics.seriesAvg(db, "api.latency.p50_ms", t - ms, t),
-          p95Ms: analytics.seriesAvg(db, "api.latency.p95_ms", t - ms, t),
-          p99Ms: analytics.seriesAvg(db, "api.latency.p99_ms", t - ms, t),
+          p50Ms: analytics.seriesAvg(this.ctx, "api.latency.p50_ms", t - ms, t),
+          p95Ms: analytics.seriesAvg(this.ctx, "api.latency.p95_ms", t - ms, t),
+          p99Ms: analytics.seriesAvg(this.ctx, "api.latency.p99_ms", t - ms, t),
           wsAuthFailures: presence.points.length ? presence.points.reduce((a, x) => a + x.authFailures, 0) : null,
           wsAbnormal: presence.points.length ? presence.points.reduce((a, x) => a + x.abnormal, 0) : null,
           wsConnects: presence.points.length ? presence.points.reduce((a, x) => a + x.connects, 0) : null,
@@ -97,8 +98,9 @@ export class AdminAnalytics {
       : null;
     if (requests && requests.requests) requests.errorRate = Math.round(((requests.serverErrors ?? 0) / requests.requests) * 10000) / 100;
     const providers = health ? this.ctx.metrics.snapshot().providers.map((x) => ({ name: x.name, ok: x.ok, failed: x.failed, lastFailureAt: x.lastFailureAt })) : null;
-    const incidents = db.prepare("SELECT COUNT(*) n, COALESCE(SUM(severity = 'sev1'), 0) c FROM platform_incidents WHERE status != 'resolved'").get() as { n: number; c: number };
-    const breaching = (db.prepare("SELECT COUNT(*) n FROM alert_state WHERE breaching = 1").get() as { n: number }).n;
+    const open = { status: { ne: "resolved" } };
+    const incidents = { n: this.ctx.platform.count("platform_incidents", open), c: this.ctx.platform.count("platform_incidents", { ...open, severity: "sev1" }) };
+    const breaching = this.ctx.platform.count("alert_state", { breaching: 1 });
     return {
       generatedAt: t,
       range,
@@ -108,12 +110,12 @@ export class AdminAnalytics {
       activity: {
         ...trio,
         activeInRange: compare(since === null ? null : activeNow, activePrev),
-        newSignups: compare(signupsBetween(db, t - ms, t), signupsBetween(db, t - 2 * ms, t - ms)),
+        newSignups: compare(signupsBetween(this.ctx.identity, t - ms, t), signupsBetween(this.ctx.identity, t - 2 * ms, t - ms)),
         dauOverMau: trio.dau.current !== null && trio.mau.current ? Math.round((trio.dau.current / trio.mau.current) * 1000) / 10 : null,
         wauOverMau: trio.wau.current !== null && trio.mau.current ? Math.round((trio.wau.current / trio.mau.current) * 1000) / 10 : null,
       },
       live: { users: live.users, activeUsers: live.activeUsers, devices: live.devices, sockets: live.sockets, calls: live.calls.calls, callParticipants: live.calls.participants, peakUsers: presence.peakUsers, peakAt: presence.peakAt },
-      organizations: { total: orgs.total, active: activeOrgs, newInRange: compare(orgsCreatedBetween(db, t - ms, t), orgsCreatedBetween(db, t - 2 * ms, t - ms)) },
+      organizations: { total: orgs.total, active: activeOrgs, newInRange: compare(orgsCreatedBetween(ws, t - ms, t), orgsCreatedBetween(ws, t - 2 * ms, t - ms)) },
       messaging: {
         messagesAccepted: sum("messages"),
         why: "Message envelopes the server accepted (UTC days covering the range), counted per sender; never their content. End-to-end encrypted: the server can't tell what they contain.",
@@ -131,7 +133,7 @@ export class AdminAnalytics {
     const ex = await this.exclusions.get();
     const since = this.collectingSince();
     const sinceDay = since === null ? null : utcDay(since);
-    const days = analytics.activeUsers(this.ctx.db, from, to, ex.json).map((d) => ({ ...d, collected: sinceDay !== null && d.day >= sinceDay }));
+    const days = analytics.activeUsers(this.ctx, from, to, ex.ids).map((d) => ({ ...d, collected: sinceDay !== null && d.day >= sinceDay }));
     return {
       from,
       to,
@@ -148,13 +150,13 @@ export class AdminAnalytics {
     const t = now();
     const since = this.collectingSince();
     const sinceDay = since === null ? null : utcDay(since);
-    const signups = signupsPerDay(this.ctx.db, Date.parse(`${from}T00:00:00Z`), Date.parse(`${to}T00:00:00Z`) + DAY_MS, ex.json);
-    const cohorts = analytics.retention(this.ctx.db, signups, ex.json, utcDay(t), sinceDay);
+    const signups = signupsPerDay(this.ctx.identity, Date.parse(`${from}T00:00:00Z`), Date.parse(`${to}T00:00:00Z`) + DAY_MS, ex.ids);
+    const cohorts = analytics.retention(this.ctx, signups, ex.ids, utcDay(t), sinceDay);
     // Activation: sign-ups since collection began that have had their full 7 days.
     const start = Math.max(Date.parse(`${from}T00:00:00Z`), since ?? Infinity);
     const end = Math.min(Date.parse(`${to}T00:00:00Z`) + DAY_MS, t - ACTIVATION_DAYS * DAY_MS);
-    const eligible = start < end ? signupsPerDay(this.ctx.db, start, end, ex.json).reduce((a, d) => a + d.count, 0) : 0;
-    const act = start < end ? analytics.activation(this.ctx.db, start, end, ex.json) : { activated: 0, medianMsToFirstAction: null };
+    const eligible = start < end ? signupsPerDay(this.ctx.identity, start, end, ex.ids).reduce((a, d) => a + d.count, 0) : 0;
+    const act = start < end ? analytics.activation(this.ctx, start, end, ex.ids) : { activated: 0, medianMsToFirstAction: null };
     return {
       from,
       to,
@@ -172,13 +174,13 @@ export class AdminAnalytics {
   async clients(q: { from?: string; to?: string }) {
     const { from, to } = dayRange(q);
     const ex = await this.exclusions.get();
-    const c = analytics.activeByClient(this.ctx.db, from, to, ex.json);
+    const c = analytics.activeByClient(this.ctx, from, to, ex.ids);
     return {
       from,
       to,
       platforms: c.platforms,
       versions: c.versions,
-      accountAge: analytics.activeByAccountAge(this.ctx.db, from, to, ex.json),
+      accountAge: analytics.activeByAccountAge(this.ctx, from, to, ex.ids),
       note: "Platform comes from each request's client (User-Agent). App versions appear only for clients that send one: today iOS builds do; the Android app and browsers don't. Location isn't collected.",
     };
   }
@@ -186,8 +188,8 @@ export class AdminAnalytics {
   async organizations(q: { from?: string; to?: string }) {
     const { from, to } = dayRange(q);
     const ex = await this.exclusions.get();
-    const rows = orgsWithMembers(this.ctx.db, ORGS_SHOWN).map((o) => {
-      const a = analytics.activeAmong(this.ctx.db, JSON.stringify(o.members), from, to, ex.json);
+    const rows = orgsWithMembers(this.ctx.ws, ORGS_SHOWN).map((o) => {
+      const a = analytics.activeAmong(this.ctx, o.members, from, to, ex.ids);
       return { id: o.id, name: o.name, kind: o.kind, members: o.members.length, activeMembers: a.users, lastActiveAt: a.lastAt };
     });
     return { from, to, organizations: rows.sort((a, b) => b.activeMembers - a.activeMembers || b.members - a.members) };
@@ -196,26 +198,27 @@ export class AdminAnalytics {
   async traffic(q: { from?: string; to?: string }) {
     const { from, to } = dayRange(q);
     const ex = await this.exclusions.get();
-    const db = this.ctx.db;
+
+    const ws = this.ctx.ws;
     const t = now();
     const fromMs = Date.parse(`${from}T00:00:00Z`);
     const toMs = Math.min(Date.parse(`${to}T00:00:00Z`) + DAY_MS, t);
-    const days = analytics.trafficDays(db, from, to, ex.json).filter((d) => d.metric !== "messages") as { day: string; metric: "api.in" | "api.out" | "ws.in" | "ws.out" | "files.upload" | "files.download"; value: number }[];
+    const days = analytics.trafficDays(this.ctx, from, to, ex.ids).filter((d) => d.metric !== "messages") as { day: string; metric: "api.in" | "api.out" | "ws.in" | "ws.out" | "files.upload" | "files.download"; value: number }[];
     const totals: Record<string, number> = {};
     for (const d of days) totals[d.metric] = (totals[d.metric] ?? 0) + d.value;
-    const top = analytics.topTraffic(db, from, to, ex.json, 20).map((u) => ({ ...u, byMetric: Object.fromEntries(Object.entries(u.byMetric).filter(([k]) => k !== "messages")) }));
-    const names = usernames(db, top.map((u) => u.userId));
-    const services = (["api", "livekit", "ntfy", "other"] as const).map((s) => ({ service: s, txBytes: analytics.seriesTotal(db, `svc.${s}.net_tx_bps`, fromMs, toMs), rxBytes: analytics.seriesTotal(db, `svc.${s}.net_rx_bps`, fromMs, toMs) }));
+    const top = analytics.topTraffic(this.ctx, from, to, ex.ids, 20).map((u) => ({ ...u, byMetric: Object.fromEntries(Object.entries(u.byMetric).filter(([k]) => k !== "messages")) }));
+    const names = usernames(this.ctx.identity, top.map((u) => u.userId));
+    const services = (["api", "livekit", "ntfy", "other"] as const).map((s) => ({ service: s, txBytes: analytics.seriesTotal(this.ctx, `svc.${s}.net_tx_bps`, fromMs, toMs), rxBytes: analytics.seriesTotal(this.ctx, `svc.${s}.net_rx_bps`, fromMs, toMs) }));
     // Month to date, for the plan's transfer allowance and the storage provider's prices (operator-entered).
     const monthStart = Date.UTC(new Date(t).getUTCFullYear(), new Date(t).getUTCMonth(), 1);
     const monthEnd = Date.UTC(new Date(t).getUTCFullYear(), new Date(t).getUTCMonth() + 1, 1);
-    const mtdTx = analytics.seriesTotal(db, "host.net.tx_bps", monthStart, t);
-    const allowance = platformSetting(db, "costs.transfer_allowance_bytes");
-    const storagePrice = platformSetting(db, "costs.storage_per_gb_month");
-    const egressPrice = platformSetting(db, "costs.egress_per_gb");
-    const server = platformSetting(db, "costs.server_monthly");
-    const stored = analytics.latestResources(db, t, 2 * 3_600_000).get("storage.files_bytes")?.value ?? null;
-    const mtdDownloads = analytics.trafficDays(db, utcDay(monthStart), utcDay(t), "[]").filter((d) => d.metric === "files.download").reduce((a, d) => a + d.value, 0);
+    const mtdTx = analytics.seriesTotal(this.ctx, "host.net.tx_bps", monthStart, t);
+    const allowance = platformSetting(this.ctx.platform, "costs.transfer_allowance_bytes");
+    const storagePrice = platformSetting(this.ctx.platform, "costs.storage_per_gb_month");
+    const egressPrice = platformSetting(this.ctx.platform, "costs.egress_per_gb");
+    const server = platformSetting(this.ctx.platform, "costs.server_monthly");
+    const stored = analytics.latestResources(this.ctx, t, 2 * 3_600_000).get("storage.files_bytes")?.value ?? null;
+    const mtdDownloads = analytics.trafficDays(this.ctx, utcDay(monthStart), utcDay(t), []).filter((d) => d.metric === "files.download").reduce((a, d) => a + d.value, 0);
     return {
       from,
       to,
@@ -223,10 +226,10 @@ export class AdminAnalytics {
       days,
       topUsers: top.map((u) => ({ userId: u.userId, username: names.get(u.userId) ?? null, total: u.total, byMetric: u.byMetric })),
       network: {
-        hostTxBytes: analytics.seriesTotal(db, "host.net.tx_bps", fromMs, toMs),
-        hostRxBytes: analytics.seriesTotal(db, "host.net.rx_bps", fromMs, toMs),
-        apiTxBytes: analytics.seriesTotal(db, "api.net.tx_bps", fromMs, toMs),
-        apiRxBytes: analytics.seriesTotal(db, "api.net.rx_bps", fromMs, toMs),
+        hostTxBytes: analytics.seriesTotal(this.ctx, "host.net.tx_bps", fromMs, toMs),
+        hostRxBytes: analytics.seriesTotal(this.ctx, "host.net.rx_bps", fromMs, toMs),
+        apiTxBytes: analytics.seriesTotal(this.ctx, "api.net.tx_bps", fromMs, toMs),
+        apiRxBytes: analytics.seriesTotal(this.ctx, "api.net.rx_bps", fromMs, toMs),
         services,
         source: "Host and per-service figures come from the host collector (network interface and container counters); the API's own figures from its network namespace. Each is measured once: they overlap (the API's traffic is part of the host's), so they aren't added up.",
       },

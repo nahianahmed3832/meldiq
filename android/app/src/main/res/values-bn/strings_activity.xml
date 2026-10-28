@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Activity status strings (docs/ACTIVITY_STATUS.md). Generated from strings_activity.py. -->
+<resources>
+    <string name="act_playing">%1$s খেলছেন</string>
+    <string name="act_just_started">এইমাত্র শুরু</string>
+    <string name="act_minutes">%1$d মিনিট</string>
+    <string name="act_hours">%1$d ঘণ্টা %2$d মিনিট</string>
+    <string name="act_cd_game">গেম</string>
+    <string name="act_title">অ্যাক্টিভিটি গোপনীয়তা</string>
+    <string name="act_section">অ্যাক্টিভিটি</string>
+    <string name="act_row_on">আপনি কী খেলছেন তা শেয়ার হচ্ছে</string>
+    <string name="act_row_off">বন্ধ</string>
+    <string name="act_share">আমি কী খেলছি তা শেয়ার করুন</string>
+    <string name="act_share_sub">আপনার প্রোফাইলে, ডিএম-এ এবং কমিউনিটির সদস্য তালিকায় \"… খেলছেন\" দেখায়</string>
+    <string name="act_explain">এটি চালু থাকলে, Meldiq সংযুক্ত থাকার সময় প্রায় প্রতি ৩০ সেকেন্ডে দেখে আপনার স্ক্রিনে কোন অ্যাপ আছে। শুধু গেমের তথ্যই পাঠানো হয়: গেমের নাম আর কখন শুরু করেছেন। অন্য অ্যাপের তথ্য কখনো রাখা বা পাঠানো হয় না। যারা আপনার অনলাইন থাকা দেখতে পায় তারাই এটি দেখে, আপনি অদৃশ্য থাকলে কখনো নয়; গেম বন্ধ করলে বা Meldiq সংযোগ হারালে এটি শেষ হয়।</string>
+    <string name="act_disclosure_title">আপনি কোন অ্যাপ ব্যবহার করছেন তা Meldiq-কে দেখতে দেবেন?</string>
+    <string name="act_disclosure_body">\"… খেলছেন\" দেখাতে Meldiq-এর Android-এর ইউসেজ অ্যাক্সেস লাগবে, যা দিয়ে সামনে কোন অ্যাপ চলছে তা দেখা যায়। Meldiq এটি শুধু গেম চিনতে ব্যবহার করে, আপনার Meldiq সার্ভারে শুধু গেমের নাম আর শুরুর সময় পাঠায়, আর আপনার ব্যবহৃত অন্য অ্যাপের তথ্য কখনো সংগ্রহ, সংরক্ষণ বা শেয়ার করে না। যেকোনো সময় এখানে বা Android-এর ইউসেজ অ্যাক্সেস সেটিংসে এটি বন্ধ করতে পারবেন।</string>
+    <string name="act_disclosure_agree">সম্মত হয়ে এগিয়ে যান</string>
+    <string name="act_disclosure_cancel">এখন নয়</string>
+    <string name="act_access_off">ইউসেজ অ্যাক্সেস বন্ধ</string>
+    <string name="act_access_off_sub">গেম চেনার জন্য Android-এর ইউসেজ অ্যাক্সেস সেটিংসে Meldiq-কে অনুমতি দিন</string>
+    <string name="act_access_open">ইউসেজ অ্যাক্সেস খুলুন</string>
+    <string name="act_access_on">ইউসেজ অ্যাক্সেসের অনুমতি আছে</string>
+    <string name="act_access_on_sub">যেকোনো সময় Android-এর ইউসেজ অ্যাক্সেস সেটিংস থেকে সরাতে পারবেন</string>
+    <string name="act_background">খেলার সময় Meldiq যেন গেম চিনতে পারে সেজন্য \"ব্যাকগ্রাউন্ডে সংযুক্ত থাকুন\" চালু রাখুন</string>
+    <string name="act_server_missing">এই সার্ভার এখনো অ্যাক্টিভিটি দেখায় না।</string>
+    <string name="act_now">এখন</string>
+    <string name="act_now_none">এখন স্ক্রিনে কোনো গেম নেই</string>
+    <string name="act_games">গেম</string>
+    <string name="act_games_empty">Meldiq যে গেমগুলো খেয়াল করে সেগুলো এখানে দেখাবে। কোনোটি বন্ধ করলে সেটি আর কখনো দেখাবে না।</string>
+    <string name="act_game_shown">অন্যরা দেখতে পায়</string>
+    <string name="act_game_hidden">কখনো দেখানো হয় না</string>
+</resources>

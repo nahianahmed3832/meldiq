@@ -4,6 +4,9 @@ import type { SubscriptionStatus } from "../lifecycle.js";
  * A billing provider adapter (docs/BILLING.md). The subscription core only sees these shapes; each adapter verifies its
  * own webhook signatures and maps its own vocabulary. No adapter ever sees card or bank details: checkout and payment
  * methods stay on the provider's hosted pages.
+ *
+ * The optional methods are what a provider with customer accounts and a hosted portal offers (Stripe); the sandbox has
+ * none of them, and the core works without them.
  */
 export interface BillingProvider {
   /** Stored with every row this provider produced. */
@@ -16,7 +19,54 @@ export interface BillingProvider {
    */
   verifyWebhook(headers: Readonly<Record<string, string | string[] | undefined>>, rawBody: string, now: number): NormalizedEvent;
   /** Starts a hosted checkout for [priceRef]; [reference] must come back in the subscription events it produces. */
-  createCheckout(input: { reference: string; priceRef: string; trialDays: number; customerRef: string | null }): Promise<{ sessionRef: string; url: string | null }>;
+  createCheckout(input: CheckoutInput): Promise<{ sessionRef: string; url: string | null }>;
+  /**
+   * Starts a hosted one-time payment (a gift, docs/MOJO.md): [reference] comes back in its checkout events. Absent:
+   * this provider can't take one-time payments.
+   */
+  createPaymentCheckout?(input: PaymentCheckoutInput): Promise<{ sessionRef: string; url: string | null }>;
+  /** Creates the provider's customer for an owner (once: the caller stores it and reuses it). */
+  createCustomer?(input: { owner: OwnerRef; email: string | null; name: string | null }): Promise<string>;
+  /** A hosted page where the customer manages payment methods, invoices and cancellation. */
+  createPortal?(input: { customerRef: string; returnUrl: string; configuration?: string | null }): Promise<string>;
+  /** The provider's current state of a subscription (reconciliation); null when the provider doesn't know it. */
+  fetchSubscription?(ref: string): Promise<SubscriptionSnapshot | null>;
+  /** Ends an unfinished hosted checkout so it can't be paid any more (a newer one replaced it). */
+  expireCheckout?(sessionRef: string): Promise<void>;
+}
+
+/** Who a checkout, customer or subscription belongs to: an organization, or a person's account (docs/BILLING.md). */
+export interface OwnerRef {
+  kind: "org" | "account";
+  id: string;
+}
+
+export interface CheckoutInput {
+  reference: string;
+  priceRef: string;
+  trialDays: number;
+  /** A free period the owner already has ends then: charging starts at that time (overrides [trialDays]). */
+  trialEndsAt?: number | null;
+  customerRef: string | null;
+  owner: OwnerRef;
+  /** Where the provider sends the browser afterwards (fixed by the server's configuration, never by the client). */
+  successUrl: string;
+  cancelUrl: string;
+  /** How many of the price (the Spark add-on's number of Sparks; 1 for a plan). */
+  quantity?: number;
+}
+
+/** A one-time payment the server prices itself (a gift): never an amount a client sent. */
+export interface PaymentCheckoutInput {
+  reference: string;
+  customerRef: string | null;
+  owner: OwnerRef;
+  currency: string;
+  amountMinor: number;
+  /** What the receipt and the payment page call it ("Mojo Plus for 3 months, a gift"). */
+  productName: string;
+  successUrl: string;
+  cancelUrl: string;
 }
 
 export class WebhookRejected extends Error {
@@ -38,6 +88,8 @@ export interface SubscriptionSnapshot {
   trialEnd: number | null;
   cancelAtPeriodEnd: boolean;
   canceledAt: number | null;
+  /** How many of the price (the Spark add-on's number of Sparks); 1 when the provider doesn't say. */
+  quantity?: number;
 }
 
 export interface InvoiceSnapshot {
@@ -55,7 +107,39 @@ export interface InvoiceSnapshot {
   paidAt: number | null;
 }
 
+/** A hosted checkout finished or ran out (the subscription itself arrives in its own events). */
+export interface CheckoutSnapshot {
+  sessionRef: string;
+  /** Our checkout id (billing_checkouts.id), as the provider echoes it. */
+  reference: string | null;
+  outcome: "completed" | "expired" | "payment_failed";
+  subscriptionRef: string | null;
+  customerRef: string | null;
+  /** "payment": a one-time payment (a gift); absent or "subscription": a plan's checkout. */
+  mode?: "subscription" | "payment";
+  /** One-time payments: whether the money is in (a completed bank payment can still be on its way), and its reference. */
+  paid?: boolean;
+  paymentRef?: string | null;
+}
+
+/** A refund or a dispute on a customer's payment: recorded with the owner's subscription, never applied on its own. */
+export interface PaymentSnapshot {
+  kind: "refund" | "dispute";
+  ref: string;
+  customerRef: string | null;
+  currency: string;
+  amountMinor: number;
+  /** Refunds: how much of the payment is refunded so far. Disputes: the disputed amount. */
+  affectedMinor: number;
+  /** The provider's word for where it stands (a dispute's status; "refunded"/"partially_refunded"). */
+  state: string;
+  /** The payment it's about (a gift's payment is found by it). */
+  paymentRef?: string | null;
+}
+
 export type NormalizedEvent =
   | { ref: string; type: string; createdAt: number; kind: "subscription"; subscription: SubscriptionSnapshot }
   | { ref: string; type: string; createdAt: number; kind: "invoice"; invoice: InvoiceSnapshot }
+  | { ref: string; type: string; createdAt: number; kind: "checkout"; checkout: CheckoutSnapshot }
+  | { ref: string; type: string; createdAt: number; kind: "payment"; payment: PaymentSnapshot }
   | { ref: string; type: string; createdAt: number; kind: "other" };

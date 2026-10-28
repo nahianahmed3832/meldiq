@@ -90,7 +90,7 @@ describe("adding members directly", () => {
   });
 
   it("records each addition in the audit log", () => {
-    const rows = h.ctx.db.prepare("SELECT target FROM audit_log WHERE org_id = ? AND action = 'member.add'").all(orgId) as { target: string }[];
+    const rows = h.ctx.ws.all<{ target: string }>("audit_log", { where: { org_id: orgId, action: "member.add" } });
     expect(rows.map((r) => r.target)).toEqual([friend.userId]);
   });
 });

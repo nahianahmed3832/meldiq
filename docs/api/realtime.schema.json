@@ -76,7 +76,8 @@
                     "type": "string",
                     "enum": [
                       "envelope",
-                      "receipt"
+                      "receipt",
+                      "message"
                     ]
                   },
                   "conversationId": {
@@ -225,6 +226,64 @@
             "online",
             "presence",
             "lastSeenAt"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "t": {
+              "type": "string",
+              "const": "activity"
+            },
+            "userId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "activity": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "playing"
+                      ]
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "packageId": {
+                      "type": "string",
+                      "maxLength": 128
+                    },
+                    "startedAt": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "name",
+                    "startedAt"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "t",
+            "userId",
+            "activity"
           ],
           "additionalProperties": false
         },
@@ -913,6 +972,32 @@
           },
           "required": [
             "t"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "t": {
+              "type": "string",
+              "const": "entitlements.changed"
+            },
+            "scope": {
+              "type": "string",
+              "enum": [
+                "account",
+                "org"
+              ]
+            },
+            "orgId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          "required": [
+            "t",
+            "scope"
           ],
           "additionalProperties": false
         },

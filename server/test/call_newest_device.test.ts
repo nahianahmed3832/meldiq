@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { LiveKitService } from "../src/modules/calls/livekit.js";
 import { canonical, GriipClient, sign } from "./support/griipClient.js";
 import { type Harness, startServer } from "./support/harness.js";
+import { presentDevices } from "./support/calls.js";
 
 /**
  * Newest device wins in a call (API 0.33.0): one account is in a call from one device at a time. Joining from another
@@ -78,8 +79,7 @@ async function enter(c: GriipClient, callId: string, room: string, starter = fal
 const movedOut = (c: GriipClient, callId: string) =>
   c.waitFor(() => c.events.find((e) => e.t === "call" && e.event === "ended" && e.call.id === callId && e.call.endReason === "joined_elsewhere"));
 
-const devicesIn = (callId: string) =>
-  (h.ctx.db.prepare("SELECT device_id FROM call_participants WHERE call_id = ? AND left_at IS NULL ORDER BY device_id").all(callId) as { device_id: string }[]).map((r) => r.device_id);
+const devicesIn = (callId: string) => presentDevices(h.ctx, callId);
 
 async function dmCall(name: string) {
   const alice = await h.client(`${name}a`);
@@ -104,7 +104,7 @@ describe("newest device wins in a call", () => {
     expect(lk.removed).toEqual([`${bob.userId}.${bob.deviceId}`]);
     expect(lk.inRoom(call.room, bob)).toBe(false);
     expect(lk.inRoom(call.room, tablet)).toBe(true);
-    expect(devicesIn(call.id)).toEqual([alice.deviceId, tablet.deviceId].sort());
+    expect(await devicesIn(call.id)).toEqual([alice.deviceId, tablet.deviceId].sort());
     const now = (await alice.req("GET", `/v1/calls/${call.id}`)).call;
     expect(now.state).toBe("ACTIVE");
     expect(now.participants.filter((p: any) => p.userId === bob.userId)).toHaveLength(1);
@@ -157,6 +157,6 @@ describe("newest device wins in a call", () => {
     const a2 = await secondDevice(a);
     await enter(a2, r.call.id, r.media.room);
     expect(lk.removed).toEqual([`${a.userId}.${a.deviceId}`]);
-    expect(devicesIn(r.call.id)).toEqual([owner.deviceId, b.deviceId, a2.deviceId].sort());
+    expect(await devicesIn(r.call.id)).toEqual([owner.deviceId, b.deviceId, a2.deviceId].sort());
   });
 });

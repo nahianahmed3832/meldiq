@@ -2,7 +2,10 @@ import type { ConversationRow } from "../../organizations/authz.js";
 import type { AppContext } from "../../../app/context.js";
 import { allows, appearsOnline, canSeeLastSeen, privacyOf, relation } from "../../accounts/profile.js";
 import { userSummary } from "../../auth/routes.js";
-import { conversationView } from "../conversationsRoutes.js";
+import { conversationView, liveCallsOf } from "../conversationsRoutes.js";
+import { rowsByIds } from "../../../infrastructure/database/byIds.js";
+import { likeContains } from "../../../shared/utilities/sqlText.js";
+import { orgMates } from "../../organizations/index.js";
 
 /**
  * Universal search on the server (docs/SEARCH.md, round 7 slice C2): what the server can read and the searcher may see.
@@ -51,25 +54,14 @@ function sortRanked<T>(list: Ranked<T>[]): T[] {
   return [...list].sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name)).map((r) => r.item);
 }
 
-const escapeLike = (s: string) => s.replace(/[%_\\]/g, (ch) => "\\" + ch);
-
 export function searchPeople(ctx: AppContext, userId: string, q: string, orgId?: string) {
   const term = q.replace(/^@/, "").toLowerCase();
-  const like = `%${escapeLike(term)}%`;
-  const rows = ctx.db
-    .prepare(
-      `SELECT DISTINCT u.* FROM users u
-       WHERE u.disabled_at IS NULL AND u.home_server_id IS NULL AND u.kind = 'person' AND u.id != ? AND (
-         u.username = ? COLLATE NOCASE OR (
-           (u.username LIKE ? ESCAPE '\\' OR lower(u.display_name) LIKE ? ESCAPE '\\')
-           AND EXISTS (
-             SELECT 1 FROM org_members a JOIN org_members b ON a.org_id = b.org_id
-             WHERE a.user_id = ? AND b.user_id = u.id AND a.role != 'GUEST' AND (? IS NULL OR a.org_id = ?)
-           )
-         )
-       ) LIMIT ${MAX_CANDIDATES}`,
-    )
-    .all(userId, term, like, like, userId, orgId ?? null, orgId ?? null) as any[];
+  // Anyone by their exact username; by part of a name, people in a community the searcher belongs to (not as a guest).
+  const findable = (u: any) => u.disabled_at == null && u.home_server_id == null && u.kind === "person" && u.id !== userId;
+  const exact = ctx.identity.all<any>("users", { where: { username: term } }).filter(findable);
+  const mates = orgMates(ctx, userId, orgId);
+  const partial = rowsByIds<any>(ctx.identity, "users", "id", mates).filter((u) => findable(u) && (likeContains(u.username, term) || likeContains(u.display_name, term)));
+  const rows = [...new Map([...exact, ...partial].map((u) => [u.id, u])).values()].slice(0, MAX_CANDIDATES);
   const visible = rows.filter((u) => {
     const r = relation(ctx, userId, u.id);
     return !r.blockedByTarget && (r.contact || allows(privacyOf(u).findByUsername, r));
@@ -83,39 +75,37 @@ export function searchPeople(ctx: AppContext, userId: string, q: string, orgId?:
   );
 }
 
-export function searchChannels(ctx: AppContext, userId: string, q: string, orgId?: string) {
+export async function searchChannels(ctx: AppContext, userId: string, q: string, orgId?: string) {
   const term = q.replace(/^#/, "").toLowerCase();
-  const like = `%${escapeLike(term)}%`;
-  const rows = ctx.db
-    .prepare(
-      `SELECT c.*, o.name AS org_name FROM conversations c JOIN orgs o ON o.id = c.org_id
-       WHERE c.type = 'CHANNEL' AND c.archived_at IS NULL
-         AND c.org_id IN (SELECT org_id FROM org_members WHERE user_id = ?) AND (? IS NULL OR c.org_id = ?)
-         AND (lower(c.name) LIKE ? ESCAPE '\\' OR lower(coalesce(c.topic, '')) LIKE ? ESCAPE '\\')
-       LIMIT ${MAX_CANDIDATES}`,
-    )
-    .all(userId, orgId ?? null, orgId ?? null, like, like) as (ConversationRow & { org_name: string })[];
+  const orgs = ctx.ws.all<{ org_id: string }>("org_members", { where: { user_id: userId, ...(orgId ? { org_id: orgId } : {}) } }).map((m) => m.org_id);
+  const orgNames = new Map(ctx.ws.all<{ id: string; name: string }>("orgs", { where: { id: { in: orgs } } }).map((o) => [o.id, o.name]));
+  const rows = ctx.ws
+    .all<ConversationRow>("conversations", { where: { type: "CHANNEL", archived_at: null, org_id: { in: [...orgNames.keys()] } } })
+    .filter((c) => likeContains(c.name, term) || likeContains(c.topic, term))
+    .slice(0, MAX_CANDIDATES)
+    .map((c) => ({ ...c, org_name: orgNames.get(c.org_id!)! }));
+  const visible = rows.filter((c) => ctx.authz.canViewChannel(c, userId));
+  const live = await liveCallsOf(ctx, visible);
   return sortRanked(
-    rows
-      .filter((c) => ctx.authz.canViewChannel(c, userId))
+    visible
       .flatMap((c) => {
         const rank = bestRank(term, c.name, c.topic);
         if (rank === null) return [];
         // A topic-only match ranks below any name match.
         const byName = matchRank(c.name, term) !== null;
-        return [{ rank: byName ? rank : rank + 4, name: c.name ?? "", item: { ...conversationView(ctx, c, userId), orgName: c.org_name } }];
+        return [{ rank: byName ? rank : rank + 4, name: c.name ?? "", item: { ...conversationView(ctx, c, userId, live), orgName: c.org_name } }];
       }),
   );
 }
 
 export function searchWorkspaces(ctx: AppContext, userId: string, q: string) {
   const term = q.toLowerCase();
-  const rows = ctx.db
-    .prepare(
-      `SELECT o.id, o.name, o.slug, m.role FROM orgs o JOIN org_members m ON m.org_id = o.id
-       WHERE m.user_id = ? AND lower(o.name) LIKE ? ESCAPE '\\' LIMIT ${MAX_CANDIDATES}`,
-    )
-    .all(userId, `%${escapeLike(term)}%`) as { id: string; name: string; slug: string; role: string }[];
+  const roles = new Map(ctx.ws.all<{ org_id: string; role: string }>("org_members", { where: { user_id: userId } }).map((m) => [m.org_id, m.role]));
+  const rows = ctx.ws
+    .all<{ id: string; name: string; slug: string }>("orgs", { where: { id: { in: [...roles.keys()] } } })
+    .filter((o) => likeContains(o.name, term))
+    .slice(0, MAX_CANDIDATES)
+    .map((o) => ({ id: o.id, name: o.name, slug: o.slug, role: roles.get(o.id)! }));
   return sortRanked(
     rows.flatMap((o) => {
       const rank = matchRank(o.name, term);
@@ -124,18 +114,18 @@ export function searchWorkspaces(ctx: AppContext, userId: string, q: string) {
   );
 }
 
-export function searchGroups(ctx: AppContext, userId: string, q: string) {
+export async function searchGroups(ctx: AppContext, userId: string, q: string) {
   const term = q.toLowerCase();
-  const rows = ctx.db
-    .prepare(
-      `SELECT c.* FROM conversations c JOIN conversation_members m ON m.conversation_id = c.id
-       WHERE m.user_id = ? AND c.type = 'GROUP' AND lower(coalesce(c.name, '')) LIKE ? ESCAPE '\\' LIMIT ${MAX_CANDIDATES}`,
-    )
-    .all(userId, `%${escapeLike(term)}%`) as ConversationRow[];
+  const mine = ctx.ws.all<{ conversation_id: string }>("conversation_members", { where: { user_id: userId } }).map((m) => m.conversation_id);
+  const rows = ctx.ws
+    .all<ConversationRow>("conversations", { where: { id: { in: mine }, type: "GROUP" } })
+    .filter((c) => likeContains(c.name ?? "", term))
+    .slice(0, MAX_CANDIDATES);
+  const live = await liveCallsOf(ctx, rows);
   return sortRanked(
     rows.flatMap((c) => {
       const rank = matchRank(c.name, term);
-      return rank === null ? [] : [{ rank, name: c.name ?? "", item: conversationView(ctx, c, userId) }];
+      return rank === null ? [] : [{ rank, name: c.name ?? "", item: conversationView(ctx, c, userId, live) }];
     }),
   );
 }
@@ -153,12 +143,13 @@ export function page<T>(all: T[], cursor: string | undefined, limit: number): Se
   return { items, next: end < all.length ? Buffer.from(String(end), "utf8").toString("base64url") : null };
 }
 
-export function search(ctx: AppContext, userId: string, q: string, kinds: readonly SearchKind[], opts: { orgId?: string; limit: number; cursor?: string }) {
-  const run: Record<SearchKind, () => unknown[]> = {
+export async function search(ctx: AppContext, userId: string, q: string, kinds: readonly SearchKind[], opts: { orgId?: string; limit: number; cursor?: string }) {
+  const run: Record<SearchKind, () => unknown[] | Promise<unknown[]>> = {
     people: () => searchPeople(ctx, userId, q, opts.orgId),
     channels: () => searchChannels(ctx, userId, q, opts.orgId),
     workspaces: () => (opts.orgId ? [] : searchWorkspaces(ctx, userId, q)),
     groups: () => (opts.orgId ? [] : searchGroups(ctx, userId, q)),
   };
-  return Object.fromEntries(kinds.map((k) => [k, page(run[k](), kinds.length === 1 ? opts.cursor : undefined, opts.limit)])) as Partial<Record<SearchKind, SearchPage<unknown>>>;
+  const pages = await Promise.all(kinds.map(async (k) => [k, page(await run[k](), kinds.length === 1 ? opts.cursor : undefined, opts.limit)] as const));
+  return Object.fromEntries(pages) as Partial<Record<SearchKind, SearchPage<unknown>>>;
 }

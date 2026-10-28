@@ -119,12 +119,14 @@ class MessageRepository(
     val typing: StateFlow<Map<String, Map<String, Long>>> = signals.typing
     val callInvites: SharedFlow<IncomingCallKey> = signals.callInvites
     val callFrames: SharedFlow<ServerEvent.Call> = signals.callFrames
+    val activityFrames: SharedFlow<ServerEvent.Activity> = signals.activityFrames
     /** Round 7: a meeting starting in ten minutes (its id), and a workspace whose meetings changed (its id). */
     val meetingSoon: SharedFlow<String> = signals.meetingSoon
     val meetingUpdates: SharedFlow<String> = signals.meetingUpdates
     val orgEvents: SharedFlow<String> = signals.orgEvents
     /** Batch B6: someone sent, accepted, cancelled or removed a connection with you (screens reload their lists). */
     val connectionsChanged: SharedFlow<Unit> = signals.connectionsChanged
+    val entitlementsChanged: SharedFlow<Unit> = signals.entitlementsChanged
     val orgDeleted: SharedFlow<String> = signals.orgDeleted
     /** Reminders that went off or changed on another device ("reminder.due", "reminders.changed"): their ids. */
     val reminderEvents: SharedFlow<String> = signals.reminderEvents

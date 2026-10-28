@@ -39,11 +39,7 @@ export default async function preferenceRoutes(app: FastifyInstance, ctx: AppCon
     const body = parse(PreferencesBody, req.body);
     requireWorkspace(workspaceId, userId);
     // Only the person's own conversations can be arranged; anything else (left meanwhile, never joined) is dropped.
-    const mine = new Set(
-      (ctx.db.prepare("SELECT conversation_id FROM conversation_members WHERE user_id = ?").all(userId) as { conversation_id: string }[]).map(
-        (r) => r.conversation_id,
-      ),
-    );
+    const mine = new Set(ctx.ws.all<{ conversation_id: string }>("conversation_members", { where: { user_id: userId } }).map((r) => r.conversation_id));
     // A client that doesn't know saved messages leaves the field out: keep the stored list. If the document changed
     // since that copy was read, the revision check below refuses the write, so nothing stale is kept.
     const stored = (await ctx.prefs.get(userId, workspaceId))?.prefs;
@@ -58,7 +54,7 @@ export default async function preferenceRoutes(app: FastifyInstance, ctx: AppCon
       : sentCommunity
         ? { ...sentCommunity, mutedUntil: sentCommunity.mutedUntil !== undefined ? sentCommunity.mutedUntil : stored?.community?.mutedUntil }
         : stored?.community;
-    const myOrgs = new Set((ctx.db.prepare("SELECT org_id FROM org_members WHERE user_id = ?").all(userId) as { org_id: string }[]).map((r) => r.org_id));
+    const myOrgs = new Set(ctx.ws.all<{ org_id: string }>("org_members", { where: { user_id: userId } }).map((r) => r.org_id));
     const railOrder = personal ? (body.prefs.railOrder ?? stored?.railOrder)?.filter((id) => myOrgs.has(id)) : undefined;
     // API 0.50.0: rail folders hold only communities the person is in; a folder left with none is dropped.
     const railFolders = personal
@@ -72,8 +68,8 @@ export default async function preferenceRoutes(app: FastifyInstance, ctx: AppCon
     let hidden: string[] | undefined;
     const channelCategory = new Map<string, string | null>();
     if (!personal) {
-      for (const r of ctx.db.prepare("SELECT id FROM channel_categories WHERE org_id = ?").all(workspaceId) as { id: string }[]) categories.add(r.id);
-      for (const r of ctx.db.prepare("SELECT id, category_id FROM conversations WHERE org_id = ? AND type = 'CHANNEL'").all(workspaceId) as { id: string; category_id: string | null }[]) {
+      for (const r of ctx.ws.all<{ id: string }>("channel_categories", { where: { org_id: workspaceId } })) categories.add(r.id);
+      for (const r of ctx.ws.all<{ id: string; category_id: string | null }>("conversations", { where: { org_id: workspaceId, type: "CHANNEL" } })) {
         channelCategory.set(r.id, r.category_id);
       }
       const cats = body.prefs.categoryNotify ?? stored?.categoryNotify;

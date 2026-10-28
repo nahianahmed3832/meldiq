@@ -28,17 +28,17 @@ describe("usage metering", () => {
   it("counters add up per day; gauges are recomputed, never double-counted", async () => {
     const pure = (await owner.req("POST", "/v1/orgs", { name: "Pure Co" })).org.id;
     let t = Date.parse("2026-10-20T10:00:00Z");
-    const m = new UsageMeter(h.ctx.db, h.ctx.files, () => t);
-    m.add(pure, "files.upload_bytes");
-    m.add(pure, "files.upload_bytes", 2);
-    m.add(null, "files.upload_bytes", 5); // no community: not metered
+    const m = new UsageMeter(h.ctx.identity, h.ctx.ws, h.ctx.files, h.ctx.calls, () => t);
+    await m.add(pure, "files.upload_bytes");
+    await m.add(pure, "files.upload_bytes", 2);
+    await m.add(null, "files.upload_bytes", 5); // no community: not metered
     await m.snapshot(true);
     await m.snapshot(true);
     const s = m.series(pure, 3);
     expect(s.find((x) => x.metric === "files.upload_bytes")?.total).toBe(3);
     expect(s.find((x) => x.metric === "seats.members")?.total).toBe(1);
     t += 86_400_000;
-    m.add(pure, "files.upload_bytes");
+    await m.add(pure, "files.upload_bytes");
     const next = m.series(pure, 2).find((x) => x.metric === "files.upload_bytes")!;
     expect(next.daily).toEqual([{ day: "2026-10-20", value: 3 }, { day: "2026-10-21", value: 1 }]);
     expect(utcDay(Date.parse("2026-10-20T23:59:59Z"))).toBe("2026-10-20");
@@ -81,7 +81,7 @@ describe("plan limits", () => {
     await expectStatus(platform.req("PUT", `/v1/admin/orgs/${orgId}/limits`, { limits: { nonsense: 1 } }), 400);
     await platform.req("PUT", `/v1/admin/orgs/${orgId}/limits`, { limits: { members: 2, "roles.custom": 1 } });
     expect(await capability("roles.custom")).toMatchObject({ limit: 1, source: "workspace" });
-    const audit = h.ctx.db.prepare("SELECT action FROM audit_log WHERE org_id = ? AND action = 'plan.limits'").get(orgId);
+    const audit = h.ctx.ws.get("audit_log", { org_id: orgId, action: "plan.limits" });
     expect(audit).toBeTruthy();
   });
 

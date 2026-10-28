@@ -51,7 +51,7 @@ describe("new-account limits", () => {
     });
     veteran = await h.client("veteran");
     // An account from before this change, or one whose limits an administrator ended (admin.js limits-end).
-    expect(endNewAccountLimits(h.ctx.db, veteran.userId)).toBe(true);
+    expect(await endNewAccountLimits(h.ctx.identity, veteran.userId)).toBe(true);
     newbie = await h.client("newbie");
     second = await h.client("second");
     third = await h.client("third");
@@ -59,8 +59,8 @@ describe("new-account limits", () => {
   afterAll(async () => h.close());
 
   it("an account made by open registration gets smaller allowances; an established one doesn't", async () => {
-    expect(hasNewAccountLimits(h.ctx.db, newbie.userId)).toBe(true);
-    expect(hasNewAccountLimits(h.ctx.db, veteran.userId)).toBe(false);
+    expect(hasNewAccountLimits(h.ctx.identity, newbie.userId)).toBe(true);
+    expect(hasNewAccountLimits(h.ctx.identity, veteran.userId)).toBe(false);
     const dm = await dmOf(newbie, veteran);
     await upload(newbie, dm, blob(MiB));
     await upload(newbie, dm, blob(MiB));
@@ -88,12 +88,12 @@ describe("new-account limits", () => {
     const theirs = (await second.req("POST", "/v1/orgs", { name: "Second's own" })).org.id;
     const selfVouch = (await second.req("POST", `/v1/orgs/${theirs}/invites`, {})).invite.code;
     await third.req("POST", "/v1/invites/accept", { code: selfVouch });
-    expect(hasNewAccountLimits(h.ctx.db, third.userId)).toBe(true);
+    expect(hasNewAccountLimits(h.ctx.identity, third.userId)).toBe(true);
 
     const company = (await veteran.req("POST", "/v1/orgs", { name: "Company" })).org.id;
     const code = (await veteran.req("POST", `/v1/orgs/${company}/invites`, {})).invite.code;
     await third.req("POST", "/v1/invites/accept", { code });
-    expect(hasNewAccountLimits(h.ctx.db, third.userId)).toBe(false);
+    expect(hasNewAccountLimits(h.ctx.identity, third.userId)).toBe(false);
     await upload(third, await dmOf(third, veteran), blob(MiB)); // no longer in the new-account pool
   });
 
@@ -107,9 +107,9 @@ describe("new-account limits", () => {
 
   it("the limits end by themselves after the configured days", async () => {
     const later = await h.client("patient");
-    expect(hasNewAccountLimits(h.ctx.db, later.userId)).toBe(true);
+    expect(hasNewAccountLimits(h.ctx.identity, later.userId)).toBe(true);
     advanceClock(7 * 24 * HOUR + 1000);
-    expect(hasNewAccountLimits(h.ctx.db, later.userId)).toBe(false);
+    expect(hasNewAccountLimits(h.ctx.identity, later.userId)).toBe(false);
   });
 });
 

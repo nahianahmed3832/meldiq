@@ -119,6 +119,8 @@ object Routes {
     const val EDIT_PROFILE = "profile/edit"
     /** Settings › Account safety (API 0.46.0): two-step sign-in, email change, standing, bug reports. */
     const val ACCOUNT_SAFETY = "account/safety"
+    /** Meldiq Mojo: plans, Sparks and gifts (docs/MOJO_ANDROID.md). */
+    const val MOJO = "mojo"
     /** Settings › Profile style (API 0.45.0–0.46.0): frame, banner, name style and worn tag. */
     const val PROFILE_STYLE = "profile/style"
     const val ACCOUNTS = "accounts"
@@ -137,6 +139,8 @@ object Routes {
     /** Public communities to find and join (docs/COMMUNITY_REBUILD_2026-10-21.md). */
     const val DISCOVER = "discover"
     const val PRIVACY = "privacy"
+    /** Activity status (docs/ACTIVITY_STATUS.md): "Share what I'm playing" and hidden games. */
+    const val ACTIVITY_PRIVACY = "activity-privacy"
     const val BLOCKED = "blocked"
     /** [message]: scroll to this message once it's loaded (batch B5 message links). */
     fun conversation(id: String, thread: String? = null, message: String? = null) =
@@ -340,6 +344,7 @@ private fun MainNav(container: AppContainer, pendingConversation: String?, pendi
             composable(Routes.EDIT_PROFILE) { com.meldiq.android.ui.screens.profile.EditProfileScreen(nav) }
             composable(Routes.PROFILE_STYLE) { com.meldiq.android.ui.screens.profile.ProfileStyleScreen(nav) }
             composable(Routes.ACCOUNT_SAFETY) { com.meldiq.android.ui.screens.account.AccountSafetyScreen(nav) }
+            composable(Routes.MOJO) { com.meldiq.android.ui.screens.mojo.MojoScreen(nav) }
             composable(Routes.ACCOUNTS) { com.meldiq.android.ui.screens.profile.AccountsScreen(nav) }
             composable(Routes.CHAT_SETTINGS) { com.meldiq.android.ui.screens.profile.ChatSettingsScreen(nav) }
             composable(Routes.NOTIFICATION_SETTINGS) { com.meldiq.android.ui.screens.profile.NotificationSettingsScreen(nav) }
@@ -349,6 +354,7 @@ private fun MainNav(container: AppContainer, pendingConversation: String?, pendi
             composable(Routes.SERVICE_HEALTH) { com.meldiq.android.ui.screens.profile.ServiceHealthScreen(nav) }
             composable(Routes.CONNECTORS) { com.meldiq.android.ui.screens.profile.ConnectorsScreen(nav) }
             composable(Routes.PRIVACY) { com.meldiq.android.ui.screens.profile.PrivacyScreen(nav) }
+            composable(Routes.ACTIVITY_PRIVACY) { com.meldiq.android.ui.screens.profile.ActivityPrivacyScreen(nav) }
             composable(Routes.BLOCKED) { com.meldiq.android.ui.screens.profile.BlockedUsersScreen(nav) }
         }
         }

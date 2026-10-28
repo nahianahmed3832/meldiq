@@ -9,6 +9,9 @@
  */
 import { Authz } from "./modules/organizations/authz.js";
 import { loadConfig } from "./app/config.js";
+import { openDomainRows } from "./app/domainRows.js";
+import { openWorkspaceRows } from "./app/workspaceRows.js";
+import { openMongo } from "./infrastructure/database/mongo/index.js";
 import { openDatabase } from "./infrastructure/database/db.js";
 import { humanCode, newId, now, sha256Hex } from "./shared/utilities/util.js";
 
@@ -28,34 +31,45 @@ if (!ownerName) {
 }
 const cfg = loadConfig();
 const db = openDatabase(cfg.databasePath);
-const authz = new Authz(db);
-const owner = db.prepare("SELECT id FROM users WHERE username = ?").get(ownerName) as { id: string } | undefined;
+const mongo = cfg.mongo ? await openMongo(cfg.mongo, db) : undefined;
+const ws = await openWorkspaceRows(db, mongo, console);
+const identity = await openDomainRows(db, "identity", mongo, console);
+const authz = new Authz(ws);
+const owner = identity.get<{ id: string }>("users", { username: ownerName });
 if (!owner) {
   console.error(`No user named ${ownerName}. Register in the app first.`);
   process.exit(1);
 }
-if (db.prepare("SELECT 1 FROM orgs WHERE slug = 'meldiq-lab'").get()) {
+if (ws.get("orgs", { slug: "meldiq-lab" })) {
   console.error("Meldiq Lab already exists — nothing to do.");
   process.exit(0);
 }
 const t = now();
-const audit = (orgId: string, action: string, target: string, detail: string) =>
-  db.prepare("INSERT INTO audit_log (at, actor_id, org_id, action, target, detail) VALUES (?, ?, ?, ?, ?, ?)").run(t, owner.id, orgId, action, target, detail);
-
 const orgId = newId("o");
 const codes: string[] = [];
-db.transaction(() => {
-  db.prepare(
-    `INSERT INTO orgs (id, name, slug, description, created_by, created_at, updated_at, kind, visibility, join_policy, rules)
-     VALUES (?, 'Meldiq Lab', 'meldiq-lab', ?, ?, ?, ?, 'community', 'public', 'open', ?)`,
-  ).run(orgId, "A sample community for trying Meldiq (development seed)", owner.id, t, t, "1. Be kind.\n2. Stay on topic.\n3. No spam or self-promotion.");
-  db.prepare("INSERT INTO org_members (org_id, user_id, role, joined_at) VALUES (?, ?, 'OWNER', ?)").run(orgId, owner.id, t);
+await ws.write((w) => {
+  const audit = (orgId: string, action: string, target: string, detail: string) =>
+    w.insert("audit_log", { at: t, actor_id: owner.id, org_id: orgId, action, target, detail });
+  w.insert("orgs", {
+    id: orgId,
+    name: "Meldiq Lab",
+    slug: "meldiq-lab",
+    description: "A sample community for trying Meldiq (development seed)",
+    created_by: owner.id,
+    created_at: t,
+    updated_at: t,
+    kind: "community",
+    visibility: "public",
+    join_policy: "open",
+    rules: "1. Be kind.\n2. Stay on topic.\n3. No spam or self-promotion.",
+  });
+  w.insert("org_members", { org_id: orgId, user_id: owner.id, role: "OWNER", joined_at: t });
   audit(orgId, "seed.dev", orgId, "community");
 
   let categoryPosition = 0;
   const category = (name: string) => {
     const id = newId("cat");
-    db.prepare("INSERT INTO channel_categories (id, org_id, name, position, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(id, orgId, name, categoryPosition++, owner.id, t, t);
+    w.insert("channel_categories", { id, org_id: orgId, name, position: categoryPosition++, created_by: owner.id, created_at: t, updated_at: t });
     audit(orgId, "category.create", id, name);
     return id;
   };
@@ -64,11 +78,25 @@ db.transaction(() => {
     const id = newId("c");
     const position = positions.get(categoryId) ?? 0;
     positions.set(categoryId, position + 1);
-    db.prepare(
-      `INSERT INTO conversations (id, type, org_id, scope, scope_id, kind, name, topic, auto_join, created_by, created_at, updated_at, voice, category_id, position, format)
-       VALUES (?, 'CHANNEL', ?, 'ORG', NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).run(id, orgId, kind, name, topic, kind === "PRIVATE" ? 0 : 1, owner.id, t, t, opts.voice ? 1 : 0, categoryId, position, opts.format ?? "text");
-    db.prepare("INSERT INTO conversation_members (conversation_id, user_id, role, joined_at) VALUES (?, ?, 'ADMIN', ?)").run(id, owner.id, t);
+    w.insert("conversations", {
+      id,
+      type: "CHANNEL",
+      org_id: orgId,
+      scope: "ORG",
+      scope_id: null,
+      kind,
+      name,
+      topic,
+      auto_join: kind === "PRIVATE" ? 0 : 1,
+      created_by: owner.id,
+      created_at: t,
+      updated_at: t,
+      voice: opts.voice ? 1 : 0,
+      category_id: categoryId,
+      position,
+      format: opts.format ?? "text",
+    });
+    w.insert("conversation_members", { conversation_id: id, user_id: owner.id, role: "ADMIN", joined_at: t });
     audit(orgId, opts.voice ? "voice_room.create" : "channel.create", id, `${kind} ${name}`);
     return id;
   };
@@ -88,15 +116,34 @@ db.transaction(() => {
 
   // A category only moderators see, gated with a role and two overwrites.
   const modRole = newId("role");
-  db.prepare(
-    `INSERT INTO org_roles (id, org_id, name, description, color, icon, permissions, denies, template, position, rev, created_by, created_at, updated_at)
-     VALUES (?, ?, 'Moderator', 'Keeps conversations healthy', '#E39B7B', 'shield', ?, '[]', 'moderator', 0, 1, ?, ?, ?)`,
-  ).run(modRole, orgId, JSON.stringify(["channels.manage", "channels.visibility", "messages.announce", "members.remove", "members.ban"]), owner.id, t, t);
+  w.insert("org_roles", {
+    id: modRole,
+    org_id: orgId,
+    name: "Moderator",
+    description: "Keeps conversations healthy",
+    color: "#E39B7B",
+    icon: "shield",
+    permissions: JSON.stringify(["channels.manage", "channels.visibility", "messages.announce", "members.remove", "members.ban"]),
+    denies: "[]",
+    template: "moderator",
+    position: 0,
+    rev: 1,
+    created_by: owner.id,
+    created_at: t,
+    updated_at: t,
+  });
   const mods = category("Moderators");
   const overwrite = (subject: string, allow: string[], deny: string[]) =>
-    db.prepare(
-      "INSERT INTO channel_overwrites (target_type, target_id, org_id, subject, allow, deny, updated_by, updated_at) VALUES ('category', ?, ?, ?, ?, ?, ?, ?)",
-    ).run(mods, orgId, subject, JSON.stringify(allow), JSON.stringify(deny), owner.id, t);
+    w.insert("channel_overwrites", {
+      target_type: "category",
+      target_id: mods,
+      org_id: orgId,
+      subject,
+      allow: JSON.stringify(allow),
+      deny: JSON.stringify(deny),
+      updated_by: owner.id,
+      updated_at: t,
+    });
   overwrite("everyone", [], ["channels.view"]);
   overwrite(modRole, ["channels.view"], []);
   channel(mods, "mod-chat", "Moderators only", "PUBLIC");
@@ -104,17 +151,26 @@ db.transaction(() => {
 
   const invite = (label: string, grantRoleId: string | null) => {
     const code = humanCode(12);
-    db.prepare(
-      `INSERT INTO invitations (id, org_id, code_hash, code_hint, role, max_uses, created_by, created_at, expires_at, grant_role_id)
-       VALUES (?, ?, ?, ?, 'MEMBER', 50, ?, ?, ?, ?)`,
-    ).run(newId("inv"), orgId, sha256Hex(code), code.slice(-4), owner.id, t, t + 14 * 24 * 3600_000, grantRoleId);
+    w.insert("invitations", {
+      id: newId("inv"),
+      org_id: orgId,
+      code_hash: sha256Hex(code),
+      code_hint: code.slice(-4),
+      role: "MEMBER",
+      max_uses: 50,
+      created_by: owner.id,
+      created_at: t,
+      expires_at: t + 14 * 24 * 3600_000,
+      grant_role_id: grantRoleId,
+    });
     codes.push(`${label.padEnd(24)} ${code.slice(0, 4)}-${code.slice(4, 8)}-${code.slice(8)}`);
   };
   invite("Member", null);
   invite("Moderator", modRole);
-})();
-authz.autoJoinScope(orgId, owner.id, t);
+  authz.autoJoinScope(w, orgId, owner.id, t);
+});
 console.log(`Seeded Meldiq Lab (${orgId}) owned by @${ownerName}: public, open to join.`);
 console.log("Invite codes (50 uses, 14 days):");
 for (const c of codes) console.log("  " + c);
+await mongo?.close();
 db.close();

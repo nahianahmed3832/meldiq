@@ -8,7 +8,7 @@
  * - Verified results are cached in SQLite. A known server keeps resolving from cache while core nodes are unreachable
  *   (until its descriptor expires); an unknown domain needs a live quorum.
  */
-import type { DB } from "../../infrastructure/database/db.js";
+import type { Rows } from "../../infrastructure/database/rows/index.js";
 import { ApiError, type ErrorCode } from "../../shared/errors.js";
 import { chainExtends, isDomain, isServerId, type ServerDescriptor, verifyDescriptor } from "./identity.js";
 import { type CoreAnswer, type FinalRecord, type LifecycleState, verifyAnswer, verifyDecommission, verifyRevocation } from "./records.js";
@@ -43,7 +43,8 @@ export class Resolver {
   private trustedCoreKeys: Set<string>;
 
   constructor(
-    private db: DB,
+    /** The federation domain's rows: verified peers and domain bindings. */
+    private rows: Rows,
     private cores: { url: string; publicKey: string }[],
     private quorum: number,
     private fetchFn: typeof fetch = fetch,
@@ -78,21 +79,19 @@ export class Resolver {
   }
 
   private cached(serverId: string): { descriptor: ServerDescriptor; state: string; final: FinalRecord | null; verifiedAt: number } | null {
-    const r = this.db.prepare("SELECT descriptor, state, final, verified_at FROM federation_peers WHERE server_id = ?").get(serverId) as
-      | { descriptor: string; state: string; final: string | null; verified_at: number }
-      | undefined;
+    const r = this.rows.get<{ descriptor: string; state: string; final: string | null; verified_at: number }>("federation_peers", { server_id: serverId });
     return r ? { descriptor: JSON.parse(r.descriptor), state: r.state, final: r.final ? JSON.parse(r.final) : null, verifiedAt: r.verified_at } : null;
   }
 
-  private store(d: ServerDescriptor, state: string, final: FinalRecord | null, agreeing: number) {
+  private store(d: ServerDescriptor, state: string, final: FinalRecord | null, agreeing: number): Promise<void> {
     const now = Date.now();
-    this.db
-      .prepare(
-        `INSERT INTO federation_peers (server_id, domain, descriptor, seq, state, final, verified_at, agreeing, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(server_id) DO UPDATE SET domain = excluded.domain, descriptor = excluded.descriptor, seq = excluded.seq, state = excluded.state,
-           final = COALESCE(federation_peers.final, excluded.final), verified_at = excluded.verified_at, agreeing = excluded.agreeing, updated_at = excluded.updated_at`,
-      )
-      .run(d.serverId, d.domain, JSON.stringify(d), d.seq, final ? final.kind : state, final ? JSON.stringify(final) : null, now, agreeing, now);
+    const known = { domain: d.domain, descriptor: JSON.stringify(d), seq: d.seq, state: final ? final.kind : state, verified_at: now, agreeing, updated_at: now };
+    return this.rows.write((w) => {
+      const prior = w.get<{ final: string | null }>("federation_peers", { server_id: d.serverId });
+      // A final record (decommissioned, revoked) is never replaced.
+      const finalText = prior?.final ?? (final ? JSON.stringify(final) : null);
+      w.upsert("federation_peers", { server_id: d.serverId, ...known, final: finalText }, { ...known, final: finalText });
+    });
   }
 
   /** Picks the newest valid descriptor that doesn't roll back what we already know. */
@@ -133,7 +132,7 @@ export class Resolver {
       throw new FederationError(502, "server_unresolvable", "Couldn't verify that server's identity right now");
     }
     const state = final ? final.kind : this.majorityState(answers.map((a) => a.answer.result.state));
-    this.store(d, state, final, answers.length);
+    await this.store(d, state, final, answers.length);
     return this.result(d, state, final, answers.length, answers.length ? "quorum" : "cache");
   }
 
@@ -149,9 +148,7 @@ export class Resolver {
       if (!id || !d || d.serverId !== id || d.domain !== dom) continue;
       votes.set(id, [...(votes.get(id) ?? []), answer]);
     }
-    const pinned = this.db.prepare("SELECT server_id, verified_at FROM federation_domains WHERE domain = ?").get(dom) as
-      | { server_id: string; verified_at: number }
-      | undefined;
+    const pinned = this.rows.get<{ server_id: string; verified_at: number }>("federation_domains", { domain: dom });
     const winner = [...votes.entries()].sort((a, b) => b[1].length - a[1].length)[0];
     if (!winner || winner[1].length < this.quorum) {
       // No live quorum: a previously verified binding still works until its descriptor expires.
@@ -168,10 +165,9 @@ export class Resolver {
     const d = this.best(serverId, agreeing.map((a) => a.result.descriptor));
     if (!d) throw new FederationError(502, "bad_descriptor", "The directory returned an invalid server descriptor");
     const state = final ? final.kind : this.majorityState(agreeing.map((a) => a.result.state));
-    this.store(d, state, final, agreeing.length);
-    this.db
-      .prepare("INSERT INTO federation_domains (domain, server_id, verified_at) VALUES (?, ?, ?) ON CONFLICT(domain) DO UPDATE SET server_id = excluded.server_id, verified_at = excluded.verified_at")
-      .run(dom, serverId, Date.now());
+    await this.store(d, state, final, agreeing.length);
+    const binding = { server_id: serverId, verified_at: Date.now() };
+    await this.rows.write((w) => w.upsert("federation_domains", { domain: dom, ...binding }, binding));
     const r = this.result(d, state, final, agreeing.length, "quorum");
     if (pinned && pinned.server_id !== serverId) r.previousServerId = pinned.server_id;
     return r;
@@ -184,12 +180,12 @@ export class Resolver {
   }
 
   /** Called when a peer presents a newer descriptor directly (e.g. in a signed request after rotating its key). */
-  learn(d: ServerDescriptor): boolean {
+  async learn(d: ServerDescriptor): Promise<boolean> {
     const c = this.cached(d.serverId);
     if (!verifyDescriptor(d).ok) return false;
     if (c && (c.final || d.seq <= c.descriptor.seq || !chainExtends(c.descriptor.keyChain, d.keyChain))) return false;
     if (!c) return false; // unknown servers must come through the directory first
-    this.store(d, c.state, null, 0);
+    await this.store(d, c.state, null, 0);
     return true;
   }
 }

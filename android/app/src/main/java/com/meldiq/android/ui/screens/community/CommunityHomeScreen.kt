@@ -101,6 +101,7 @@ private sealed interface PanelSheet {
     data class MuteFor(val ids: List<String>, val title: String) : PanelSheet
     data class CategoryLevel(val categoryId: String, val name: String) : PanelSheet
     data object Browse : PanelSheet
+    data object Spark : PanelSheet
 }
 
 /**
@@ -376,6 +377,7 @@ fun CommunityHomeScreen(nav: NavHostController) {
                 onNotifications = if (communityPrefs) ({ sheet = PanelSheet.Notifications }) else null,
                 onArrange = if (communityPrefs && list.size > 1) ({ sheet = PanelSheet.Arrange }) else null,
                 onBrowse = if (channelPrefs) ({ sheet = PanelSheet.Browse }) else null,
+                onSpark = if (org.myRole != "GUEST") ({ sheet = PanelSheet.Spark }) else null,
             ),
             onDismiss = { if (sheet == s) sheet = null },
         )
@@ -510,6 +512,7 @@ fun CommunityHomeScreen(nav: NavHostController) {
         is PanelSheet.CategoryLevel -> CategoryLevelSheet(s.name, orgPrefs, s.categoryId, onPick = { level ->
             container.navPrefs.setCategoryLevel(org.id, s.categoryId, level)
         }, onDismiss = { if (sheet == s) sheet = null })
+        PanelSheet.Spark -> com.meldiq.android.ui.screens.mojo.CommunitySparkSheet(org, onSeePlans = { sheet = null; nav.navigate(Routes.MOJO) }) { if (sheet == s) sheet = null }
         PanelSheet.Browse -> {
             val all = remember(channels, d?.categories) {
                 CommunityPanelRules.sections(channels, d?.categories.orEmpty(), emptySet(), keepEmpty = false)

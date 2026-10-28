@@ -65,6 +65,17 @@ export const ERROR_CODES = {
   account_limited: { status: [403], meaning: "Your account is limited by warnings from Meldiq's staff (Settings › My Account › Account standing)." },
   bad_request: { status: [400], meaning: "Give the role a name" },
   billing_unavailable: { status: [409], meaning: "No billing provider is configured on this server, so nothing can be bought." },
+  // Meldiq Mojo (API 0.54.0, docs/MOJO.md).
+  // Google Play (API 0.55.0, docs/MOJO_ANDROID.md).
+  billed_elsewhere: { status: [409], meaning: "This plan is billed on meldiq.app: change or cancel it there, not in Google Play." },
+  no_sparks: { status: [409], meaning: "This account has no Meldiq Sparks: Mojo Go includes one, Mojo Plus two, and more can be bought." },
+  no_free_sparks: { status: [409], meaning: "Every Spark this account has is already given to a community." },
+  message_too_long: { status: [413], meaning: "The message is longer than the sender's plan allows (characters as people count them), or an older app's encrypted one far larger than it could need." },
+  // Server-stored messages (API 0.57.0, docs/SERVER_MESSAGES.md).
+  not_yours: { status: [403], meaning: "Only the person who sent a message can edit it, delete it or close its poll." },
+  update_required: { status: [426], meaning: "Update Meldiq to keep messaging: messages are now stored on Meldiq's servers." },
+  upload_limit: { status: [413], meaning: "The file is larger than the sender's plan, or the community's Spark level, allows." },
+  custom_items_limit: { status: [409], meaning: "This account has added as many custom emoji and stickers as its plan allows." },
   bad_signature: { status: [400, 401], meaning: "A signature doesn't verify (a message envelope against its device, or a federated request against its server)." },
   bad_username: { status: [400], meaning: "The username isn't valid (length or characters)." },
   banned: { status: [403, 409], meaning: "You've been banned from this community" },
@@ -154,6 +165,7 @@ export const ERROR_CODES = {
   org_quota_exceeded: { status: [429], meaning: "This workspace has reached its file storage limit. Older files expire after 7 days." },
   own_report: { status: [403], meaning: "This report is about you: another moderator handles it" },
   owner_only: { status: [400], meaning: "Only the owner can do that." },
+  subscription_active: { status: [409], meaning: "Your subscription still renews. Cancel it from the billing page first; nothing was deleted." },
   owns_workspaces: { status: [409], meaning: "You're the only owner of a workspace. Make someone else an owner, or delete the workspace, first. Nothing was deleted." },
   passkey_failed: { status: [401], meaning: "That passkey couldn't be verified. Try again, or sign in with your password." },
   passkey_limit: { status: [409], meaning: "This account already has as many passkeys as it can. Remove one first." },

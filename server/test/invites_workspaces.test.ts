@@ -52,7 +52,7 @@ describe("invite preview and accept (phase 1)", () => {
     expect((await expectStatus(c.req("POST", "/v1/invites/accept", { code: revoked.code }), 404)).error.code).toBe("invite_revoked");
 
     const expired = await invite(owner, orgId);
-    h.ctx.db.prepare("UPDATE invitations SET expires_at = ? WHERE id = ?").run(Date.now() - 1, expired.id);
+    await h.ctx.ws.write((w) => w.update("invitations", { id: expired.id }, { expires_at: Date.now() - 1 }));
     const e = await expectStatus(c.req("POST", "/v1/invites/preview", { code: expired.code }), 404);
     expect(e.error.code).toBe("invite_expired");
     expect(e.error.message).toMatch(/expired/i);
@@ -91,9 +91,9 @@ describe("invite preview and accept (phase 1)", () => {
     expect([a.alreadyMember, b.alreadyMember].sort()).toEqual([false, true]);
     // A later retry (the last use is gone) still succeeds for the person who already joined.
     expect((await c.req("POST", "/v1/invites/accept", { code: inv.code })).alreadyMember).toBe(true);
-    const row = h.ctx.db.prepare("SELECT uses FROM invitations WHERE id = ?").get(inv.id) as { uses: number };
+    const row = h.ctx.ws.get<{ uses: number }>("invitations", { id: inv.id })!;
     expect(row.uses).toBe(1);
-    const memberships = h.ctx.db.prepare("SELECT COUNT(*) n FROM org_members WHERE org_id = ? AND user_id = ?").get(orgId, c.userId) as { n: number };
+    const memberships = { n: h.ctx.ws.count("org_members", { org_id: orgId, user_id: c.userId }) };
     expect(memberships.n).toBe(1);
     expect((await c.req("GET", "/v1/orgs")).orgs.map((o: any) => o.id)).toEqual([orgId]);
   });
@@ -119,11 +119,11 @@ describe("invite preview and accept (phase 1)", () => {
     const gated = await startServer({ REGISTRATION_MODE: "invite" });
     try {
       const o = new GriipClient(gated.baseUrl, "gatedowner", "Owner");
-      const reg = (await import("../src/modules/organizations/invites.js")).createRegistrationInvite(gated.ctx.db, { maxUses: 1, days: 1 });
+      const reg = await (await import("../src/modules/organizations/invites.js")).createRegistrationInvite(gated.ctx.identity, { maxUses: 1, days: 1 });
       await o.register(reg.code);
       const org = (await o.req("POST", "/v1/orgs", { name: "Gated" })).org.id;
       const inv = await invite(o, org);
-      gated.ctx.db.prepare("UPDATE invitations SET expires_at = ? WHERE id = ?").run(Date.now() - 1, inv.id);
+      await gated.ctx.ws.write((w) => w.update("invitations", { id: inv.id }, { expires_at: Date.now() - 1 }));
       const body = await expectStatus(new GriipClient(gated.baseUrl, "lateperson", "Late").register(inv.code), 403);
       expect(body.error.code).toBe("invalid_invite");
       expect(body.error.message).toMatch(/expired/i);
@@ -176,13 +176,15 @@ describe("creating a workspace is idempotent (phase 3)", () => {
 describe("operator repair of existing duplicates (phase 3)", () => {
   it("lists same-name workspaces and removes only provably empty ones", async () => {
     const c = await h.client("legacy");
-    const db = h.ctx.db;
+    const ws = h.ctx.ws;
     // Duplicates as an older server made them (no request id, no name check): insert directly.
     const ids: string[] = [];
     for (let i = 0; i < 3; i++) {
       const id = `o_legacy${i}`;
-      db.prepare("INSERT INTO orgs (id, name, slug, created_by, created_at, updated_at) VALUES (?, 'GriipBuddy', ?, ?, ?, ?)").run(id, `griipbuddy-legacy${i}`, c.userId, 1000 + i, 1000 + i);
-      db.prepare("INSERT INTO org_members (org_id, user_id, role, joined_at) VALUES (?, ?, 'OWNER', ?)").run(id, c.userId, 1000 + i);
+      await ws.write((w) => {
+        w.insert("orgs", { id, name: "GriipBuddy", slug: `griipbuddy-legacy${i}`, created_by: c.userId, created_at: 1000 + i, updated_at: 1000 + i });
+        w.insert("org_members", { org_id: id, user_id: c.userId, role: "OWNER", joined_at: 1000 + i });
+      });
       ids.push(id);
     }
     // The first one is in use: someone joined it through an invite.
@@ -191,16 +193,16 @@ describe("operator repair of existing duplicates (phase 3)", () => {
     // The second has an owner-only channel; the third is completely empty.
     await c.req("POST", `/v1/orgs/${ids[1]}/channels`, { name: "notes", scope: "ORG" });
 
-    const group = findDuplicateOrgs(db).find((g) => g.ownerId === c.userId)!;
+    const group = (await findDuplicateOrgs(h.ctx)).find((g) => g.ownerId === c.userId)!;
     expect(group.orgs.map((o) => o.id)).toEqual(ids);
     expect(group.orgs.map((o) => o.removable)).toEqual([false, true, true]);
-    expect(keepReason(db, ids[0])).toMatch(/members|joined/);
+    expect(await keepReason(h.ctx, ids[0])).toMatch(/members|joined/);
 
-    expect(() => deleteEmptyOrg(db, ids[0])).toThrow(/refusing/);
-    deleteEmptyOrg(db, ids[2]);
-    deleteEmptyOrg(db, ids[1]);
-    expect(db.prepare("SELECT COUNT(*) n FROM conversations WHERE org_id = ?").get(ids[1])).toEqual({ n: 0 });
+    await expect(deleteEmptyOrg(h.ctx, ids[0])).rejects.toThrow(/refusing/);
+    await deleteEmptyOrg(h.ctx, ids[2]);
+    await deleteEmptyOrg(h.ctx, ids[1]);
+    expect(ws.count("conversations", { org_id: ids[1] })).toBe(0);
     expect((await c.req("GET", "/v1/orgs")).orgs.map((o: any) => o.id)).toEqual([ids[0]]);
-    expect(findDuplicateOrgs(db).find((g) => g.ownerId === c.userId)).toBeUndefined();
+    expect((await findDuplicateOrgs(h.ctx)).find((g) => g.ownerId === c.userId)).toBeUndefined();
   });
 });

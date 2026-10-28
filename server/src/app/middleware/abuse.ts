@@ -1,6 +1,6 @@
 import net from "node:net";
-import type { DB } from "../../infrastructure/database/db.js";
 import { now } from "../../shared/utilities/util.js";
+import type { RowReader, Rows } from "../../infrastructure/database/rows/index.js";
 
 /**
  * Abuse controls shared by several routes (docs/ABUSE_CONTROLS.md). Counters live in memory only: they hold network
@@ -83,19 +83,19 @@ export class SlidingWindow {
 }
 
 /** Whether an account is still under new-account limits (docs/ABUSE_CONTROLS.md › New accounts). */
-export function hasNewAccountLimits(db: DB, userId: string, t = now()): boolean {
-  const r = db.prepare("SELECT limited_until FROM users WHERE id = ?").get(userId) as { limited_until: number | null } | undefined;
+export function hasNewAccountLimits(identity: RowReader, userId: string, t = now()): boolean {
+  const r = identity.get<{ limited_until: number | null }>("users", { id: userId });
   return !!r?.limited_until && r.limited_until > t;
 }
 
 /** The accounts still under new-account limits (their files share one allowance). */
-export function limitedUserIds(db: DB, t = now()): string[] {
-  return (db.prepare("SELECT id FROM users WHERE limited_until > ?").all(t) as { id: string }[]).map((r) => r.id);
+export function limitedUserIds(identity: RowReader, t = now()): string[] {
+  return identity.all<{ id: string }>("users", { where: { limited_until: { gt: t } } }).map((r) => r.id);
 }
 
 /** Ends an account's new-account limits. Returns whether it had any. */
-export function endNewAccountLimits(db: DB, userId: string): boolean {
-  return db.prepare("UPDATE users SET limited_until = NULL WHERE id = ? AND limited_until IS NOT NULL").run(userId).changes > 0;
+export function endNewAccountLimits(identity: Rows, userId: string): Promise<boolean> {
+  return identity.write((w) => w.update("users", { id: userId, limited_until: { ne: null } }, { limited_until: null }) > 0);
 }
 
 /**
@@ -103,11 +103,7 @@ export function endNewAccountLimits(db: DB, userId: string): boolean {
  * ("user.register") and Orbit 2.0 account sign-ups ("account.register"). Setting up encryption for an account is logged
  * with a detail, so one person isn't counted twice.
  */
-export function openRegistrationsToday(db: DB, t = now()): number {
-  return (
-    db.prepare("SELECT COUNT(*) n FROM audit_log WHERE action IN ('user.register', 'account.register') AND detail IS NULL AND at > ?").get(t - DAY_MS) as {
-      n: number;
-    }
-  ).n;
+export function openRegistrationsToday(rows: RowReader, t = now()): number {
+  return rows.count("audit_log", { action: { in: ["user.register", "account.register"] }, detail: null, at: { gt: t - DAY_MS } });
 }
 

@@ -1,6 +1,7 @@
 import { profileMediaView, wornTag } from "./profileMedia.js";
 import type { AppContext } from "../../app/context.js";
 import { Audience as AudienceEnum, PHONE, PresenceMode as PresenceModeEnum, validBirthday } from "../../shared/contracts/http/users.js";
+import type { ActivityWire } from "../../shared/contracts/realtime.js";
 
 /**
  * Profiles and who may see each part of them (2026-10-17, docs/PROFILE_AND_PRIVACY.md).
@@ -82,9 +83,15 @@ export function shownPresence(ctx: AppContext, u: Pick<ProfileRow, "id" | "prese
   return m === "auto" ? "online" : m;
 }
 
+/** API 0.56.0: what [u] is playing, as shown to people who may see their presence: nothing while they appear offline. */
+export function shownActivity(ctx: AppContext, u: Pick<ProfileRow, "id" | "presence_mode" | "presence_until">): ActivityWire | null {
+  const activity = ctx.activity.current(u.id);
+  return activity && shownPresence(ctx, u) !== "offline" ? activity : null;
+}
+
 /** Whether [userId] appears online (connected and not invisible); loads their choice when only the id is known. */
 export function appearsOnline(ctx: AppContext, u: string | Pick<ProfileRow, "id" | "presence_mode" | "presence_until">): boolean {
-  const row = typeof u === "string" ? (ctx.db.prepare("SELECT id, presence_mode, presence_until FROM users WHERE id = ?").get(u) as ProfileRow | undefined) : u;
+  const row = typeof u === "string" ? ctx.identity.get<ProfileRow>("users", { id: u }) : u;
   return row ? shownPresence(ctx, row) !== "offline" : false;
 }
 
@@ -114,7 +121,7 @@ export interface Relation {
 
 export function relation(ctx: AppContext, viewerId: string, targetId: string): Relation {
   if (viewerId === targetId) return { self: true, contact: true, blockedByTarget: false };
-  const blocked = !!ctx.db.prepare("SELECT 1 FROM user_blocks WHERE user_id = ? AND blocked_user_id = ?").get(targetId, viewerId);
+  const blocked = !!ctx.identity.get("user_blocks", { user_id: targetId, blocked_user_id: viewerId });
   return { self: false, contact: ctx.authz.canSeePresence(viewerId, targetId), blockedByTarget: blocked };
 }
 
@@ -146,7 +153,7 @@ export function notificationsPaused(u: Pick<ProfileRow, "notifications_paused_un
  * The profile [r]'s viewer may see. Fields they may not see are absent (not null), so "hidden" and "empty" look the same
  * to them. The person themself also gets their privacy settings.
  */
-export function profileView(u: ProfileRow, r: Relation) {
+export function profileView(u: ProfileRow, r: Relation, ctx?: AppContext) {
   const p = privacyOf(u);
   const show = (f: PrivacyField) => allows(p[f], r);
   const view: Record<string, unknown> = {
@@ -171,7 +178,7 @@ export function profileView(u: ProfileRow, r: Relation) {
   }
   if (show("photo") && u.photo_rev) view.photoRev = u.photo_rev;
   // API 0.45.0: an animated avatar and banner under the photo's setting, and the profile's style.
-  Object.assign(view, profileMediaView(u, show("photo")));
+  Object.assign(view, profileMediaView(u, show("photo")), ctx ? mojoBadge(ctx, u.id) : {});
   if (show("birthday") && u.birthday) view.birthday = u.birthday;
   if (show("phone") && u.phone) view.phone = u.phone;
   if (r.self) {
@@ -206,6 +213,7 @@ export function memberView(ctx: AppContext, viewerId: string, u: ProfileRow, bas
   const p = privacyOf(u);
   const status = activeStatus(u);
   const seen = allows(p.lastSeen, r);
+  const activity = seen ? shownActivity(ctx, u) : null;
   return {
     ...base,
     statusText: allows(p.bio, r) ? status.text : null,
@@ -217,6 +225,8 @@ export function memberView(ctx: AppContext, viewerId: string, u: ProfileRow, bas
     online: seen ? appearsOnline(ctx, u) : null,
     // Batch B6b: online, idle, do not disturb or offline (invisible people appear offline).
     ...(seen ? { presence: shownPresence(ctx, u) } : {}),
+    // API 0.56.0: "Playing PUBG Mobile", under the same rule as the presence.
+    ...(activity ? { activity } : {}),
     // "Ada has paused notifications": shown to the people who may see when Ada was last online (round 3).
     notificationsPaused: seen ? notificationsPaused(u) : null,
   };
@@ -226,7 +236,16 @@ export function memberView(ctx: AppContext, viewerId: string, u: ProfileRow, bas
 function listMedia(ctx: AppContext, u: ProfileRow, photoAllowed: boolean): Record<string, unknown> {
   const { profileBanner: _banner, ...media } = profileMediaView(u as never, photoAllowed);
   const tag = wornTag(ctx, u as never);
-  return tag ? { ...media, tag } : media;
+  return { ...media, ...(tag ? { tag } : {}), ...mojoBadge(ctx, u.id) };
+}
+
+/**
+ * The Mojo badge someone shows (API 0.54.0, docs/MOJO.md): their plan's, from verified billing only, unless they hid
+ * it. Meldiq Check comes with Mojo Plus: a membership perk, never identity verification.
+ */
+function mojoBadge(ctx: AppContext, userId: string): { mojo?: { badge: "go" | "plus"; check: boolean } } {
+  const b = ctx.mojo?.badges([userId]).get(userId);
+  return b ? { mojo: b } : {};
 }
 
 /** A user row's profile links (API 0.46.0), dropping anything malformed. */

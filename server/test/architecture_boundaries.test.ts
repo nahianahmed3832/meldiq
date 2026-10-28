@@ -92,7 +92,7 @@ const TABLE_OWNERS: Readonly<Record<string, string>> = {
   ),
   ...owned(
     "messaging",
-    "conversations conversation_members mention_all_events delivery_queue submitted_messages history_accounts history_items",
+    "conversations conversation_members mention_all_events delivery_queue delivery_queue_rebuilt submitted_messages history_accounts history_items message_events",
   ),
   ...owned("files", "attachments attachment_uploads abandoned_uploads pending_blob_deletes"),
   ...owned("calls", "calls call_participants call_hands meetings meeting_participants"),
@@ -124,7 +124,11 @@ const TABLE_OWNERS: Readonly<Record<string, string>> = {
   // Billing (migration 061).
   ...owned(
     "billing",
-    "billing_plans billing_plan_versions billing_checkouts billing_subscriptions billing_subscription_history billing_invoices billing_provider_events billing_webhook_rejections",
+    "billing_plans billing_plan_versions billing_checkouts billing_subscriptions billing_subscription_history billing_invoices billing_provider_events billing_webhook_rejections billing_customers " +
+      // Migration 062 rebuilds three tables through these names (they exist only during the migration).
+      "billing_checkouts_rebuilt billing_subscriptions_rebuilt billing_invoices_rebuilt " +
+      // Migration 063: trials and invite links.
+      "billing_grants billing_referral_codes billing_referrals billing_grants_rebuilt spark_assignments mojo_gifts mojo_profile billing_play_purchases",
   ),
   ...owned("quotas", "quota_plans quota_plan_members quota_policies quota_counters quota_reservations quota_events"),
   ...owned("ai", "ai_providers ai_models ai_usage ai_model_capabilities ai_routing"),
@@ -140,8 +144,13 @@ function owned(module: string, tables: string): Record<string, string> {
   return Object.fromEntries(tables.split(" ").map((t) => [t, module]));
 }
 
-/** SQL statements are written with upper-case keywords; MongoDB collections are opened by name. */
-const TABLE_REF = /\b(?:FROM|JOIN|INTO|UPDATE|TABLE)\s+"?([a-z_]+)"?|\bcollection(?:<[^>]*>)?\(\s*["'`]([a-z_]+)["'`]/g;
+/**
+ * SQL statements are written with upper-case keywords; MongoDB collections are opened by name; rows
+ * (src/infrastructure/database/rows) are read and written by table name, and SQLite rows joined to them are read with
+ * rowsByIds / mapByIds (src/infrastructure/database/byIds.ts). Blob stores take a kind, not a table.
+ */
+const TABLE_REF =
+  /\b(?:FROM|JOIN|INTO|UPDATE|TABLE)\s+"?([a-z_]+)"?|\bcollection(?:<[^>]*>)?\(\s*["'`]([a-z_]+)["'`]|(?<!blobs)\.(?:get|all|count|insert|upsert|update|delete)(?:<[^>]*>)?\(\s*["'`]([a-z_]+)["'`]|\b(?:rowsByIds|mapByIds)(?:<[^>]*>)?\([^,]+,\s*["'`]([a-z_]+)["'`]/g;
 
 /** Where any table may be touched: wiring, entrypoints, and the database tools that copy every table. */
 function mayTouchAnyTable(rel: string): boolean {
@@ -157,7 +166,7 @@ function currentTableViolations(): string[] {
     const area = areaOf(rel);
     const mine = area.kind === "module" ? area.name : null;
     for (const m of fs.readFileSync(file, "utf8").matchAll(TABLE_REF)) {
-      const table = m[1] ?? m[2]!;
+      const table = m[1] ?? m[2] ?? m[3] ?? m[4]!;
       const owner = TABLE_OWNERS[table];
       if (owner && owner !== mine) found.add(`${rel} -> ${table}`);
     }

@@ -1,4 +1,4 @@
-import type { DB } from "../../infrastructure/database/db.js";
+import type { RowReader, Rows, RowWriter } from "../../infrastructure/database/rows/index.js";
 import { ApiError } from "../../shared/errors.js";
 import { newId } from "../../shared/utilities/util.js";
 import { isQuotaKey, type QuotaKey, QUOTA_KEYS, type QuotaMode, periodEnd, periodOf, type ScopeType } from "./keys.js";
@@ -14,8 +14,8 @@ import { isQuotaKey, type QuotaKey, QUOTA_KEYS, type QuotaMode, periodEnd, perio
  * A hard global default caps whatever 1–3 say. The platform total and capacity pools are scopes of their own, checked
  * against their own usage, so nothing narrower can raise them. A request passes only if every scope it touches passes.
  *
- * Accounting: counters per scope, key and period (quota_counters); a check and its reservation happen in one
- * immediate SQLite transaction, so two requests can't both take the last of an allowance. Gauges (stored bytes, open
+ * Accounting: counters per scope, key and period (quota_counters); a check and its reservation happen in one write
+ * unit of the platform rows, so two requests can't both take the last of an allowance. Gauges (stored bytes, open
  * sockets) are measured by the caller and the engine adds what open reservations hold.
  *
  * Modes: observe (measure, record overages), warn (record crossing the warning level), soft (allow up to the grace
@@ -105,15 +105,22 @@ export class QuotaEngine {
   private recent = new Map<string, number>();
 
   constructor(
-    private readonly db: DB,
+    /** The platform domain's rows: policies, plans, counters, events and reservations. */
+    private readonly rows: Rows,
     private readonly clock: () => number = Date.now,
+    /** The quota plan a granting subscription puts a person or organization on (billing), after operator assignments. */
+    private readonly subscribedPlan: (scope: Scope, t: number) => string | null = () => null,
   ) {}
+
+  /** Whether [id] is a quota plan that can still be assigned (not archived). */
+  planExists(id: string): boolean {
+    return !!this.rows.get("quota_plans", { id, archived_at: null });
+  }
 
   private policies(key: string): PolicyRow[] {
     if (!this.cache) {
-      const rows = this.db.prepare("SELECT * FROM quota_policies WHERE superseded_at IS NULL").all() as PolicyRow[];
       this.cache = new Map();
-      for (const r of rows) this.cache.set(r.quota_key, [...(this.cache.get(r.quota_key) ?? []), r]);
+      for (const r of this.rows.all<PolicyRow>("quota_policies", { where: { superseded_at: null } })) this.cache.set(r.quota_key, [...(this.cache.get(r.quota_key) ?? []), r]);
     }
     return this.cache.get(key) ?? [];
   }
@@ -123,11 +130,11 @@ export class QuotaEngine {
     return this.policies(key).length > 0;
   }
 
-  /** The plan [scope] is on, if any. */
+  /** The plan [scope] is on, if any: an operator's assignment first, else the one its subscription grants. */
   planOf(scope: Scope): string | null {
     if (scope.type !== "org" && scope.type !== "user") return null;
-    const row = this.db.prepare("SELECT plan_id FROM quota_plan_members WHERE scope_type = ? AND scope_id = ?").get(scope.type, scope.id) as { plan_id: string } | undefined;
-    return row?.plan_id ?? null;
+    const row = this.rows.get<{ plan_id: string }>("quota_plan_members", { scope_type: scope.type, scope_id: scope.id });
+    return row?.plan_id ?? this.subscribedPlan(scope, this.clock());
   }
 
   /** The policy that applies to [scope] for [key] at [t], following the resolution order above. */
@@ -162,32 +169,37 @@ export class QuotaEngine {
     return { scope, policy: found.policy, source: found.source, limit: found.policy.limit_value, mode: found.policy.mode, cappedBy: null };
   }
 
-  private counter(scope: Scope, key: QuotaKey, period: string): { used: number; reserved: number } {
-    const row = this.db.prepare("SELECT used, reserved FROM quota_counters WHERE scope_type = ? AND scope_id = ? AND quota_key = ? AND period_start = ?").get(scope.type, scope.id, key, period) as
-      | { used: number; reserved: number }
-      | undefined;
-    return row ?? { used: 0, reserved: 0 };
+  private counter(r: RowReader, scope: Scope, key: QuotaKey, period: string): { used: number; reserved: number } {
+    const row = r.get<{ used: number; reserved: number }>("quota_counters", { scope_type: scope.type, scope_id: scope.id, quota_key: key, period_start: period });
+    return row ? { used: row.used, reserved: row.reserved } : { used: 0, reserved: 0 };
   }
 
-  private bump(scope: Scope, key: QuotaKey, period: string, used: number, reserved: number, t: number): void {
-    this.db
-      .prepare(
-        `INSERT INTO quota_counters (scope_type, scope_id, quota_key, period_start, used, reserved, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT (scope_type, scope_id, quota_key, period_start) DO UPDATE SET
-           used = MAX(0, used + excluded.used), reserved = MAX(0, reserved + excluded.reserved), updated_at = excluded.updated_at`,
-      )
-      .run(scope.type, scope.id, key, period, used, reserved, t);
+  /** Adds [used] and [reserved] (either may be negative) to a counter, never below zero. */
+  private bump(w: RowWriter, scope: Scope, key: QuotaKey, period: string, used: number, reserved: number, t: number): void {
+    const where = { scope_type: scope.type, scope_id: scope.id, quota_key: key, period_start: period };
+    const c = w.get<{ used: number; reserved: number }>("quota_counters", where);
+    if (!c) w.insert("quota_counters", { ...where, used, reserved, updated_at: t });
+    else w.update("quota_counters", where, { used: Math.max(0, c.used + used), reserved: Math.max(0, c.reserved + reserved), updated_at: t });
   }
 
-  private event(key: QuotaKey, d: ScopeDecision, amount: number, t: number, detail: string | null = null): void {
+  private event(w: RowWriter, key: QuotaKey, d: ScopeDecision, amount: number, t: number, detail: string | null = null): void {
     if (d.outcome === "ok") return;
     const k = `${key}|${d.scope.type}|${d.scope.id}|${d.outcome}`;
     if (t - (this.recent.get(k) ?? 0) < EVENT_EVERY_MS) return;
     this.recent.set(k, t);
     if (this.recent.size > 10_000) this.recent.clear();
-    this.db
-      .prepare("INSERT INTO quota_events (at, quota_key, scope_type, scope_id, outcome, amount, used, limit_value, policy_id, detail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-      .run(t, key, d.scope.type, d.scope.id, d.outcome, Math.round(amount), Math.round(d.used + d.reserved), d.limit, d.policy?.id ?? null, detail);
+    w.insert("quota_events", {
+      at: t,
+      quota_key: key,
+      scope_type: d.scope.type,
+      scope_id: d.scope.id,
+      outcome: d.outcome,
+      amount: Math.round(amount),
+      used: Math.round(d.used + d.reserved),
+      limit_value: d.limit,
+      policy_id: d.policy?.id ?? null,
+      detail,
+    });
   }
 
   /** One scope's verdict for adding [amount] on top of [used] + [reserved]. */
@@ -215,115 +227,119 @@ export class QuotaEngine {
 
   /**
    * Checks adding [amount] of [key] for [scopes] and, when allowed and [reserve] is set, reserves it in the same
-   * transaction (settle with [commit] or [release]). Counters: the engine's own usage. Gauges: [measured] per scope
+   * write unit (settle with [commit] or [release]). Counters: the engine's own usage. Gauges: [measured] per scope
    * type, plus open reservations. Throws nothing; the caller decides how to refuse ([refusal]).
    */
-  check(key: QuotaKey, scopes: Scope[], amount: number, opts: { measured?: Measured; reserve?: boolean; idempotencyKey?: string; detail?: string; ttlMs?: number } = {}): Decision {
+  async check(key: QuotaKey, scopes: Scope[], amount: number, opts: { measured?: Measured; reserve?: boolean; idempotencyKey?: string; detail?: string; ttlMs?: number } = {}): Promise<Decision> {
     // Nothing governs this key: nothing to check, measure or write (the default for every key).
     if (!this.hasPolicies(key)) return { key, allowed: true, scopes: [], reservationId: null, retryAt: null };
     const def = QUOTA_KEYS[key];
     const t = this.clock();
     const period = periodOf(def.period, t);
     const applicable = scopes.filter((s) => (def.scopes as readonly string[]).includes(s.type));
-    const run = () => {
+    // The verdict is read inside the unit, so two requests can't both take the last of an allowance.
+    return this.rows.write((w): Decision => {
       if (opts.idempotencyKey) {
-        const prior = this.db.prepare("SELECT id, state FROM quota_reservations WHERE idempotency_key = ?").get(opts.idempotencyKey) as { id: string; state: string } | undefined;
-        if (prior) return { key, allowed: prior.state !== "released", scopes: [], reservationId: prior.id, retryAt: null } satisfies Decision;
+        const prior = w.get<{ id: string; state: string }>("quota_reservations", { idempotency_key: opts.idempotencyKey });
+        if (prior) return { key, allowed: prior.state !== "released", scopes: [], reservationId: prior.id, retryAt: null };
       }
       const decisions = applicable.map((scope) => {
         const e = this.effective(key, scope, t);
-        const c = this.counter(scope, key, period);
+        const c = this.counter(w, scope, key, period);
         const used = def.kind === "gauge" ? (opts.measured?.[scope.type] ?? 0) : c.used;
         return this.judge(e, used, def.kind === "per_request" ? 0 : c.reserved, amount, def.kind === "per_request");
       });
       const refused = decisions.find((d) => d.outcome === "blocked" || d.outcome === "throttled");
-      for (const d of decisions) this.event(key, d, amount, t, opts.detail ?? null);
+      for (const d of decisions) this.event(w, key, d, amount, t, opts.detail ?? null);
       let reservationId: string | null = null;
       if (!refused && opts.reserve && def.kind !== "per_request" && amount > 0) {
         reservationId = newId("qr");
-        for (const scope of applicable) this.bump(scope, key, period, 0, amount, t);
-        this.db
-          .prepare("INSERT INTO quota_reservations (id, idempotency_key, quota_key, scopes, amount, state, created_at, expires_at) VALUES (?, ?, ?, ?, ?, 'reserved', ?, ?)")
-          .run(reservationId, opts.idempotencyKey ?? null, key, JSON.stringify(applicable.map((s) => ({ ...s, period }))), Math.round(amount), t, t + (opts.ttlMs ?? RESERVATION_TTL_MS));
+        for (const scope of applicable) this.bump(w, scope, key, period, 0, amount, t);
+        w.insert("quota_reservations", {
+          id: reservationId,
+          idempotency_key: opts.idempotencyKey ?? null,
+          quota_key: key,
+          scopes: JSON.stringify(applicable.map((s) => ({ ...s, period }))),
+          amount: Math.round(amount),
+          state: "reserved",
+          created_at: t,
+          expires_at: t + (opts.ttlMs ?? RESERVATION_TTL_MS),
+        });
       }
       const retryAt = refused ? (periodEnd(def.period, t) ?? null) : null;
-      return { key, allowed: !refused, scopes: decisions, reservationId, retryAt } satisfies Decision;
-    };
-    return this.db.transaction(run).immediate();
+      return { key, allowed: !refused, scopes: decisions, reservationId, retryAt };
+    });
   }
 
   /**
    * Settles a reservation with what was really used ([actual], default the reserved amount): counters move it from
    * reserved to used; gauges just drop the reservation (the source now measures it). Idempotent.
    */
-  commit(reservationId: string, actual?: number): void {
-    this.settle(reservationId, "committed", actual);
+  commit(reservationId: string, actual?: number): Promise<void> {
+    return this.settle(reservationId, "committed", actual);
   }
 
   /** Gives a reservation back (the operation failed or was refused later). Idempotent. */
-  release(reservationId: string): void {
-    this.settle(reservationId, "released", 0);
+  release(reservationId: string): Promise<void> {
+    return this.settle(reservationId, "released", 0);
   }
 
   /** [commit] / [release] by the idempotency key a reservation was made with (an upload's id); no-op if none. */
-  settleByKey(idempotencyKey: string, outcome: "commit" | "release", actual?: number): void {
-    const r = this.db.prepare("SELECT id FROM quota_reservations WHERE idempotency_key = ? AND state = 'reserved'").get(idempotencyKey) as { id: string } | undefined;
+  async settleByKey(idempotencyKey: string, outcome: "commit" | "release", actual?: number): Promise<void> {
+    const r = this.rows.get<{ id: string }>("quota_reservations", { idempotency_key: idempotencyKey, state: "reserved" });
     if (!r) return;
-    if (outcome === "commit") this.commit(r.id, actual);
-    else this.release(r.id);
+    if (outcome === "commit") await this.commit(r.id, actual);
+    else await this.release(r.id);
   }
 
-  private settle(id: string, state: "committed" | "released" | "expired", actual?: number): void {
+  private async settle(id: string, state: "committed" | "released" | "expired", actual?: number): Promise<void> {
     const t = this.clock();
-    this.db
-      .transaction(() => {
-        const r = this.db.prepare("SELECT * FROM quota_reservations WHERE id = ? AND state = 'reserved'").get(id) as
-          | { quota_key: string; scopes: string; amount: number }
-          | undefined;
-        if (!r || !isQuotaKey(r.quota_key)) return;
-        const key = r.quota_key;
-        const used = state === "committed" && QUOTA_KEYS[key].kind === "counter" ? Math.max(0, Math.round(actual ?? r.amount)) : 0;
-        for (const s of JSON.parse(r.scopes) as (Scope & { period: string })[]) this.bump(s, key, s.period, used, -r.amount, t);
-        this.db.prepare("UPDATE quota_reservations SET state = ?, settled_amount = ?, settled_at = ? WHERE id = ?").run(state, used, t, id);
-      })
-      .immediate();
+    await this.rows.write((w) => this.settleIn(w, id, state, t, actual));
+  }
+
+  private settleIn(w: RowWriter, id: string, state: "committed" | "released" | "expired", t: number, actual?: number): boolean {
+    const r = w.get<{ quota_key: string; scopes: string; amount: number }>("quota_reservations", { id, state: "reserved" });
+    if (!r || !isQuotaKey(r.quota_key)) return false;
+    const key = r.quota_key;
+    const used = state === "committed" && QUOTA_KEYS[key].kind === "counter" ? Math.max(0, Math.round(actual ?? r.amount)) : 0;
+    for (const s of JSON.parse(r.scopes) as (Scope & { period: string })[]) this.bump(w, s, key, s.period, used, -r.amount, t);
+    w.update("quota_reservations", { id }, { state, settled_amount: used, settled_at: t });
+    return true;
   }
 
   /**
    * Charges [amount] of a counter key directly (an operation already allowed, like a download's bytes), after
    * checking. Returns the decision; a refusal charges nothing.
    */
-  charge(key: QuotaKey, scopes: Scope[], amount: number, detail?: string): Decision {
-    const d = this.check(key, scopes, amount, { reserve: true, detail });
-    if (d.reservationId) this.commit(d.reservationId, amount);
+  async charge(key: QuotaKey, scopes: Scope[], amount: number, detail?: string): Promise<Decision> {
+    const d = await this.check(key, scopes, amount, { reserve: true, detail });
+    if (d.reservationId) await this.commit(d.reservationId, amount);
     return d;
   }
 
   /** Releases reservations older than their time to live (a request that died part-way); returns how many. */
-  expireReservations(): number {
+  expireReservations(): Promise<number> {
     const t = this.clock();
-    const stale = this.db.prepare("SELECT id, quota_key, scopes, amount FROM quota_reservations WHERE state = 'reserved' AND expires_at <= ? LIMIT 500").all(t) as {
-      id: string;
-      quota_key: string;
-      scopes: string;
-      amount: number;
-    }[];
-    for (const r of stale) {
-      this.settle(r.id, "expired", 0);
-      const first = (JSON.parse(r.scopes) as Scope[])[0];
-      if (first && isQuotaKey(r.quota_key)) {
-        this.db
-          .prepare("INSERT INTO quota_events (at, quota_key, scope_type, scope_id, outcome, amount, used, limit_value, policy_id, detail) VALUES (?, ?, ?, ?, 'expired_reservation', ?, 0, NULL, NULL, NULL)")
-          .run(t, r.quota_key, first.type, first.id, r.amount);
+    const stale = this.rows
+      .all<{ id: string; quota_key: string; scopes: string; amount: number }>("quota_reservations", { where: { state: "reserved", expires_at: { lte: t } } })
+      .slice(0, 500);
+    if (stale.length === 0) return Promise.resolve(0);
+    return this.rows.write((w) => {
+      for (const r of stale) {
+        if (!this.settleIn(w, r.id, "expired", t, 0)) continue;
+        const first = (JSON.parse(r.scopes) as Scope[])[0];
+        if (first && isQuotaKey(r.quota_key)) {
+          w.insert("quota_events", { at: t, quota_key: r.quota_key, scope_type: first.type, scope_id: first.id, outcome: "expired_reservation", amount: r.amount, used: 0, limit_value: null, policy_id: null, detail: null });
+        }
       }
-    }
-    return stale.length;
+      return stale.length;
+    });
   }
 
   // ───────────── Policies (the console writes these; every change is audited by the caller) ─────────────
 
   /** Writes a new version of the policy for (scope, key, override?), superseding the current one. Returns its id. */
-  setPolicy(input: PolicyInput, actor: string): PolicyRow {
+  async setPolicy(input: PolicyInput, actor: string): Promise<PolicyRow> {
     const def = QUOTA_KEYS[input.key];
     validatePolicy(input);
     if (!["observe", "warn"].includes(input.mode) && !(def.enforceable as readonly string[]).includes(input.mode)) {
@@ -331,62 +347,67 @@ export class QuotaEngine {
     }
     const t = this.clock();
     const id = newId("qp");
-    this.db
-      .transaction(() => {
-        const current = this.db
-          .prepare("SELECT id FROM quota_policies WHERE scope_type = ? AND scope_id = ? AND quota_key = ? AND override = ? AND superseded_at IS NULL")
-          .all(input.scopeType, input.scopeId, input.key, input.override ? 1 : 0) as { id: string }[];
-        for (const c of current) this.db.prepare("UPDATE quota_policies SET superseded_at = ?, superseded_by = ? WHERE id = ?").run(t, id, c.id);
-        this.db
-          .prepare(
-            `INSERT INTO quota_policies (id, scope_type, scope_id, quota_key, limit_value, mode, hard, warn_pct, grace_pct, override, expires_at, reason, created_by, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          )
-          .run(
-            id,
-            input.scopeType,
-            input.scopeId,
-            input.key,
-            input.limit,
-            input.mode,
-            input.hard ? 1 : 0,
-            input.warnPct ?? 80,
-            input.gracePct ?? 0,
-            input.override ? 1 : 0,
-            input.expiresAt ?? null,
-            input.reason,
-            actor,
-            t,
-          );
-      })
-      .immediate();
+    const row = await this.rows.write((w) => {
+      w.update(
+        "quota_policies",
+        { scope_type: input.scopeType, scope_id: input.scopeId, quota_key: input.key, override: input.override ? 1 : 0, superseded_at: null },
+        { superseded_at: t, superseded_by: id },
+      );
+      w.insert("quota_policies", {
+        id,
+        scope_type: input.scopeType,
+        scope_id: input.scopeId,
+        quota_key: input.key,
+        limit_value: input.limit,
+        mode: input.mode,
+        hard: input.hard ? 1 : 0,
+        warn_pct: input.warnPct ?? 80,
+        grace_pct: input.gracePct ?? 0,
+        override: input.override ? 1 : 0,
+        expires_at: input.expiresAt ?? null,
+        reason: input.reason,
+        created_by: actor,
+        created_at: t,
+      });
+      return w.get<PolicyRow>("quota_policies", { id })!;
+    });
     this.cache = null;
-    return this.db.prepare("SELECT * FROM quota_policies WHERE id = ?").get(id) as PolicyRow;
+    return row;
   }
 
   /** Ends a policy (superseded by nothing): the next level of the resolution applies again. */
-  removePolicy(id: string): PolicyRow | null {
+  async removePolicy(id: string): Promise<PolicyRow | null> {
     const t = this.clock();
-    const row = this.db.prepare("SELECT * FROM quota_policies WHERE id = ? AND superseded_at IS NULL").get(id) as PolicyRow | undefined;
-    if (!row) return null;
-    this.db.prepare("UPDATE quota_policies SET superseded_at = ? WHERE id = ?").run(t, id);
+    const row = await this.rows.write((w) => {
+      const current = w.get<PolicyRow>("quota_policies", { id, superseded_at: null });
+      if (current) w.update("quota_policies", { id }, { superseded_at: t });
+      return current ?? null;
+    });
     this.cache = null;
     return row;
   }
 
   /** Records an operator's correction of a counter (a credit is negative), with the reason, never deleting history. */
-  adjust(key: QuotaKey, scope: Scope, delta: number, actor: string, reason: string): void {
+  adjust(key: QuotaKey, scope: Scope, delta: number, actor: string, reason: string): Promise<void> {
     const t = this.clock();
     const period = periodOf(QUOTA_KEYS[key].period, t);
-    this.db
-      .transaction(() => {
-        this.bump(scope, key, period, Math.round(delta), 0, t);
-        const c = this.counter(scope, key, period);
-        this.db
-          .prepare("INSERT INTO quota_events (at, quota_key, scope_type, scope_id, outcome, amount, used, limit_value, policy_id, actor, detail) VALUES (?, ?, ?, ?, 'adjusted', ?, ?, NULL, NULL, ?, ?)")
-          .run(t, key, scope.type, scope.id, Math.round(delta), c.used, actor, reason);
-      })
-      .immediate();
+    return this.rows.write((w) => {
+      this.bump(w, scope, key, period, Math.round(delta), 0, t);
+      const c = this.counter(w, scope, key, period);
+      w.insert("quota_events", {
+        at: t,
+        quota_key: key,
+        scope_type: scope.type,
+        scope_id: scope.id,
+        outcome: "adjusted",
+        amount: Math.round(delta),
+        used: c.used,
+        limit_value: null,
+        policy_id: null,
+        actor,
+        detail: reason,
+      });
+    });
   }
 
   /** Usage of a counter key for [scope] in the current period. */
@@ -394,7 +415,7 @@ export class QuotaEngine {
     const def = QUOTA_KEYS[key];
     const t = this.clock();
     const period = periodOf(def.period, t);
-    return { period, ...this.counter(scope, key, period), resetsAt: periodEnd(def.period, t) };
+    return { period, ...this.counter(this.rows, scope, key, period), resetsAt: periodEnd(def.period, t) };
   }
 
   invalidate(): void {
@@ -403,7 +424,7 @@ export class QuotaEngine {
 
   /** How many decisions with one of [outcomes] were recorded since [since] (alert rules; recording is deduplicated). */
   eventCount(outcomes: string[], since: number): number {
-    return (this.db.prepare("SELECT COUNT(*) n FROM quota_events WHERE at > ? AND outcome IN (SELECT value FROM json_each(?))").get(since, JSON.stringify(outcomes)) as { n: number }).n;
+    return this.rows.count("quota_events", { at: { gt: since }, outcome: { in: outcomes } });
   }
 }
 

@@ -157,7 +157,7 @@ export class KeyBackupService {
 
   private identityKey(a: AccountRow): string | null {
     if (!a.user_id) return null;
-    const u = this.ctx.db.prepare("SELECT identity_key FROM users WHERE id = ?").get(a.user_id) as { identity_key: string } | undefined;
+    const u = this.ctx.identity.get<{ identity_key: string }>("users", { id: a.user_id });
     return u?.identity_key ?? null;
   }
 

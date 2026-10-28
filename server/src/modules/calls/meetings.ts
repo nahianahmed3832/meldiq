@@ -52,11 +52,11 @@ export class MeetingService {
   constructor(private readonly ctx: AppContext) {}
 
   private load(id: string): MeetingRow | undefined {
-    return this.ctx.db.prepare("SELECT * FROM meetings WHERE id = ?").get(id) as MeetingRow | undefined;
+    return this.ctx.ws.get<MeetingRow>("meetings", { id });
   }
 
   private participants(id: string): { user_id: string; response: string }[] {
-    return this.ctx.db.prepare("SELECT user_id, response FROM meeting_participants WHERE meeting_id = ?").all(id) as { user_id: string; response: string }[];
+    return this.ctx.ws.all<{ user_id: string; response: string }>("meeting_participants", { where: { meeting_id: id } });
   }
 
   /** The organizer, people invited, and anyone who can open the room see the meeting; nobody else, not even its title. */
@@ -80,7 +80,7 @@ export class MeetingService {
   }
 
   private name(id: string): string | null {
-    return (this.ctx.db.prepare("SELECT display_name FROM users WHERE id = ?").get(id) as { display_name: string } | undefined)?.display_name ?? null;
+    return this.ctx.identity.get<{ display_name: string }>("users", { id })?.display_name ?? null;
   }
 
   view(m: MeetingRow, userId: string) {
@@ -103,7 +103,10 @@ export class MeetingService {
   /** Meetings in [from, to) the person may see, earliest first (default: from an hour ago, the next 30 days). */
   list(orgId: string, userId: string, from: number, to: number) {
     this.ctx.authz.requireOrgMember(orgId, userId);
-    const rows = this.ctx.db.prepare("SELECT * FROM meetings WHERE org_id = ? AND ends_at > ? AND starts_at < ? ORDER BY starts_at LIMIT 500").all(orgId, from, to) as MeetingRow[];
+    const rows = this.ctx.ws
+      .all<MeetingRow>("meetings", { where: { org_id: orgId, ends_at: { gt: from } }, orderBy: [["starts_at", "asc"]] })
+      .filter((m) => m.starts_at < to)
+      .slice(0, 500);
     return rows.filter((m) => this.canSee(m, userId)).map((m) => this.view(m, userId));
   }
 
@@ -133,30 +136,38 @@ export class MeetingService {
     this.ctx.hub.sendToUsers(users, { t: kind, orgId: m.org_id, meetingId: m.id, startsAt: m.starts_at });
   }
 
-  create(orgId: string, organizerId: string, input: MeetingInput) {
+  async create(orgId: string, organizerId: string, input: MeetingInput) {
     const role = this.ctx.authz.requireOrgMember(orgId, organizerId);
     if (role === "GUEST") throw forbidden("Guests can't schedule meetings");
     if (input.startsAt < now() - MEETING_LIMITS.pastGraceMs) throw badRequest("Pick a time that hasn't passed yet");
     const { invitees } = this.validate(orgId, organizerId, input);
     const id = newId("mtg");
     const t = now();
-    this.ctx.db.transaction(() => {
-      this.ctx.db
-        .prepare(
-          `INSERT INTO meetings (id, org_id, room_id, title, description, starts_at, ends_at, time_zone, organizer_id, rev, created_at, updated_at, repeat)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
-        )
-        .run(id, orgId, input.roomId, input.title, input.description ?? null, input.startsAt, input.endsAt, input.timeZone, organizerId, t, t, input.repeat ?? null);
-      const ins = this.ctx.db.prepare("INSERT INTO meeting_participants (meeting_id, user_id, response) VALUES (?, ?, 'pending')");
-      for (const u of invitees) ins.run(id, u);
-    })();
+    await this.ctx.ws.write((w) => {
+      w.insert("meetings", {
+        id,
+        org_id: orgId,
+        room_id: input.roomId,
+        title: input.title,
+        description: input.description ?? null,
+        starts_at: input.startsAt,
+        ends_at: input.endsAt,
+        time_zone: input.timeZone,
+        organizer_id: organizerId,
+        rev: 1,
+        created_at: t,
+        updated_at: t,
+        repeat: input.repeat ?? null,
+      });
+      for (const u of invitees) w.insert("meeting_participants", { meeting_id: id, user_id: u, response: "pending" });
+    });
     this.ctx.audit({ actorId: organizerId, orgId, action: "meeting.create", target: id });
     const m = this.load(id) as MeetingRow;
     this.notify(m, "meeting.updated");
     return this.view(m, organizerId);
   }
 
-  update(id: string, userId: string, rev: number, input: MeetingInput) {
+  async update(id: string, userId: string, rev: number, input: MeetingInput) {
     const m = this.require(id, userId);
     if (!this.canEdit(m, userId)) throw forbidden("Only the organizer or the room's managers can change this meeting");
     if (m.cancelled_at) throw conflict("This meeting was cancelled");
@@ -165,35 +176,51 @@ export class MeetingService {
     const before = this.participants(id).map((p) => p.user_id);
     const t = now();
     const timeChanged = input.startsAt !== m.starts_at;
-    this.ctx.db.transaction(() => {
-      this.ctx.db
-        .prepare("UPDATE meetings SET room_id = ?, title = ?, description = ?, starts_at = ?, ends_at = ?, time_zone = ?, repeat = ?, rev = rev + 1, updated_at = ?, notified_at = CASE WHEN ? THEN NULL ELSE notified_at END WHERE id = ?")
-        .run(input.roomId, input.title, input.description ?? null, input.startsAt, input.endsAt, input.timeZone, input.repeat === undefined ? m.repeat : input.repeat, t, timeChanged ? 1 : 0, id);
-      this.ctx.db.prepare(`DELETE FROM meeting_participants WHERE meeting_id = ? AND user_id NOT IN (${invitees.map(() => "?").join(",") || "''"})`).run(id, ...invitees);
-      const ins = this.ctx.db.prepare("INSERT OR IGNORE INTO meeting_participants (meeting_id, user_id, response) VALUES (?, ?, 'pending')");
-      for (const u of invitees) ins.run(id, u);
+    await this.ctx.ws.write((w) => {
+      const current = w.get<MeetingRow>("meetings", { id })!;
+      w.update(
+        "meetings",
+        { id },
+        {
+          room_id: input.roomId,
+          title: input.title,
+          description: input.description ?? null,
+          starts_at: input.startsAt,
+          ends_at: input.endsAt,
+          time_zone: input.timeZone,
+          repeat: input.repeat === undefined ? m.repeat : input.repeat,
+          rev: current.rev + 1,
+          updated_at: t,
+          ...(timeChanged ? { notified_at: null } : {}),
+        },
+      );
+      w.delete("meeting_participants", { meeting_id: id, user_id: { notIn: invitees } });
+      for (const u of invitees) w.insert("meeting_participants", { meeting_id: id, user_id: u, response: "pending" }, { orIgnore: true });
       // A new time asks everyone again.
-      if (timeChanged) this.ctx.db.prepare("UPDATE meeting_participants SET response = 'pending' WHERE meeting_id = ?").run(id);
-    })();
+      if (timeChanged) w.update("meeting_participants", { meeting_id: id }, { response: "pending" });
+    });
     this.ctx.audit({ actorId: userId, orgId: m.org_id, action: "meeting.update", target: id });
     const fresh = this.load(id) as MeetingRow;
     this.notify(fresh, "meeting.updated", before);
     return this.view(fresh, userId);
   }
 
-  cancel(id: string, userId: string) {
+  async cancel(id: string, userId: string) {
     const m = this.require(id, userId);
     if (!this.canEdit(m, userId)) throw forbidden("Only the organizer or the room's managers can cancel this meeting");
-    this.ctx.db.prepare("UPDATE meetings SET cancelled_at = ?, rev = rev + 1, updated_at = ? WHERE id = ? AND cancelled_at IS NULL").run(now(), now(), id);
+    await this.ctx.ws.write((w) => {
+      const current = w.get<MeetingRow>("meetings", { id, cancelled_at: null });
+      if (current) w.update("meetings", { id }, { cancelled_at: now(), rev: current.rev + 1, updated_at: now() });
+    });
     this.ctx.audit({ actorId: userId, orgId: m.org_id, action: "meeting.cancel", target: id });
     const fresh = this.load(id) as MeetingRow;
     this.notify(fresh, "meeting.updated");
     return this.view(fresh, userId);
   }
 
-  respond(id: string, userId: string, response: "accepted" | "declined" | "tentative") {
+  async respond(id: string, userId: string, response: "accepted" | "declined" | "tentative") {
     const m = this.require(id, userId);
-    const changed = this.ctx.db.prepare("UPDATE meeting_participants SET response = ? WHERE meeting_id = ? AND user_id = ?").run(response, id, userId).changes;
+    const changed = await this.ctx.ws.write((w) => w.update("meeting_participants", { meeting_id: id, user_id: userId }, { response }));
     if (!changed) throw badRequest("You're not invited to this meeting");
     this.ctx.hub.sendToUser(m.organizer_id, { t: "meeting.updated", orgId: m.org_id, meetingId: m.id, startsAt: m.starts_at });
     return this.view(m, userId);
@@ -203,27 +230,25 @@ export class MeetingService {
    * Batch B8b: a repeating event whose occurrence has ended moves to its next one (same people and answers, a new
    * "starting soon" notice). Run with the notices; exposed for tests.
    */
-  rollRepeating(t = now()): number {
-    const ended = this.ctx.db.prepare("SELECT * FROM meetings WHERE repeat IS NOT NULL AND cancelled_at IS NULL AND ends_at <= ?").all(t) as MeetingRow[];
+  async rollRepeating(t = now()): Promise<number> {
+    const ended = this.ctx.ws.all<MeetingRow>("meetings", { where: { repeat: { ne: null }, cancelled_at: null, ends_at: { lte: t } } });
     for (const m of ended) {
       const start = currentOccurrence(m.starts_at, m.ends_at - m.starts_at, m.repeat as EventRepeat, m.time_zone, t);
-      this.ctx.db
-        .prepare("UPDATE meetings SET starts_at = ?, ends_at = ?, notified_at = NULL, rev = rev + 1, updated_at = ? WHERE id = ?")
-        .run(start, start + (m.ends_at - m.starts_at), t, m.id);
+      await this.ctx.ws.write((w) => w.update("meetings", { id: m.id }, { starts_at: start, ends_at: start + (m.ends_at - m.starts_at), notified_at: null, rev: m.rev + 1, updated_at: t }));
       this.notify(this.load(m.id) as MeetingRow, "meeting.updated");
     }
     return ended.length;
   }
 
   /** Sends "starting soon" once per meeting (and again after its time changes). Exposed for tests. */
-  notifySoon(): number {
+  async notifySoon(): Promise<number> {
     const t = now();
-    this.rollRepeating(t);
-    const due = this.ctx.db
-      .prepare("SELECT * FROM meetings WHERE cancelled_at IS NULL AND notified_at IS NULL AND starts_at <= ? AND ends_at > ?")
-      .all(t + MEETING_LIMITS.soonMs, t) as MeetingRow[];
+    await this.rollRepeating(t);
+    const due = this.ctx.ws
+      .all<MeetingRow>("meetings", { where: { cancelled_at: null, notified_at: null, starts_at: { lte: t + MEETING_LIMITS.soonMs } } })
+      .filter((m) => m.ends_at > t);
     for (const m of due) {
-      this.ctx.db.prepare("UPDATE meetings SET notified_at = ? WHERE id = ?").run(t, m.id);
+      await this.ctx.ws.write((w) => w.update("meetings", { id: m.id }, { notified_at: t }));
       this.notify(m, "meeting.soon");
     }
     return due.length;

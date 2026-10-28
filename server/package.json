@@ -1,6 +1,6 @@
 {
   "name": "meldiq-server",
-  "version": "0.50.0",
+  "version": "0.57.1",
   "private": true,
   "description": "Meldiq relay/API server (internal beta)",
   "type": "module",
@@ -15,21 +15,23 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "admin": "node dist/admin.js",
     "seed:dev": "node dist/seed.js",
-    "contracts": "tsx scripts/contracts.ts"
+    "contracts": "tsx scripts/contracts.ts",
+    "schema": "tsx scripts/schema.ts"
   },
   "dependencies": {
-    "@hpke/core": "1.9.0",
     "@aws-sdk/client-s3": "3.1144.0",
     "@aws-sdk/client-sesv2": "3.1144.0",
     "@aws-sdk/s3-request-presigner": "3.1144.0",
     "@fastify/rate-limit": "11.2.1",
     "@fastify/websocket": "11.3.4",
+    "@hpke/core": "1.9.0",
     "@simplewebauthn/server": "14.0.2",
     "better-sqlite3": "13.0.3",
     "fastify": "5.12.7",
     "livekit-server-sdk": "2.19.1",
     "mongodb": "7.7.0",
     "nodemailer": "10.0.14",
+    "stripe": "23.0.0",
     "zod": "3.25.76"
   },
   "devDependencies": {

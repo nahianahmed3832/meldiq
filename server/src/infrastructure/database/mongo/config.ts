@@ -3,7 +3,25 @@
  * SQLite exactly as before. MONGODB_DOMAINS lists the data that is authoritative in MongoDB instead; each domain moves
  * as a whole, with its own migration (src/mongo/migrate.ts), so no table ever has two writable copies.
  */
-export const MONGO_DOMAINS = ["accounts", "preferences", "history", "reports", "relationships", "relay", "files"] as const;
+export const MONGO_DOMAINS = [
+  "accounts",
+  "preferences",
+  "history",
+  "reports",
+  "relationships",
+  "relay",
+  "files",
+  "calls",
+  "workspace",
+  "conversations",
+  "billing",
+  // 2026-10-28: the rest, so SQLite can be retired (docs/MONGODB.md › Retiring SQLite).
+  "safety",
+  "platform",
+  "federation",
+  "ephemeral",
+  "identity",
+] as const;
 /**
  * Domains that no longer exist: "integrations" went with the apps (docs/COMMUNITY_REBUILD_2026-10-21.md). A server
  * still configured with one starts and ignores it, so an unchanged environment file can't stop a deploy.
@@ -19,6 +37,8 @@ export interface MongoConfig {
   maxPoolSize: number;
   /** Server selection, connect and per-operation socket timeouts (ms). */
   timeoutMs: number;
+  /** The deployment's storage limit in MiB (512 on an Atlas Free cluster); 0: copies aren't checked against one. */
+  storageLimitMb: number;
 }
 
 const DEFAULT_DB = "meldiq";
@@ -49,6 +69,17 @@ export function mongoConfig(env: NodeJS.ProcessEnv, appEnv: string, int: (name: 
   for (const d of domains) {
     if (!(MONGO_DOMAINS as readonly string[]).includes(d)) throw new Error(`MONGODB_DOMAINS: unknown domain "${d}" (known: ${MONGO_DOMAINS.join(", ")})`);
   }
+  // Authorisation reads communities and conversations together: they live in the same store.
+  if (domains.includes("workspace") !== domains.includes("conversations")) {
+    throw new Error('MONGODB_DOMAINS: "workspace" and "conversations" move together; list both or neither');
+  }
+  // SQLite's attachments, uploads and calls reference conversations by foreign key: with conversations in MongoDB, a
+  // new conversation isn't in SQLite, so those rows must live in MongoDB too.
+  for (const needed of ["files", "calls"]) {
+    if (domains.includes("conversations") && !domains.includes(needed)) {
+      throw new Error(`MONGODB_DOMAINS: "conversations" in MongoDB needs "${needed}" there too (its rows reference conversations)`);
+    }
+  }
   if (!uri) {
     if (domains.length) throw new Error("MONGODB_DOMAINS needs MONGODB_URI");
     return null;
@@ -66,5 +97,6 @@ export function mongoConfig(env: NodeJS.ProcessEnv, appEnv: string, int: (name: 
     domains: new Set(domains as MongoDomain[]),
     maxPoolSize: Math.min(Math.max(int("MONGODB_MAX_POOL", DEFAULT_POOL), 1), 200),
     timeoutMs: Math.min(Math.max(int("MONGODB_TIMEOUT_MS", DEFAULT_TIMEOUT_MS), 500), 60_000),
+    storageLimitMb: Math.max(int("MONGODB_STORAGE_LIMIT_MB", 0), 0),
   };
 }

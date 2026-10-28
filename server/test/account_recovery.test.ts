@@ -81,7 +81,10 @@ describe("account recovery codes", () => {
     expect(s.account.email).toBe(newEmail);
     // The old address is told; the audit trail records it without the code.
     expect(mailer.lastSubject(oldEmail)).toMatch(/email was changed/);
-    const audit = h.ctx.db.prepare("SELECT action, detail FROM audit_log WHERE target = ? AND action LIKE 'account.recover%' ORDER BY id").all(c.accountId) as { action: string; detail: string }[];
+    const audit = h.ctx.ws
+      .all<{ action: string; detail: string }>("audit_log", { where: { target: c.accountId }, orderBy: [["id", "asc"]] })
+      .filter((a) => a.action.startsWith("account.recover"))
+      .map(({ action, detail }) => ({ action, detail }));
     expect(audit.map((a) => a.action)).toEqual(["account.recovery_codes_created", "account.recovery_started", "account.recovered"]);
     for (const a of audit) for (const code of codes) expect(a.detail ?? "").not.toContain(code);
   });

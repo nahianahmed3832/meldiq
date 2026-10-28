@@ -36,19 +36,19 @@ function scopeOf(ctx: AppContext, reason: string, conv: { type: string; org_id: 
 
 /** The people who see a community's reports: holders of `reports.view` there. */
 function moderators(ctx: AppContext, orgId: string): string[] {
-  const members = ctx.db.prepare("SELECT user_id FROM org_members WHERE org_id = ?").all(orgId) as { user_id: string }[];
+  const members = ctx.ws.all<{ user_id: string }>("org_members", { where: { org_id: orgId } });
   return members.map((m) => m.user_id).filter((u) => ctx.authz.can(orgId, u, "reports.view"));
 }
 
 function person(ctx: AppContext, userId: string | null) {
   if (!userId) return null;
-  const u = ctx.db.prepare("SELECT id, username, display_name FROM users WHERE id = ?").get(userId) as { id: string; username: string; display_name: string } | undefined;
+  const u = ctx.identity.get<{ id: string; username: string; display_name: string }>("users", { id: userId });
   return u ? { id: u.id, username: u.username, displayName: u.display_name } : { id: userId, username: null, displayName: null };
 }
 
 /** A report as moderators see it: never who reported it. */
 function moderatorView(ctx: AppContext, r: ReportRow) {
-  const conv = r.conversation_id ? (ctx.db.prepare("SELECT name, type FROM conversations WHERE id = ?").get(r.conversation_id) as { name: string | null; type: string } | undefined) : undefined;
+  const conv = r.conversation_id ? ctx.ws.get<{ name: string | null; type: string }>("conversations", { id: r.conversation_id }) : undefined;
   return {
     id: r.id,
     orgId: r.org_id,
@@ -81,7 +81,7 @@ export default async function reportRoutes(app: FastifyInstance, ctx: AppContext
     const body = parse(ReportBody, req.body);
     if (body.targetUserId === userId) throw badRequest("You can't report yourself");
     if (body.messageId && !body.conversationId) throw badRequest("Say which conversation the message is in");
-    if (!db.prepare("SELECT 1 FROM users WHERE id = ?").get(body.targetUserId)) throw notFound("No such person");
+    if (!ctx.identity.get("users", { id: body.targetUserId })) throw notFound("No such person");
     // A message report needs the reporter to be in the conversation; the server checks the sender while it still knows.
     const conv = body.conversationId ? authz.requireMember(body.conversationId, userId) : undefined;
     if (body.messageId) {

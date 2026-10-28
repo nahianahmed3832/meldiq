@@ -64,7 +64,7 @@ export default async function guideRoutes(app: FastifyInstance, ctx: AppContext)
       });
     const guide: Guide | null = body && { welcome: body.welcome || null, tasks: items(body.tasks), resources: items(body.resources) };
     const empty = !guide || (!guide.welcome && guide.tasks.length === 0 && guide.resources.length === 0);
-    db.prepare("UPDATE orgs SET guide = ? WHERE id = ?").run(empty ? null : JSON.stringify(guide), orgId);
+    await ctx.ws.write((w) => w.update("orgs", { id: orgId }, { guide: empty ? null : JSON.stringify(guide) }));
     ctx.audit({ actorId: userId, orgId, action: "community.guide", target: orgId });
     notifyOrg(ctx, orgId);
     return { guide: empty ? null : guide };

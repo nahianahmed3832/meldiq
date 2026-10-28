@@ -32,6 +32,9 @@ sealed interface ServerEvent {
         val userId: String, val online: Boolean = false, val presence: String? = null, val lastSeenAt: Long? = null,
     ) : ServerEvent
 
+    /** API 0.56.0: someone started or stopped playing (null: nothing to show, also while they appear offline). */
+    @Serializable data class Activity(val userId: String, val activity: com.meldiq.android.activity.ActivityDto? = null) : ServerEvent
+
     /**
      * A call changed. [event] is one of [CallEvents] (unknown names are passed on and ignored by the call manager).
      * `ring` names the caller in [from]; `declined` says who in [userId] and why in [reason]; `moderated` (voice rooms)
@@ -73,6 +76,8 @@ sealed interface ServerEvent {
     @Serializable data class RemindersChanged(val id: String, val rev: Int? = null, val deleted: Boolean = false) : ServerEvent
     @Serializable data class ReminderDue(val id: String, val occurrenceAt: Long? = null, val firedAt: Long? = null) : ServerEvent
     /** Round 7 meetings (docs/WORKSPACE_C5.md). */
+    /** Meldiq Mojo: what an account (`scope` "account") or a community's members ("org", [orgId]) have changed; read them again. */
+    @Serializable data class EntitlementsChanged(val scope: String = "account", val orgId: String? = null) : ServerEvent
     @Serializable data class MeetingUpdated(val orgId: String, val meetingId: String? = null, val startsAt: Long? = null) : ServerEvent
     @Serializable data class MeetingSoon(val orgId: String? = null, val meetingId: String, val startsAt: Long? = null) : ServerEvent
 
@@ -116,6 +121,7 @@ object RealtimeCodec {
         "queue" to ServerEvent.Queue.serializer(),
         "typing" to ServerEvent.Typing.serializer(),
         "presence" to ServerEvent.Presence.serializer(),
+        "activity" to ServerEvent.Activity.serializer(),
         "call" to ServerEvent.Call.serializer(),
         "conv.updated" to ServerEvent.ConvUpdated.serializer(),
         "org.updated" to ServerEvent.OrgUpdated.serializer(),
@@ -130,6 +136,7 @@ object RealtimeCodec {
         "reminders.changed" to ServerEvent.RemindersChanged.serializer(),
         "reminder.due" to ServerEvent.ReminderDue.serializer(),
         "meeting.updated" to ServerEvent.MeetingUpdated.serializer(),
+        "entitlements.changed" to ServerEvent.EntitlementsChanged.serializer(),
         "meeting.soon" to ServerEvent.MeetingSoon.serializer(),
     )
     private val fieldless: Map<String, ServerEvent> = mapOf(

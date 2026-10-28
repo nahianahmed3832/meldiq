@@ -25,6 +25,12 @@ import { refusal, scopesFor } from "../quotas/index.js";
  * Bytes live in ctx.blobs (the server's disk or S3, docs/STORAGE_AND_DATA.md). An upload is received into a spool
  * file first (size and quota enforced while reading), then moved into the store; S3 checks it against its SHA-256.
  */
+/** A file over the sender's plan (and the community's Spark level): says the limit, decimal as people read it. */
+function uploadLimit(max: number): ApiError {
+  const label = max >= 1_000_000_000 ? `${+(max / 1_000_000_000).toFixed(1)} GB` : `${Math.round(max / 1_000_000)} MB`;
+  return new ApiError(413, "upload_limit", `Files can be up to ${label} on your plan here. Mojo raises it, and so do a community's Sparks.`, { maxBytes: max });
+}
+
 export default async function attachmentRoutes(app: FastifyInstance, ctx: AppContext) {
   const auth = { preHandler: requireAuth(ctx) };
   const cfg = ctx.config;
@@ -55,7 +61,7 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
     /** Under new-account limits. */
     limited: boolean;
   }
-  const uploaderOf = (userId: string, orgId: string | null): Uploader => ({ userId, orgId, limited: hasNewAccountLimits(ctx.db, userId) });
+  const uploaderOf = (userId: string, orgId: string | null): Uploader => ({ userId, orgId, limited: hasNewAccountLimits(ctx.identity, userId) });
 
   /**
    * The unified quotas (docs/QUOTAS.md), after the server's own limits above: the largest single upload, stored bytes
@@ -65,7 +71,7 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
   const quotaAdmit = async (who: Uploader, size: number, streaming: number, uploadId: string, ttlMs: number): Promise<void> => {
     const q = ctx.quotas;
     const scopes = scopesFor(who.userId, who.orgId);
-    const one = q.check("files.max_upload_bytes", scopes, size);
+    const one = await q.check("files.max_upload_bytes", scopes, size);
     if (!one.allowed) throw refusal(one);
     if (q.hasPolicies("storage.bytes")) {
       const t = now();
@@ -76,13 +82,15 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
         org: who.orgId ? (await bytes({ conversations, liveAt: t }, { conversations })) + (inFlight.orgs.get(who.orgId) ?? 0) : 0,
         global: (await bytes({ liveAt: t }, {})) + inFlight.bytes,
       };
-      const stored = q.check("storage.bytes", scopes, size, { measured });
+      const stored = await q.check("storage.bytes", scopes, size, { measured });
       if (!stored.allowed) throw refusal(stored);
     }
-    const month = q.check("files.upload_bytes", scopes, size, { reserve: true, idempotencyKey: `upload:${uploadId}`, ttlMs });
+    const month = await q.check("files.upload_bytes", scopes, size, { reserve: true, idempotencyKey: `upload:${uploadId}`, ttlMs });
     if (!month.allowed) throw refusal(month);
   };
-  const quotaSettle = (uploadId: string, stored: number | null) => ctx.quotas.settleByKey(`upload:${uploadId}`, stored === null ? "release" : "commit", stored ?? undefined);
+  /** Never rejects: a reservation left open is released by the retention job when its time is up. */
+  const quotaSettle = (uploadId: string, stored: number | null) =>
+    ctx.quotas.settleByKey(`upload:${uploadId}`, stored === null ? "release" : "commit", stored ?? undefined).catch((e) => ctx.log.error({ err: e }, "quota reservation not settled"));
 
   /** Admits one more upload start this hour, or refuses with when to try again. */
   const admitStart = (userId: string, reply: { header: (k: string, v: string) => unknown }) => {
@@ -122,7 +130,7 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
       if (exceeds(newAccountCap(abuse.newAccountStoredBytes, cfg.attachmentUserStoredBytes), stored + streaming + reserve)) {
         throw new ApiError(429, "quota_exceeded", "You've reached your file storage limit. Older files expire after 7 days.");
       }
-      const limited = limitedUserIds(ctx.db, t);
+      const limited = limitedUserIds(ctx.identity, t);
       const pool = await bytes({ uploaders: limited, liveAt: t }, { uploaders: limited });
       if (exceeds(abuse.newAccountsTotalBytes, pool + inFlight.newAccounts + reserve)) {
         throw new ApiError(507, "storage_full", "File storage for new accounts is full right now. Try again later.");
@@ -179,11 +187,14 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
     const declared = lengthHeader === undefined ? null : Number(lengthHeader);
     if (declared !== null && (!Number.isSafeInteger(declared) || declared <= 0)) throw badRequest("Expected a non-empty body");
     if (declared !== null && declared > cfg.attachmentMaxBytes) throw new ApiError(413, "too_large", "Attachment is too large");
+    // The person's plan, or the community's Spark level, sets the largest file (docs/MOJO.md), within the server's own.
+    const planMax = Math.min(cfg.attachmentMaxBytes, ctx.mojo.uploadBytes(userId, conv.org_id));
+    if (declared !== null && declared > planMax) throw uploadLimit(planMax);
 
     // Quotas are checked before reading the body. A body of unknown length reserves the maximum size. Checking and
     // reserving run under the quota lock, so parallel uploads see each other's reservations.
     const t = now();
-    const reserve = declared ?? cfg.attachmentMaxBytes;
+    const reserve = declared ?? planMax;
     const who = uploaderOf(userId, conv.org_id);
     admitStart(userId, reply);
     const id = newId("a");
@@ -206,7 +217,8 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
         transform(chunk: Buffer, _enc, cb) {
           size += chunk.length;
           hash.update(chunk);
-          if (size > cfg.attachmentMaxBytes || (declared !== null && size > declared)) cb(new ApiError(413, "too_large", "Attachment is too large"));
+          if (size > planMax) cb(uploadLimit(planMax));
+          else if (size > cfg.attachmentMaxBytes || (declared !== null && size > declared)) cb(new ApiError(413, "too_large", "Attachment is too large"));
           else cb(null, chunk);
         },
       });
@@ -229,7 +241,7 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
       storedSize = size;
     } finally {
       track(who, reserve, -1);
-      quotaSettle(id, storedSize);
+      await quotaSettle(id, storedSize);
     }
     const expiresAt = t + cfg.attachmentTtlSeconds * 1000;
     await files.recordAttachment({ id, conversation_id: conv.id, uploader_user_id: userId, size, created_at: t, expires_at: expiresAt });
@@ -237,7 +249,7 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
     ctx.telemetry?.activity.addTraffic(userId, "files.upload", size, t);
     // Federated conversation: the ciphertext is pushed to the other people's servers, so they download it from
     // their own server. Queued before the message that references it, and delivered in order.
-    ctx.federation?.pushAttachment(conv.id, { id, conversationId: conv.id, uploaderUserId: userId, size, expiresAt });
+    await ctx.federation?.pushAttachment(conv.id, { id, conversationId: conv.id, uploaderUserId: userId, size, expiresAt });
     return { id, size, expiresAt };
   });
 
@@ -252,7 +264,7 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
     const orgOf = (ctx.authz.conversation(a.conversation_id)?.org_id ?? null) as string | null;
     const askedRange = /^bytes=(\d+)-(\d*)$/.exec(String(req.headers.range ?? ""));
     const asked = askedRange ? Math.max(0, (askedRange[2] === "" ? a.size - 1 : Math.min(Number(askedRange[2]), a.size - 1)) - Number(askedRange[1]) + 1) : a.size;
-    const downloadQuota = ctx.quotas.charge("files.download_bytes", scopesFor(userId, orgOf), asked);
+    const downloadQuota = await ctx.quotas.charge("files.download_bytes", scopesFor(userId, orgOf), asked);
     if (!downloadQuota.allowed) throw refusal(downloadQuota);
     ctx.usage?.add(orgOf, "files.download_bytes", asked);
     ctx.telemetry?.activity.addTraffic(userId, "files.download", asked, now());
@@ -340,6 +352,9 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
     if (!ctx.authz.canPost(conv, userId)) throw new ApiError(403, "forbidden", "You can't post in this conversation");
     if (!ctx.authz.canAttach(conv, userId)) throw new ApiError(403, "forbidden", "You can't share files in this channel");
     if (body.size > cfg.attachmentMaxBytes) throw new ApiError(413, "too_large", "Attachment is too large");
+    // Direct uploads are bound to this size (each part's URL to its exact length): the plan's limit holds at S3 too.
+    const planMax = Math.min(cfg.attachmentMaxBytes, ctx.mojo.uploadBytes(userId, conv.org_id));
+    if (body.size > planMax) throw uploadLimit(planMax);
     admitStart(userId, reply);
     const id = newId("a");
     const multipart = body.size > d.multipartThreshold;
@@ -452,13 +467,13 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
     // Exactly one of this and the expiry job wins: the attachment exists only if this upload session was still open.
     const recorded = await files.completeUpload(u.id, { id: u.id, conversation_id: conv.id, uploader_user_id: userId, size: u.size, created_at: t, expires_at: expiresAt });
     if (!recorded) {
-      quotaSettle(u.id, null);
+      await quotaSettle(u.id, null);
       throw new ApiError(410, "upload_expired", "This upload took too long. Start it again.");
     }
-    quotaSettle(u.id, u.size);
+    await quotaSettle(u.id, u.size);
     ctx.usage?.add(conv.org_id, "files.upload_bytes", u.size);
     ctx.telemetry?.activity.addTraffic(userId, "files.upload", u.size, t);
-    ctx.federation?.pushAttachment(conv.id, { id: u.id, conversationId: conv.id, uploaderUserId: userId, size: u.size, expiresAt });
+    await ctx.federation?.pushAttachment(conv.id, { id: u.id, conversationId: conv.id, uploaderUserId: userId, size: u.size, expiresAt });
     return { id: u.id, size: u.size, expiresAt };
   });
 
@@ -466,7 +481,7 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
   app.delete("/v1/attachments/uploads/:id", auth, async (req) => {
     const u = await loadUpload(parse(idParams, req.params).id, me(req).userId);
     await files.abandonUpload(u);
-    quotaSettle(u.id, null);
+    await quotaSettle(u.id, null);
     await processAbandonedUploads(ctx).catch(() => 0);
     return { ok: true };
   });

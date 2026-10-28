@@ -86,7 +86,7 @@ function keyColumns(t: TableSpec): string[] {
 }
 
 /** Rows of [t] in key order, [batch] at a time, after [after] (keyset pagination). */
-function* sourceBatches(db: DB, t: TableSpec, batch: number, after: unknown[] | null): Generator<Record<string, unknown>[]> {
+export function* sourceBatches(db: DB, t: TableSpec, batch: number, after: unknown[] | null): Generator<Record<string, unknown>[]> {
   const keys = keyColumns(t);
   const keyList = keys.map((k) => (k === "rowid" ? "rowid" : `"${k}"`)).join(", ");
   const order = `ORDER BY ${keyList}`;

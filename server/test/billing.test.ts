@@ -93,7 +93,7 @@ describe("with the sandbox provider", () => {
   let seq = 0;
 
   const as = (role: string) => admins[role]!.browser;
-  const lastAudit = (action: string) => h.ctx.db.prepare("SELECT * FROM platform_audit WHERE action = ? ORDER BY id DESC LIMIT 1").get(action) as any;
+  const lastAudit = (action: string) => h.ctx.platform.get<any>("platform_audit", { action }, [["id", "desc"]]);
   const deliver = async (event: object, headers: Record<string, string> = {}) => {
     const payload = JSON.stringify(event);
     const res = await h.app.inject({
@@ -150,7 +150,8 @@ describe("with the sandbox provider", () => {
       await as("billing_admin").expect(200, "PUT", `/admin/v1/billing/plans/${draft.id}/draft`, { terms, reason: REASON });
       const live = await as("billing_admin").expect(200, "POST", `/admin/v1/billing/plans/${draft.id}/publish`, { reason: REASON });
       expect(live).toMatchObject({ status: "active", versions: [{ version: 1, state: "current", provider: "sandbox" }] });
-      expect(() => h.ctx.db.prepare("UPDATE billing_plan_versions SET amount_minor = 1 WHERE plan_id = ?").run(draft.id)).toThrow(/immutable/);
+      // SQLite also refuses it with a trigger; on any backend the catalog never edits a published version.
+      if (h.ctx.billing.rows.backend === "sqlite") expect(() => h.ctx.db.prepare("UPDATE billing_plan_versions SET amount_minor = 1 WHERE plan_id = ?").run(draft.id)).toThrow(/immutable/);
       // New terms are a new version; the old one is retired, never edited.
       const v2 = await as("billing_admin").expect(200, "PUT", `/admin/v1/billing/plans/${draft.id}/draft`, { terms: { ...terms, amountMinor: 1100, providerPriceRef: "price_team_v2" }, reason: REASON });
       expect(v2.versions.map((v: any) => [v.version, v.state])).toEqual([
@@ -231,12 +232,12 @@ describe("with the sandbox provider", () => {
       // Only the configured provider has an endpoint.
       const other = await h.app.inject({ method: "POST", url: "/v1/billing/webhooks/stripe", payload: "{}", headers: { "content-type": "application/json" } });
       expect(other.statusCode).toBe(404);
-      const rejected = h.ctx.db.prepare("SELECT reason, count FROM billing_webhook_rejections ORDER BY reason").all();
+      const rejected = h.ctx.billing.rows.all<{ reason: string; count: number }>("billing_webhook_rejections", { orderBy: [["reason", "asc"]] }).map(({ reason, count }) => ({ reason, count }));
       expect(rejected).toEqual([
         { reason: "bad_signature", count: 1 },
         { reason: "missing_signature", count: 1 },
       ]);
-      expect(h.ctx.db.prepare("SELECT COUNT(*) n FROM billing_provider_events").get()).toEqual({ n: 0 });
+      expect(h.ctx.billing.rows.count("billing_provider_events")).toBe(0);
     });
 
     it("never attaches a subscription to an organization without our checkout", async () => {
@@ -244,8 +245,8 @@ describe("with the sandbox provider", () => {
       expect(r.body).toMatchObject({ received: true, status: "failed" });
       const forged = await deliver(subEvent({ ...base(), id: "sub_rogue2", checkoutReference: "chk_forged", status: "active" }));
       expect(forged.body.status).toBe("failed");
-      expect(h.ctx.db.prepare("SELECT COUNT(*) n FROM billing_subscriptions").get()).toEqual({ n: 0 });
-      expect(h.ctx.db.prepare("SELECT last_error FROM billing_provider_events ORDER BY received_at").all()).toEqual([{ last_error: "unknown_checkout" }, { last_error: "unknown_checkout" }]);
+      expect(h.ctx.billing.rows.count("billing_subscriptions")).toBe(0);
+      expect(h.ctx.billing.rows.all<{ last_error: string }>("billing_provider_events", { orderBy: [["received_at", "asc"]] }).map((e) => ({ last_error: e.last_error }))).toEqual([{ last_error: "unknown_checkout" }, { last_error: "unknown_checkout" }]);
     });
 
     it("starts the trial from the provider's event, and the plan's limits apply", async () => {
@@ -263,7 +264,7 @@ describe("with the sandbox provider", () => {
       expect((await member.req("GET", `/v1/orgs/${orgId}/plan`)).plan).toEqual({ name: "Plan starter" });
       const summary = await owner.req("GET", `/v1/orgs/${orgId}/billing`);
       expect(summary.subscription).toMatchObject({ plan: { key: "starter" }, status: "trialing", standing: "entitled", amountMinor: 1200, currency: "USD" });
-      subscriptionId = (h.ctx.db.prepare("SELECT id FROM billing_subscriptions").get() as { id: string }).id;
+      subscriptionId = h.ctx.billing.rows.get<{ id: string }>("billing_subscriptions", {})!.id;
       // A second checkout while one isn't over is refused.
       await expectStatus(owner.req("POST", `/v1/orgs/${orgId}/billing/checkout`, { planKey: "starter" }), 409);
     });
@@ -272,7 +273,9 @@ describe("with the sandbox provider", () => {
       const event = subEvent({ ...base(), status: "active" });
       expect((await deliver(event)).body).toMatchObject({ duplicate: false, status: "processed" });
       expect((await deliver(event)).body).toMatchObject({ duplicate: true, status: "processed" });
-      const history = h.ctx.db.prepare("SELECT from_status, to_status FROM billing_subscription_history WHERE subscription_id = ? ORDER BY id").all(subscriptionId);
+      const history = h.ctx.billing.rows
+        .all<{ from_status: string | null; to_status: string }>("billing_subscription_history", { where: { subscription_id: subscriptionId }, orderBy: [["id", "asc"]] })
+        .map(({ from_status, to_status }) => ({ from_status, to_status }));
       expect(history).toEqual([
         { from_status: null, to_status: "trialing" },
         { from_status: "trialing", to_status: "active" },
@@ -292,9 +295,10 @@ describe("with the sandbox provider", () => {
       // The invoice was for our subscription after all (the provider's id): point it there and let the job retry.
       const fixed = { ...invoice, id: "in_2", subscription: "sub_sbx_1" };
       expect((await deliver({ id: `evt_${++seq}`, type: "invoice.paid", created: Date.now(), data: { invoice: fixed } })).body.status).toBe("processed");
-      h.ctx.db.prepare("UPDATE billing_provider_events SET next_attempt_at = 0 WHERE status = 'failed'").run();
+      await h.ctx.billing.rows.write((w) => w.update("billing_provider_events", { status: "failed" }, { next_attempt_at: 0 }));
       await runCleanup(h.ctx);
-      const attempts = h.ctx.db.prepare("SELECT attempts, status FROM billing_provider_events WHERE event_ref = ?").get(`evt_${seq - 1}`);
+      const ev = h.ctx.billing.rows.get<{ attempts: number; status: string }>("billing_provider_events", { event_ref: `evt_${seq - 1}` })!;
+      const attempts = { attempts: ev.attempts, status: ev.status };
       expect(attempts).toEqual({ attempts: 2, status: "failed" });
       const summary = await owner.req("GET", `/v1/orgs/${orgId}/billing`);
       expect(summary.invoices).toEqual([expect.objectContaining({ status: "paid", currency: "USD", amountDueMinor: 1200, amountPaidMinor: 1200 })]);
@@ -307,7 +311,7 @@ describe("with the sandbox provider", () => {
       expect(await membersCap()).toMatchObject({ limit: 2, source: "plan" });
       expect((await owner.req("GET", `/v1/orgs/${orgId}/billing`)).subscription.standing).toBe("grace");
       // Grace over (3 days): the plan stops applying; the organization falls back, nothing is removed.
-      h.ctx.db.prepare("UPDATE billing_subscriptions SET past_due_since = ? WHERE id = ?").run(Date.now() - 4 * DAY_MS, subscriptionId);
+      await h.ctx.billing.rows.write((w) => w.update("billing_subscriptions", { id: subscriptionId }, { past_due_since: Date.now() - 4 * DAY_MS }));
       expect(await membersCap()).toMatchObject({ limit: null, source: "none" });
       expect((await owner.req("GET", `/v1/orgs/${orgId}/billing`)).subscription.standing).toBe("grace_ended");
       await deliver(subEvent({ ...base(), status: "active", cancelAtPeriodEnd: true }));
@@ -349,13 +353,14 @@ describe("with the sandbox provider", () => {
 
     it("gives events up after the last attempt", async () => {
       const r = await deliver(subEvent({ ...base(), id: "sub_dead", checkoutReference: null, status: "active" }));
-      const id = (h.ctx.db.prepare("SELECT id FROM billing_provider_events WHERE subscription_id IS NULL ORDER BY received_at DESC LIMIT 1").get() as { id: string }).id;
+      const id = h.ctx.billing.rows.get<{ id: string }>("billing_provider_events", { subscription_id: null }, [["received_at", "desc"]])!.id;
       expect(r.body.status).toBe("failed");
       for (let i = 0; i < 8; i++) {
-        h.ctx.db.prepare("UPDATE billing_provider_events SET next_attempt_at = 0 WHERE id = ? AND status = 'failed'").run(id);
-        h.ctx.billing.webhooks.retryDue();
+        await h.ctx.billing.rows.write((w) => w.update("billing_provider_events", { id, status: "failed" }, { next_attempt_at: 0 }));
+        await h.ctx.billing.webhooks.retryDue();
       }
-      expect(h.ctx.db.prepare("SELECT status, attempts, next_attempt_at FROM billing_provider_events WHERE id = ?").get(id)).toEqual({ status: "dead", attempts: 8, next_attempt_at: null });
+      const dead = h.ctx.billing.rows.get<{ status: string; attempts: number; next_attempt_at: number | null }>("billing_provider_events", { id })!;
+      expect({ status: dead.status, attempts: dead.attempts, next_attempt_at: dead.next_attempt_at }).toEqual({ status: "dead", attempts: 8, next_attempt_at: null });
     });
 
     it("reports figures per currency, with their definitions", async () => {
@@ -380,7 +385,7 @@ describe("with the sandbox provider", () => {
       const terms = { interval: "month", currency: "USD", amountMinor: 1500, providerPriceRef: "price_starter_v2", trialDays: 0, graceDays: 0, limits: { members: 9 }, notes: "" };
       await as("billing_admin").expect(200, "PUT", `/admin/v1/billing/plans/${planId}/draft`, { terms, reason: REASON });
       await as("billing_admin").expect(200, "POST", `/admin/v1/billing/plans/${planId}/publish`, { reason: REASON });
-      const sub2 = h.ctx.db.prepare("SELECT org_id FROM billing_subscriptions WHERE provider_subscription_ref = 'sub_sbx_2'").get() as { org_id: string };
+      const sub2 = h.ctx.billing.rows.get<{ org_id: string }>("billing_subscriptions", { provider_subscription_ref: "sub_sbx_2" })!;
       expect(h.ctx.entitlements.limitFor("members", sub2.org_id)).toEqual({ limit: 2, source: "plan" });
       const m = await as("billing_admin").expect(200, "GET", "/admin/v1/billing/metrics?days=7");
       expect(m.money.mrrEstimate).toEqual([{ currency: "USD", amountMinor: 1200 }]);
@@ -402,7 +407,7 @@ describe("with the sandbox provider", () => {
       expect(JSON.parse(lastAudit("org.limits").detail)).toEqual({ members: "default -> 50", until: new Date(until).toISOString() });
       const listed = (await as("billing_admin").expect(200, "GET", "/admin/v1/entitlements")).overrides;
       expect(listed).toContainEqual(expect.objectContaining({ orgId, key: "members", limit: 50, expiresAt: until, reason: REASON }));
-      h.ctx.db.prepare("UPDATE org_entitlements SET expires_at = ? WHERE org_id = ?").run(Date.now() - 1, orgId);
+      await h.ctx.ws.write((w) => w.update("org_entitlements", { org_id: orgId }, { expires_at: Date.now() - 1 }));
       expect(h.ctx.entitlements.limitFor("members", orgId).source).not.toBe("workspace");
       expect((await as("billing_admin").expect(200, "GET", "/admin/v1/entitlements")).overrides).toEqual([]);
       await as("super_admin").expect(200, "PUT", `/admin/v1/orgs/${orgId}/limits`, { limits: { members: 60 }, expiresAt: null, reason: REASON });

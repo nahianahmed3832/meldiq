@@ -52,7 +52,7 @@ beforeAll(async () => {
 afterAll(async () => h.close());
 
 const as = (role: string) => admins[role]!.browser;
-const lastAudit = (action: string) => h.ctx.db.prepare("SELECT * FROM platform_audit WHERE action = ? ORDER BY id DESC LIMIT 1").get(action) as any;
+const lastAudit = (action: string) => h.ctx.platform.get<any>("platform_audit", { action }, [["id", "desc"]]);
 const ok = (schema: { safeParse: (v: unknown) => { success: boolean; error?: unknown } }, v: unknown) => {
   const r = schema.safeParse(v);
   if (!r.success) throw new Error(JSON.stringify(r.error, null, 1).slice(0, 2000));
@@ -141,7 +141,7 @@ describe("live connections, devices and sessions", () => {
     expect(inv.counts.active).toBeGreaterThanOrEqual(2);
     await as("operations_admin").expect(403, "POST", `/admin/v1/users/${bob.userId}/devices/${bob.deviceId}/revoke`, REASON);
     await as("support_admin").expect(200, "POST", `/admin/v1/users/${bob.userId}/devices/${bob.deviceId}/revoke`, REASON);
-    expect((h.ctx.db.prepare("SELECT revoked_at FROM devices WHERE id = ?").get(bob.deviceId) as any).revoked_at).toBeGreaterThan(0);
+    expect(h.ctx.identity.get<any>("devices", { id: bob.deviceId }).revoked_at).toBeGreaterThan(0);
     // An admin can't act on their own account.
     const own = admins.support_admin!.account;
     await own.setUpIdentity().catch(() => undefined);
@@ -157,8 +157,8 @@ describe("people and organizations", () => {
     expect(r.user).toMatchObject({ status: "suspended", suspendedUntil: until });
     await expectStatus(carol.req("GET", "/v1/conversations"), 401);
     // The console's minute job lifts it once its time has come (driven directly: the timer is off in tests).
-    expect(await liftExpiredSuspensions(h.ctx, new PlatformAudit(h.ctx.db), until - 1)).toBe(0);
-    expect(await liftExpiredSuspensions(h.ctx, new PlatformAudit(h.ctx.db), until + 1)).toBe(1);
+    expect(await liftExpiredSuspensions(h.ctx, new PlatformAudit(h.ctx.platform), until - 1)).toBe(0);
+    expect(await liftExpiredSuspensions(h.ctx, new PlatformAudit(h.ctx.platform), until + 1)).toBe(1);
     const detail = await as("support_admin").expect(200, "GET", `/admin/v1/users/${carol.userId}`);
     ok(AdminUserDetail, detail);
     expect(detail.user).toMatchObject({ status: "active", suspendedUntil: null });
@@ -227,7 +227,7 @@ describe("alerts, resources, search and exports", () => {
     const rule = first.rules.find((r: any) => r.key === "signups.spike");
     expect(rule.state).toMatchObject({ breaching: true });
     await as("operations_admin").expect(200, "POST", "/admin/v1/alerts/evaluate");
-    const incidents = h.ctx.db.prepare("SELECT id, source FROM platform_incidents WHERE dedupe_key = 'rule:signups.spike'").all();
+    const incidents = h.ctx.platform.all<{ id: string; source: string }>("platform_incidents", { where: { dedupe_key: "rule:signups.spike" } }).map((i) => ({ id: i.id, source: i.source }));
     expect(incidents).toEqual([{ id: rule.state.incidentId, source: "rule" }]);
     expect(first.deliveries[0]).toMatchObject({ incidentId: rule.state.incidentId, outcome: "not_configured" });
     await as("auditor").expect(403, "PUT", "/admin/v1/alerts/signups.spike", { enabled: false, threshold: 1, windowMinutes: 60, severity: "sev3", ...REASON });

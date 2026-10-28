@@ -44,7 +44,7 @@ interface ConnectionRow {
 }
 
 export default async function discordRoutes(app: FastifyInstance, ctx: AppContext) {
-  const { db } = ctx;
+  const { ws } = ctx;
   const auth = { preHandler: requireAuth(ctx) };
   const limited = (max: number) => ({ preHandler: requireAuth(ctx), config: { rateLimit: { max, timeWindow: "1 minute" } } });
   const client = ctx.config.discord ? new DiscordClient(ctx.config.discord) : null;
@@ -53,16 +53,20 @@ export default async function discordRoutes(app: FastifyInstance, ctx: AppContex
     return client;
   };
   // Imports cut short by a restart can be continued with Retry.
-  db.prepare("UPDATE discord_imports SET status = 'interrupted', updated_at = ? WHERE status = 'running'").run(now());
+  await ws.write((w) => w.update("discord_imports", { status: "running" }, { status: "interrupted", updated_at: now() }));
 
+  // Expired connections are never read (each read asks for unexpired ones); the sweep only tidies them away.
   const sweep = () => {
     const t = now();
-    db.prepare("DELETE FROM discord_oauth_states WHERE expires_at <= ?").run(t);
-    db.prepare("DELETE FROM discord_connections WHERE expires_at <= ?").run(t);
+    if (ctx.ephemeral.count("discord_oauth_states", { expires_at: { lte: t } }) > 0) {
+      ctx.ephemeral.write((w) => w.delete("discord_oauth_states", { expires_at: { lte: t } })).catch((err) => ctx.log.error({ err }, "discord: sweeping sign-in states failed"));
+    }
+    if (ws.count("discord_connections", { expires_at: { lte: t } }) === 0) return;
+    ws.write((w) => w.delete("discord_connections", { expires_at: { lte: t } })).catch((err) => ctx.log.error({ err }, "discord: sweeping connections failed"));
   };
   const connectionOf = (id: string, userId: string): ConnectionRow => {
     sweep();
-    const c = db.prepare("SELECT * FROM discord_connections WHERE id = ? AND user_id = ?").get(id, userId) as ConnectionRow | undefined;
+    const c = ws.get<ConnectionRow>("discord_connections", { id, user_id: userId, expires_at: { gt: now() } });
     if (!c) throw notFound("That Discord connection has ended. Connect Discord again.");
     return c;
   };
@@ -96,7 +100,7 @@ export default async function discordRoutes(app: FastifyInstance, ctx: AppContex
 
   app.get("/v1/discord/status", auth, async (req) => {
     sweep();
-    const rows = db.prepare("SELECT * FROM discord_connections WHERE user_id = ? ORDER BY verified_at DESC LIMIT 20").all(me(req).userId) as ConnectionRow[];
+    const rows = ws.all<ConnectionRow>("discord_connections", { where: { user_id: me(req).userId, expires_at: { gt: now() } }, orderBy: [["verified_at", "desc"]], limit: 20 });
     return { configured: client !== null, connections: rows.map(connectionView) };
   });
 
@@ -105,7 +109,7 @@ export default async function discordRoutes(app: FastifyInstance, ctx: AppContex
     sweep();
     const state = crypto.randomBytes(32).toString("base64url");
     const t = now();
-    db.prepare("INSERT INTO discord_oauth_states (state_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)").run(sha256Hex(state), me(req).userId, t, t + STATE_TTL_MS);
+    await ctx.ephemeral.write((w) => w.insert("discord_oauth_states", { state_hash: sha256Hex(state), user_id: me(req).userId, created_at: t, expires_at: t + STATE_TTL_MS }));
     return { url: c.authorizeUrl(state) };
   });
 
@@ -115,8 +119,8 @@ export default async function discordRoutes(app: FastifyInstance, ctx: AppContex
     const body = parse(DiscordCallbackBody, req.body);
     sweep();
     // Single use, this account's own, unexpired: otherwise someone else's Discord sign-in could be attached here.
-    const used = db.prepare("DELETE FROM discord_oauth_states WHERE state_hash = ? AND user_id = ? AND expires_at > ?").run(sha256Hex(body.state), userId, now());
-    if (used.changes !== 1) throw new ApiError(400, "bad_request", "That Discord sign-in has expired or wasn't started here. Connect Discord again.");
+    const used = await ctx.ephemeral.write((w) => w.delete("discord_oauth_states", { state_hash: sha256Hex(body.state), user_id: userId, expires_at: { gt: now() } }));
+    if (used !== 1) throw new ApiError(400, "bad_request", "That Discord sign-in has expired or wasn't started here. Connect Discord again.");
     const { accessToken, guildId: tokenGuild } = await c.exchangeCode(body.code).catch(discordFailure);
     let discordUserId: string;
     let guildId: string | null;
@@ -138,29 +142,21 @@ export default async function discordRoutes(app: FastifyInstance, ctx: AppContex
     if (!guild) throw new ApiError(409, "discord_bot_missing", "Meldiq's bot wasn't added to that server. Connect Discord again and allow it.");
     const id = newId("dcon");
     const t = now();
-    db.prepare("INSERT INTO discord_connections (id, user_id, guild_id, guild_name, discord_user_id, verified_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
-      id,
-      userId,
-      guild.id,
-      guild.name,
-      discordUserId,
-      t,
-      t + CONNECTION_TTL_MS,
+    await ws.write((w) =>
+      w.insert("discord_connections", { id, user_id: userId, guild_id: guild.id, guild_name: guild.name, discord_user_id: discordUserId, verified_at: t, expires_at: t + CONNECTION_TTL_MS }),
     );
     ctx.audit({ actorId: userId, action: "discord.connect", target: id, detail: `guild ${guild.id}` });
-    return { connection: connectionView(db.prepare("SELECT * FROM discord_connections WHERE id = ?").get(id) as ConnectionRow) };
+    return { connection: connectionView(ws.get<ConnectionRow>("discord_connections", { id })!) };
   });
 
   app.delete("/v1/discord/connections/:id", limited(10), async (req) => {
     const userId = me(req).userId;
     const conn = connectionOf(parse(DiscordIdParams, req.params).id, userId);
     const { leave } = parse(DiscordDisconnectQuery, req.query);
-    db.prepare("DELETE FROM discord_connections WHERE id = ?").run(conn.id);
+    await ws.write((w) => w.delete("discord_connections", { id: conn.id }));
     let botLeft = false;
     // The bot stays while anyone else still has this server connected or an import of it is running.
-    const inUse =
-      db.prepare("SELECT 1 FROM discord_connections WHERE guild_id = ? AND expires_at > ?").get(conn.guild_id, now()) ||
-      db.prepare("SELECT 1 FROM discord_imports WHERE guild_id = ? AND status = 'running'").get(conn.guild_id);
+    const inUse = ws.get("discord_connections", { guild_id: conn.guild_id, expires_at: { gt: now() } }) || ws.get("discord_imports", { guild_id: conn.guild_id, status: "running" });
     if (leave === "true" && client && !inUse) {
       await client.leave(conn.guild_id).catch(discordFailure);
       botLeft = true;
@@ -194,7 +190,7 @@ export default async function discordRoutes(app: FastifyInstance, ctx: AppContex
     const userId = me(req).userId;
     const body = parse(DiscordImportBody, req.body);
     const conn = connectionOf(body.connectionId, userId);
-    if (db.prepare("SELECT 1 FROM discord_imports WHERE user_id = ? AND guild_id = ? AND status = 'running'").get(userId, conn.guild_id)) {
+    if (ws.get("discord_imports", { user_id: userId, guild_id: conn.guild_id, status: "running" })) {
       throw conflict("This server is already being imported: wait for it to finish");
     }
     const orgId = checkDestination(ctx, userId, body.destination, body.options);
@@ -202,7 +198,7 @@ export default async function discordRoutes(app: FastifyInstance, ctx: AppContex
     if (!guild) throw new ApiError(409, "discord_bot_missing", "Meldiq's Discord bot isn't in that server any more. Connect Discord again to add it.");
     const channels = body.options.channels ? await c.channels(conn.guild_id).catch(discordFailure) : [];
     const plan = planImport(guild, channels, body.options, limitsFor(ctx, orgId));
-    const imp = recordImport(ctx, userId, guild, body.destination, orgId, body.options, plan);
+    const imp = await recordImport(ctx, userId, guild, body.destination, orgId, body.options, plan);
     void runImport(ctx, c, imp.id);
     reply.code(202);
     return { import: importView(loadImport(ctx, imp.id)!) };
@@ -222,7 +218,7 @@ export default async function discordRoutes(app: FastifyInstance, ctx: AppContex
     if (isRunning(imp.id)) throw conflict("This import is still running");
     // The same checks as at the start: their role there may have changed since (or they may have left).
     if (imp.org_id) checkDestination(ctx, imp.user_id, { orgId: imp.org_id }, JSON.parse(imp.options) as ImportOptions);
-    db.prepare("UPDATE discord_imports SET status = 'running', error = NULL, finished_at = NULL, updated_at = ? WHERE id = ?").run(now(), imp.id);
+    await ws.write((w) => w.update("discord_imports", { id: imp.id }, { status: "running", error: null, finished_at: null, updated_at: now() }));
     void runImport(ctx, c, imp.id);
     reply.code(202);
     return { import: importView(loadImport(ctx, imp.id)!) };

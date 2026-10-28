@@ -21,17 +21,13 @@ export function mentionAllPermission(ctx: AppContext, conv: ConversationRow, use
   if (conv.type === "DM") return "mention_all_not_in_dm";
   if (!ctx.authz.canPost(conv, userId)) return "mention_all_not_allowed";
   if (ctx.authz.canManageConversation(conv, userId)) return null;
-  const members = (ctx.db.prepare("SELECT COUNT(*) n FROM conversation_members WHERE conversation_id = ?").get(conv.id) as { n: number }).n;
+  const members = ctx.ws.count("conversation_members", { conversation_id: conv.id });
   return members <= ctx.config.mentionAllMemberLimit ? null : "mention_all_not_allowed";
 }
 
 /** The hourly limit, for a new (not retried) @everyone message. */
 export function mentionAllRateLimited(ctx: AppContext, convId: string, userId: string, t = now()): boolean {
-  const recent = (
-    ctx.db.prepare("SELECT COUNT(*) n FROM mention_all_events WHERE conversation_id = ? AND user_id = ? AND at > ?").get(convId, userId, t - 3600_000) as {
-      n: number;
-    }
-  ).n;
+  const recent = ctx.ws.count("mention_all_events", { conversation_id: convId, user_id: userId, at: { gt: t - 3600_000 } });
   return recent >= ctx.config.mentionAllPerHour;
 }
 

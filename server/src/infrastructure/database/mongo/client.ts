@@ -1,7 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { type ClientSession, type Db, MongoClient, MongoServerError } from "mongodb";
-import type { DB } from "../db.js";
-import { describeTables, indexesFor, type TableSpec, validatorFor } from "./catalog.js";
+import { type ClientSession, type Db, type Document, MongoClient, MongoServerError } from "mongodb";
+import { indexesFor, type TableSpec, tableSpecs, validatorFor } from "./catalog.js";
 import { type MongoConfig, type MongoDomain, redactUri } from "./config.js";
 
 /** Bumped whenever the collections' validators or indexes change; recorded in orbit_meta. */
@@ -61,15 +60,22 @@ export class MeldiqMongo {
     }
   }
 
-  /** Collections for the tables, created with their validators (or updated to them), and their indexes. Idempotent. */
+  /**
+   * Collections for the tables, created with their validators (or updated to them), and their indexes. Idempotent. A
+   * validator that already matches is left alone: `collMod` needs more than `readWrite` (Atlas refuses it to a
+   * least-privilege user), so it runs only when the schema really changed.
+   */
   async ensureSchema(tables: TableSpec[]): Promise<void> {
-    const existing = new Set((await this.db.listCollections({}, { nameOnly: true }).toArray()).map((c) => c.name));
+    const existing = new Map((await this.db.listCollections({}).toArray()).map((c) => [c.name, (c as { options?: Document }).options ?? {}]));
     // Collections are independent of each other: prepared side by side.
     await Promise.all(
       tables.map(async (t) => {
         const validator = validatorFor(t);
-        if (existing.has(t.name)) await this.db.command({ collMod: t.name, validator, validationLevel: "strict", validationAction: "error" });
-        else await this.db.createCollection(t.name, { validator, validationLevel: "strict", validationAction: "error" });
+        const options = existing.get(t.name);
+        if (!options) await this.db.createCollection(t.name, { validator, validationLevel: "strict", validationAction: "error" });
+        else if (!hasValidator(options, validator)) {
+          await this.db.command({ collMod: t.name, validator, validationLevel: "strict", validationAction: "error" });
+        }
         const indexes = indexesFor(t);
         if (indexes.length) await this.db.collection(t.name).createIndexes(indexes);
       }),
@@ -123,9 +129,27 @@ export class MeldiqMongo {
 }
 
 /** The tables whose collections the server needs: those of the domains it keeps in MongoDB. */
-export function domainTables(db: DB, domains: Iterable<MongoDomain>): TableSpec[] {
+export function domainTables(domains: Iterable<MongoDomain>, tables: readonly TableSpec[] = tableSpecs()): TableSpec[] {
   const wanted = new Set<string>(domains);
-  return describeTables(db).filter((t) => wanted.has(t.domain));
+  return tables.filter((t) => wanted.has(t.domain));
+}
+
+/** JSON with object keys sorted at every level: two equal validators compare equal whatever their key order. */
+function sortedJson(value: unknown): string {
+  return JSON.stringify(value, (_key, v: unknown) =>
+    v && typeof v === "object" && !Array.isArray(v)
+      ? Object.fromEntries(Object.keys(v as Record<string, unknown>).sort().map((k) => [k, (v as Record<string, unknown>)[k]]))
+      : v,
+  );
+}
+
+/** Whether a collection's options (from listCollections) already carry [validator], strict and erroring. */
+function hasValidator(options: Document, validator: Document): boolean {
+  return (
+    options.validationLevel === "strict" &&
+    options.validationAction === "error" &&
+    sortedJson(options.validator) === sortedJson(validator)
+  );
 }
 
 /** A duplicate-key error (a unique index refused the write). */

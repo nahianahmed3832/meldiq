@@ -4,10 +4,10 @@
  * Authorization is the invite, not anything the client says: only the operator CLI creates a 'loadtest' registration
  * invite (its code is shown once, only the hash is stored), and only such an invite takes the load-test path. That
  * path skips the public per-network registration limits and is limited instead by its own hourly and daily quotas,
- * counted in SQLite (persistent across restarts; checked inside the insert transaction, so concurrent requests can't
+ * counted in the identity rows (persistent across restarts; checked inside the account's write unit, so concurrent requests can't
  * overshoot). Accounts made this way are synthetic and confined to synthetic communities.
  */
-import type { DB } from "../../infrastructure/database/db.js";
+import type { RowReader, Rows, RowWriter } from "../../infrastructure/database/rows/index.js";
 import { DAY_MS, HOUR_MS, networkKey } from "../../app/middleware/abuse.js";
 import { ApiError } from "../../shared/errors.js";
 import { humanCode, newId, normalizeCode, now, sha256Hex } from "../../shared/utilities/util.js";
@@ -36,23 +36,30 @@ export interface LoadtestInviteRow {
 export const loadtestEnabled = (p: LoadtestPolicy): boolean => p.hourly > 0 && p.daily > 0;
 
 /** The usable load-test invite for this code, or undefined (also for ordinary registration invites). */
-export function findLoadtestInvite(db: DB, code: string): LoadtestInviteRow | undefined {
-  const r = db
-    .prepare("SELECT id, max_uses, uses, expires_at, revoked_at FROM registration_invites WHERE code_hash = ? AND purpose = ?")
-    .get(sha256Hex(normalizeCode(code)), LOADTEST_PURPOSE) as LoadtestInviteRow | undefined;
-  return r && !r.revoked_at && r.expires_at > now() && r.uses < r.max_uses ? r : undefined;
+export function findLoadtestInvite(r: RowReader, code: string): LoadtestInviteRow | undefined {
+  const inv = r.get<LoadtestInviteRow>("registration_invites", { code_hash: sha256Hex(normalizeCode(code)), purpose: LOADTEST_PURPOSE });
+  return inv && !inv.revoked_at && inv.expires_at > now() && inv.uses < inv.max_uses ? inv : undefined;
 }
 
 /** Operator-only (admin CLI and tests): a load-test invite. The code is returned once and never stored. */
-export function createLoadtestInvite(db: DB, opts: { maxUses: number; days: number; note?: string | null }): { id: string; code: string } {
+export async function createLoadtestInvite(rows: Rows, opts: { maxUses: number; days: number; note?: string | null }): Promise<{ id: string; code: string }> {
   if (!Number.isInteger(opts.maxUses) || opts.maxUses < 1 || opts.maxUses > LOADTEST_INVITE_MAX_USES) throw new Error(`uses must be 1–${LOADTEST_INVITE_MAX_USES}`);
   if (!(opts.days > 0 && opts.days <= LOADTEST_INVITE_MAX_DAYS)) throw new Error(`days must be more than 0 and at most ${LOADTEST_INVITE_MAX_DAYS}`);
   const code = humanCode(12);
   const id = newId("rinv");
   const t = now();
-  db.prepare(
-    "INSERT INTO registration_invites (id, code_hash, code_hint, note, max_uses, created_at, expires_at, purpose) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-  ).run(id, sha256Hex(code), code.slice(-4), opts.note ?? null, opts.maxUses, t, t + Math.round(opts.days * DAY_MS), LOADTEST_PURPOSE);
+  await rows.write((w) =>
+    w.insert("registration_invites", {
+      id,
+      code_hash: sha256Hex(code),
+      code_hint: code.slice(-4),
+      note: opts.note ?? null,
+      max_uses: opts.maxUses,
+      created_at: t,
+      expires_at: t + Math.round(opts.days * DAY_MS),
+      purpose: LOADTEST_PURPOSE,
+    }),
+  );
   return { id, code: `${code.slice(0, 4)}-${code.slice(4, 8)}-${code.slice(8)}` };
 }
 
@@ -64,16 +71,14 @@ export interface QuotaState {
 }
 
 /** Synthetic accounts created in the rolling hour and rolling 24 hours before [at]. */
-export function loadtestQuota(db: DB, policy: LoadtestPolicy, at: number): QuotaState {
-  const count = (since: number) => (db.prepare("SELECT COUNT(*) n FROM loadtest_registrations WHERE created_at > ?").get(since) as { n: number }).n;
+export function loadtestQuota(r: RowReader, policy: LoadtestPolicy, at: number): QuotaState {
+  const count = (since: number) => r.count("loadtest_registrations", { created_at: { gt: since } });
   const lastHour = count(at - HOUR_MS);
   const lastDay = count(at - DAY_MS);
   // The oldest row inside a full window leaves it at created_at + window: that's when one more fits.
   const freeAt = (window: number, limit: number) => {
-    const r = db.prepare("SELECT created_at FROM loadtest_registrations WHERE created_at > ? ORDER BY created_at DESC LIMIT 1 OFFSET ?").get(at - window, limit - 1) as
-      | { created_at: number }
-      | undefined;
-    return r ? r.created_at + window - at : 0;
+    const row = r.all<{ created_at: number }>("loadtest_registrations", { where: { created_at: { gt: at - window } }, orderBy: [["created_at", "desc"]], limit })[limit - 1];
+    return row ? row.created_at + window - at : 0;
   };
   const retryAfterMs = Math.max(lastHour >= policy.hourly ? freeAt(HOUR_MS, policy.hourly) : 0, lastDay >= policy.daily ? freeAt(DAY_MS, policy.daily) : 0);
   return { lastHour, lastDay, retryAfterMs };
@@ -90,17 +95,15 @@ export function checkLoadtestRequest(policy: LoadtestPolicy, ip: string): string
 }
 
 /**
- * Inside the registration transaction: re-checks the invite and both quotas, then marks [userId] synthetic, uses the
+ * Inside the registration's write unit: re-checks the invite and both quotas, then marks [userId] synthetic, uses the
  * invite once and records the registration. Throws (rolling the account back) when anything no longer holds.
  */
-export function admitLoadtestAccount(db: DB, policy: LoadtestPolicy, inviteId: string, userId: string, network: string, at: number): QuotaState {
-  const inv = db.prepare("SELECT id, max_uses, uses, expires_at, revoked_at FROM registration_invites WHERE id = ? AND purpose = ?").get(inviteId, LOADTEST_PURPOSE) as
-    | LoadtestInviteRow
-    | undefined;
+export function admitLoadtestAccount(w: RowWriter, policy: LoadtestPolicy, inviteId: string, userId: string, network: string, at: number): QuotaState {
+  const inv = w.get<LoadtestInviteRow>("registration_invites", { id: inviteId, purpose: LOADTEST_PURPOSE });
   if (!inv || inv.revoked_at || inv.expires_at <= at || inv.uses >= inv.max_uses) {
     throw new ApiError(403, "invalid_invite", "This invitation code is invalid, expired or already used");
   }
-  const q = loadtestQuota(db, policy, at);
+  const q = loadtestQuota(w, policy, at);
   if (q.lastHour >= policy.hourly || q.lastDay >= policy.daily) {
     throw new ApiError(429, "loadtest_quota", "The load-test provisioning quota is used up for now", {
       retryAfter: Math.max(1, Math.ceil(q.retryAfterMs / 1000)),
@@ -108,19 +111,17 @@ export function admitLoadtestAccount(db: DB, policy: LoadtestPolicy, inviteId: s
       lastDay: q.lastDay,
     });
   }
-  db.prepare("UPDATE users SET synthetic = 1, limited_until = NULL WHERE id = ?").run(userId);
-  db.prepare("UPDATE registration_invites SET uses = uses + 1 WHERE id = ?").run(inviteId);
-  db.prepare("INSERT INTO loadtest_registrations (user_id, invite_id, network, created_at) VALUES (?, ?, ?, ?)").run(userId, inviteId, network, at);
+  w.update("users", { id: userId }, { synthetic: 1, limited_until: null });
+  w.update("registration_invites", { id: inviteId }, { uses: inv.uses + 1 });
+  w.insert("loadtest_registrations", { user_id: userId, invite_id: inviteId, network, created_at: at });
   return { lastHour: q.lastHour + 1, lastDay: q.lastDay + 1, retryAfterMs: 0 };
 }
 
 /** Whether [userId] is a synthetic load-test account. */
-export const isSynthetic = (db: DB, userId: string): boolean =>
-  (db.prepare("SELECT synthetic FROM users WHERE id = ?").get(userId) as { synthetic: number } | undefined)?.synthetic === 1;
+export const isSynthetic = (r: RowReader, userId: string): boolean => r.get<{ synthetic: number }>("users", { id: userId })?.synthetic === 1;
 
 /** A synthetic account may only start DMs and groups with other synthetic accounts. */
-export function requireSyntheticScopeForPeople(db: DB, userId: string, others: string[]): void {
-  if (!others.length || !isSynthetic(db, userId)) return;
-  const real = db.prepare(`SELECT COUNT(*) n FROM users WHERE synthetic = 0 AND id IN (${others.map(() => "?").join(",")})`).get(...others) as { n: number };
-  if (real.n > 0) throw new ApiError(403, "synthetic_scope", "Load-test accounts can only talk to other load-test accounts");
+export function requireSyntheticScopeForPeople(r: RowReader, userId: string, others: string[]): void {
+  if (!others.length || !isSynthetic(r, userId)) return;
+  if (r.count("users", { synthetic: 0, id: { in: others } }) > 0) throw new ApiError(403, "synthetic_scope", "Load-test accounts can only talk to other load-test accounts");
 }

@@ -12,6 +12,17 @@ export const MediaGrant = z.strictObject({
   room: z.string(),
   /** false: a voice channel the person may only listen in. */
   canSpeak: z.boolean(),
+  /**
+   * What this person may publish here (API 0.54.0, docs/MOJO.md): screen-share ceilings from their plan and the
+   * community's Spark level together, and the voice bitrate ceiling. Apps choose within them; a larger screen share is
+   * muted by the server.
+   */
+  limits: z
+    .strictObject({
+      screen: z.array(z.strictObject({ id: z.string(), width: z.number().int(), height: z.number().int(), fps: z.number().int() })),
+      voiceKbps: z.number().int(),
+    })
+    .optional(),
 });
 
 export const CallOnly = z.strictObject({ call: CallWire });

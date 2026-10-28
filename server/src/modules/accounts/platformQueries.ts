@@ -1,4 +1,5 @@
-import type { DB } from "../../infrastructure/database/db.js";
+import type { RowReader, Rows, Where } from "../../infrastructure/database/rows/index.js";
+import { likeContains, likeStarts } from "../../shared/utilities/sqlText.js";
 
 /**
  * What the Platform Admin Console (modules/platformAdmin) may read about people: identity metadata, devices and
@@ -37,146 +38,168 @@ export interface UserCounts {
 }
 
 const DAY_MS = 86_400_000;
-const SUMMARY = `SELECT u.id, u.username, u.display_name, u.created_at, u.disabled_at, u.deleted_at, u.limited_until,
-    (SELECT COUNT(*) FROM devices d WHERE d.user_id = u.id AND d.revoked_at IS NULL) AS active_devices,
-    (SELECT MAX(d.last_seen_at) FROM devices d WHERE d.user_id = u.id) AS last_seen_at
-  FROM users u`;
 
-const STATUS_SQL: Record<UserStatus, string> = {
-  active: "u.disabled_at IS NULL AND u.deleted_at IS NULL",
-  suspended: "u.disabled_at IS NOT NULL AND u.deleted_at IS NULL",
-  deleted: "u.deleted_at IS NOT NULL",
+interface UserRow {
+  id: string;
+  username: string;
+  display_name: string;
+  created_at: number;
+  disabled_at: number | null;
+  deleted_at: number | null;
+  limited_until: number | null;
+}
+
+interface DeviceRow {
+  id: string;
+  user_id: string;
+  name: string;
+  created_at: number;
+  last_seen_at: number | null;
+  revoked_at: number | null;
+}
+
+const STATUS_WHERE: Record<UserStatus, Where> = {
+  active: { disabled_at: null, deleted_at: null },
+  suspended: { disabled_at: { ne: null }, deleted_at: null },
+  deleted: { deleted_at: { ne: null } },
 };
 
-/** "%" and "_" typed by an admin are literal characters, not wildcards. */
-const likeEscape = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
+/** The UTC day of [ms] ("2026-10-28"), as SQLite's strftime('%Y-%m-%d', ms / 1000, 'unixepoch'). */
+const utcDay = (ms: number): string => new Date(Math.floor(ms / 1000) * 1000).toISOString().slice(0, 10);
+
+/** Newest first, then by id (keyset order); [after] the previous page's last row. Ids compare as text here. */
+function newestFirst<R extends { created_at: number; id: string }>(rows: R[], after?: { createdAt: number; id: string }): R[] {
+  return rows
+    .filter((r) => !after || r.created_at < after.createdAt || (r.created_at === after.createdAt && r.id < after.id))
+    .sort((a, b) => b.created_at - a.created_at || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
+}
+
+function summarize(identity: RowReader, u: UserRow): UserSummaryRow {
+  const devices = identity.all<DeviceRow>("devices", { where: { user_id: u.id } });
+  const seen = devices.map((d) => d.last_seen_at).filter((x): x is number => x !== null);
+  return {
+    id: u.id,
+    username: u.username,
+    display_name: u.display_name,
+    created_at: u.created_at,
+    disabled_at: u.disabled_at,
+    deleted_at: u.deleted_at,
+    limited_until: u.limited_until,
+    active_devices: devices.filter((d) => d.revoked_at === null).length,
+    last_seen_at: seen.length ? Math.max(...seen) : null,
+  };
+}
+
+/** Per UTC day, in day order. */
+function perDay(times: number[]): { day: string; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const t of times) counts.set(utcDay(t), (counts.get(utcDay(t)) ?? 0) + 1);
+  return [...counts].sort(([a], [b]) => (a < b ? -1 : 1)).map(([day, count]) => ({ day, count }));
+}
 
 /**
  * People, newest first, a page at a time. [q]: the start of a username, part of a display name, or an exact user id.
  * [after]: the last row of the previous page (keyset pagination: stable while people sign up).
  */
 export function searchUsers(
-  db: DB,
+  identity: RowReader,
   opts: { q?: string; status?: UserStatus; after?: { createdAt: number; id: string }; limit: number; ids?: string[]; notIds?: string[]; createdFrom?: number; createdTo?: number },
 ): UserSummaryRow[] {
-  const where = ["u.home_server_id IS NULL"];
-  const args: (string | number)[] = [];
-  if (opts.q) {
-    where.push("(u.username LIKE ? ESCAPE '\\' OR u.display_name LIKE ? ESCAPE '\\' OR u.id = ?)");
-    args.push(`${likeEscape(opts.q)}%`, `%${likeEscape(opts.q)}%`, opts.q);
-  }
-  if (opts.ids) {
-    if (opts.ids.length === 0) return [];
-    where.push("u.id IN (SELECT value FROM json_each(?))");
-    args.push(JSON.stringify(opts.ids));
-  }
-  if (opts.notIds?.length) {
-    where.push("u.id NOT IN (SELECT value FROM json_each(?))");
-    args.push(JSON.stringify(opts.notIds));
-  }
-  if (opts.createdFrom !== undefined) {
-    where.push("u.created_at >= ?");
-    args.push(opts.createdFrom);
-  }
-  if (opts.createdTo !== undefined) {
-    where.push("u.created_at < ?");
-    args.push(opts.createdTo);
-  }
-  if (opts.status) where.push(STATUS_SQL[opts.status]);
-  if (opts.after) {
-    where.push("(u.created_at < ? OR (u.created_at = ? AND u.id < ?))");
-    args.push(opts.after.createdAt, opts.after.createdAt, opts.after.id);
-  }
-  return db.prepare(`${SUMMARY} WHERE ${where.join(" AND ")} ORDER BY u.created_at DESC, u.id DESC LIMIT ?`).all(...args, opts.limit) as UserSummaryRow[];
+  if (opts.ids && opts.ids.length === 0) return [];
+  const where: Where = { home_server_id: null, ...(opts.status ? STATUS_WHERE[opts.status] : {}) };
+  if (opts.ids) where.id = { in: opts.ids };
+  if (opts.notIds?.length) where.id = opts.ids ? { in: opts.ids.filter((id) => !opts.notIds!.includes(id)) } : { notIn: opts.notIds };
+  const { q, createdFrom, createdTo } = opts;
+  const rows = identity
+    .all<UserRow>("users", { where })
+    .filter((u) => (createdFrom === undefined || u.created_at >= createdFrom) && (createdTo === undefined || u.created_at < createdTo))
+    .filter((u) => !q || likeStarts(u.username, q) || likeContains(u.display_name, q) || u.id === q);
+  return newestFirst(rows, opts.after)
+    .slice(0, opts.limit)
+    .map((u) => summarize(identity, u));
 }
 
-export function userSummary(db: DB, userId: string): UserSummaryRow | undefined {
-  return db.prepare(`${SUMMARY} WHERE u.id = ? AND u.home_server_id IS NULL`).get(userId) as UserSummaryRow | undefined;
+export function userSummary(identity: RowReader, userId: string): UserSummaryRow | undefined {
+  const u = identity.get<UserRow>("users", { id: userId, home_server_id: null });
+  return u ? summarize(identity, u) : undefined;
 }
 
 /** The person's devices, newest first: names they chose, when they were added and last seen, and revocations. */
-export function userDevices(db: DB, userId: string): DeviceSummaryRow[] {
-  return db.prepare("SELECT id, name, created_at, last_seen_at, revoked_at FROM devices WHERE user_id = ? ORDER BY created_at DESC LIMIT 50").all(userId) as DeviceSummaryRow[];
+export function userDevices(identity: RowReader, userId: string): DeviceSummaryRow[] {
+  return identity
+    .all<DeviceRow>("devices", { where: { user_id: userId }, orderBy: [["created_at", "desc"]], limit: 50 })
+    .map((d) => ({ id: d.id, name: d.name, created_at: d.created_at, last_seen_at: d.last_seen_at, revoked_at: d.revoked_at }));
 }
 
 /** Usernames for [ids] (owners of a community, an incident's person). */
-export function usernames(db: DB, ids: string[]): Map<string, string> {
+export function usernames(identity: RowReader, ids: string[]): Map<string, string> {
   if (ids.length === 0) return new Map();
-  const rows = db.prepare(`SELECT id, username FROM users WHERE id IN (${ids.map(() => "?").join(",")})`).all(...ids) as { id: string; username: string }[];
-  return new Map(rows.map((r) => [r.id, r.username]));
+  return new Map(identity.all<{ id: string; username: string }>("users", { where: { id: { in: ids } } }).map((r) => [r.id, r.username]));
 }
 
 /** "Seen" is a device's last sign-in or connection (devices.last_seen_at): an approximate activity signal. */
-export function userCounts(db: DB, t: number, days: number): UserCounts {
-  const one = (sql: string, ...args: number[]) => (db.prepare(sql).get(...args) as { n: number }).n;
-  const seen = (since: number) =>
-    one("SELECT COUNT(DISTINCT d.user_id) n FROM devices d JOIN users u ON u.id = d.user_id WHERE d.revoked_at IS NULL AND d.last_seen_at > ? AND u.home_server_id IS NULL AND u.deleted_at IS NULL", since);
+export function userCounts(identity: RowReader, t: number, days: number): UserCounts {
+  const local = { home_server_id: null, deleted_at: null };
+  const seen = (since: number) => {
+    const users = new Set(identity.all<{ user_id: string }>("devices", { where: { revoked_at: null, last_seen_at: { gt: since } } }).map((d) => d.user_id));
+    return identity.count("users", { ...local, id: { in: [...users] } });
+  };
   const from = t - days * DAY_MS;
-  const perDay = db
-    .prepare("SELECT strftime('%Y-%m-%d', created_at / 1000, 'unixepoch') AS day, COUNT(*) AS count FROM users WHERE created_at > ? AND home_server_id IS NULL GROUP BY day ORDER BY day")
-    .all(from) as { day: string; count: number }[];
   return {
-    total: one("SELECT COUNT(*) n FROM users WHERE home_server_id IS NULL AND deleted_at IS NULL"),
-    suspended: one("SELECT COUNT(*) n FROM users WHERE home_server_id IS NULL AND deleted_at IS NULL AND disabled_at IS NOT NULL"),
-    deleted: one("SELECT COUNT(*) n FROM users WHERE home_server_id IS NULL AND deleted_at IS NOT NULL"),
+    total: identity.count("users", local),
+    suspended: identity.count("users", { ...local, disabled_at: { ne: null } }),
+    deleted: identity.count("users", { home_server_id: null, deleted_at: { ne: null } }),
     seen24h: seen(t - DAY_MS),
     seen30d: seen(t - 30 * DAY_MS),
-    newPerDay: perDay,
+    newPerDay: perDay(identity.all<{ created_at: number }>("users", { where: { created_at: { gt: from }, home_server_id: null } }).map((u) => u.created_at)),
   };
 }
 
 /** Sets or clears ([at] null) an identity's suspension (the same column `admin.js disable` sets); true when it changed. */
-export function setIdentitySuspended(db: DB, userId: string, at: number | null): boolean {
-  if (at === null) return db.prepare("UPDATE users SET disabled_at = NULL WHERE id = ? AND disabled_at IS NOT NULL AND deleted_at IS NULL").run(userId).changes > 0;
-  return db.prepare("UPDATE users SET disabled_at = ? WHERE id = ? AND disabled_at IS NULL AND deleted_at IS NULL").run(at, userId).changes > 0;
+export function setIdentitySuspended(identity: Rows, userId: string, at: number | null): Promise<boolean> {
+  return identity.write((w) =>
+    at === null
+      ? w.update("users", { id: userId, disabled_at: { ne: null }, deleted_at: null }, { disabled_at: null }) > 0
+      : w.update("users", { id: userId, disabled_at: null, deleted_at: null }, { disabled_at: at }) > 0,
+  );
 }
 
 /** When each identity in [ids] was created (telemetry stores it with activity rows, for cohorts). */
-export function signupTimes(db: DB, ids: string[]): Map<string, number> {
-  const out = new Map<string, number>();
-  for (let i = 0; i < ids.length; i += 500) {
-    const chunk = ids.slice(i, i + 500);
-    const rows = db.prepare(`SELECT id, created_at FROM users WHERE id IN (${chunk.map(() => "?").join(",")})`).all(...chunk) as { id: string; created_at: number }[];
-    for (const r of rows) out.set(r.id, r.created_at);
-  }
-  return out;
+export function signupTimes(identity: RowReader, ids: string[]): Map<string, number> {
+  if (ids.length === 0) return new Map();
+  return new Map(identity.all<{ id: string; created_at: number }>("users", { where: { id: { in: ids } } }).map((r) => [r.id, r.created_at]));
 }
 
 /** Synthetic (load-test) identities: always left out of analytics. */
-export function syntheticUserIds(db: DB): string[] {
-  return (db.prepare("SELECT id FROM users WHERE synthetic = 1").all() as { id: string }[]).map((r) => r.id);
+export function syntheticUserIds(identity: RowReader): string[] {
+  return identity.all<{ id: string }>("users", { where: { synthetic: 1 } }).map((r) => r.id);
 }
 
 /**
- * Sign-ups per UTC day in [from, to) (ms), [excluded] left out (a JSON array of user ids): the denominators of
- * activation and retention. Deleted accounts count: they signed up.
+ * Sign-ups per UTC day in [from, to) (ms), [excluded] left out: the denominators of activation and retention. Deleted
+ * accounts count: they signed up.
  */
-export function signupsPerDay(db: DB, from: number, to: number, excluded: string): { day: string; count: number }[] {
-  return db
-    .prepare(
-      `SELECT strftime('%Y-%m-%d', created_at / 1000, 'unixepoch') AS day, COUNT(*) AS count FROM users
-        WHERE created_at >= ? AND created_at < ? AND home_server_id IS NULL AND id NOT IN (SELECT value FROM json_each(?))
-        GROUP BY day ORDER BY day`,
-    )
-    .all(from, to, excluded) as { day: string; count: number }[];
+export function signupsPerDay(identity: RowReader, from: number, to: number, excluded: readonly string[]): { day: string; count: number }[] {
+  const rows = identity.all<{ created_at: number }>("users", { where: { created_at: { gte: from }, home_server_id: null, id: { notIn: [...excluded] } } });
+  return perDay(rows.filter((u) => u.created_at < to).map((u) => u.created_at));
 }
 
 /**
  * Identities that can be used now (not suspended, deleted or synthetic), synthetic ones, and new accounts still under
  * the new-account limits (limited_until).
  */
-export function accountStateCounts(db: DB, t: number): { usable: number; synthetic: number; newAccountLimited: number } {
-  const one = (sql: string, ...a: number[]) => (db.prepare(sql).get(...a) as { n: number }).n;
+export function accountStateCounts(identity: RowReader, t: number): { usable: number; synthetic: number; newAccountLimited: number } {
+  const local = { home_server_id: null, deleted_at: null };
   return {
-    usable: one("SELECT COUNT(*) n FROM users WHERE home_server_id IS NULL AND deleted_at IS NULL AND disabled_at IS NULL AND synthetic = 0"),
-    synthetic: one("SELECT COUNT(*) n FROM users WHERE home_server_id IS NULL AND deleted_at IS NULL AND synthetic = 1"),
-    newAccountLimited: one("SELECT COUNT(*) n FROM users WHERE home_server_id IS NULL AND deleted_at IS NULL AND limited_until IS NOT NULL AND limited_until > ?", t),
+    usable: identity.count("users", { ...local, disabled_at: null, synthetic: 0 }),
+    synthetic: identity.count("users", { ...local, synthetic: 1 }),
+    newAccountLimited: identity.count("users", { ...local, limited_until: { gt: t } }),
   };
 }
 
 /** Identities created since [since] (ms), synthetic ones left out (alert rules: a sign-up spike). */
-export function signupsSince(db: DB, since: number): number {
-  return (db.prepare("SELECT COUNT(*) n FROM users WHERE created_at > ? AND home_server_id IS NULL AND synthetic = 0").get(since) as { n: number }).n;
+export function signupsSince(identity: RowReader, since: number): number {
+  return identity.count("users", { created_at: { gt: since }, home_server_id: null, synthetic: 0 });
 }
 
 export interface DeviceInventoryRow {
@@ -189,77 +212,58 @@ export interface DeviceInventoryRow {
   revoked_at: number | null;
 }
 
+/** Local identities' usernames by id; federated shadows (home_server_id set) are left out. */
+function localUsernames(identity: RowReader, userIds: string[]): Map<string, string> {
+  return new Map(identity.all<{ id: string; username: string }>("users", { where: { id: { in: [...new Set(userIds)] }, home_server_id: null } }).map((u) => [u.id, u.username]));
+}
+
 /**
  * Devices across everyone, newest first, a page at a time ([after]: the previous page's last row). [staleBefore]:
  * only devices not seen since then. Federated shadows are left out.
  */
 export function devicesPage(
-  db: DB,
+  identity: RowReader,
   opts: { status?: "active" | "revoked"; staleBefore?: number; ids?: string[]; after?: { createdAt: number; id: string }; limit: number },
 ): DeviceInventoryRow[] {
-  const where = ["u.home_server_id IS NULL"];
-  const args: (string | number)[] = [];
-  if (opts.status === "active") where.push("d.revoked_at IS NULL");
-  if (opts.status === "revoked") where.push("d.revoked_at IS NOT NULL");
-  if (opts.staleBefore !== undefined) {
-    where.push("d.revoked_at IS NULL AND COALESCE(d.last_seen_at, d.created_at) < ?");
-    args.push(opts.staleBefore);
+  const where: Where = {};
+  if (opts.status === "active" || opts.staleBefore !== undefined) where.revoked_at = null;
+  if (opts.status === "revoked") where.revoked_at = opts.staleBefore !== undefined ? { in: [] } : { ne: null };
+  if (opts.ids) where.id = { in: opts.ids };
+  const stale = opts.staleBefore;
+  const devices = identity.all<DeviceRow>("devices", { where }).filter((d) => stale === undefined || (d.last_seen_at ?? d.created_at) < stale);
+  const names = localUsernames(identity, devices.map((d) => d.user_id));
+  const page: DeviceInventoryRow[] = [];
+  for (const d of newestFirst(devices, opts.after)) {
+    if (page.length >= opts.limit) break;
+    const username = names.get(d.user_id);
+    if (username !== undefined) page.push({ ...d, username });
   }
-  if (opts.ids) {
-    where.push("d.id IN (SELECT value FROM json_each(?))");
-    args.push(JSON.stringify(opts.ids));
-  }
-  if (opts.after) {
-    where.push("(d.created_at < ? OR (d.created_at = ? AND d.id < ?))");
-    args.push(opts.after.createdAt, opts.after.createdAt, opts.after.id);
-  }
-  return db
-    .prepare(
-      `SELECT d.id, d.user_id, u.username, d.name, d.created_at, d.last_seen_at, d.revoked_at FROM devices d JOIN users u ON u.id = d.user_id
-        WHERE ${where.join(" AND ")} ORDER BY d.created_at DESC, d.id DESC LIMIT ?`,
-    )
-    .all(...args, opts.limit) as DeviceInventoryRow[];
+  return page;
 }
 
-export function deviceCounts(db: DB): { active: number; revoked: number } {
-  return db.prepare("SELECT COALESCE(SUM(revoked_at IS NULL), 0) active, COALESCE(SUM(revoked_at IS NOT NULL), 0) revoked FROM devices").get() as { active: number; revoked: number };
+export function deviceCounts(identity: RowReader): { active: number; revoked: number } {
+  return { active: identity.count("devices", { revoked_at: null }), revoked: identity.count("devices", { revoked_at: { ne: null } }) };
 }
 
 /** A device of [userId], if it is one of theirs. */
-export function deviceOf(db: DB, userId: string, deviceId: string): DeviceInventoryRow | undefined {
-  return db
-    .prepare("SELECT d.id, d.user_id, u.username, d.name, d.created_at, d.last_seen_at, d.revoked_at FROM devices d JOIN users u ON u.id = d.user_id WHERE d.id = ? AND d.user_id = ?")
-    .get(deviceId, userId) as DeviceInventoryRow | undefined;
-}
-
-/** The most recently used app session of each device (SQLite account store; empty with accounts in MongoDB). */
-export function latestSessionOfDevices(db: DB, deviceIds: string[]): Map<string, string> {
-  if (deviceIds.length === 0) return new Map();
-  const rows = db
-    .prepare(
-      `SELECT device_id, id FROM account_sessions s WHERE device_id IN (SELECT value FROM json_each(?))
-        AND last_used_at = (SELECT MAX(last_used_at) FROM account_sessions s2 WHERE s2.device_id = s.device_id)`,
-    )
-    .all(JSON.stringify(deviceIds)) as { device_id: string; id: string }[];
-  return new Map(rows.map((r) => [r.device_id, r.id]));
+export function deviceOf(identity: RowReader, userId: string, deviceId: string): DeviceInventoryRow | undefined {
+  const d = identity.get<DeviceRow>("devices", { id: deviceId, user_id: userId });
+  const u = d && identity.get<{ username: string }>("users", { id: userId });
+  return d && u ? { ...d, username: u.username } : undefined;
 }
 
 /** Identities created in [from, to) (ms), synthetic ones left out. */
-export function signupsBetween(db: DB, from: number, to: number): number {
-  return (db.prepare("SELECT COUNT(*) n FROM users WHERE created_at >= ? AND created_at < ? AND home_server_id IS NULL AND synthetic = 0").get(from, to) as { n: number }).n;
+export function signupsBetween(identity: RowReader, from: number, to: number): number {
+  return identity.all<{ created_at: number }>("users", { where: { created_at: { gte: from }, home_server_id: null, synthetic: 0 } }).filter((u) => u.created_at < to).length;
 }
 
 /**
  * Display names and usernames of [userIds] (AI Workforce's impersonation check: an agent can't be named like a member
  * of its community). Names only.
  */
-export function namesOf(db: DB, userIds: readonly string[]): { id: string; username: string; displayName: string }[] {
+export function namesOf(identity: RowReader, userIds: readonly string[]): { id: string; username: string; displayName: string }[] {
   if (userIds.length === 0) return [];
-  const out: { id: string; username: string; displayName: string }[] = [];
-  for (let i = 0; i < userIds.length; i += 500) {
-    const chunk = userIds.slice(i, i + 500);
-    const rows = db.prepare(`SELECT id, username, display_name FROM users WHERE id IN (${chunk.map(() => "?").join(",")})`).all(...chunk) as { id: string; username: string; display_name: string }[];
-    for (const r of rows) out.push({ id: r.id, username: r.username, displayName: r.display_name });
-  }
-  return out;
+  return identity
+    .all<{ id: string; username: string; display_name: string }>("users", { where: { id: { in: [...userIds] } } })
+    .map((r) => ({ id: r.id, username: r.username, displayName: r.display_name }));
 }

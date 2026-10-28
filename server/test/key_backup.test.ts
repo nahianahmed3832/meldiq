@@ -93,7 +93,10 @@ describe("keys backed up under the password", () => {
     const got = await p.req("POST", "/v2/account/key-backup/unlock", { code });
     expect(got).toEqual(backup);
     await expectStatus(p.req("POST", "/v2/account/key-backup/unlock", { code }), 400);
-    const audit = h.ctx.db.prepare("SELECT action, detail FROM audit_log WHERE target = ? AND action LIKE 'account.key_%' ORDER BY id").all(c.accountId) as { action: string; detail: string | null }[];
+    const audit = h.ctx.ws
+      .all<{ action: string; detail: string | null }>("audit_log", { where: { target: c.accountId }, orderBy: [["id", "asc"]] })
+      .filter((a) => a.action.startsWith("account.key_"))
+      .map(({ action, detail }) => ({ action, detail }));
     expect(audit.map((a) => a.action)).toEqual(["account.key_backup_saved", "account.key_unlock_started", "account.key_unlocked"]);
     for (const a of audit) expect(a.detail ?? "").not.toContain(code);
   });

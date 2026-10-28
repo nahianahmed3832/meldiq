@@ -11,6 +11,8 @@ import { MAX_ACTIVE_ROLES } from "../rolesRoutes.js";
 import { markSyntheticOrg } from "../syntheticScope.js";
 import type { Permission } from "../permissions/catalog.js";
 import { type DiscordClient, DiscordError } from "./client.js";
+import type { RowReader } from "../../../infrastructure/database/rows/index.js";
+import { foldAscii } from "../../../shared/utilities/sqlText.js";
 import { type ImportOptions, type ItemSpec, type PlanItem, planImport, type PlanLimits } from "./mapping.js";
 
 /**
@@ -62,11 +64,11 @@ const NEEDS: readonly [keyof ImportOptions, Permission, string][] = [
 /** Meldiq's limits, less what an existing community already has. */
 export function limitsFor(ctx: AppContext, orgId: string | null): PlanLimits {
   if (!orgId) return { channelsPerCategory: CHANNEL_LIMITS.perCategory, channels: CHANNEL_LIMITS.perCommunity, roles: MAX_ACTIVE_ROLES, emoji: EXPRESSION_LIMITS.emoji };
-  const roles = (ctx.db.prepare("SELECT COUNT(*) n FROM org_roles WHERE org_id = ? AND archived_at IS NULL").get(orgId) as { n: number }).n;
-  const emoji = (ctx.db.prepare("SELECT COUNT(*) n FROM community_expressions WHERE org_id = ? AND kind = 'emoji'").get(orgId) as { n: number }).n;
+  const roles = ctx.ws.count("org_roles", { org_id: orgId, archived_at: null });
+  const emoji = ctx.ws.count("community_expressions", { org_id: orgId, kind: "emoji" });
   return {
     channelsPerCategory: CHANNEL_LIMITS.perCategory,
-    channels: Math.max(0, CHANNEL_LIMITS.perCommunity - channelCounts(ctx, orgId, null).total),
+    channels: Math.max(0, CHANNEL_LIMITS.perCommunity - channelCounts(ctx.ws, orgId, null).total),
     roles: Math.max(0, MAX_ACTIVE_ROLES - roles),
     emoji: Math.max(0, EXPRESSION_LIMITS.emoji - emoji),
   };
@@ -75,9 +77,9 @@ export function limitsFor(ctx: AppContext, orgId: string | null): PlanLimits {
 /** Refuses a destination the person can't import into; returns the existing community's id, or null for a new one. */
 export function checkDestination(ctx: AppContext, userId: string, dest: Destination, options: ImportOptions): string | null {
   if ("name" in dest) {
-    const sameName = ctx.db
-      .prepare("SELECT o.id FROM orgs o JOIN org_members m ON m.org_id = o.id AND m.user_id = ? AND m.role = 'OWNER' WHERE lower(trim(o.name)) = lower(trim(?)) LIMIT 1")
-      .get(userId, dest.name) as { id: string } | undefined;
+    const owned = ctx.ws.all<{ org_id: string }>("org_members", { where: { user_id: userId, role: "OWNER" } }).map((m) => m.org_id);
+    const wanted = foldAscii(dest.name.trim());
+    const sameName = ctx.ws.all<{ id: string; name: string }>("orgs", { where: { id: { in: owned } } }).find((o) => foldAscii(o.name.trim()) === wanted);
     if (sameName) throw new ApiError(409, "org_name_taken", `You already own a community called "${dest.name.trim()}". Choose another name, or import into it.`, { orgId: sameName.id });
     return null;
   }
@@ -90,7 +92,7 @@ export function checkDestination(ctx: AppContext, userId: string, dest: Destinat
 }
 
 /** Writes the import and its plan (nothing is made yet). */
-export function recordImport(
+export async function recordImport(
   ctx: AppContext,
   userId: string,
   guild: { id: string; name: string },
@@ -98,25 +100,44 @@ export function recordImport(
   orgId: string | null,
   options: ImportOptions,
   plan: readonly PlanItem[],
-): ImportRow {
+): Promise<ImportRow> {
   const id = newId("dimp");
   const t = now();
-  ctx.db.transaction(() => {
-    ctx.db
-      .prepare(
-        "INSERT INTO discord_imports (id, user_id, guild_id, guild_name, org_id, new_name, options, status, error, created_at, updated_at, finished_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'running', NULL, ?, ?, NULL)",
-      )
-      .run(id, userId, guild.id, guild.name, orgId, "name" in dest ? dest.name.trim() : null, JSON.stringify(options), t, t);
-    const insert = ctx.db.prepare(
-      "INSERT INTO discord_import_items (import_id, source_key, position, kind, name, spec, status, target_id, note) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?)",
+  await ctx.ws.write((w) => {
+    w.insert("discord_imports", {
+      id,
+      user_id: userId,
+      guild_id: guild.id,
+      guild_name: guild.name,
+      org_id: orgId,
+      new_name: "name" in dest ? dest.name.trim() : null,
+      options: JSON.stringify(options),
+      status: "running",
+      error: null,
+      created_at: t,
+      updated_at: t,
+      finished_at: null,
+    });
+    plan.forEach((item, i) =>
+      w.insert("discord_import_items", {
+        import_id: id,
+        source_key: item.sourceKey,
+        position: i,
+        kind: item.kind,
+        name: item.name,
+        spec: JSON.stringify(item.spec),
+        status: item.spec ? "pending" : "skipped",
+        target_id: null,
+        note: item.note,
+      }),
     );
-    plan.forEach((item, i) => insert.run(id, item.sourceKey, i, item.kind, item.name, JSON.stringify(item.spec), item.spec ? "pending" : "skipped", item.note));
-  })();
+  });
   return loadImport(ctx, id)!;
 }
 
-export const loadImport = (ctx: AppContext, id: string): ImportRow | undefined => ctx.db.prepare("SELECT * FROM discord_imports WHERE id = ?").get(id) as ImportRow | undefined;
-export const loadItems = (ctx: AppContext, id: string): ItemRow[] => ctx.db.prepare("SELECT * FROM discord_import_items WHERE import_id = ? ORDER BY position").all(id) as ItemRow[];
+export const loadImport = (ctx: Pick<AppContext, "ws">, id: string): ImportRow | undefined => ctx.ws.get<ImportRow>("discord_imports", { id });
+export const loadItems = (ctx: Pick<AppContext, "ws">, id: string): ItemRow[] =>
+  ctx.ws.all<ItemRow>("discord_import_items", { where: { import_id: id }, orderBy: [["position", "asc"]] });
 
 /** Imports being carried out in this process: one run per import at a time. */
 const running = new Set<string>();
@@ -131,7 +152,9 @@ export async function runImport(ctx: AppContext, client: DiscordClient, importId
     await carryOut(ctx, client, importId);
   } catch (e) {
     ctx.log.error({ err: e, importId }, "discord import stopped");
-    ctx.db.prepare("UPDATE discord_imports SET status = 'failed', error = ?, updated_at = ?, finished_at = ? WHERE id = ?").run(messageOf(e), now(), now(), importId);
+    await ctx.ws
+      .write((w) => w.update("discord_imports", { id: importId }, { status: "failed", error: messageOf(e), updated_at: now(), finished_at: now() }))
+      .catch((err) => ctx.log.error({ err, importId }, "discord import: recording the failure failed"));
   } finally {
     running.delete(importId);
   }
@@ -140,7 +163,7 @@ export async function runImport(ctx: AppContext, client: DiscordClient, importId
 async function carryOut(ctx: AppContext, client: DiscordClient, importId: string): Promise<void> {
   const imp = loadImport(ctx, importId);
   if (!imp) return;
-  const orgId = imp.org_id ?? createCommunity(ctx, imp);
+  const orgId = imp.org_id ?? (await createCommunity(ctx, imp));
   const made: Record<string, string> = {};
   for (const item of loadItems(ctx, importId)) {
     if (item.status === "done" && item.target_id) made[item.source_key] = item.target_id;
@@ -149,15 +172,15 @@ async function carryOut(ctx: AppContext, client: DiscordClient, importId: string
   for (const item of loadItems(ctx, importId)) {
     if (item.status !== "pending" && item.status !== "failed") continue;
     // The community may have gone (deleted mid-import): stop rather than write into nothing.
-    if (!ctx.db.prepare("SELECT 1 FROM orgs WHERE id = ?").get(orgId)) throw new Error("The community was deleted during the import");
+    if (!ctx.ws.get("orgs", { id: orgId })) throw new Error("The community was deleted during the import");
     const spec = JSON.parse(item.spec) as ItemSpec;
     try {
       const target = await makeItem(ctx, client, imp.user_id, orgId, spec, made);
       made[item.source_key] = target;
       if (spec.kind === "channel") createdChannels.push(target);
-      mark(ctx, importId, item.source_key, "done", target, item.note);
+      await mark(ctx, importId, item.source_key, "done", target, item.note);
     } catch (e) {
-      mark(ctx, importId, item.source_key, "failed", null, messageOf(e));
+      await mark(ctx, importId, item.source_key, "failed", null, messageOf(e));
     }
   }
   for (const id of createdChannels) notifyConversation(ctx, id);
@@ -166,86 +189,108 @@ async function carryOut(ctx: AppContext, client: DiscordClient, importId: string
   const failed = items.filter((i) => i.status === "failed").length;
   const done = items.filter((i) => i.status === "done").length;
   const t = now();
-  ctx.db
-    .prepare("UPDATE discord_imports SET status = ?, error = NULL, updated_at = ?, finished_at = ? WHERE id = ?")
-    .run(failed ? "completed_with_errors" : "completed", t, t, importId);
+  await ctx.ws.write((w) => w.update("discord_imports", { id: importId }, { status: failed ? "completed_with_errors" : "completed", error: null, updated_at: t, finished_at: t }));
   ctx.audit({ actorId: imp.user_id, orgId, action: "discord.import", target: importId, detail: `${done} made, ${failed} failed` });
 }
 
-function mark(ctx: AppContext, importId: string, key: string, status: ItemStatus, targetId: string | null, note: string | null): void {
-  ctx.db.prepare("UPDATE discord_import_items SET status = ?, target_id = ?, note = ? WHERE import_id = ? AND source_key = ?").run(status, targetId, note, importId, key);
-  ctx.db.prepare("UPDATE discord_imports SET updated_at = ? WHERE id = ?").run(now(), importId);
+async function mark(ctx: AppContext, importId: string, key: string, status: ItemStatus, targetId: string | null, note: string | null): Promise<void> {
+  await ctx.ws.write((w) => {
+    w.update("discord_import_items", { import_id: importId, source_key: key }, { status, target_id: targetId, note });
+    w.update("discord_imports", { id: importId }, { updated_at: now() });
+  });
 }
 
 /** The new, private, invite-only community, owned by the person importing; recorded at once so a retry reuses it. */
-function createCommunity(ctx: AppContext, imp: ImportRow): string {
-  const { db } = ctx;
+async function createCommunity(ctx: AppContext, imp: ImportRow): Promise<string> {
+  const { db, ws } = ctx;
   const id = newId("o");
   const t = now();
   const name = (imp.new_name ?? imp.guild_name).trim().slice(0, 80) || "Community";
   let slug = slugify(name);
-  if (db.prepare("SELECT 1 FROM orgs WHERE slug = ?").get(slug)) slug = `${slug}-${crypto.randomBytes(3).toString("hex")}`;
-  db.transaction(() => {
-    db.prepare(
-      `INSERT INTO orgs (id, name, slug, description, created_by, created_at, updated_at, create_request_id, kind, visibility, join_policy, rules)
-       VALUES (?, ?, ?, NULL, ?, ?, ?, ?, 'community', 'private', 'invite', NULL)`,
-    ).run(id, name, slug, imp.user_id, t, t, `discord:${imp.id}`);
-    db.prepare("INSERT INTO org_members (org_id, user_id, role, joined_at) VALUES (?, ?, 'OWNER', ?)").run(id, imp.user_id, t);
-    markSyntheticOrg(db, id, imp.user_id);
-    db.prepare("UPDATE discord_imports SET org_id = ?, updated_at = ? WHERE id = ?").run(id, t, imp.id);
-  })();
+  if (ws.get("orgs", { slug })) slug = `${slug}-${crypto.randomBytes(3).toString("hex")}`;
+  await ws.write((w) => {
+    w.insert("orgs", {
+      id,
+      name,
+      slug,
+      description: null,
+      created_by: imp.user_id,
+      created_at: t,
+      updated_at: t,
+      create_request_id: `discord:${imp.id}`,
+      kind: "community",
+      visibility: "private",
+      join_policy: "invite",
+      rules: null,
+    });
+    w.insert("org_members", { org_id: id, user_id: imp.user_id, role: "OWNER", joined_at: t });
+    markSyntheticOrg(ctx.identity, w, id, imp.user_id);
+    w.update("discord_imports", { id: imp.id }, { org_id: id, updated_at: t });
+  });
   ctx.audit({ actorId: imp.user_id, orgId: id, action: "org.create", target: id, detail: "visibility=private, from Discord" });
   return id;
 }
 
 async function makeItem(ctx: AppContext, client: DiscordClient, userId: string, orgId: string, spec: ItemSpec, made: Record<string, string>): Promise<string> {
-  const { db } = ctx;
+  const { ws } = ctx;
   switch (spec.kind) {
     case "icon": {
       const buf = await client.image("icon", spec.guildId, spec.hash);
       if (buf.length > MAX_PHOTO_BYTES || !(buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff)) throw new Error("Discord's icon wasn't a usable JPEG");
-      const previous = (db.prepare("SELECT photo_rev FROM orgs WHERE id = ?").get(orgId) as { photo_rev: number | null }).photo_rev;
+      const previous = ws.get<{ photo_rev: number | null }>("orgs", { id: orgId })!.photo_rev;
       const rev = Math.max(now(), (previous ?? 0) + 1);
       await storePhoto(ctx, photoBlobId(orgId, rev), buf);
-      db.prepare("UPDATE orgs SET photo_rev = ?, updated_at = ? WHERE id = ?").run(rev, now(), orgId);
+      await ws.write((w) => w.update("orgs", { id: orgId }, { photo_rev: rev, updated_at: now() }));
       if (previous) await deleteBlobNow(ctx, "profile-photos", photoBlobId(orgId, previous));
       return `photo:${rev}`;
     }
     case "role": {
-      return db.transaction(() => {
-        const existing = db.prepare("SELECT id FROM org_roles WHERE org_id = ? AND lower(name) = lower(?) AND archived_at IS NULL").get(orgId, spec.name) as { id: string } | undefined;
-        if (existing) throw conflict(`A role called "${spec.name}" already exists here`);
-        const active = (db.prepare("SELECT COUNT(*) n FROM org_roles WHERE org_id = ? AND archived_at IS NULL").get(orgId) as { n: number }).n;
-        if (active >= MAX_ACTIVE_ROLES) throw conflict(`A community can have at most ${MAX_ACTIVE_ROLES} active roles`);
-        ctx.entitlements.check("roles.custom", active, orgId);
+      return ws.write((w) => {
+        const active = w.all<{ name: string }>("org_roles", { where: { org_id: orgId, archived_at: null } });
+        if (active.some((r) => foldAscii(r.name) === foldAscii(spec.name))) throw conflict(`A role called "${spec.name}" already exists here`);
+        if (active.length >= MAX_ACTIVE_ROLES) throw conflict(`A community can have at most ${MAX_ACTIVE_ROLES} active roles`);
+        ctx.entitlements.check("roles.custom", active.length, orgId);
         const id = newId("rl");
         const t = now();
-        const position = ((db.prepare("SELECT MAX(position) p FROM org_roles WHERE org_id = ?").get(orgId) as { p: number | null }).p ?? 0) + 1;
-        db.prepare(
-          `INSERT INTO org_roles (id, org_id, name, description, color, icon, permissions, denies, template, position, hoist, rev, created_by, created_at, updated_at)
-           VALUES (?, ?, ?, 'From Discord', ?, NULL, ?, '[]', NULL, ?, 0, 1, ?, ?, ?)`,
-        ).run(id, orgId, spec.name, spec.color, JSON.stringify(spec.permissions), position, userId, t, t);
+        const last = w.get<{ position: number }>("org_roles", { org_id: orgId }, [["position", "desc"]]);
+        w.insert("org_roles", {
+          id,
+          org_id: orgId,
+          name: spec.name,
+          description: "From Discord",
+          color: spec.color,
+          icon: null,
+          permissions: JSON.stringify(spec.permissions),
+          denies: "[]",
+          template: null,
+          position: (last?.position ?? 0) + 1,
+          hoist: 0,
+          rev: 1,
+          created_by: userId,
+          created_at: t,
+          updated_at: t,
+        });
         ctx.audit({ actorId: userId, orgId, action: "role.create", target: id, detail: `${spec.name} (from Discord)` });
         return id;
-      })();
+      });
     }
     case "category":
-      return db.transaction(() => insertCategory(ctx, orgId, userId, spec.name, spec.position))();
+      return ws.write((w) => insertCategory(w, orgId, userId, spec.name, spec.position));
     case "channel": {
       // Under its category if that was made; otherwise at the top level.
       const categoryId = spec.parentKey ? (made[spec.parentKey] ?? null) : null;
-      return db.transaction(() => {
-        const counts = channelCounts(ctx, orgId, categoryId);
+      return ws.write((w) => {
+        const counts = channelCounts(w, orgId, categoryId);
         if (counts.total >= CHANNEL_LIMITS.perCommunity) throw conflict(`A community has at most ${CHANNEL_LIMITS.perCommunity} channels`);
         if (categoryId && counts.inCategory >= CHANNEL_LIMITS.perCategory) throw conflict(`A category holds at most ${CHANNEL_LIMITS.perCategory} channels`);
         const kind = spec.voice && spec.channelKind === "ANNOUNCEMENT" ? "PUBLIC" : spec.channelKind;
-        const id = insertChannel(ctx, orgId, userId, { name: spec.name, topic: spec.topic, kind, voice: spec.voice, format: spec.voice ? "text" : spec.format, categoryId, position: spec.position });
+        const id = insertChannel(ctx, w, orgId, userId, { name: spec.name, topic: spec.topic, kind, voice: spec.voice, format: spec.voice ? "text" : spec.format, categoryId, position: spec.position });
         ctx.audit({ actorId: userId, orgId, action: spec.voice ? "voice_room.create" : "channel.create", target: id, detail: `${kind} ${spec.name} (from Discord)` });
         return id;
-      })();
+      });
     }
     case "emoji": {
-      const taken = () => db.prepare("SELECT 1 FROM community_expressions WHERE org_id = ? AND kind = 'emoji' AND name = ?").get(orgId, spec.name);
+      const taken = (rows: RowReader = ws) => !!rows.get("community_expressions", { org_id: orgId, kind: "emoji", name: spec.name });
       if (taken()) throw conflict(`An emoji called :${spec.name}: already exists here`);
       const buf = await client.image("emoji", spec.emojiId, null, spec.animated);
       if (buf.length > EXPRESSION_LIMITS.bytes) throw new Error("Larger than Meldiq's 256 KB for emoji");
@@ -254,14 +299,23 @@ async function makeItem(ctx: AppContext, client: DiscordClient, userId: string, 
       const id = newId("emj");
       await storePhoto(ctx, id, buf);
       try {
-        db.transaction(() => {
-          const count = (db.prepare("SELECT COUNT(*) n FROM community_expressions WHERE org_id = ? AND kind = 'emoji'").get(orgId) as { n: number }).n;
+        await ws.write((w) => {
+          const count = w.count("community_expressions", { org_id: orgId, kind: "emoji" });
           if (count >= EXPRESSION_LIMITS.emoji) throw conflict(`A community has room for ${EXPRESSION_LIMITS.emoji} emoji`);
-          if (taken()) throw conflict(`An emoji called :${spec.name}: already exists here`);
-          db.prepare(
-            "INSERT INTO community_expressions (id, org_id, kind, name, mime, animated, sha256, size, created_by, created_at) VALUES (?, ?, 'emoji', ?, ?, ?, ?, ?, ?, ?)",
-          ).run(id, orgId, spec.name, kind.mime, kind.animated ? 1 : 0, crypto.createHash("sha256").update(buf).digest("hex"), buf.length, userId, now());
-        })();
+          if (taken(w)) throw conflict(`An emoji called :${spec.name}: already exists here`);
+          w.insert("community_expressions", {
+            id,
+            org_id: orgId,
+            kind: "emoji",
+            name: spec.name,
+            mime: kind.mime,
+            animated: kind.animated ? 1 : 0,
+            sha256: crypto.createHash("sha256").update(buf).digest("hex"),
+            size: buf.length,
+            created_by: userId,
+            created_at: now(),
+          });
+        });
       } catch (e) {
         await deleteBlobNow(ctx, "profile-photos", id);
         throw e;

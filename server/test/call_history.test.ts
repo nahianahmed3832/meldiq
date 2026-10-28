@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { GriipClient } from "./support/griipClient.js";
 import { expectStatus, type Harness, startServer } from "./support/harness.js";
+import { backdateCall } from "./support/calls.js";
 
 /**
  * Call history (2026-10-17): ended calls say who connected and for how long, and a member can list a conversation's
@@ -11,14 +12,16 @@ let alice: GriipClient, bob: GriipClient, carol: GriipClient, dave: GriipClient,
 let dmId: string, groupId: string;
 
 /** Moves a call's recorded times into the past (seconds before now), so durations are measurable without waiting. */
-function backdate(callId: string, seconds: number) {
+async function backdate(callId: string, seconds: number) {
   const ms = seconds * 1000;
-  h.ctx.db.prepare("UPDATE calls SET created_at = created_at - ?, answered_at = answered_at - ? WHERE id = ?").run(ms, ms, callId);
-  h.ctx.db.prepare("UPDATE call_participants SET joined_at = joined_at - ? WHERE call_id = ?").run(ms, callId);
+  await backdateCall(h.ctx, callId, ms);
   // ...and the memberships with them, so the call still happened after everyone joined the conversation.
-  h.ctx.db
-    .prepare("UPDATE conversation_members SET joined_at = joined_at - ? WHERE conversation_id = (SELECT conversation_id FROM calls WHERE id = ?)")
-    .run(ms, callId);
+  const conversationId = (await h.ctx.calls.get(callId))!.conversation_id;
+  await h.ctx.ws.write((w) => {
+    for (const m of w.all<{ user_id: string; joined_at: number }>("conversation_members", { where: { conversation_id: conversationId } })) {
+      w.update("conversation_members", { conversation_id: conversationId, user_id: m.user_id }, { joined_at: m.joined_at - ms });
+    }
+  });
 }
 
 beforeAll(async () => {
@@ -41,7 +44,7 @@ describe("call history", () => {
     const live = await bob.req("POST", `/v1/calls/${r.call.id}/connected`);
     expect(live.call.state).toBe("ACTIVE");
     expect(live.call.attended).toBeUndefined(); // only for ended calls
-    backdate(r.call.id, 65);
+    await backdate(r.call.id, 65);
     await bob.req("POST", `/v1/calls/${r.call.id}/end`);
     const ended = await alice.waitFor(() => alice.events.find((e) => e.t === "call" && e.event === "ended" && e.call.id === r.call.id));
     expect(ended.call.endReason).toBe("hangup");
@@ -67,15 +70,13 @@ describe("call history", () => {
     await alice.req("POST", `/v1/calls/${r.call.id}/connected`);
     await bob.req("POST", `/v1/calls/${r.call.id}/connected`);
     // bob reconnects from a second device while still connected: one entry for him, overlapping time counted once.
-    h.ctx.db
-      .prepare("INSERT INTO call_participants (call_id, user_id, device_id, joined_at) VALUES (?, ?, 'bob-tablet', ?)")
-      .run(r.call.id, bob.userId, Date.now());
-    backdate(r.call.id, 30);
+    await h.ctx.calls.join(r.call.id, bob.userId, "bob-tablet", Date.now(), true);
+    await backdate(r.call.id, 30);
     await bob.req("POST", `/v1/calls/${r.call.id}/leave`);
     await alice.req("POST", `/v1/calls/${r.call.id}/leave`);
     // The tablet left last: the call ends once nobody is connected.
-    h.ctx.db.prepare("UPDATE call_participants SET left_at = ? WHERE call_id = ? AND device_id = 'bob-tablet'").run(Date.now(), r.call.id);
-    const row = h.ctx.db.prepare("SELECT * FROM calls WHERE id = ?").get(r.call.id) as any;
+    await h.ctx.calls.leave(r.call.id, "bob-tablet", Date.now());
+    const row = (await h.ctx.calls.get(r.call.id))!;
     const { endCallRow } = await import("../src/modules/calls/routes.js");
     await endCallRow(h.ctx, row, "empty");
     const call = (await carol.req("GET", `/v1/calls/${r.call.id}`)).call;

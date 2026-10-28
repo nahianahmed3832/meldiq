@@ -1,10 +1,10 @@
-import type { DB } from "../../infrastructure/database/db.js";
+import type { Rows, RowWriter } from "../../infrastructure/database/rows/index.js";
 import type { ClientInfo, Platform } from "./client.js";
 
 /**
  * Activity and traffic counters (docs/ANALYTICS_DEFINITIONS.md). The API's own request handling feeds them (a trusted,
  * server-side signal: clients can't report activity for anyone else). They're kept in memory and written once a minute
- * in one transaction, so a request never waits on them; at most a minute of counts is lost if the process dies.
+ * in one write unit, so a request never waits on them; at most a minute of counts is lost if the process dies.
  */
 
 /** Background traffic: refreshing tokens, fetching or acknowledging the queue, push registration, feature probes. */
@@ -141,45 +141,81 @@ export class ActivityTracker {
   }
 
   /**
-   * Writes everything gathered since the last flush (one transaction) and clears it. Returns rows written.
-   * [signupAt]: the identities' creation times (the accounts module's), stored with each row for cohorts.
+   * Writes everything gathered since the last flush (one unit of the platform rows). Returns rows written.
+   * [signupAt]: the identities' creation times (the accounts module's), stored with each row for cohorts. What is
+   * written is taken out first; if the unit fails it is merged back, so counts arriving meanwhile aren't lost.
    */
-  flush(db: DB, signupAt: (userIds: string[]) => Map<string, number> = () => new Map()): number {
-    if (!db.open) return 0;
-    const days = [...this.days.values()];
-    const traffic = [...this.traffic.values()];
-    const sessions = [...this.sessions.values()];
-    if (days.length + traffic.length + sessions.length === 0) return 0;
-    const signups = days.length ? signupAt([...new Set(days.map((d) => d.userId))]) : new Map<string, number>();
-    const upDay = db.prepare(
-      `INSERT INTO activity_daily (day, user_id, platform, client_version, first_at, last_at, requests, actions, first_action_at, signup_at)
-       VALUES (@day, @userId, @platform, @version, @firstAt, @lastAt, @requests, @actions, @firstActionAt, @signupAt)
-       ON CONFLICT (day, user_id, platform, client_version) DO UPDATE SET
-         first_at = MIN(first_at, excluded.first_at), last_at = MAX(last_at, excluded.last_at),
-         requests = requests + excluded.requests, actions = actions + excluded.actions,
-         first_action_at = COALESCE(MIN(first_action_at, excluded.first_action_at), first_action_at, excluded.first_action_at),
-         signup_at = COALESCE(signup_at, excluded.signup_at)`,
-    );
-    const upTraffic = db.prepare(
-      `INSERT INTO traffic_user_daily (day, user_id, metric, value) VALUES (?, ?, ?, ?)
-       ON CONFLICT (day, user_id, metric) DO UPDATE SET value = value + excluded.value`,
-    );
-    const upSession = db.prepare(
-      `INSERT INTO session_clients (session_id, platform, client, client_version, os, first_seen_at, last_seen_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT (session_id) DO UPDATE SET platform = excluded.platform, client = excluded.client,
-         client_version = excluded.client_version, os = excluded.os, last_seen_at = MAX(last_seen_at, excluded.last_seen_at)`,
-    );
-    db.transaction(() => {
-      for (const d of days) upDay.run({ ...d, signupAt: signups.get(d.userId) ?? null });
-      for (const x of traffic) upTraffic.run(x.day, x.userId, x.metric, x.bytes);
-      for (const s of sessions) upSession.run(s.sessionId, s.client.platform, s.client.client, s.client.version, s.client.os, s.firstAt, s.lastAt);
-    })();
-    // Cleared only once written: a failed write keeps the counts for the next flush (synchronous, so nothing arrives
-    // in between).
+  async flush(rows: Rows, signupAt: (userIds: string[]) => Map<string, number> = () => new Map()): Promise<number> {
+    const days = this.days;
+    const traffic = this.traffic;
+    const sessions = this.sessions;
+    const n = days.size + traffic.size + sessions.size;
+    if (n === 0) return 0;
     this.days = new Map();
     this.traffic = new Map();
     this.sessions = new Map();
-    return days.length + traffic.length + sessions.length;
+    try {
+      const signups = days.size ? signupAt([...new Set([...days.values()].map((d) => d.userId))]) : new Map<string, number>();
+      await rows.write((w) => {
+        for (const d of days.values()) upsertDay(w, d, signups.get(d.userId) ?? null);
+        for (const x of traffic.values()) upsertTraffic(w, x);
+        for (const s of sessions.values()) upsertSession(w, s);
+      });
+    } catch (e) {
+      for (const [k, d] of days) this.days.set(k, mergeDays(d, this.days.get(k)));
+      for (const [k, x] of traffic) this.traffic.set(k, { ...x, bytes: x.bytes + (this.traffic.get(k)?.bytes ?? 0) });
+      for (const [k, s] of sessions) {
+        const later = this.sessions.get(k);
+        this.sessions.set(k, later ? { ...later, firstAt: Math.min(s.firstAt, later.firstAt) } : s);
+      }
+      throw e;
+    }
+    return n;
   }
+}
+
+const minOrNull = (a: number | null, b: number | null) => (a === null ? b : b === null ? a : Math.min(a, b));
+
+/** Two counts of the same day, person and client, as one. */
+function mergeDays(a: DayEntry, b: DayEntry | undefined): DayEntry {
+  if (!b) return a;
+  return {
+    ...a,
+    firstAt: Math.min(a.firstAt, b.firstAt),
+    lastAt: Math.max(a.lastAt, b.lastAt),
+    requests: a.requests + b.requests,
+    actions: a.actions + b.actions,
+    firstActionAt: minOrNull(a.firstActionAt, b.firstActionAt),
+  };
+}
+
+function upsertDay(w: RowWriter, d: DayEntry, signupAt: number | null): void {
+  const key = { day: d.day, user_id: d.userId, platform: d.platform, client_version: d.version };
+  const prev = w.get<{ first_at: number; last_at: number; requests: number; actions: number; first_action_at: number | null; signup_at: number | null }>("activity_daily", key);
+  if (!prev) {
+    w.insert("activity_daily", { ...key, first_at: d.firstAt, last_at: d.lastAt, requests: d.requests, actions: d.actions, first_action_at: d.firstActionAt, signup_at: signupAt });
+    return;
+  }
+  w.update("activity_daily", key, {
+    first_at: Math.min(prev.first_at, d.firstAt),
+    last_at: Math.max(prev.last_at, d.lastAt),
+    requests: prev.requests + d.requests,
+    actions: prev.actions + d.actions,
+    first_action_at: minOrNull(prev.first_action_at, d.firstActionAt),
+    signup_at: prev.signup_at ?? signupAt,
+  });
+}
+
+function upsertTraffic(w: RowWriter, x: { day: string; userId: string; metric: TrafficMetric; bytes: number }): void {
+  const key = { day: x.day, user_id: x.userId, metric: x.metric };
+  const prev = w.get<{ value: number }>("traffic_user_daily", key);
+  if (prev) w.update("traffic_user_daily", key, { value: prev.value + x.bytes });
+  else w.insert("traffic_user_daily", { ...key, value: x.bytes });
+}
+
+function upsertSession(w: RowWriter, s: SessionSeen): void {
+  const client = { platform: s.client.platform, client: s.client.client, client_version: s.client.version, os: s.client.os };
+  const prev = w.get<{ last_seen_at: number }>("session_clients", { session_id: s.sessionId });
+  if (prev) w.update("session_clients", { session_id: s.sessionId }, { ...client, last_seen_at: Math.max(prev.last_seen_at, s.lastAt) });
+  else w.insert("session_clients", { session_id: s.sessionId, ...client, first_seen_at: s.firstAt, last_seen_at: s.lastAt });
 }

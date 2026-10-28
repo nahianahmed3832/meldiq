@@ -48,13 +48,13 @@ describe("platform health (round 7, C1)", () => {
 
   it("warns about a late reminder from real state", async () => {
     const t = Date.now() - 10 * 60_000;
-    h.ctx.db
-      .prepare("INSERT INTO reminders (id, user_id, sealed, due_at, time_zone, state, created_at, updated_at) VALUES ('rem_late', ?, 'x', ?, 'UTC', 'scheduled', ?, ?)")
-      .run(member.userId, t, t, t);
+    await h.ctx.identity.write((w) =>
+      w.insert("reminders", { id: "rem_late", user_id: member.userId, sealed: "x", due_at: t, time_zone: "UTC", state: "scheduled", created_at: t, updated_at: t }),
+    );
     const r = await health(admin);
     expect(r.queues.reminders.overdueUndelivered).toBeGreaterThanOrEqual(1);
     expect(r.warnings.some((w) => w.includes("reminders are more than 5 minutes late"))).toBe(true);
-    h.ctx.db.prepare("DELETE FROM reminders WHERE id = 'rem_late'").run();
+    await h.ctx.identity.write((w) => w.delete("reminders", { id: "rem_late" }));
   });
 
   it("warns about a provider that is failing now, not one that recovered", () => {

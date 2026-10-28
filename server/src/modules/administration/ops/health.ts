@@ -49,7 +49,6 @@ const loop = monitorEventLoopDelay({ resolution: 20 });
 loop.enable();
 const started = Date.now();
 
-const count = (ctx: AppContext, sql: string, ...p: unknown[]) => (ctx.db.prepare(sql).get(...p) as { n: number | null }).n ?? 0;
 
 async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
@@ -99,8 +98,8 @@ export async function healthReport(ctx: AppContext, version: string): Promise<He
     queues: {
       delivery: { items: relay.envelopes + relay.receipts, oldestAgeSeconds: oldest === null ? null : Math.round((t - oldest) / 1000) },
       reminders: {
-        overdueUndelivered: count(ctx, "SELECT COUNT(*) AS n FROM reminders WHERE state IN ('scheduled','fired') AND due_at < ? AND delivered_at IS NULL", t - THRESHOLDS.reminderLateMs),
-        retrying: count(ctx, "SELECT COUNT(*) AS n FROM reminders WHERE attempts > 0 AND state IN ('scheduled','fired')"),
+        overdueUndelivered: ctx.identity.count("reminders", { state: { in: ["scheduled", "fired"] }, due_at: { lt: t - THRESHOLDS.reminderLateMs }, delivered_at: null }),
+        retrying: ctx.identity.count("reminders", { attempts: { gt: 0 }, state: { in: ["scheduled", "fired"] } }),
       },
       integrations: { available: false, reason: "apps were removed from this server" },
     },

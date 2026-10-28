@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import type { FastifyBaseLogger } from "fastify";
-import type { DB } from "../../infrastructure/database/db.js";
+import type { Rows } from "../../infrastructure/database/rows/index.js";
 import type { Hub } from "../realtime/hub.js";
 import type { Metrics } from "../administration/ops/metrics.js";
 import { now } from "../../shared/utilities/util.js";
@@ -73,7 +73,7 @@ export class FcmService {
   private stopped = false;
 
   constructor(
-    private readonly db: DB,
+    private readonly identity: Rows,
     private readonly hub: Hub,
     readonly config: FcmConfig,
     private readonly log: FastifyBaseLogger,
@@ -83,23 +83,18 @@ export class FcmService {
   /** Health view counters (docs/OPERATIONS.md); set by buildApp. Outcome kinds only. */
   metrics?: Metrics;
 
-  register(deviceId: string, token: string): { kind: "fcm"; updatedAt: number } {
+  async register(deviceId: string, token: string): Promise<{ kind: "fcm"; updatedAt: number }> {
     const t = now();
-    this.db.transaction(() => {
+    await this.identity.write((w) => {
       // A token belongs to one installation: the latest device to register it wins.
-      this.db.prepare("DELETE FROM fcm_tokens WHERE token = ? AND device_id != ?").run(token, deviceId);
-      this.db
-        .prepare(
-          `INSERT INTO fcm_tokens (device_id, token, created_at, updated_at) VALUES (?, ?, ?, ?)
-           ON CONFLICT(device_id) DO UPDATE SET token = excluded.token, updated_at = excluded.updated_at, failing_since = NULL`,
-        )
-        .run(deviceId, token, t, t);
-    })();
+      w.delete("fcm_tokens", { token, device_id: { ne: deviceId } });
+      w.upsert("fcm_tokens", { device_id: deviceId, token, created_at: t, updated_at: t }, { token, updated_at: t, failing_since: null });
+    });
     return { kind: "fcm", updatedAt: t };
   }
 
-  unregister(deviceId: string): boolean {
-    return this.db.prepare("DELETE FROM fcm_tokens WHERE device_id = ?").run(deviceId).changes > 0;
+  unregister(deviceId: string): Promise<boolean> {
+    return this.identity.write((w) => w.delete("fcm_tokens", { device_id: deviceId }) > 0);
   }
 
   /** Something was queued for a device with no open socket: wake it (at most once per interval). */
@@ -109,10 +104,9 @@ export class FcmService {
 
   /** A call rings or a reminder fired for [userId]: wake each of their devices with no open socket, right away. */
   wakeUser(userId: string): void {
-    const rows = this.db
-      .prepare("SELECT f.device_id FROM fcm_tokens f JOIN devices d ON d.id = f.device_id WHERE d.user_id = ? AND d.revoked_at IS NULL")
-      .all(userId) as { device_id: string }[];
-    for (const r of rows) void this.wake(r.device_id, true);
+    const devices = this.identity.all<{ id: string }>("devices", { where: { user_id: userId, revoked_at: null } }).map((d) => d.id);
+    if (!devices.length) return;
+    for (const r of this.identity.all<{ device_id: string }>("fcm_tokens", { where: { device_id: { in: devices } } })) void this.wake(r.device_id, true);
   }
 
   stop(): void {
@@ -122,13 +116,8 @@ export class FcmService {
   /** One data-only wake-up. Never rejects: a failed wake-up must not break what triggered it. */
   async wake(deviceId: string, urgent: boolean): Promise<"sent" | "skipped" | "failed" | "dropped"> {
     try {
-      if (this.stopped || !this.db.open || this.hub.isDeviceOnline(deviceId)) return "skipped";
-      const row = this.db
-        .prepare(
-          `SELECT f.token FROM fcm_tokens f JOIN devices d ON d.id = f.device_id JOIN users u ON u.id = d.user_id
-           WHERE f.device_id = ? AND d.revoked_at IS NULL AND u.disabled_at IS NULL`,
-        )
-        .get(deviceId) as { token: string } | undefined;
+      if (this.stopped || this.hub.isDeviceOnline(deviceId)) return "skipped";
+      const row = this.tokenOf(deviceId);
       if (!row) return "skipped";
       const t = Date.now();
       if (!urgent && t - (this.lastSent.get(deviceId) ?? Number.NEGATIVE_INFINITY) < this.config.wakeIntervalMs) return "skipped";
@@ -139,7 +128,7 @@ export class FcmService {
         body: JSON.stringify({ message: { token: row.token, data: { w: "1" }, android: { priority: "HIGH", ttl: urgent ? "60s" : "86400s" } } }),
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
-      return this.record(deviceId, row.token, res.status, res.status >= 400 ? await res.json().catch(() => null) : null);
+      return await this.record(deviceId, row.token, res.status, res.status >= 400 ? await res.json().catch(() => null) : null);
     } catch (err) {
       // Only the error's type: a message could quote the token.
       this.log.warn({ deviceId, errorType: err instanceof Error ? err.name : typeof err }, "fcm wake-up failed");
@@ -148,27 +137,38 @@ export class FcmService {
     }
   }
 
-  private record(deviceId: string, token: string, status: number, body: unknown): "sent" | "failed" | "dropped" {
+  /** The token of an active device of an enabled account. */
+  private tokenOf(deviceId: string): { token: string } | undefined {
+    const device = this.identity.get<{ user_id: string }>("devices", { id: deviceId, revoked_at: null });
+    if (!device || !this.identity.get("users", { id: device.user_id, disabled_at: null })) return undefined;
+    return this.identity.get<{ token: string }>("fcm_tokens", { device_id: deviceId });
+  }
+
+  private async record(deviceId: string, token: string, status: number, body: unknown): Promise<"sent" | "failed" | "dropped"> {
     this.metrics?.recordProvider("push.fcm", status >= 200 && status < 300 ? undefined : { code: `http_${status}` });
     const t = now();
+    const where = { device_id: deviceId, token };
     if (status >= 200 && status < 300) {
-      this.db.prepare("UPDATE fcm_tokens SET last_wake_at = ?, failing_since = NULL WHERE device_id = ? AND token = ?").run(t, deviceId, token);
+      await this.identity.write((w) => w.update("fcm_tokens", where, { last_wake_at: t, failing_since: null }));
       return "sent";
     }
     const code = JSON.stringify(body ?? {}).match(/"(UNREGISTERED|INVALID_ARGUMENT|SENDER_ID_MISMATCH)"/)?.[1];
     // The token is no longer valid for this app: remove it (only that token; a newer one may have replaced it).
     if (status === 404 || code === "UNREGISTERED" || code === "SENDER_ID_MISMATCH" || (status === 400 && code === "INVALID_ARGUMENT")) {
-      this.db.prepare("DELETE FROM fcm_tokens WHERE device_id = ? AND token = ?").run(deviceId, token);
+      await this.identity.write((w) => w.delete("fcm_tokens", where));
       this.log.info({ deviceId, reason: code ?? `http_${status}` }, "fcm token removed");
       return "dropped";
     }
     if (status === 401) this.accessToken = null;
-    this.db.prepare("UPDATE fcm_tokens SET failing_since = COALESCE(failing_since, ?) WHERE device_id = ? AND token = ?").run(t, deviceId, token);
-    const since = (this.db.prepare("SELECT failing_since FROM fcm_tokens WHERE device_id = ?").get(deviceId) as { failing_since: number } | undefined)?.failing_since;
-    if (since !== undefined && since <= t - DROP_AFTER_FAILING_MS) {
-      this.db.prepare("DELETE FROM fcm_tokens WHERE device_id = ? AND token = ?").run(deviceId, token);
-      return "dropped";
-    }
+    const dropped = await this.identity.write((w) => {
+      const row = w.get<{ failing_since: number | null }>("fcm_tokens", where);
+      if (!row) return false;
+      if (row.failing_since === null) w.update("fcm_tokens", where, { failing_since: t });
+      if ((row.failing_since ?? t) > t - DROP_AFTER_FAILING_MS) return false;
+      w.delete("fcm_tokens", where);
+      return true;
+    });
+    if (dropped) return "dropped";
     this.log.warn({ deviceId, reason: `http_${status}` }, "fcm wake-up failed");
     return "failed";
   }

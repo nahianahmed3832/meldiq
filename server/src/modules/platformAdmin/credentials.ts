@@ -42,22 +42,22 @@ export class AdminCredentials {
     private readonly audit: PlatformAudit,
   ) {}
 
-  private throttle(network: string, emailKey: string, meta: RequestMeta, reply: Reply): void {
+  private async throttle(network: string, emailKey: string, meta: RequestMeta, reply: Reply): Promise<void> {
     const wait = Math.max(
       this.attempts.retryAfterMs(network),
       this.failuresByNetwork.retryAfterMs(network),
       this.failuresByEmail.retryAfterMs(emailKey),
     );
     if (wait <= 0) return;
-    this.audit.record({ action: "admin.login", outcome: "denied", network, requestId: meta.requestId, detail: { why: "throttled", email: emailKey.slice(0, 12) } });
+    await this.audit.record({ action: "admin.login", outcome: "denied", network, requestId: meta.requestId, detail: { why: "throttled", email: emailKey.slice(0, 12) } });
     reply.header("retry-after", String(Math.ceil(wait / 1000)));
     throw new ApiError(429, "login_throttled", "Too many attempts. Wait a few minutes and try again.");
   }
 
-  private fail(network: string, emailKey: string, meta: RequestMeta, why: string, accountId: string | null, step: string): never {
+  private async fail(network: string, emailKey: string, meta: RequestMeta, why: string, accountId: string | null, step: string): Promise<never> {
     this.failuresByNetwork.record(network);
     this.failuresByEmail.record(emailKey);
-    this.audit.record({
+    await this.audit.record({
       action: "admin.login",
       outcome: accountId ? "denied" : "failed",
       actorAccountId: accountId,
@@ -72,7 +72,7 @@ export class AdminCredentials {
   async check(email: string, password: string, meta: RequestMeta, reply: Reply, step: string): Promise<{ account: AccountRow; grant: AdminGrantRow }> {
     const network = networkKey(meta.ip);
     const emailKey = sha256Hex(`admin-email:${email}`);
-    this.throttle(network, emailKey, meta, reply);
+    await this.throttle(network, emailKey, meta, reply);
     this.attempts.record(network);
     const account = await this.ctx.accounts.store.accountByEmail(email);
     if (!account) {

@@ -130,6 +130,161 @@ Passkeys failed in the app installed from Google Play: Play signs it with its ap
 
 Rollback: copy the backup's `.env` back and recreate `api` the same way.
 
+### API 0.57.0/0.57.1 and web ec92ad3: messages stored and served by the server, the floating redesign's second round, Meldling art (2026-10-28, 18:45 and 18:53 UTC, owner's go-ahead: "after finished deploy for production and push to github by my name")
+
+Branch `release-0.57.0`: `server-messages` (docs/SERVER_MESSAGES.md) and `mongo-finish` 1977da1 merged onto
+`release-0.56.0` (c2d6252), then 0.57.1 (b8d01f7: uploaded history never counts as unread). Web `floating-redesign`
+ec92ad3 (fixtures 962eb80).
+
+| Step | Result |
+|---|---|
+| Tests | server: SQLite 1128 passed, the 4 MongoDB-heavy tests that timed out under load passed alone; new features with production's `MONGODB_DOMAINS` and with every domain in MongoDB 75/75; web: unit 550, integration 160/160, browser suite (desktop and phone) passed, one flaky language test passed on rerun, calls with the native peer 17 passed |
+| Pre-checks | `checkReferences` accepts production's `MONGODB_DOMAINS`; validators and indexes for production's MongoDB domains identical to 0.56.0's except the new `message_events` collection (created, no `collMod`) |
+| Backup | `backups/pre-0.57.0-20261028T184227Z`: integrity ok, schema 65, 43 users, `.env`/`compose.yaml` copies; image tagged `0.56.0-rollback`; sources kept as `server.pre-0.57.0`. Again before 0.57.1: `backups/pre-0.57.1-20261028T185220Z`, image `0.57.0-rollback` |
+| Rehearsal | backup copy, `--network none`, MongoDB and FCM settings left out: healthy 0.57.0, integrity ok, 43 users, 165 conversations; the 17,873 queued deliveries and the queue's id sequence kept through 066's rebuild; removed after |
+| Switch | `compose.yaml` image 0.57.0 at 18:45:19 (healthy 18:45:31), then 0.57.1 at 18:53:35 (healthy 18:53:43); `.env` unchanged (`MESSAGES_ACCEPT_ENCRYPTED` unset: apps from before 0.57.0 get `426 update_required` when they send) |
+| Checks after | `/healthz` 0.57.1 `mongodb: true` on msg.meldiq.app and msg.griipbuddy.cloud; features include `server-messages`, `activity-status`, `mojo`; `verify.sh` 0 restarts; 0 warn/error log lines |
+| Web | release 0.5.0-beta-ec92ad3 (macOS `._*` files removed from the unpacked release before installing), same install settings; nginx headers, site and media snippet unchanged; `verify.sh` all passed (API through the origin, realtime 101); on the owner's account the browser uploaded its old history (`/v2/messages/import` 200) and the lists show it from the server |
+
+Rollback: `compose.yaml` image `0.57.0-rollback` (or `0.56.0-rollback`; 066 is additive, 0.56.0 ignores `message_events`,
+but messages sent meanwhile through `/v2` aren't visible to 0.56.0 apps); `up -d --no-deps --no-build --force-recreate
+api`. Web: `bash /root/meldiq-web-0.5.0-beta-ec92ad3/rollback.sh`.
+
+### API 0.56.0: activity status ("Playing …") and Google Play Billing's server side (2026-10-28, 18:19 UTC, owner's go-ahead: "marge and deploy to production without test, i will manually test later")
+
+Branch `release-0.56.0`: production's `subscriptions-api` (f2c7c59, 0.54.0) with `activity-status` merged, which carries
+`play-billing` (0.55.0, `docs/MOJO_ANDROID.md`) and 0.56.0 (`docs/ACTIVITY_STATUS.md`). `mongo-finish` is **not** in it.
+
+| Step | Result |
+|---|---|
+| Tests | owner chose no manual testing. Automated: activity suite 14/14; merged tree typecheck and 13 key suites 132/132; activity branch full run 1073 passed, the MongoDB-backed files that timed out under load 88/88 alone; Android 765 unit tests |
+| Pre-flight | running 0.54.0 healthy; VPS `server/` (tests excluded) byte-equal to f2c7c59 (`rsync -c` dry run: 0 differences); 42 GB free |
+| Backup | `backups/pre-0.56.0-20261028T181602Z` (SQLite snapshot 79 MB, verify json, `.env`/`compose.yaml` copies); image tagged `0.54.0-rollback`; sources kept as `server.pre-0.56.0` |
+| Build | 36 files synced (parity checked after: 0 differences); image `0.56.0` (`docker build --network host`) |
+| Rehearsal | backup copy, `--network none`, MongoDB/FCM/push settings left out: schema 65 (`065_play_purchases`), integrity ok, 43 users, 11 orgs, 165 conversations; removed after |
+| Switch | `compose.yaml` image 0.56.0, `.env` unchanged; `config -q` ok; `up -d --no-deps --no-build --force-recreate api` at 18:19:24, healthy 18:19:31 |
+| Checks after | `/healthz` 0.56.0 `mongodb: true` on msg.meldiq.app and msg.griipbuddy.cloud; server-info lists `activity-status`; `PUT /v2/me/activity` without a session 401; `verify.sh` 0 restarts, 40 GB free; 0 warnings or errors in the log |
+
+Not changed: `GOOGLE_PLAY_*` unset, so the Play endpoints answer that purchases aren't open. Activities live in the new
+`user_activities` collection in Atlas (created at start with its `expires_at` index). Not verified on a phone yet: the
+owner tests manually with a debug "Meldiq Test" build pointed at msg.meldiq.app.
+
+Rollback: `compose.yaml` image `0.54.0-rollback`; `up -d --no-deps --no-build --force-recreate api`. 0.54.0 ignores the
+`play_purchases` table and the `user_activities` collection.
+
+### API 0.54.0 and web 2cba046: Meldiq Mojo's plans, Meldiq Spark, gifts and badges; billing in MongoDB (2026-10-28, 11:28 UTC, owner's go-ahead: "after done push for productions"; and "from now everything under mongodb")
+
+Branch `subscriptions-api` cf3187d: the billing session's 0.52.0/0.53.0 (`mojo-0.53.0` da230da), merged onto
+`mongo-port-remaining` (the rows layer; calls, workspace and conversations can live in MongoDB but stay in SQLite here),
+then billing on rows and 0.54.0 (docs/MOJO.md). Web `mojo-web` 2cba046.
+
+| Step | Result |
+|---|---|
+| Tests | server: SQLite 1073 passed (0 failed); every domain incl. billing in MongoDB 969 passed in one run, the 17 files that timed out under load then 174/174 alone; web: unit 544, full browser suite (desktop and phone, calls with the native peer) 102 passed, 0 failed |
+| Build | sources kept as `server.pre-0.54.0`; 113 files synced (parity checked after); image `0.54.0` (`docker build --network host`) |
+| Backup | `backups/pre-0.54.0-20261028T112006Z`: integrity ok, schema 63, 43 users, `.env`/`compose.yaml` copies (and `*.before-switch`); image tagged `0.53.0-rollback` |
+| Rehearsal | backup copy, `--network none`, FCM and MongoDB settings left out: healthy 0.54.0, schema 64 (`064_mojo_perks`), integrity ok, 43 users, 11 orgs, 165 conversations; removed after |
+| Billing to MongoDB | every `billing_*` table had 0 rows in SQLite, so no copy was needed: `MONGODB_DOMAINS` += `billing` (`mongo-status`: authority mongodb). SQLite keeps its (empty) tables |
+| Switch | `compose.yaml` image 0.54.0; `.env` `MONGODB_DOMAINS=…,relay,billing`, `BILLING_WEB_RETURN_URL=https://web.meldiq.app/settings/mojo`; `config -q` ok; `up -d --no-deps --no-build --force-recreate api` at 11:28:08, healthy 11:28:16 (8 s), 0 restarts |
+| Checks after | `/healthz` 0.54.0 `mongodb: true` on msg.meldiq.app and msg.griipbuddy.cloud; `verify.sh` 0 restarts (api, livekit, ntfy), 41 GB free; 0 errors in the log; `GET /v2/mojo/catalog`: Free/Go/Plus, `enforced: false` (MOJO_ENFORCE=auto, nothing on sale), so nobody's limits changed |
+| Web | release 0.5.0-beta-2cba046 built against cf3187d's contracts; `verify.sh` all passed (API 0.54.0 through the origin, realtime 101); Cloudflare real-IP include kept; checked on the owner's account: Settings › Meldiq Mojo, Free plan, nothing for sale |
+
+Not changed: no payment provider (`BILLING_PROVIDER` unset), so nothing can be bought; plan limits aren't enforced until
+it is. `scripts/validate-env.sh` reports "MONGODB_DOMAINS needs MONGODB_URI" since the 05:20 cutover: it sources `.env` as
+shell, and the URI's `&` ends the assignment there (compose reads it correctly). Fix: quote the value or parse `.env`
+without the shell.
+
+Rollback: `compose.yaml` image `0.53.0-rollback`; `.env` from `backups/pre-0.54.0-20261028T112006Z/env.before-switch`
+(billing out of `MONGODB_DOMAINS`; if anything was written to billing since, `mongo-rollback billing --yes` first);
+`up -d --no-deps --no-build --force-recreate api`. Web: `bash /root/meldiq-web-0.5.0-beta-2cba046/rollback.sh`.
+
+### API 0.53.0: Meldiq Mojo trials, invite links and the Stripe setup command (2026-10-28, 08:26 UTC, owner's go-ahead: "Deploy API 0.53.0 to production now (trials off, billing off), same procedure as 0.52.0, and verify it.")
+
+Free Mojo Plus periods (14-day trial, 30 days for both through an invite link, inviter up to 90 days a year), the
+invite-link routes, `admin.js stripe-setup` / `billing-mojo-plans` and `scripts/stripe-setup-remote.sh`
+(docs/BILLING.md › Trials and invite links, › Stripe setup). Migration **063** (three new billing tables). Off in
+production: no `BILLING_TRIAL_STARTS_AT`, `BILLING_PROVIDER` unset. Uncommitted on internal-beta.
+
+| Step | Result |
+|---|---|
+| Checks before | billing, trials, Stripe, contracts, architecture and MongoDB-catalog suites 92/92; full suite 1,011 passed, 12 timeouts under machine load (load average ~12), all 5 affected files passing alone; `tsc` clean; `docs/api` regenerated |
+| Pre-flight | running 0.52.0 healthy, 0 restarts; the only source differences were the 0.53.0 changes; `.env` has no `BILLING_*`/`STRIPE_*`; no build running; 42 GB free |
+| Backup | `backups/pre-0.53.0-20261028T082408Z`: integrity ok, schema 62, 43 users, `.env` + `compose.yaml` copies; image tagged `0.52.0-rollback`; sources kept as `server.pre-0.53.0` |
+| Build | 16 server files + `scripts/stripe-setup.sh`, `scripts/stripe-setup-remote.sh`, `.env.example` synced; parity 0 differences; `docker build --network host` → `0.53.0` |
+| Rehearsal | backup copy, `--network none`: healthy, schema 63, the three tables present, integrity ok, 0 foreign-key violations, 43 users / 11 orgs, `/v2/billing/plans` `trial: null`, `stripe-setup` present (refuses without a key), 0 errors; **0.52.0-rollback on the migrated copy: healthy, 0 errors**. Removed after |
+| Switch | `compose.yaml` image 0.53.0; `config -q` ok; `up -d --no-deps --no-build api` at 08:26:30, healthy 08:26:38; LiveKit and ntfy not restarted (validator's MongoDB line: the known false positive, see 0.52.0) |
+| Checks after | `/healthz` 0.53.0, `mongodb: true` on both API hosts; `verify.sh` 0 restarts; schema 63, 0 grants; 0 warnings/errors, live 200s; plans `{available:false, plans:[], trial:null}` through meldiq.app; referral, claim and entitlements without a token 401; Stripe webhook 404; sign-in route answers; web, admin console and website 200 |
+
+Rollback: `image: griip-internal-messaging-api:0.52.0-rollback`, then `up -d --no-deps --no-build api` (rehearsed on
+schema 63).
+
+### API 0.52.0: Meldiq Mojo billing foundation (2026-10-28, 07:19 UTC, owner's go-ahead: "Deploy API 0.52.0 to production with BILLING_PROVIDER=none for now, following docs/DEPLOYMENT.md, and verify it.")
+
+Stripe provider, subscriptions owned by a person's account, one customer per owner, the `unpaid` state, the v2
+billing and entitlements routes, account deletion refused while a subscription renews (docs/BILLING.md › Meldiq Mojo
+and Stripe). Migration **062** (billing tables only, SQLite). `BILLING_PROVIDER` stays unset (= none): nothing can be
+bought, and the Stripe webhook route answers 404. Uncommitted on internal-beta (ff6408b + the 0.52.0 changes; the owner
+will say where to push).
+
+| Step | Result |
+|---|---|
+| Checks before | server full suite 1,017 passed / 10 skipped (SQLite); MongoDB mode (7 domains, 3 workers) 962 passed, 6 failed under load, the 11 affected files 118/118 alone; billing + account suites in MongoDB mode 105/105; `tsc` clean; `docs/api` regenerated |
+| Pre-flight | running 0.51.1 healthy; VPS `server/` (tests excluded) byte-equal to ff6408b (`rsync -c` dry run: 0 differences); no build running; 42 GB free; `.env` has no `BILLING_*` |
+| Backup | `backups/pre-0.52.0-20261028T071622Z`: integrity ok, schema 61, 43 users, `.env` + `compose.yaml` copies; image tagged `0.51.1-rollback`; sources kept as `server.pre-0.52.0`. Production had 0 billing plans, subscriptions, checkouts and invoices. (Atlas holds the seven MongoDB domains, untouched by this release; Free tier has no Atlas backup.) |
+| Build | 26 files synced (plus `scripts/validate-env.sh`, `.env.example`), parity 0 differences; `docker build --network host` → `0.52.0` |
+| Rehearsal | backup copy, `--network none`, MongoDB/push settings left out: healthy, 0.52.0, schema 62, `billing_customers` and the owner columns present, integrity ok, 0 foreign-key violations, 43 users / 11 orgs, `/v2/billing/plans` empty, 0 errors. Then **0.51.1-rollback on the migrated copy: healthy, 0 errors** (rollback proven). Removed after |
+| Switch | `compose.yaml` image 0.52.0; `config -q` ok; `up -d --no-deps --no-build api` at 07:19:34, healthy 07:19:41; LiveKit and ntfy not restarted. `validate-env.sh`: billing ok (none); its "MONGODB_DOMAINS needs MONGODB_URI" is a false positive since the 05:20 cutover: the URI's `&` breaks `. .env` in bash, while Docker reads the file literally (the API is connected) |
+| Checks after | `/healthz` 0.52.0, `mongodb: true` on msg.meldiq.app and msg.griipbuddy.cloud; `verify.sh` 0 restarts (api, livekit, ntfy); schema 62; 0 warnings/errors in the log, live traffic 200s and WebSockets; `GET /v2/billing/plans` `{available:false, plans:[]}` direct and through meldiq.app; entitlements/checkout without or with a bad token 401; `/v1/billing/webhooks/stripe` 404; `/v1/orgs/:id/billing` signed out 401; sign-in route answers; web.meldiq.app and admin.meldiq.app 200; meldiq.app/pricing shows Mojo Go and Mojo Plus as not on sale |
+
+Rollback: `image: griip-internal-messaging-api:0.51.1-rollback` in `compose.yaml`, then `up -d --no-deps --no-build api`
+(it runs on schema 62, rehearsed). Full restore: `scripts/restore.sh` with the pre-0.52.0 archive.
+
+### API 0.51.1 and the MongoDB Atlas cutover (2026-10-28, 05:20 UTC, owner's go-ahead: "finish all sql migration to mongodb atlas and make it as primary database")
+
+Seven domains now live in MongoDB Atlas (project `Meldiq`, `Cluster0`, M0 Free, AWS Singapore, user `meldiq_api` with
+`readWrite` on `meldiq` and `meldiq_rehearsal` only, access list `72.60.107.88/32`): **accounts, preferences, history,
+reports, relationships, relay, files**. Everything else (identity, workspace, conversations, calls, federation, platform)
+stays in SQLite: its code has no MongoDB store yet. internal-beta `05611f8` (local, not pushed).
+
+| Step | Result |
+|---|---|
+| First attempt (04:59–05:04 UTC, image 0.51.0) | backup ok; API stopped 04:59:53; all seven domains migrated and verified; the API then **crash-looped**: at start `ensureSchema` ran `collMod` on existing collections, which Atlas refuses to a `readWrite` user. `.env` restored, API back on SQLite at **05:04:25** (outage ~4.5 min, no data lost: MongoDB never accepted a write) |
+| Fix 0.51.1 | `ensureSchema` skips `collMod` when the validator matches (test added); full suite 988 passed, 1 unrelated flake (`platform_admin_auth` audit regex vs a random id; 20/20 alone, twice). Image built with `docker build --network host` (inside Docker's build network the Node headers download timed out). Proven against Atlas before the retry: 0.51.0 reproduced the `collMod` refusal, 0.51.1 connected with all seven domains configured |
+| Backup | `backups/pre-mongo-cutover-20261028T051820Z` (integrity ok, 43 users, `.env` + `compose.yaml`); each `mongo-migrate` also snapshot SQLite first (`/data/backups/pre-mongo-<domain>-*`); image `0.51.0-rollback` tagged |
+| Write freeze | API stopped 05:18:32 → healthy 05:20:52 (**2 min 20 s**) |
+| Migration | `mongo-migrate <d> --yes --prune` × 7 with `MONGODB_STORAGE_LIMIT_MB=512` (Atlas usage ~23 MiB); each verified (counts, id sets, row hashes, checksums), then `mongo-verify` × 7 again: all match |
+| Switch | `.env` += `MONGODB_URI` (from `.env.mongodb`), `MONGODB_DB=meldiq`, `MONGODB_STORAGE_LIMIT_MB=512`, `MONGODB_DOMAINS=preferences,reports,relationships,history,accounts,files,relay`; `compose.yaml` image 0.51.1; `up -d --no-deps --no-build --force-recreate api`: healthy, 0 restarts |
+| Checks after | `/healthz` 0.51.1 `mongodb: true` on both hosts; `verify.sh` 0 restarts (api, livekit, ntfy); 0 errors, 0 warnings; live traffic 37×200; `mongo-status` in the container: transactions true, 8.4 ms; MongoDB already ahead of SQLite (relay 17,947 vs 17,873, history 2,038 vs 2,035): new writes go to Atlas |
+
+Rollback (any time; writes made in MongoDB since the cutover come back): stop the API; for each domain
+`docker compose … run --rm api node dist/admin.js mongo-rollback <domain> --yes` (or `docker run` with the volume and
+`.env`); remove the four `MONGODB_*` lines from `.env` (copy: `.env.before-mongo-cutover-20261028T051820Z`); start the API
+(0.51.1 is fine on SQLite; `0.51.0-rollback` too). SQLite's copy of the seven domains is frozen as of 05:18 UTC and must
+not be emptied (owner's rule; and the other six domains live only there).
+
+Free-tier caveats now in force: no Atlas backups (schedule an encrypted `mongodump --gzip` off the VPS), 500 connections,
+10 GB in/out per 7 days, 512 MiB including indexes (~23 MiB used); every API start now needs Atlas reachable, and
+`/healthz` answers 503 while it isn't.
+
+### API 0.51.0 (2026-10-28, 03:34 UTC, owner's go-ahead: "continue the runbook up to cutover, including the 0.51.0 deploy")
+
+MongoDB capacity tooling for the Atlas Free migration (docs/MONGODB_ATLAS_FREE_REPORT_2026-10-28.md): `admin
+mongo-estimate`, the `MONGODB_STORAGE_LIMIT_MB` guard on `mongo-migrate` / `mongo-dryrun`, `mongo-dryrun --db`. Operator
+commands only: no route, schema or behaviour change (schema stays 61). internal-beta `e749406` on `5b47f21` (local, not
+pushed). MongoDB stays off: no `MONGODB_*` in `.env`, `/healthz` mongodb null.
+
+| Step | Result |
+|---|---|
+| Checks before | server full suite 987 passed / 10 skipped, `tsc` clean; MongoDB tests 22/22; `docs/api` regenerated (version line only) |
+| Pre-flight | running 0.50.0; VPS `server/` (tests excluded) byte-equal to 5b47f21 (`rsync -c` dry run: 0 differences); no build running; no other session active; 45 GB free |
+| Backup | `backups/pre-0.51.0-20261028T032724Z`: integrity ok, schema 61, 43 users, `.env` + `compose.yaml` copies; image tagged `0.50.0-rollback` |
+| Build | sources kept as `server.pre-0.51.0`; 8 files synced, parity with e749406; image `0.51.0` (`a5d1ec370d29`) built. A first build reported 0.50.0 (the `VERSION` constant in `app/server.ts` wasn't bumped): fixed, rebuilt |
+| Rehearsal | backup copy, `--network none`, FCM and MongoDB settings left out: healthy, 0.51.0, 43 users, 11 orgs, 0 errors; `mongo-estimate` 25.65 MiB, fits; removed after |
+| Switch | `validate-env.sh` 0 errors (the 2 usual warnings), `config -q`, `up -d --no-deps --no-build api`: healthy, 0 restarts |
+| Checks after | `/healthz` 0.51.0 on msg.meldiq.app and msg.griipbuddy.cloud, mongodb null; `verify.sh`: 0 restarts for api, livekit, ntfy (not restarted); 0 errors in the log |
+
+Rollback: `image: griip-internal-messaging-api:0.50.0-rollback` in `compose.yaml`, then `up -d --no-deps --no-build api`.
+
 ### API 0.50.0 and Meldiq Web 0.5.0-beta-f78407e (2026-10-27, 19:19 and 19:22 UTC, owner's go-ahead: "fix all and deploy for production too … after done all then push for live server productions")
 
 The owner's 2026-10-28 round (meldiq-web `docs/MELDIQ_OWNER_ROUND_1028.md`): rail folders in the personal preferences

@@ -33,7 +33,7 @@ export interface OnboardingPrompt {
 }
 
 function stored(ctx: AppContext, orgId: string): { enabled: boolean; prompts: OnboardingPrompt[] } {
-  const r = ctx.db.prepare("SELECT enabled, prompts FROM community_onboarding WHERE org_id = ?").get(orgId) as { enabled: number; prompts: string } | undefined;
+  const r = ctx.ws.get<{ enabled: number; prompts: string }>("community_onboarding", { org_id: orgId });
   if (!r) return { enabled: false, prompts: [] };
   try {
     return { enabled: !!r.enabled, prompts: JSON.parse(r.prompts) as OnboardingPrompt[] };
@@ -44,7 +44,7 @@ function stored(ctx: AppContext, orgId: string): { enabled: boolean; prompts: On
 
 /** A role onboarding may give: this community's, not archived, and without administrative permissions. */
 function givableRole(ctx: AppContext, orgId: string, roleId: string): boolean {
-  const r = ctx.db.prepare("SELECT permissions, archived_at FROM org_roles WHERE id = ? AND org_id = ?").get(roleId, orgId) as { permissions: string; archived_at: number | null } | undefined;
+  const r = ctx.ws.get<{ permissions: string; archived_at: number | null }>("org_roles", { id: roleId, org_id: orgId });
   if (!r || r.archived_at) return false;
   const perms = (JSON.parse(r.permissions) as string[]).filter(isPermission);
   return perms.every((p) => !permissionDef(p).admin && !permissionDef(p).ownerOnly);
@@ -63,11 +63,11 @@ export function onboardingOn(ctx: AppContext, orgId: string): boolean {
 }
 
 export default async function onboardingRoutes(app: FastifyInstance, ctx: AppContext) {
-  const { db, authz } = ctx;
+  const { ws, authz } = ctx;
   const auth = { preHandler: requireAuth(ctx) };
 
   const myAnswer = (orgId: string, userId: string) =>
-    (db.prepare("SELECT option_ids, answered_at FROM onboarding_answers WHERE org_id = ? AND user_id = ?").get(orgId, userId) as { option_ids: string; answered_at: number } | undefined) ?? null;
+    ws.get<{ option_ids: string; role_ids: string; answered_at: number }>("onboarding_answers", { org_id: orgId, user_id: userId }) ?? null;
 
   app.get("/v1/orgs/:orgId/onboarding", auth, async (req) => {
     const { orgId } = parse(OrgParamsNonEmpty, req.params);
@@ -105,10 +105,7 @@ export default async function onboardingRoutes(app: FastifyInstance, ctx: AppCon
       if (badChannel) throw new ApiError(400, "channel_not_public", "Onboarding can only open this community's public channels", { channelId: badChannel });
     }
     if (body.enabled && prompts.length === 0) throw badRequest("Add a question before turning onboarding on");
-    db.prepare(
-      `INSERT INTO community_onboarding (org_id, enabled, prompts, updated_at) VALUES (?, ?, ?, ?)
-       ON CONFLICT (org_id) DO UPDATE SET enabled = excluded.enabled, prompts = excluded.prompts, updated_at = excluded.updated_at`,
-    ).run(orgId, body.enabled ? 1 : 0, JSON.stringify(prompts), now());
+    await ws.write((w) => w.upsert("community_onboarding", { org_id: orgId, enabled: body.enabled ? 1 : 0, prompts: JSON.stringify(prompts), updated_at: now() }, "replace"));
     ctx.audit({ actorId: userId, orgId, action: body.enabled ? "community.onboarding_on" : "community.onboarding_off", target: orgId });
     return { enabled: body.enabled, prompts };
   });
@@ -136,35 +133,31 @@ export default async function onboardingRoutes(app: FastifyInstance, ctx: AppCon
     const roles = [...new Set(options.flatMap((o) => o.roleIds))].filter((r) => givableRole(ctx, orgId, r));
     const channels = [...new Set(options.flatMap((o) => o.channelIds))].filter((c) => openableChannel(ctx, orgId, c));
     const before = myAnswer(orgId, userId);
-    const previouslyGiven = before ? (JSON.parse((db.prepare("SELECT role_ids FROM onboarding_answers WHERE org_id = ? AND user_id = ?").get(orgId, userId) as { role_ids: string }).role_ids) as string[]) : [];
+    const previouslyGiven = before ? (JSON.parse(before.role_ids) as string[]) : [];
     const t = now();
-    const given = db.transaction(() => {
+    const given = await ws.write((w) => {
       for (const r of previouslyGiven.filter((r) => !roles.includes(r))) {
-        db.prepare("DELETE FROM org_role_members WHERE role_id = ? AND user_id = ? AND assigned_by = 'onboarding'").run(r, userId);
+        w.delete("org_role_members", { role_id: r, user_id: userId, assigned_by: "onboarding" });
       }
       const out: string[] = [];
       for (const r of roles) {
-        const held = (db.prepare("SELECT COUNT(*) n FROM org_role_members WHERE org_id = ? AND user_id = ?").get(orgId, userId) as { n: number }).n;
-        const has = db.prepare("SELECT assigned_by FROM org_role_members WHERE role_id = ? AND user_id = ?").get(r, userId) as { assigned_by: string } | undefined;
+        const held = w.count("org_role_members", { org_id: orgId, user_id: userId });
+        const has = w.get<{ assigned_by: string }>("org_role_members", { role_id: r, user_id: userId });
         if (has) {
           if (has.assigned_by === "onboarding") out.push(r);
           continue;
         }
         if (held >= MAX_ROLES_PER_MEMBER) continue;
-        db.prepare("INSERT INTO org_role_members (role_id, org_id, user_id, assigned_by, assigned_at) VALUES (?, ?, ?, 'onboarding', ?)").run(r, orgId, userId, t);
+        w.insert("org_role_members", { role_id: r, org_id: orgId, user_id: userId, assigned_by: "onboarding", assigned_at: t });
         out.push(r);
       }
-      const join = db.prepare("INSERT OR IGNORE INTO conversation_members (conversation_id, user_id, role, joined_at) VALUES (?, ?, 'MEMBER', ?)");
       for (const c of channels) {
         const conv = authz.conversation(c);
-        if (conv && authz.canViewChannel(conv, userId)) join.run(c, userId, t);
+        if (conv && authz.canViewChannel(conv, userId)) w.insert("conversation_members", { conversation_id: c, user_id: userId, role: "MEMBER", joined_at: t }, { orIgnore: true });
       }
-      db.prepare(
-        `INSERT INTO onboarding_answers (org_id, user_id, option_ids, role_ids, answered_at) VALUES (?, ?, ?, ?, ?)
-         ON CONFLICT (org_id, user_id) DO UPDATE SET option_ids = excluded.option_ids, role_ids = excluded.role_ids, answered_at = excluded.answered_at`,
-      ).run(orgId, userId, JSON.stringify([...chosen]), JSON.stringify(out), t);
+      w.upsert("onboarding_answers", { org_id: orgId, user_id: userId, option_ids: JSON.stringify([...chosen]), role_ids: JSON.stringify(out), answered_at: t }, "replace");
       return out;
-    })();
+    });
     ctx.audit({ actorId: userId, orgId, action: "community.onboarding_answered", target: userId, detail: `${given.length} roles` });
     await reconcileAccess(ctx, orgId, [userId]);
     return { roleIds: given, channelIds: channels, permissions: [...authz.permissions(orgId, userId)].sort() };

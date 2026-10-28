@@ -22,7 +22,7 @@ export type AddOutcome = "added" | "already_member" | "not_available";
  * apply as for invitations. Each addition is audited, and the added person's apps are told at once (org.updated).
  */
 export async function addMembers(ctx: AppContext, orgId: string, actor: string, userIds: string[], t = now()): Promise<{ userId: string; outcome: AddOutcome }[]> {
-  const { authz, db } = ctx;
+  const { authz } = ctx;
   authz.requireOrgMember(orgId, actor);
   if (!authz.canIssueInvite(orgId, actor, "MEMBER")) throw forbidden("Your role doesn't include adding people");
   if (authz.pausedUntil(orgId, "invites", t)) throw new ApiError(403, "invites_paused", "This community has paused new members for now. Try again later.");
@@ -36,11 +36,16 @@ export async function addMembers(ctx: AppContext, orgId: string, actor: string, 
       results.push({ userId, outcome: "not_available" });
       continue;
     }
-    ctx.entitlements.check("members", (db.prepare("SELECT COUNT(*) n FROM org_members WHERE org_id = ?").get(orgId) as { n: number }).n, orgId);
-    db.prepare("INSERT INTO org_members (org_id, user_id, role, joined_at, expires_at) VALUES (?, ?, 'MEMBER', ?, NULL)").run(orgId, userId, t);
-    authz.autoJoinScope(orgId, userId, t);
-    ctx.audit({ actorId: actor, orgId, action: "member.add", target: userId, detail: "MEMBER" });
-    results.push({ userId, outcome: "added" });
+    // Checked again inside the unit: they may have joined while eligibility was being checked.
+    const added = await ctx.ws.write((w) => {
+      if (w.get("org_members", { org_id: orgId, user_id: userId })) return false;
+      ctx.entitlements.check("members", w.count("org_members", { org_id: orgId }), orgId);
+      w.insert("org_members", { org_id: orgId, user_id: userId, role: "MEMBER", joined_at: t, expires_at: null });
+      authz.autoJoinScope(w, orgId, userId, t);
+      ctx.audit({ actorId: actor, orgId, action: "member.add", target: userId, detail: "MEMBER" });
+      return true;
+    });
+    results.push({ userId, outcome: added ? "added" : "already_member" });
   }
   if (results.some((r) => r.outcome === "added")) notifyOrg(ctx, orgId);
   return results;

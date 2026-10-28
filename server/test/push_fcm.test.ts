@@ -81,7 +81,7 @@ describe("FCM wake-ups", () => {
 
   it("sends a data-only wake-up with nothing in it, at most once per interval unless urgent", async () => {
     const g = fakeGoogle((url) => tokenOk(url) ?? { status: 200, body: { name: "projects/meldiq-test-1/messages/1" } });
-    const fcm = new FcmService(h.ctx.db, h.ctx.hub, cfg, h.ctx.log, g.fn);
+    const fcm = new FcmService(h.ctx.identity, h.ctx.hub, cfg, h.ctx.log, g.fn);
     expect(await fcm.wake(alice.deviceId, false)).toBe("sent");
     const send = g.sent.find((s) => s.url.endsWith("/messages:send"))!;
     expect(send.url).toBe("https://fcm.googleapis.com/v1/projects/meldiq-test-1/messages:send");
@@ -95,7 +95,7 @@ describe("FCM wake-ups", () => {
 
   it("doesn't wake a device that is connected", async () => {
     const g = fakeGoogle((url) => tokenOk(url) ?? { status: 200, body: {} });
-    const fcm = new FcmService(h.ctx.db, h.ctx.hub, cfg, h.ctx.log, g.fn);
+    const fcm = new FcmService(h.ctx.identity, h.ctx.hub, cfg, h.ctx.log, g.fn);
     await alice.connect();
     expect(await fcm.wake(alice.deviceId, true)).toBe("skipped");
     await alice.disconnect();
@@ -106,19 +106,19 @@ describe("FCM wake-ups", () => {
 
   it("drops a token Firebase no longer accepts, and keeps one that only failed briefly", async () => {
     const flaky = fakeGoogle((url) => tokenOk(url) ?? { status: 503, body: { error: { status: "UNAVAILABLE" } } });
-    expect(await new FcmService(h.ctx.db, h.ctx.hub, cfg, h.ctx.log, flaky.fn).wake(alice.deviceId, true)).toBe("failed");
-    expect(h.ctx.db.prepare("SELECT 1 FROM fcm_tokens WHERE device_id = ?").get(alice.deviceId)).toBeTruthy();
+    expect(await new FcmService(h.ctx.identity, h.ctx.hub, cfg, h.ctx.log, flaky.fn).wake(alice.deviceId, true)).toBe("failed");
+    expect(h.ctx.identity.get("fcm_tokens", { device_id: alice.deviceId })).toBeTruthy();
     const gone = fakeGoogle((url) => tokenOk(url) ?? { status: 404, body: { error: { status: "NOT_FOUND", details: [{ errorCode: "UNREGISTERED" }] } } });
-    expect(await new FcmService(h.ctx.db, h.ctx.hub, cfg, h.ctx.log, gone.fn).wake(alice.deviceId, true)).toBe("dropped");
-    expect(h.ctx.db.prepare("SELECT 1 FROM fcm_tokens WHERE device_id = ?").get(alice.deviceId)).toBeUndefined();
+    expect(await new FcmService(h.ctx.identity, h.ctx.hub, cfg, h.ctx.log, gone.fn).wake(alice.deviceId, true)).toBe("dropped");
+    expect(h.ctx.identity.get("fcm_tokens", { device_id: alice.deviceId })).toBeUndefined();
   });
 
   it("keeps the token when only the UnifiedPush endpoint is withdrawn, and forgets it on sign-out", async () => {
     await alice.req("PUT", "/v1/devices/current/fcm", { token });
     // The app withdraws UnifiedPush whenever no distributor app is installed: that mustn't end Firebase wake-ups.
     await alice.req("DELETE", "/v1/devices/current/push");
-    expect(h.ctx.db.prepare("SELECT 1 FROM fcm_tokens WHERE device_id = ?").get(alice.deviceId)).toBeTruthy();
+    expect(h.ctx.identity.get("fcm_tokens", { device_id: alice.deviceId })).toBeTruthy();
     await alice.req("POST", "/v1/auth/logout");
-    expect(h.ctx.db.prepare("SELECT 1 FROM fcm_tokens WHERE device_id = ?").get(alice.deviceId)).toBeUndefined();
+    expect(h.ctx.identity.get("fcm_tokens", { device_id: alice.deviceId })).toBeUndefined();
   });
 });

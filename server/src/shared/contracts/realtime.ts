@@ -15,11 +15,14 @@ const time = z.number().int().nonnegative();
 
 // ───────────── Shared payloads ─────────────
 
-/** One delivery-queue item: an encrypted envelope for this device, or a delivery receipt. */
+/**
+ * One delivery-queue item: a stored message or change ("message", API 0.57.0, readable), an encrypted envelope from an
+ * older app, or a delivery receipt.
+ */
 export const QueueItemWire = z.strictObject({
   /** Per-device order: items arrive in increasing id order and are acknowledged by id. */
   id: z.number().int().positive(),
-  kind: z.enum(["envelope", "receipt"]),
+  kind: z.enum(["envelope", "receipt", "message"]),
   conversationId: id,
   messageId: id,
   senderUserId: id,
@@ -67,6 +70,21 @@ export type CallWire = z.infer<typeof CallWire>;
 export const PresenceState = z.enum(["online", "idle", "dnd", "offline"]);
 export type PresenceState = z.infer<typeof PresenceState>;
 
+/**
+ * What someone is doing right now (API 0.56.0, docs/ACTIVITY_STATUS.md): "Playing PUBG Mobile" since [startedAt]. Shown
+ * only to the people who may see their presence, and only while they appear online.
+ */
+export const ActivityKind = z.enum(["playing"]);
+export const ActivityWire = z.strictObject({
+  kind: ActivityKind,
+  /** The game's name as the person's app shows it. */
+  name: z.string().min(1).max(64),
+  /** The Android package of the game, when the app reported one. */
+  packageId: z.string().max(128).optional(),
+  startedAt: time,
+});
+export type ActivityWire = z.infer<typeof ActivityWire>;
+
 // ───────────── Server → client ─────────────
 
 export const CallEventName = z.enum(["ring", "started", "updated", "ended", "declined", "dismissed", "alerted"]);
@@ -95,6 +113,8 @@ export const ServerEvent = z.discriminatedUnion("t", [
   z.strictObject({ t: z.literal("queue.drained") }),
   z.strictObject({ t: z.literal("typing"), c: id, u: id, on: z.boolean() }),
   z.strictObject({ t: z.literal("presence"), userId: id, online: z.boolean(), presence: PresenceState, lastSeenAt: time.nullable() }),
+  /** API 0.56.0: someone started or stopped playing (null: nothing to show, also while they appear offline). */
+  z.strictObject({ t: z.literal("activity"), userId: id, activity: ActivityWire.nullable() }),
   z.discriminatedUnion("event", [
     z.strictObject({ t: z.literal("call"), event: CallEventName, call: CallWire, ...callEventExtras }),
     /** Voice rooms: a moderator muted this person, lowered their hand or removed them. */
@@ -122,6 +142,8 @@ export const ServerEvent = z.discriminatedUnion("t", [
    */
   z.strictObject({ t: z.literal("user.updated"), userId: id }),
   z.strictObject({ t: z.literal("connections.updated") }),
+  // docs/BILLING.md › Entitlements API: refetch GET /v2/billing/entitlements.
+  z.strictObject({ t: z.literal("entitlements.changed"), scope: z.enum(["account", "org"]), orgId: id.optional() }),
   z.strictObject({ t: z.literal("prefs.updated"), workspaceId: id, rev: z.number().int().nonnegative() }),
   z.strictObject({ t: z.literal("reminders.changed"), id, rev: z.number().int().nonnegative().optional(), deleted: z.literal(true).optional() }),
   z.strictObject({ t: z.literal("reminder.due"), id, occurrenceAt: time, firedAt: time }),

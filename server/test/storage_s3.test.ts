@@ -14,10 +14,12 @@ import { attachmentCount, setAttachmentExpiry } from "./support/files.js";
 /**
  * The restart test keeps its data across server restarts in DATA_DIR; the test MongoDB database is dropped when a server
  * closes, so file records stay in SQLite there whatever MELDIQ_TEST_MONGO_DOMAINS says (this suite is about the blob
- * store, not the database).
+ * store, not the database). Workspace, conversations and identity stay with them (file records reference their rows, and
+ * a SQLite table can't reference one in MongoDB), and so do the sign-in sessions (ephemeral) the clients reuse.
  */
+const KEPT_IN_SQLITE = ["files", "workspace", "conversations", "identity", "ephemeral"];
 const filesInSqlite: Record<string, string> = process.env.MELDIQ_TEST_MONGO_DOMAINS
-  ? { MONGODB_DOMAINS: process.env.MELDIQ_TEST_MONGO_DOMAINS.split(",").filter((d) => d && d !== "files").join(",") }
+  ? { MONGODB_DOMAINS: process.env.MELDIQ_TEST_MONGO_DOMAINS.split(",").filter((d) => d && !KEPT_IN_SQLITE.includes(d)).join(",") }
   : {};
 
 // AWS's published example credentials (not a real account).

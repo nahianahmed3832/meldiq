@@ -111,7 +111,7 @@ export default async function accountRoutes(app: FastifyInstance, ctx: AppContex
   app.get("/v2/account/totp", authed, async (req) => totp.status(session(req).account_id));
   app.post("/v2/account/totp/setup", authedStrict, async (req) => totp.setup(session(req), await accountOf(req), parse(TotpSetupBody, req.body).password));
   app.post("/v2/account/totp/enable", authedStrict, async (req) => {
-    const done = totp.enable(session(req), session(req).account_id, parse(TotpCodeBody, req.body).code);
+    const done = await totp.enable(session(req), session(req).account_id, parse(TotpCodeBody, req.body).code);
     tell(await accountOf(req), true);
     return done;
   });
@@ -135,7 +135,7 @@ export default async function accountRoutes(app: FastifyInstance, ctx: AppContex
   });
   app.get("/v2/account/standing", authed, async (req) => {
     const userId = session(req).user_id;
-    return userId ? standingOf(ctx.db, userId) : { level: "good", warnings: [] };
+    return userId ? standingOf(ctx.safety, userId) : { level: "good", warnings: [] };
   });
 
   // Digital Asset Links: Android only offers this server's passkeys to the apps listed here.
@@ -145,7 +145,7 @@ export default async function accountRoutes(app: FastifyInstance, ctx: AppContex
     const s = session(req);
     await service.logout(s);
     // A signed-out device isn't woken any more; signing in again, the app registers its endpoint again.
-    if (s.device_id) removePushEndpoint(ctx.db, s.device_id);
+    if (s.device_id) await removePushEndpoint(ctx.identity, s.device_id);
     return { ok: true };
   });
 
@@ -197,7 +197,7 @@ export default async function accountRoutes(app: FastifyInstance, ctx: AppContex
     await store.updateAccount(a.id, { name }, t);
     // The encryption identity shows the same name to contacts (the same edit again repairs a half-done one).
     if (a.user_id) {
-      ctx.db.prepare("UPDATE users SET display_name = ?, updated_at = ? WHERE id = ?").run(name, t, a.user_id);
+      await ctx.identity.write((w) => w.update("users", { id: a.user_id! }, { display_name: name, updated_at: t }));
       announceProfileChange(ctx, a.user_id);
     }
     return { account: service.view((await store.accountById(a.id))!) };

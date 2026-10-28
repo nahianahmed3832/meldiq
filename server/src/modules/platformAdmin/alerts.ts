@@ -45,9 +45,9 @@ export const RULES: readonly RuleDef[] = [
     windowMinutes: 5,
     severity: "sev2",
     measure(ctx, w, t) {
-      const req = analytics.windowStats(ctx.db, "api.requests", since(t, w)).sum ?? 0;
+      const req = analytics.windowStats(ctx, "api.requests", since(t, w)).sum ?? 0;
       if (req < 20) return null;
-      return ratio(analytics.windowStats(ctx.db, "api.errors_5xx", since(t, w)).sum ?? 0, req);
+      return ratio(analytics.windowStats(ctx, "api.errors_5xx", since(t, w)).sum ?? 0, req);
     },
   },
   {
@@ -59,7 +59,7 @@ export const RULES: readonly RuleDef[] = [
     threshold: 1500,
     windowMinutes: 10,
     severity: "sev3",
-    measure: (ctx, w, t) => analytics.windowStats(ctx.db, "api.latency.p95_ms", since(t, w)).avg,
+    measure: (ctx, w, t) => analytics.windowStats(ctx, "api.latency.p95_ms", since(t, w)).avg,
   },
   {
     key: "api.memory",
@@ -70,7 +70,7 @@ export const RULES: readonly RuleDef[] = [
     threshold: 90,
     windowMinutes: 10,
     severity: "sev2",
-    measure: (ctx, w, t) => ratio(analytics.windowStats(ctx.db, "api.mem.cgroup_bytes", since(t, w)).avg, analytics.windowStats(ctx.db, "api.mem.limit_bytes", since(t, w)).avg),
+    measure: (ctx, w, t) => ratio(analytics.windowStats(ctx, "api.mem.cgroup_bytes", since(t, w)).avg, analytics.windowStats(ctx, "api.mem.limit_bytes", since(t, w)).avg),
   },
   {
     key: "host.cpu",
@@ -81,7 +81,7 @@ export const RULES: readonly RuleDef[] = [
     threshold: 90,
     windowMinutes: 10,
     severity: "sev3",
-    measure: (ctx, w, t) => analytics.windowStats(ctx.db, "host.cpu.pct", since(t, w)).avg,
+    measure: (ctx, w, t) => analytics.windowStats(ctx, "host.cpu.pct", since(t, w)).avg,
   },
   {
     key: "host.memory",
@@ -92,7 +92,7 @@ export const RULES: readonly RuleDef[] = [
     threshold: 90,
     windowMinutes: 10,
     severity: "sev3",
-    measure: (ctx, w, t) => ratio(analytics.windowStats(ctx.db, "host.mem.used_bytes", since(t, w)).avg, analytics.windowStats(ctx.db, "host.mem.total_bytes", since(t, w)).avg),
+    measure: (ctx, w, t) => ratio(analytics.windowStats(ctx, "host.mem.used_bytes", since(t, w)).avg, analytics.windowStats(ctx, "host.mem.total_bytes", since(t, w)).avg),
   },
   {
     key: "host.disk",
@@ -103,7 +103,7 @@ export const RULES: readonly RuleDef[] = [
     threshold: 85,
     windowMinutes: 5,
     severity: "sev2",
-    measure: (ctx, w, t) => ratio(analytics.windowStats(ctx.db, "host.disk.used_bytes", since(t, w)).avg, analytics.windowStats(ctx.db, "host.disk.total_bytes", since(t, w)).avg),
+    measure: (ctx, w, t) => ratio(analytics.windowStats(ctx, "host.disk.used_bytes", since(t, w)).avg, analytics.windowStats(ctx, "host.disk.total_bytes", since(t, w)).avg),
   },
   {
     key: "host.egress",
@@ -115,7 +115,7 @@ export const RULES: readonly RuleDef[] = [
     windowMinutes: 15,
     severity: "sev3",
     measure: (ctx, w, t) => {
-      const v = analytics.windowStats(ctx.db, "host.net.tx_bps", since(t, w)).avg;
+      const v = analytics.windowStats(ctx, "host.net.tx_bps", since(t, w)).avg;
       return v === null ? null : v / 1e6;
     },
   },
@@ -129,9 +129,9 @@ export const RULES: readonly RuleDef[] = [
     windowMinutes: 30,
     severity: "sev3",
     measure(ctx, w, t) {
-      const now = analytics.windowStats(ctx.db, "api.net.tx_bps", since(t, w)).avg;
+      const now = analytics.windowStats(ctx, "api.net.tx_bps", since(t, w)).avg;
       const hour = Math.floor(t / 3_600_000);
-      const base = analytics.hourlyBaseline(ctx.db, "api.net.tx_bps", hour - 7 * 24, hour - 1);
+      const base = analytics.hourlyBaseline(ctx, "api.net.tx_bps", hour - 7 * 24, hour - 1);
       if (now === null || base.avg === null || base.hours < 24 || base.avg <= 0 || now < 1e6) return null;
       return now / base.avg;
     },
@@ -145,7 +145,7 @@ export const RULES: readonly RuleDef[] = [
     threshold: 200,
     windowMinutes: 15,
     severity: "sev3",
-    measure: (ctx, w, t) => auditActionCount(ctx.db, "account.login_failed", t - w * 60_000) + analytics.presenceWindow(ctx.db, since(t, w)).authFailures,
+    measure: (ctx, w, t) => auditActionCount(ctx.ws, "account.login_failed", t - w * 60_000) + analytics.presenceWindow(ctx, since(t, w)).authFailures,
   },
   {
     key: "ws.abnormal",
@@ -157,7 +157,7 @@ export const RULES: readonly RuleDef[] = [
     windowMinutes: 15,
     severity: "sev3",
     measure: (ctx, w, t) => {
-      const p = analytics.presenceWindow(ctx.db, since(t, w));
+      const p = analytics.presenceWindow(ctx, since(t, w));
       return p.samples ? p.abnormal : null;
     },
   },
@@ -170,7 +170,7 @@ export const RULES: readonly RuleDef[] = [
     threshold: 100,
     windowMinutes: 60,
     severity: "sev3",
-    measure: (ctx, w, t) => signupsSince(ctx.db, t - w * 60_000),
+    measure: (ctx, w, t) => signupsSince(ctx.identity, t - w * 60_000),
   },
   {
     key: "jobs.failing",
@@ -269,7 +269,7 @@ export class AlertEngine {
   }
 
   private overrides(): Map<string, RuleRow> {
-    return new Map((this.ctx.db.prepare("SELECT * FROM alert_rules").all() as RuleRow[]).map((r) => [r.key, r]));
+    return new Map(this.ctx.platform.all<RuleRow>("alert_rules").map((r) => [r.key, r]));
   }
 
   private config(def: RuleDef, o: RuleRow | undefined) {
@@ -278,7 +278,7 @@ export class AlertEngine {
 
   rules(): RuleView[] {
     const o = this.overrides();
-    const states = new Map((this.ctx.db.prepare("SELECT * FROM alert_state").all() as StateRow[]).map((s) => [s.key, s]));
+    const states = new Map(this.ctx.platform.all<StateRow>("alert_state").map((s) => [s.key, s]));
     return RULES.map((def) => {
       const c = this.config(def, o.get(def.key));
       const s = states.get(def.key);
@@ -296,18 +296,13 @@ export class AlertEngine {
   }
 
   /** Changes a rule's settings (the caller audits it). */
-  setRule(key: string, patch: { enabled: boolean; threshold: number; windowMinutes: number; severity: Severity }, actor: string): RuleView {
+  async setRule(key: string, patch: { enabled: boolean; threshold: number; windowMinutes: number; severity: Severity }, actor: string): Promise<RuleView> {
     const def = ruleByKey(key);
     if (!def) throw new ApiError(404, "not_found", "No such alert rule.");
     if (!Number.isFinite(patch.threshold) || patch.threshold < 0) throw new ApiError(400, "invalid_policy", "The threshold is a number, 0 or more.");
     if (!Number.isInteger(patch.windowMinutes) || patch.windowMinutes < 1 || patch.windowMinutes > 1440) throw new ApiError(400, "invalid_policy", "The window is 1–1440 minutes.");
-    this.ctx.db
-      .prepare(
-        `INSERT INTO alert_rules (key, enabled, threshold, window_minutes, severity, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT (key) DO UPDATE SET enabled = excluded.enabled, threshold = excluded.threshold, window_minutes = excluded.window_minutes,
-           severity = excluded.severity, updated_by = excluded.updated_by, updated_at = excluded.updated_at`,
-      )
-      .run(key, patch.enabled ? 1 : 0, patch.threshold, patch.windowMinutes, patch.severity, actor, now());
+    const rule = { enabled: patch.enabled ? 1 : 0, threshold: patch.threshold, window_minutes: patch.windowMinutes, severity: patch.severity, updated_by: actor, updated_at: now() };
+    await this.ctx.platform.write((w) => w.upsert("alert_rules", { key, ...rule }, rule));
     return this.rules().find((r) => r.key === key)!;
   }
 
@@ -325,7 +320,7 @@ export class AlertEngine {
         this.ctx.log.warn({ err: e, rule: def.key }, "alert rule could not be measured");
         value = null;
       }
-      const prev = this.ctx.db.prepare("SELECT * FROM alert_state WHERE key = ?").get(def.key) as StateRow | undefined;
+      const prev = this.ctx.platform.get<StateRow>("alert_state", { key: def.key });
       const wasBreaching = !!prev?.breaching;
       let breaching = wasBreaching;
       if (value !== null) {
@@ -337,47 +332,53 @@ export class AlertEngine {
         incidentId = await this.open(def, c, value!, t);
         changed.push(def.key);
       } else if (!breaching && wasBreaching) {
-        if (incidentId) this.note(incidentId, `Condition cleared: ${fmt(value)} ${def.unit} (threshold ${c.threshold}).`, t);
+        if (incidentId) await this.note(incidentId, `Condition cleared: ${fmt(value)} ${def.unit} (threshold ${c.threshold}).`, t);
         changed.push(def.key);
-      } else if (breaching && incidentId) {
-        this.ctx.db.prepare("UPDATE platform_incidents SET last_seen_at = ? WHERE id = ?").run(t, incidentId);
       }
-      this.ctx.db
-        .prepare(
-          `INSERT INTO alert_state (key, breaching, since, last_value, last_eval_at, incident_id) VALUES (?, ?, ?, ?, ?, ?)
-           ON CONFLICT (key) DO UPDATE SET breaching = excluded.breaching, since = excluded.since, last_value = excluded.last_value,
-             last_eval_at = excluded.last_eval_at, incident_id = excluded.incident_id`,
-        )
-        .run(def.key, breaching ? 1 : 0, breaching ? (wasBreaching ? (prev?.since ?? t) : t) : null, value, t, incidentId);
+      const state = { breaching: breaching ? 1 : 0, since: breaching ? (wasBreaching ? (prev?.since ?? t) : t) : null, last_value: value, last_eval_at: t, incident_id: incidentId };
+      await this.ctx.platform.write((w) => {
+        if (breaching && wasBreaching && incidentId) w.update("platform_incidents", { id: incidentId }, { last_seen_at: t });
+        w.upsert("alert_state", { key: def.key, ...state }, state);
+      });
     }
     return changed;
   }
 
-  private note(incidentId: string, body: string, t: number): void {
-    this.ctx.db.prepare("INSERT INTO platform_incident_events (incident_id, at, actor_account_id, kind, body) VALUES (?, ?, ?, 'note', ?)").run(incidentId, t, ALERT_ACTOR, body);
-    this.ctx.db.prepare("UPDATE platform_incidents SET updated_at = ? WHERE id = ?").run(t, incidentId);
+  private note(incidentId: string, body: string, t: number, lastSeen = false): Promise<void> {
+    return this.ctx.platform.write((w) => {
+      w.insert("platform_incident_events", { incident_id: incidentId, at: t, actor_account_id: ALERT_ACTOR, kind: "note", body });
+      w.update("platform_incidents", { id: incidentId }, lastSeen ? { updated_at: t, last_seen_at: t } : { updated_at: t });
+    });
   }
 
   /** Opens an incident for [def] or, while one from this rule is still unresolved, adds the new breach to it. */
   private async open(def: RuleDef, c: { threshold: number; windowMinutes: number; severity: Severity }, value: number, t: number): Promise<string> {
     const dedupe = `rule:${def.key}`;
-    const existing = this.ctx.db.prepare("SELECT id FROM platform_incidents WHERE dedupe_key = ? AND status != 'resolved' ORDER BY created_at DESC LIMIT 1").get(dedupe) as { id: string } | undefined;
+    const existing = this.ctx.platform.get<{ id: string }>("platform_incidents", { dedupe_key: dedupe, status: { ne: "resolved" } }, [["created_at", "desc"]]);
     const body = `${def.label}: ${fmt(value)} ${def.unit} over ${c.windowMinutes} min (threshold ${c.threshold}).`;
     if (existing) {
-      this.note(existing.id, `Breached again. ${body}`, t);
-      this.ctx.db.prepare("UPDATE platform_incidents SET last_seen_at = ? WHERE id = ?").run(t, existing.id);
+      await this.note(existing.id, `Breached again. ${body}`, t, true);
       return existing.id;
     }
     const id = newId("inc");
-    this.ctx.db.transaction(() => {
-      this.ctx.db
-        .prepare(
-          `INSERT INTO platform_incidents (id, title, severity, status, kind, created_by, created_at, updated_at, service, source, dedupe_key, first_seen_at, last_seen_at)
-           VALUES (?, ?, ?, 'open', 'incident', ?, ?, ?, ?, 'rule', ?, ?, ?)`,
-        )
-        .run(id, def.label, c.severity, ALERT_ACTOR, t, t, def.service, dedupe, t, t);
-      this.ctx.db.prepare("INSERT INTO platform_incident_events (incident_id, at, actor_account_id, kind, body) VALUES (?, ?, ?, 'created', ?)").run(id, t, ALERT_ACTOR, body);
-    })();
+    await this.ctx.platform.write((w) => {
+      w.insert("platform_incidents", {
+        id,
+        title: def.label,
+        severity: c.severity,
+        status: "open",
+        kind: "incident",
+        created_by: ALERT_ACTOR,
+        created_at: t,
+        updated_at: t,
+        service: def.service,
+        source: "rule",
+        dedupe_key: dedupe,
+        first_seen_at: t,
+        last_seen_at: t,
+      });
+      w.insert("platform_incident_events", { incident_id: id, at: t, actor_account_id: ALERT_ACTOR, kind: "created", body });
+    });
     await this.deliver(id, def, body, t);
     return id;
   }
@@ -385,14 +386,14 @@ export class AlertEngine {
   /** Emails the operators when the setting is on; records the real outcome of each send. */
   private async deliver(incidentId: string, def: RuleDef, body: string, t: number): Promise<void> {
     const record = (outcome: "sent" | "failed" | "not_configured", detail: string | null) =>
-      this.ctx.db.prepare("INSERT INTO alert_deliveries (at, incident_id, channel, outcome, detail) VALUES (?, ?, 'email', ?, ?)").run(t, incidentId, outcome, detail);
-    if (!platformSetting(this.ctx.db, "alerts.email")) {
-      record("not_configured", "email alerts are off (platform setting)");
+      this.ctx.platform.write((w) => void w.insert("alert_deliveries", { at: t, incident_id: incidentId, channel: "email", outcome, detail }));
+    if (!platformSetting(this.ctx.platform, "alerts.email")) {
+      await record("not_configured", "email alerts are off (platform setting)");
       return;
     }
     const mailer = this.ctx.accounts.mailer;
     if (!mailer.available) {
-      record("not_configured", "the server has no mail transport");
+      await record("not_configured", "the server has no mail transport");
       return;
     }
     const recipients = this.store.grants().filter((g) => g.revoked_at === null && (g.role === "super_admin" || g.role === "operations_admin"));
@@ -401,9 +402,9 @@ export class AlertEngine {
       if (!a) continue;
       try {
         await mailer.send({ to: a.email, subject: `[Meldiq alert] ${def.label}`, text: `${body}\n\nService: ${def.service}\nOpen the console's Support & Incidents page for incident ${incidentId}.` });
-        record("sent", `to ${g.role}`);
+        await record("sent", `to ${g.role}`);
       } catch (e) {
-        record("failed", (e as { code?: string }).code ?? "send failed");
+        await record("failed", (e as { code?: string }).code ?? "send failed");
       }
     }
   }

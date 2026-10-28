@@ -1,5 +1,9 @@
 import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { MongoClient } from "mongodb";
+import { openDatabase } from "../src/infrastructure/database/db.js";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
 import { describeTables, EXCLUDED_TABLES, indexesFor, TABLE_DOMAINS, validatorFor } from "../src/infrastructure/database/mongo/catalog.js";
 import { domainTables, MeldiqMongo } from "../src/infrastructure/database/mongo/client.js";
@@ -65,8 +69,10 @@ describe("catalog", () => {
     for (const t of all) expect(t in EXCLUDED_TABLES || t in TABLE_DOMAINS).toBe(true);
     expect(tables).toContain("accounts");
     expect(tables).toContain("delivery_queue");
-    // Short-lived security material never goes to MongoDB.
-    for (const t of ["sessions", "auth_challenges", "pairing_requests", "federation_nonces", "schema_migrations"]) expect(tables).not.toContain(t);
+    // Short-lived security material is its own domain (copied at the switch, so nobody is signed out); SQLite's own
+    // bookkeeping never goes to MongoDB.
+    for (const t of ["sessions", "auth_challenges", "pairing_requests", "federation_nonces"]) expect(TABLE_DOMAINS[t]).toBe("ephemeral");
+    expect(tables).not.toContain("schema_migrations");
   });
 
   it("derives validators and indexes from the schema", () => {
@@ -104,6 +110,25 @@ describe("collections", HEAVY, () => {
     await accounts.insertOne({ ...ok, _id: "acc_6", id: "acc_6", email: "d@example.com", user_id: "u_1" });
     await expect(accounts.insertOne({ ...ok, _id: "acc_7", id: "acc_7", email: "e@example.com", user_id: "u_1" })).rejects.toThrow(/duplicate key/i);
   });
+
+  it("are prepared again at start without collMod unless a validator changed (Atlas readWrite can't collMod)", async () => {
+    const m = await connectAll();
+    const tables = describeTables(h.ctx.db);
+    const commands: string[] = [];
+    const command = m.db.command.bind(m.db);
+    m.db.command = ((cmd: Record<string, unknown>, ...rest: unknown[]) => {
+      commands.push(Object.keys(cmd)[0]);
+      return (command as (...a: unknown[]) => unknown)(cmd, ...rest);
+    }) as typeof m.db.command;
+    await m.ensureSchema(tables);
+    expect(commands).not.toContain("collMod");
+    // A validator that differs (an older schema) is still brought up to date.
+    await command({ collMod: "accounts", validator: { $jsonSchema: { bsonType: "object" } } });
+    await m.ensureSchema(tables);
+    expect(commands.filter((c) => c === "collMod")).toHaveLength(1);
+    const [accounts] = await m.db.listCollections({ name: "accounts" }).toArray();
+    expect(JSON.stringify((accounts as { options: { validator: unknown } }).options.validator)).toContain("password_hash");
+  });
 });
 
 describe("migration", HEAVY, () => {
@@ -128,9 +153,14 @@ describe("migration", HEAVY, () => {
 
   it("can run again without duplicating anything", async () => {
     const m = await connectAll();
-    const tables = describeTables(h.ctx.db);
-    const first = await migrateToMongo(h.ctx.db, m, tables);
-    const second = await migrateToMongo(h.ctx.db, m, tables);
+    // A snapshot, as in production: the live test server's timers (telemetry) may write between the two runs.
+    const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "meldiq-mig-")), "snapshot.sqlite");
+    await h.ctx.db.backup(file);
+    const source = openDatabase(file);
+    const tables = describeTables(source);
+    const first = await migrateToMongo(source, m, tables);
+    const second = await migrateToMongo(source, m, tables);
+    source.close();
     expect(second.map((r) => [r.table, r.destCount, r.destChecksum])).toEqual(first.map((r) => [r.table, r.destCount, r.destChecksum]));
     expect(second.every((r) => r.ok)).toBe(true);
   });
@@ -176,9 +206,9 @@ describe("migration", HEAVY, () => {
 describe("rollback (MongoDB back to SQLite)", HEAVY, () => {
   it("restores the domain's tables, including writes made after the cutover", async () => {
     const dbName = testDbName("rb");
-    const m = await MeldiqMongo.connect(cfg(dbName), domainTables(h.ctx.db, ["preferences"]));
+    const m = await MeldiqMongo.connect(cfg(dbName), domainTables(["preferences"]));
     opened.push(m);
-    const tables = domainTables(h.ctx.db, ["preferences"]);
+    const tables = domainTables(["preferences"]);
     await migrateToMongo(h.ctx.db, m, tables);
     // After the cutover a new preference was written to MongoDB only.
     await m.db.collection("nav_preferences").insertOne({
@@ -192,9 +222,9 @@ describe("rollback (MongoDB back to SQLite)", HEAVY, () => {
   });
 
   it("refuses a restore that would leave broken references, and changes nothing", async () => {
-    const m = await MeldiqMongo.connect(cfg(testDbName("rb")), domainTables(h.ctx.db, ["preferences"]));
+    const m = await MeldiqMongo.connect(cfg(testDbName("rb")), domainTables(["preferences"]));
     opened.push(m);
-    const tables = domainTables(h.ctx.db, ["preferences"]);
+    const tables = domainTables(["preferences"]);
     await migrateToMongo(h.ctx.db, m, tables);
     await m.db.collection("nav_preferences").insertOne({
       _id: { user_id: "u_nobody", workspace_id: "personal" } as never, user_id: "u_nobody", workspace_id: "personal",
@@ -210,9 +240,9 @@ describe("authority guards", () => {
   it("refuses to use MongoDB for a domain whose rows are still only in SQLite, then accepts it once migrated", async () => {
     const config = cfg(testDbName("auth"), ["preferences"]);
     await expect(openMongo(config, h.ctx.db)).rejects.toThrow(/still only in SQLite/);
-    const m = await MeldiqMongo.connect(config, domainTables(h.ctx.db, ["preferences"]));
+    const m = await MeldiqMongo.connect(config, domainTables(["preferences"]));
     opened.push(m);
-    await migrateToMongo(h.ctx.db, m, domainTables(h.ctx.db, ["preferences"]));
+    await migrateToMongo(h.ctx.db, m, domainTables(["preferences"]));
     await setAuthority(m, "preferences", "mongodb", "test");
     const ok = await openMongo(config, h.ctx.db);
     expect(await authorityOf(ok, "preferences")).toBe("mongodb");

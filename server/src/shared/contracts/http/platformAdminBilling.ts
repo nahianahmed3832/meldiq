@@ -11,7 +11,7 @@ const zMoney = z.array(z.strictObject({ currency: z.string(), amountMinor: zCoun
 const zPlanKey = z.string().trim().regex(/^[a-z][a-z0-9_-]{1,39}$/, "2 to 40 lower-case letters, digits, - or _, starting with a letter");
 const zCurrency = z.string().trim().regex(/^[A-Za-z]{3}$/, "A three-letter ISO 4217 code like USD").transform((c) => c.toUpperCase());
 
-export const BILLING_STATUS_VALUES = ["incomplete", "trialing", "active", "past_due", "paused", "canceled", "incomplete_expired"] as const;
+export const BILLING_STATUS_VALUES = ["incomplete", "trialing", "active", "past_due", "unpaid", "paused", "canceled", "incomplete_expired"] as const;
 export const BILLING_EVENT_STATUS_VALUES = ["received", "processed", "ignored", "failed", "dead"] as const;
 
 // ───────────── Requests ─────────────
@@ -27,6 +27,8 @@ export const zPlanTerms = z.strictObject({
   graceDays: z.number().int().min(0).max(60),
   limits: z.partialRecord(z.enum(ENTITLEMENT_KEY_VALUES), z.number().int().min(0).max(Number.MAX_SAFE_INTEGER)),
   notes: z.string().trim().max(1000),
+  /** The quota plan (storage and transfer allowances) subscribers are on while the plan grants (API 0.52.0). */
+  quotaPlanId: z.string().trim().min(1).max(64).nullable().optional(),
 });
 
 const zPlanMeta = {
@@ -36,7 +38,8 @@ const zPlanMeta = {
   public: z.boolean(),
 };
 
-export const AdminPlanCreate = z.strictObject({ key: zPlanKey, ...zPlanMeta, terms: zPlanTerms, reason: zReason });
+/** [audience] is fixed at creation (API 0.52.0; default organization): a plan never changes who it is for. */
+export const AdminPlanCreate = z.strictObject({ key: zPlanKey, ...zPlanMeta, audience: z.enum(["personal", "organization"]).optional(), terms: zPlanTerms, reason: zReason });
 export const AdminPlanMeta = z.strictObject({ ...zPlanMeta, reason: zReason });
 export const AdminPlanTerms = z.strictObject({ terms: zPlanTerms, reason: zReason });
 export const AdminBillingPlanParams = z.strictObject({ planId: z.string().min(3).max(64).regex(/^[A-Za-z0-9_-]+$/) });
@@ -64,6 +67,7 @@ const zTermsView = z.strictObject({
   graceDays: zCount,
   limits: z.record(z.string(), zCount),
   notes: z.string(),
+  quotaPlanId: z.string().nullable(),
 });
 
 const zVersion = z.strictObject({
@@ -86,6 +90,7 @@ export const AdminPlan = z.strictObject({
   description: z.string(),
   segment: z.string(),
   public: z.boolean(),
+  audience: z.enum(["personal", "organization"]),
   status: z.enum(["draft", "active", "archived"]),
   createdAt: zTime,
   updatedAt: zTime,
@@ -105,7 +110,9 @@ export const AdminPlans = z.strictObject({ setup: AdminBillingSetup, plans: z.ar
 
 export const AdminSubscriptionSummary = z.strictObject({
   id: z.string(),
-  org: z.strictObject({ id: z.string(), name: z.string().nullable() }),
+  /** Whose subscription: an organization, or a person's account (API 0.52.0). */
+  owner: z.strictObject({ kind: z.enum(["org", "account"]), id: z.string() }),
+  org: z.strictObject({ id: z.string(), name: z.string().nullable() }).nullable(),
   plan: z.strictObject({ key: z.string(), name: z.string(), version: zCount }),
   status: z.enum(BILLING_STATUS_VALUES),
   standing: z.enum(["entitled", "grace", "grace_ended", "not_entitled"]),
@@ -120,7 +127,7 @@ export const AdminSubscriptionsPage = z.strictObject({ subscriptions: z.array(Ad
 
 export const AdminSubscriptionDetail = z.strictObject({
   subscription: AdminSubscriptionSummary.extend({
-    billingUserId: z.string(),
+    billingUserId: z.string().nullable(),
     providerCustomerRef: z.string().nullable(),
     currentPeriodStart: zTime.nullable(),
     trialEnd: zTime.nullable(),

@@ -16,7 +16,11 @@ const post = (c: GriipClient, conv: string, messageId?: string) => c.send(conv, 
 const view = async (c: GriipClient, conv: string) => (await c.req("GET", `/v1/conversations/${conv}`)).conversation;
 /** Moves [who]'s last post in [conv] back by [ms], as if time had passed. */
 const age = (who: GriipClient, conv: string, ms: number) =>
-  h.ctx.db.prepare("UPDATE conversation_members SET last_post_at = last_post_at - ? WHERE conversation_id = ? AND user_id = ?").run(ms, conv, who.userId);
+  h.ctx.ws.write((w) => {
+    const key = { conversation_id: conv, user_id: who.userId };
+    const last = w.get<{ last_post_at: number | null }>("conversation_members", key)?.last_post_at;
+    if (last != null) w.update("conversation_members", key, { last_post_at: last - ms });
+  });
 
 beforeAll(async () => {
   h = await startServer();
@@ -64,12 +68,12 @@ describe("slowmode", () => {
     // Controls (edits, reactions, votes) aren't new messages.
     await member.send(general, { type: "reaction", target: "m_x", emoji: "👍", add: true }, "control");
     // After the interval the next message goes through.
-    age(member, general, 31_000);
+    await age(member, general, 31_000);
     await post(member, general);
   });
 
   it("returns a retry of an accepted message as a duplicate, never as a slowmode refusal", async () => {
-    age(member, general, 31_000);
+    await age(member, general, 31_000);
     const id = crypto.randomUUID();
     await post(member, general, id);
     const again = await post(member, general, id);
@@ -89,7 +93,7 @@ describe("slowmode", () => {
 
   it("turns off", async () => {
     await owner.req("PATCH", `/v1/conversations/${general}`, { slowmodeSec: 0 });
-    age(member, general, 0);
+    await age(member, general, 0);
     await post(member, general);
     await post(member, general);
     expect((await view(member, general)).nextPostAt).toBeNull();

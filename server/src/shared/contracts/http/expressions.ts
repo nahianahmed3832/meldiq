@@ -24,6 +24,11 @@ export const ExpressionView = z.strictObject({
   /** The uploader's display name (null once the account is gone). */
   createdBy: z.string().nullable(),
   createdAt: zTime,
+  /**
+   * Over a limit (API 0.54.0, docs/MOJO.md): "slots", beyond the community's Spark level; "plan", beyond its adder's
+   * plan. Kept and shown in sent messages, not offered for new ones. Absent: usable.
+   */
+  locked: z.enum(["slots", "plan"]).optional(),
 });
 export const ExpressionOnly = z.strictObject({ expression: ExpressionView });
 

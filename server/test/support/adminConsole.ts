@@ -55,8 +55,8 @@ export class AdminBrowser {
   }
 }
 
-export const consoleStore = (h: Harness) => new PlatformAdminStore(h.ctx.db);
-export const consoleAudit = (h: Harness) => new PlatformAudit(h.ctx.db);
+export const consoleStore = (h: Harness) => new PlatformAdminStore(h.ctx.platform, h.ctx.ephemeral);
+export const consoleAudit = (h: Harness) => new PlatformAudit(h.ctx.platform);
 
 /** A verified account (not an admin yet). */
 export async function plainAccount(h: Harness, mailer: MemoryMailer, name: string): Promise<AccountClient> {
@@ -74,7 +74,7 @@ export interface ConsoleAdmin {
 /** Grants [role] as the CLI would and enrols a console passkey; the returned browser holds a fresh session. */
 export async function consoleAdmin(h: Harness, mailer: MemoryMailer, role: string, name = role): Promise<ConsoleAdmin> {
   const account = await plainAccount(h, mailer, name);
-  const code = grantAdmin(consoleStore(h), consoleAudit(h), await h.ctx.accounts.store.accountById(account.accountId), role, CLI_ACTOR, null)!;
+  const code = (await grantAdmin(consoleStore(h), consoleAudit(h), await h.ctx.accounts.store.accountById(account.accountId), role, CLI_ACTOR, null))!;
   const browser = new AdminBrowser(h);
   const passkey = new FakePasskey(ADMIN_HOST, ADMIN_ORIGIN);
   const { options } = await browser.expect(200, "POST", "/admin/v1/auth/enrol/options", { email: account.email, password: account.password, code });

@@ -141,7 +141,8 @@ function checkImage(info: ImageInfo | null, maxW: number, maxH: number, maxFrame
 
 export default async function profileMediaRoutes(app: FastifyInstance, ctx: AppContext) {
   const auth = { preHandler: requireAuth(ctx), config: { rateLimit: { max: 20, timeWindow: "1 minute" } } };
-  const row = (id: string) => ctx.db.prepare("SELECT * FROM users WHERE id = ? AND disabled_at IS NULL").get(id) as (ProfileRow & { avatar_media: string | null; profile_banner: string | null; profile_style: string | null }) | undefined;
+  const row = (id: string) => ctx.identity.get<ProfileRow & { avatar_media: string | null; profile_banner: string | null; profile_style: string | null }>("users", { id, disabled_at: null });
+  const setOwn = (userId: string, fields: Record<string, string | null>) => ctx.identity.write((w) => w.update("users", { id: userId }, { ...fields, updated_at: now() }));
 
   app.put("/v1/users/me/avatar-media", auth, async (req) => {
     const { userId } = me(req);
@@ -162,7 +163,7 @@ export default async function profileMediaRoutes(app: FastifyInstance, ctx: AppC
       media = { kind: "video", rev };
     } else throw badRequest("Animated avatars are GIF or WebP images, or short MP4 or WebM video clips.");
     const previous = avatarMediaOf(row(userId) ?? {});
-    ctx.db.prepare("UPDATE users SET avatar_media = ?, updated_at = ? WHERE id = ?").run(JSON.stringify(media), now(), userId);
+    await setOwn(userId, { avatar_media: JSON.stringify(media) });
     if (previous) {
       await deleteBlobNow(ctx, "profile-photos", avatarBlob(userId, previous.rev));
       if (previous.kind === "video") await deleteBlobNow(ctx, "profile-photos", posterBlob(userId, previous.rev));
@@ -175,7 +176,7 @@ export default async function profileMediaRoutes(app: FastifyInstance, ctx: AppC
   app.delete("/v1/users/me/avatar-media", auth, async (req) => {
     const { userId } = me(req);
     const previous = avatarMediaOf(row(userId) ?? {});
-    ctx.db.prepare("UPDATE users SET avatar_media = NULL, updated_at = ? WHERE id = ?").run(now(), userId);
+    await setOwn(userId, { avatar_media: null });
     if (previous) {
       await deleteBlobNow(ctx, "profile-photos", avatarBlob(userId, previous.rev));
       if (previous.kind === "video") await deleteBlobNow(ctx, "profile-photos", posterBlob(userId, previous.rev));
@@ -199,7 +200,7 @@ export default async function profileMediaRoutes(app: FastifyInstance, ctx: AppC
     const rev = Math.max(now(), (previous?.rev ?? 0) + 1);
     await storePhoto(ctx, bannerBlob(userId, rev), buf);
     const banner: Banner = { kind, rev };
-    ctx.db.prepare("UPDATE users SET profile_banner = ?, updated_at = ? WHERE id = ?").run(JSON.stringify(banner), now(), userId);
+    await setOwn(userId, { profile_banner: JSON.stringify(banner) });
     if (previous) await deleteBlobNow(ctx, "profile-photos", bannerBlob(userId, previous.rev));
     ctx.audit({ actorId: userId, action: "profile.banner", detail: kind });
     announceProfileChange(ctx, userId);
@@ -209,7 +210,7 @@ export default async function profileMediaRoutes(app: FastifyInstance, ctx: AppC
   app.delete("/v1/users/me/profile-banner", auth, async (req) => {
     const { userId } = me(req);
     const previous = bannerOf(row(userId) ?? {});
-    ctx.db.prepare("UPDATE users SET profile_banner = NULL, updated_at = ? WHERE id = ?").run(now(), userId);
+    await setOwn(userId, { profile_banner: null });
     if (previous) {
       await deleteBlobNow(ctx, "profile-photos", bannerBlob(userId, previous.rev));
       announceProfileChange(ctx, userId);
@@ -233,7 +234,7 @@ export default async function profileMediaRoutes(app: FastifyInstance, ctx: AppC
       nameEffect: keep(body.nameEffect, current.nameEffect),
       tagOrgId: keep(body.tagOrgId, current.tagOrgId),
     };
-    ctx.db.prepare("UPDATE users SET profile_style = ?, updated_at = ? WHERE id = ?").run(JSON.stringify(next), now(), userId);
+    await setOwn(userId, { profile_style: JSON.stringify(next) });
     announceProfileChange(ctx, userId);
     return { profileStyle: next };
   });

@@ -1,6 +1,8 @@
 import { z } from "zod/v4";
 import { ERROR_CODES, type ErrorCode } from "../../errors.js";
 import { accountsRoutes } from "./areas/accounts.js";
+import { billingRoutes } from "./areas/billing.js";
+import { mojoRoutes } from "./areas/mojo.js";
 import { communityRoutes } from "./areas/community.js";
 import { conversationsRoutes } from "./areas/conversations.js";
 import { identityRoutes } from "./areas/identity.js";
@@ -11,6 +13,7 @@ import { gifRoutes } from "./gifs.js";
 import { bugReportRoutes } from "./bugReports.js";
 import { historyRoutes } from "./history.js";
 import { messagingRoutes } from "./messaging.js";
+import { serverMessagesRoutes } from "./serverMessages.js";
 import { systemRoutes } from "./system.js";
 import type { RouteContract } from "./route.js";
 
@@ -29,6 +32,7 @@ export const ErrorEnvelope = z.strictObject({
 export const ROUTE_CONTRACTS: readonly RouteContract[] = [
   ...systemRoutes,
   ...messagingRoutes,
+  ...serverMessagesRoutes,
   ...gifRoutes,
   ...bugReportRoutes,
   ...historyRoutes,
@@ -39,4 +43,6 @@ export const ROUTE_CONTRACTS: readonly RouteContract[] = [
   ...organizationsRoutes,
   ...communityRoutes,
   ...conversationsRoutes,
+  ...billingRoutes,
+  ...mojoRoutes,
 ];

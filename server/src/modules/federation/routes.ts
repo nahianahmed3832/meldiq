@@ -86,7 +86,7 @@ export async function federationPeerRoutes(app: FastifyInstance, ctx: AppContext
       fed.checkPeer(peer);
       checked = checkRequest(req.headers, req.method, req.url, bodyHash, fed.serverId, peer);
     }
-    if (!useNonce(ctx.db, checked.nonce, from)) throw new FederationError(401, "replayed", "This request was already received");
+    if (!(await useNonce(ctx.ephemeral, checked.nonce, from))) throw new FederationError(401, "replayed", "This request was already received");
     req.fedPeer = peer;
   };
   const signed = { preHandler: verify };
@@ -96,9 +96,7 @@ export async function federationPeerRoutes(app: FastifyInstance, ctx: AppContext
     const peer = req.fedPeer!;
     if (!fed.lookupLimit.take(peer.serverId)) throw new FederationError(429, "rate_limited", "Too many lookups from your server");
     const { username } = parse(z.object({ username: z.string().trim().toLowerCase().max(24) }), req.query);
-    const u = ctx.db.prepare("SELECT id, privacy FROM users WHERE username = ? AND home_server_id IS NULL AND disabled_at IS NULL").get(username) as
-      | { id: string; privacy: string | null }
-      | undefined;
+    const u = ctx.identity.get<{ id: string; privacy: string | null }>("users", { username, home_server_id: null, disabled_at: null });
     // People who limited who can find them by username aren't found from other servers either.
     const entry = u && privacyOf(u).findByUsername === "everyone" ? fed.entry(u.id) : null;
     if (!entry) return reply.code(404).send({ error: { code: "not_found", message: "No such user" } });
@@ -145,7 +143,7 @@ export async function federationCallRoutes(app: FastifyInstance, ctx: AppContext
 
   // A call this peer hosts changed (ring, updated, ended, …): mirror it and tell our people in it.
   app.post("/fed/v1/calls/event", signed, async (req) => {
-    fed.acceptCallEvent(req.fedPeer!, req.body as never, (convId) => notifyConversation(ctx, convId));
+    await fed.acceptCallEvent(req.fedPeer!, req.body as never, (convId) => notifyConversation(ctx, convId));
     return { ok: true };
   });
 
@@ -157,12 +155,11 @@ export async function federationCallRoutes(app: FastifyInstance, ctx: AppContext
       z.object({ userId: z.string().max(64), deviceId: z.string().max(64), reason: z.enum(["declined", "busy"]).default("declined") }),
       req.body ?? {},
     );
-    const c = loadCall(ctx, id);
+    const c = await loadCall(ctx, id);
     if (!c || c.host_server_id) throw notFound("Call not found");
-    const dev = ctx.db
-      .prepare("SELECT u.home_server_id h, d.revoked_at FROM devices d JOIN users u ON u.id = d.user_id WHERE d.id = ? AND d.user_id = ?")
-      .get(body.deviceId, body.userId) as { h: string | null; revoked_at: number | null } | undefined;
-    if (!dev || dev.h !== peer.serverId || dev.revoked_at) throw new FederationError(403, "not_your_user", "That user or device isn't on your server");
+    const dev = ctx.identity.get<{ revoked_at: number | null }>("devices", { id: body.deviceId, user_id: body.userId });
+    const home = dev && ctx.identity.get<{ home_server_id: string | null }>("users", { id: body.userId })?.home_server_id;
+    if (!dev || home !== peer.serverId || dev.revoked_at) throw new FederationError(403, "not_your_user", "That user or device isn't on your server");
     if (!ctx.authz.isMember(c.conversation_id, body.userId)) throw notFound("Call not found");
     let r: { call: unknown; media?: unknown };
     if (action === "join") r = await actions.join(c, body.userId, body.deviceId);
@@ -171,7 +168,7 @@ export async function federationCallRoutes(app: FastifyInstance, ctx: AppContext
     else if (action === "decline") r = await actions.decline(c, body.userId, body.reason);
     else if (action === "end") r = await actions.end(c, body.userId);
     else r = await actions.leave(c, body.userId, body.deviceId);
-    return { call: fed.callRelayView(loadCall(ctx, id)!), ...(r.media ? { media: r.media } : {}) };
+    return { call: await fed.callRelayView((await loadCall(ctx, id))!), ...(r.media ? { media: r.media } : {}) };
   });
 }
 
@@ -179,7 +176,7 @@ export async function federationClientRoutes(app: FastifyInstance, ctx: AppConte
   const auth = { preHandler: requireAuth(ctx) };
 
   app.get("/v1/federation/info", auth, async (req) => {
-    const u = ctx.db.prepare("SELECT username FROM users WHERE id = ?").get(me(req).userId) as { username: string };
+    const u = ctx.identity.get<{ username: string }>("users", { id: me(req).userId })!;
     return { enabled: true, domain: fed.domain, serverId: fed.serverId, address: `@${fed.address(u.username)}` };
   });
 
@@ -190,7 +187,7 @@ export async function federationClientRoutes(app: FastifyInstance, ctx: AppConte
     const { address } = parse(ResolveQuery, req.query);
     const r = await fed.lookup(address);
     if (r.userId === userId) throw badRequest("That's you");
-    const u = ctx.db.prepare("SELECT * FROM users WHERE id = ?").get(r.userId) as any;
+    const u = ctx.identity.get<any>("users", { id: r.userId });
     if (!u) throw notFound("No one with that address");
     const local = r.local;
     return {

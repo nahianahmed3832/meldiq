@@ -11,10 +11,14 @@ import type { Entitlements } from "../modules/administration/entitlements.js";
 import type { LiveKitService } from "../modules/calls/livekit.js";
 import type { MeldiqMongo } from "../infrastructure/database/mongo/client.js";
 import type { HistoryStore } from "../modules/messaging/history/store.js";
+import type { MessageStore } from "../modules/messaging/store/messageStore.js";
 import type { ReportSealer } from "../modules/organizations/reports/seal.js";
 import type { RelationshipStore } from "../modules/accounts/relationships/store.js";
+import type { CallStore } from "../modules/calls/store.js";
+import type { Rows } from "../infrastructure/database/rows/index.js";
 import type { ReportStore } from "../modules/organizations/reports/store.js";
 import type { PreferenceStore } from "../modules/accounts/preferences/store.js";
+import type { ActivityService } from "../modules/accounts/activity/service.js";
 import type { PushService } from "../modules/notifications/service.js";
 import type { FcmService } from "../modules/notifications/fcm.js";
 import type { Metrics } from "../modules/administration/ops/metrics.js";
@@ -24,7 +28,7 @@ import type { ReminderService } from "../modules/accounts/reminders/service.js";
 import type { BlobStore } from "../infrastructure/storage/index.js";
 import type { Telemetry } from "../modules/telemetry/index.js";
 import type { QuotaEngine } from "../modules/quotas/index.js";
-import type { Billing } from "../modules/billing/index.js";
+import type { Billing, Gifts, Mojo, PlayBilling } from "../modules/billing/index.js";
 
 export interface AppContext {
   db: DB;
@@ -50,11 +54,33 @@ export interface AppContext {
   relay: RelayStore;
   /** Encrypted message history (docs/MESSAGE_HISTORY.md): SQLite, or MongoDB when MONGODB_DOMAINS includes "history". */
   history: HistoryStore;
+  /** Messages stored and served by the server (API 0.57.0, docs/SERVER_MESSAGES.md). */
+  messages: MessageStore;
   /** Reports (batch B4): SQLite, or MongoDB when MONGODB_DOMAINS includes "reports"; their content sealed by [reportSealer]. */
   reports: ReportStore;
   reportSealer: ReportSealer;
   /** Connections, message requests and messaging settings (batch B6): SQLite, or MongoDB with the "relationships" domain. */
   relationships: RelationshipStore;
+  /** What people are playing (API 0.56.0, docs/ACTIVITY_STATUS.md): MongoDB when the server has one, memory otherwise. */
+  activity: ActivityService;
+  /** Calls, their participants and raised hands: SQLite, or MongoDB when MONGODB_DOMAINS includes "calls". */
+  calls: CallStore;
+  /**
+   * Communities and conversations (orgs, members, roles, channels, their members, invitations, audit…): SQLite, or
+   * MongoDB with an in-memory copy when MONGODB_DOMAINS includes "workspace" and "conversations" (app/workspaceRows.ts).
+   */
+  ws: Rows;
+  /**
+   * The rest of the data, one rows store per domain (docs/MONGODB.md › Retiring SQLite): SQLite, or MongoDB with an
+   * in-memory copy when MONGODB_DOMAINS includes it. identity: people and devices; platform: the console, quotas and
+   * telemetry; federation; safety: passkeys, two-step, warnings, bug reports; ephemeral: sessions and other short-lived
+   * sign-in material and samples.
+   */
+  identity: Rows;
+  platform: Rows;
+  fed: Rows;
+  safety: Rows;
+  ephemeral: Rows;
   /** Present when MONGODB_URI is set: the domains in MONGODB_DOMAINS live there (docs/MONGODB.md). */
   mongo?: MeldiqMongo;
   /** Plan-based limits (src/entitlements.ts, docs/PLANS.md): none by default. */
@@ -73,6 +99,14 @@ export interface AppContext {
   quotas: QuotaEngine;
   /** Plans, subscriptions, invoices and provider webhooks (modules/billing, docs/BILLING.md). */
   billing: Billing;
+  /** Meldiq Mojo's perks, Meldiq Spark levels and badges (modules/billing/mojo.ts, docs/MOJO.md). */
+  mojo: Mojo;
+  /** Gifts of Meldiq Mojo (modules/billing/gifts.ts). */
+  gifts: Gifts;
+  /** Google Play purchases for the Android app (API 0.55.0); null when GOOGLE_PLAY_PACKAGE isn't set. */
+  play: PlayBilling | null;
+  /** Display names of users by id (identity), for billing's views. */
+  userNames: (ids: readonly string[]) => Map<string, string>;
   log: FastifyBaseLogger;
   audit: (e: { actorId?: string | null; orgId?: string | null; action: string; target?: string | null; detail?: string | null }) => void;
 }

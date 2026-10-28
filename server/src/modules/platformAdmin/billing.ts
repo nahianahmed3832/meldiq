@@ -40,8 +40,8 @@ export class AdminBilling {
     private readonly audit: PlatformAudit,
   ) {}
 
-  private record(p: AdminPrincipal, action: string, targetType: string, targetId: string, reason: string | null, meta: RequestMeta, detail: Record<string, string | number | boolean | null>) {
-    this.audit.record({
+  private async record(p: AdminPrincipal, action: string, targetType: string, targetId: string, reason: string | null, meta: RequestMeta, detail: Record<string, string | number | boolean | null>): Promise<void> {
+    await this.audit.record({
       action,
       outcome: "success",
       actorAccountId: p.account.id,
@@ -69,8 +69,8 @@ export class AdminBilling {
 
   overview() {
     const t = now();
-    const overrides = orgLimitOverrides(this.ctx.db, t);
-    const names = orgNames(this.ctx.db, [...new Set(overrides.map((o) => o.org_id))]);
+    const overrides = orgLimitOverrides(this.ctx.ws, t);
+    const names = orgNames(this.ctx.ws, [...new Set(overrides.map((o) => o.org_id))]);
     const server = this.ctx.config.entitlements.limits;
     return {
       billing: { available: !!this.ctx.billing.provider, reason: this.ctx.billing.unavailableReason },
@@ -84,21 +84,20 @@ export class AdminBilling {
    * Sets or clears ([null]) an organization's own limits; the change and its before/after are audited together. Setting
    * a limit needs an end date within a year; no end ([expiresAt] null) is a super admin's explicit choice.
    */
-  setLimits(p: AdminPrincipal, orgId: string, limits: Partial<Record<EntitlementKey, number | null>>, expiresAt: number | null | undefined, reason: string, meta: RequestMeta) {
-    if (!orgRecord(this.ctx.db, orgId)) throw notFound("No such workspace or community");
+  async setLimits(p: AdminPrincipal, orgId: string, limits: Partial<Record<EntitlementKey, number | null>>, expiresAt: number | null | undefined, reason: string, meta: RequestMeta) {
+    if (!orgRecord(this.ctx.ws, orgId)) throw notFound("No such workspace or community");
     const t = now();
     const setting = Object.values(limits).some((v) => v !== null && v !== undefined);
     if (setting && expiresAt === undefined) throw new ApiError(400, "bad_request", "Choose when these limits end");
     if (setting && expiresAt === null && p.grant.role !== "super_admin") throw forbidden("Only a super admin may set a limit with no end date");
     if (setting && expiresAt != null && (expiresAt <= t || expiresAt > t + MAX_LIMIT_DAYS * DAY_MS)) throw new ApiError(400, "bad_request", "The end date must be in the next 366 days");
     const before = Object.fromEntries(limitsOf(this.ctx, orgId).filter((l) => l.source === "workspace").map((l) => [l.key, l.limit]));
-    this.ctx.db.transaction(() => {
-      this.ctx.entitlements.setLimits(orgId, `platform:${p.account.id}`, limits, t, expiresAt ?? null, reason);
-      this.record(p, "org.limits", "org", orgId, reason, meta, {
-        ...Object.fromEntries(Object.entries(limits).map(([k, v]) => [k, `${before[k] ?? "default"} -> ${v ?? "default"}`])),
-        ...(setting ? { until: expiresAt === null ? "no end" : new Date(expiresAt!).toISOString() } : {}),
-      });
-    })();
+    // The limits live with the community (possibly MongoDB): recorded once they're set.
+    await this.ctx.entitlements.setLimits(orgId, `platform:${p.account.id}`, limits, t, expiresAt ?? null, reason);
+    await this.record(p, "org.limits", "org", orgId, reason, meta, {
+      ...Object.fromEntries(Object.entries(limits).map(([k, v]) => [k, `${before[k] ?? "default"} -> ${v ?? "default"}`])),
+      ...(setting ? { until: expiresAt === null ? "no end" : new Date(expiresAt!).toISOString() } : {}),
+    });
     return { limits: limitsOf(this.ctx, orgId) };
   }
 
@@ -114,6 +113,7 @@ export class AdminBilling {
       description: plan.description,
       segment: plan.segment,
       public: plan.public === 1,
+      audience: plan.audience,
       status: plan.status,
       createdAt: plan.created_at,
       updatedAt: plan.updated_at,
@@ -142,52 +142,42 @@ export class AdminBilling {
     return this.planView(plan, this.ctx.billing.catalog.subscriberCounts());
   }
 
-  createPlan(p: AdminPrincipal, b: { key: string; terms: PlanTerms; reason: string } & PlanMeta, meta: RequestMeta) {
-    const plan = this.ctx.db.transaction(() => {
-      const created = this.ctx.billing.catalog.create(b.key, b, b.terms, p.account.id, now());
-      this.record(p, "billing.plan_create", "billing_plan", created.id, b.reason, meta, { key: b.key, name: b.name });
-      return created;
-    })();
-    return this.one(plan.id);
+  // Billing's rows (SQLite or MongoDB) and the console's audit are separate stores: each change is made, then recorded.
+  async createPlan(p: AdminPrincipal, b: { key: string; terms: PlanTerms; reason: string } & PlanMeta, meta: RequestMeta) {
+    const created = await this.ctx.billing.catalog.create(b.key, b, b.terms, p.account.id, now());
+    await this.record(p, "billing.plan_create", "billing_plan", created.id, b.reason, meta, { key: b.key, name: b.name });
+    return this.one(created.id);
   }
 
-  updatePlan(p: AdminPrincipal, planId: string, b: PlanMeta & { reason: string }, meta: RequestMeta) {
-    this.ctx.db.transaction(() => {
-      this.ctx.billing.catalog.updateMeta(planId, b, now());
-      this.record(p, "billing.plan_update", "billing_plan", planId, b.reason, meta, { name: b.name, public: b.public });
-    })();
+  async updatePlan(p: AdminPrincipal, planId: string, b: PlanMeta & { reason: string }, meta: RequestMeta) {
+    await this.ctx.billing.catalog.updateMeta(planId, b, now());
+    await this.record(p, "billing.plan_update", "billing_plan", planId, b.reason, meta, { name: b.name, public: b.public });
     return this.one(planId);
   }
 
-  saveDraft(p: AdminPrincipal, planId: string, terms: PlanTerms, reason: string, meta: RequestMeta) {
-    this.ctx.db.transaction(() => {
-      const v = this.ctx.billing.catalog.saveDraft(planId, terms, p.account.id, now());
-      this.record(p, "billing.plan_draft", "billing_plan", planId, reason, meta, {
-        version: v.version,
-        price: `${terms.amountMinor} ${terms.currency}/${terms.interval}`,
-        providerPriceRef: terms.providerPriceRef,
-        limits: JSON.stringify(terms.limits),
-      });
-    })();
+  async saveDraft(p: AdminPrincipal, planId: string, terms: PlanTerms, reason: string, meta: RequestMeta) {
+    const v = await this.ctx.billing.catalog.saveDraft(planId, terms, p.account.id, now());
+    await this.record(p, "billing.plan_draft", "billing_plan", planId, reason, meta, {
+      version: v.version,
+      price: `${terms.amountMinor} ${terms.currency}/${terms.interval}`,
+      providerPriceRef: terms.providerPriceRef,
+      limits: JSON.stringify(terms.limits),
+    });
     return this.one(planId);
   }
 
   /** Publishes the draft for new subscribers. Existing subscribers keep the version they're on. */
-  publish(p: AdminPrincipal, planId: string, reason: string, meta: RequestMeta) {
+  async publish(p: AdminPrincipal, planId: string, reason: string, meta: RequestMeta) {
     const provider = this.ctx.billing.provider;
     if (!provider) throw new ApiError(409, "billing_unavailable", this.ctx.billing.unavailableReason ?? "Billing isn't available");
-    this.ctx.db.transaction(() => {
-      const { published, retired } = this.ctx.billing.catalog.publish(planId, provider.id, p.account.id, now());
-      this.record(p, "billing.plan_publish", "billing_plan", planId, reason, meta, { version: published.version, provider: provider.id, retiredVersion: retired?.version ?? null });
-    })();
+    const { published, retired } = await this.ctx.billing.catalog.publish(planId, provider.id, p.account.id, now());
+    await this.record(p, "billing.plan_publish", "billing_plan", planId, reason, meta, { version: published.version, provider: provider.id, retiredVersion: retired?.version ?? null });
     return this.one(planId);
   }
 
-  archive(p: AdminPrincipal, planId: string, reason: string, meta: RequestMeta) {
-    this.ctx.db.transaction(() => {
-      this.ctx.billing.catalog.archive(planId, now());
-      this.record(p, "billing.plan_archive", "billing_plan", planId, reason, meta, {});
-    })();
+  async archive(p: AdminPrincipal, planId: string, reason: string, meta: RequestMeta) {
+    await this.ctx.billing.catalog.archive(planId, now());
+    await this.record(p, "billing.plan_archive", "billing_plan", planId, reason, meta, {});
     return this.one(planId);
   }
 
@@ -198,7 +188,8 @@ export class AdminBilling {
     const plan = this.ctx.billing.catalog.plan(v.plan_id)!;
     return {
       id: s.id,
-      org: { id: s.org_id, name: names.get(s.org_id) ?? null },
+      owner: { kind: s.owner_kind, id: s.org_id ?? s.account_id! },
+      org: s.org_id ? { id: s.org_id, name: names.get(s.org_id) ?? null } : null,
       plan: { key: plan.key, name: plan.name, version: v.version },
       status: s.status,
       standing: this.ctx.billing.subscriptions.standingOf(s, t),
@@ -212,9 +203,9 @@ export class AdminBilling {
   }
 
   subscriptions(q: { status?: string; plan?: string; org?: string; cursor?: string; limit: number }) {
-    const rows = subscriptionRows(this.ctx.db, { ...q, after: decodeCursor(q.cursor) });
+    const rows = subscriptionRows(this.ctx.billing.rows, { ...q, after: decodeCursor(q.cursor) });
     const { rows: shown, nextCursor } = page(rows, q.limit);
-    const names = orgNames(this.ctx.db, [...new Set(shown.map((s) => s.org_id))]);
+    const names = orgNames(this.ctx.ws, [...new Set(shown.flatMap((s) => (s.org_id ? [s.org_id] : [])))]);
     const t = now();
     return { subscriptions: shown.map((s) => this.summary(s, names, t)), nextCursor };
   }
@@ -223,10 +214,10 @@ export class AdminBilling {
     const s = this.ctx.billing.subscriptions.get(id);
     if (!s) throw notFound("No such subscription");
     const t = now();
-    const names = orgNames(this.ctx.db, [s.org_id]);
+    const names = orgNames(this.ctx.ws, s.org_id ? [s.org_id] : []);
     const v = this.ctx.billing.catalog.version(s.plan_version_id)!;
     const versionOf = (vid: string) => this.ctx.billing.catalog.version(vid)?.version ?? null;
-    const { history, invoices, events } = subscriptionRecords(this.ctx.db, id, DETAIL_ROWS);
+    const { history, invoices, events } = subscriptionRecords(this.ctx.billing.rows, id, DETAIL_ROWS);
     return {
       subscription: {
         ...this.summary(s, names, t),
@@ -253,7 +244,7 @@ export class AdminBilling {
         issuedAt: i.issued_at,
         paidAt: i.paid_at,
       })),
-      limits: limitsOf(this.ctx, s.org_id),
+      limits: s.org_id ? limitsOf(this.ctx, s.org_id) : [],
       events: events.map((e) => ({ id: e.id, type: e.type, status: e.status, receivedAt: e.received_at, lastError: e.last_error })),
     };
   }
@@ -269,7 +260,7 @@ export class AdminBilling {
   // ───────────── Provider events and figures ─────────────
 
   events(q: { status?: string; cursor?: string; limit: number }) {
-    const rows = eventRows(this.ctx.db, { status: q.status, after: decodeCursor(q.cursor), limit: q.limit });
+    const rows = eventRows(this.ctx.billing.rows, { status: q.status, after: decodeCursor(q.cursor), limit: q.limit });
     const { rows: shown, nextCursor } = page(rows, q.limit);
     return {
       events: shown.map((e) => ({
@@ -290,13 +281,13 @@ export class AdminBilling {
     };
   }
 
-  replay(p: AdminPrincipal, eventId: string, reason: string, meta: RequestMeta) {
-    const status = this.ctx.billing.webhooks.replay(eventId);
-    this.record(p, "billing.event_replay", "billing_event", eventId, reason, meta, { status });
+  async replay(p: AdminPrincipal, eventId: string, reason: string, meta: RequestMeta) {
+    const status = await this.ctx.billing.webhooks.replay(eventId);
+    await this.record(p, "billing.event_replay", "billing_event", eventId, reason, meta, { status });
     return { status };
   }
 
   metrics(days: number) {
-    return { setup: this.setup(), ...billingMetrics(this.ctx.db, days, now()), definitions: BILLING_DEFINITIONS };
+    return { setup: this.setup(), ...billingMetrics(this.ctx.billing.rows, days, now()), definitions: BILLING_DEFINITIONS };
   }
 }

@@ -65,7 +65,7 @@ describe("repeating events", () => {
     const m = (await owner.req("POST", `/v1/orgs/${orgId}/meetings`, { roomId: room, title: "Club night", startsAt, endsAt: startsAt + 3_600_000, timeZone: "Asia/Dhaka", repeat: "weekly" })).meeting;
     expect(m.repeat).toBe("weekly");
     await expectStatus(owner.req("POST", `/v1/orgs/${orgId}/meetings`, { roomId: room, title: "x", startsAt, endsAt: startsAt + 1000, timeZone: "UTC", repeat: "daily" }), 400);
-    expect(h.ctx.meetings.rollRepeating(startsAt + 3_600_000 + 1)).toBe(1);
+    expect(await h.ctx.meetings.rollRepeating(startsAt + 3_600_000 + 1)).toBe(1);
     const moved = (await owner.req("GET", `/v1/meetings/${m.id}`)).meeting;
     expect(moved.startsAt).toBe(startsAt + 7 * 86_400_000);
     expect(moved.endsAt - moved.startsAt).toBe(3_600_000);
@@ -74,7 +74,7 @@ describe("repeating events", () => {
     expect(off.repeat).toBeNull();
     // A one-off event stays where it was.
     const once = (await owner.req("POST", `/v1/orgs/${orgId}/meetings`, { roomId: room, title: "Once", startsAt, endsAt: startsAt + 1000, timeZone: "UTC" })).meeting;
-    h.ctx.meetings.rollRepeating(startsAt + 10_000);
+    await h.ctx.meetings.rollRepeating(startsAt + 10_000);
     expect((await owner.req("GET", `/v1/meetings/${once.id}`)).meeting).toMatchObject({ startsAt, repeat: null });
   });
 });
@@ -106,15 +106,15 @@ describe("onboarding questions", () => {
     expect((await member.req("GET", `/v1/orgs/${orgId}/onboarding`)).answered).toEqual([painting]);
     // Answering differently takes back what onboarding gave, and only that.
     expect((await member.req("POST", `/v1/orgs/${orgId}/onboarding/answers`, { optionIds: [looking] })).roleIds).toEqual([]);
-    const held = h.ctx.db.prepare("SELECT COUNT(*) n FROM org_role_members WHERE role_id = ? AND user_id = ?").get(safeRole, member.userId) as { n: number };
+    const held = { n: h.ctx.ws.count("org_role_members", { role_id: safeRole, user_id: member.userId }) };
     expect(held.n).toBe(0);
   });
 
   it("never give a role that gained an admin permission later, and guests don't answer", async () => {
     const q = await member.req("GET", `/v1/orgs/${orgId}/onboarding`);
-    h.ctx.db.prepare("UPDATE org_roles SET permissions = ? WHERE id = ?").run(JSON.stringify(["members.ban"]), safeRole);
+    await h.ctx.ws.write((w) => w.update("org_roles", { id: safeRole }, { permissions: JSON.stringify(["members.ban"]) }));
     expect((await member.req("POST", `/v1/orgs/${orgId}/onboarding/answers`, { optionIds: [q.prompts[0].options[0].id] })).roleIds).toEqual([]);
-    h.ctx.db.prepare("UPDATE org_roles SET permissions = '[]' WHERE id = ?").run(safeRole);
+    await h.ctx.ws.write((w) => w.update("org_roles", { id: safeRole }, { permissions: "[]" }));
     await expectStatus(guest.req("POST", `/v1/orgs/${orgId}/onboarding/answers`, { optionIds: [q.prompts[0].options[0].id] }), 403);
   });
 });

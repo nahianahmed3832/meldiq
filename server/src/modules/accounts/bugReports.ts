@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../../app/context.js";
-import type { DB } from "../../infrastructure/database/db.js";
+import type { RowReader, Rows } from "../../infrastructure/database/rows/index.js";
 import { BugReportBody } from "../../shared/contracts/http/users.js";
 import { ApiError } from "../../shared/errors.js";
 import { parse } from "../../shared/validation/index.js";
@@ -32,19 +32,23 @@ export interface BugReportRow {
 const view = (r: BugReportRow) => ({ id: r.id, summary: r.summary, details: r.details, page: r.page, status: r.status, staffNote: r.staff_note, createdAt: r.created_at, updatedAt: r.updated_at });
 
 /** Whether [userId] has a report staff confirmed or fixed (the Bug Hunter badge). */
-export function isBugHunter(db: DB, userId: string): boolean {
-  return !!db.prepare("SELECT 1 FROM bug_reports WHERE user_id = ? AND status IN ('confirmed', 'fixed') LIMIT 1").get(userId);
+export function isBugHunter(safety: RowReader, userId: string): boolean {
+  return !!safety.get("bug_reports", { user_id: userId, status: { in: ["confirmed", "fixed"] } });
 }
 
-export function setBugStatus(db: DB, id: string, status: BugStatus, note: string | null): boolean {
-  return db.prepare("UPDATE bug_reports SET status = ?, staff_note = COALESCE(?, staff_note), updated_at = ? WHERE id = ?").run(status, note, now(), id).changes === 1;
+export function setBugStatus(safety: Rows, id: string, status: BugStatus, note: string | null): Promise<boolean> {
+  return safety.write((w) => w.update("bug_reports", { id }, { status, ...(note !== null ? { staff_note: note } : {}), updated_at: now() }) === 1);
 }
 
-export function listBugReports(db: DB, status: BugStatus | null, limit = 50): (BugReportRow & { username: string })[] {
-  const where = status ? "WHERE b.status = ?" : "";
-  return db
-    .prepare(`SELECT b.*, u.username FROM bug_reports b JOIN users u ON u.id = b.user_id ${where} ORDER BY b.created_at DESC LIMIT ?`)
-    .all(...(status ? [status, limit] : [limit])) as (BugReportRow & { username: string })[];
+/** Reports newest first, with their reporters' usernames (reports of people no longer here are left out). */
+export function listBugReports(safety: RowReader, identity: RowReader, status: BugStatus | null, limit = 50): (BugReportRow & { username: string })[] {
+  const out: (BugReportRow & { username: string })[] = [];
+  for (const b of safety.all<BugReportRow>("bug_reports", { where: status ? { status } : {}, orderBy: [["created_at", "desc"]] })) {
+    if (out.length >= limit) break;
+    const u = identity.get<{ username: string }>("users", { id: b.user_id });
+    if (u) out.push({ ...b, username: u.username });
+  }
+  return out;
 }
 
 export default async function bugReportRoutes(app: FastifyInstance, ctx: AppContext) {
@@ -54,7 +58,7 @@ export default async function bugReportRoutes(app: FastifyInstance, ctx: AppCont
     const { userId } = me(req);
     const body = parse(BugReportBody, req.body);
     const t = now();
-    const today = (ctx.db.prepare("SELECT COUNT(*) n FROM bug_reports WHERE user_id = ? AND created_at > ?").get(userId, t - 86_400_000) as { n: number }).n;
+    const today = ctx.safety.count("bug_reports", { user_id: userId, created_at: { gt: t - 86_400_000 } });
     if (today >= PER_DAY) throw new ApiError(429, "rate_limited", `You can send up to ${PER_DAY} bug reports a day. Thanks for all of them!`);
     const row: BugReportRow = {
       id: newId("bug"),
@@ -68,9 +72,7 @@ export default async function bugReportRoutes(app: FastifyInstance, ctx: AppCont
       created_at: t,
       updated_at: t,
     };
-    ctx.db
-      .prepare("INSERT INTO bug_reports (id, user_id, summary, details, page, client, status, staff_note, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-      .run(row.id, row.user_id, row.summary, row.details, row.page, row.client, row.status, row.staff_note, row.created_at, row.updated_at);
+    await ctx.safety.write((w) => w.insert("bug_reports", { ...row }));
     ctx.audit({ actorId: userId, action: "bug.report", target: row.id });
     reply.code(201);
     return { report: view(row) };
@@ -78,7 +80,7 @@ export default async function bugReportRoutes(app: FastifyInstance, ctx: AppCont
 
   app.get("/v1/bug-reports", { preHandler: requireAuth(ctx) }, async (req) => {
     const { userId } = me(req);
-    const rows = ctx.db.prepare("SELECT * FROM bug_reports WHERE user_id = ? ORDER BY created_at DESC LIMIT 100").all(userId) as BugReportRow[];
+    const rows = ctx.safety.all<BugReportRow>("bug_reports", { where: { user_id: userId }, orderBy: [["created_at", "desc"]], limit: 100 });
     return { reports: rows.map(view), bugHunter: rows.some((r) => r.status === "confirmed" || r.status === "fixed") };
   });
 }

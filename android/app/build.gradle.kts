@@ -200,6 +200,7 @@ dependencies {
     implementation(libs.firebase.messaging)
     implementation(libs.unifiedpush.connector) { exclude(group = "com.google.crypto.tink", module = "tink") }
     implementation(libs.tink.android)
+    implementation(libs.play.billing.ktx)
     // Message translation on the phone (docs/LANGUAGES.md › Translation): message text never leaves the device; only the
     // language models are downloaded, after the person agrees.
     implementation(libs.mlkit.translate)

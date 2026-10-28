@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Activity status strings (docs/ACTIVITY_STATUS.md). Generated from strings_activity.py. -->
+<resources>
+    <string name="act_playing">正在玩 %1$s</string>
+    <string name="act_just_started">刚刚开始</string>
+    <string name="act_minutes">%1$d 分钟</string>
+    <string name="act_hours">%1$d 小时 %2$d 分钟</string>
+    <string name="act_cd_game">游戏</string>
+    <string name="act_title">活动隐私</string>
+    <string name="act_section">活动</string>
+    <string name="act_row_on">正在分享你在玩的游戏</string>
+    <string name="act_row_off">关闭</string>
+    <string name="act_share">分享我正在玩的游戏</string>
+    <string name="act_share_sub">在你的个人资料、私信和社区成员列表中显示“正在玩……”</string>
+    <string name="act_explain">开启后，Meldiq 在连接期间大约每 30 秒查看一次屏幕上的应用。只会报告游戏：游戏名称和开始时间。其他应用绝不会被保存或发送。能看到你在线状态的人可以看到它，你隐身时绝不显示；关闭游戏或 Meldiq 断开连接时即结束。</string>
+    <string name="act_disclosure_title">允许 Meldiq 查看你正在使用的应用？</string>
+    <string name="act_disclosure_body">为了显示“正在玩……”，Meldiq 需要 Android 的“使用情况访问权限”，以便查看前台运行的应用。Meldiq 仅用它来识别游戏，只把游戏名称和开始时间发送到你的 Meldiq 服务器，绝不收集、存储或分享你使用的其他应用。你可以随时在这里或 Android 的“使用情况访问权限”设置中关闭。</string>
+    <string name="act_disclosure_agree">同意并继续</string>
+    <string name="act_disclosure_cancel">暂不</string>
+    <string name="act_access_off">使用情况访问权限已关闭</string>
+    <string name="act_access_off_sub">在 Android 的“使用情况访问权限”设置中允许 Meldiq，以便识别游戏</string>
+    <string name="act_access_open">打开使用情况访问权限</string>
+    <string name="act_access_on">已允许使用情况访问权限</string>
+    <string name="act_access_on_sub">可随时在 Android 的“使用情况访问权限”设置中移除</string>
+    <string name="act_background">请保持“后台保持连接”开启，这样 Meldiq 才能在你玩游戏时识别游戏</string>
+    <string name="act_server_missing">此服务器暂不支持显示活动。</string>
+    <string name="act_now">现在</string>
+    <string name="act_now_none">当前屏幕上没有游戏</string>
+    <string name="act_games">游戏</string>
+    <string name="act_games_empty">Meldiq 识别到你玩的游戏后会显示在这里。关闭某个游戏即可永不显示。</string>
+    <string name="act_game_shown">对他人显示</string>
+    <string name="act_game_hidden">从不显示</string>
+</resources>

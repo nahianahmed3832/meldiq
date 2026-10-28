@@ -9,6 +9,7 @@ import type { S3Config } from "../infrastructure/storage/s3.js";
 import { type FcmConfig, fcmConfig } from "../modules/notifications/fcm.js";
 import { type AdminConsoleConfig, adminConsoleConfig } from "../modules/platformAdmin/config.js";
 import { type BillingConfig, billingConfig } from "../modules/billing/config.js";
+import { type MojoEnforce, mojoEnforceFrom } from "../modules/billing/mojo.js";
 
 const SEVEN_DAYS_S = 7 * 24 * 3600;
 const MiB = 1024 * 1024;
@@ -91,6 +92,12 @@ export interface Config {
    */
   storage: { backend: StorageBackend; readFallback: StorageBackend | null; s3: S3Config | null };
   /** Encrypted message history kept for each account (docs/MESSAGE_HISTORY.md). */
+  /**
+   * Server-stored messages (API 0.57.0, docs/SERVER_MESSAGES.md). [acceptEncrypted]: whether POST /v1/messages still
+   * takes older apps' end-to-end encrypted envelopes (MESSAGES_ACCEPT_ENCRYPTED=true, for a transition); off by default,
+   * so an app from before the change is told to update.
+   */
+  messages: { acceptEncrypted: boolean };
   history: { enabled: boolean; maxItemsPerUser: number; maxBytesPerUser: number; maxItemBytes: number; tombstoneDays: number; maxTotalBytes: number };
   /**
    * Direct uploads from the app to S3 (2026-10-17). How long an upload URL may be started with, how long an upload may
@@ -120,6 +127,8 @@ export interface Config {
   entitlements: EntitlementConfig;
   /** The billing provider (BILLING_PROVIDER, docs/BILLING.md); none by default, so nothing can be bought. */
   billing: BillingConfig;
+  /** Whether Meldiq Mojo's plan limits are enforced (MOJO_ENFORCE: on, off, or auto = once Mojo is on sale). */
+  mojoEnforce: MojoEnforce;
   /** Product experiments (docs/product/EXPERIMENTS.md): off unless EXPERIMENTS_MODE says otherwise. */
   experiments: ExperimentsConfig;
   /** Content-free daily analytics counts (ANALYTICS_ENABLED=true); off by default. */
@@ -483,6 +492,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     adminConsole: adminConsoleConfig(env, int),
     entitlements: entitlementConfig(env),
     billing: billingConfig(env),
+    mojoEnforce: mojoEnforceFrom(env),
     experiments: experimentsConfig(env),
     analyticsEnabled: (env.ANALYTICS_ENABLED ?? "").trim().toLowerCase() === "true",
     // No upload quotas by default (0: no limit; owner's decision 2026-10-18, UI-003).
@@ -502,6 +512,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       sessionSeconds: Math.min(Math.max(int("DIRECT_UPLOAD_SESSION_SECONDS", 24 * 3600), 600), 7 * 86_400),
       maxPendingPerUser: Math.max(int("DIRECT_UPLOAD_MAX_PENDING_PER_USER", 10), 1),
     },
+    messages: { acceptEncrypted: env.MESSAGES_ACCEPT_ENCRYPTED === "true" },
     history: {
       enabled: env.HISTORY_ENABLED !== "false",
       maxItemsPerUser: Math.max(int("HISTORY_MAX_ITEMS_PER_USER", 500_000), 0),

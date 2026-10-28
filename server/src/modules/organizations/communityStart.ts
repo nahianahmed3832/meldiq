@@ -2,6 +2,7 @@ import type { ConversationRow } from "./authz.js";
 import type { AppContext } from "../../app/context.js";
 import { notifyConversation } from "./orgsRoutes.js";
 import { newId, now } from "../../shared/utilities/util.js";
+import type { RowReader, RowWriter } from "../../infrastructure/database/rows/index.js";
 
 /**
  * The channels a new community starts with, so the first person who joins finds somewhere to go. Each starter
@@ -111,9 +112,9 @@ export function templateList(): { id: TemplateId; categories: { name: string; ch
 }
 
 /** A category at [position] (no notification: the caller notifies once it's done). */
-export function insertCategory(ctx: AppContext, orgId: string, actorId: string, name: string, position: number, t = now()): string {
+export function insertCategory(w: RowWriter, orgId: string, actorId: string, name: string, position: number, t = now()): string {
   const id = newId("cat");
-  ctx.db.prepare("INSERT INTO channel_categories (id, org_id, name, position, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(id, orgId, name, position, actorId, t, t);
+  w.insert("channel_categories", { id, org_id: orgId, name, position, created_by: actorId, created_at: t, updated_at: t });
   return id;
 }
 
@@ -129,47 +130,57 @@ export interface NewChannel {
 
 /**
  * A channel made by [actorId] (its admin). Public and announcement channels are joined by every member who may see them;
- * a private one starts with [actorId] only. Call inside a transaction; the caller notifies.
+ * a private one starts with [actorId] only. Call inside a write unit; the caller notifies.
  */
-export function insertChannel(ctx: AppContext, orgId: string, actorId: string, ch: NewChannel, t = now()): string {
-  const { db, authz } = ctx;
+export function insertChannel(ctx: Pick<AppContext, "authz">, w: RowWriter, orgId: string, actorId: string, ch: NewChannel, t = now()): string {
   const id = newId("c");
   const autoJoin = ch.kind !== "PRIVATE";
-  db.prepare(
-    `INSERT INTO conversations (id, type, org_id, scope, scope_id, kind, name, topic, auto_join, created_by, created_at, updated_at, voice, category_id, position, format)
-     VALUES (?, 'CHANNEL', ?, 'ORG', NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(id, orgId, ch.kind, ch.name, ch.topic, autoJoin ? 1 : 0, actorId, t, t, ch.voice ? 1 : 0, ch.categoryId, ch.position, ch.format);
-  db.prepare("INSERT INTO conversation_members (conversation_id, user_id, role, joined_at) VALUES (?, ?, 'ADMIN', ?)").run(id, actorId, t);
+  w.insert("conversations", {
+    id,
+    type: "CHANNEL",
+    org_id: orgId,
+    scope: "ORG",
+    scope_id: null,
+    kind: ch.kind,
+    name: ch.name,
+    topic: ch.topic,
+    auto_join: autoJoin ? 1 : 0,
+    created_by: actorId,
+    created_at: t,
+    updated_at: t,
+    voice: ch.voice ? 1 : 0,
+    category_id: ch.categoryId,
+    position: ch.position,
+    format: ch.format,
+  });
+  w.insert("conversation_members", { conversation_id: id, user_id: actorId, role: "ADMIN", joined_at: t });
   if (autoJoin) {
-    const conv = authz.conversation(id) as ConversationRow;
-    for (const r of db.prepare("SELECT user_id FROM org_members WHERE org_id = ? AND user_id != ?").all(orgId, actorId) as { user_id: string }[]) {
-      if (authz.scopeEligible(conv, r.user_id)) db.prepare("INSERT OR IGNORE INTO conversation_members (conversation_id, user_id, role, joined_at) VALUES (?, ?, 'MEMBER', ?)").run(id, r.user_id, t);
+    const conv = w.get<ConversationRow>("conversations", { id })!;
+    for (const r of w.all<{ user_id: string }>("org_members", { where: { org_id: orgId, user_id: { ne: actorId } } })) {
+      if (ctx.authz.scopeEligible(conv, r.user_id)) w.insert("conversation_members", { conversation_id: id, user_id: r.user_id, role: "MEMBER", joined_at: t }, { orIgnore: true });
     }
   }
   return id;
 }
 
 /** Channels in a community and in one category, for the limits (CHANNEL_LIMITS). */
-export function channelCounts(ctx: AppContext, orgId: string, categoryId: string | null): { total: number; inCategory: number } {
-  const total = (ctx.db.prepare("SELECT COUNT(*) n FROM conversations WHERE org_id = ? AND type = 'CHANNEL'").get(orgId) as { n: number }).n;
-  const inCategory = categoryId ? (ctx.db.prepare("SELECT COUNT(*) n FROM conversations WHERE category_id = ?").get(categoryId) as { n: number }).n : 0;
+export function channelCounts(rows: RowReader, orgId: string, categoryId: string | null): { total: number; inCategory: number } {
+  const total = rows.count("conversations", { org_id: orgId, type: "CHANNEL" });
+  const inCategory = categoryId ? rows.count("conversations", { category_id: categoryId }) : 0;
   return { total, inCategory };
 }
 
 /** Creates [template]'s categories and channels for a community [ownerId] just made. Returns the channel ids. */
-export function createCommunityStart(ctx: AppContext, orgId: string, ownerId: string, template: TemplateId = "starter"): string[] {
-  const created: string[] = [];
+export async function createCommunityStart(ctx: AppContext, orgId: string, ownerId: string, template: TemplateId = "starter"): Promise<string[]> {
   const t = now();
-  ctx.db.transaction(() => {
-    COMMUNITY_TEMPLATES[template].forEach((group, g) => {
-      const categoryId = insertCategory(ctx, orgId, ownerId, group.category, g, t);
-      group.channels.forEach((ch, i) => {
-        created.push(
-          insertChannel(ctx, orgId, ownerId, { name: ch.name, topic: ch.topic, kind: ch.kind, voice: !!ch.voice, format: ch.format ?? "text", categoryId, position: i }, t),
-        );
-      });
-    });
-  })();
+  const created = await ctx.ws.write((w) =>
+    COMMUNITY_TEMPLATES[template].flatMap((group, g) => {
+      const categoryId = insertCategory(w, orgId, ownerId, group.category, g, t);
+      return group.channels.map((ch, i) =>
+        insertChannel(ctx, w, orgId, ownerId, { name: ch.name, topic: ch.topic, kind: ch.kind, voice: !!ch.voice, format: ch.format ?? "text", categoryId, position: i }, t),
+      );
+    }),
+  );
   for (const id of created) notifyConversation(ctx, id);
   ctx.audit({ actorId: ownerId, orgId, action: "community.start", detail: `${template}: ${created.length} channels` });
   return created;

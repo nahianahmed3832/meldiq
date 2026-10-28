@@ -1,5 +1,6 @@
 import { z } from "zod/v4";
 import { idParams, zCount, zTime } from "./primitives.js";
+import { ActivityWire } from "../realtime.js";
 import { route } from "./route.js";
 import { listMediaFields, UserSummary } from "./users.js";
 
@@ -32,6 +33,8 @@ export const ConversationMember = UserSummary.extend({
   online: z.boolean().nullable(),
   /** Absent when the viewer may not see it; invisible people appear offline. */
   presence: PresenceShown.optional(),
+  /** API 0.56.0: what they're playing, under the same rule as the presence. */
+  activity: ActivityWire.optional(),
   notificationsPaused: z.boolean().nullable(),
   ...listMediaFields,
 });

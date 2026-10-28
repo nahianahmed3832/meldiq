@@ -1,0 +1,21 @@
+{
+  "messages": [
+    {
+      "id": "rRyx7ikjfOyd2nLg",
+      "conversationId": "c_Bj_RdWEZX8Ec35ZJZSuWDw",
+      "senderUserId": "u_oIa0V8qFeRz245OX-z-zYQ",
+      "senderDeviceId": "d_aL9hpWZ90y8oaVk15DRZsA",
+      "cls": "message",
+      "payload": {
+        "type": "text",
+        "text": "hello bob"
+      },
+      "sentAt": 1793206738317,
+      "serverTs": 1793206738321,
+      "mentionAll": false,
+      "importedBy": null
+    }
+  ],
+  "changes": [],
+  "more": false
+}

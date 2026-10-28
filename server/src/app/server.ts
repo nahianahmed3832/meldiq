@@ -12,6 +12,11 @@ import { Accounts } from "../modules/accounts/index.js";
 import type { Mailer } from "../infrastructure/mail/mailer.js";
 import accountRoutes from "../modules/accounts/routes.js";
 import { Authz } from "../modules/organizations/authz.js";
+import { orgMemberIds } from "../modules/organizations/index.js";
+import { openBillingRows } from "./billingRows.js";
+import { openDomainRows } from "./domainRows.js";
+import { Gifts, Mojo, PlayBilling } from "../modules/billing/index.js";
+import { availableUser, blockedEitherWay, namesOf } from "../modules/accounts/index.js";
 import { type Config, effectiveFileMaxBytes } from "./config.js";
 import { federationClientRoutes, federationPeerRoutes } from "../modules/federation/routes.js";
 import { Federation } from "../modules/federation/service.js";
@@ -27,6 +32,9 @@ import { MongoRelationshipStore } from "../modules/accounts/relationships/mongoS
 import { MongoReportStore } from "../modules/organizations/reports/mongoStore.js";
 import { ReportSealer } from "../modules/organizations/reports/seal.js";
 import { SqliteRelationshipStore } from "../modules/accounts/relationships/store.js";
+import { MongoCallStore } from "../modules/calls/mongoStore.js";
+import { SqliteCallStore } from "../modules/calls/store.js";
+import { openWorkspaceRows } from "./workspaceRows.js";
 import { SqliteReportStore } from "../modules/organizations/reports/store.js";
 import reportRoutes from "../modules/organizations/reports/routes.js";
 import applicationRoutes from "../modules/organizations/applicationsRoutes.js";
@@ -42,6 +50,9 @@ import authRoutes from "../modules/auth/routes.js";
 import callRoutes from "../modules/calls/routes.js";
 import conversationRoutes from "../modules/messaging/conversationsRoutes.js";
 import historyRoutes from "../modules/messaging/history/routes.js";
+import serverMessagesRoutes from "../modules/messaging/serverMessagesRoutes.js";
+import { MongoMessageStore } from "../modules/messaging/store/mongoStore.js";
+import { SqliteMessageStore } from "../modules/messaging/store/messageStore.js";
 import messageRoutes from "../modules/messaging/messagesRoutes.js";
 import orgRoutes from "../modules/organizations/orgsRoutes.js";
 import addMembersRoutes from "../modules/organizations/addMembers.js";
@@ -60,6 +71,11 @@ import meetingRoutes from "../modules/calls/meetingsRoutes.js";
 import communityRoutes from "../modules/organizations/communityRoutes.js";
 import { runCommunityMigration } from "../modules/organizations/communityMigration.js";
 import preferenceRoutes from "../modules/accounts/preferences/routes.js";
+import activityRoutes from "../modules/accounts/activity/routes.js";
+import { ActivityService } from "../modules/accounts/activity/service.js";
+import { MemoryActivityStore } from "../modules/accounts/activity/store.js";
+import { MongoActivityStore } from "../modules/accounts/activity/mongoStore.js";
+import { announceActivity } from "../modules/accounts/activity/visibility.js";
 import reminderRoutes from "../modules/accounts/reminders/routes.js";
 import { ReminderService } from "../modules/accounts/reminders/service.js";
 import { FcmService } from "../modules/notifications/fcm.js";
@@ -76,7 +92,7 @@ import { now } from "../shared/utilities/util.js";
 import wsRoutes from "../modules/realtime/ws.js";
 import { Billing, billingRoutes } from "../modules/billing/index.js";
 
-export const VERSION = "0.50.0";
+export const VERSION = "0.57.1";
 /**
  * The client API this server speaks and the oldest client API it accepts. Clients refuse a server whose
  * minClientApi is newer than theirs; servers from before these fields existed count as API 1.
@@ -140,27 +156,62 @@ export async function buildApp(
   const ctx = {
     db,
     config,
-    authz: new Authz(db),
     livekit: config.livekit ? new LiveKitService(config.livekit) : null,
     blobs: createBlobStore(config),
     log: app.log,
     metrics: new Metrics(),
     audit: (e) => {
-      db.prepare("INSERT INTO audit_log (at, actor_id, org_id, action, target, detail) VALUES (?, ?, ?, ?, ?, ?)").run(
-        now(),
-        e.actorId ?? null,
-        e.orgId ?? null,
-        e.action,
-        e.target ?? null,
-        e.detail ?? null,
-      );
+      // Part of the write unit running now, if any (as it was part of the SQLite transaction); its own unit otherwise.
+      ctx.ws
+        .write((w) =>
+          w.insert("audit_log", { at: now(), actor_id: e.actorId ?? null, org_id: e.orgId ?? null, action: e.action, target: e.target ?? null, detail: e.detail ?? null }),
+        )
+        .catch((err) => app.log.error({ err, action: e.action }, "audit: entry not stored"));
     },
   } as AppContext;
   // MongoDB holds the domains in MONGODB_DOMAINS; it refuses to start if that would split a domain between stores.
   if (config.mongo) {
     const mongo = opts.mongo ?? (await openMongo(config.mongo, db, app.log));
     ctx.mongo = mongo;
-    if (!opts.mongo) app.addHook("onClose", async () => mongo.close());
+    // Write units still committing finish first: one cut off mid-transaction would hold its locks until it times out.
+    if (!opts.mongo)
+      app.addHook("onClose", async () => {
+        await ctx.ws?.settled();
+        await ctx.billing?.rows.settled();
+        for (const r of [ctx.identity, ctx.platform, ctx.fed, ctx.safety, ctx.ephemeral]) await r?.settled();
+        await mongo.close();
+      });
+  }
+  // Communities and conversations: authorisation reads them synchronously, wherever they live.
+  ctx.ws = await openWorkspaceRows(db, ctx.mongo, app.log);
+  ctx.authz = new Authz(ctx.ws);
+  ctx.identity = await openDomainRows(db, "identity", ctx.mongo, app.log);
+  ctx.platform = await openDomainRows(db, "platform", ctx.mongo, app.log);
+  ctx.fed = await openDomainRows(db, "federation", ctx.mongo, app.log);
+  ctx.safety = await openDomainRows(db, "safety", ctx.mongo, app.log);
+  ctx.ephemeral = await openDomainRows(db, "ephemeral", ctx.mongo, app.log);
+  // Registered after the MongoDB client's own hook, so it runs before it (onClose hooks run last-in first-out): the rows
+  // stop following other processes' writes while the client is still open.
+  app.addHook("onClose", async () => {
+    for (const r of [ctx.ws, ctx.billing?.rows, ctx.identity, ctx.platform, ctx.fed, ctx.safety, ctx.ephemeral]) {
+      await r?.settled();
+      await r?.close();
+    }
+  });
+  for (const r of [ctx.identity, ctx.platform, ctx.fed, ctx.safety, ctx.ephemeral]) {
+    if (r.backend !== "mongodb") continue;
+    app.addHook("onSend", async (_req, _reply, payload) => {
+      await r.settled();
+      return payload;
+    });
+  }
+  // A response leaves once the units its request queued are durable (audit entries, metering), as when they were part
+  // of SQLite's transaction: a client that reads right after sees them. SQLite's units are durable already.
+  if (ctx.ws.backend === "mongodb") {
+    app.addHook("onSend", async (_req, _reply, payload) => {
+      await ctx.ws.settled();
+      return payload;
+    });
   }
   ctx.relay = ctx.mongo?.owns("relay") ? new MongoRelayStore(ctx.mongo, db, app.log) : new SqliteRelayStore(db);
   ctx.hub = new Hub(ctx.relay, config.abuse.wsMaxSocketsPerDevice, config.presence);
@@ -172,18 +223,68 @@ export async function buildApp(
   ctx.accounts = new Accounts(ctx, { mailer: opts.mailer });
   ctx.prefs = ctx.mongo?.owns("preferences") ? new MongoPreferenceStore(ctx.mongo) : new SqlitePreferenceStore(db);
   ctx.history = ctx.mongo?.owns("history") ? new MongoHistoryStore(ctx.mongo) : new SqliteHistoryStore(db);
+  // Server-stored messages live with message history (the "history" domain).
+  ctx.messages = ctx.mongo?.owns("history") ? new MongoMessageStore(ctx.mongo) : new SqliteMessageStore(db);
   ctx.reports = ctx.mongo?.owns("reports") ? new MongoReportStore(ctx.mongo) : new SqliteReportStore(db);
   ctx.relationships = ctx.mongo?.owns("relationships") ? new MongoRelationshipStore(ctx.mongo) : new SqliteRelationshipStore(db);
+  ctx.calls = ctx.mongo?.owns("calls") ? new MongoCallStore(ctx.mongo) : new SqliteCallStore(db);
+  // API 0.56.0: new data, so MongoDB whenever the server has one (no domain to migrate).
+  const activityStore = ctx.mongo ? new MongoActivityStore(ctx.mongo) : new MemoryActivityStore();
+  if (activityStore instanceof MongoActivityStore) await activityStore.ensureIndexes();
+  ctx.activity = new ActivityService(activityStore, app.log);
+  ctx.activity.onChange = (userId) => announceActivity(ctx, userId);
+  await ctx.activity.start();
+  app.addHook("onClose", async () => ctx.activity.stop());
   ctx.reportSealer = ReportSealer.load(process.env, config.dataDir);
-  ctx.billing = new Billing(db, config.billing, app.log);
+  // Billing (plans, subscriptions, Meldiq Spark, gifts): rows in SQLite, or MongoDB when MONGODB_DOMAINS includes it.
+  ctx.billing = new Billing(await openBillingRows(db, ctx.mongo, app.log), config.billing, app.log, Date.now, (id) => ctx.quotas.planExists(id));
+  if (ctx.billing.rows.backend === "mongodb") {
+    app.addHook("onSend", async (_req, _reply, payload) => {
+      await ctx.billing.rows.settled();
+      return payload;
+    });
+  }
+  // Entitlement changes reach every signed-in device at once (they also refresh on their own): the account's own
+  // sessions for a personal subscription, every member for an organization's.
+  ctx.userNames = (ids) => new Map(namesOf(ctx.identity, ids).map((u) => [u.id, u.displayName]));
+  ctx.mojo = new Mojo(ctx.billing, ctx.billing.rows, {
+    isMember: (orgId, userId) => !!ctx.authz.orgRole(orgId, userId),
+    enforce: config.mojoEnforce,
+    // Mojo on sale in Google Play counts as on sale (MOJO_ENFORCE=auto).
+    storeOnSale: () => ctx.play?.onSale() ?? false,
+    notifyOrg: (orgId) => ctx.hub.sendToUsers(orgMemberIds(ctx.ws, orgId), { t: "entitlements.changed", scope: "org", orgId }),
+  });
+  ctx.gifts = new Gifts(
+    ctx.billing,
+    ctx.billing.rows,
+    {
+      // A local, enabled person who hasn't blocked the buyer (nor been blocked by them): the same answer for anyone else.
+      canReceive: (recipient, buyer) => {
+        const u = availableUser(ctx, recipient);
+        return !!u && u.home_server_id === null && !(buyer && blockedEitherWay(ctx, recipient, buyer));
+      },
+      notify: (userId) => ctx.hub.sendToUser(userId, { t: "entitlements.changed", scope: "account" }),
+    },
+    app.log,
+  );
+  ctx.billing.webhooks.payments = ctx.gifts;
+  ctx.play = config.billing.play ? new PlayBilling(ctx.billing, ctx.gifts, config.billing.play, app.log) : null;
+  ctx.billing.onChange = (owner) => {
+    if (owner.kind === "org") ctx.hub.sendToUsers(orgMemberIds(ctx.ws, owner.orgId), { t: "entitlements.changed", scope: "org", orgId: owner.orgId });
+    else {
+      const userIds = new Set([...ctx.billing.subscriptions.ownerUserIds(owner.accountId), ...ctx.billing.grants.userIdsOf(owner.accountId)]);
+      for (const userId of userIds) ctx.hub.sendToUser(userId, { t: "entitlements.changed", scope: "account" });
+    }
+  };
   // A workspace's subscription adds its plan's limits between operator overrides and server-wide limits.
-  ctx.entitlements = new Entitlements(config.entitlements, db, (orgId, t) => ctx.billing.subscriptions.planLimits(orgId, t));
-  ctx.usage = new UsageMeter(db, ctx.files);
-  ctx.quotas = new QuotaEngine(db);
+  ctx.entitlements = new Entitlements(config.entitlements, { db, rows: ctx.ws }, (orgId, t) => ctx.billing.subscriptions.planLimits(orgId, t));
+  ctx.usage = new UsageMeter(ctx.identity, ctx.ws, ctx.files, ctx.calls);
+  ctx.quotas = new QuotaEngine(ctx.platform, Date.now, (scope, t) => ctx.billing.quotaPlanFor(scope, t));
   // AI and AI Workforce were removed in API 0.47.0 (docs/AI_REMOVAL.md): their tables stay, unread.
   // Activity, traffic, concurrency and resources (docs/ANALYTICS_DEFINITIONS.md): written once a minute.
   ctx.telemetry = new Telemetry(ctx);
-  ctx.telemetry.recordVersion(VERSION);
+  await ctx.telemetry.init();
+  await ctx.telemetry.recordVersion(VERSION);
   if (config.telemetryTickMs > 0) ctx.telemetry.start(config.telemetryTickMs);
   app.addHook("onClose", async () => ctx.telemetry.stop());
   ctx.reminders = new ReminderService(ctx);
@@ -193,9 +294,12 @@ export async function buildApp(
   ctx.meetings = new MeetingService(ctx);
   ctx.meetings.start(config.workflowTickMs > 0 ? 30_000 : 0);
   app.addHook("onClose", async () => ctx.meetings.stop());
-  // Branches and teams become roles and categories once (docs/COMMUNITY_REBUILD_2026-10-21.md §6); idempotent.
-  const migrated = runCommunityMigration(ctx);
-  if (migrated.converted > 0) app.log.info({ ...migrated }, "community migration converted branches and teams");
+  // Branches and teams become roles and categories once (docs/COMMUNITY_REBUILD_2026-10-21.md §6); idempotent. A
+  // conversion of SQLite's data: with communities in MongoDB it ran long before, and SQLite's copy is left alone.
+  if (ctx.ws.backend === "sqlite") {
+    const migrated = runCommunityMigration(ctx);
+    if (migrated.converted > 0) app.log.info({ ...migrated }, "community migration converted branches and teams");
+  }
 
   if (config.fcm && !config.push) ctx.hub.onQueuedOffline = (deviceId) => ctx.fcm?.queued(deviceId);
   if (config.trustProxy === true) {
@@ -204,7 +308,7 @@ export async function buildApp(
   if (config.federation) ctx.federation = new Federation(ctx, config.federation);
   if (config.fcm) {
     // Firebase wake-ups (docs/PUSH_FCM.md) beside UnifiedPush; the hub's hooks call both (set before UnifiedPush's).
-    const fcm = new FcmService(db, ctx.hub, config.fcm, app.log);
+    const fcm = new FcmService(ctx.identity, ctx.hub, config.fcm, app.log);
     fcm.metrics = ctx.metrics;
     ctx.fcm = fcm;
     app.addHook("preClose", (done) => {
@@ -232,7 +336,7 @@ export async function buildApp(
     ctx.metrics.recordRequest(req.method, req.routeOptions?.url ?? "unmatched", reply.statusCode, reply.elapsedTime);
     ctx.telemetry.onResponse(req, reply);
     // Requests per person per day (docs/QUOTAS.md): observed and warned only, and only once an operator governs it.
-    if (req.auth && ctx.quotas.hasPolicies("api.requests")) ctx.quotas.charge("api.requests", scopesFor(req.auth.userId, null), 1);
+    if (req.auth && ctx.quotas.hasPolicies("api.requests")) await ctx.quotas.charge("api.requests", scopesFor(req.auth.userId, null), 1);
   });
 
   // Attachment uploads are streamed to disk by their route (size and quota enforced while reading),
@@ -340,7 +444,7 @@ export async function buildApp(
     passkeys: ctx.accounts.passkeys.available ? { webOrigins: ctx.accounts.passkeys.webOrigins } : null,
   }));
 
-  for (const r of [authRoutes, userRoutes, profileMediaRoutes, gifRoutes, bugReportRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, expressionRoutes, discordRoutes, wsRoutes]) {
+  for (const r of [authRoutes, userRoutes, profileMediaRoutes, gifRoutes, bugReportRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, serverMessagesRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, activityRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, expressionRoutes, discordRoutes, wsRoutes]) {
     await app.register(async (scope) => r(scope, ctx));
   }
   await app.register(async (scope) => opsRoutes(scope, ctx, VERSION));
@@ -467,8 +571,14 @@ export function serverFeatures(config: Config, directUploads = false): string[] 
     "account-standing",
     "bug-reports",
     "profile-links",
+    // API 0.56.0: what people are playing, reported by the Android app after they opt in (docs/ACTIVITY_STATUS.md).
+    "activity-status",
     // API 0.50.0: folders of communities on the rail, in the personal preferences (railFolders).
     "rail-folders",
+    // API 0.54.0 (docs/MOJO.md): Meldiq Mojo's catalog and perks, Meldiq Spark levels, gifts and badges.
+    "mojo",
+    // API 0.57.0 (docs/SERVER_MESSAGES.md): messages stored and served by the server (/v2/messages).
+    "server-messages",
   ];
   if (config.accounts.legacy.migration) f.push("legacy-migration");
   if (directUploads) f.push("direct-upload");

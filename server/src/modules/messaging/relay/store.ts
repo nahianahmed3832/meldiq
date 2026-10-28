@@ -16,7 +16,8 @@ export interface QueueItemRow {
   /** Increasing: a device receives and acknowledges its items in id order. */
   id: number;
   recipient_device_id: string;
-  kind: "envelope" | "receipt";
+  /** "message": a stored message or change (API 0.57.0); "envelope": an older app's encrypted one. */
+  kind: "envelope" | "receipt" | "message";
   conversation_id: string;
   message_id: string;
   sender_user_id: string;
@@ -59,11 +60,9 @@ export interface RelayStore {
   submission(messageId: string): Promise<Submission | null>;
   /**
    * Records [sub] and queues [items] (one per recipient device) atomically. Throws DuplicateSubmission when the id is
-   * already taken. Returns the stored items, ids assigned. [sqliteSteps]: what else the acceptance changes in SQLite
-   * (conversation times, @everyone records, the federation outbox): the SQLite store runs it in the same transaction;
-   * the MongoDB store in its own SQLite transaction right after its commit.
+   * already taken. Returns the stored items, ids assigned.
    */
-  accept(sub: Submission, items: QueueInsert[], sqliteSteps?: () => void): Promise<QueueItemRow[]>;
+  accept(sub: Submission, items: QueueInsert[]): Promise<QueueItemRow[]>;
   /** Queues items that may already be there (receipts, federated deliveries): an existing one is skipped, not returned. */
   enqueue(items: QueueInsert[]): Promise<QueueItemRow[]>;
   /** A device's items that haven't expired, in id order. */
@@ -96,7 +95,7 @@ export class SqliteRelayStore implements RelayStore {
     return (this.db.prepare("SELECT * FROM submitted_messages WHERE message_id = ?").get(messageId) as Submission | undefined) ?? null;
   }
 
-  async accept(sub: Submission, items: QueueInsert[], sqliteSteps?: () => void): Promise<QueueItemRow[]> {
+  async accept(sub: Submission, items: QueueInsert[]): Promise<QueueItemRow[]> {
     const ins = this.insert();
     return this.db.transaction(() => {
       const taken = this.db
@@ -105,9 +104,7 @@ export class SqliteRelayStore implements RelayStore {
         )
         .run(sub.message_id, sub.sender_device_id, sub.sender_user_id, sub.conversation_id, sub.recipient_count, sub.server_ts, sub.expires_at);
       if (taken.changes === 0) throw new DuplicateSubmission(sub.message_id);
-      const rows = items.map((i) => ins(i)).filter((r): r is QueueItemRow => r !== undefined);
-      sqliteSteps?.();
-      return rows;
+      return items.map((i) => ins(i)).filter((r): r is QueueItemRow => r !== undefined);
     })();
   }
 
@@ -129,7 +126,7 @@ export class SqliteRelayStore implements RelayStore {
 
   async hasEnvelopeSince(deviceId: string, since: number, now: number): Promise<boolean> {
     return !!this.db
-      .prepare("SELECT 1 FROM delivery_queue WHERE recipient_device_id = ? AND kind = 'envelope' AND created_at >= ? AND expires_at > ? LIMIT 1")
+      .prepare("SELECT 1 FROM delivery_queue WHERE recipient_device_id = ? AND kind IN ('envelope', 'message') AND created_at >= ? AND expires_at > ? LIMIT 1")
       .get(deviceId, since, now);
   }
 
@@ -143,7 +140,7 @@ export class SqliteRelayStore implements RelayStore {
   async stats(): Promise<RelayStats> {
     const r = this.db
       .prepare(
-        "SELECT SUM(kind = 'envelope') AS envelopes, SUM(kind = 'receipt') AS receipts, MIN(created_at) AS oldest FROM delivery_queue",
+        "SELECT SUM(kind <> 'receipt') AS envelopes, SUM(kind = 'receipt') AS receipts, MIN(created_at) AS oldest FROM delivery_queue",
       )
       .get() as { envelopes: number | null; receipts: number | null; oldest: number | null };
     return { envelopes: r.envelopes ?? 0, receipts: r.receipts ?? 0, oldestCreatedAt: r.oldest };
