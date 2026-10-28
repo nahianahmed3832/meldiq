@@ -130,6 +130,26 @@ Passkeys failed in the app installed from Google Play: Play signs it with its ap
 
 Rollback: copy the backup's `.env` back and recreate `api` the same way.
 
+### API 0.57.0/0.57.1 and web ec92ad3: messages stored and served by the server, the floating redesign's second round, Meldling art (2026-10-28, 18:45 and 18:53 UTC, owner's go-ahead: "after finished deploy for production and push to github by my name")
+
+Branch `release-0.57.0`: `server-messages` (docs/SERVER_MESSAGES.md) and `mongo-finish` 1977da1 merged onto
+`release-0.56.0` (c2d6252), then 0.57.1 (b8d01f7: uploaded history never counts as unread). Web `floating-redesign`
+ec92ad3 (fixtures 962eb80).
+
+| Step | Result |
+|---|---|
+| Tests | server: SQLite 1128 passed, the 4 MongoDB-heavy tests that timed out under load passed alone; new features with production's `MONGODB_DOMAINS` and with every domain in MongoDB 75/75; web: unit 550, integration 160/160, browser suite (desktop and phone) passed, one flaky language test passed on rerun, calls with the native peer 17 passed |
+| Pre-checks | `checkReferences` accepts production's `MONGODB_DOMAINS`; validators and indexes for production's MongoDB domains identical to 0.56.0's except the new `message_events` collection (created, no `collMod`) |
+| Backup | `backups/pre-0.57.0-20261028T184227Z`: integrity ok, schema 65, 43 users, `.env`/`compose.yaml` copies; image tagged `0.56.0-rollback`; sources kept as `server.pre-0.57.0`. Again before 0.57.1: `backups/pre-0.57.1-20261028T185220Z`, image `0.57.0-rollback` |
+| Rehearsal | backup copy, `--network none`, MongoDB and FCM settings left out: healthy 0.57.0, integrity ok, 43 users, 165 conversations; the 17,873 queued deliveries and the queue's id sequence kept through 066's rebuild; removed after |
+| Switch | `compose.yaml` image 0.57.0 at 18:45:19 (healthy 18:45:31), then 0.57.1 at 18:53:35 (healthy 18:53:43); `.env` unchanged (`MESSAGES_ACCEPT_ENCRYPTED` unset: apps from before 0.57.0 get `426 update_required` when they send) |
+| Checks after | `/healthz` 0.57.1 `mongodb: true` on msg.meldiq.app and msg.griipbuddy.cloud; features include `server-messages`, `activity-status`, `mojo`; `verify.sh` 0 restarts; 0 warn/error log lines |
+| Web | release 0.5.0-beta-ec92ad3 (macOS `._*` files removed from the unpacked release before installing), same install settings; nginx headers, site and media snippet unchanged; `verify.sh` all passed (API through the origin, realtime 101); on the owner's account the browser uploaded its old history (`/v2/messages/import` 200) and the lists show it from the server |
+
+Rollback: `compose.yaml` image `0.57.0-rollback` (or `0.56.0-rollback`; 066 is additive, 0.56.0 ignores `message_events`,
+but messages sent meanwhile through `/v2` aren't visible to 0.56.0 apps); `up -d --no-deps --no-build --force-recreate
+api`. Web: `bash /root/meldiq-web-0.5.0-beta-ec92ad3/rollback.sh`.
+
 ### API 0.56.0: activity status ("Playing …") and Google Play Billing's server side (2026-10-28, 18:19 UTC, owner's go-ahead: "marge and deploy to production without test, i will manually test later")
 
 Branch `release-0.56.0`: production's `subscriptions-api` (f2c7c59, 0.54.0) with `activity-status` merged, which carries
