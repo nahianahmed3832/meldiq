@@ -2,7 +2,8 @@ import crypto from "node:crypto";
 import { DAY_MS, HOUR_MS, networkKey, openRegistrationsToday, SlidingWindow } from "../../app/middleware/abuse.js";
 import type { AppContext } from "../../app/context.js";
 import { canonical, verifyEd25519 } from "../../shared/utilities/crypto.js";
-import { consumeInviteUse, findOrgInvite, findRegistrationInvite, returnInviteUse } from "../organizations/invites.js";
+import { consumeInviteUse, consumeRegistrationInvite, findOrgInvite, findRegistrationInvite, returnInviteUse } from "../organizations/invites.js";
+import type { RowWriter } from "../../infrastructure/database/rows/index.js";
 import { ApiError } from "../../shared/errors.js";
 import { humanCode, newId, normalizeCode, now, sha256Hex } from "../../shared/utilities/util.js";
 import type { Mailer } from "../../infrastructure/mail/mailer.js";
@@ -10,7 +11,7 @@ import { mailTexts } from "../../infrastructure/mail/mailer.js";
 import { burnPasswordCheck, hashPassword, needsRehash, PASSWORD_PROBLEMS, passwordProblem, verifyPassword } from "./passwords.js";
 import type { LoginBody, RegisterBody } from "../../shared/contracts/http/accounts.js";
 import { type IssuedSession, sessionEnded, SessionService } from "./sessions.js";
-import type { AccountRow, AccountStore, ActiveSession, CodePurpose } from "./store.js";
+import type { AccountRow, AccountStore, ActiveSession, Admission as StoreAdmission, CodePurpose } from "./store.js";
 
 const MINUTE_MS = 60_000;
 const VERIFY_CODE_DIGITS = 6;
@@ -78,7 +79,7 @@ export interface AccountView {
 export class AccountService {
   readonly sessions: SessionService;
   /** API 0.46.0: two-step sign-in, checked after the password (accounts/totp.ts); set by Accounts. */
-  secondFactor: ((accountId: string, code: string | undefined) => void) | null = null;
+  secondFactor: ((accountId: string, code: string | undefined) => Promise<void>) | null = null;
   private readonly codesSent = new SlidingWindow(CODES_PER_HOUR, HOUR_MS);
   private readonly notices = new SlidingWindow(NOTICES_PER_HOUR, HOUR_MS);
   private readonly codeRequests: SlidingWindow;
@@ -108,7 +109,7 @@ export class AccountService {
 
   view(a: AccountRow): AccountView {
     const u = a.user_id
-      ? (this.ctx.db.prepare("SELECT id, username, identity_key FROM users WHERE id = ?").get(a.user_id) as { id: string; username: string; identity_key: string } | undefined)
+      ? this.ctx.identity.get<{ id: string; username: string; identity_key: string }>("users", { id: a.user_id })
       : undefined;
     return {
       id: a.id,
@@ -141,7 +142,7 @@ export class AccountService {
   }
 
   private findAdmission(code: string): Admission | null {
-    const reg = findRegistrationInvite(this.ctx.db, code);
+    const reg = findRegistrationInvite(this.ctx.identity, code);
     if (reg) return { kind: "registration-invite", id: reg.id };
     const org = findOrgInvite(this.ctx.ws, this.ctx.authz, code);
     return org ? { kind: "org-invite", id: org.id } : null;
@@ -152,10 +153,9 @@ export class AccountService {
    * can't share an invite's last use. An organisation invite's use is reserved now; the person joins its organisation
    * when their encryption identity is made (identity.ts).
    */
-  private consumeAdmission(code: string): string {
-    const reg = findRegistrationInvite(this.ctx.db, code);
-    if (!reg) throw new ApiError(403, "invalid_invite", "This invitation code is invalid, expired or already used");
-    this.ctx.db.prepare("UPDATE registration_invites SET uses = uses + 1 WHERE id = ?").run(reg.id);
+  private consumeAdmission(w: RowWriter, code: string): string {
+    const reg = findRegistrationInvite(w, code);
+    if (!reg || !consumeRegistrationInvite(w, reg.id)) throw new ApiError(403, "invalid_invite", "This invitation code is invalid, expired or already used");
     return `registration-invite:${reg.id}`;
   }
 
@@ -174,10 +174,12 @@ export class AccountService {
   }
 
   /** Gives back the use [consumeAdmission] took ("<kind>:<id>") when the account couldn't be made after all. */
-  private returnAdmission(admittedVia: string): void {
+  private returnAdmission(w: RowWriter | null, admittedVia: string): void {
     const [kind, id] = [admittedVia.slice(0, admittedVia.indexOf(":")), admittedVia.slice(admittedVia.indexOf(":") + 1)];
     if (kind === "registration-invite") {
-      this.ctx.db.prepare("UPDATE registration_invites SET uses = uses - 1 WHERE id = ? AND uses > 0").run(id);
+      // Given back in the account store's identity unit ([w]); it's only ever taken there.
+      const inv = w?.get<{ uses: number }>("registration_invites", { id });
+      if (w && inv && inv.uses > 0) w.update("registration_invites", { id }, { uses: inv.uses - 1 });
       return;
     }
     // Called from the account store's own step (synchronous): the give-back is its own write unit.
@@ -249,23 +251,26 @@ export class AccountService {
     let taken: string | null = null;
     const reserved = admission?.kind === "org-invite" && code ? await this.reserveOrgInvite(code) : null;
     let givenBack = false;
-    const giveBack = (via: string) => {
+    const giveBack = (w: RowWriter | null, via: string) => {
       if (givenBack) return;
       givenBack = true;
-      this.returnAdmission(via);
+      this.returnAdmission(w, via);
     };
-    const take = admission && code ? { take: () => (taken = reserved ?? this.consumeAdmission(code)), undo: () => taken && giveBack(taken) } : null;
+    const take: StoreAdmission | null =
+      admission && code
+        ? { take: (w) => (taken = reserved ?? this.consumeAdmission(w, code)), undo: (w) => void (taken && giveBack(w, taken)) }
+        : null;
     let created: Awaited<ReturnType<typeof this.store.createAccount>>;
     try {
       created = await this.store.createAccount(account, take);
     } catch (e) {
       // The org invite's use was reserved outside the account's own transaction: give it back here.
-      if (reserved) giveBack(reserved);
+      if (reserved) giveBack(null, reserved);
       throw e;
     }
     // A parallel sign-up for the same address won the race (this one's invite use was given back): same answer.
     if (!created) {
-      if (reserved) giveBack(reserved);
+      if (reserved) giveBack(null, reserved);
       return;
     }
     this.ctx.audit({ action: "account.register", target: created.id, detail: created.admitted_via });
@@ -406,7 +411,7 @@ export class AccountService {
       throw invalidCredentials();
     }
     await this.checkPassword(a, body.password, ip, reply);
-    this.secondFactor?.(a.id, body.totpCode);
+    await this.secondFactor?.(a.id, body.totpCode);
     return this.finishLogin(a, body, "password");
   }
 
@@ -433,17 +438,17 @@ export class AccountService {
     if (a.disabled_at) throw sessionEnded("account_disabled");
     if (!a.email_verified_at) throw new ApiError(403, "email_unverified", "Verify your email first: enter the code we sent you.", { email: a.email });
     if (a.user_id) {
-      const user = this.ctx.db.prepare("SELECT disabled_at FROM users WHERE id = ?").get(a.user_id) as { disabled_at: number | null } | undefined;
+      const user = this.ctx.identity.get<{ disabled_at: number | null }>("users", { id: a.user_id });
       if (user?.disabled_at) throw sessionEnded("account_disabled");
     }
-    const deviceId = body.device ? this.provenDevice(a, body.device) : null;
+    const deviceId = body.device ? await this.provenDevice(a, body.device) : null;
     const issued = await this.sessions.issue(a.id, body.deviceName ?? "Meldiq app", deviceId, now());
     const detail = [via === "passkey" ? "passkey" : null, deviceId ? "device" : null].filter(Boolean).join(",") || null;
     this.ctx.audit({ actorId: a.user_id, action: "account.login", target: issued.session.id, detail });
     // Signed-in sessions per person (docs/QUOTAS.md): observed and warned only; signing in is never refused by a quota.
     if (a.user_id && this.ctx.quotas?.hasPolicies("sessions.active")) {
       const open = (await this.store.activeSessions(a.id, now())).length;
-      this.ctx.quotas.check("sessions.active", [{ type: "user", id: a.user_id }], 0, { measured: { user: open } });
+      await this.ctx.quotas.check("sessions.active", [{ type: "user", id: a.user_id }], 0, { measured: { user: open } });
     }
     return this.respond(issued, (await this.store.accountById(a.id))!);
   }
@@ -452,16 +457,12 @@ export class AccountService {
    * A device of this account signing in again proves it holds the device key (a fresh challenge signed with it), so its
    * new session is bound to it at once and the app keeps its keys, database and history.
    */
-  private provenDevice(a: AccountRow, proof: { deviceId: string; nonce: string; signature: string }): string {
-    const dev = a.user_id
-      ? (this.ctx.db.prepare("SELECT id, signing_key, revoked_at FROM devices WHERE id = ? AND user_id = ?").get(proof.deviceId, a.user_id) as
-          | { id: string; signing_key: string; revoked_at: number | null }
-          | undefined)
-      : undefined;
+  private async provenDevice(a: AccountRow, proof: { deviceId: string; nonce: string; signature: string }): Promise<string> {
+    const dev = a.user_id ? this.ctx.identity.get<{ id: string; signing_key: string; revoked_at: number | null }>("devices", { id: proof.deviceId, user_id: a.user_id }) : undefined;
     if (!dev || !verifyEd25519(dev.signing_key, canonical.authProof("login", proof.nonce, dev.signing_key), proof.signature)) {
       throw new ApiError(401, "invalid_device_proof", "This phone's keys don't belong to this account. Set up encryption again.");
     }
-    if (!consumeChallenge(this.ctx, proof.nonce)) throw new ApiError(401, "challenge_expired", "The sign-in took too long. Try again.");
+    if (!(await consumeChallenge(this.ctx, proof.nonce))) throw new ApiError(401, "challenge_expired", "The sign-in took too long. Try again.");
     if (dev.revoked_at) throw new ApiError(401, "device_revoked", "This phone was removed from your account. Set up encryption again.");
     return dev.id;
   }
@@ -525,6 +526,6 @@ function formatResetCode(code: string): string {
 }
 
 /** Consumes a single-use /v1/auth/challenge nonce. False if unknown, expired or already used. */
-export function consumeChallenge(ctx: AppContext, nonce: string): boolean {
-  return !!ctx.db.prepare("DELETE FROM auth_challenges WHERE nonce = ? AND expires_at > ? RETURNING nonce").get(nonce, now());
+export function consumeChallenge(ctx: AppContext, nonce: string): Promise<boolean> {
+  return ctx.ephemeral.write((w) => w.delete("auth_challenges", { nonce, expires_at: { gt: now() } }) > 0);
 }

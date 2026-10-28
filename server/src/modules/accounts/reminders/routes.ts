@@ -36,7 +36,7 @@ export default async function reminderRoutes(app: FastifyInstance, ctx: AppConte
   app.post("/v1/reminders", writes, async (req, reply) => {
     const { userId, deviceId } = me(req);
     const body = parse(ReminderCreateBody, req.body);
-    return reply.code(201).send({ reminder: reminders.create(userId, deviceId, body) });
+    return reply.code(201).send({ reminder: await reminders.create(userId, deviceId, body) });
   });
 
   app.patch("/v1/reminders/:id", writes, async (req) => {
@@ -44,13 +44,13 @@ export default async function reminderRoutes(app: FastifyInstance, ctx: AppConte
     const { id } = parse(ReminderParams, req.params);
     const body = parse(ReminderUpdateBody, req.body);
     if (body.repeat && !isValidTimeZone(body.timeZone ?? "UTC")) throw badRequest("Unknown time zone");
-    return { reminder: reminders.update(userId, deviceId, id, body) };
+    return { reminder: await reminders.update(userId, deviceId, id, body) };
   });
 
   app.delete("/v1/reminders/:id", writes, async (req) => {
     const { userId, deviceId } = me(req);
     const { id } = parse(ReminderParams, req.params);
-    reminders.delete(userId, deviceId, id);
+    await reminders.delete(userId, deviceId, id);
     return { ok: true };
   });
 
@@ -58,7 +58,7 @@ export default async function reminderRoutes(app: FastifyInstance, ctx: AppConte
     const { userId } = me(req);
     const { id } = parse(ReminderParams, req.params);
     const { firedAt } = parse(ReminderAckBody, req.body);
-    reminders.ack(userId, id, firedAt);
+    await reminders.ack(userId, id, firedAt);
     return { ok: true };
   });
 }

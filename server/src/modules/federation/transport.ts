@@ -8,7 +8,7 @@
  * a per-sender rate limit, and that the nonce hasn't been used (replay). TLS protects transport; the payloads inside
  * are end-to-end encrypted independently of it.
  */
-import type { DB } from "../../infrastructure/database/db.js";
+import type { Rows } from "../../infrastructure/database/rows/index.js";
 import { verifyServerText, type ServerIdentity } from "./identity.js";
 import { FederationError, type ResolvedServer } from "./resolver.js";
 import { randomToken, sha256b64 } from "./sign.js";
@@ -45,9 +45,8 @@ export function signedHeaders(identity: ServerIdentity, method: string, path: st
 }
 
 /** Records a nonce; false if it was already used (a replay). Nonces outlive the clock window. */
-export function useNonce(db: DB, nonce: string, peer: string): boolean {
-  const r = db.prepare("INSERT OR IGNORE INTO federation_nonces (nonce, peer_server_id, expires_at) VALUES (?, ?, ?)").run(nonce, peer, Date.now() + 2 * CLOCK_WINDOW_MS);
-  return r.changes === 1;
+export function useNonce(ephemeral: Rows, nonce: string, peer: string): Promise<boolean> {
+  return ephemeral.write((w) => w.insert("federation_nonces", { nonce, peer_server_id: peer, expires_at: Date.now() + 2 * CLOCK_WINDOW_MS }, { orIgnore: true }).inserted);
 }
 
 /** Simple per-peer token bucket (requests per minute). In-memory: one API process (ARCHITECTURE.md §7). */

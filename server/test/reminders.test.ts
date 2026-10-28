@@ -146,10 +146,10 @@ describe("reminders API", () => {
   it("fires a due one-off reminder once, then it is overdue until done; dismissing doesn't make it done", async () => {
     await alice.connect();
     const { reminder } = await create(alice, { dueAt: Date.now() + 60_000 });
-    expect(h.ctx.reminders.tick().fired).toBe(0); // not due yet
+    expect((await h.ctx.reminders.tick()).fired).toBe(0); // not due yet
     const at = reminder.dueAt + 1;
-    expect(h.ctx.reminders.tick(at).fired).toBe(1);
-    expect(h.ctx.reminders.tick(at + 1000).fired).toBe(0); // never twice
+    expect((await h.ctx.reminders.tick(at)).fired).toBe(1);
+    expect((await h.ctx.reminders.tick(at + 1000)).fired).toBe(0); // never twice
     const due = await alice.waitFor(() => alice.events.find((e) => e.t === "reminder.due" && e.id === reminder.id));
     expect(due).toEqual({ t: "reminder.due", id: reminder.id, occurrenceAt: reminder.dueAt, firedAt: at });
     // The event carries no content; the sealed copy stays where it was.
@@ -166,13 +166,13 @@ describe("reminders API", () => {
 
   it("snoozes by moving the due time, which schedules it again", async () => {
     const { reminder } = await create(alice, { dueAt: Date.now() + 1000 });
-    h.ctx.reminders.tick(reminder.dueAt + 1);
+    await h.ctx.reminders.tick(reminder.dueAt + 1);
     const fired = (await alice.req("GET", `/v1/reminders/${reminder.id}`)).reminder;
     expect(fired.state).toBe("fired");
     const later = reminder.dueAt + 10 * 60_000;
     const snoozed = await alice.req("PATCH", `/v1/reminders/${reminder.id}`, { rev: fired.rev, dueAt: later });
     expect(snoozed.reminder).toMatchObject({ state: "scheduled", dueAt: later });
-    expect(h.ctx.reminders.tick(later + 1).fired).toBe(1);
+    expect((await h.ctx.reminders.tick(later + 1)).fired).toBe(1);
   });
 
   it("moves a repeating reminder to its next occurrence instead of replaying missed ones", async () => {
@@ -185,9 +185,9 @@ describe("reminders API", () => {
     expect(reminder.dueAt).toBeGreaterThan(now);
     // The server was "down" for three days: one fire, then the next 09:00 after that moment.
     const late = reminder.dueAt + 3 * DAY + HOUR;
-    h.ctx.reminders.tick(late);
-    h.ctx.reminders.tick(late + 1000);
-    const occurrences = h.ctx.db.prepare("SELECT COUNT(*) AS n FROM reminder_occurrences WHERE reminder_id = ?").get(reminder.id) as { n: number };
+    await h.ctx.reminders.tick(late);
+    await h.ctx.reminders.tick(late + 1000);
+    const occurrences = { n: h.ctx.identity.count("reminder_occurrences", { reminder_id: reminder.id }) };
     expect(occurrences.n).toBe(1);
     const moved = (await alice.req("GET", `/v1/reminders/${reminder.id}`)).reminder;
     expect(moved.state).toBe("scheduled");
@@ -204,15 +204,15 @@ describe("reminders API", () => {
     };
     try {
       let t = reminder.dueAt + 1;
-      const first = h.ctx.reminders.tick(t);
+      const first = await h.ctx.reminders.tick(t);
       expect(first).toMatchObject({ retried: 1, fired: 0 });
       let row = (await alice.req("GET", `/v1/reminders/${reminder.id}`)).reminder;
       expect(row.state).toBe("scheduled");
       // Not retried before its backoff is over.
-      expect(h.ctx.reminders.tick(t + 1000).retried).toBe(0);
+      expect((await h.ctx.reminders.tick(t + 1000)).retried).toBe(0);
       for (let i = 2; i <= 8; i++) {
         t += retryDelayMs(i - 1) + 1;
-        h.ctx.reminders.tick(t);
+        await h.ctx.reminders.tick(t);
       }
       row = (await alice.req("GET", `/v1/reminders/${reminder.id}`)).reminder;
       expect(row).toMatchObject({ state: "fired", delivery: "failed" });

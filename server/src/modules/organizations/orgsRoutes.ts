@@ -160,7 +160,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
   app.post("/v1/orgs", auth, async (req) => {
     const { userId } = me(req);
     const body = parse(OrgCreateBody, req.body);
-    requireStanding(db, userId, "create_community");
+    requireStanding(ctx.safety, userId, "create_community");
     const id = newId("o");
     const t = now();
     // Checked inside the write unit, so two simultaneous taps (or two people picking the same name) can't both pass.
@@ -193,7 +193,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
       });
       w.insert("org_members", { org_id: id, user_id: userId, role: "OWNER", joined_at: t });
       // A community a synthetic load-test account creates is a load-test community: the only kind such accounts join.
-      markSyntheticOrg(db, w, id, userId);
+      markSyntheticOrg(ctx.identity, w, id, userId);
       return null;
     });
     if (prior) return { org: orgSummary(ctx, prior, userId) };
@@ -462,6 +462,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     if (!result) return replay();
     // SQLite cascaded its calls with the channels; a call store elsewhere removes them itself.
     await ctx.calls.forgetConversations([...result.channelMembers.keys()]);
+    for (const c of result.channelMembers.keys()) await ctx.messages.deleteConversation(c);
     await ctx.prefs.deleteForWorkspace(orgId);
     await ctx.reports.deleteForOrg(orgId);
 
@@ -502,7 +503,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const memberships = ws.all<{ user_id: string; role: string; title: string | null; expires_at: number | null; timeout_until: number | null }>("org_members", {
       where: { org_id: orgId },
     });
-    const people = mapByIds<any>(db, "users", "id", memberships.map((m) => m.user_id));
+    const people = mapByIds<any>(ctx.identity, "users", "id", memberships.map((m) => m.user_id));
     const rank: Record<string, number> = { OWNER: 0, ADMIN: 1, MEMBER: 2 };
     const rows = memberships
       .flatMap((m) => {
@@ -613,7 +614,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const actor = me(req).userId;
     const { orgId } = parse(OrgParams, req.params);
     const body = parse(InviteCreateBody, req.body);
-    requireStanding(db, actor, "invite");
+    requireStanding(ctx.safety, actor, "invite");
     const actorRole = authz.requireOrgMember(orgId, actor);
     const policy = ws.get<{ guests_allowed: number; guest_max_days: number | null }>("orgs", { id: orgId });
     if (body.role === "GUEST" && policy && !policy.guests_allowed) throw conflict("This community doesn't allow guests");
@@ -667,7 +668,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     authz.requireOrgMember(orgId, actor);
     const isAdmin = authz.can(orgId, actor, "members.invites.manage");
     const invites = ws.all<any>("invitations", { where: { org_id: orgId }, orderBy: [["created_at", "desc"]], limit: 100 });
-    const creators = mapByIds<{ id: string; display_name: string }>(db, "users", "id", invites.map((i) => i.created_by), "id, display_name");
+    const creators = mapByIds<{ id: string; display_name: string }>(ctx.identity, "users", "id", invites.map((i) => i.created_by), "id, display_name");
     const rows = invites.map((i) => ({ ...i, creator_name: creators.get(i.created_by)?.display_name ?? null }));
     const t = now();
     return {
@@ -791,7 +792,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
   app.post("/v1/invites/accept", inviteRate, async (req) => {
     const userId = me(req).userId;
     const { code } = parse(InviteCodeBody, req.body);
-    requireStanding(db, userId, "join_community");
+    requireStanding(ctx.safety, userId, "join_community");
     const t = now();
     // One transaction: two taps (or two people racing for the last use) can't both pass the checks and over-use it.
     const result = await ws.write((w) => {
@@ -935,7 +936,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const names = new Map<string, string>();
     const nameOf = (id: string | null) => {
       if (!id) return null;
-      if (!names.has(id)) names.set(id, (db.prepare("SELECT display_name FROM users WHERE id = ?").get(id) as any)?.display_name ?? "Someone");
+      if (!names.has(id)) names.set(id, ctx.identity.get<{ display_name: string }>("users", { id })?.display_name ?? "Someone");
       return names.get(id)!;
     };
     return {

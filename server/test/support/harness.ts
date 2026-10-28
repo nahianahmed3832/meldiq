@@ -55,6 +55,8 @@ export async function startServer(
     // Presence changes at once in tests; the settle and grace delays have their own suite (presence_stability.test.ts).
     PRESENCE_SETTLE_MS: "0",
     PRESENCE_GRACE_MS: "0",
+    // The older suites send end-to-end encrypted envelopes (POST /v1/messages); server_messages.test.ts turns that off.
+    MESSAGES_ACCEPT_ENCRYPTED: "true",
     // MELDIQ_TEST_MONGO_DOMAINS=accounts,preferences runs every suite with those domains in MongoDB (docs/MONGODB.md).
     ...testMongoEnv(env),
     ...env,

@@ -16,8 +16,8 @@ const join = async (by: AccountClient, c: AccountClient, org: string, role: stri
   await c.req("POST", "/v1/invites/accept", { code });
 };
 const del = (c: AccountClient, body: Record<string, unknown>) => c.req("DELETE", "/v2/account", body);
-const userRow = (id: string) => h.ctx.db.prepare("SELECT * FROM users WHERE id = ?").get(id) as Record<string, any>;
-const count = (sql: string, ...args: unknown[]) => (h.ctx.db.prepare(sql).get(...args) as { n: number }).n;
+const HISTORY_ROOM = { maxItems: 100, maxBytes: 1_000_000, maxTotalBytes: 1_000_000_000 };
+const userRow = (id: string) => h.ctx.identity.get<Record<string, any>>("users", { id })!;
 
 describe("deleting your own account", () => {
   it("is advertised in server-info", async () => {
@@ -67,7 +67,7 @@ describe("deleting your own account", () => {
     const group = (await ada.req("POST", "/v1/conversations/group", { name: "Book club", memberIds: [bob.userId, cy.userId] })).conversation.id;
     await ada.req("POST", "/v1/reminders", { id: `rem_del_${Date.now()}`, sealed: "c2VhbGVkLXJlbWluZGVyLWNvbnRlbnRBQUFBQUFBQQ", dueAt: Date.now() + HOUR, timeZone: "UTC" });
     await ada.req("POST", "/v2/account/recovery-codes", { password: PASSWORD });
-    h.ctx.db.prepare("INSERT INTO history_items (user_id, tag, conv_tag, seq, ts, body, size, updated_at) VALUES (?, 't1', 'c1', 1, 1, x'00', 1, 1)").run(ada.userId);
+    await h.ctx.history.put(ada.userId, [{ tag: "t1", conv: "c1", ts: 1, body: Buffer.from([0]) }], HISTORY_ROOM, 1);
     const accountId = (await ada.req("GET", "/v2/account")).account.id;
     await bob.connect();
 
@@ -89,10 +89,10 @@ describe("deleting your own account", () => {
     expect(u.display_name).toBe("Deleted account");
     expect(u.username).toMatch(/^deleted-[0-9a-f]{16}$/);
     expect([u.first_name, u.last_name, u.phone, u.birthday, u.status_text, u.photo_rev, u.privacy]).toEqual([null, null, null, null, null, null, null]);
-    expect(count("SELECT COUNT(*) n FROM devices WHERE user_id = ? AND revoked_at IS NULL", ada.userId)).toBe(0);
-    expect(count("SELECT COUNT(*) n FROM devices WHERE user_id = ? AND name != ''", ada.userId)).toBe(0);
-    expect(count("SELECT COUNT(*) n FROM history_items WHERE user_id = ?", ada.userId)).toBe(0);
-    expect(count("SELECT COUNT(*) n FROM reminders WHERE user_id = ?", ada.userId)).toBe(0);
+    const devices = h.ctx.identity.all<{ revoked_at: number | null; name: string }>("devices", { where: { user_id: ada.userId } });
+    expect(devices.filter((d) => d.revoked_at === null || d.name !== "")).toEqual([]);
+    expect(await h.ctx.history.items(ada.userId, 0, 10)).toEqual([]);
+    expect(h.ctx.identity.count("reminders", { user_id: ada.userId })).toBe(0);
     expect(h.ctx.ws.count("org_members", { user_id: ada.userId })).toBe(0);
 
     // Bob keeps the direct conversation; the group lost Ada and Cy now runs it.

@@ -40,8 +40,8 @@ export class AdminBilling {
     private readonly audit: PlatformAudit,
   ) {}
 
-  private record(p: AdminPrincipal, action: string, targetType: string, targetId: string, reason: string | null, meta: RequestMeta, detail: Record<string, string | number | boolean | null>) {
-    this.audit.record({
+  private async record(p: AdminPrincipal, action: string, targetType: string, targetId: string, reason: string | null, meta: RequestMeta, detail: Record<string, string | number | boolean | null>): Promise<void> {
+    await this.audit.record({
       action,
       outcome: "success",
       actorAccountId: p.account.id,
@@ -94,7 +94,7 @@ export class AdminBilling {
     const before = Object.fromEntries(limitsOf(this.ctx, orgId).filter((l) => l.source === "workspace").map((l) => [l.key, l.limit]));
     // The limits live with the community (possibly MongoDB): recorded once they're set.
     await this.ctx.entitlements.setLimits(orgId, `platform:${p.account.id}`, limits, t, expiresAt ?? null, reason);
-    this.record(p, "org.limits", "org", orgId, reason, meta, {
+    await this.record(p, "org.limits", "org", orgId, reason, meta, {
       ...Object.fromEntries(Object.entries(limits).map(([k, v]) => [k, `${before[k] ?? "default"} -> ${v ?? "default"}`])),
       ...(setting ? { until: expiresAt === null ? "no end" : new Date(expiresAt!).toISOString() } : {}),
     });
@@ -145,19 +145,19 @@ export class AdminBilling {
   // Billing's rows (SQLite or MongoDB) and the console's audit are separate stores: each change is made, then recorded.
   async createPlan(p: AdminPrincipal, b: { key: string; terms: PlanTerms; reason: string } & PlanMeta, meta: RequestMeta) {
     const created = await this.ctx.billing.catalog.create(b.key, b, b.terms, p.account.id, now());
-    this.record(p, "billing.plan_create", "billing_plan", created.id, b.reason, meta, { key: b.key, name: b.name });
+    await this.record(p, "billing.plan_create", "billing_plan", created.id, b.reason, meta, { key: b.key, name: b.name });
     return this.one(created.id);
   }
 
   async updatePlan(p: AdminPrincipal, planId: string, b: PlanMeta & { reason: string }, meta: RequestMeta) {
     await this.ctx.billing.catalog.updateMeta(planId, b, now());
-    this.record(p, "billing.plan_update", "billing_plan", planId, b.reason, meta, { name: b.name, public: b.public });
+    await this.record(p, "billing.plan_update", "billing_plan", planId, b.reason, meta, { name: b.name, public: b.public });
     return this.one(planId);
   }
 
   async saveDraft(p: AdminPrincipal, planId: string, terms: PlanTerms, reason: string, meta: RequestMeta) {
     const v = await this.ctx.billing.catalog.saveDraft(planId, terms, p.account.id, now());
-    this.record(p, "billing.plan_draft", "billing_plan", planId, reason, meta, {
+    await this.record(p, "billing.plan_draft", "billing_plan", planId, reason, meta, {
       version: v.version,
       price: `${terms.amountMinor} ${terms.currency}/${terms.interval}`,
       providerPriceRef: terms.providerPriceRef,
@@ -171,13 +171,13 @@ export class AdminBilling {
     const provider = this.ctx.billing.provider;
     if (!provider) throw new ApiError(409, "billing_unavailable", this.ctx.billing.unavailableReason ?? "Billing isn't available");
     const { published, retired } = await this.ctx.billing.catalog.publish(planId, provider.id, p.account.id, now());
-    this.record(p, "billing.plan_publish", "billing_plan", planId, reason, meta, { version: published.version, provider: provider.id, retiredVersion: retired?.version ?? null });
+    await this.record(p, "billing.plan_publish", "billing_plan", planId, reason, meta, { version: published.version, provider: provider.id, retiredVersion: retired?.version ?? null });
     return this.one(planId);
   }
 
   async archive(p: AdminPrincipal, planId: string, reason: string, meta: RequestMeta) {
     await this.ctx.billing.catalog.archive(planId, now());
-    this.record(p, "billing.plan_archive", "billing_plan", planId, reason, meta, {});
+    await this.record(p, "billing.plan_archive", "billing_plan", planId, reason, meta, {});
     return this.one(planId);
   }
 
@@ -283,7 +283,7 @@ export class AdminBilling {
 
   async replay(p: AdminPrincipal, eventId: string, reason: string, meta: RequestMeta) {
     const status = await this.ctx.billing.webhooks.replay(eventId);
-    this.record(p, "billing.event_replay", "billing_event", eventId, reason, meta, { status });
+    await this.record(p, "billing.event_replay", "billing_event", eventId, reason, meta, { status });
     return { status };
   }
 

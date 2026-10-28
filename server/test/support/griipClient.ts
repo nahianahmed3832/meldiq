@@ -274,6 +274,21 @@ export class GriipClient {
       try {
         if (it.kind === "receipt") {
           this.receipts.push(it);
+        } else if (it.kind === "message") {
+          // A stored message (API 0.57.0): readable as it is.
+          const e = it.payload.event;
+          const m: DecryptedMessage = {
+            queueId: it.id,
+            messageId: e.id,
+            conversationId: e.conversationId,
+            senderUserId: e.senderUserId,
+            senderDeviceId: e.senderDeviceId ?? "",
+            cls: e.cls,
+            sentAt: e.sentAt,
+            payload: e.payload,
+            mentionAllAttested: e.mentionAll === true,
+          };
+          if (!this.received.some((r) => r.messageId === m.messageId)) this.received.push(m);
         } else {
           const m = await this.decrypt(it);
           m.mentionAllAttested = it.payload?.mentionAll === true;
@@ -335,8 +350,15 @@ export class GriipClient {
   }
 
   /** Encrypt to every member device (refetching keys once on device_mismatch) and submit. */
-  async send(conversationId: string, payload: unknown, cls: "message" | "control" = "message", messageId?: string, extra: { mentionAll?: boolean } = {}) {
+  /**
+   * Messages stored by the server (API 0.57.0, docs/SERVER_MESSAGES.md): send() goes through POST /v2/messages, as the
+   * apps from 0.57.0 do, instead of encrypting an envelope.
+   */
+  serverMessages = false;
+
+  async send(conversationId: string, payload: unknown, cls: "message" | "control" = "message", messageId?: string, extra: { mentionAll?: boolean; audience?: "self" } = {}) {
     const id = messageId ?? crypto.randomUUID();
+    if (this.serverMessages) return this.req("POST", "/v2/messages", { conversationId, messageId: id, cls, sentAt: Date.now(), payload, ...extra });
     for (let attempt = 0; attempt < 2; attempt++) {
       const users = await this.conversationKeys(conversationId);
       const changed = users.filter((u) => this.trustedKey(u) === null).map((u) => u.userId);

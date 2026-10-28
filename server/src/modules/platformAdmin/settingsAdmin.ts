@@ -36,7 +36,7 @@ export class AdminSettings {
   }
 
   async list() {
-    const metas = Object.keys(SETTINGS).map((k) => ({ key: k, ...settingMeta(this.ctx.db, k as keyof typeof SETTINGS) }));
+    const metas = Object.keys(SETTINGS).map((k) => ({ key: k, ...settingMeta(this.ctx.platform, k as keyof typeof SETTINGS) }));
     const n = await this.names(metas.map((m) => m.updatedBy));
     const c = this.ctx.config;
     return {
@@ -46,7 +46,7 @@ export class AdminSettings {
           key: m.key,
           label: def.label,
           description: def.description,
-          value: platformSetting(this.ctx.db, m.key as keyof typeof SETTINGS),
+          value: platformSetting(this.ctx.platform, m.key as keyof typeof SETTINGS),
           default: def.default,
           updatedBy: m.updatedBy ? { accountId: m.updatedBy, name: n.get(m.updatedBy) ?? null } : null,
           updatedAt: m.updatedAt,
@@ -70,27 +70,26 @@ export class AdminSettings {
 
   async set(p: AdminPrincipal, key: string, value: unknown, reason: string, meta: RequestMeta) {
     if (!isSettingKey(key)) throw new ApiError(404, "not_found", "No such setting.");
-    const { before, after } = writeSetting(this.ctx.db, key, value, p.account.id, now());
+    await this.ctx.platform.write((w) => {
+      const { before, after } = writeSetting(w, key, value, p.account.id, now());
+      this.audit.append(w, { action: "settings.update", outcome: "success", actorAccountId: p.account.id, actorRole: p.grant.role, targetType: "setting", targetId: key, reason, requestId: meta.requestId, network: networkKey(meta.ip), detail: flatDetail({ before, after }) });
+    });
     if (key.startsWith("analytics.")) this.exclusions.invalidate();
-    this.audit.record({ action: "settings.update", outcome: "success", actorAccountId: p.account.id, actorRole: p.grant.role, targetType: "setting", targetId: key, reason, requestId: meta.requestId, network: networkKey(meta.ip), detail: flatDetail({ before, after }) });
     return this.list();
   }
 
   alertsView() {
-    const deliveries = this.ctx.db.prepare("SELECT at, incident_id, channel, outcome, detail FROM alert_deliveries ORDER BY id DESC LIMIT ?").all(DELIVERIES_SHOWN) as {
-      at: number;
-      incident_id: string;
-      channel: string;
-      outcome: string;
-      detail: string | null;
-    }[];
+    const deliveries = this.ctx.platform.all<{ at: number; incident_id: string; channel: string; outcome: string; detail: string | null }>("alert_deliveries", {
+      orderBy: [["id", "desc"]],
+      limit: DELIVERIES_SHOWN,
+    });
     return { rules: this.alerts.rules(), deliveries: deliveries.map((d) => ({ at: d.at, incidentId: d.incident_id, channel: d.channel, outcome: d.outcome, detail: d.detail })) };
   }
 
-  setRule(p: AdminPrincipal, key: string, b: { enabled: boolean; threshold: number; windowMinutes: number; severity: "sev1" | "sev2" | "sev3" | "sev4"; reason: string }, meta: RequestMeta) {
+  async setRule(p: AdminPrincipal, key: string, b: { enabled: boolean; threshold: number; windowMinutes: number; severity: "sev1" | "sev2" | "sev3" | "sev4"; reason: string }, meta: RequestMeta) {
     const before = this.alerts.rules().find((r) => r.key === key);
-    this.alerts.setRule(key, b, p.account.id);
-    this.audit.record({
+    await this.alerts.setRule(key, b, p.account.id);
+    await this.audit.record({
       action: "alerts.rule_update",
       outcome: "success",
       actorAccountId: p.account.id,
@@ -107,7 +106,7 @@ export class AdminSettings {
 
   async evaluate(p: AdminPrincipal, meta: RequestMeta) {
     const changed = await this.alerts.evaluate();
-    this.audit.record({ action: "alerts.evaluate", outcome: "success", actorAccountId: p.account.id, actorRole: p.grant.role, requestId: meta.requestId, network: networkKey(meta.ip), detail: { changed: changed.join(",") || null } });
+    await this.audit.record({ action: "alerts.evaluate", outcome: "success", actorAccountId: p.account.id, actorRole: p.grant.role, requestId: meta.requestId, network: networkKey(meta.ip), detail: { changed: changed.join(",") || null } });
     return this.alertsView();
   }
 }

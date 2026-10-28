@@ -55,8 +55,8 @@ describe("accounts disabled from the admin CLI are disconnected (T3.3)", () => {
     await quiet.connect();
     const closed = new Promise<void>((r) => quiet.ws!.once("close", () => r()));
     // What `admin.js disable` writes from its own process: the API's hub doesn't hear about it.
-    h.ctx.db.prepare("UPDATE users SET disabled_at = ? WHERE id = ?").run(Date.now(), quiet.userId);
-    h.ctx.db.prepare("DELETE FROM sessions WHERE user_id = ?").run(quiet.userId);
+    await h.ctx.identity.write((w) => w.update("users", { id: quiet.userId }, { disabled_at: Date.now() }));
+    await h.ctx.ephemeral.write((w) => w.delete("sessions", { user_id: quiet.userId }));
     const r = await runCleanup(h.ctx);
     expect(r.disabledDisconnected).toBe(1);
     await closed;

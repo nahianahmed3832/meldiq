@@ -42,7 +42,7 @@ function moderators(ctx: AppContext, orgId: string): string[] {
 
 function person(ctx: AppContext, userId: string | null) {
   if (!userId) return null;
-  const u = ctx.db.prepare("SELECT id, username, display_name FROM users WHERE id = ?").get(userId) as { id: string; username: string; display_name: string } | undefined;
+  const u = ctx.identity.get<{ id: string; username: string; display_name: string }>("users", { id: userId });
   return u ? { id: u.id, username: u.username, displayName: u.display_name } : { id: userId, username: null, displayName: null };
 }
 
@@ -81,7 +81,7 @@ export default async function reportRoutes(app: FastifyInstance, ctx: AppContext
     const body = parse(ReportBody, req.body);
     if (body.targetUserId === userId) throw badRequest("You can't report yourself");
     if (body.messageId && !body.conversationId) throw badRequest("Say which conversation the message is in");
-    if (!db.prepare("SELECT 1 FROM users WHERE id = ?").get(body.targetUserId)) throw notFound("No such person");
+    if (!ctx.identity.get("users", { id: body.targetUserId })) throw notFound("No such person");
     // A message report needs the reporter to be in the conversation; the server checks the sender while it still knows.
     const conv = body.conversationId ? authz.requireMember(body.conversationId, userId) : undefined;
     if (body.messageId) {

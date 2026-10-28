@@ -1,5 +1,5 @@
 import type { ClientSession, Collection, Document } from "mongodb";
-import type { DB } from "../../infrastructure/database/db.js";
+import type { Rows, RowWriter } from "../../infrastructure/database/rows/index.js";
 import type {
   AccountPatch,
   AccountRow,
@@ -14,23 +14,8 @@ import type {
 } from "./store.js";
 import { isDuplicateKey, type MeldiqMongo } from "../../infrastructure/database/mongo/client.js";
 
-/** The parts of the encryption identity the account store needs; they stay in SQLite (identity domain). */
-export interface IdentityRows {
-  userDisabledAt(userId: string): number | null;
-  deviceRevokedAt(deviceId: string): number | null;
-  /** Runs [fn] in one SQLite transaction. */
-  sqliteTransaction<T>(fn: () => T): T;
-}
-
-export function sqliteIdentityRows(db: DB): IdentityRows {
-  const user = db.prepare("SELECT disabled_at FROM users WHERE id = ?");
-  const device = db.prepare("SELECT revoked_at FROM devices WHERE id = ?");
-  return {
-    userDisabledAt: (id) => (user.get(id) as { disabled_at: number | null } | undefined)?.disabled_at ?? null,
-    deviceRevokedAt: (id) => (device.get(id) as { revoked_at: number | null } | undefined)?.revoked_at ?? null,
-    sqliteTransaction: (fn) => db.transaction(fn)(),
-  };
-}
+const userDisabledAt = (identity: Rows, id: string): number | null => identity.get<{ disabled_at: number | null }>("users", { id })?.disabled_at ?? null;
+const deviceRevokedAt = (identity: Rows, id: string): number | null => identity.get<{ revoked_at: number | null }>("devices", { id })?.revoked_at ?? null;
 
 type WithId<T, Id> = T & { _id: Id };
 type AccountDoc = WithId<AccountRow, string>;
@@ -68,7 +53,7 @@ function strip<T extends { _id: unknown }>(d: T | null): Omit<T, "_id"> | undefi
  *
  * - Every check-and-write is one conditional single-document update (claims, rotations, code use), so concurrent
  *   requests can't both win, with or without a transaction around them.
- * - Steps that also write SQLite rows run the SQLite part in its own transaction and undo whichever side went first
+ * - Steps that also write identity rows run that part as its own rows unit and undo whichever side went first
  *   when the other fails; a crash in between is repaired by the next attempt (identity.ts › enroll).
  * - Foreign keys SQLite enforced are kept by hand: deleting an account deletes its sessions and codes.
  */
@@ -81,7 +66,8 @@ export class MongoAccountStore implements AccountStore {
 
   constructor(
     private readonly mongo: MeldiqMongo,
-    private readonly identity: IdentityRows,
+    /** The identity domain's rows (users, devices, registration invites), in SQLite or MongoDB. */
+    private readonly identity: Rows,
   ) {
     if (!mongo.supportsTransactions) throw new Error("Accounts in MongoDB need a replica set or Atlas cluster (transactions)");
     this.accounts = mongo.db.collection<AccountDoc>("accounts");
@@ -123,15 +109,15 @@ export class MongoAccountStore implements AccountStore {
   }
 
   async createAccount(row: AccountRow, admission: Admission | null): Promise<AccountRow | null> {
-    const admittedVia = admission ? this.identity.sqliteTransaction(admission.take) : row.admitted_via;
+    const admittedVia = admission ? await this.identity.write(admission.take) : row.admitted_via;
     const r = { ...row, admitted_via: admittedVia };
     try {
       if (await this.insertAccount(r)) return r;
     } catch (e) {
-      if (admission) this.identity.sqliteTransaction(admission.undo);
+      if (admission) await this.identity.write(admission.undo);
       throw e;
     }
-    if (admission) this.identity.sqliteTransaction(admission.undo);
+    if (admission) await this.identity.write(admission.undo);
     return null;
   }
 
@@ -174,13 +160,13 @@ export class MongoAccountStore implements AccountStore {
     return res.deletedCount === 1;
   }
 
-  async linkIdentity(accountId: string, userId: string, sessionId: string, at: number, createRows: () => string): Promise<string | null> {
+  async linkIdentity(accountId: string, userId: string, sessionId: string, at: number, createRows: (w: RowWriter) => string): Promise<string | null> {
     // Claim first: of two requests for one account, only one gets to create rows.
     const claimed = await this.accounts.updateOne({ _id: accountId, user_id: null }, { $set: { user_id: userId, updated_at: at } }, this.o);
     if (claimed.modifiedCount !== 1) return null;
     let deviceId: string;
     try {
-      deviceId = this.identity.sqliteTransaction(createRows);
+      deviceId = await this.identity.write(createRows);
     } catch (e) {
       await this.releaseIdentity(accountId, userId, at);
       throw e;
@@ -195,8 +181,8 @@ export class MongoAccountStore implements AccountStore {
     return res.modifiedCount === 1;
   }
 
-  async bindDeviceWith(sessionId: string, deviceRows: () => string): Promise<string> {
-    const deviceId = this.identity.sqliteTransaction(deviceRows);
+  async bindDeviceWith(sessionId: string, deviceRows: (w: RowWriter) => string): Promise<string> {
+    const deviceId = await this.identity.write(deviceRows);
     await this.bindSessionDevice(sessionId, deviceId);
     return deviceId;
   }
@@ -220,8 +206,8 @@ export class MongoAccountStore implements AccountStore {
       ...s,
       user_id: a.user_id,
       account_disabled_at: a.disabled_at,
-      user_disabled_at: a.user_id ? this.identity.userDisabledAt(a.user_id) : null,
-      device_revoked_at: s.device_id ? this.identity.deviceRevokedAt(s.device_id) : null,
+      user_disabled_at: a.user_id ? userDisabledAt(this.identity, a.user_id) : null,
+      device_revoked_at: s.device_id ? deviceRevokedAt(this.identity, s.device_id) : null,
     };
   }
 
@@ -263,13 +249,24 @@ export class MongoAccountStore implements AccountStore {
     await this.sessions.updateMany({ device_id: deviceId, revoked_at: null }, { $set: { revoked_at: at, revoke_reason: reason } }, this.o);
   }
 
+  async latestSessionOfDevices(deviceIds: readonly string[]): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    if (deviceIds.length === 0) return out;
+    const rows = await this.sessions
+      .find({ device_id: { $in: [...deviceIds] } }, { ...this.o, projection: { _id: 1, device_id: 1 } })
+      .sort({ last_used_at: -1 })
+      .toArray();
+    for (const r of rows) if (r.device_id && !out.has(r.device_id)) out.set(r.device_id, r._id);
+    return out;
+  }
+
   async activeSessions(accountId: string, at: number): Promise<SessionRow[]> {
     const rows = await this.sessions
       .find({ account_id: accountId, revoked_at: null, expires_at: { $gt: at }, refresh_expires_at: { $gt: at } }, this.o)
       .sort({ last_used_at: -1 })
       .toArray();
-    // A removed device's sessions may not be marked yet (routes/auth.ts › revokeDeviceRows): they're over all the same.
-    return rows.filter((r) => !r.device_id || this.identity.deviceRevokedAt(r.device_id) === null).map((r) => strip(r)!);
+    // A removed device's sessions may not be marked yet (auth/routes.ts › revokeDevices): they're over all the same.
+    return rows.filter((r) => !r.device_id || deviceRevokedAt(this.identity, r.device_id) === null).map((r) => strip(r)!);
   }
 
   async recentSessions(accountId: string, since: number, limit: number): Promise<SessionRow[]> {

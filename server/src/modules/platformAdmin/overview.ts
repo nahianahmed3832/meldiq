@@ -23,18 +23,14 @@ export async function overview(ctx: AppContext, p: AdminPrincipal, version: stri
   await ctx.usage.snapshot();
   const workspaceBytes = ctx.usage.totals(1).reduce((sum, o) => sum + (o.metrics["storage.bytes"] ?? 0), 0);
   const recent = can(p.grant.role, "audit.view")
-    ? (ctx.db.prepare("SELECT at, action, outcome, actor_role, target_type FROM platform_audit ORDER BY id DESC LIMIT ?").all(RECENT_ACTIONS) as {
-        at: number;
-        action: string;
-        outcome: string;
-        actor_role: string | null;
-        target_type: string | null;
-      }[])
+    ? ctx.platform
+        .all<{ at: number; action: string; outcome: string; actor_role: string | null; target_type: string | null }>("platform_audit", { orderBy: [["id", "desc"]], limit: RECENT_ACTIONS })
+        .map((r) => ({ at: r.at, action: r.action, outcome: r.outcome, actor_role: r.actor_role, target_type: r.target_type }))
     : null;
-  const openIncidents = (ctx.db.prepare("SELECT COUNT(*) n FROM platform_incidents WHERE status != 'resolved'").get() as { n: number }).n;
+  const openIncidents = ctx.platform.count("platform_incidents", { status: { ne: "resolved" } });
   return {
     generatedAt: t,
-    people: userCounts(ctx.db, t, TREND_DAYS),
+    people: userCounts(ctx.identity, t, TREND_DAYS),
     organizations: orgCounts(ctx.ws, t, TREND_DAYS),
     storage: { workspaceBytes, measuredAt: new Date(t).toISOString().slice(0, 10) },
     requests: health ? { since: health.metrics.since, windowMinutes: health.metrics.window.minutes, requests: health.metrics.window.requests, serverErrors: health.metrics.window.serverErrors, errorRate: health.metrics.window.errorRate, p95Ms: health.metrics.window.p95Ms } : null,

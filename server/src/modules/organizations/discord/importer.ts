@@ -224,7 +224,7 @@ async function createCommunity(ctx: AppContext, imp: ImportRow): Promise<string>
       rules: null,
     });
     w.insert("org_members", { org_id: id, user_id: imp.user_id, role: "OWNER", joined_at: t });
-    markSyntheticOrg(db, w, id, imp.user_id);
+    markSyntheticOrg(ctx.identity, w, id, imp.user_id);
     w.update("discord_imports", { id: imp.id }, { org_id: id, updated_at: t });
   });
   ctx.audit({ actorId: imp.user_id, orgId: id, action: "org.create", target: id, detail: "visibility=private, from Discord" });

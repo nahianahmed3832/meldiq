@@ -1,4 +1,5 @@
 import type { DB } from "../../infrastructure/database/db.js";
+import type { RowWriter, SqliteRows } from "../../infrastructure/database/rows/index.js";
 
 export interface AccountRow {
   id: string;
@@ -84,19 +85,20 @@ export type SessionRotation = Pick<
 >;
 
 /** Taking an invite's use for a new account (SQLite rows): returns `accounts.admitted_via`, or throws when unusable. */
+/** Taking an invite's use for a new account; both run in an identity rows unit ([w]). */
 export interface Admission {
-  take: () => string;
+  take: (w: RowWriter) => string;
   /** Gives the use back (the account wasn't made after all). */
-  undo: () => void;
+  undo: (w: RowWriter) => void;
 }
 
 /**
  * Where the account module keeps its rows (migration 014): SQLite, or MongoDB when MONGODB_DOMAINS includes "accounts"
  * (src/mongo/accounts.ts, docs/MONGODB.md). Async so both look the same to the service.
  *
- * Steps that also write the encryption identity's SQLite rows (users, devices, invitations) are single methods here
+ * Steps that also write the encryption identity's rows (users, devices, registration invites) are single methods here
  * ([createAccount], [linkIdentity], [bindDeviceWith]): SQLite runs them in one transaction with the account rows;
- * MongoDB runs the SQLite part in its own transaction and undoes it, or its own part, when the other fails.
+ * MongoDB runs the identity part as its own rows unit and undoes it, or its own part, when the other fails.
  */
 export interface AccountStore {
   readonly backend: "sqlite" | "mongodb";
@@ -130,15 +132,15 @@ export interface AccountStore {
    */
   deleteAccount(id: string): Promise<boolean>;
   /**
-   * Links a new encryption identity: [createRows] makes its SQLite rows (user, first device, org membership) and returns
+   * Links a new encryption identity: [createRows] makes its identity rows (user, first device) and returns
    * the device id; the account gets [userId] and the session that device. Null when the account already has an
    * identity (nothing is made).
    */
-  linkIdentity(accountId: string, userId: string, sessionId: string, at: number, createRows: () => string): Promise<string | null>;
+  linkIdentity(accountId: string, userId: string, sessionId: string, at: number, createRows: (w: RowWriter) => string): Promise<string | null>;
   /** Clears a link to an identity whose rows don't exist (a link interrupted half-way). False when it doesn't qualify. */
   releaseIdentity(accountId: string, userId: string, at: number): Promise<boolean>;
-  /** [deviceRows] makes or changes SQLite device rows and returns the device the session is then bound to. */
-  bindDeviceWith(sessionId: string, deviceRows: () => string): Promise<string>;
+  /** [deviceRows] makes or changes identity rows and returns the device the session is then bound to. */
+  bindDeviceWith(sessionId: string, deviceRows: (w: RowWriter) => string): Promise<string>;
 
   insertSession(row: SessionRow): Promise<void>;
   sessionById(id: string): Promise<ActiveSession | undefined>;
@@ -155,6 +157,8 @@ export interface AccountStore {
   recentSessions(accountId: string, since: number, limit: number): Promise<SessionRow[]>;
   /** How many accounts hold at least one valid session at [at]. */
   sessionHolders(at: number): Promise<number>;
+  /** The most recently used session of each of [deviceIds] that has one (the console's device inventory). */
+  latestSessionOfDevices(deviceIds: readonly string[]): Promise<Map<string, string>>;
 
   putCode(row: CodeRow): Promise<void>;
   code(accountId: string, purpose: CodePurpose): Promise<CodeRow | undefined>;
@@ -190,7 +194,11 @@ const PATCHABLE = new Set<keyof AccountPatch>([
 export class SqliteAccountStore implements AccountStore {
   readonly backend = "sqlite" as const;
   private inTransaction = false;
-  constructor(private readonly db: DB) {}
+  /** [identity]: the identity domain's rows, in this same database (accounts in SQLite keep their identity there too). */
+  constructor(
+    private readonly db: DB,
+    private readonly identity: SqliteRows,
+  ) {}
 
   /**
    * One SQLite transaction across [fn]'s awaits. Safe because every method of this store finishes synchronously: [fn]
@@ -308,6 +316,17 @@ export class SqliteAccountStore implements AccountStore {
     this.db.prepare("UPDATE account_sessions SET revoked_at = ?, revoke_reason = ? WHERE device_id = ? AND revoked_at IS NULL").run(at, reason, deviceId);
   }
 
+  async latestSessionOfDevices(deviceIds: readonly string[]): Promise<Map<string, string>> {
+    if (deviceIds.length === 0) return new Map();
+    const rows = this.db
+      .prepare(
+        `SELECT device_id, id FROM account_sessions s WHERE device_id IN (SELECT value FROM json_each(?))
+          AND last_used_at = (SELECT MAX(last_used_at) FROM account_sessions s2 WHERE s2.device_id = s.device_id)`,
+      )
+      .all(JSON.stringify(deviceIds)) as { device_id: string; id: string }[];
+    return new Map(rows.map((r) => [r.device_id, r.id]));
+  }
+
   async activeSessions(accountId: string, at: number): Promise<SessionRow[]> {
     return this.db
       .prepare("SELECT * FROM account_sessions WHERE account_id = ? AND revoked_at IS NULL AND expires_at > ? AND refresh_expires_at > ? ORDER BY last_used_at DESC")
@@ -379,7 +398,7 @@ export class SqliteAccountStore implements AccountStore {
   async createAccount(row: AccountRow, admission: Admission | null): Promise<AccountRow | null> {
     try {
       return this.db.transaction(() => {
-        const r = { ...row, admitted_via: admission ? admission.take() : row.admitted_via };
+        const r = { ...row, admitted_via: admission ? this.identity.writeSync(admission.take) : row.admitted_via };
         if (!this.insertSync(r)) throw new EmailTaken();
         return r;
       })();
@@ -390,12 +409,12 @@ export class SqliteAccountStore implements AccountStore {
     }
   }
 
-  async linkIdentity(accountId: string, userId: string, sessionId: string, at: number, createRows: () => string): Promise<string | null> {
+  async linkIdentity(accountId: string, userId: string, sessionId: string, at: number, createRows: (w: RowWriter) => string): Promise<string | null> {
     // One synchronous transaction: the check and the writes can't interleave with another request.
     return this.db.transaction(() => {
       const current = this.db.prepare("SELECT user_id FROM accounts WHERE id = ?").get(accountId) as { user_id: string | null } | undefined;
       if (!current || current.user_id) return null;
-      const deviceId = createRows();
+      const deviceId = this.identity.writeSync(createRows);
       this.db.prepare("UPDATE accounts SET user_id = ?, updated_at = ? WHERE id = ?").run(userId, at, accountId);
       this.db.prepare("UPDATE account_sessions SET device_id = ? WHERE id = ?").run(deviceId, sessionId);
       return deviceId;
@@ -406,9 +425,9 @@ export class SqliteAccountStore implements AccountStore {
     return this.db.prepare("UPDATE accounts SET user_id = NULL, updated_at = ? WHERE id = ? AND user_id = ?").run(at, accountId, userId).changes === 1;
   }
 
-  async bindDeviceWith(sessionId: string, deviceRows: () => string): Promise<string> {
+  async bindDeviceWith(sessionId: string, deviceRows: (w: RowWriter) => string): Promise<string> {
     return this.db.transaction(() => {
-      const deviceId = deviceRows();
+      const deviceId = this.identity.writeSync(deviceRows);
       this.db.prepare("UPDATE account_sessions SET device_id = ? WHERE id = ?").run(deviceId, sessionId);
       return deviceId;
     })();

@@ -58,28 +58,21 @@ export interface CleanupResult {
  */
 export async function runCleanup(ctx: AppContext): Promise<CleanupResult> {
   const t = now();
-  const { db } = ctx;
   // First, before anything waits: accounts disabled with the admin CLI (a separate process) keep receive-only sockets
   // open, because sessions are only re-checked on client frames. Close them here (T3.3).
   let disabledDisconnected = 0;
   const online = ctx.hub.connectedUserIds();
-  for (let i = 0; i < online.length; i += 500) {
-    const chunk = online.slice(i, i + 500);
-    const disabled = db
-      .prepare(`SELECT id FROM users WHERE disabled_at IS NOT NULL AND id IN (${chunk.map(() => "?").join(",")})`)
-      .all(...chunk) as { id: string }[];
-    for (const u of disabled) {
-      ctx.hub.disconnectUser(u.id, "account disabled");
-      disabledDisconnected++;
-    }
+  for (const u of ctx.identity.all<{ id: string }>("users", { where: { disabled_at: { ne: null }, id: { in: online } } })) {
+    ctx.hub.disconnectUser(u.id, "account disabled");
+    disabledDisconnected++;
   }
   const relay = await ctx.relay.purgeExpired(t);
   const r: CleanupResult = {
     queue: relay.queue,
     submitted: relay.submitted,
-    challenges: db.prepare("DELETE FROM auth_challenges WHERE expires_at <= ?").run(t).changes,
-    sessions: db.prepare("DELETE FROM sessions WHERE expires_at <= ?").run(t).changes,
-    pairing: db.prepare("DELETE FROM pairing_requests WHERE expires_at <= ?").run(t).changes,
+    challenges: await ctx.ephemeral.write((w) => w.delete("auth_challenges", { expires_at: { lte: t } })),
+    sessions: await ctx.ephemeral.write((w) => w.delete("sessions", { expires_at: { lte: t } })),
+    pairing: await ctx.ephemeral.write((w) => w.delete("pairing_requests", { expires_at: { lte: t } })),
     mentionAll: await ctx.ws.write((w) => w.delete("mention_all_events", { at: { lte: t - 86_400_000 } })),
     attachments: await purgeExpiredAttachments(ctx),
     blobsDeleted: 0,
@@ -90,29 +83,25 @@ export async function runCleanup(ctx: AppContext): Promise<CleanupResult> {
       ctx.log.error({ err: e }, "history retention failed");
       return 0;
     }),
-    federation: ctx.federation ? Object.values(ctx.federation.cleanup(t)).reduce((a, b) => a + b, 0) : 0,
-    pushEndpoints: purgeRevokedPushEndpoints(db),
+    federation: ctx.federation ? Object.values(await ctx.federation.cleanup(t)).reduce((a, b) => a + b, 0) : 0,
+    pushEndpoints: await purgeRevokedPushEndpoints(ctx.identity),
     // An unreachable account store (MongoDB) mustn't stop the rest of retention.
     accountRows: await ctx.accounts.purgeExpired().catch((e) => {
       ctx.log.error({ err: e }, "account retention failed");
       return 0;
     }),
-    reminders: (() => {
-      try {
-        return ctx.reminders.purge();
-      } catch (e) {
-        ctx.log.error({ err: e }, "reminder retention failed");
-        return 0;
-      }
-    })(),
+    reminders: await ctx.reminders.purge().catch((e) => {
+      ctx.log.error({ err: e }, "reminder retention failed");
+      return 0;
+    }),
     callsTimedOut: 0,
     callEvictions: 0,
     callStaleParticipants: 0,
     disabledDisconnected,
     callRecordsPruned: 0,
     auditPruned: 0,
-    platformAdmin: new PlatformAdminStore(db).purgeExpired(t),
-    quotaReservations: ctx.quotas ? ctx.quotas.expireReservations() : 0,
+    platformAdmin: await new PlatformAdminStore(ctx.platform, ctx.ephemeral).purgeExpired(t),
+    quotaReservations: ctx.quotas ? await ctx.quotas.expireReservations() : 0,
     billing: ctx.billing ? (await ctx.billing.sweep()) + (ctx.gifts ? await ctx.gifts.sweep() : 0) + (ctx.play ? await ctx.play.reconcile() : 0) : 0,
     reportsPurged: 0,
     guestsExpired: 0,

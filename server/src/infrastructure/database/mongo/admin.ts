@@ -106,7 +106,7 @@ export async function runMongoCommand(cmd: string, rest: string[], cfg: Config, 
         console.log("MongoDB: not configured (MONGODB_URI unset); every table is in SQLite");
         return 0;
       }
-      const mongo = await connect(cfg, domainTables(db, cfg.mongo.domains));
+      const mongo = await connect(cfg, domainTables(cfg.mongo.domains));
       try {
         console.log(`MongoDB: ${redactUri(cfg.mongo.uri)} database ${cfg.mongo.dbName}; transactions: ${mongo.supportsTransactions}`);
         // Round trips from this machine (every account request makes one or two): check before moving a domain.
@@ -120,7 +120,7 @@ export async function runMongoCommand(cmd: string, rest: string[], cfg: Config, 
         console.log(`round trip: median ${rtts[5].toFixed(1)} ms, slowest ${rtts[9].toFixed(1)} ms (10 pings)`);
         const rows = [];
         for (const domain of MONGO_DOMAINS) {
-          const tables = domainTables(db, [domain]);
+          const tables = domainTables([domain]);
           for (const t of tables) {
             rows.push({
               domain,
@@ -139,7 +139,7 @@ export async function runMongoCommand(cmd: string, rest: string[], cfg: Config, 
       return 0;
     }
     case "mongo-verify": {
-      const tables = rest[0] === "--all" ? describeTables(db) : domainTables(db, [domainArg(rest[0])]);
+      const tables = rest[0] === "--all" ? describeTables(db) : domainTables([domainArg(rest[0])]);
       const mongo = await connect(cfg, []);
       try {
         return printReports(await verify(db, mongo, tables)) ? 0 : 1;
@@ -153,7 +153,7 @@ export async function runMongoCommand(cmd: string, rest: string[], cfg: Config, 
         console.log(`Would copy ${domain} to MongoDB and make it the home of that data. Stop the API first, then re-run with --yes.`);
         return 2;
       }
-      const tables = domainTables(db, [domain]);
+      const tables = domainTables([domain]);
       const mongo = await connect(cfg, tables);
       try {
         if (!(await capacityAllows(cfg, db, mongo, tables))) return 1;
@@ -180,7 +180,7 @@ export async function runMongoCommand(cmd: string, rest: string[], cfg: Config, 
         console.log(`Would replace SQLite's ${domain} tables with MongoDB's (after a backup). Stop the API first, then re-run with --yes.`);
         return 2;
       }
-      const tables = domainTables(db, [domain]);
+      const tables = domainTables([domain]);
       const mongo = await connect(cfg, tables);
       try {
         await backupFirst(cfg, db, `pre-rollback-${domain}`);
@@ -196,7 +196,7 @@ export async function runMongoCommand(cmd: string, rest: string[], cfg: Config, 
       const snapshot = optionValue(rest, "--snapshot");
       const source = snapshot ? openDatabase(snapshot) : db;
       const domain = optionValue(rest, "--domain");
-      const tables = domain ? domainTables(source, [domainArg(domain)]) : describeTables(source);
+      const tables = domain ? domainTables([domainArg(domain)], describeTables(source)) : describeTables(source);
       const limitMb = Number(optionValue(rest, "--limit-mb") ?? cfg.mongo?.storageLimitMb ?? 0);
       if (!Number.isFinite(limitMb) || limitMb < 0) throw new Error("--limit-mb takes a size in MiB");
       const estimate = estimateStorage(source, tables);
@@ -208,7 +208,7 @@ export async function runMongoCommand(cmd: string, rest: string[], cfg: Config, 
       );
       const rows = estimate.tables.reduce((n, t) => n + t.rows, 0);
       console.log(`${tables.length} tables, ${rows} rows: ${mib(estimate.dataBytes)} documents + ${mib(estimate.indexBytes)} indexes = ${mib(estimate.totalBytes)}`);
-      console.log(`not copied (by design): ${Object.keys(EXCLUDED_TABLES).join(", ")}`);
+      console.log(`not copied (SQLite's own bookkeeping): ${Object.keys(EXCLUDED_TABLES).join(", ")}`);
       if (limitMb === 0) return 0;
       const allowed = limitMb * MIB * CAPACITY_HEADROOM;
       const fits = estimate.totalBytes <= allowed;
@@ -222,7 +222,7 @@ export async function runMongoCommand(cmd: string, rest: string[], cfg: Config, 
       const dbName = optionValue(rest, "--db") ?? `meldiq_dryrun_${Date.now().toString(36)}`;
       if (!DB_NAME.test(dbName)) throw new Error("--db may only use letters, digits, _ and - (at most 38)");
       if (dbName === cfg.mongo?.dbName) throw new Error("--db must not be the server's own database");
-      console.log(`Dry run into ${dbName}; not copied (by design): ${Object.keys(EXCLUDED_TABLES).join(", ")}`);
+      console.log(`Dry run into ${dbName}; not copied (SQLite's own bookkeeping): ${Object.keys(EXCLUDED_TABLES).join(", ")}`);
       const mongo = await connect(cfg, tables, dbName);
       try {
         if (!(await capacityAllows(cfg, source, mongo, tables))) {

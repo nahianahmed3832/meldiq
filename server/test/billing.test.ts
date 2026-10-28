@@ -93,7 +93,7 @@ describe("with the sandbox provider", () => {
   let seq = 0;
 
   const as = (role: string) => admins[role]!.browser;
-  const lastAudit = (action: string) => h.ctx.db.prepare("SELECT * FROM platform_audit WHERE action = ? ORDER BY id DESC LIMIT 1").get(action) as any;
+  const lastAudit = (action: string) => h.ctx.platform.get<any>("platform_audit", { action }, [["id", "desc"]]);
   const deliver = async (event: object, headers: Record<string, string> = {}) => {
     const payload = JSON.stringify(event);
     const res = await h.app.inject({

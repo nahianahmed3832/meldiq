@@ -1,7 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { type ClientSession, type Db, type Document, MongoClient, MongoServerError } from "mongodb";
-import type { DB } from "../db.js";
-import { describeTables, indexesFor, type TableSpec, validatorFor } from "./catalog.js";
+import { indexesFor, type TableSpec, tableSpecs, validatorFor } from "./catalog.js";
 import { type MongoConfig, type MongoDomain, redactUri } from "./config.js";
 
 /** Bumped whenever the collections' validators or indexes change; recorded in orbit_meta. */
@@ -130,9 +129,9 @@ export class MeldiqMongo {
 }
 
 /** The tables whose collections the server needs: those of the domains it keeps in MongoDB. */
-export function domainTables(db: DB, domains: Iterable<MongoDomain>): TableSpec[] {
+export function domainTables(domains: Iterable<MongoDomain>, tables: readonly TableSpec[] = tableSpecs()): TableSpec[] {
   const wanted = new Set<string>(domains);
-  return describeTables(db).filter((t) => wanted.has(t.domain));
+  return tables.filter((t) => wanted.has(t.domain));
 }
 
 /** JSON with object keys sorted at every level: two equal validators compare equal whatever their key order. */

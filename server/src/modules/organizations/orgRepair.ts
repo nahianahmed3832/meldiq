@@ -3,7 +3,7 @@ import type { RowReader } from "../../infrastructure/database/rows/index.js";
 import { compareText, foldAscii } from "../../shared/utilities/sqlText.js";
 
 /** What the repair reads: SQLite (users), and the stores of the domains that may live in MongoDB. */
-export type OrgRepairStores = Pick<AppContext, "db" | "ws" | "files" | "relay" | "calls">;
+export type OrgRepairStores = Pick<AppContext, "identity" | "ws" | "files" | "relay" | "calls">;
 
 /**
  * Operator repair for duplicate organisations (admin CLI `org-duplicates`, `org-delete-empty`).
@@ -98,7 +98,7 @@ export async function keepReason(stores: OrgRepairStores, orgId: string): Promis
 
 /** Groups of organisations owned by the same person under the same name, oldest first in each group. */
 export async function findDuplicateOrgs(stores: OrgRepairStores): Promise<DuplicateGroup[]> {
-  const { db, ws } = stores;
+  const { identity, ws } = stores;
   const nameKey = (o: { created_by: string; name: string }) => `${o.created_by}\u0000${foldAscii(o.name.trim())}`;
   const orgsAll = ws.all<{ id: string; name: string; created_by: string; created_at: number }>("orgs");
   const owned = orgsAll.filter((o) => ws.get<{ role: string }>("org_members", { org_id: o.id, user_id: o.created_by })?.role === "OWNER");
@@ -119,7 +119,7 @@ export async function findDuplicateOrgs(stores: OrgRepairStores): Promise<Duplic
       const reason = await keepReason(stores, id);
       orgs.push({ ...f, removable: reason === null, keepReason: reason });
     }
-    const user = db.prepare("SELECT username FROM users WHERE id = ?").get(g.owner) as { username: string } | undefined;
+    const user = identity.get<{ username: string }>("users", { id: g.owner });
     out.push({ ownerId: g.owner, ownerUsername: user?.username ?? null, name: orgs[0]?.name ?? g.k, orgs });
   }
   return out;

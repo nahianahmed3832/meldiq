@@ -100,15 +100,20 @@ export interface SparkLevel {
 export const SPARK_LEVELS: readonly SparkLevel[] = [
   // Level 0 is what servers have today: 50 emoji, 20 stickers, the apps' 48 kbps voice (LiveKit's music preset).
   { level: 0, sparks: 0, emojiSlots: 50, stickerSlots: 20, uploadBytes: null, voiceKbps: 48, screen: [] },
-  { level: 1, sparks: 1, emojiSlots: 100, stickerSlots: 20, uploadBytes: 50 * MB, voiceKbps: 128, screen: ["720p30"] },
-  { level: 2, sparks: 2, emojiSlots: 200, stickerSlots: 20, uploadBytes: 200 * MB, voiceKbps: 256, screen: ["1080p60"] },
-  { level: 3, sparks: 3, emojiSlots: 500, stickerSlots: 20, uploadBytes: 2 * GB, voiceKbps: 384, screen: ["1080p60", "1440p30"] },
+  { level: 1, sparks: 2, emojiSlots: 100, stickerSlots: 20, uploadBytes: 50 * MB, voiceKbps: 128, screen: ["720p30"] },
+  { level: 2, sparks: 5, emojiSlots: 200, stickerSlots: 20, uploadBytes: 200 * MB, voiceKbps: 256, screen: ["1080p60"] },
+  { level: 3, sparks: 8, emojiSlots: 500, stickerSlots: 20, uploadBytes: 2 * GB, voiceKbps: 384, screen: ["1080p60", "1440p30"] },
 ];
 export const MAX_SPARK_LEVEL = 3;
 
-/** The level [active] Sparks give (capped at 3: more never shows a level 4). */
+/**
+ * The level [active] Sparks give: the highest whose threshold they reach (owner, 2026-10-28: 2, 5 and 8 active Sparks in
+ * total for Levels 1, 2 and 3). Capped at 3: more never shows a level 4.
+ */
 export function sparkLevel(active: number): SparkLevel {
-  return SPARK_LEVELS[Math.max(0, Math.min(MAX_SPARK_LEVEL, Math.floor(active)))]!;
+  let reached = SPARK_LEVELS[0]!;
+  for (const l of SPARK_LEVELS) if (active >= l.sparks) reached = l;
+  return reached;
 }
 
 /** Gift lengths on offer, in months; a gift's price is the plan's monthly price times its months. */

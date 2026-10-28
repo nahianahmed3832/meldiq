@@ -8,8 +8,6 @@ const REFRESH_MS = 60_000;
 
 export interface ExclusionSet {
   ids: string[];
-  /** The same as a JSON array, for the analytics queries. */
-  json: string;
   counts: { synthetic: number; listed: number; admins: number };
 }
 
@@ -32,10 +30,10 @@ export class Exclusions {
 
   async get(t = Date.now()): Promise<ExclusionSet> {
     if (this.cached && t - this.cached.at < REFRESH_MS) return this.cached.set;
-    const synthetic = syntheticUserIds(this.ctx.db);
-    const listed = platformSetting(this.ctx.db, "analytics.excluded_users");
+    const synthetic = syntheticUserIds(this.ctx.identity);
+    const listed = platformSetting(this.ctx.platform, "analytics.excluded_users");
     const admins: string[] = [];
-    if (platformSetting(this.ctx.db, "analytics.exclude_admins")) {
+    if (platformSetting(this.ctx.platform, "analytics.exclude_admins")) {
       for (const g of this.store.grants()) {
         if (g.revoked_at !== null) continue;
         const a = await this.ctx.accounts.store.accountById(g.account_id);
@@ -43,7 +41,7 @@ export class Exclusions {
       }
     }
     const ids = [...new Set([...synthetic, ...listed, ...admins])];
-    const set = { ids, json: JSON.stringify(ids), counts: { synthetic: synthetic.length, listed: listed.length, admins: admins.length } };
+    const set = { ids, counts: { synthetic: synthetic.length, listed: listed.length, admins: admins.length } };
     this.cached = { at: t, set };
     this.ctx.telemetry.setExcluded(ids);
     return set;

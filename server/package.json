@@ -1,6 +1,6 @@
 {
   "name": "meldiq-server",
-  "version": "0.56.0",
+  "version": "0.57.0",
   "private": true,
   "description": "Meldiq relay/API server (internal beta)",
   "type": "module",
@@ -15,7 +15,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "admin": "node dist/admin.js",
     "seed:dev": "node dist/seed.js",
-    "contracts": "tsx scripts/contracts.ts"
+    "contracts": "tsx scripts/contracts.ts",
+    "schema": "tsx scripts/schema.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1144.0",

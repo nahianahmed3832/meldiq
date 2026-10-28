@@ -28,7 +28,7 @@ describe("usage metering", () => {
   it("counters add up per day; gauges are recomputed, never double-counted", async () => {
     const pure = (await owner.req("POST", "/v1/orgs", { name: "Pure Co" })).org.id;
     let t = Date.parse("2026-10-20T10:00:00Z");
-    const m = new UsageMeter(h.ctx.db, h.ctx.ws, h.ctx.files, h.ctx.calls, () => t);
+    const m = new UsageMeter(h.ctx.identity, h.ctx.ws, h.ctx.files, h.ctx.calls, () => t);
     await m.add(pure, "files.upload_bytes");
     await m.add(pure, "files.upload_bytes", 2);
     await m.add(null, "files.upload_bytes", 5); // no community: not metered

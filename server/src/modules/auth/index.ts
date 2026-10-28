@@ -57,17 +57,12 @@ export async function stillAuthenticated(ctx: AppContext, token: string | undefi
 
 function authenticateV1Token(ctx: AppContext, token: string | undefined): AuthInfo | null {
   if (!token || token.length < 20 || token.length > 200) return null;
-  const row = ctx.db
-    .prepare(
-      `SELECT s.user_id, s.device_id, s.expires_at, d.revoked_at, u.disabled_at
-       FROM sessions s JOIN devices d ON d.id = s.device_id JOIN users u ON u.id = s.user_id
-       WHERE s.token_hash = ?`,
-    )
-    .get(sha256Hex(token)) as
-    | { user_id: string; device_id: string; expires_at: number; revoked_at: number | null; disabled_at: number | null }
-    | undefined;
-  if (!row || row.expires_at <= now() || row.revoked_at || row.disabled_at) return null;
-  return { userId: row.user_id, deviceId: row.device_id };
+  const s = ctx.ephemeral.get<{ user_id: string; device_id: string; expires_at: number }>("sessions", { token_hash: sha256Hex(token) });
+  if (!s || s.expires_at <= now()) return null;
+  const device = ctx.identity.get<{ revoked_at: number | null }>("devices", { id: s.device_id });
+  const user = ctx.identity.get<{ disabled_at: number | null }>("users", { id: s.user_id });
+  if (!device || !user || device.revoked_at || user.disabled_at) return null;
+  return { userId: s.user_id, deviceId: s.device_id };
 }
 
 export function bearer(req: FastifyRequest): string | undefined {
@@ -90,11 +85,11 @@ export function me(req: FastifyRequest): AuthInfo {
 }
 
 /** Ends every v1 (device-signature) session of [userId]; the Platform Admin Console's session revocation and suspension. */
-export function endLegacySessions(ctx: AppContext, userId: string): number {
-  return ctx.db.prepare("DELETE FROM sessions WHERE user_id = ?").run(userId).changes;
+export function endLegacySessions(ctx: AppContext, userId: string): Promise<number> {
+  return ctx.ephemeral.write((w) => w.delete("sessions", { user_id: userId }));
 }
 
 /** How many v1 (device-signature) sessions [userId] has (the console's session view). */
 export function legacySessionCount(ctx: AppContext, userId: string): number {
-  return (ctx.db.prepare("SELECT COUNT(*) n FROM sessions WHERE user_id = ? AND expires_at > ?").get(userId, now()) as { n: number }).n;
+  return ctx.ephemeral.count("sessions", { user_id: userId, expires_at: { gt: now() } });
 }

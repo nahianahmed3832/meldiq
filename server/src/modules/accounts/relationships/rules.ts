@@ -12,7 +12,7 @@ export function notAvailable(): ApiError {
 
 /** Whether either of the two blocked the other. */
 export function blockedEitherWay(ctx: AppContext, x: string, y: string): boolean {
-  return !!ctx.db.prepare("SELECT 1 FROM user_blocks WHERE (user_id = ? AND blocked_user_id = ?) OR (user_id = ? AND blocked_user_id = ?)").get(x, y, y, x);
+  return !!ctx.identity.get("user_blocks", { $or: [{ user_id: x, blocked_user_id: y }, { user_id: y, blocked_user_id: x }] });
 }
 
 /** Whether the two are both members (not guests) of at least one community. */
@@ -24,7 +24,7 @@ export function sharesCommunity(ctx: AppContext, x: string, y: string): boolean 
 /** A local, enabled account (people on other servers keep their own settings there). */
 export function availableUser(ctx: AppContext, id: string): { id: string; home_server_id: string | null } | null {
   // AI agents' bot identities (kind 'agent') are no one's to message: their direct conversations start from AI agents.
-  return (ctx.db.prepare("SELECT id, home_server_id FROM users WHERE id = ? AND disabled_at IS NULL AND kind = 'person'").get(id) as { id: string; home_server_id: string | null } | undefined) ?? null;
+  return ctx.identity.get<{ id: string; home_server_id: string | null }>("users", { id, disabled_at: null, kind: "person" }) ?? null;
 }
 
 export type DmDecision = "direct" | "request" | "refused";

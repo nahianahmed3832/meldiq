@@ -29,7 +29,7 @@ export default async function historyRoutes(app: FastifyInstance, ctx: AppContex
   const newAccountBytes = ctx.config.abuse.newAccountHistoryBytes;
   /** The account's allowance: smaller while it's under new-account limits (docs/ABUSE_CONTROLS.md). */
   const maxBytesFor = (userId: string) =>
-    newAccountBytes > 0 && hasNewAccountLimits(db, userId) ? Math.min(newAccountBytes, cfg.maxBytesPerUser) : cfg.maxBytesPerUser;
+    newAccountBytes > 0 && hasNewAccountLimits(ctx.identity, userId) ? Math.min(newAccountBytes, cfg.maxBytesPerUser) : cfg.maxBytesPerUser;
   app.get("/v1/history/summary", auth, async (req) => {
     const { userId } = me(req);
     const a = await history.account(userId);
@@ -100,7 +100,7 @@ export async function purgeHistory(ctx: AppContext, t: number): Promise<number> 
   const store = ctx.history;
   let n = await store.purgeTombstones(t - ctx.config.history.tombstoneDays * 86_400_000);
   const orphans = await store.orphanUserIds((ids) => {
-    const rows = ctx.db.prepare(`SELECT id FROM users WHERE deleted_at IS NULL AND id IN (${ids.map(() => "?").join(",")})`).all(...ids) as { id: string }[];
+    const rows = ctx.identity.all<{ id: string }>("users", { where: { deleted_at: null, id: { in: ids } } });
     return new Set(rows.map((r) => r.id));
   });
   for (const userId of orphans) n += await store.deleteForUser(userId);
@@ -114,7 +114,6 @@ export async function purgeHistory(ctx: AppContext, t: number): Promise<number> 
  * items can't be read with the new keys anyway.
  */
 export async function deleteHistoryAfterCommit(ctx: AppContext, userId: string, why: string): Promise<void> {
-  if (ctx.history.backend !== "mongodb") return;
   try {
     await ctx.history.deleteForUser(userId);
   } catch (e) {

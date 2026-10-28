@@ -80,7 +80,7 @@ export default async function adminAuthRoutes(app: FastifyInstance, cfg: AdminCo
   });
 
   app.post("/admin/v1/auth/logout", session, async (req, reply) => {
-    auth.logout(principal(req), metaOf(req));
+    await auth.logout(principal(req), metaOf(req));
     reply.header("set-cookie", [clearCookie(SESSION_COOKIE), clearCookie(PENDING_COOKIE)]);
     return { ok: true as const };
   });

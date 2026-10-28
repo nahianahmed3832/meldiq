@@ -119,7 +119,7 @@ describe("invite preview and accept (phase 1)", () => {
     const gated = await startServer({ REGISTRATION_MODE: "invite" });
     try {
       const o = new GriipClient(gated.baseUrl, "gatedowner", "Owner");
-      const reg = (await import("../src/modules/organizations/invites.js")).createRegistrationInvite(gated.ctx.db, { maxUses: 1, days: 1 });
+      const reg = await (await import("../src/modules/organizations/invites.js")).createRegistrationInvite(gated.ctx.identity, { maxUses: 1, days: 1 });
       await o.register(reg.code);
       const org = (await o.req("POST", "/v1/orgs", { name: "Gated" })).org.id;
       const inv = await invite(o, org);

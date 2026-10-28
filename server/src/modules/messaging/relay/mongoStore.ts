@@ -31,7 +31,7 @@ export class MongoRelayStore implements RelayStore {
 
   constructor(
     private readonly mongo: MeldiqMongo,
-    /** For the SQLite steps of an acceptance and to start the counter above SQLite's ids. */
+    /** To start the counter above SQLite's ids (a queue moved from SQLite; afterwards the counter holds the floor). */
     private readonly db: DB,
     private readonly log: Pick<FastifyBaseLogger, "error">,
   ) {
@@ -45,8 +45,8 @@ export class MongoRelayStore implements RelayStore {
     return d ? strip(d) : null;
   }
 
-  async accept(sub: Submission, items: QueueInsert[], sqliteSteps?: () => void): Promise<QueueItemRow[]> {
-    const rows = await this.mongo.transaction(async () => {
+  async accept(sub: Submission, items: QueueInsert[]): Promise<QueueItemRow[]> {
+    return this.mongo.transaction(async () => {
       const session = this.mongo.session();
       try {
         await this.submitted.insertOne({ _id: sub.message_id, ...sub }, { session });
@@ -56,16 +56,6 @@ export class MongoRelayStore implements RelayStore {
       }
       return this.insert(items);
     });
-    if (sqliteSteps) {
-      try {
-        this.db.transaction(sqliteSteps)();
-      } catch (err) {
-        // The message is accepted and queued; only its side records (conversation time, @everyone, federation outbox)
-        // are missing. A retry answers as a duplicate, so failing here would lose nothing more: log it instead.
-        this.log.error({ err, messageId: sub.message_id }, "relay: SQLite steps after an accepted message failed");
-      }
-    }
-    return rows;
   }
 
   async enqueue(items: QueueInsert[]): Promise<QueueItemRow[]> {
@@ -90,7 +80,7 @@ export class MongoRelayStore implements RelayStore {
   }
 
   async hasEnvelopeSince(deviceId: string, since: number, now: number): Promise<boolean> {
-    return (await this.queue.findOne({ recipient_device_id: deviceId, kind: "envelope", created_at: { $gte: since }, expires_at: { $gt: now } }, { projection: { _id: 1 } })) !== null;
+    return (await this.queue.findOne({ recipient_device_id: deviceId, kind: { $in: ["envelope", "message"] }, created_at: { $gte: since }, expires_at: { $gt: now } }, { projection: { _id: 1 } })) !== null;
   }
 
   async purgeExpired(now: number): Promise<{ queue: number; submitted: number }> {
@@ -104,7 +94,7 @@ export class MongoRelayStore implements RelayStore {
         {
           $group: {
             _id: null,
-            envelopes: { $sum: { $cond: [{ $eq: ["$kind", "envelope"] }, 1, 0] } },
+            envelopes: { $sum: { $cond: [{ $ne: ["$kind", "receipt"] }, 1, 0] } },
             receipts: { $sum: { $cond: [{ $eq: ["$kind", "receipt"] }, 1, 0] } },
             oldest: { $min: "$created_at" },
           },
@@ -183,7 +173,7 @@ export class MongoRelayStore implements RelayStore {
   private startCounter(): Promise<void> {
     this.counterReady ??= (async () => {
       const top = await this.queue.find({}, { projection: { _id: 1 } }).sort({ _id: -1 }).limit(1).toArray();
-      const sqlite = this.db.prepare("SELECT seq FROM sqlite_sequence WHERE name = 'delivery_queue'").get() as { seq: number } | undefined;
+      const sqlite = this.db.prepare("SELECT MAX(seq) AS seq FROM sqlite_sequence WHERE name = 'delivery_queue'").get() as { seq: number | null } | undefined;
       const floor = Math.max(top[0]?._id ?? 0, sqlite?.seq ?? 0);
       await this.meta.updateOne({ _id: COUNTER_ID }, { $max: { seq: floor } }, { upsert: true });
     })().catch((e) => {

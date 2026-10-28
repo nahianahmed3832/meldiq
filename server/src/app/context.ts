@@ -11,6 +11,7 @@ import type { Entitlements } from "../modules/administration/entitlements.js";
 import type { LiveKitService } from "../modules/calls/livekit.js";
 import type { MeldiqMongo } from "../infrastructure/database/mongo/client.js";
 import type { HistoryStore } from "../modules/messaging/history/store.js";
+import type { MessageStore } from "../modules/messaging/store/messageStore.js";
 import type { ReportSealer } from "../modules/organizations/reports/seal.js";
 import type { RelationshipStore } from "../modules/accounts/relationships/store.js";
 import type { CallStore } from "../modules/calls/store.js";
@@ -53,6 +54,8 @@ export interface AppContext {
   relay: RelayStore;
   /** Encrypted message history (docs/MESSAGE_HISTORY.md): SQLite, or MongoDB when MONGODB_DOMAINS includes "history". */
   history: HistoryStore;
+  /** Messages stored and served by the server (API 0.57.0, docs/SERVER_MESSAGES.md). */
+  messages: MessageStore;
   /** Reports (batch B4): SQLite, or MongoDB when MONGODB_DOMAINS includes "reports"; their content sealed by [reportSealer]. */
   reports: ReportStore;
   reportSealer: ReportSealer;
@@ -67,6 +70,17 @@ export interface AppContext {
    * MongoDB with an in-memory copy when MONGODB_DOMAINS includes "workspace" and "conversations" (app/workspaceRows.ts).
    */
   ws: Rows;
+  /**
+   * The rest of the data, one rows store per domain (docs/MONGODB.md › Retiring SQLite): SQLite, or MongoDB with an
+   * in-memory copy when MONGODB_DOMAINS includes it. identity: people and devices; platform: the console, quotas and
+   * telemetry; federation; safety: passkeys, two-step, warnings, bug reports; ephemeral: sessions and other short-lived
+   * sign-in material and samples.
+   */
+  identity: Rows;
+  platform: Rows;
+  fed: Rows;
+  safety: Rows;
+  ephemeral: Rows;
   /** Present when MONGODB_URI is set: the domains in MONGODB_DOMAINS live there (docs/MONGODB.md). */
   mongo?: MeldiqMongo;
   /** Plan-based limits (src/entitlements.ts, docs/PLANS.md): none by default. */

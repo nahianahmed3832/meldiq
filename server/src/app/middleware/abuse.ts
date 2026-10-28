@@ -1,7 +1,6 @@
 import net from "node:net";
-import type { DB } from "../../infrastructure/database/db.js";
 import { now } from "../../shared/utilities/util.js";
-import type { RowReader } from "../../infrastructure/database/rows/index.js";
+import type { RowReader, Rows } from "../../infrastructure/database/rows/index.js";
 
 /**
  * Abuse controls shared by several routes (docs/ABUSE_CONTROLS.md). Counters live in memory only: they hold network
@@ -84,19 +83,19 @@ export class SlidingWindow {
 }
 
 /** Whether an account is still under new-account limits (docs/ABUSE_CONTROLS.md › New accounts). */
-export function hasNewAccountLimits(db: DB, userId: string, t = now()): boolean {
-  const r = db.prepare("SELECT limited_until FROM users WHERE id = ?").get(userId) as { limited_until: number | null } | undefined;
+export function hasNewAccountLimits(identity: RowReader, userId: string, t = now()): boolean {
+  const r = identity.get<{ limited_until: number | null }>("users", { id: userId });
   return !!r?.limited_until && r.limited_until > t;
 }
 
 /** The accounts still under new-account limits (their files share one allowance). */
-export function limitedUserIds(db: DB, t = now()): string[] {
-  return (db.prepare("SELECT id FROM users WHERE limited_until > ?").all(t) as { id: string }[]).map((r) => r.id);
+export function limitedUserIds(identity: RowReader, t = now()): string[] {
+  return identity.all<{ id: string }>("users", { where: { limited_until: { gt: t } } }).map((r) => r.id);
 }
 
 /** Ends an account's new-account limits. Returns whether it had any. */
-export function endNewAccountLimits(db: DB, userId: string): boolean {
-  return db.prepare("UPDATE users SET limited_until = NULL WHERE id = ? AND limited_until IS NOT NULL").run(userId).changes > 0;
+export function endNewAccountLimits(identity: Rows, userId: string): Promise<boolean> {
+  return identity.write((w) => w.update("users", { id: userId, limited_until: { ne: null } }, { limited_until: null }) > 0);
 }
 
 /**

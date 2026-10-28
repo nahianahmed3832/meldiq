@@ -57,9 +57,10 @@ export class LegacyMigrationService {
       reply.header("retry-after", String(Math.ceil(wait / 1000)));
       throw new ApiError(429, "too_many_attempts", "Too many attempts. Wait a while and try again.");
     }
-    const user = this.ctx.db.prepare("SELECT id, username, display_name, identity_key, disabled_at FROM users WHERE username = ? AND home_server_id IS NULL").get(body.username) as
-      | { id: string; username: string; display_name: string; identity_key: string; disabled_at: number | null }
-      | undefined;
+    const user = this.ctx.identity.get<{ id: string; username: string; display_name: string; identity_key: string; disabled_at: number | null }>("users", {
+      username: body.username,
+      home_server_id: null,
+    });
     // Unknown username and wrong key answer alike, so this doesn't reveal which usernames exist.
     const proven = !!user && verifyEd25519(user.identity_key, canonical.legacyMigration(user.username, body.nonce), body.signature);
     if (!user || !proven || !consumeChallenge(this.ctx, body.nonce)) {

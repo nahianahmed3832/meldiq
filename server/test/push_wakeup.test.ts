@@ -43,12 +43,11 @@ async function pair() {
   return { alice, bob, dm };
 }
 
+const WINDOW_MS = 2500;
 const endpointOf = (c: GriipClient) => `https://${HOST}/up${c.deviceId.replace(/[^A-Za-z0-9]/g, "").slice(-12)}?up=1`;
 const register = (c: GriipClient, endpoint = endpointOf(c)) => c.req("PUT", "/v1/devices/current/push", { kind: "unifiedpush", endpoint });
 const stored = (deviceId: string) =>
-  h.ctx.db.prepare("SELECT * FROM push_endpoints WHERE device_id = ?").get(deviceId) as
-    | { endpoint: string; last_wake_at: number | null; failing_since: number | null }
-    | undefined;
+  h.ctx.identity.get<{ endpoint: string; last_wake_at: number | null; failing_since: number | null }>("push_endpoints", { device_id: deviceId });
 
 describe("registering a device's endpoint", () => {
   usePushServer();
@@ -75,7 +74,7 @@ describe("registering a device's endpoint", () => {
     const { alice, bob } = await pair();
     await register(bob, `https://${HOST}/upFirst?up=1`);
     await register(bob, `https://${HOST}/upSecond?up=1`);
-    expect(h.ctx.db.prepare("SELECT endpoint FROM push_endpoints WHERE device_id = ?").all(bob.deviceId)).toEqual([{ endpoint: `https://${HOST}/upSecond?up=1` }]);
+    expect(h.ctx.identity.all<{ endpoint: string }>("push_endpoints", { where: { device_id: bob.deviceId } }).map((r) => ({ endpoint: r.endpoint }))).toEqual([{ endpoint: `https://${HOST}/upSecond?up=1` }]);
 
     await register(alice, `https://${HOST}/upSecond?up=1`);
     expect(stored(bob.deviceId)).toBeUndefined();
@@ -163,7 +162,8 @@ describe("waking a device", () => {
     // The transport gets a URL and options only: no field could carry content. Check that nothing leaked into them.
     const text = JSON.stringify(wake);
     for (const secret of [dm, sent.messageId, alice.userId, alice.deviceId, bob.userId, "secret plan"]) expect(text).not.toContain(secret);
-    expect(stored(bob.deviceId)?.last_wake_at).toBeGreaterThan(0);
+    // Recorded after the wake-up goes out (a write that commits on its own in MongoDB).
+    await expect.poll(() => stored(bob.deviceId)?.last_wake_at ?? 0).toBeGreaterThan(0);
     // The message is still queued: the wake-up only tells the app to fetch it.
     expect(await queuedCount(h, (r) => r.recipient_device_id === bob.deviceId)).toBe(1);
   });
@@ -181,21 +181,23 @@ describe("waking a device", () => {
     await bob.disconnect();
   });
 
+  // The window is wide enough that sending, connecting and fetching fit inside it on a busy machine (a full run with
+  // every domain in MongoDB).
   it("coalesces wake-ups to one per window and defers the rest instead of dropping them", async () => {
-    h.ctx.config.push!.wakeIntervalMs = 600;
+    h.ctx.config.push!.wakeIntervalMs = WINDOW_MS;
     const { alice, bob, dm } = await pair();
     await register(bob);
-    for (let i = 0; i < 3; i++) await alice.send(dm, { type: "text", text: `m${i}` });
+    await Promise.all([0, 1, 2].map((i) => alice.send(dm, { type: "text", text: `m${i}` })));
     await sleep(150);
     expect(net.sent.length).toBe(1);
-    await expect.poll(() => net.sent.length, { timeout: 3000 }).toBe(2);
-    expect(net.sent[1].at - net.sent[0].at).toBeGreaterThanOrEqual(550);
-    await sleep(900);
+    await expect.poll(() => net.sent.length, { timeout: WINDOW_MS + 3000 }).toBe(2);
+    expect(net.sent[1].at - net.sent[0].at).toBeGreaterThanOrEqual(WINDOW_MS - 50);
+    await sleep(WINDOW_MS + 300);
     expect(net.sent.length).toBe(2); // nothing new arrived: no further wake-up
   });
 
   it("skips a deferred wake-up once the device has fetched its queue", async () => {
-    h.ctx.config.push!.wakeIntervalMs = 600;
+    h.ctx.config.push!.wakeIntervalMs = WINDOW_MS;
     const { alice, bob, dm } = await pair();
     await register(bob);
     await alice.send(dm, { type: "text", text: "first" });
@@ -205,7 +207,7 @@ describe("waking a device", () => {
     await bob.waitFor(() => bob.received.length === 2);
     await expect.poll(() => queuedCount(h, (r) => r.recipient_device_id === bob.deviceId)).toBe(0);
     await bob.disconnect();
-    await sleep(900);
+    await sleep(WINDOW_MS + 300);
     expect(net.sent.length).toBe(1);
   });
 
@@ -262,7 +264,7 @@ describe("waking a device", () => {
   it("never wakes disabled accounts, and the retention job removes endpoints of revoked devices", async () => {
     const { bob } = await pair();
     await register(bob);
-    h.ctx.db.prepare("UPDATE users SET disabled_at = ? WHERE id = ?").run(Date.now(), bob.userId);
+    await h.ctx.identity.write((w) => w.update("users", { id: bob.userId }, { disabled_at: Date.now() }));
     h.ctx.push!.queued(bob.deviceId);
     h.ctx.push!.ring(bob.userId);
     await sleep(200);
@@ -271,7 +273,7 @@ describe("waking a device", () => {
     // Revoked outside the route (the admin CLI, or before this feature): the next cleanup run removes the endpoint.
     const { bob: dave } = await pair();
     await register(dave);
-    h.ctx.db.prepare("UPDATE devices SET revoked_at = ? WHERE id = ?").run(Date.now(), dave.deviceId);
+    await h.ctx.identity.write((w) => w.update("devices", { id: dave.deviceId }, { revoked_at: Date.now() }));
     h.ctx.push!.queued(dave.deviceId);
     await sleep(100);
     expect(net.sent).toEqual([]);
@@ -327,7 +329,7 @@ describe("push server answers and address checks", () => {
     net.respond = () => ({ status: 500 });
     const { alice, bob, dm } = await pair();
     await register(bob);
-    h.ctx.db.prepare("UPDATE push_endpoints SET failing_since = ? WHERE device_id = ?").run(Date.now() - 8 * 86_400_000, bob.deviceId);
+    await h.ctx.identity.write((w) => w.update("push_endpoints", { device_id: bob.deviceId }, { failing_since: Date.now() - 8 * 86_400_000 }));
     await alice.send(dm, { type: "text", text: "x" });
     await expect.poll(() => stored(bob.deviceId)).toBeUndefined();
     expect(net.logs).toContainEqual({ level: "info", obj: { deviceId: bob.deviceId, reason: "http_500_for_7_days" }, msg: "push endpoint removed" });

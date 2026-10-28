@@ -13,6 +13,7 @@ import { gifRoutes } from "./gifs.js";
 import { bugReportRoutes } from "./bugReports.js";
 import { historyRoutes } from "./history.js";
 import { messagingRoutes } from "./messaging.js";
+import { serverMessagesRoutes } from "./serverMessages.js";
 import { systemRoutes } from "./system.js";
 import type { RouteContract } from "./route.js";
 
@@ -31,6 +32,7 @@ export const ErrorEnvelope = z.strictObject({
 export const ROUTE_CONTRACTS: readonly RouteContract[] = [
   ...systemRoutes,
   ...messagingRoutes,
+  ...serverMessagesRoutes,
   ...gifRoutes,
   ...bugReportRoutes,
   ...historyRoutes,

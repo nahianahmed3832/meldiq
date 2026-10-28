@@ -5,7 +5,8 @@
  * - `{ col: v }` is `col = v`; `{ col: null }` is `col IS NULL`.
  * - `{ col: { ne: v } }` is `col != v` (false for NULL, as in SQL); `{ ne: null }` is `col IS NOT NULL`.
  * - `{ col: { in: [...] } }`, `{ notIn: [...] }` (an empty list matches nothing / everything; NULL never matches).
- * - `{ col: { gt | gte | lt | lte: n } }`: false for NULL.
+ * - `{ col: { gt | gte | lt | lte: v } }`: false for NULL; [v] a number, or text compared by code units (SQLite's BINARY
+ *   order, ASCII case folded in a NOCASE column), e.g. a "YYYY-MM-DD" day.
  * - Fields are ANDed; `$or: [where, …]` adds one OR group.
  * - A column declared COLLATE NOCASE compares ignoring ASCII case, in equality and in uniqueness.
  *
@@ -21,10 +22,10 @@ export type Cond =
   | { in: readonly Value[] }
   | { notIn: readonly Value[] }
   | { ne: Value }
-  | { gt: number }
-  | { gte: number }
-  | { lt: number }
-  | { lte: number };
+  | { gt: number | string }
+  | { gte: number | string }
+  | { lt: number | string }
+  | { lte: number | string };
 
 export type Where = { [column: string]: Cond | Where[] | undefined } & { $or?: Where[] };
 
@@ -74,6 +75,8 @@ export interface Rows extends RowReader {
   has(table: string): boolean;
   /** Resolves once every unit started so far is durable or failed (before the store's connection closes). */
   settled(): Promise<void>;
+  /** Stops following other processes' writes (MongoDB), before the client closes; nothing to do for SQLite. */
+  close(): Promise<void>;
 }
 
 /** A write broke a uniqueness rule: same message as SQLite's, so callers and logs read alike. */

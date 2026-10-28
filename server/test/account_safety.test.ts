@@ -74,7 +74,7 @@ describe("two-step sign-in", () => {
   });
 
   it("keeps the secret sealed in the database", async () => {
-    const rows = h.ctx.db.prepare("SELECT secret FROM account_totp").all() as { secret: string }[];
+    const rows = h.ctx.safety.all<{ secret: string }>("account_totp");
     expect(rows.length).toBeGreaterThan(0);
     for (const r of rows) expect(r.secret).toMatch(/^v1\./);
   });
@@ -119,24 +119,24 @@ describe("account standing", () => {
     const org = (await friend.req("POST", "/v1/orgs", { name: "Standing Lab" })).org;
     const code = (await friend.req("POST", `/v1/orgs/${org.id}/invites`, { role: "MEMBER", maxUses: 5 })).invite.code;
     // One warning: no new communities or invitations, but joining and messaging still work.
-    addWarning(h.ctx.db, warned.userId, "Spam in #general", 14, "test");
+    await addWarning(h.ctx.safety, warned.userId, "Spam in #general", 14, "test");
     expect((await expectStatus(warned.req("POST", "/v1/orgs", { name: "Nope" }), 403)).error.code).toBe("account_limited");
     await warned.req("POST", "/v1/invites/accept", { code });
     await expectStatus(warned.req("POST", `/v1/orgs/${org.id}/invites`, { role: "MEMBER", maxUses: 1 }), 403);
     const dm = (await warned.req("POST", "/v1/conversations/dm", { userId: friend.userId })).conversation.id;
     // Two: no new conversations (an existing one still opens).
-    addWarning(h.ctx.db, warned.userId, "Spam again", 14, "test");
+    await addWarning(h.ctx.safety, warned.userId, "Spam again", 14, "test");
     const other = await h.client("other");
     await expectStatus(warned.req("POST", "/v1/conversations/dm", { userId: other.userId }), 403);
     expect((await warned.req("POST", "/v1/conversations/dm", { userId: friend.userId })).conversation.id).toBe(dm);
     // Three: suspended, so no messages either.
-    const third = addWarning(h.ctx.db, warned.userId, "Third time", 14, "test");
+    const third = await addWarning(h.ctx.safety, warned.userId, "Third time", 14, "test");
     await expectStatus(warned.send(dm, { type: "text", text: "hello" }), 403);
     // Lifting one brings sending back.
-    h.ctx.db.prepare("UPDATE account_warnings SET revoked_at = ? WHERE id = ?").run(Date.now(), third.id);
+    await h.ctx.safety.write((w) => w.update("account_warnings", { id: third.id }, { revoked_at: Date.now() }));
     await warned.send(dm, { type: "text", text: "hello again" });
     // Expired warnings don't count.
-    h.ctx.db.prepare("UPDATE account_warnings SET expires_at = ? WHERE user_id = ?").run(Date.now() - 1, warned.userId);
+    await h.ctx.safety.write((w) => w.update("account_warnings", { user_id: warned.userId }, { expires_at: Date.now() - 1 }));
     await warned.req("POST", "/v1/orgs", { name: "Back in good standing" });
   });
 
@@ -145,7 +145,7 @@ describe("account standing", () => {
     await c.signIn();
     await c.setUpIdentity();
     expect(await c.req("GET", "/v2/account/standing")).toEqual({ level: "good", warnings: [] });
-    addWarning(h.ctx.db, c.userId!, "Harassment report upheld", 7, "test");
+    await addWarning(h.ctx.safety, c.userId!, "Harassment report upheld", 7, "test");
     const st = await c.req("GET", "/v2/account/standing");
     expect(st.level).toBe("limited");
     expect(st.warnings[0]).toMatchObject({ reason: "Harassment report upheld", expiresAt: expect.any(Number) });
@@ -161,7 +161,7 @@ describe("bug reports and profile additions", () => {
     expect((await ada.req("GET", "/v1/bug-reports")).reports).toHaveLength(1);
     expect((await eve.req("GET", "/v1/bug-reports")).reports).toHaveLength(0);
     expect((await eve.req("GET", `/v1/users/${ada.userId}`)).user.badges).toBeUndefined();
-    h.ctx.db.prepare("UPDATE bug_reports SET status = 'confirmed' WHERE id = ?").run(report.id);
+    await h.ctx.safety.write((w) => w.update("bug_reports", { id: report.id }, { status: "confirmed" }));
     expect((await ada.req("GET", "/v1/bug-reports")).bugHunter).toBe(true);
     expect((await eve.req("GET", `/v1/users/${ada.userId}`)).user.badges).toEqual(["bug-hunter"]);
   });

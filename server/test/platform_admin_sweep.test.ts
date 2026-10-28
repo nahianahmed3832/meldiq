@@ -148,11 +148,11 @@ describe("every console route", () => {
   it("lets each role through exactly where its permissions say, and audits every refusal", async () => {
     for (const [r, permission] of Object.entries(GUARDED)) {
       for (const role of PLATFORM_ROLES) {
-        const before = (h.ctx.db.prepare("SELECT COUNT(*) n FROM platform_audit WHERE action = 'admin.permission'").get() as { n: number }).n;
+        const before = h.ctx.platform.count("platform_audit", { action: "admin.permission" });
         const res = await admins[role].browser.req(...request(r));
         const refused = res.status === 403 && res.body?.error?.code === "forbidden";
         expect(refused, `${role} ${r}`).toBe(!can(role, permission));
-        const after = (h.ctx.db.prepare("SELECT COUNT(*) n FROM platform_audit WHERE action = 'admin.permission'").get() as { n: number }).n;
+        const after = h.ctx.platform.count("platform_audit", { action: "admin.permission" });
         expect(after - before, `${role} ${r} audit`).toBe(refused ? 1 : 0);
         expect(res.status, `${role} ${r}`).not.toBe(500);
       }

@@ -16,13 +16,13 @@ import { notifyConversation } from "../../organizations/orgsRoutes.js";
  * answering message requests, and who may message you. No suggestions, no mutual lists: only what each person did.
  */
 export default async function connectionRoutes(app: FastifyInstance, ctx: AppContext) {
-  const { db } = ctx;
+  const { identity } = ctx;
   const auth = { preHandler: requireAuth(ctx) };
   const rel = ctx.relationships;
 
   const people = (ids: string[]) => {
     if (ids.length === 0) return new Map<string, ReturnType<typeof userSummary>>();
-    const rows = db.prepare(`SELECT * FROM users WHERE id IN (${ids.map(() => "?").join(",")}) AND disabled_at IS NULL`).all(...ids) as Parameters<typeof userSummary>[0][];
+    const rows = identity.all<Parameters<typeof userSummary>[0]>("users", { where: { id: { in: ids }, disabled_at: null } });
     return new Map(rows.map((u) => [u.id, userSummary(u)]));
   };
   const other = (row: ConnectionRow, userId: string) => (row.a === userId ? row.b : row.a);
@@ -48,7 +48,7 @@ export default async function connectionRoutes(app: FastifyInstance, ctx: AppCon
     const targetId =
       "userId" in body
         ? body.userId
-        : (db.prepare("SELECT id FROM users WHERE username = ? COLLATE NOCASE AND disabled_at IS NULL").get(body.username.replace(/^@/, "")) as { id: string } | undefined)?.id;
+        : identity.get<{ id: string }>("users", { username: body.username.replace(/^@/, ""), disabled_at: null })?.id;
     if (targetId === userId) throw badRequest("You can't connect with yourself");
     const target = targetId ? availableUser(ctx, targetId) : null;
     if (!target || target.home_server_id || blockedEitherWay(ctx, userId, target.id)) throw notAvailable();
@@ -121,9 +121,9 @@ export default async function connectionRoutes(app: FastifyInstance, ctx: AppCon
       changed(userId, r.sender);
     } else {
       await rel.declineRequest(id, t);
-      const devices = (db.prepare("SELECT id FROM devices WHERE user_id = ?").all(userId) as { id: string }[]).map((d) => d.id);
+      const devices = identity.all<{ id: string }>("devices", { where: { user_id: userId } }).map((d) => d.id);
       ctx.relay.forgetConversationFor(id, devices);
-      if (action === "block") db.prepare("INSERT OR IGNORE INTO user_blocks (user_id, blocked_user_id, created_at) VALUES (?, ?, ?)").run(userId, r.sender, t);
+      if (action === "block") await identity.write((w) => w.insert("user_blocks", { user_id: userId, blocked_user_id: r.sender, created_at: t }, { orIgnore: true }));
     }
     // Only the recipient's apps hear of it: a declined sender sees nothing change.
     if (action === "accept") notifyConversation(ctx, id);

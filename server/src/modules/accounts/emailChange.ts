@@ -48,16 +48,12 @@ export class EmailChangeService {
     const taken = await this.service.store.accountByEmail(email);
     if (taken) {
       // No code (nothing can change), and the same answer as for a free address.
-      this.ctx.db.prepare("DELETE FROM account_email_changes WHERE account_id = ?").run(a.id);
+      await this.remove(a.id);
       await this.send(email, mailTexts.emailChangeInUse());
     } else {
       const code = crypto.randomInt(0, 1_000_000).toString().padStart(6, "0");
-      this.ctx.db
-        .prepare(
-          `INSERT INTO account_email_changes (account_id, new_email, code_hash, attempts, created_at, expires_at) VALUES (?, ?, ?, 0, ?, ?)
-           ON CONFLICT(account_id) DO UPDATE SET new_email = excluded.new_email, code_hash = excluded.code_hash, attempts = 0, created_at = excluded.created_at, expires_at = excluded.expires_at`,
-        )
-        .run(a.id, email, codeHash(a.id, email, code), t, expiresAt);
+      const change = { new_email: email, code_hash: codeHash(a.id, email, code), attempts: 0, created_at: t, expires_at: expiresAt };
+      await this.ctx.safety.write((w) => w.upsert("account_email_changes", { account_id: a.id, ...change }, change));
       await this.send(email, mailTexts.emailChangeCode(code));
     }
     this.ctx.audit({ actorId: s.user_id, action: "account.email_change_start", target: s.id });
@@ -65,16 +61,19 @@ export class EmailChangeService {
   }
 
   async confirm(s: ActiveSession, a: AccountRow, code: string): Promise<{ email: string }> {
-    const row = this.ctx.db.prepare("SELECT * FROM account_email_changes WHERE account_id = ?").get(a.id) as ChangeRow | undefined;
+    const row = this.ctx.safety.get<ChangeRow>("account_email_changes", { account_id: a.id });
     const bad = () => new ApiError(400, "invalid_code", "That code isn't right or has expired. Ask for a new one.");
     if (!row || row.expires_at <= now() || row.attempts >= MAX_ATTEMPTS) throw bad();
     const given = Buffer.from(codeHash(a.id, row.new_email, code.replace(/\D/g, "")), "hex");
     if (!crypto.timingSafeEqual(given, Buffer.from(row.code_hash, "hex"))) {
-      this.ctx.db.prepare("UPDATE account_email_changes SET attempts = attempts + 1 WHERE account_id = ?").run(a.id);
+      await this.ctx.safety.write((w) => {
+        const current = w.get<ChangeRow>("account_email_changes", { account_id: a.id });
+        if (current) w.update("account_email_changes", { account_id: a.id }, { attempts: current.attempts + 1 });
+      });
       throw bad();
     }
     // Used once: of two confirmations, the one that removes the row goes on.
-    if (this.ctx.db.prepare("DELETE FROM account_email_changes WHERE account_id = ? AND code_hash = ?").run(a.id, row.code_hash).changes !== 1) throw bad();
+    if ((await this.ctx.safety.write((w) => w.delete("account_email_changes", { account_id: a.id, code_hash: row.code_hash }))) !== 1) throw bad();
     if (!(await this.service.store.changeVerifiedEmail(a.id, row.new_email, now()))) {
       throw new ApiError(409, "email_in_use", "That address now belongs to another account. Use a different one.");
     }
@@ -84,8 +83,8 @@ export class EmailChangeService {
   }
 
   /** Account deletion: a change in progress. */
-  remove(accountId: string): void {
-    this.ctx.db.prepare("DELETE FROM account_email_changes WHERE account_id = ?").run(accountId);
+  remove(accountId: string): Promise<void> {
+    return this.ctx.safety.write((w) => void w.delete("account_email_changes", { account_id: accountId }));
   }
 
   private async send(to: string, text: ReturnType<typeof mailTexts.emailChanged>): Promise<void> {

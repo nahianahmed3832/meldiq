@@ -3,7 +3,7 @@ import net from "node:net";
 import type { FastifyBaseLogger } from "fastify";
 import type { PushConfig } from "../../app/config.js";
 import type { AppContext } from "../../app/context.js";
-import type { DB } from "../../infrastructure/database/db.js";
+import type { Rows, RowWriter } from "../../infrastructure/database/rows/index.js";
 import { now } from "../../shared/utilities/util.js";
 import { checkEndpoint, isPublicAddress } from "./address.js";
 import { type PostOptions, postWake, type WakeError, type WakeResult, type WakeTarget } from "./transport.js";
@@ -36,8 +36,8 @@ interface Deferred {
 }
 
 /** Removes only a device's UnifiedPush endpoint (the app withdrew it, or the push server reported it gone). */
-export function removeUnifiedPushEndpoint(db: DB, deviceId: string): boolean {
-  return db.prepare("DELETE FROM push_endpoints WHERE device_id = ?").run(deviceId).changes > 0;
+export function removeUnifiedPushEndpoint(identity: Rows, deviceId: string): Promise<boolean> {
+  return identity.write((w) => w.delete("push_endpoints", { device_id: deviceId }) > 0);
 }
 
 /**
@@ -45,14 +45,22 @@ export function removeUnifiedPushEndpoint(db: DB, deviceId: string): boolean {
  * (docs/PUSH_FCM.md). Withdrawing UnifiedPush alone must not touch Firebase: the app withdraws it whenever no
  * distributor app is installed, which is exactly the case on phones that rely on Firebase.
  */
-export function removePushEndpoint(db: DB, deviceId: string): boolean {
-  db.prepare("DELETE FROM fcm_tokens WHERE device_id = ?").run(deviceId);
-  return removeUnifiedPushEndpoint(db, deviceId);
+export function removePushEndpoint(identity: Rows, deviceId: string): Promise<boolean> {
+  return identity.write((w) => removeWakeAddresses(w, [deviceId]) > 0);
+}
+
+/** [removePushEndpoint] for several devices, inside the caller's identity unit [w]. Returns UnifiedPush endpoints removed. */
+export function removeWakeAddresses(w: RowWriter, deviceIds: readonly string[]): number {
+  const ids = [...deviceIds];
+  w.delete("fcm_tokens", { device_id: { in: ids } });
+  return w.delete("push_endpoints", { device_id: { in: ids } });
 }
 
 /** Retention: endpoints of revoked devices (revocations by the admin CLI or older code included). */
-export function purgeRevokedPushEndpoints(db: DB): number {
-  return db.prepare("DELETE FROM push_endpoints WHERE device_id IN (SELECT id FROM devices WHERE revoked_at IS NOT NULL)").run().changes;
+export function purgeRevokedPushEndpoints(identity: Rows): Promise<number> {
+  const revoked = identity.all<{ id: string }>("devices", { where: { revoked_at: { ne: null } } }).map((d) => d.id);
+  if (!revoked.length) return Promise.resolve(0);
+  return identity.write((w) => w.delete("push_endpoints", { device_id: { in: revoked } }));
 }
 
 /**
@@ -86,23 +94,23 @@ export class PushService {
   }
 
   /** Stores (or replaces) [deviceId]'s endpoint, already checked with [checkEndpoint]. */
-  register(deviceId: string, url: URL): PushRegistration {
+  async register(deviceId: string, url: URL): Promise<PushRegistration> {
     const t = now();
-    const { db } = this.ctx;
-    db.transaction(() => {
+    await this.ctx.identity.write((w) => {
       // One endpoint per device, and one device per endpoint: the latest registration of an endpoint wins.
-      db.prepare("DELETE FROM push_endpoints WHERE endpoint = ? AND device_id != ?").run(url.href, deviceId);
-      db.prepare(
-        `INSERT INTO push_endpoints (device_id, kind, endpoint, created_at, updated_at) VALUES (?, 'unifiedpush', ?, ?, ?)
-         ON CONFLICT(device_id) DO UPDATE SET endpoint = excluded.endpoint, updated_at = excluded.updated_at, failing_since = NULL`,
-      ).run(deviceId, url.href, t, t);
-    })();
+      w.delete("push_endpoints", { endpoint: url.href, device_id: { ne: deviceId } });
+      w.upsert(
+        "push_endpoints",
+        { device_id: deviceId, kind: "unifiedpush", endpoint: url.href, created_at: t, updated_at: t },
+        { endpoint: url.href, updated_at: t, failing_since: null },
+      );
+    });
     return { kind: "unifiedpush", host: url.host, updatedAt: t };
   }
 
-  unregister(deviceId: string): boolean {
+  unregister(deviceId: string): Promise<boolean> {
     this.cancel(deviceId);
-    return removeUnifiedPushEndpoint(this.ctx.db, deviceId);
+    return removeUnifiedPushEndpoint(this.ctx.identity, deviceId);
   }
 
   /** An envelope was queued for [deviceId] while it had no open socket. */
@@ -125,9 +133,8 @@ export class PushService {
   ring(userId: string): void {
     this.guard({ userId }, () => {
       if (!this.usable()) return;
-      const rows = this.ctx.db
-        .prepare("SELECT p.device_id FROM push_endpoints p JOIN devices d ON d.id = p.device_id WHERE d.user_id = ? AND d.revoked_at IS NULL")
-        .all(userId) as { device_id: string }[];
+      const devices = this.ctx.identity.all<{ id: string }>("devices", { where: { user_id: userId, revoked_at: null } }).map((d) => d.id);
+      const rows = devices.length ? this.ctx.identity.all<{ device_id: string }>("push_endpoints", { where: { device_id: { in: devices } } }) : [];
       for (const r of rows) this.request(r.device_id, true);
     });
   }
@@ -219,7 +226,7 @@ export class PushService {
     if (!endpoint) return;
     const checked = checkEndpoint(endpoint, this.config.unifiedPushHosts);
     if ("refusal" in checked) {
-      this.drop(deviceId, endpoint, "host_no_longer_allowed");
+      await this.drop(deviceId, endpoint, "host_no_longer_allowed");
       return;
     }
     const release = await this.slot();
@@ -231,9 +238,9 @@ export class PushService {
       if (!this.usable()) return;
       const target = await this.resolve(checked.url);
       const result = "error" in target ? target : await this.post(target, { timeoutMs: this.config.timeoutMs, ttlSeconds: this.ctx.config.queueTtlSeconds });
-      this.record(deviceId, endpoint, result);
+      await this.record(deviceId, endpoint, result);
     } catch {
-      this.record(deviceId, endpoint, { error: "network" });
+      await this.record(deviceId, endpoint, { error: "network" });
     } finally {
       release();
     }
@@ -257,49 +264,49 @@ export class PushService {
   }
 
   /** Logs carry the device id and a reason code, never the endpoint or its host. */
-  private record(deviceId: string, endpoint: string, r: WakeResult): void {
+  private async record(deviceId: string, endpoint: string, r: WakeResult): Promise<void> {
     // Health view (docs/OPERATIONS.md): outcome kind only, never the endpoint or the device.
     const ok = "status" in r && r.status >= 200 && r.status < 300;
     this.ctx.metrics?.recordProvider("push.unifiedpush", ok ? undefined : { code: "status" in r ? `http_${r.status}` : r.error });
     if (!this.ctx.db.open) return;
-    const { db } = this.ctx;
+    const { identity } = this.ctx;
     const t = now();
+    const where = { device_id: deviceId, endpoint };
     if ("status" in r && r.status >= 200 && r.status < 300) {
-      db.prepare("UPDATE push_endpoints SET last_wake_at = ?, failing_since = NULL WHERE device_id = ? AND endpoint = ?").run(t, deviceId, endpoint);
+      await identity.write((w) => w.update("push_endpoints", where, { last_wake_at: t, failing_since: null }));
       return;
     }
     // Gone for good (RFC 8030). ntfy answers 507 while nobody is subscribed: that one only counts as a failure.
     if ("status" in r && (r.status === 404 || r.status === 410)) {
-      this.drop(deviceId, endpoint, `http_${r.status}`);
+      await this.drop(deviceId, endpoint, `http_${r.status}`);
       return;
     }
     const reason = "status" in r ? `http_${r.status}` : r.error;
-    db.prepare("UPDATE push_endpoints SET failing_since = COALESCE(failing_since, ?) WHERE device_id = ? AND endpoint = ?").run(t, deviceId, endpoint);
-    const row = db.prepare("SELECT failing_since FROM push_endpoints WHERE device_id = ? AND endpoint = ?").get(deviceId, endpoint) as
-      | { failing_since: number }
-      | undefined;
-    if (row && row.failing_since <= t - DROP_AFTER_FAILING_MS) {
-      this.drop(deviceId, endpoint, `${reason}_for_7_days`);
+    const failingSince = await identity.write((w) => {
+      const row = w.get<{ failing_since: number | null }>("push_endpoints", where);
+      if (!row) return null;
+      if (row.failing_since === null) w.update("push_endpoints", where, { failing_since: t });
+      return row.failing_since ?? t;
+    });
+    if (failingSince !== null && failingSince <= t - DROP_AFTER_FAILING_MS) {
+      await this.drop(deviceId, endpoint, `${reason}_for_7_days`);
       return;
     }
     this.log.warn({ deviceId, reason }, "push wake-up failed");
   }
 
-  private drop(deviceId: string, endpoint: string, reason: string): void {
+  private async drop(deviceId: string, endpoint: string, reason: string): Promise<void> {
     // Only the endpoint the request used: the device may have registered a new one meanwhile.
-    this.ctx.db.prepare("DELETE FROM push_endpoints WHERE device_id = ? AND endpoint = ?").run(deviceId, endpoint);
+    await this.ctx.identity.write((w) => w.delete("push_endpoints", { device_id: deviceId, endpoint }));
     this.log.info({ deviceId, reason }, "push endpoint removed");
   }
 
   /** The endpoint of an active device of an enabled account. */
   private endpointOf(deviceId: string): string | null {
-    const row = this.ctx.db
-      .prepare(
-        `SELECT p.endpoint FROM push_endpoints p JOIN devices d ON d.id = p.device_id JOIN users u ON u.id = d.user_id
-         WHERE p.device_id = ? AND d.revoked_at IS NULL AND u.disabled_at IS NULL`,
-      )
-      .get(deviceId) as { endpoint: string } | undefined;
-    return row?.endpoint ?? null;
+    const { identity } = this.ctx;
+    const device = identity.get<{ user_id: string }>("devices", { id: deviceId, revoked_at: null });
+    if (!device || !identity.get("users", { id: device.user_id, disabled_at: null })) return null;
+    return identity.get<{ endpoint: string }>("push_endpoints", { device_id: deviceId })?.endpoint ?? null;
   }
 
   private hasQueued(deviceId: string, since: number): Promise<boolean> {

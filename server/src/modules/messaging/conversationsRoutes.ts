@@ -172,7 +172,7 @@ function federationInfo(ctx: AppContext, convId: string) {
   const servers = [
     ...new Set(memberUsers<{ home_server_id: string | null }>(ctx, convId, "id, home_server_id").flatMap(({ user }) => (user.home_server_id ? [user.home_server_id] : []))),
   ];
-  const peers = mapByIds<{ server_id: string; domain: string | null; state: string | null }>(ctx.db, "federation_peers", "server_id", servers, "server_id, domain, state");
+  const peers = mapByIds<{ server_id: string; domain: string | null; state: string | null }>(ctx.fed, "federation_peers", "server_id", servers, "server_id, domain, state");
   const rows = servers.map((id) => ({ id, domain: peers.get(id)?.domain ?? null, state: peers.get(id)?.state ?? null }));
   if (rows.length === 0) return null;
   return {
@@ -279,7 +279,7 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     const { userId: other } = parse(DmBody, req.body);
     if (other === userId) throw badRequest("You can't start a direct conversation with yourself");
     const target = availableUser(ctx, other);
-    if (target) requireSyntheticScopeForPeople(db, userId, [other]);
+    if (target) requireSyntheticScopeForPeople(ctx.identity, userId, [other]);
     // Batch B6: unknown, disabled and blocked (either way) all answer the same, so a block isn't revealed.
     if (!target || blockedEitherWay(ctx, userId, other)) throw notAvailable();
     const key = [userId, other].sort().join("|");
@@ -293,7 +293,7 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
       notifyConversation(ctx, c.id);
     }
     if (!c) {
-      requireStanding(db, userId, "start_conversation");
+      requireStanding(ctx.safety, userId, "start_conversation");
       // People on other servers keep their settings there: their server decides.
       const decision = target.home_server_id ? "direct" : await dmDecision(ctx, userId, other);
       if (decision === "refused") throw new ApiError(403, "dm_not_allowed", "This person only accepts messages from people they're connected with");
@@ -378,12 +378,12 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
   app.post("/v1/conversations/group", auth, async (req) => {
     const { userId } = me(req);
     const body = parse(GroupBody, req.body);
-    requireStanding(db, userId, "start_conversation");
+    requireStanding(ctx.safety, userId, "start_conversation");
     const ids = [...new Set(body.memberIds.filter((m) => m !== userId))];
     // Groups are server-local in this release: people on other servers can't be added (FEDERATION_PROTOCOL.md §7).
-    const found = db.prepare(`SELECT id FROM users WHERE disabled_at IS NULL AND home_server_id IS NULL AND id IN (${ids.map(() => "?").join(",")})`).all(...ids) as { id: string }[];
-    if (found.length !== ids.length) throw badRequest("One or more members do not exist or are on another server");
-    requireSyntheticScopeForPeople(db, userId, ids);
+    const found = ctx.identity.count("users", { disabled_at: null, home_server_id: null, id: { in: ids } });
+    if (found !== ids.length) throw badRequest("One or more members do not exist or are on another server");
+    requireSyntheticScopeForPeople(ctx.identity, userId, ids);
     const id = newId("c");
     const t = now();
     await ws.write((w) => {
@@ -489,6 +489,8 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     if (!result) throw notFound("Conversation not found");
     // SQLite cascaded its calls with the conversation; a call store elsewhere removes them itself.
     await ctx.calls.forgetConversations([id]);
+    // Its stored messages (they may not be in SQLite).
+    await ctx.messages.deleteConversation(id);
     ctx.audit({ actorId: userId, orgId, action: "channel.delete", target: id, detail: `${c.name ?? ""} (${result.files.length} files)` });
     // Apps refresh the channel (now 404, shown as gone) and the community's channel list.
     ctx.hub.sendToUsers(new Set(result.members), { t: "conv.updated", conversationId: id });
@@ -520,7 +522,7 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     if (!c) throw notFound("Conversation not found");
     if (c.type === "DM") throw badRequest("Direct conversations have fixed members");
     if (!authz.canManageConversation(c, actor)) throw forbidden("Only managers of this conversation can add members");
-    const target = db.prepare("SELECT id FROM users WHERE id = ? AND disabled_at IS NULL").get(p.userId);
+    const target = ctx.identity.get("users", { id: p.userId, disabled_at: null });
     if (!target) throw notFound("User not found");
     if (c.type === "CHANNEL") {
       const targetOrgRole = authz.orgRole(c.org_id!, p.userId);

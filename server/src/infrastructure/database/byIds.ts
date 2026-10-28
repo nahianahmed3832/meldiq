@@ -1,23 +1,20 @@
-import type { DB } from "./db.js";
-
-/** SQLite's limit on bound parameters is generous, but a long list is still sent in pieces. */
-const CHUNK = 500;
+import type { Row, RowReader } from "./rows/index.js";
 
 /**
- * Rows of a SQLite [table] whose [column] is one of [ids] (in no particular order), for joining with rows another store
- * holds: `SELECT [columns] FROM table WHERE column IN (…)`, chunked.
+ * Rows of [table] (in [rows], another domain's store) whose [column] is one of [ids], in no particular order, for joining
+ * with rows a domain holds: `SELECT [columns] FROM table WHERE column IN (…)`. [columns] ("id, username") keeps only
+ * those fields; "*" keeps the whole row.
  */
-export function rowsByIds<T>(db: DB, table: string, column: string, ids: Iterable<string>, columns = "*"): T[] {
+export function rowsByIds<T>(rows: RowReader, table: string, column: string, ids: Iterable<string>, columns = "*"): T[] {
   const list = [...new Set(ids)];
-  const out: T[] = [];
-  for (let i = 0; i < list.length; i += CHUNK) {
-    const part = list.slice(i, i + CHUNK);
-    out.push(...(db.prepare(`SELECT ${columns} FROM "${table}" WHERE "${column}" IN (${part.map(() => "?").join(", ")})`).all(...part) as T[]));
-  }
-  return out;
+  if (list.length === 0) return [];
+  const found = rows.all<Row>(table, { where: { [column]: { in: list } } });
+  if (columns.trim() === "*") return found as T[];
+  const keep = columns.split(",").map((c) => c.trim());
+  return found.map((r) => Object.fromEntries(keep.map((c) => [c, r[c]])) as T);
 }
 
 /** The same rows keyed by [key]. */
-export function mapByIds<T extends Record<string, unknown>>(db: DB, table: string, column: string, ids: Iterable<string>, columns = "*", key = column): Map<string, T> {
-  return new Map(rowsByIds<T>(db, table, column, ids, columns).map((r) => [String(r[key]), r]));
+export function mapByIds<T extends Record<string, unknown>>(rows: RowReader, table: string, column: string, ids: Iterable<string>, columns = "*", key = column): Map<string, T> {
+  return new Map(rowsByIds<T>(rows, table, column, ids, columns).map((r) => [String(r[key]), r]));
 }

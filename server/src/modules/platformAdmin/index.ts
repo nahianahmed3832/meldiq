@@ -24,8 +24,8 @@ export { platformSetting, SETTINGS, type SettingKey } from "./settings.js";
 export async function registerPlatformAdmin(app: FastifyInstance, ctx: AppContext, version: string): Promise<void> {
   const cfg = ctx.config.adminConsole;
   if (!cfg) return;
-  const store = new PlatformAdminStore(ctx.db);
-  const audit = new PlatformAudit(ctx.db);
+  const store = new PlatformAdminStore(ctx.platform, ctx.ephemeral);
+  const audit = new PlatformAudit(ctx.platform);
   const auth = new AdminAuthService(ctx, cfg, store, audit);
   await app.register(async (scope) => {
     scope.addHook("onRequest", gate(cfg));

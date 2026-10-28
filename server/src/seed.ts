@@ -9,6 +9,7 @@
  */
 import { Authz } from "./modules/organizations/authz.js";
 import { loadConfig } from "./app/config.js";
+import { openDomainRows } from "./app/domainRows.js";
 import { openWorkspaceRows } from "./app/workspaceRows.js";
 import { openMongo } from "./infrastructure/database/mongo/index.js";
 import { openDatabase } from "./infrastructure/database/db.js";
@@ -32,8 +33,9 @@ const cfg = loadConfig();
 const db = openDatabase(cfg.databasePath);
 const mongo = cfg.mongo ? await openMongo(cfg.mongo, db) : undefined;
 const ws = await openWorkspaceRows(db, mongo, console);
+const identity = await openDomainRows(db, "identity", mongo, console);
 const authz = new Authz(ws);
-const owner = db.prepare("SELECT id FROM users WHERE username = ?").get(ownerName) as { id: string } | undefined;
+const owner = identity.get<{ id: string }>("users", { username: ownerName });
 if (!owner) {
   console.error(`No user named ${ownerName}. Register in the app first.`);
   process.exit(1);

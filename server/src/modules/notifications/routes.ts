@@ -24,7 +24,7 @@ export default async function pushRoutes(app: FastifyInstance, ctx: AppContext) 
       const details = checked.refusal === "push_host_not_allowed" ? { allowedHosts: push.config.unifiedPushHosts } : undefined;
       throw new ApiError(400, checked.refusal, ENDPOINT_REFUSALS[checked.refusal], details);
     }
-    return { push: push.register(deviceId, checked.url) };
+    return { push: await push.register(deviceId, checked.url) };
   });
 
   /** Firebase (docs/PUSH_FCM.md): this device's FCM registration token, when the server has FCM configured. */
@@ -32,19 +32,19 @@ export default async function pushRoutes(app: FastifyInstance, ctx: AppContext) 
     const { deviceId } = me(req);
     if (!ctx.fcm) throw new ApiError(404, "push_unavailable", "This server doesn't send Firebase wake-ups");
     const { token } = parse(FcmBody, req.body);
-    return { push: ctx.fcm.register(deviceId, token) };
+    return { push: await ctx.fcm.register(deviceId, token) };
   });
 
   app.delete("/v1/devices/current/fcm", auth, async (req) => {
     const { deviceId } = me(req);
-    const removed = ctx.db.prepare("DELETE FROM fcm_tokens WHERE device_id = ?").run(deviceId).changes > 0;
+    const removed = await ctx.identity.write((w) => w.delete("fcm_tokens", { device_id: deviceId }) > 0);
     return { ok: true, removed };
   });
 
   // Also works while the server has push turned off, so a device can always withdraw its endpoint.
   app.delete("/v1/devices/current/push", auth, async (req) => {
     const { deviceId } = me(req);
-    const removed = ctx.push ? ctx.push.unregister(deviceId) : removeUnifiedPushEndpoint(ctx.db, deviceId);
+    const removed = await (ctx.push ? ctx.push.unregister(deviceId) : removeUnifiedPushEndpoint(ctx.identity, deviceId));
     return { ok: true, removed };
   });
 }

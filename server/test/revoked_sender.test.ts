@@ -64,7 +64,7 @@ describe("messages from a device revoked after sending (T1.5)", () => {
     const revoked = entry.revokedDevices[0];
     revokedAt = revoked.revokedAt;
     expect(revoked).toMatchObject({ id: alicePhone2.deviceId, signingKey: alicePhone2.signingKeyB64, encryptionKey: alicePhone2.encKeyB64 });
-    expect(revokedAt).toBe((h.ctx.db.prepare("SELECT revoked_at FROM devices WHERE id = ?").get(alicePhone2.deviceId) as { revoked_at: number }).revoked_at);
+    expect(revokedAt).toBe(h.ctx.identity.get<{ revoked_at: number }>("devices", { id: alicePhone2.deviceId })!.revoked_at);
   });
 
   it("delivers and verifies what the device sent before it was revoked", async () => {
@@ -99,7 +99,7 @@ describe("messages from a device revoked after sending (T1.5)", () => {
 
   it("stops listing a revoked device once nothing it sent can still be queued", async () => {
     const ttlMs = h.ctx.config.queueTtlSeconds * 1000;
-    h.ctx.db.prepare("UPDATE devices SET revoked_at = ? WHERE id = ?").run(Date.now() - ttlMs - 1000, alicePhone2.deviceId);
+    await h.ctx.identity.write((w) => w.update("devices", { id: alicePhone2.deviceId }, { revoked_at: Date.now() - ttlMs - 1000 }));
     const entry = await aliceEntry(bob);
     expect(entry.revokedDevices).toEqual([]);
     expect(entry.devices.map((d: any) => d.id)).toEqual([alice.deviceId]);

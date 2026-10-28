@@ -1,4 +1,5 @@
 import type { AppContext } from "../../app/context.js";
+import type { RowWriter, Where } from "../../infrastructure/database/rows/index.js";
 import { networkKey } from "../../app/middleware/abuse.js";
 import { badRequest, notFound } from "../../shared/errors.js";
 import { newId, now } from "../../shared/utilities/util.js";
@@ -63,6 +64,15 @@ interface EventRow {
 
 const EVENTS_SHOWN = 200;
 
+/** The lifecycle statuses that aren't one stored status. */
+const STATUS_WHERE: Record<string, Where> = {
+  active: { status: { ne: "resolved" } },
+  closed: { closed_at: { ne: null } },
+  resolved: { status: "resolved", closed_at: null },
+  acknowledged: { status: "open", acknowledged_at: { ne: null } },
+  open: { status: "open", acknowledged_at: null },
+};
+
 /** Account names for display, one lookup per distinct id (the account store may be MongoDB). */
 async function names(ctx: AppContext, ids: (string | null)[]): Promise<Map<string, string>> {
   const out = new Map<string, string>();
@@ -114,17 +124,17 @@ export class AdminIncidents {
   ) {}
 
   private row(id: string): IncidentRow {
-    const r = this.ctx.db.prepare("SELECT * FROM platform_incidents WHERE id = ?").get(id) as IncidentRow | undefined;
+    const r = this.ctx.platform.get<IncidentRow>("platform_incidents", { id });
     if (!r) throw notFound("No such incident");
     return r;
   }
 
-  private event(incidentId: string, kind: EventKind, body: string, actor: string, t: number): void {
-    this.ctx.db.prepare("INSERT INTO platform_incident_events (incident_id, at, actor_account_id, kind, body) VALUES (?, ?, ?, ?, ?)").run(incidentId, t, actor, kind, body);
+  private event(w: RowWriter, incidentId: string, kind: EventKind, body: string, actor: string, t: number): void {
+    w.insert("platform_incident_events", { incident_id: incidentId, at: t, actor_account_id: actor, kind, body });
   }
 
-  private record(p: AdminPrincipal, action: string, incidentId: string, meta: RequestMeta, detail: Record<string, string | null>): void {
-    this.audit.record({ action, outcome: "success", actorAccountId: p.account.id, actorRole: p.grant.role, targetType: "incident", targetId: incidentId, requestId: meta.requestId, network: networkKey(meta.ip), detail });
+  private record(w: RowWriter, p: AdminPrincipal, action: string, incidentId: string, meta: RequestMeta, detail: Record<string, string | null>): void {
+    this.audit.append(w, { action, outcome: "success", actorAccountId: p.account.id, actorRole: p.grant.role, targetType: "incident", targetId: incidentId, requestId: meta.requestId, network: networkKey(meta.ip), detail });
   }
 
   async assignees() {
@@ -134,29 +144,17 @@ export class AdminIncidents {
   }
 
   async list(q: { status?: Status | "active"; severity?: Severity; source?: "manual" | "rule"; kind?: Kind; userRef?: string; orgRef?: string; cursor?: string; limit: number }) {
-    const where: string[] = ["1 = 1"];
-    const args: (string | number)[] = [];
-    if (q.status === "active") where.push("status != 'resolved'");
-    else if (q.status === "closed") where.push("closed_at IS NOT NULL");
-    else if (q.status === "resolved") where.push("status = 'resolved' AND closed_at IS NULL");
-    else if (q.status === "acknowledged") where.push("status = 'open' AND acknowledged_at IS NOT NULL");
-    else if (q.status === "open") where.push("status = 'open' AND acknowledged_at IS NULL");
-    else if (q.status) {
-      where.push("status = ?");
-      args.push(STORED[q.status]);
-    }
+    const where: Where = { ...(STATUS_WHERE[q.status ?? ""] ?? (q.status ? { status: STORED[q.status as Status] } : {})) };
     for (const [col, v] of [["severity", q.severity], ["source", q.source], ["kind", q.kind], ["user_ref", q.userRef], ["org_ref", q.orgRef]] as const) {
-      if (v) {
-        where.push(`${col} = ?`);
-        args.push(v);
-      }
+      if (v) where[col] = v;
     }
     const after = decodeCursor(q.cursor);
-    if (after) {
-      where.push("(created_at < ? OR (created_at = ? AND id < ?))");
-      args.push(after.createdAt, after.createdAt, after.id);
-    }
-    const rows = this.ctx.db.prepare(`SELECT * FROM platform_incidents WHERE ${where.join(" AND ")} ORDER BY created_at DESC, id DESC LIMIT ?`).all(...args, q.limit + 1) as IncidentRow[];
+    // Ids compare as text, which the rows language doesn't: rows sharing the cursor's time are filtered here.
+    if (after) where.created_at = { lte: after.createdAt };
+    const rows = this.ctx.platform
+      .all<IncidentRow>("platform_incidents", { where, orderBy: [["created_at", "desc"], ["id", "desc"]] })
+      .filter((r) => !after || r.created_at < after.createdAt || r.id < after.id)
+      .slice(0, q.limit + 1);
     const { rows: shown, nextCursor } = page(rows, q.limit);
     const n = await names(this.ctx, shown.flatMap((r) => [r.created_by, r.assignee_account_id]));
     return { incidents: shown.map((r) => view(r, n)), nextCursor };
@@ -164,26 +162,39 @@ export class AdminIncidents {
 
   async detail(id: string) {
     const r = this.row(id);
-    const events = this.ctx.db.prepare("SELECT at, kind, body, actor_account_id FROM platform_incident_events WHERE incident_id = ? ORDER BY id LIMIT ?").all(id, EVENTS_SHOWN) as EventRow[];
+    const events = this.ctx.platform.all<EventRow>("platform_incident_events", { where: { incident_id: id }, orderBy: [["id", "asc"]], limit: EVENTS_SHOWN });
     const n = await names(this.ctx, [r.created_by, r.assignee_account_id, ...events.map((e) => e.actor_account_id)]);
     return { incident: view(r, n), events: events.map((e) => ({ at: e.at, kind: e.kind, body: e.body, actor: person(n, e.actor_account_id) })) };
   }
 
   async create(p: AdminPrincipal, b: { title: string; severity: Severity; kind: Kind; userRef?: string; orgRef?: string; notice?: string; description: string; service?: string }, meta: RequestMeta) {
-    if (b.userRef && !userSummary(this.ctx.db, b.userRef)) throw badRequest("No person has that user id.");
+    if (b.userRef && !userSummary(this.ctx.identity, b.userRef)) throw badRequest("No person has that user id.");
     if (b.orgRef && !orgRecord(this.ctx.ws, b.orgRef)) throw badRequest("No workspace or community has that id.");
     const id = newId("inc");
     const t = now();
-    this.ctx.db.transaction(() => {
-      this.ctx.db
-        .prepare(
-          `INSERT INTO platform_incidents (id, title, severity, status, kind, assignee_account_id, user_ref, org_ref, notice, created_by, created_at, updated_at, resolved_at, service, source, first_seen_at, last_seen_at)
-           VALUES (?, ?, ?, 'open', ?, NULL, ?, ?, ?, ?, ?, ?, NULL, ?, 'manual', ?, ?)`,
-        )
-        .run(id, b.title, b.severity, b.kind, b.userRef ?? null, b.orgRef ?? null, b.notice || null, p.account.id, t, t, b.service ?? null, t, t);
-      this.event(id, "created", b.description, p.account.id, t);
-      this.record(p, "incident.create", id, meta, { severity: b.severity, kind: b.kind });
-    })();
+    await this.ctx.platform.write((w) => {
+      w.insert("platform_incidents", {
+        id,
+        title: b.title,
+        severity: b.severity,
+        status: "open",
+        kind: b.kind,
+        assignee_account_id: null,
+        user_ref: b.userRef ?? null,
+        org_ref: b.orgRef ?? null,
+        notice: b.notice || null,
+        created_by: p.account.id,
+        created_at: t,
+        updated_at: t,
+        resolved_at: null,
+        service: b.service ?? null,
+        source: "manual",
+        first_seen_at: t,
+        last_seen_at: t,
+      });
+      this.event(w, id, "created", b.description, p.account.id, t);
+      this.record(w, p, "incident.create", id, meta, { severity: b.severity, kind: b.kind });
+    });
     return this.detail(id);
   }
 
@@ -220,39 +231,37 @@ export class AdminIncidents {
     const stored = STORED[next];
     // Acknowledged once anyone moves it past "open"; reopening keeps when it was first acknowledged.
     const acknowledgedAt = next === "open" ? r.acknowledged_at && current === "acknowledged" ? null : r.acknowledged_at : (r.acknowledged_at ?? t);
-    this.ctx.db.transaction(() => {
-      this.ctx.db
-        .prepare(
-          `UPDATE platform_incidents SET status = ?, severity = ?, assignee_account_id = ?, notice = ?, updated_at = ?,
-             resolved_at = ?, acknowledged_at = ?, closed_at = ?, resolution = ?, service = ? WHERE id = ?`,
-        )
-        .run(
-          stored,
-          patch.severity ?? r.severity,
-          patch.assigneeAccountId === undefined ? r.assignee_account_id : patch.assigneeAccountId,
-          noticeChanged ? patch.notice || null : r.notice,
-          t,
-          stored === "resolved" ? (r.resolved_at ?? t) : null,
-          acknowledgedAt,
-          next === "closed" ? (r.closed_at ?? t) : null,
+    await this.ctx.platform.write((w) => {
+      w.update(
+        "platform_incidents",
+        { id },
+        {
+          status: stored,
+          severity: patch.severity ?? r.severity,
+          assignee_account_id: patch.assigneeAccountId === undefined ? r.assignee_account_id : patch.assigneeAccountId,
+          notice: noticeChanged ? patch.notice || null : r.notice,
+          updated_at: t,
+          resolved_at: stored === "resolved" ? (r.resolved_at ?? t) : null,
+          acknowledged_at: acknowledgedAt,
+          closed_at: next === "closed" ? (r.closed_at ?? t) : null,
           resolution,
-          serviceChanged ? patch.service || null : r.service,
-          id,
-        );
-      for (const [kind, body] of changes) this.event(id, kind, body, p.account.id, t);
-      this.record(p, "incident.update", id, meta, Object.fromEntries(changes.map(([k, v], i) => [`${k}${i}`, v])));
-    })();
+          service: serviceChanged ? patch.service || null : r.service,
+        },
+      );
+      for (const [kind, body] of changes) this.event(w, id, kind, body, p.account.id, t);
+      this.record(w, p, "incident.update", id, meta, Object.fromEntries(changes.map(([k, v], i) => [`${k}${i}`, v])));
+    });
     return this.detail(id);
   }
 
   async note(p: AdminPrincipal, id: string, body: string, meta: RequestMeta) {
     this.row(id);
     const t = now();
-    this.ctx.db.transaction(() => {
-      this.event(id, "note", body, p.account.id, t);
-      this.ctx.db.prepare("UPDATE platform_incidents SET updated_at = ? WHERE id = ?").run(t, id);
-      this.record(p, "incident.note", id, meta, {});
-    })();
+    await this.ctx.platform.write((w) => {
+      this.event(w, id, "note", body, p.account.id, t);
+      w.update("platform_incidents", { id }, { updated_at: t });
+      this.record(w, p, "incident.note", id, meta, {});
+    });
     return this.detail(id);
   }
 }

@@ -180,11 +180,11 @@ describe("with trials and invite links", () => {
 
   it("give the trial's quota plan while it lasts", async () => {
     const qp = "qp_trial";
-    h.ctx.db.prepare("INSERT INTO quota_plans (id, name, description, created_by, created_at) VALUES (?, 'Mojo Plus allowances', '', 'test', ?)").run(qp, Date.now());
+    await h.ctx.platform.write((w) => w.insert("quota_plans", { id: qp, name: "Mojo Plus allowances", description: "", created_by: "test", created_at: Date.now() }));
     // A published version never changes: the allowances come with a new version, as an operator would publish it.
     const plan = h.ctx.billing.catalog.byKey("plus")!;
-    h.ctx.billing.catalog.saveDraft(plan.id, { interval: "month", currency: "USD", amountMinor: 399, providerPriceRef: "price_plus_v2", trialDays: 0, graceDays: 0, limits: {}, notes: "", quotaPlanId: qp }, "test", Date.now());
-    h.ctx.billing.catalog.publish(plan.id, "stripe", "test", Date.now());
+    await h.ctx.billing.catalog.saveDraft(plan.id, { interval: "month", currency: "USD", amountMinor: 399, providerPriceRef: "price_plus_v2", trialDays: 0, graceDays: 0, limits: {}, notes: "", quotaPlanId: qp }, "test", Date.now());
+    await h.ctx.billing.catalog.publish(plan.id, "stripe", "test", Date.now());
     const c = await AccountClient.ready(h.baseUrl, mailer, "quotaperson");
     await ent(c);
     expect(h.ctx.quotas.planOf({ type: "user", id: c.userId })).toBe(qp);

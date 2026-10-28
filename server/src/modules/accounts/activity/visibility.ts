@@ -31,7 +31,8 @@ function candidates(ctx: AppContext, userId: string): string[] {
 /** Tells the people who may see [userId]'s presence, and their own devices, what they show as their activity now. */
 export function announceActivity(ctx: AppContext, userId: string): void {
   if (!ctx.db.open) return; // server shutting down
-  const u = ctx.db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as ProfileRow | undefined;
+  // Through the identity rows (SQLite or MongoDB, docs/MONGODB.md), like the other profile reads.
+  const u = ctx.identity.get<ProfileRow>("users", { id: userId });
   if (!u) return;
   const shown = shownActivity(ctx, u);
   const viewers = candidates(ctx, userId).filter((v) => canSeeLastSeen(ctx, v, u));

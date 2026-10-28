@@ -34,7 +34,7 @@ afterAll(async () => {
   await off.close();
 });
 
-const lastAudit = (action: string) => h.ctx.db.prepare("SELECT * FROM platform_audit WHERE action = ? ORDER BY id DESC LIMIT 1").get(action) as any;
+const lastAudit = (action: string) => h.ctx.platform.get<any>("platform_audit", { action }, [["id", "desc"]]);
 
 /** Runs a CLI command and returns its exit code and what it printed. */
 async function cli(cmd: string, ...args: string[]): Promise<{ code: number; out: string }> {
@@ -211,9 +211,9 @@ describe("signing in", () => {
 });
 
 describe("sessions", () => {
-  const expire = (column: string, browser: AdminBrowser, h2 = h) => {
-    const id = (h2.ctx.db.prepare("SELECT id FROM platform_admin_sessions ORDER BY created_at DESC LIMIT 1").get() as { id: string }).id;
-    h2.ctx.db.prepare(`UPDATE platform_admin_sessions SET ${column} = ? WHERE id = ?`).run(Date.now() - 1, id);
+  const expire = async (column: string, browser: AdminBrowser, h2 = h) => {
+    const id = h2.ctx.ephemeral.get<{ id: string }>("platform_admin_sessions", {}, [["created_at", "desc"]])!.id;
+    await h2.ctx.ephemeral.write((w) => w.update("platform_admin_sessions", { id }, { [column]: Date.now() - 1 }));
     return browser;
   };
 
@@ -227,7 +227,7 @@ describe("sessions", () => {
   it("end when idle too long or past their lifetime", async () => {
     for (const column of ["idle_expires_at", "expires_at"]) {
       const admin = await consoleAdmin(h, mailer, "auditor", `expiry${column}`);
-      await expire(column, admin.browser).expect(401, "GET", "/admin/v1/me");
+      await (await expire(column, admin.browser)).expect(401, "GET", "/admin/v1/me");
     }
   });
 
@@ -255,7 +255,7 @@ describe("sessions", () => {
   it("re-authenticate with the passkey for sensitive actions", async () => {
     const admin = await consoleAdmin(h, mailer, "super_admin", "stepup");
     const before = await admin.browser.expect(200, "GET", "/admin/v1/me");
-    h.ctx.db.prepare("UPDATE platform_admin_sessions SET reauth_at = 0 WHERE id = ?").run(before.session.id);
+    await h.ctx.ephemeral.write((w) => w.update("platform_admin_sessions", { id: before.session.id }, { reauth_at: 0 }));
     const { options } = await admin.browser.expect(200, "POST", "/admin/v1/auth/reauth/options", {});
     // A ceremony belongs to one session: another browser of the same admin can't use it.
     const elsewhere = await signIn(h, admin);
@@ -286,17 +286,32 @@ describe("the CLI", () => {
 describe("the platform audit", () => {
   it("is append-only and never holds secrets", async () => {
     await consoleAdmin(h, mailer, "auditor", "auditrows");
-    expect(() => h.ctx.db.prepare("UPDATE platform_audit SET outcome = 'success'").run()).toThrow(/append-only/);
-    expect(() => h.ctx.db.prepare("DELETE FROM platform_audit").run()).toThrow(/append-only/);
-    const all = JSON.stringify(h.ctx.db.prepare("SELECT * FROM platform_audit").all());
+    // In SQLite, triggers refuse changes; in MongoDB nothing in the server updates or deletes it, and the chain shows it.
+    if (h.ctx.platform.backend === "sqlite") {
+      expect(() => h.ctx.db.prepare("UPDATE platform_audit SET outcome = 'success'").run()).toThrow(/append-only/);
+      expect(() => h.ctx.db.prepare("DELETE FROM platform_audit").run()).toThrow(/append-only/);
+    }
+    const all = JSON.stringify(h.ctx.platform.all("platform_audit"));
     expect(all).not.toMatch(/correct horse battery|__Host-|[A-Z2-9]{5}-[A-Z2-9]{5}|nobody@example\.test/);
   });
 
   it("detects an edited row by its hash chain", async () => {
     expect(consoleAudit(h).verify().brokenAt).toBeNull();
     expect((await cli("platform-audit-verify")).code).toBe(0);
+    const target = h.ctx.platform.all<{ id: number }>("platform_audit", { orderBy: [["id", "asc"]], limit: 3 })[2]!.id;
+    if (h.ctx.platform.backend === "mongodb") {
+      // Edited in MongoDB behind the server's back: the CLI reads the collection and finds the break.
+      const audit = h.ctx.mongo!.db.collection<{ _id: number; outcome: string; reason: string | null }>("platform_audit");
+      const before = (await audit.findOne({ _id: target }))!;
+      await audit.updateOne({ _id: target }, { $set: { outcome: "success", reason: "nothing to see" } });
+      try {
+        expect((await cli("platform-audit-verify")).code).toBe(1);
+      } finally {
+        await audit.updateOne({ _id: target }, { $set: { outcome: before.outcome, reason: before.reason } });
+      }
+      return;
+    }
     const db = h.ctx.db;
-    const target = (db.prepare("SELECT id FROM platform_audit ORDER BY id LIMIT 1 OFFSET 2").get() as { id: number }).id;
     db.exec("DROP TRIGGER platform_audit_no_update");
     try {
       db.prepare("UPDATE platform_audit SET outcome = 'success', reason = 'nothing to see' WHERE id = ?").run(target);

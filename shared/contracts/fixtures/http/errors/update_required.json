@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "update_required",
+    "message": "Update Meldiq to keep messaging: messages are now stored on Meldiq's servers."
+  }
+}

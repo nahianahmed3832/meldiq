@@ -92,7 +92,7 @@ const TABLE_OWNERS: Readonly<Record<string, string>> = {
   ),
   ...owned(
     "messaging",
-    "conversations conversation_members mention_all_events delivery_queue submitted_messages history_accounts history_items",
+    "conversations conversation_members mention_all_events delivery_queue delivery_queue_rebuilt submitted_messages history_accounts history_items message_events",
   ),
   ...owned("files", "attachments attachment_uploads abandoned_uploads pending_blob_deletes"),
   ...owned("calls", "calls call_participants call_hands meetings meeting_participants"),

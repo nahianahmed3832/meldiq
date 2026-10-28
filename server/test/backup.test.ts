@@ -9,6 +9,8 @@ import { type Harness, startServer } from "./support/harness.js";
 
 let h: Harness;
 let dir: string;
+/** The snapshot is of SQLite: it holds the people only while identity lives there (not in MongoDB mode). */
+const sqliteUsers = () => (h.ctx.identity.backend === "sqlite" ? 2 : 0);
 beforeAll(async () => {
   h = await startServer();
   dir = fs.mkdtempSync(path.join(os.tmpdir(), "griip-backup-"));
@@ -27,7 +29,7 @@ describe("self-host backup and restore checks", () => {
     expect(r.bytes).toBeGreaterThan(0);
     expect(fs.statSync(file).mode & 0o777).toBe(0o600);
     const v = verifyBackup(file);
-    expect(v).toMatchObject({ ok: true, integrity: "ok", schemaVersion: latestMigration(), users: 2, problems: [] });
+    expect(v).toMatchObject({ ok: true, integrity: "ok", schemaVersion: latestMigration(), users: sqliteUsers(), problems: [] });
   });
 
   it("never overwrites an existing file", async () => {
@@ -41,7 +43,7 @@ describe("self-host backup and restore checks", () => {
     const file = path.join(dir, "restore.sqlite");
     await backupDatabase(h.ctx.db, file);
     const db = openDatabase(file);
-    expect((db.prepare("SELECT COUNT(*) n FROM users").get() as { n: number }).n).toBe(2);
+    expect((db.prepare("SELECT COUNT(*) n FROM users").get() as { n: number }).n).toBe(sqliteUsers());
     expect((db.prepare("SELECT MAX(version) v FROM schema_migrations").get() as { v: number }).v).toBe(latestMigration());
     db.close();
   });

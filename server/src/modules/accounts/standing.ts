@@ -1,4 +1,4 @@
-import type { DB } from "../../infrastructure/database/db.js";
+import type { RowReader, Rows } from "../../infrastructure/database/rows/index.js";
 import { ApiError } from "../../shared/errors.js";
 import { newId, now } from "../../shared/utilities/util.js";
 
@@ -44,37 +44,38 @@ export interface WarningView {
   expiresAt: number;
 }
 
-export function activeWarnings(db: DB, userId: string, at: number = now()): WarningView[] {
-  return (
-    db
-      .prepare("SELECT id, reason, created_at, expires_at FROM account_warnings WHERE user_id = ? AND revoked_at IS NULL AND expires_at > ? ORDER BY created_at DESC")
-      .all(userId, at) as { id: string; reason: string; created_at: number; expires_at: number }[]
-  ).map((r) => ({ id: r.id, reason: r.reason, createdAt: r.created_at, expiresAt: r.expires_at }));
+export function activeWarnings(safety: RowReader, userId: string, at: number = now()): WarningView[] {
+  return safety
+    .all<{ id: string; reason: string; created_at: number; expires_at: number }>("account_warnings", {
+      where: { user_id: userId, revoked_at: null, expires_at: { gt: at } },
+      orderBy: [["created_at", "desc"]],
+    })
+    .map((r) => ({ id: r.id, reason: r.reason, createdAt: r.created_at, expiresAt: r.expires_at }));
 }
 
-export function standingOf(db: DB, userId: string, at: number = now()): { level: StandingLevel; warnings: WarningView[] } {
-  const warnings = activeWarnings(db, userId, at);
+export function standingOf(safety: RowReader, userId: string, at: number = now()): { level: StandingLevel; warnings: WarningView[] } {
+  const warnings = activeWarnings(safety, userId, at);
   return { level: LEVELS[Math.min(warnings.length, LEVELS.length - 1)], warnings };
 }
 
 /** Refuses [action] when the account's standing doesn't allow it (one indexed query; nothing when there are no warnings). */
-export function requireStanding(db: DB, userId: string, action: LimitedAction): void {
-  const { level } = standingOf(db, userId);
+export function requireStanding(safety: RowReader, userId: string, action: LimitedAction): void {
+  const { level } = standingOf(safety, userId);
   if (LEVELS.indexOf(level) >= LEVELS.indexOf(REFUSED_FROM[action])) {
     throw new ApiError(403, "account_limited", `Warnings from Meldiq's staff limit your account, so you can't ${WHAT[action]} for now. See Settings › My Account › Account standing.`);
   }
 }
 
-export function addWarning(db: DB, userId: string, reason: string, days: number, by: string | null): WarningView {
+export async function addWarning(safety: Rows, userId: string, reason: string, days: number, by: string | null): Promise<WarningView> {
   const text = reason.trim().slice(0, 500);
   if (!text) throw new Error("A warning needs a reason");
   const d = Math.max(1, Math.min(MAX_WARNING_DAYS, Math.round(days)));
   const t = now();
   const id = newId("warn");
-  db.prepare("INSERT INTO account_warnings (id, user_id, reason, created_by, created_at, expires_at, revoked_at) VALUES (?, ?, ?, ?, ?, ?, NULL)").run(id, userId, text, by, t, t + d * 86_400_000);
+  await safety.write((w) => w.insert("account_warnings", { id, user_id: userId, reason: text, created_by: by, created_at: t, expires_at: t + d * 86_400_000, revoked_at: null }));
   return { id, reason: text, createdAt: t, expiresAt: t + d * 86_400_000 };
 }
 
-export function revokeWarning(db: DB, id: string): boolean {
-  return db.prepare("UPDATE account_warnings SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL").run(now(), id).changes === 1;
+export function revokeWarning(safety: Rows, id: string): Promise<boolean> {
+  return safety.write((w) => w.update("account_warnings", { id, revoked_at: null }, { revoked_at: now() }) === 1);
 }

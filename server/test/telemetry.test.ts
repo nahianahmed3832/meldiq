@@ -57,49 +57,61 @@ describe("analytics windows", () => {
   afterAll(async () => h.close());
 
   const put = (day: string, userId: string, platform = "android", signupDay = "2026-09-01", actions = 0) =>
-    h.ctx.db
-      .prepare(
-        `INSERT OR REPLACE INTO activity_daily (day, user_id, platform, client_version, first_at, last_at, requests, actions, first_action_at, signup_at)
-         VALUES (?, ?, ?, '', ?, ?, 1, ?, ?, ?)`,
-      )
-      .run(day, userId, platform, Date.parse(`${day}T10:00:00Z`), Date.parse(`${day}T11:00:00Z`), actions, actions ? Date.parse(`${day}T10:30:00Z`) : null, Date.parse(`${signupDay}T08:00:00Z`));
+    h.ctx.platform.write((w) =>
+      w.upsert(
+        "activity_daily",
+        {
+          day,
+          user_id: userId,
+          platform,
+          client_version: "",
+          first_at: Date.parse(`${day}T10:00:00Z`),
+          last_at: Date.parse(`${day}T11:00:00Z`),
+          requests: 1,
+          actions,
+          first_action_at: actions ? Date.parse(`${day}T10:30:00Z`) : null,
+          signup_at: Date.parse(`${signupDay}T08:00:00Z`),
+        },
+        "replace",
+      ),
+    );
 
-  it("computes DAU on the UTC day and WAU/MAU over the 7 and 30 days ending with it, people counted once", () => {
-    put("2026-10-01", "a");
-    put("2026-10-01", "a", "web"); // the same person on a second platform: still one person
-    put("2026-10-02", "b");
-    put("2026-10-08", "c");
-    put("2026-10-31", "d");
-    const none = "[]";
-    const [d8] = analytics.activeUsers(h.ctx.db, "2026-10-08", "2026-10-08", none);
+  it("computes DAU on the UTC day and WAU/MAU over the 7 and 30 days ending with it, people counted once", async () => {
+    await put("2026-10-01", "a");
+    await put("2026-10-01", "a", "web"); // the same person on a second platform: still one person
+    await put("2026-10-02", "b");
+    await put("2026-10-08", "c");
+    await put("2026-10-31", "d");
+    const none: string[] = [];
+    const [d8] = analytics.activeUsers(h.ctx, "2026-10-08", "2026-10-08", none);
     expect(d8).toMatchObject({ dau: 1, wau: 2, mau: 3 }); // WAU: Oct 2–8 has b and c; Oct 1 is outside the 7 days
-    const [d31] = analytics.activeUsers(h.ctx.db, "2026-10-31", "2026-10-31", none);
+    const [d31] = analytics.activeUsers(h.ctx, "2026-10-31", "2026-10-31", none);
     expect(d31).toMatchObject({ dau: 1, wau: 1, mau: 3 }); // MAU: Oct 2–31 (a's Oct 1 is the 31st day back)
-    const [excl] = analytics.activeUsers(h.ctx.db, "2026-10-08", "2026-10-08", JSON.stringify(["c"]));
+    const [excl] = analytics.activeUsers(h.ctx, "2026-10-08", "2026-10-08", ["c"]);
     expect(excl).toMatchObject({ dau: 0, wau: 1, mau: 2 });
   });
 
-  it("splits new from returning people by the UTC day they signed up", () => {
-    put("2026-11-05", "n1", "web", "2026-11-05");
-    put("2026-11-05", "r1", "web", "2026-10-01");
-    const [p] = analytics.activeUsers(h.ctx.db, "2026-11-05", "2026-11-05", "[]");
+  it("splits new from returning people by the UTC day they signed up", async () => {
+    await put("2026-11-05", "n1", "web", "2026-11-05");
+    await put("2026-11-05", "r1", "web", "2026-10-01");
+    const [p] = analytics.activeUsers(h.ctx, "2026-11-05", "2026-11-05", []);
     expect(p).toMatchObject({ dau: 2, newActive: 1, returningActive: 1 });
   });
 
-  it("measures retention only for days that are over and were collected, against all sign-ups of the cohort", () => {
-    put("2026-12-02", "x1", "android", "2026-12-01");
-    put("2026-12-08", "x1", "android", "2026-12-01");
-    put("2026-12-08", "x2", "android", "2026-12-01");
-    const rows = analytics.retention(h.ctx.db, [{ day: "2026-12-01", count: 4 }], "[]", "2026-12-09", "2026-11-30");
+  it("measures retention only for days that are over and were collected, against all sign-ups of the cohort", async () => {
+    await put("2026-12-02", "x1", "android", "2026-12-01");
+    await put("2026-12-08", "x1", "android", "2026-12-01");
+    await put("2026-12-08", "x2", "android", "2026-12-01");
+    const rows = analytics.retention(h.ctx, [{ day: "2026-12-01", count: 4 }], [], "2026-12-09", "2026-11-30");
     expect(rows[0]).toEqual({ day: "2026-12-01", size: 4, d1: 1, d7: 2, d30: null });
-    const before = analytics.retention(h.ctx.db, [{ day: "2026-12-01", count: 4 }], "[]", "2026-12-09", "2026-12-05");
+    const before = analytics.retention(h.ctx, [{ day: "2026-12-01", count: 4 }], [], "2026-12-09", "2026-12-05");
     expect(before[0]).toMatchObject({ d1: null, d7: 2 }); // day 1 was before collection began: not zero, unknown
   });
 
-  it("counts activation within 7 days of sign-up and the median time to the first action", () => {
-    put("2027-01-03", "z1", "web", "2027-01-02", 1);
-    put("2027-01-20", "z2", "web", "2027-01-02", 1); // 18 days later: not activated
-    const a = analytics.activation(h.ctx.db, Date.parse("2027-01-01T00:00:00Z"), Date.parse("2027-01-10T00:00:00Z"), "[]");
+  it("counts activation within 7 days of sign-up and the median time to the first action", async () => {
+    await put("2027-01-03", "z1", "web", "2027-01-02", 1);
+    await put("2027-01-20", "z2", "web", "2027-01-02", 1); // 18 days later: not activated
+    const a = analytics.activation(h.ctx, Date.parse("2027-01-01T00:00:00Z"), Date.parse("2027-01-10T00:00:00Z"), []);
     expect(a.activated).toBe(1);
     expect(a.medianMsToFirstAction).toBe(Date.parse("2027-01-03T10:30:00Z") - Date.parse("2027-01-02T08:00:00Z"));
   });
@@ -118,9 +130,9 @@ describe("live activity and concurrency", () => {
     await c.req("GET", "/v1/conversations");
     await c.req("GET", "/v1/queue");
     await h.ctx.telemetry.minute();
-    const rows = h.ctx.db.prepare("SELECT platform, requests, signup_at FROM activity_daily WHERE user_id = ?").all(c.userId) as any[];
+    const rows = h.ctx.platform.all<any>("activity_daily", { where: { user_id: c.userId } }).map((r) => ({ platform: r.platform, requests: r.requests, signup_at: r.signup_at }));
     expect(rows).toEqual([{ platform: "android", requests: 1, signup_at: expect.any(Number) }]);
-    const traffic = h.ctx.db.prepare("SELECT metric FROM traffic_user_daily WHERE user_id = ?").all(c.userId) as any[];
+    const traffic = h.ctx.platform.all<any>("traffic_user_daily", { where: { user_id: c.userId } });
     expect(traffic.map((r) => r.metric)).toContain("api.out");
   });
 
@@ -149,7 +161,7 @@ describe("live activity and concurrency", () => {
     expect(await h.ctx.telemetry.live()).toMatchObject({ users: 0, devices: 2, sockets: 3 });
     h.ctx.telemetry.setExcluded([]);
     await h.ctx.telemetry.minute();
-    const sample = h.ctx.db.prepare("SELECT users, sockets, connects FROM presence_samples ORDER BY minute DESC LIMIT 1").get() as any;
+    const sample = h.ctx.ephemeral.get<any>("presence_samples", {}, [["minute", "desc"]]);
     expect(sample).toMatchObject({ users: 1, sockets: 3 });
     expect(sample.connects).toBeGreaterThanOrEqual(3);
     await tab.disconnect();
@@ -168,34 +180,35 @@ describe("live activity and concurrency", () => {
     expect(h.ctx.hub.stats.authFailures).toBe(before + 1);
   });
 
-  it("rolls finished hours up and trims rows past their retention", () => {
-    const db = h.ctx.db;
+  const sample = (minute: number, series: string, value: number) => h.ctx.ephemeral.write((w) => w.upsert("resource_samples", { minute, series, value }, "replace"));
+
+  it("rolls finished hours up and trims rows past their retention", async () => {
     // An hour after the ones the minute job already rolled up.
     const hour = Math.floor(Date.now() / 3_600_000) + 1;
-    db.prepare("INSERT OR REPLACE INTO resource_samples (minute, series, value) VALUES (?, 'host.cpu.pct', 10), (?, 'host.cpu.pct', 30)").run(hour * 60 + 1, hour * 60 + 2);
-    db.prepare("INSERT OR REPLACE INTO resource_samples (minute, series, value) VALUES (1, 'host.cpu.pct', 99)").run();
-    h.ctx.telemetry.rollup((hour + 1) * 3_600_000 + 60_000);
-    expect(db.prepare("SELECT avg, min, max, samples FROM resource_hourly WHERE series = 'host.cpu.pct' AND hour = ?").get(hour)).toEqual({ avg: 20, min: 10, max: 30, samples: 2 });
-    h.ctx.telemetry.trim(Date.now());
-    expect(db.prepare("SELECT COUNT(*) n FROM resource_samples WHERE minute = 1").get()).toEqual({ n: 0 });
+    await sample(hour * 60 + 1, "host.cpu.pct", 10);
+    await sample(hour * 60 + 2, "host.cpu.pct", 30);
+    await sample(1, "host.cpu.pct", 99);
+    await h.ctx.telemetry.rollup((hour + 1) * 3_600_000 + 60_000);
+    expect(h.ctx.platform.get<any>("resource_hourly", { series: "host.cpu.pct", hour })).toMatchObject({ avg: 20, min: 10, max: 30, samples: 2 });
+    await h.ctx.telemetry.trim(Date.now());
+    expect(h.ctx.ephemeral.count("resource_samples", { minute: 1 })).toBe(0);
   });
 
-  it("shows the hours not rolled up yet in long ranges, from their minute samples", () => {
-    const db = h.ctx.db;
+  it("shows the hours not rolled up yet in long ranges, from their minute samples", async () => {
     const t = Date.now();
     const minute = Math.floor(t / 60_000);
     // Two samples inside one hour three hours ago (never straddling an hour boundary), with no rollup for the series.
     const hour = Math.floor(t / 3_600_000) - 3;
-    db.prepare("INSERT OR REPLACE INTO resource_samples (minute, series, value) VALUES (?, 'test.series', 5), (?, 'test.series', 7)").run(hour * 60 + 10, hour * 60 + 11);
-    const [week] = analytics.resourceSeries(db, ["test.series"], t - 7 * 86_400_000, t);
+    await sample(hour * 60 + 10, "test.series", 5);
+    await sample(hour * 60 + 11, "test.series", 7);
+    const [week] = analytics.resourceSeries(h.ctx, ["test.series"], t - 7 * 86_400_000, t);
     expect(week!.resolution).toBe("hour");
     expect(week!.points.at(-1)).toMatchObject({ at: hour * 3_600_000, value: 6, min: 5, max: 7 });
     // (The rollup test above rolled up hours ahead of now; real rollups only cover finished hours.)
-    db.prepare("DELETE FROM presence_hourly WHERE hour >= ?").run(Math.floor(t / 3_600_000));
-    db.prepare(
-      "INSERT OR REPLACE INTO presence_samples (minute, users, active_users, devices, sockets, connects, disconnects, abnormal, auth_failures, calls, call_people, platforms) VALUES (?, 4, 2, 4, 5, 1, 0, 0, 0, 0, 0, '{}')",
-    ).run(minute - 1);
-    const p = analytics.presenceSeries(db, t - 7 * 86_400_000, t);
+    await h.ctx.platform.write((w) => w.delete("presence_hourly", { hour: { gte: Math.floor(t / 3_600_000) } }));
+    const presence = { minute: minute - 1, users: 4, active_users: 2, devices: 4, sockets: 5, connects: 1, disconnects: 0, abnormal: 0, auth_failures: 0, calls: 0, call_people: 0, platforms: "{}" };
+    await h.ctx.ephemeral.write((w) => w.upsert("presence_samples", presence, "replace"));
+    const p = analytics.presenceSeries(h.ctx, t - 7 * 86_400_000, t);
     expect(p.peakUsers).toBeGreaterThanOrEqual(4);
   });
 });

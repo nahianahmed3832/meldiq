@@ -58,8 +58,8 @@ export default async function applicationRoutes(app: FastifyInstance, ctx: AppCo
   const application = (id: string) => ws.get<ApplicationRow>("join_applications", { id });
 
   const view = (r: ApplicationRow) => {
-    const u = db.prepare("SELECT id, username, display_name FROM users WHERE id = ?").get(r.user_id) as { id: string; username: string; display_name: string } | undefined;
-    const by = r.handled_by ? (db.prepare("SELECT display_name FROM users WHERE id = ?").get(r.handled_by) as { display_name: string } | undefined) : undefined;
+    const u = ctx.identity.get<{ id: string; username: string; display_name: string }>("users", { id: r.user_id });
+    const by = r.handled_by ? ctx.identity.get<{ display_name: string }>("users", { id: r.handled_by }) : undefined;
     const org = ws.get<{ join_questions: string | null }>("orgs", { id: r.org_id });
     return {
       id: r.id,

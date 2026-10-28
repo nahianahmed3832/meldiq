@@ -32,7 +32,7 @@ export class AdminOrgs {
     const o = orgRecord(this.ctx.ws, orgId);
     if (!o) throw notFound("No such workspace or community");
     const composition = orgComposition(this.ctx.ws, orgId, now());
-    const names = usernames(this.ctx.db, composition.owners);
+    const names = usernames(this.ctx.identity, composition.owners);
     await this.ctx.usage.snapshot();
     const usage = Object.fromEntries(this.ctx.usage.series(orgId, USAGE_DAYS).map((s) => [s.metric, s.total]));
     return {

@@ -32,14 +32,14 @@ export class AdminResources {
     const names = seriesParam.split(",").filter(Boolean);
     if (names.length === 0 || names.length > MAX_SERIES || names.some((n) => !SERIES.test(n))) throw badRequest(`Ask for 1–${MAX_SERIES} measured series.`);
     const t = now();
-    return { range, series: analytics.resourceSeries(this.ctx.db, names, t - RANGE_MS[range], t) };
+    return { range, series: analytics.resourceSeries(this.ctx, names, t - RANGE_MS[range], t) };
   }
 
   report() {
     const t = now();
-    const latest = analytics.latestResources(this.ctx.db, t, 5 * 60_000);
+    const latest = analytics.latestResources(this.ctx, t, 5 * 60_000);
     // Stored file bytes are measured hourly.
-    const hourly = analytics.latestResources(this.ctx.db, t, 2 * 3_600_000);
+    const hourly = analytics.latestResources(this.ctx, t, 2 * 3_600_000);
     const v = (s: string) => latest.get(s)?.value ?? null;
     const collector = this.ctx.telemetry.resources.collectorStatus();
     const services = ["api", "livekit", "ntfy", "other"].map((s) => ({
@@ -61,8 +61,8 @@ export class AdminResources {
       const days = (total - used) / perDay;
       return `At the last 7 days' trend, full in about ${days > 3650 ? "more than 10 years" : `${Math.round(days)} days`} (estimate).`;
     };
-    const diskSlope = analytics.dailySlope(this.ctx.db, "host.disk.used_bytes", t, 7);
-    const dbSlope = analytics.dailySlope(this.ctx.db, "db.size_bytes", t, 7);
+    const diskSlope = analytics.dailySlope(this.ctx, "host.disk.used_bytes", t, 7);
+    const dbSlope = analytics.dailySlope(this.ctx, "db.size_bytes", t, 7);
     const capacity = [
       { resource: "Host disk (data volume)", used: v("host.disk.used_bytes"), total: v("host.disk.total_bytes"), pct: pct(v("host.disk.used_bytes"), v("host.disk.total_bytes")), projection: daysUntil(v("host.disk.used_bytes"), v("host.disk.total_bytes"), diskSlope) },
       { resource: "Host memory", used: v("host.mem.used_bytes"), total: v("host.mem.total_bytes"), pct: pct(v("host.mem.used_bytes"), v("host.mem.total_bytes")), projection: null },
@@ -89,7 +89,7 @@ export class AdminResources {
         },
         version: this.version,
         startedAt: this.startedAt,
-        versions: analytics.versions(this.ctx.db),
+        versions: analytics.versions(this.ctx),
       },
       now: Object.fromEntries(latest),
       services,

@@ -9,6 +9,11 @@ export function likeContains(value: string | null | undefined, term: string): bo
   return value != null && foldAscii(value).includes(foldAscii(term));
 }
 
+/** `value LIKE 'term%'` in SQLite: ASCII case ignored, NULL never matches. */
+export function likeStarts(value: string | null | undefined, term: string): boolean {
+  return value != null && foldAscii(value).startsWith(foldAscii(term));
+}
+
 /** SQLite's BINARY order for text (code units), for sorts that used to be ORDER BY. */
 export const compareText = (a: string | null | undefined, b: string | null | undefined): number => {
   if (a == null || b == null) return a == null ? (b == null ? 0 : -1) : 1;

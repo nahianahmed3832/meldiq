@@ -91,7 +91,7 @@ export function shownActivity(ctx: AppContext, u: Pick<ProfileRow, "id" | "prese
 
 /** Whether [userId] appears online (connected and not invisible); loads their choice when only the id is known. */
 export function appearsOnline(ctx: AppContext, u: string | Pick<ProfileRow, "id" | "presence_mode" | "presence_until">): boolean {
-  const row = typeof u === "string" ? (ctx.db.prepare("SELECT id, presence_mode, presence_until FROM users WHERE id = ?").get(u) as ProfileRow | undefined) : u;
+  const row = typeof u === "string" ? ctx.identity.get<ProfileRow>("users", { id: u }) : u;
   return row ? shownPresence(ctx, row) !== "offline" : false;
 }
 
@@ -121,7 +121,7 @@ export interface Relation {
 
 export function relation(ctx: AppContext, viewerId: string, targetId: string): Relation {
   if (viewerId === targetId) return { self: true, contact: true, blockedByTarget: false };
-  const blocked = !!ctx.db.prepare("SELECT 1 FROM user_blocks WHERE user_id = ? AND blocked_user_id = ?").get(targetId, viewerId);
+  const blocked = !!ctx.identity.get("user_blocks", { user_id: targetId, blocked_user_id: viewerId });
   return { self: false, contact: ctx.authz.canSeePresence(viewerId, targetId), blockedByTarget: blocked };
 }
 

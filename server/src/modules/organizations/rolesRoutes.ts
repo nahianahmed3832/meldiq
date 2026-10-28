@@ -335,7 +335,7 @@ export default async function roleRoutes(app: FastifyInstance, ctx: AppContext) 
     const { role, actor } = loadRole(roleId, userId);
     if (!actor.perms.has("roles.view") || !actor.perms.has("members.view")) throw forbidden("Your role doesn't include seeing who holds roles");
     const assigned = ws.all<{ org_id: string; user_id: string; assigned_at: number; assigned_by: string }>("org_role_members", { where: { role_id: role.id } });
-    const people = mapByIds<{ id: string; username: string; display_name: string }>(db, "users", "id", assigned.map((a) => a.user_id), "id, username, display_name");
+    const people = mapByIds<{ id: string; username: string; display_name: string }>(ctx.identity, "users", "id", assigned.map((a) => a.user_id), "id, username, display_name");
     const rows = assigned
       .flatMap((a) => {
         const u = people.get(a.user_id);
@@ -513,7 +513,7 @@ export default async function roleRoutes(app: FastifyInstance, ctx: AppContext) 
       orderBy: [["id", "desc"]],
     });
     const matching = (q.action ? entries.filter((a) => a.action === q.action || foldAscii(a.action).startsWith(family!)) : entries).slice(0, q.limit + 1);
-    const actors = mapByIds<{ id: string; display_name: string }>(db, "users", "id", matching.flatMap((a) => (a.actor_id ? [a.actor_id] : [])), "id, display_name");
+    const actors = mapByIds<{ id: string; display_name: string }>(ctx.identity, "users", "id", matching.flatMap((a) => (a.actor_id ? [a.actor_id] : [])), "id, display_name");
     const rows = matching.map((a) => ({ ...a, actor_name: a.actor_id ? (actors.get(a.actor_id)?.display_name ?? null) : null }));
     const page = rows.slice(0, q.limit);
     return {

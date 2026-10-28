@@ -32,10 +32,10 @@ describe("pinned identities against a key-substituting relay (T1.2)", () => {
   it("the relay swaps Bob's keys: Alice refuses to encrypt to them and posts nothing", async () => {
     const identityKey = b64(mallory.identity.pub);
     const cert = sign(mallory.identity, canonical.deviceCert(identityKey, b64(mallory.device.pub), b64(mallory.enc.pub)));
-    h.ctx.db.prepare("UPDATE users SET identity_key = ? WHERE id = ?").run(identityKey, bob.userId);
-    h.ctx.db
-      .prepare("UPDATE devices SET signing_key = ?, encryption_key = ?, certificate = ? WHERE id = ?")
-      .run(b64(mallory.device.pub), b64(mallory.enc.pub), cert, bob.deviceId);
+    await h.ctx.identity.write((w) => {
+      w.update("users", { id: bob.userId }, { identity_key: identityKey });
+      w.update("devices", { id: bob.deviceId }, { signing_key: b64(mallory.device.pub), encryption_key: b64(mallory.enc.pub), certificate: cert });
+    });
     alice.clearKeyCache();
 
     const before = await queued();
@@ -68,7 +68,7 @@ describe("pinned identities against a key-substituting relay (T1.2)", () => {
 
   it("accepting one key doesn't trust a second swap", async () => {
     const other = newEd25519();
-    h.ctx.db.prepare("UPDATE users SET identity_key = ? WHERE id = ?").run(b64(other.pub), bob.userId);
+    await h.ctx.identity.write((w) => w.update("users", { id: bob.userId }, { identity_key: b64(other.pub) }));
     alice.clearKeyCache();
     await expect(alice.send(dm, { type: "text", text: "again?" })).rejects.toBeInstanceOf(IdentityChangedError);
   });

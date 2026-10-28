@@ -240,6 +240,10 @@ export const UserProfile = z.strictObject({
   lastSeenAt: zTime.nullable(),
   /** API 0.56.0: what they're playing; absent when nothing is shown to you. */
   activity: ActivityWire.optional(),
+  /** API 0.57.0: when they joined Meldiq (the profile's "Member since"). */
+  memberSince: zTime.optional(),
+  /** API 0.57.0: communities you're both in (their icon, name, and when they joined it), newest join first. */
+  mutualCommunities: z.array(z.strictObject({ id: z.string(), name: z.string(), photoRev: z.number().int().nullable(), joinedAt: zTime })).optional(),
 });
 
 /** A device's public keys, to encrypt to and verify. */

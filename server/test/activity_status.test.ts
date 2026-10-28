@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ActivityService, ACTIVITY_TTL_MS } from "../src/modules/accounts/activity/service.js";
 import { MemoryActivityStore } from "../src/modules/accounts/activity/store.js";
 import { AccountClient, MemoryMailer } from "./support/accounts.js";
+import { VERSION } from "../src/app/server.js";
 import { expectStatus, type Harness, startServer } from "./support/harness.js";
 
 /**
@@ -33,7 +34,7 @@ describe("setting an activity", () => {
   it("is advertised", async () => {
     const info = await (await fetch(`${h.baseUrl}/v1/server-info`)).json();
     expect(info.features).toContain("activity-status");
-    expect(info.version).toBe("0.56.0");
+    expect(info.version).toBe(VERSION);
   });
 
   it("is kept and read back, and null clears it", async () => {

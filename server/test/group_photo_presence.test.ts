@@ -80,7 +80,7 @@ describe("presence", () => {
   });
 
   it("a timed choice ends by itself", async () => {
-    h.ctx.db.prepare("UPDATE users SET presence_mode = 'invisible', presence_until = ? WHERE id = ?").run(Date.now() - 1000, ben.userId);
+    await h.ctx.identity.write((w) => w.update("users", { id: ben.userId }, { presence_mode: "invisible", presence_until: Date.now() - 1000 }));
     expect(await seen()).toMatchObject({ online: true, presence: "online" });
   });
 });
