@@ -46,6 +46,8 @@ export interface GiftRow {
 }
 
 const CHECKOUT_TTL_MS = 24 * 3_600_000;
+/** How long a gift bought in an app store waits for the store's payment (Google Play's pending payments clear in days). */
+const STORE_PENDING_MS = 7 * 24 * 3_600_000;
 /** Gift ids (newId("gft")): how a checkout event is told apart from a plan's. */
 export const GIFT_PREFIX = "gft_";
 
@@ -97,14 +99,7 @@ export class Gifts implements PaymentEvents {
   ): Promise<{ giftId: string; url: string | null; expiresAt: number }> {
     const provider = this.billing.requireProvider();
     if (!provider.createPaymentCheckout) throw new ApiError(409, "billing_unavailable", "Gifts can't be bought with this payment provider");
-    if (!isPlanKey(input.planKey) || input.planKey === "free") throw notFound("No such plan");
-    const planKey = input.planKey;
-    if (!(GIFT_MONTHS as readonly number[]).includes(input.months)) throw badRequest(`Gifts are for ${GIFT_MONTHS.join(", ")} months`);
-    const note = (input.note ?? "").trim();
-    if (note.length > GIFT_NOTE_MAX) throw badRequest(`A gift note is up to ${GIFT_NOTE_MAX} characters`);
-    if (input.recipientUserId === starter.userId) throw conflict("Gifts are for friends: get Mojo for yourself from the plans above");
-    // An unknown recipient and one the buyer can't give to answer alike: nobody learns who has an account.
-    if (!this.deps.canReceive(input.recipientUserId, starter.userId)) throw notFound("That person can't receive gifts");
+    const { planKey, note } = this.validate(starter, input);
     const price = this.price(planKey, input.months);
     if (!price) throw new ApiError(409, "billing_unavailable", "Mojo isn't on sale yet");
     const t = this.clock();
@@ -133,6 +128,42 @@ export class Gifts implements PaymentEvents {
     }
     await this.rows.write((w) => w.update("mojo_gifts", { id }, { provider_session_ref: session.sessionRef, updated_at: this.clock() }));
     return { giftId: id, url: session.url, expiresAt: t + CHECKOUT_TTL_MS };
+  }
+
+  private validate(starter: { userId: string | null }, input: { recipientUserId: string; planKey: string; months: number; note?: string | null }): { planKey: "go" | "plus"; note: string } {
+    if (!isPlanKey(input.planKey) || input.planKey === "free") throw notFound("No such plan");
+    const planKey = input.planKey;
+    if (!(GIFT_MONTHS as readonly number[]).includes(input.months)) throw badRequest(`Gifts are for ${GIFT_MONTHS.join(", ")} months`);
+    const note = (input.note ?? "").trim();
+    if (note.length > GIFT_NOTE_MAX) throw badRequest(`A gift note is up to ${GIFT_NOTE_MAX} characters`);
+    if (input.recipientUserId === starter.userId) throw conflict("Gifts are for friends: get Mojo for yourself from the plans above");
+    // An unknown recipient and one the buyer can't give to answer alike: nobody learns who has an account.
+    if (!this.deps.canReceive(input.recipientUserId, starter.userId)) throw notFound("That person can't receive gifts");
+    return { planKey, note };
+  }
+
+  /**
+   * A gift bought in an app store (Google Play, play.ts): recorded before the store's sheet opens, under the same rules
+   * as on the website, and paid only by the store purchase the server verifies with the store. The store charges its own
+   * localized price; the row keeps the plan's list price for the record. A store's pending payment (cash, bank) can take
+   * days, so the gift waits longer than a website checkout.
+   */
+  async startStore(
+    starter: { accountId: string; userId: string | null },
+    input: { recipientUserId: string; planKey: string; months: number; note?: string | null },
+    provider: string,
+  ): Promise<{ giftId: string }> {
+    const { planKey, note } = this.validate(starter, input);
+    const t = this.clock();
+    const id = newId("gft");
+    await this.rows.write((w) =>
+      w.insert("mojo_gifts", {
+        id, buyer_account_id: starter.accountId, buyer_user_id: starter.userId, recipient_user_id: input.recipientUserId, plan_key: planKey, months: input.months,
+        currency: "USD", amount_minor: PLAN_PERKS[planKey].listPriceMinor * input.months, note: note || null, status: "pending", provider, provider_session_ref: null,
+        provider_payment_ref: null, grant_id: null, created_at: t, expires_at: t + STORE_PENDING_MS, paid_at: null, redeemed_at: null, updated_at: t,
+      }),
+    );
+    return { giftId: id };
   }
 
   /** A gift's checkout finished or ran out (PaymentEvents): only a paid one becomes a gift the friend sees. */

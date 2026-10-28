@@ -110,4 +110,5 @@ cd tools/griip-bot && npm run bot -- call <yourUsername> video 120
   [environments and endpoints](docs/ENVIRONMENTS.md), [infrastructure plan for the new domain](docs/MELDIQ_INFRASTRUCTURE_PLAN_2026-10-19.md)
 - Orbit 2.0 (email-and-password accounts, workspaces, legacy migration, 1 GB files): [audit](docs/ORBIT_2_MOBILE_AUDIT_2026-10-18.md),
   [architecture and API contracts](docs/ORBIT_2_ARCHITECTURE_2026-10-18.md), [implementation report](docs/ORBIT_2_IMPLEMENTATION_REPORT_2026-10-18.md)
+- [Activity status](docs/ACTIVITY_STATUS.md): opt-in "Playing …" from the Android app (API 0.56.0), and its Google Play permission declaration
 - [Known issues](docs/KNOWN_ISSUES.md) and [Progress](docs/PROGRESS.md)

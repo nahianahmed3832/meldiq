@@ -47,6 +47,8 @@ class GriipApp : Application() {
                     c.analytics.refresh()
                     c.analytics.track("app.opened")
                 }
+                // Meldiq Mojo: send the server any Google Play purchase it hasn't confirmed yet (docs/MOJO_ANDROID.md).
+                if (c.session.session != null) c.scope.launch { c.mojo.reconcile() }
             }
 
             override fun onStop(owner: LifecycleOwner) {

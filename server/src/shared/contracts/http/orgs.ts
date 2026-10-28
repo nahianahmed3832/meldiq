@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import { PresenceState } from "../realtime.js";
+import { ActivityWire, PresenceState } from "../realtime.js";
 import { zCount, zTime } from "./primitives.js";
 import { ConversationView } from "./conversations.js";
 import { route } from "./route.js";
@@ -105,6 +105,8 @@ const personFields = {
   /** null: the viewer may not see when this person is online. */
   online: z.boolean().nullable(),
   presence: PresenceState.optional(),
+  /** API 0.56.0: what they're playing, when the viewer may see their presence and they appear online. */
+  activity: ActivityWire.optional(),
   notificationsPaused: z.boolean().nullable(),
   ...listMediaFields,
 };

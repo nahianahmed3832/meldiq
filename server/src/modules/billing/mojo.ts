@@ -51,6 +51,8 @@ export interface MojoDeps {
   /** Whether [userId] is a member of [orgId] now (authorisation's answer). */
   isMember: (orgId: string, userId: string) => boolean;
   enforce?: MojoEnforce;
+  /** Whether Mojo can be bought in an app store (Google Play) now: enforcement in "auto" starts then too. */
+  storeOnSale?: () => boolean;
   /** Tells a community's members its Spark level may have changed (a realtime notice; they read it again). */
   notifyOrg?: (orgId: string) => void;
 }
@@ -188,6 +190,7 @@ export class Mojo {
   enforced(): boolean {
     const mode = this.deps.enforce ?? "auto";
     if (mode !== "auto") return mode === "on";
+    if (this.deps.storeOnSale?.()) return true;
     const provider = this.billing.provider;
     if (!provider) return false;
     return (["go", "plus"] as const).some((key) => {

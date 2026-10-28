@@ -17,6 +17,7 @@ import type { CallStore } from "../modules/calls/store.js";
 import type { Rows } from "../infrastructure/database/rows/index.js";
 import type { ReportStore } from "../modules/organizations/reports/store.js";
 import type { PreferenceStore } from "../modules/accounts/preferences/store.js";
+import type { ActivityService } from "../modules/accounts/activity/service.js";
 import type { PushService } from "../modules/notifications/service.js";
 import type { FcmService } from "../modules/notifications/fcm.js";
 import type { Metrics } from "../modules/administration/ops/metrics.js";
@@ -26,7 +27,7 @@ import type { ReminderService } from "../modules/accounts/reminders/service.js";
 import type { BlobStore } from "../infrastructure/storage/index.js";
 import type { Telemetry } from "../modules/telemetry/index.js";
 import type { QuotaEngine } from "../modules/quotas/index.js";
-import type { Billing, Gifts, Mojo } from "../modules/billing/index.js";
+import type { Billing, Gifts, Mojo, PlayBilling } from "../modules/billing/index.js";
 
 export interface AppContext {
   db: DB;
@@ -57,6 +58,8 @@ export interface AppContext {
   reportSealer: ReportSealer;
   /** Connections, message requests and messaging settings (batch B6): SQLite, or MongoDB with the "relationships" domain. */
   relationships: RelationshipStore;
+  /** What people are playing (API 0.56.0, docs/ACTIVITY_STATUS.md): MongoDB when the server has one, memory otherwise. */
+  activity: ActivityService;
   /** Calls, their participants and raised hands: SQLite, or MongoDB when MONGODB_DOMAINS includes "calls". */
   calls: CallStore;
   /**
@@ -86,6 +89,8 @@ export interface AppContext {
   mojo: Mojo;
   /** Gifts of Meldiq Mojo (modules/billing/gifts.ts). */
   gifts: Gifts;
+  /** Google Play purchases for the Android app (API 0.55.0); null when GOOGLE_PLAY_PACKAGE isn't set. */
+  play: PlayBilling | null;
   /** Display names of users by id (identity), for billing's views. */
   userNames: (ids: readonly string[]) => Map<string, string>;
   log: FastifyBaseLogger;

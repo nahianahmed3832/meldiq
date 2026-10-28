@@ -15,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.DriveFileMove
 import androidx.compose.material.icons.automirrored.outlined.Logout
+import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.AdminPanelSettings
 import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.ContentCopy
@@ -136,6 +137,8 @@ class CommunityMenuActions(
     val onArrange: (() -> Unit)? = null,
     /** Batch B3: choose which channels appear in the list. */
     val onBrowse: (() -> Unit)? = null,
+    /** Meldiq Spark: the server's level and giving a Spark (docs/MOJO_ANDROID.md). */
+    val onSpark: (() -> Unit)? = null,
 )
 
 /**
@@ -167,6 +170,7 @@ fun CommunityMenuSheet(org: OrgDto, memberCount: Int, allMuted: Boolean, hideMut
                 }
                 SheetButton(Icons.Outlined.Settings, stringResource(R.string.settings_title), run(actions.onSettings), Modifier.weight(1f))
             }
+            actions.onSpark?.let { SheetItem(Icons.Outlined.Bolt, stringResource(R.string.mojo_spark_open), run(it)) }
             actions.onMarkRead?.let { SheetItem(Icons.Outlined.MarkChatRead, stringResource(R.string.nv_mark_read), run(it)) }
             actions.onNotifications?.let { SheetItem(Icons.Outlined.Notifications, stringResource(R.string.cn_title), run(it)) }
             actions.onBrowse?.let { SheetItem(Icons.Outlined.Visibility, stringResource(R.string.hc_browse), run(it)) }

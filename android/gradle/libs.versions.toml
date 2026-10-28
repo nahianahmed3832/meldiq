@@ -29,8 +29,11 @@ unifiedpush = "3.3.5"
 firebaseBom = "33.7.0"
 googleServices = "4.4.2"
 tink = "1.23.0"
+# Meldiq Mojo on Android (docs/MOJO_ANDROID.md): Google Play Billing. Play requires 8+ for updates from 2026-08-31.
+playBilling = "9.1.0"
 
 [libraries]
+play-billing-ktx = { module = "com.android.billingclient:billing-ktx", version.ref = "playBilling" }
 androidx-work = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
 unifiedpush-connector = { module = "org.unifiedpush.android:connector", version.ref = "unifiedpush" }
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }

@@ -116,6 +116,8 @@ import kotlinx.serialization.json.JsonObject
     val privacy: Map<String, String>? = null,
     /** Workspace member lists (servers with `custom-roles`): the custom roles this person holds there. */
     val customRoles: List<RoleRef> = emptyList(),
+    /** API 0.56.0: what they're playing, when shown to you (docs/ACTIVITY_STATUS.md). */
+    val activity: com.meldiq.android.activity.ActivityDto? = null,
 )
 @Serializable data class MeRes(val user: UserDto, val deviceId: String)
 @Serializable data class UserRes(val user: UserDto)
@@ -146,7 +148,11 @@ import kotlinx.serialization.json.JsonObject
     val revokedAt: Long? = null, val current: Boolean = false,
 )
 @Serializable data class DevicesRes(val devices: List<MyDeviceDto>)
-@Serializable data class PresenceDto(val userId: String, val online: Boolean, val lastSeenAt: Long? = null, val presence: String? = null)
+@Serializable data class PresenceDto(
+    val userId: String, val online: Boolean, val lastSeenAt: Long? = null, val presence: String? = null,
+    /** API 0.56.0: what they're playing, when shown. */
+    val activity: com.meldiq.android.activity.ActivityDto? = null,
+)
 /** Batch B6b: PUT /v1/users/me/presence. */
 @Serializable data class PresenceReq(val mode: String, val until: Long? = null)
 @Serializable data class PresenceModeRes(val mode: String, val until: Long? = null)

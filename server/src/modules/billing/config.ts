@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { type GooglePlayApi, GoogleJwks, HttpGooglePlayApi, type JwksSource, type ServiceAccountKey } from "./providers/googlePlay.js";
 import { SandboxProvider } from "./providers/sandbox.js";
 import { StripeProvider, stripeKeyMode } from "./providers/stripe.js";
 import type { BillingProvider } from "./providers/types.js";
@@ -27,6 +29,56 @@ export interface BillingConfig {
   trials: TrialConfig | null;
   /** STRIPE_PORTAL_CONFIGURATION: the customer portal configuration to open (bpc_…); null: the account's default. */
   portalConfiguration: string | null;
+  /** Google Play Billing for the Android app, beside the provider above (play.ts); null: off. */
+  play: PlayConfig | null;
+}
+
+/**
+ * Google Play (docs/MOJO_ANDROID.md), on when GOOGLE_PLAY_PACKAGE is set:
+ * - GOOGLE_PLAY_SERVICE_ACCOUNT_FILE: the service account's JSON key (on the server only, mode 600);
+ * - GOOGLE_PLAY_ACCOUNT_TOKEN_SECRET: at least 32 characters, the key of the opaque account id purchases carry;
+ * - GOOGLE_PLAY_RTDN_AUDIENCE and GOOGLE_PLAY_RTDN_SERVICE_ACCOUNT: the Pub/Sub push endpoint's URL and the push
+ *   subscription's service account, both needed for real-time notifications (without them only the app's own
+ *   verification and the hourly reconciliation keep purchases current).
+ */
+export interface PlayConfig {
+  packageName: string;
+  accountTokenSecret: string;
+  api: GooglePlayApi;
+  rtdn: { audience: string; email: string } | null;
+  jwks: JwksSource;
+}
+
+const PACKAGE_RE = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/;
+
+export function playConfig(env: NodeJS.ProcessEnv, readFile: (path: string) => string = (p) => readFileSync(p, "utf8")): PlayConfig | null {
+  const packageName = (env.GOOGLE_PLAY_PACKAGE ?? "").trim();
+  if (!packageName) return null;
+  if (!PACKAGE_RE.test(packageName)) throw new Error("GOOGLE_PLAY_PACKAGE must be the app's package name, e.g. com.meldiq.android");
+  const secret = env.GOOGLE_PLAY_ACCOUNT_TOKEN_SECRET ?? "";
+  if (secret.length < 32) throw new Error("GOOGLE_PLAY_ACCOUNT_TOKEN_SECRET must be at least 32 characters with GOOGLE_PLAY_PACKAGE");
+  const file = (env.GOOGLE_PLAY_SERVICE_ACCOUNT_FILE ?? "").trim();
+  if (!file) throw new Error("GOOGLE_PLAY_SERVICE_ACCOUNT_FILE must name the service account's JSON key with GOOGLE_PLAY_PACKAGE");
+  let key: ServiceAccountKey;
+  try {
+    key = JSON.parse(readFile(file)) as ServiceAccountKey;
+  } catch {
+    throw new Error("GOOGLE_PLAY_SERVICE_ACCOUNT_FILE couldn't be read as a service account JSON key");
+  }
+  if (typeof key.client_email !== "string" || typeof key.private_key !== "string" || !key.private_key.includes("PRIVATE KEY")) {
+    throw new Error("GOOGLE_PLAY_SERVICE_ACCOUNT_FILE isn't a service account key (client_email and private_key)");
+  }
+  const audience = (env.GOOGLE_PLAY_RTDN_AUDIENCE ?? "").trim();
+  const email = (env.GOOGLE_PLAY_RTDN_SERVICE_ACCOUNT ?? "").trim();
+  if (!!audience !== !!email) throw new Error("GOOGLE_PLAY_RTDN_AUDIENCE and GOOGLE_PLAY_RTDN_SERVICE_ACCOUNT go together");
+  if (audience && !audience.startsWith("https://")) throw new Error("GOOGLE_PLAY_RTDN_AUDIENCE must be the push endpoint's https URL");
+  return {
+    packageName,
+    accountTokenSecret: secret,
+    api: new HttpGooglePlayApi(packageName, key),
+    rtdn: audience ? { audience, email } : null,
+    jwks: new GoogleJwks(),
+  };
 }
 
 /**
@@ -95,10 +147,10 @@ export function billingConfig(env: NodeJS.ProcessEnv): BillingConfig {
   if (portal && !/^bpc_[A-Za-z0-9]+$/.test(portal)) throw new Error("STRIPE_PORTAL_CONFIGURATION must be a portal configuration id (bpc_…)");
   const production = (env.APP_ENV ?? "development") === "production";
   const web = (env.BILLING_WEB_RETURN_URL ?? "").trim();
-  return { ...providerConfig(env), webReturnUrl: web ? returnUrl(web, production) : null, trials: trialConfig(env), portalConfiguration: portal || null };
+  return { ...providerConfig(env), webReturnUrl: web ? returnUrl(web, production) : null, trials: trialConfig(env), portalConfiguration: portal || null, play: playConfig(env) };
 }
 
-function providerConfig(env: NodeJS.ProcessEnv): Omit<BillingConfig, "trials" | "portalConfiguration" | "webReturnUrl"> {
+function providerConfig(env: NodeJS.ProcessEnv): Omit<BillingConfig, "trials" | "portalConfiguration" | "webReturnUrl" | "play"> {
   const name = (env.BILLING_PROVIDER ?? "none").trim().toLowerCase() || "none";
   const production = (env.APP_ENV ?? "development") === "production";
   if (name === "none") return { provider: null, unavailableReason: NO_PROVIDER, returnUrl: null };

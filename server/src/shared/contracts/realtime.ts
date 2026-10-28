@@ -67,6 +67,21 @@ export type CallWire = z.infer<typeof CallWire>;
 export const PresenceState = z.enum(["online", "idle", "dnd", "offline"]);
 export type PresenceState = z.infer<typeof PresenceState>;
 
+/**
+ * What someone is doing right now (API 0.56.0, docs/ACTIVITY_STATUS.md): "Playing PUBG Mobile" since [startedAt]. Shown
+ * only to the people who may see their presence, and only while they appear online.
+ */
+export const ActivityKind = z.enum(["playing"]);
+export const ActivityWire = z.strictObject({
+  kind: ActivityKind,
+  /** The game's name as the person's app shows it. */
+  name: z.string().min(1).max(64),
+  /** The Android package of the game, when the app reported one. */
+  packageId: z.string().max(128).optional(),
+  startedAt: time,
+});
+export type ActivityWire = z.infer<typeof ActivityWire>;
+
 // ───────────── Server → client ─────────────
 
 export const CallEventName = z.enum(["ring", "started", "updated", "ended", "declined", "dismissed", "alerted"]);
@@ -95,6 +110,8 @@ export const ServerEvent = z.discriminatedUnion("t", [
   z.strictObject({ t: z.literal("queue.drained") }),
   z.strictObject({ t: z.literal("typing"), c: id, u: id, on: z.boolean() }),
   z.strictObject({ t: z.literal("presence"), userId: id, online: z.boolean(), presence: PresenceState, lastSeenAt: time.nullable() }),
+  /** API 0.56.0: someone started or stopped playing (null: nothing to show, also while they appear offline). */
+  z.strictObject({ t: z.literal("activity"), userId: id, activity: ActivityWire.nullable() }),
   z.discriminatedUnion("event", [
     z.strictObject({ t: z.literal("call"), event: CallEventName, call: CallWire, ...callEventExtras }),
     /** Voice rooms: a moderator muted this person, lowered their hand or removed them. */

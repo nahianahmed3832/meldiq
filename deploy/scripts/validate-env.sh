@@ -75,6 +75,19 @@ case "${BILLING_PROVIDER:-none}" in
   *) err "BILLING_PROVIDER must be none, sandbox or stripe (${BILLING_PROVIDER})" ;;
 esac
 
+# Google Play for the Android app (docs/MOJO_ANDROID.md): off unless GOOGLE_PLAY_PACKAGE is set.
+if [ -n "${GOOGLE_PLAY_PACKAGE:-}" ]; then
+  ok "GOOGLE_PLAY_PACKAGE ${GOOGLE_PLAY_PACKAGE}"
+  play_secret="${GOOGLE_PLAY_ACCOUNT_TOKEN_SECRET:-}"
+  if [ "${#play_secret}" -ge 32 ]; then ok "GOOGLE_PLAY_ACCOUNT_TOKEN_SECRET set"; else err "GOOGLE_PLAY_ACCOUNT_TOKEN_SECRET must be at least 32 characters"; fi
+  if [ -r "${GOOGLE_PLAY_SERVICE_ACCOUNT_FILE:-/nonexistent}" ]; then ok "GOOGLE_PLAY_SERVICE_ACCOUNT_FILE readable"; else err "GOOGLE_PLAY_SERVICE_ACCOUNT_FILE must name a readable service account JSON key"; fi
+  if [ -n "${GOOGLE_PLAY_RTDN_AUDIENCE:-}" ] && [ -n "${GOOGLE_PLAY_RTDN_SERVICE_ACCOUNT:-}" ]; then ok "Google Play notifications on"
+  elif [ -z "${GOOGLE_PLAY_RTDN_AUDIENCE:-}" ] && [ -z "${GOOGLE_PLAY_RTDN_SERVICE_ACCOUNT:-}" ]; then ok "Google Play notifications off (purchases still verify; reconciled hourly)"
+  else err "GOOGLE_PLAY_RTDN_AUDIENCE and GOOGLE_PLAY_RTDN_SERVICE_ACCOUNT go together"; fi
+else
+  ok "GOOGLE_PLAY_PACKAGE unset (no Google Play purchases)"
+fi
+
 # Platform Admin 2.0: the credentials key, if set, must be 32 bytes (hex or base64); the server refuses to start otherwise.
 case "${PLATFORM_SECRETS_KEY:-}" in
   '') ok "PLATFORM_SECRETS_KEY unset (the console can't store AI credentials)" ;;

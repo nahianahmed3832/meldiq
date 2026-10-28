@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest, RouteShorthandOptions } from "fastify";
 import type { AppContext } from "../../app/context.js";
-import { BadgeBody, GiftBody, GiftParams, SparkAssignBody, SparkCheckoutBody, SparkParams } from "../../shared/contracts/http/mojo.js";
+import { BadgeBody, GiftBody, GiftParams, PlayIntentBody, PlayVerifyBody, SparkAssignBody, SparkCheckoutBody, SparkParams } from "../../shared/contracts/http/mojo.js";
 import { OrgParams } from "../../shared/contracts/http/orgs.js";
 import { ApiError } from "../../shared/errors.js";
 import { now } from "../../shared/utilities/util.js";
@@ -8,6 +8,7 @@ import { parse } from "../../shared/validation/index.js";
 import { me, requireAuth } from "../auth/index.js";
 import { orgNames } from "../organizations/index.js";
 import type { GiftRow } from "./gifts.js";
+import type { PlayVerifyStatus } from "./play.js";
 import { catalogView, MAX_SPARK_LEVEL, SPARK_LEVELS, SPARK_PLAN_KEY } from "./perks.js";
 import type { CheckoutStarter } from "./service.js";
 
@@ -89,6 +90,7 @@ export function mojoRoutes(app: FastifyInstance, ctx: AppContext, h: MojoRouteHe
               status: addon.status,
               renews: ctx.billing.subscriptions.grants(addon, t) && !addon.cancel_at_period_end,
               currentPeriodEnd: addon.current_period_end,
+              provider: addon.provider,
             }
           : null,
       },
@@ -159,6 +161,40 @@ export function mojoRoutes(app: FastifyInstance, ctx: AppContext, h: MojoRouteHe
     ctx.audit({ actorId: userId, action: "mojo.gift_redeem", target: id });
     ctx.billing.onChange?.({ kind: "account", accountId });
     return started;
+  });
+
+  // Google Play (API 0.55.0, docs/MOJO_ANDROID.md): the Android app buys through Google's own sheet; the server checks
+  // every purchase with Google before anything is given.
+  const play = () => {
+    if (!ctx.play) throw new ApiError(409, "billing_unavailable", "Google Play purchases aren't set up on this server");
+    return ctx.play;
+  };
+
+  app.post("/v2/mojo/play/intent", h.providerCall, async (req) => {
+    const s = h.session(req);
+    const accountId = needsAccount(s);
+    const b = parse(PlayIntentBody, req.body);
+    // A gift goes to a person: the buyer needs their own identity to be told apart from them.
+    if (b.kind === "gift") needsUser(s);
+    const started = await play().intent({ accountId, userId: s.userId }, { kind: b.kind, productId: b.productId, replacing: b.replacing, giftTo: b.giftTo, note: b.note });
+    ctx.audit({ actorId: s.userId ?? accountId, action: "billing.play_intent", target: started.reference, detail: b.productId });
+    return started;
+  });
+
+  app.post("/v2/mojo/play/verify", h.providerCall, async (req) => {
+    const s = h.session(req);
+    const accountId = needsAccount(s);
+    const { productId, purchaseToken } = parse(PlayVerifyBody, req.body);
+    let status: PlayVerifyStatus;
+    try {
+      status = await play().verify(accountId, productId, purchaseToken);
+    } catch (e) {
+      if (e instanceof ApiError) throw e;
+      req.log.warn({ err: e }, "google play verification failed");
+      throw new ApiError(503, "unavailable", "Google Play couldn't be reached. Nothing was lost: the app will send it again.");
+    }
+    ctx.audit({ actorId: s.userId ?? accountId, action: "billing.play_verify", target: productId, detail: status });
+    return { status };
   });
 
   app.put("/v2/mojo/badge", h.authed, async (req) => {

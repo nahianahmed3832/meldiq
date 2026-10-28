@@ -1,6 +1,6 @@
 import type { RowReader, Rows, RowWriter, Where } from "../../infrastructure/database/rows/index.js";
 import { newId } from "../../shared/utilities/util.js";
-import { type PlanCatalog, type PlanLimits, parseLimits } from "./catalog.js";
+import { type PlanCatalog, type PlanLimits, parseLimits, type VersionRow } from "./catalog.js";
 import { canMove, grantsPlan, standing, type Standing, type SubscriptionStatus, TERMINAL } from "./lifecycle.js";
 import { type BillingOwner, ownerOfRow, ownerParam } from "./owners.js";
 import type { CheckoutSnapshot, InvoiceSnapshot, PaymentSnapshot, SubscriptionSnapshot } from "./providers/types.js";
@@ -72,6 +72,12 @@ export function ownerWhere(owner: BillingOwner): Where {
 const newest = [["updated_at", "desc"]] as const;
 
 export class Subscriptions {
+  /**
+   * App stores (Google Play) sell the catalog's plans under their own product ids: how a store's product finds the plan
+   * version its subscription is on, when no published version carries that store's price (play.ts). Null: none.
+   */
+  storeVersion: ((provider: string, priceRef: string) => VersionRow | null) | null = null;
+
   constructor(
     private readonly rows: Rows,
     private readonly catalog: PlanCatalog,
@@ -188,7 +194,7 @@ export class Subscriptions {
    * skipped ("stale"), so duplicated and out-of-order deliveries settle on the provider's latest state.
    */
   applySnapshot(w: RowWriter, provider: string, snap: SubscriptionSnapshot, providerAt: number, source: string, t: number): ApplyOutcome {
-    const version = this.catalog.byPrice(provider, snap.priceRef);
+    const version = this.catalog.byPrice(provider, snap.priceRef) ?? this.storeVersion?.(provider, snap.priceRef) ?? null;
     if (!version) throw new BillingEventError("unknown_price", `No published plan version uses the price ${snap.priceRef}`);
     const existing = w.get<SubscriptionRow>("billing_subscriptions", { provider, provider_subscription_ref: snap.ref });
     if (existing) return this.update(w, existing, version.id, snap, providerAt, source, t);

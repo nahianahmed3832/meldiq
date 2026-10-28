@@ -15,10 +15,12 @@ from strings_keybackup import S as KEYBACKUP
 from strings_community import S as COMMUNITY
 from strings_navigation import S as NAVIGATION
 from strings_parity import S as PARITY
+from strings_mojo import S as MOJO
+from strings_activity import S as ACTIVITY
 res = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "app", "src", "main", "res")
 # Every key must be unique across the tables (Android merges them into one namespace).
 _seen = {}
-for _name, _table in [("strings", S), ("strings_account", ACCOUNT), ("strings_workspace", WORKSPACE), ("strings_apps", APPS), ("strings_meldiq", MELDIQ), ("strings_round6", ROUND6), ("strings_round7", ROUND7), ("strings_meldiq2", MELDIQ2), ("strings_round3", ROUND3), ("strings_keybackup", KEYBACKUP), ("strings_community", COMMUNITY), ("strings_navigation", NAVIGATION), ("strings_parity", PARITY)]:
+for _name, _table in [("strings", S), ("strings_account", ACCOUNT), ("strings_workspace", WORKSPACE), ("strings_apps", APPS), ("strings_meldiq", MELDIQ), ("strings_round6", ROUND6), ("strings_round7", ROUND7), ("strings_meldiq2", MELDIQ2), ("strings_round3", ROUND3), ("strings_keybackup", KEYBACKUP), ("strings_community", COMMUNITY), ("strings_navigation", NAVIGATION), ("strings_parity", PARITY), ("strings_mojo", MOJO), ("strings_activity", ACTIVITY)]:
     for _k in _table:
         if _k in _seen:
             raise SystemExit(f"duplicate string key {_k!r} in {_name} and {_seen[_k]}")
@@ -129,3 +131,17 @@ for lang, folder, idx in [("en", "values", 0), ("zh", "values-zh-rCN", 1), ("bn"
         wp.append(f'    <string name="{k}">{esc(v[idx])}</string>')
     wp.append('</resources>')
     open(f"{res}/{folder}/strings_parity.xml", "w").write("\n".join(wp) + "\n")
+    # Meldiq Mojo strings (2026-10-28): strings_mojo.py.
+    mj = ['<?xml version="1.0" encoding="utf-8"?>', '<!-- Meldiq Mojo strings (docs/MOJO_ANDROID.md). Generated from strings_mojo.py. -->', '<resources>']
+    for k, v in MOJO.items():
+        mj.append(f'    <string name="{k}">{esc(v[idx])}</string>')
+    mj.append('</resources>')
+    open(f"{res}/{folder}/strings_mojo.xml", "w").write("\n".join(mj) + "\n")
+    print(folder, "mojo", len(MOJO))
+    # Activity status strings (API 0.56.0, docs/ACTIVITY_STATUS.md): strings_activity.py.
+    act = ['<?xml version="1.0" encoding="utf-8"?>', '<!-- Activity status strings (docs/ACTIVITY_STATUS.md). Generated from strings_activity.py. -->', '<resources>']
+    for k, v in ACTIVITY.items():
+        act.append(f'    <string name="{k}">{esc(v[idx])}</string>')
+    act.append('</resources>')
+    open(f"{res}/{folder}/strings_activity.xml", "w").write("\n".join(act) + "\n")
+    print(folder, "activity", len(ACTIVITY))

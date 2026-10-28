@@ -128,7 +128,7 @@ const TABLE_OWNERS: Readonly<Record<string, string>> = {
       // Migration 062 rebuilds three tables through these names (they exist only during the migration).
       "billing_checkouts_rebuilt billing_subscriptions_rebuilt billing_invoices_rebuilt " +
       // Migration 063: trials and invite links.
-      "billing_grants billing_referral_codes billing_referrals billing_grants_rebuilt spark_assignments mojo_gifts mojo_profile",
+      "billing_grants billing_referral_codes billing_referrals billing_grants_rebuilt spark_assignments mojo_gifts mojo_profile billing_play_purchases",
   ),
   ...owned("quotas", "quota_plans quota_plan_members quota_policies quota_counters quota_reservations quota_events"),
   ...owned("ai", "ai_providers ai_models ai_usage ai_model_capabilities ai_routing"),

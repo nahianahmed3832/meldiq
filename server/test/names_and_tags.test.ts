@@ -29,7 +29,7 @@ describe("name styles and community tags", () => {
   it("are advertised", async () => {
     const { features, version } = await owner.req("GET", "/v1/server-info");
     expect(features).toEqual(expect.arrayContaining(["name-styles", "community-tags", "community-mute"]));
-    expect(version).toBe("0.54.0");
+    expect(version).toBe("0.56.0");
   });
 
   it("lets owners set a 2 to 4 character tag, stored in capitals, and members can't", async () => {

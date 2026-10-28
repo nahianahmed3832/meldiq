@@ -61,7 +61,8 @@ export class BillingWebhooks {
     private readonly clock: () => number = Date.now,
   ) {}
 
-  private async reject(provider: string, reason: string): Promise<void> {
+  /** Counts a refused delivery per day, provider and reason (operators see the counts, never the bodies). */
+  async reject(provider: string, reason: string): Promise<void> {
     const day = new Date(this.clock()).toISOString().slice(0, 10);
     await this.rows.write((w) => {
       const row = w.get<{ count: number }>("billing_webhook_rejections", { day, provider, reason });
@@ -84,6 +85,16 @@ export class BillingWebhooks {
       this.log.warn({ provider: providerId, reason: e.reason }, "billing webhook refused");
       throw new ApiError(400, "bad_signature", "The webhook couldn't be verified");
     }
+    const { outcome: _outcome, ...answer } = await this.ingest(providerId, event);
+    return answer;
+  }
+
+  /**
+   * Stores and applies one event already known to be the provider's (a verified webhook, or what an app store's API
+   * answered when the server asked it): once per provider event ref, a repeat is acknowledged and skipped.
+   */
+  async ingest(providerId: string, event: NormalizedEvent): Promise<{ received: true; duplicate: boolean; status: EventStatus; outcome: ApplyOutcome | null }> {
+    const t = this.clock();
     const id = newId("bev");
     const inserted = await this.rows.write(
       (w) =>
@@ -95,9 +106,11 @@ export class BillingWebhooks {
     );
     if (!inserted) {
       const row = this.rows.get<{ status: EventStatus }>("billing_provider_events", { provider: providerId, event_ref: event.ref })!;
-      return { received: true, duplicate: true, status: row.status };
+      return { received: true, duplicate: true, status: row.status, outcome: null };
     }
-    return { received: true, duplicate: false, status: await this.process(id) };
+    const outcome: { value: ApplyOutcome | null } = { value: null };
+    const status = await this.process(id, outcome);
+    return { received: true, duplicate: false, status, outcome: outcome.value };
   }
 
   private applyEvent(w: RowWriter, row: EventRow, event: NormalizedEvent, t: number): ApplyOutcome | null {
@@ -111,7 +124,7 @@ export class BillingWebhooks {
   }
 
   /** Applies a stored event. Never throws: the outcome is written on the event's row. */
-  async process(id: string): Promise<EventStatus> {
+  async process(id: string, applied?: { value: ApplyOutcome | null }): Promise<EventStatus> {
     const row = this.rows.get<EventRow>("billing_provider_events", { id });
     if (!row || row.status === "processed" || row.status === "ignored") return row?.status ?? "dead";
     const event = JSON.parse(row.summary) as NormalizedEvent;
@@ -130,6 +143,7 @@ export class BillingWebhooks {
         return applied;
       });
       const status: EventStatus = outcome && outcome.result === "applied" ? "processed" : "ignored";
+      if (applied) applied.value = outcome;
       if (outcome && status === "processed") this.notifyApplied(event, outcome);
       return status;
     } catch (e) {

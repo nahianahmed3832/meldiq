@@ -14,7 +14,7 @@ import accountRoutes from "../modules/accounts/routes.js";
 import { Authz } from "../modules/organizations/authz.js";
 import { orgMemberIds } from "../modules/organizations/index.js";
 import { openBillingRows } from "./billingRows.js";
-import { Gifts, Mojo } from "../modules/billing/index.js";
+import { Gifts, Mojo, PlayBilling } from "../modules/billing/index.js";
 import { availableUser, blockedEitherWay, namesOf } from "../modules/accounts/index.js";
 import { type Config, effectiveFileMaxBytes } from "./config.js";
 import { federationClientRoutes, federationPeerRoutes } from "../modules/federation/routes.js";
@@ -67,6 +67,11 @@ import meetingRoutes from "../modules/calls/meetingsRoutes.js";
 import communityRoutes from "../modules/organizations/communityRoutes.js";
 import { runCommunityMigration } from "../modules/organizations/communityMigration.js";
 import preferenceRoutes from "../modules/accounts/preferences/routes.js";
+import activityRoutes from "../modules/accounts/activity/routes.js";
+import { ActivityService } from "../modules/accounts/activity/service.js";
+import { MemoryActivityStore } from "../modules/accounts/activity/store.js";
+import { MongoActivityStore } from "../modules/accounts/activity/mongoStore.js";
+import { announceActivity } from "../modules/accounts/activity/visibility.js";
 import reminderRoutes from "../modules/accounts/reminders/routes.js";
 import { ReminderService } from "../modules/accounts/reminders/service.js";
 import { FcmService } from "../modules/notifications/fcm.js";
@@ -83,7 +88,7 @@ import { now } from "../shared/utilities/util.js";
 import wsRoutes from "../modules/realtime/ws.js";
 import { Billing, billingRoutes } from "../modules/billing/index.js";
 
-export const VERSION = "0.54.0";
+export const VERSION = "0.56.0";
 /**
  * The client API this server speaks and the oldest client API it accepts. Clients refuse a server whose
  * minClientApi is newer than theirs; servers from before these fields existed count as API 1.
@@ -196,6 +201,13 @@ export async function buildApp(
   ctx.reports = ctx.mongo?.owns("reports") ? new MongoReportStore(ctx.mongo) : new SqliteReportStore(db);
   ctx.relationships = ctx.mongo?.owns("relationships") ? new MongoRelationshipStore(ctx.mongo) : new SqliteRelationshipStore(db);
   ctx.calls = ctx.mongo?.owns("calls") ? new MongoCallStore(ctx.mongo) : new SqliteCallStore(db);
+  // API 0.56.0: new data, so MongoDB whenever the server has one (no domain to migrate).
+  const activityStore = ctx.mongo ? new MongoActivityStore(ctx.mongo) : new MemoryActivityStore();
+  if (activityStore instanceof MongoActivityStore) await activityStore.ensureIndexes();
+  ctx.activity = new ActivityService(activityStore, app.log);
+  ctx.activity.onChange = (userId) => announceActivity(ctx, userId);
+  await ctx.activity.start();
+  app.addHook("onClose", async () => ctx.activity.stop());
   ctx.reportSealer = ReportSealer.load(process.env, config.dataDir);
   // Billing (plans, subscriptions, Meldiq Spark, gifts): rows in SQLite, or MongoDB when MONGODB_DOMAINS includes it.
   ctx.billing = new Billing(await openBillingRows(db, ctx.mongo, app.log), config.billing, app.log, Date.now, (id) => ctx.quotas.planExists(id));
@@ -211,6 +223,8 @@ export async function buildApp(
   ctx.mojo = new Mojo(ctx.billing, ctx.billing.rows, {
     isMember: (orgId, userId) => !!ctx.authz.orgRole(orgId, userId),
     enforce: config.mojoEnforce,
+    // Mojo on sale in Google Play counts as on sale (MOJO_ENFORCE=auto).
+    storeOnSale: () => ctx.play?.onSale() ?? false,
     notifyOrg: (orgId) => ctx.hub.sendToUsers(orgMemberIds(ctx.ws, orgId), { t: "entitlements.changed", scope: "org", orgId }),
   });
   ctx.gifts = new Gifts(
@@ -227,6 +241,7 @@ export async function buildApp(
     app.log,
   );
   ctx.billing.webhooks.payments = ctx.gifts;
+  ctx.play = config.billing.play ? new PlayBilling(ctx.billing, ctx.gifts, config.billing.play, app.log) : null;
   ctx.billing.onChange = (owner) => {
     if (owner.kind === "org") ctx.hub.sendToUsers(orgMemberIds(ctx.ws, owner.orgId), { t: "entitlements.changed", scope: "org", orgId: owner.orgId });
     else {
@@ -398,7 +413,7 @@ export async function buildApp(
     passkeys: ctx.accounts.passkeys.available ? { webOrigins: ctx.accounts.passkeys.webOrigins } : null,
   }));
 
-  for (const r of [authRoutes, userRoutes, profileMediaRoutes, gifRoutes, bugReportRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, expressionRoutes, discordRoutes, wsRoutes]) {
+  for (const r of [authRoutes, userRoutes, profileMediaRoutes, gifRoutes, bugReportRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, activityRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, expressionRoutes, discordRoutes, wsRoutes]) {
     await app.register(async (scope) => r(scope, ctx));
   }
   await app.register(async (scope) => opsRoutes(scope, ctx, VERSION));
@@ -525,6 +540,8 @@ export function serverFeatures(config: Config, directUploads = false): string[] 
     "account-standing",
     "bug-reports",
     "profile-links",
+    // API 0.56.0: what people are playing, reported by the Android app after they opt in (docs/ACTIVITY_STATUS.md).
+    "activity-status",
     // API 0.50.0: folders of communities on the rail, in the personal preferences (railFolders).
     "rail-folders",
     // API 0.54.0 (docs/MOJO.md): Meldiq Mojo's catalog and perks, Meldiq Spark levels, gifts and badges.

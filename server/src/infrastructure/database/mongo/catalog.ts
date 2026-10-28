@@ -244,6 +244,8 @@ export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
   spark_assignments: "billing",
   mojo_gifts: "billing",
   mojo_profile: "billing",
+  // Google Play purchases (API 0.55.0, docs/MOJO_ANDROID.md).
+  billing_play_purchases: "billing",
 };
 
 export interface ColumnSpec {

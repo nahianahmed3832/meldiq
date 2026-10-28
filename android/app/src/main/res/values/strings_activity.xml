@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Activity status strings (docs/ACTIVITY_STATUS.md). Generated from strings_activity.py. -->
+<resources>
+    <string name="act_playing">Playing %1$s</string>
+    <string name="act_just_started">just started</string>
+    <string name="act_minutes">%1$d min</string>
+    <string name="act_hours">%1$d h %2$d min</string>
+    <string name="act_cd_game">Game</string>
+    <string name="act_title">Activity privacy</string>
+    <string name="act_section">Activity</string>
+    <string name="act_row_on">Sharing what you play</string>
+    <string name="act_row_off">Off</string>
+    <string name="act_share">Share what I\'m playing</string>
+    <string name="act_share_sub">Shows \"Playing …\" on your profile, in DMs and in your communities\' member lists</string>
+    <string name="act_explain">When this is on, Meldiq checks which app is on your screen about every 30 seconds while it\'s connected. Only games are ever reported: the game\'s name and when you started. Other apps are never kept or sent. People who can see when you\'re online see it, never while you appear invisible, and it ends when you close the game or Meldiq disconnects.</string>
+    <string name="act_disclosure_title">Allow Meldiq to see which app you\'re using?</string>
+    <string name="act_disclosure_body">To show \"Playing …\", Meldiq needs Android\'s Usage access, which lets it see which app is in the foreground. Meldiq uses it only to recognise games, sends only the game\'s name and start time to your Meldiq server, and never collects, stores or shares the other apps you use. You can turn this off at any time here or in Android\'s Usage access settings.</string>
+    <string name="act_disclosure_agree">Agree and continue</string>
+    <string name="act_disclosure_cancel">Not now</string>
+    <string name="act_access_off">Usage access is off</string>
+    <string name="act_access_off_sub">Allow Meldiq in Android\'s Usage access settings so it can recognise games</string>
+    <string name="act_access_open">Open Usage access</string>
+    <string name="act_access_on">Usage access allowed</string>
+    <string name="act_access_on_sub">Remove it any time in Android\'s Usage access settings</string>
+    <string name="act_background">Keep \"Stay connected in background\" on so Meldiq notices games while you play</string>
+    <string name="act_server_missing">This server doesn\'t show activities yet.</string>
+    <string name="act_now">Now</string>
+    <string name="act_now_none">No game on screen right now</string>
+    <string name="act_games">Games</string>
+    <string name="act_games_empty">Games you play show up here once Meldiq notices them. Turn one off to never show it.</string>
+    <string name="act_game_shown">Shown to others</string>
+    <string name="act_game_hidden">Never shown</string>
+</resources>
