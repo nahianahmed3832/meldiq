@@ -153,24 +153,22 @@ Steps 2–5 are in the Atlas UI and don't touch any other project. Stop at any b
    `Meldiq-Free`.
 5. **Connection string**: *Connect* → *Drivers* → copy the `mongodb+srv://` URI, insert the password, append the
    database: `…mongodb.net/meldiq?retryWrites=true&w=majority`.
-6. **On the VPS** (after deploying a server build that contains §4, i.e. the next API release, 0.51.0+), add to the
-   API's `.env` without echoing the secret (`read -rs` then append), and keep `MONGODB_DOMAINS` **empty** for now:
+6. **On the VPS** (API 0.51.0 is live since 2026-10-28 03:34 UTC): run `deploy/scripts/set-mongodb-uri.sh` on your Mac.
+   It asks for `meldiq_api`'s password at a hidden prompt and writes `MONGODB_URI`, `MONGODB_DB=meldiq` and
+   `MONGODB_STORAGE_LIMIT_MB=512` to **`/opt/griip-internal-messaging/.env.mongodb`** (mode 600), not to `.env`. With
+   `MONGODB_URI` in `.env`, every API restart would connect to Atlas first and refuse to start if it can't (a Free cluster
+   can pause when idle), and `/healthz` would answer 503 whenever Atlas drops, before any domain lives there. Until a
+   cutover, only one-off containers read it. They run on a **copy** of a fresh backup, never on `/data`:
    ```
-   MONGODB_URI=<pasted, never shown>
-   MONGODB_DB=meldiq
-   MONGODB_STORAGE_LIMIT_MB=512
-   MONGODB_MAX_POOL=20
+   docker run --rm --env-file .env --env-file .env.mongodb -e DATA_DIR=/data -v <backup copy>:/data \
+     griip-internal-messaging-api:0.51.0 node dist/admin.js <command>
    ```
-   Then, in the API container (`docker compose exec api …`):
-   - `node dist/admin.js mongo-estimate --limit-mb 512` → the measured source size (sizes only). **If it says DOES NOT
-     FIT, stop:** the Free tier is too small and nothing should be copied.
-   - `node dist/admin.js mongo-status` → connection, transactions true, round-trip time.
-   - `node dist/admin.js backup` and copy the snapshot off the VPS, encrypted (`MONGODB.md` §7).
-   - `node dist/admin.js mongo-dryrun --snapshot <a COPY of that backup> --db meldiq_rehearsal` → copies all 159
-     tables twice, verifies both runs, drops the copy. (`--snapshot` applies pending schema migrations to the file it
-     opens, so always pass a copy.)
-7. **Cutover, one domain at a time** (`MONGODB.md` §6), only with your go-ahead: stop the API, `mongo-migrate <domain>
-   --yes`, add the domain to `MONGODB_DOMAINS`, start, smoke-test (`MONGODB.md` §8). Suggested order: preferences,
+   - `mongo-status` → connection, transactions true, round-trip time from the VPS.
+   - `mongo-estimate --limit-mb 512` → **if it says DOES NOT FIT, stop.**
+   - `mongo-dryrun --db meldiq_rehearsal` → copies all 159 tables into Atlas twice, verifies both runs, drops the copy.
+   Encrypted off-VPS copy of the backup before any cutover (`MONGODB.md` §7).
+7. **Cutover, one domain at a time** (`MONGODB.md` §6), only with your go-ahead: move the three lines from `.env.mongodb`
+   into `.env`, stop the API, `mongo-migrate <domain> --yes`, add the domain to `MONGODB_DOMAINS`, start, smoke-test (`MONGODB.md` §8). Suggested order: preferences,
    reports, relationships, history, accounts; relay and files last, after a send/acknowledge load test against the
    cluster (they are the message hot path, and M0 throttles past 10 GB in or out per 7 days).
 8. **Rollback** (any time): stop the API, `mongo-rollback <domain> --yes`, remove it from `MONGODB_DOMAINS`, start.
@@ -192,7 +190,11 @@ URI must use TLS (`mongodb+srv://` does). `/healthz` reports `mongodb: true|fals
 | Step | Status |
 |---|---|
 | Atlas project `Meldiq` | **Exists** (created by you 2026-10-28 02:45; verified by listing) |
-| Cluster `Meldiq-Free` (M0), database user, access list | **Not created** (B1); verified absent: 0 clusters, 0 users, 0 entries |
+| Cluster (M0) | **Exists, verified**: `Cluster0` (named so instead of `Meldiq-Free`), FREE tier, AWS `AP_SOUTHEAST_1`, MongoDB 8.0.34, not paused |
+| Database user | **`meldiq_api`, verified**: `readWrite@meldiq`, `readWrite@meldiq_rehearsal`, scoped to `Cluster0`. Also present: `footwearfusionstore_db_user` (`atlasAdmin`, from Atlas onboarding; its password was pasted in chat: rotate it, never use it for Meldiq) |
+| Access list | **Verified**: `72.60.107.88/32` "meldiq-api VPS" (added by Claude in the Atlas UI at your request) and `82.117.226.201/32` (this Mac, Atlas auto-setup) |
+| API 0.51.0 (capacity tooling) | **Live** since 2026-10-28 03:34 UTC (`docs/DEPLOYMENT.md`); MongoDB still off in the API |
+| Connection string on the VPS | **Not stored yet**: `/opt/griip-internal-messaging/.env.mongodb` doesn't exist (the first helper run didn't reach the server). Blocks the Atlas connection test, estimate against the cluster and the Atlas rehearsal |
 | Paid resources | None created (nothing was created at all) |
 | GriipBuddy | Untouched: "Project 0" never queried; no GriipBuddy container or database touched on the VPS |
 | Source identified and measured (read-only) | **Yes**: `/data/griip.sqlite`, schema 061, 31,703 rows to copy, integrity ok |

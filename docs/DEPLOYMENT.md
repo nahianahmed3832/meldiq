@@ -130,6 +130,25 @@ Passkeys failed in the app installed from Google Play: Play signs it with its ap
 
 Rollback: copy the backup's `.env` back and recreate `api` the same way.
 
+### API 0.51.0 (2026-10-28, 03:34 UTC, owner's go-ahead: "continue the runbook up to cutover, including the 0.51.0 deploy")
+
+MongoDB capacity tooling for the Atlas Free migration (docs/MONGODB_ATLAS_FREE_REPORT_2026-10-28.md): `admin
+mongo-estimate`, the `MONGODB_STORAGE_LIMIT_MB` guard on `mongo-migrate` / `mongo-dryrun`, `mongo-dryrun --db`. Operator
+commands only: no route, schema or behaviour change (schema stays 61). internal-beta `e749406` on `5b47f21` (local, not
+pushed). MongoDB stays off: no `MONGODB_*` in `.env`, `/healthz` mongodb null.
+
+| Step | Result |
+|---|---|
+| Checks before | server full suite 987 passed / 10 skipped, `tsc` clean; MongoDB tests 22/22; `docs/api` regenerated (version line only) |
+| Pre-flight | running 0.50.0; VPS `server/` (tests excluded) byte-equal to 5b47f21 (`rsync -c` dry run: 0 differences); no build running; no other session active; 45 GB free |
+| Backup | `backups/pre-0.51.0-20261028T032724Z`: integrity ok, schema 61, 43 users, `.env` + `compose.yaml` copies; image tagged `0.50.0-rollback` |
+| Build | sources kept as `server.pre-0.51.0`; 8 files synced, parity with e749406; image `0.51.0` (`a5d1ec370d29`) built. A first build reported 0.50.0 (the `VERSION` constant in `app/server.ts` wasn't bumped): fixed, rebuilt |
+| Rehearsal | backup copy, `--network none`, FCM and MongoDB settings left out: healthy, 0.51.0, 43 users, 11 orgs, 0 errors; `mongo-estimate` 25.65 MiB, fits; removed after |
+| Switch | `validate-env.sh` 0 errors (the 2 usual warnings), `config -q`, `up -d --no-deps --no-build api`: healthy, 0 restarts |
+| Checks after | `/healthz` 0.51.0 on msg.meldiq.app and msg.griipbuddy.cloud, mongodb null; `verify.sh`: 0 restarts for api, livekit, ntfy (not restarted); 0 errors in the log |
+
+Rollback: `image: griip-internal-messaging-api:0.50.0-rollback` in `compose.yaml`, then `up -d --no-deps --no-build api`.
+
 ### API 0.50.0 and Meldiq Web 0.5.0-beta-f78407e (2026-10-27, 19:19 and 19:22 UTC, owner's go-ahead: "fix all and deploy for production too … after done all then push for live server productions")
 
 The owner's 2026-10-28 round (meldiq-web `docs/MELDIQ_OWNER_ROUND_1028.md`): rail folders in the personal preferences
