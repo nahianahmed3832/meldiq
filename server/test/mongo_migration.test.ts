@@ -1,5 +1,9 @@
 import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { MongoClient } from "mongodb";
+import { openDatabase } from "../src/infrastructure/database/db.js";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
 import { describeTables, EXCLUDED_TABLES, indexesFor, TABLE_DOMAINS, validatorFor } from "../src/infrastructure/database/mongo/catalog.js";
 import { domainTables, MeldiqMongo } from "../src/infrastructure/database/mongo/client.js";
@@ -104,6 +108,25 @@ describe("collections", HEAVY, () => {
     await accounts.insertOne({ ...ok, _id: "acc_6", id: "acc_6", email: "d@example.com", user_id: "u_1" });
     await expect(accounts.insertOne({ ...ok, _id: "acc_7", id: "acc_7", email: "e@example.com", user_id: "u_1" })).rejects.toThrow(/duplicate key/i);
   });
+
+  it("are prepared again at start without collMod unless a validator changed (Atlas readWrite can't collMod)", async () => {
+    const m = await connectAll();
+    const tables = describeTables(h.ctx.db);
+    const commands: string[] = [];
+    const command = m.db.command.bind(m.db);
+    m.db.command = ((cmd: Record<string, unknown>, ...rest: unknown[]) => {
+      commands.push(Object.keys(cmd)[0]);
+      return (command as (...a: unknown[]) => unknown)(cmd, ...rest);
+    }) as typeof m.db.command;
+    await m.ensureSchema(tables);
+    expect(commands).not.toContain("collMod");
+    // A validator that differs (an older schema) is still brought up to date.
+    await command({ collMod: "accounts", validator: { $jsonSchema: { bsonType: "object" } } });
+    await m.ensureSchema(tables);
+    expect(commands.filter((c) => c === "collMod")).toHaveLength(1);
+    const [accounts] = await m.db.listCollections({ name: "accounts" }).toArray();
+    expect(JSON.stringify((accounts as { options: { validator: unknown } }).options.validator)).toContain("password_hash");
+  });
 });
 
 describe("migration", HEAVY, () => {
@@ -128,9 +151,14 @@ describe("migration", HEAVY, () => {
 
   it("can run again without duplicating anything", async () => {
     const m = await connectAll();
-    const tables = describeTables(h.ctx.db);
-    const first = await migrateToMongo(h.ctx.db, m, tables);
-    const second = await migrateToMongo(h.ctx.db, m, tables);
+    // A snapshot, as in production: the live test server's timers (telemetry) may write between the two runs.
+    const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "meldiq-mig-")), "snapshot.sqlite");
+    await h.ctx.db.backup(file);
+    const source = openDatabase(file);
+    const tables = describeTables(source);
+    const first = await migrateToMongo(source, m, tables);
+    const second = await migrateToMongo(source, m, tables);
+    source.close();
     expect(second.map((r) => [r.table, r.destCount, r.destChecksum])).toEqual(first.map((r) => [r.table, r.destCount, r.destChecksum]));
     expect(second.every((r) => r.ok)).toBe(true);
   });
