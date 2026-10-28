@@ -2,6 +2,10 @@ import { profileMediaBlobs } from "./profileMedia.js";
 import crypto from "node:crypto";
 import type { AppContext } from "../../app/context.js";
 import type { DB } from "../../infrastructure/database/db.js";
+import type { RowReader, RowWriter } from "../../infrastructure/database/rows/index.js";
+import { rowsByIds } from "../../infrastructure/database/byIds.js";
+import { compareText } from "../../shared/utilities/sqlText.js";
+import { conversationPeers } from "../messaging/index.js";
 import { photoBlobId } from "./photos.js";
 import { processBlobDeletes, queueBlobDelete } from "../files/routes.js";
 import { revokeDeviceRows } from "../auth/routes.js";
@@ -51,16 +55,13 @@ export interface AccountDeletionResult {
 }
 
 /** Workspaces this person is the only owner of. The account can't be deleted until each is handed over or deleted. */
-export function soleOwnedWorkspaces(db: DB, userId: string): OwnedWorkspace[] {
-  return db
-    .prepare(
-      `SELECT o.id, o.name, (SELECT COUNT(*) FROM org_members x WHERE x.org_id = o.id) AS members
-       FROM org_members m JOIN orgs o ON o.id = m.org_id
-       WHERE m.user_id = ? AND m.role = 'OWNER'
-         AND (SELECT COUNT(*) FROM org_members y WHERE y.org_id = o.id AND y.role = 'OWNER') = 1
-       ORDER BY o.name`,
-    )
-    .all(userId) as OwnedWorkspace[];
+export function soleOwnedWorkspaces(rows: RowReader, userId: string): OwnedWorkspace[] {
+  const owned = rows.all<{ org_id: string }>("org_members", { where: { user_id: userId, role: "OWNER" } }).map((m) => m.org_id);
+  return rows
+    .all<{ id: string; name: string }>("orgs", { where: { id: { in: owned } } })
+    .filter((o) => rows.count("org_members", { org_id: o.id, role: "OWNER" }) === 1)
+    .sort((a, b) => compareText(a.name, b.name))
+    .map((o) => ({ id: o.id, name: o.name, members: rows.count("org_members", { org_id: o.id }) }));
 }
 
 const ids = (db: DB, sql: string, ...args: unknown[]): string[] => (db.prepare(sql).all(...args) as { id: string }[]).map((r) => r.id);
@@ -88,7 +89,7 @@ export async function deleteOwnAccount(
 export async function eraseAccount(ctx: AppContext, accounts: Accounts, account: AccountRow, actorId: string | null): Promise<AccountDeletionResult> {
   const userId = account.user_id;
   if (userId) {
-    const owned = soleOwnedWorkspaces(ctx.db, userId);
+    const owned = soleOwnedWorkspaces(ctx.ws, userId);
     if (owned.length) {
       throw new ApiError(
         409,
@@ -126,22 +127,14 @@ export async function eraseAccount(ctx: AppContext, accounts: Accounts, account:
 
 /** Leaves every workspace, then anonymises the identity in one transaction, then tells everyone concerned. */
 async function eraseIdentity(ctx: AppContext, userId: string, actorId: string | null, t: number): Promise<AccountDeletionResult> {
-  const { db } = ctx;
-  const orgs = ids(db, "SELECT org_id AS id FROM org_members WHERE user_id = ?", userId);
+  const { db, ws } = ctx;
+  const orgs = ws.all<{ org_id: string }>("org_members", { where: { user_id: userId } }).map((m) => m.org_id);
   // Each community exactly as if the person left it: roles, meetings, channels, arrangement.
   for (const orgId of orgs) await removeFromWorkspace(ctx, orgId, userId, actorId ?? userId, "left");
 
-  const peers = ids(
-    db,
-    `SELECT DISTINCT m2.user_id AS id FROM conversation_members m1 JOIN conversation_members m2 ON m2.conversation_id = m1.conversation_id
-     WHERE m1.user_id = ? AND m2.user_id != ?`,
-    userId,
-    userId,
-  );
-  const memberships = db.prepare("SELECT c.id, c.type FROM conversation_members m JOIN conversations c ON c.id = m.conversation_id WHERE m.user_id = ?").all(userId) as {
-    id: string;
-    type: string;
-  }[];
+  const peers = conversationPeers(ctx, userId);
+  const mine = ws.all<{ conversation_id: string }>("conversation_members", { where: { user_id: userId } }).map((m) => m.conversation_id);
+  const memberships = ws.all<{ id: string; type: string }>("conversations", { where: { id: { in: mine } } }).map((c) => ({ id: c.id, type: c.type }));
   const devices = ids(db, "SELECT id FROM devices WHERE user_id = ?", userId);
   const photoRev = (db.prepare("SELECT photo_rev FROM users WHERE id = ?").get(userId) as { photo_rev: number | null } | undefined)?.photo_rev ?? null;
 
@@ -152,18 +145,19 @@ async function eraseIdentity(ctx: AppContext, userId: string, actorId: string | 
     liveRooms.set(c.conversation_id, [...(liveRooms.get(c.conversation_id) ?? []), c.room_name]);
   }
   let removed: string[] = [];
-  db.transaction(() => {
+  // One unit: its SQL (devices, sessions, the profile) commits with it in SQLite, or just before it (MongoDB).
+  await ws.write((w) => {
     for (const d of devices) revokeDeviceRows(ctx, d, t);
-    deletePersonalRecords(db, userId);
+    deletePersonalRecords(db, w, userId);
     // Messages and receipts the account sent that haven't been delivered: nobody can verify them once it's gone.
     ctx.relay.forgetSender(userId);
     // Unfinished direct uploads: their objects or parts are removed by the retention job.
     ctx.files.forgetUploader(userId);
-    leaveConversations(db, userId, memberships);
+    leaveConversations(w, userId, memberships);
     anonymize(ctx, userId, photoRev, t);
-    removed = memberships.filter((m) => m.type !== "CHANNEL" && !hasLiveMember(db, m.id)).map((m) => m.id);
-    for (const c of removed) removeConversation(ctx, c);
-  }).immediate();
+    removed = memberships.filter((m) => m.type !== "CHANNEL" && !hasLiveMember(db, w, m.id)).map((m) => m.id);
+    for (const c of removed) removeConversation(ctx, w, c);
+  });
   const rooms = removed.flatMap((c) => liveRooms.get(c) ?? []);
   await ctx.calls.forgetConversations(removed);
   // Hands they raised in voice rooms.
@@ -189,12 +183,12 @@ async function eraseIdentity(ctx: AppContext, userId: string, actorId: string | 
 }
 
 /** Everything held only for this identity: queues both ways, history, blocks, approvals, uploads, reminders. */
-function deletePersonalRecords(db: DB, userId: string): void {
+function deletePersonalRecords(db: DB, w: RowWriter, userId: string): void {
+  w.delete("mention_all_events", { user_id: userId });
+  // Batch B8b: what they answered to communities' onboarding questions.
+  w.delete("onboarding_answers", { user_id: userId });
   for (const sql of [
     "DELETE FROM sessions WHERE user_id = ?",
-    "DELETE FROM mention_all_events WHERE user_id = ?",
-    // Batch B8b: what they answered to communities' onboarding questions.
-    "DELETE FROM onboarding_answers WHERE user_id = ?",
     // A link-a-device approval still holds the sealed identity key for the new device.
     "DELETE FROM pairing_requests WHERE approved_user_id = ?",
     "DELETE FROM history_items WHERE user_id = ?",
@@ -207,18 +201,17 @@ function deletePersonalRecords(db: DB, userId: string): void {
 }
 
 /** Leaves every group and channel still held (workspace channels went with the workspaces). Direct conversations stay. */
-function leaveConversations(db: DB, userId: string, memberships: { id: string; type: string }[]): void {
-  db.prepare("DELETE FROM conversation_members WHERE user_id = ? AND conversation_id IN (SELECT id FROM conversations WHERE type != 'DM')").run(userId);
-  for (const m of memberships) if (m.type === "GROUP") keepGroupAdmin(db, m.id);
+function leaveConversations(w: RowWriter, userId: string, memberships: { id: string; type: string }[]): void {
+  const notDirect = memberships.filter((m) => m.type !== "DM").map((m) => m.id);
+  w.delete("conversation_members", { user_id: userId, conversation_id: { in: notDirect } });
+  for (const m of memberships) if (m.type === "GROUP") keepGroupAdmin(w, m.id);
 }
 
 /** After someone leaves a group: if no admin is left, its longest-standing member becomes one. */
-function keepGroupAdmin(db: DB, convId: string): void {
-  const admins = (db.prepare("SELECT COUNT(*) n FROM conversation_members WHERE conversation_id = ? AND role = 'ADMIN'").get(convId) as { n: number }).n;
-  if (admins > 0) return;
-  db.prepare(
-    "UPDATE conversation_members SET role = 'ADMIN' WHERE conversation_id = ? AND user_id = (SELECT user_id FROM conversation_members WHERE conversation_id = ? ORDER BY joined_at LIMIT 1)",
-  ).run(convId, convId);
+function keepGroupAdmin(w: RowWriter, convId: string): void {
+  if (w.count("conversation_members", { conversation_id: convId, role: "ADMIN" }) > 0) return;
+  const eldest = w.get<{ user_id: string }>("conversation_members", { conversation_id: convId }, [["joined_at", "asc"]]);
+  if (eldest) w.update("conversation_members", { conversation_id: convId, user_id: eldest.user_id }, { role: "ADMIN" });
 }
 
 /** Clears every personal field, frees the username, unnames the devices, and queues the photo's removal. */
@@ -241,18 +234,16 @@ function anonymize(ctx: AppContext, userId: string, photoRev: number | null, t: 
 }
 
 /** Whether anyone who still has an account is in the conversation. */
-function hasLiveMember(db: DB, convId: string): boolean {
-  return !!db
-    .prepare("SELECT 1 FROM conversation_members m JOIN users u ON u.id = m.user_id WHERE m.conversation_id = ? AND u.deleted_at IS NULL LIMIT 1")
-    .get(convId);
+function hasLiveMember(db: DB, rows: RowReader, convId: string): boolean {
+  const members = rows.all<{ user_id: string }>("conversation_members", { where: { conversation_id: convId } }).map((m) => m.user_id);
+  return rowsByIds<{ deleted_at: number | null }>(db, "users", "id", members, "deleted_at").some((u) => u.deleted_at === null);
 }
 
 /** Removes a group or direct conversation nobody is left in, with its files and queued items (its calls: the caller). */
-function removeConversation(ctx: AppContext, convId: string): void {
-  const { db } = ctx;
+function removeConversation(ctx: AppContext, w: RowWriter, convId: string): void {
   // Its files and uploads, queued items, and rows without a foreign key to the conversation (members and calls cascade).
   ctx.files.forgetConversation(convId);
   ctx.relay.forgetConversation(convId);
-  db.prepare("DELETE FROM mention_all_events WHERE conversation_id = ?").run(convId);
-  db.prepare("DELETE FROM conversations WHERE id = ?").run(convId);
+  w.delete("mention_all_events", { conversation_id: convId });
+  w.delete("conversations", { id: convId });
 }

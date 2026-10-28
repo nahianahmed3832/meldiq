@@ -121,7 +121,7 @@ describe("communities", () => {
     const member = await AccountClient.ready(h.baseUrl, mailer, "commmember");
     const org = (await owner.req("POST", "/v1/orgs", { name: "Bangla Makers", kind: "community" })).org;
     expect(org.kind).toBe("community");
-    const channels = h.ctx.db.prepare("SELECT name, kind, voice FROM conversations WHERE org_id = ? AND type = 'CHANNEL' ORDER BY name").all(org.id) as { name: string; kind: string; voice: number }[];
+    const channels = h.ctx.ws.all<{ name: string; kind: string; voice: number }>("conversations", { where: { org_id: org.id, type: "CHANNEL" }, orderBy: [["name", "asc"]] }).map(({ name, kind, voice }) => ({ name, kind, voice }));
     expect(channels.map((c) => c.name)).toEqual(["announcements", "general", "introductions", "lounge", "welcome"]);
     expect(channels.find((c) => c.name === "lounge")?.voice).toBe(1);
     // Older apps still send "team": it makes a community all the same.
@@ -166,7 +166,7 @@ describe("experiments and analytics over the API", () => {
     });
     // App-directory events went with the apps: only the catalogued event is kept.
     expect(r).toEqual({ accepted: 1, enabled: true });
-    const rows = h.ctx.db.prepare("SELECT * FROM analytics_daily WHERE event = 'app.opened'").all() as Record<string, unknown>[];
+    const rows = h.ctx.ws.all<Record<string, unknown>>("analytics_daily", { where: { event: "app.opened" } });
     expect(rows.find((x) => x.experiment === "")).toMatchObject({ count: 1, platform: "android", dims: "{}" });
     expect(rows.filter((x) => x.experiment !== "").length).toBe(first.assignments.length);
     const cols = Object.keys(rows[0]);
@@ -187,7 +187,7 @@ describe("with analytics off (the default)", () => {
       const c = await AccountClient.ready(off.baseUrl, mailer, "quiet");
       expect(await c.req("GET", "/v1/experiments")).toEqual({ mode: "off", analytics: false, assignments: [] });
       expect(await c.req("POST", "/v1/analytics/events", { platform: "web", events: [{ name: "app.opened" }] })).toEqual({ accepted: 0, enabled: false });
-      expect((off.ctx.db.prepare("SELECT COUNT(*) n FROM analytics_daily").get() as { n: number }).n).toBe(0);
+      expect(off.ctx.ws.count("analytics_daily")).toBe(0);
     } finally {
       await off.close();
     }

@@ -70,9 +70,10 @@ describe("activity feed respects channel visibility (T1.8)", () => {
   });
 
   it("hides older branch and team rows, and rows whose target is gone", async () => {
-    const insert = h.ctx.db.prepare("INSERT INTO audit_log (at, actor_id, org_id, action, target, detail) VALUES (?, ?, ?, ?, ?, ?)");
-    insert.run(Date.now(), owner.userId, org, "team.create", "t_old", "Old Row Team");
-    insert.run(Date.now(), owner.userId, org, "channel.create", "c_deleted", "PUBLIC Deleted Channel");
+    await h.ctx.ws.write((w) => {
+      w.insert("audit_log", { at: Date.now(), actor_id: owner.userId, org_id: org, action: "team.create", target: "t_old", detail: "Old Row Team" });
+      w.insert("audit_log", { at: Date.now(), actor_id: owner.userId, org_id: org, action: "channel.create", target: "c_deleted", detail: "PUBLIC Deleted Channel" });
+    });
     const mine = await feed(inA);
     expect(text(mine)).not.toContain("Old Row Team");
     expect(text(mine)).not.toContain("Deleted Channel");

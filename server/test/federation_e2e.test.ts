@@ -242,11 +242,11 @@ describe("cross-server calls (hosted by the caller's server)", () => {
     await dana.connect();
     const found = await alice.req("GET", `/v1/federation/resolve?address=${encodeURIComponent(`@${dana.username}:b.test`)}`);
     const dm = await alice.req("POST", "/v1/conversations/dm", { userId: found.user.id });
-    expect(B.ctx.db.prepare("SELECT 1 FROM conversations WHERE id = ?").get(dm.conversation.id)).toBeUndefined();
+    expect(B.ctx.ws.get("conversations", { id: dm.conversation.id })).toBeUndefined();
     const started = await alice.req("POST", "/v1/calls", { conversationId: dm.conversation.id, video: false });
     const ring = await dana.waitFor(() => dana.events.find((e) => e.t === "call" && e.event === "ring" && e.call?.id === started.call.id));
     expect(ring.call.conversationId).toBe(dm.conversation.id);
-    expect(B.ctx.db.prepare("SELECT 1 FROM conversations WHERE id = ?").get(dm.conversation.id)).toBeTruthy();
+    expect(B.ctx.ws.get("conversations", { id: dm.conversation.id })).toBeTruthy();
     await alice.req("POST", `/v1/calls/${started.call.id}/end`);
     await dana.disconnect();
   });

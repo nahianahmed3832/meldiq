@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { DAY_MS, HOUR_MS, networkKey, openRegistrationsToday, SlidingWindow } from "../../app/middleware/abuse.js";
 import type { AppContext } from "../../app/context.js";
 import { canonical, verifyEd25519 } from "../../shared/utilities/crypto.js";
-import { findOrgInvite, findRegistrationInvite } from "../organizations/invites.js";
+import { consumeInviteUse, findOrgInvite, findRegistrationInvite, returnInviteUse } from "../organizations/invites.js";
 import { ApiError } from "../../shared/errors.js";
 import { humanCode, newId, normalizeCode, now, sha256Hex } from "../../shared/utilities/util.js";
 import type { Mailer } from "../../infrastructure/mail/mailer.js";
@@ -143,7 +143,7 @@ export class AccountService {
   private findAdmission(code: string): Admission | null {
     const reg = findRegistrationInvite(this.ctx.db, code);
     if (reg) return { kind: "registration-invite", id: reg.id };
-    const org = findOrgInvite(this.ctx.db, this.ctx.authz, code);
+    const org = findOrgInvite(this.ctx.ws, this.ctx.authz, code);
     return org ? { kind: "org-invite", id: org.id } : null;
   }
 
@@ -153,18 +153,37 @@ export class AccountService {
    * when their encryption identity is made (identity.ts).
    */
   private consumeAdmission(code: string): string {
-    const admission = this.findAdmission(code);
-    if (!admission) throw new ApiError(403, "invalid_invite", "This invitation code is invalid, expired or already used");
-    const table = admission.kind === "registration-invite" ? "registration_invites" : "invitations";
-    this.ctx.db.prepare(`UPDATE ${table} SET uses = uses + 1 WHERE id = ?`).run(admission.id);
-    return `${admission.kind}:${admission.id}`;
+    const reg = findRegistrationInvite(this.ctx.db, code);
+    if (!reg) throw new ApiError(403, "invalid_invite", "This invitation code is invalid, expired or already used");
+    this.ctx.db.prepare("UPDATE registration_invites SET uses = uses + 1 WHERE id = ?").run(reg.id);
+    return `registration-invite:${reg.id}`;
+  }
+
+  /**
+   * An organisation invite's use is reserved before the account is made, in one write unit that checks the invite again,
+   * so two sign-ups can't share its last use (communities' rows may not be in SQLite). Returns "org-invite:<id>".
+   */
+  private async reserveOrgInvite(code: string): Promise<string> {
+    const id = await this.ctx.ws.write((w) => {
+      const org = findOrgInvite(w, this.ctx.authz, code);
+      if (!org) throw new ApiError(403, "invalid_invite", "This invitation code is invalid, expired or already used");
+      consumeInviteUse(w, org.id);
+      return org.id;
+    });
+    return `org-invite:${id}`;
   }
 
   /** Gives back the use [consumeAdmission] took ("<kind>:<id>") when the account couldn't be made after all. */
   private returnAdmission(admittedVia: string): void {
     const [kind, id] = [admittedVia.slice(0, admittedVia.indexOf(":")), admittedVia.slice(admittedVia.indexOf(":") + 1)];
-    const table = kind === "registration-invite" ? "registration_invites" : "invitations";
-    this.ctx.db.prepare(`UPDATE ${table} SET uses = uses - 1 WHERE id = ? AND uses > 0`).run(id);
+    if (kind === "registration-invite") {
+      this.ctx.db.prepare("UPDATE registration_invites SET uses = uses - 1 WHERE id = ? AND uses > 0").run(id);
+      return;
+    }
+    // Called from the account store's own step (synchronous): the give-back is its own write unit.
+    this.ctx.ws
+      .write((w) => returnInviteUse(w, id))
+      .catch((e) => this.ctx.log.error({ err: e }, "sign-up: an invitation's reserved use wasn't given back"));
   }
 
   /** Open sign-up is limited per network and per day (docs/ABUSE_CONTROLS.md › Registration), before any hashing. */
@@ -177,7 +196,7 @@ export class AccountService {
       throw new ApiError(429, "registration_limited", "Too many new accounts from this network. Try again later, or ask for an invitation code.");
     }
     const perDay = this.ctx.config.abuse.openRegistrationsPerDay;
-    if (perDay > 0 && openRegistrationsToday(this.ctx.db) >= perDay) {
+    if (perDay > 0 && openRegistrationsToday(this.ctx.ws) >= perDay) {
       throw new ApiError(429, "registration_paused", "New sign-ups are paused for now. Try again later, or ask for an invitation code.");
     }
     return network;
@@ -228,10 +247,27 @@ export class AccountService {
     };
     const code = body.inviteCode;
     let taken: string | null = null;
-    const take = admission && code ? { take: () => (taken = this.consumeAdmission(code)), undo: () => taken && this.returnAdmission(taken) } : null;
-    const created = await this.store.createAccount(account, take);
+    const reserved = admission?.kind === "org-invite" && code ? await this.reserveOrgInvite(code) : null;
+    let givenBack = false;
+    const giveBack = (via: string) => {
+      if (givenBack) return;
+      givenBack = true;
+      this.returnAdmission(via);
+    };
+    const take = admission && code ? { take: () => (taken = reserved ?? this.consumeAdmission(code)), undo: () => taken && giveBack(taken) } : null;
+    let created: Awaited<ReturnType<typeof this.store.createAccount>>;
+    try {
+      created = await this.store.createAccount(account, take);
+    } catch (e) {
+      // The org invite's use was reserved outside the account's own transaction: give it back here.
+      if (reserved) giveBack(reserved);
+      throw e;
+    }
     // A parallel sign-up for the same address won the race (this one's invite use was given back): same answer.
-    if (!created) return;
+    if (!created) {
+      if (reserved) giveBack(reserved);
+      return;
+    }
     this.ctx.audit({ action: "account.register", target: created.id, detail: created.admitted_via });
     await this.sendCode(created, "verify_email", network);
   }

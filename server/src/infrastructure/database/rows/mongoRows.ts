@@ -1,4 +1,5 @@
 import type { AnyBulkWriteOperation, Document } from "mongodb";
+import type { DB } from "../db.js";
 import { docId, type TableSpec, toDocument, toRow } from "../mongo/catalog.js";
 import { META_COLLECTION, type MeldiqMongo } from "../mongo/client.js";
 import { MemoryRows, type PersistedChanges } from "./memory.js";
@@ -19,14 +20,18 @@ export class MongoRows extends MemoryRows {
   private constructor(
     private readonly mongo: MeldiqMongo,
     specs: TableSpec[],
+    private readonly sqlite?: { db: DB; log?: { error(obj: object, msg?: string): void } },
   ) {
     super(specs);
     this.specs = new Map(specs.map((s) => [s.name, s]));
   }
 
-  /** Loads [specs]' collections into memory. */
-  static async open(mongo: MeldiqMongo, specs: TableSpec[]): Promise<MongoRows> {
-    const rows = new MongoRows(mongo, specs);
+  /**
+   * Loads [specs]' collections into memory. With [sqlite], SQL a unit runs for other domains (still in SQLite) runs in
+   * one SQLite transaction, committed just before the unit's MongoDB transaction.
+   */
+  static async open(mongo: MeldiqMongo, specs: TableSpec[], sqlite?: { db: DB; log?: { error(obj: object, msg?: string): void } }): Promise<MongoRows> {
+    const rows = new MongoRows(mongo, specs, sqlite);
     await rows.loadAll();
     return rows;
   }
@@ -47,6 +52,15 @@ export class MongoRows extends MemoryRows {
       .find({ _id: { $in: [...this.specs.keys()].map(counterId) } })
       .toArray();
     for (const c of counters) this.bumpCounter(c._id.slice("seq:".length), c.value);
+  }
+
+  protected override runUnit<T>(fn: () => T): T {
+    return this.sqlite ? this.sqlite.db.transaction(fn).immediate() : fn();
+  }
+
+  protected override onPartialFailure(error: unknown): void {
+    // Rare (MongoDB unreachable mid-unit): the unit's SQLite statements, if any, stay applied. Loud, for an operator.
+    this.sqlite?.log?.error({ err: error }, "rows: a write unit failed in MongoDB after its SQLite part committed");
   }
 
   /** The document `_id` of a row (a table without a key uses the rowid in its row key). */

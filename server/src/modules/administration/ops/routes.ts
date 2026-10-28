@@ -18,6 +18,9 @@ export default async function opsRoutes(app: FastifyInstance, ctx: AppContext, v
   const requirePlatformAdmin = (userId: string) => {
     if (!ctx.config.platformAdmins.has(userId)) throw forbidden("Only platform administrators can do that");
   };
+  /** A workspace's own limits, as stored (expired ones included). */
+  const ownLimits = (orgId: string) =>
+    ctx.ws.all<{ key: string; limit_value: number }>("org_entitlements", { where: { org_id: orgId } }).map((r) => ({ key: r.key, limit: r.limit_value }));
 
   /** Whether the caller is a platform admin (the app shows Service health then). Moved here from the removed apps API. */
   app.get("/v1/platform/me", auth, async (req) => ({ platformAdmin: ctx.config.platformAdmins.has(me(req).userId) }));
@@ -51,12 +54,12 @@ export default async function opsRoutes(app: FastifyInstance, ctx: AppContext, v
     const { days } = parse(UsageQuery, req.query);
     await ctx.usage.snapshot();
     const totals = new Map(ctx.usage.totals(days).map((r) => [r.orgId, r.metrics]));
-    const orgs = ctx.db.prepare("SELECT id, name, created_at FROM orgs ORDER BY created_at").all() as { id: string; name: string; created_at: number }[];
+    const orgs = ctx.ws.all<{ id: string; name: string; created_at: number }>("orgs", { orderBy: [["created_at", "asc"]] });
     return {
       days,
       workspaces: orgs.map((o) => ({
         id: o.id, name: o.name, createdAt: o.created_at, usage: totals.get(o.id) ?? {},
-        limits: (ctx.db.prepare("SELECT key, limit_value FROM org_entitlements WHERE org_id = ?").all(o.id) as { key: string; limit_value: number }[]).map((r) => ({ key: r.key, limit: r.limit_value })),
+        limits: ownLimits(o.id),
       })),
     };
   });
@@ -66,12 +69,12 @@ export default async function opsRoutes(app: FastifyInstance, ctx: AppContext, v
     const actor = me(req).userId;
     requirePlatformAdmin(actor);
     const { orgId } = parse(LimitsParams, req.params);
-    if (!ctx.db.prepare("SELECT 1 FROM orgs WHERE id = ?").get(orgId)) throw notFound("Workspace not found");
+    if (!ctx.ws.get("orgs", { id: orgId })) throw notFound("Workspace not found");
     const { limits } = parse(LimitsBody, req.body);
     const unknown = Object.keys(limits).filter((k) => !isEntitlementKey(k));
     if (unknown.length) throw badRequest(`Unknown limits: ${unknown.join(", ")}`, { known: ENTITLEMENT_KEYS });
-    ctx.entitlements.setLimits(orgId, actor, limits as Partial<Record<EntitlementKey, number | null>>, Date.now());
+    await ctx.entitlements.setLimits(orgId, actor, limits as Partial<Record<EntitlementKey, number | null>>, Date.now());
     ctx.audit({ actorId: actor, orgId, action: "plan.limits", detail: Object.entries(limits).map(([k, v]) => `${k}=${v ?? "default"}`).join(",") });
-    return { limits: (ctx.db.prepare("SELECT key, limit_value FROM org_entitlements WHERE org_id = ?").all(orgId) as { key: string; limit_value: number }[]).map((r) => ({ key: r.key, limit: r.limit_value })) };
+    return { limits: ownLimits(orgId) };
   });
 }

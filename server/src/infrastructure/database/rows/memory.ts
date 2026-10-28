@@ -132,6 +132,14 @@ export abstract class MemoryRows implements Rows {
   /** Makes a unit's changes durable (MongoDB: one transaction). Throwing discards the unit. */
   protected abstract persist(changes: PersistedChanges): Promise<void>;
 
+  /** Runs a unit's function; a subclass may wrap it (MongoRows: in a SQLite transaction for the SQL it also runs). */
+  protected runUnit<T>(fn: () => T): T {
+    return fn();
+  }
+
+  /** The unit's own changes are durable, but SQL it ran meanwhile (other domains) already committed: say so. */
+  protected onPartialFailure(_error: unknown): void {}
+
   has(table: string): boolean {
     return this.tables.has(table);
   }
@@ -246,14 +254,19 @@ export abstract class MemoryRows implements Rows {
       this.active = unit;
       let result: T;
       try {
-        result = fn(unit.writer);
+        result = this.runUnit(() => fn(unit.writer));
       } finally {
         this.active = null;
       }
       if (result instanceof Promise) throw new Error("rows: a write unit must be synchronous");
       const changes = unit.changes();
       if (changes.changes.length) {
-        await this.persist(changes);
+        try {
+          await this.persist(changes);
+        } catch (e) {
+          this.onPartialFailure(e);
+          throw e;
+        }
         this.publish(unit.overlay, changes.counters);
       }
       return result;
@@ -261,6 +274,10 @@ export abstract class MemoryRows implements Rows {
     const p = this.queue.then(run);
     this.queue = p.catch(() => undefined);
     return p;
+  }
+
+  settled(): Promise<void> {
+    return this.queue.then(() => undefined);
   }
 
   private publish(overlay: Overlay, counters: Map<string, number>): void {
@@ -429,8 +446,12 @@ class Unit {
     this.change(spec, key, existing, set);
   }
 
-  /** Sets [set] on one row (its key may change), checking constraints. */
-  private change(spec: TableSpec, key: string, existing: Row, set: Row): void {
+  /**
+   * Sets [set] on one row (its key may change), checking constraints. [parents] false: a cascade's SET NULL, which only
+   * clears references (SQLite checks foreign keys at the end of the statement, when a parent this row also has may
+   * be gone in the same cascade along with the row itself).
+   */
+  private change(spec: TableSpec, key: string, existing: Row, set: Row, parents = true): void {
     for (const k of Object.keys(set)) if (set[k] !== undefined) column(spec, k);
     const row: Row = { ...existing };
     for (const [k, v] of Object.entries(set)) if (v !== undefined) row[k] = v;
@@ -439,7 +460,7 @@ class Unit {
     if (newKey !== key && this.current(spec.name, newKey)) throw new ConstraintError(spec.name, spec.primaryKey);
     const unique = this.uniqueConflict(spec, row, key);
     if (unique) throw new ConstraintError(spec.name, unique);
-    this.checkParents(spec, row);
+    if (parents) this.checkParents(spec, row);
     if (newKey !== key) this.stage(spec.name, key, null);
     this.stage(spec.name, newKey, row);
   }
@@ -469,7 +490,7 @@ class Unit {
       if (fk.onDelete === "CASCADE") for (const [k, r] of kids) this.remove(child, k, r);
       else if (fk.onDelete === "SET NULL") {
         const childSpec = this.rows.tableState(child).spec;
-        for (const [k, r] of kids) this.change(childSpec, k, r, Object.fromEntries(fk.columns.map((c) => [c, null])));
+        for (const [k, r] of kids) this.change(childSpec, k, r, Object.fromEntries(fk.columns.map((c) => [c, null])), false);
       } else throw new Error("FOREIGN KEY constraint failed");
     }
   }

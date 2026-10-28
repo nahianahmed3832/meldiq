@@ -1,4 +1,4 @@
-import type { DB } from "../../infrastructure/database/db.js";
+import type { Rows, RowWriter } from "../../infrastructure/database/rows/index.js";
 import { isPermission, type Permission, permissionDef } from "./permissions/catalog.js";
 import { type ChannelActor, channelPermissions, type Overwrite, parseCapabilities } from "./permissions/channel.js";
 import { type Actor, effectivePermissions, type RoleGrant } from "./permissions/rules.js";
@@ -60,8 +60,12 @@ export function parsePermissionList(json: string): Permission[] {
   }
 }
 
+/**
+ * Reads are synchronous: the community rows live in SQLite, or in MongoDB with an in-memory copy (src/infrastructure/
+ * database/rows). Methods that change memberships take the caller's write unit, so they are part of its change.
+ */
 export class Authz {
-  constructor(private db: DB) {}
+  constructor(private readonly rows: Rows) {}
 
   /** Set only while [reconcileCommunity] runs: overwrites and channel actors read once per target and person. */
   private overwriteCache: Map<string, Overwrite[]> | null = null;
@@ -69,12 +73,15 @@ export class Authz {
 
   /** The custom roles [userId] holds in [orgId] (archived roles grant and restrict nothing). */
   assignedRoles(orgId: string, userId: string): AssignedRole[] {
-    const rows = this.db
-      .prepare(
-        `SELECT r.id, r.name, r.color, r.permissions, r.denies FROM org_role_members m JOIN org_roles r ON r.id = m.role_id
-         WHERE m.org_id = ? AND m.user_id = ? AND r.archived_at IS NULL ORDER BY r.position, r.name`,
-      )
-      .all(orgId, userId) as { id: string; name: string; color: string | null; permissions: string; denies: string }[];
+    const roleIds = this.rows.all<{ role_id: string }>("org_role_members", { where: { org_id: orgId, user_id: userId } }).map((m) => m.role_id);
+    if (roleIds.length === 0) return [];
+    const rows = this.rows.all<{ id: string; name: string; color: string | null; permissions: string; denies: string }>("org_roles", {
+      where: { id: { in: roleIds }, archived_at: null },
+      orderBy: [
+        ["position", "asc"],
+        ["name", "asc"],
+      ],
+    });
     return rows.map((r) => ({ id: r.id, name: r.name, color: r.color, permissions: parsePermissionList(r.permissions), denies: parsePermissionList(r.denies) }));
   }
 
@@ -106,21 +113,19 @@ export class Authz {
 
   /** An active custom role's grants and restrictions, or undefined when it's archived, deleted or elsewhere. */
   roleGrant(roleId: string, orgId: string): RoleGrant | undefined {
-    const r = this.db.prepare("SELECT permissions, denies FROM org_roles WHERE id = ? AND org_id = ? AND archived_at IS NULL").get(roleId, orgId) as
-      | { permissions: string; denies: string }
-      | undefined;
+    const r = this.rows.get<{ permissions: string; denies: string }>("org_roles", { id: roleId, org_id: orgId, archived_at: null });
     return r ? { permissions: parsePermissionList(r.permissions), denies: parsePermissionList(r.denies) } : undefined;
   }
 
   /** Members of the workspace who hold [permission] now (to tell them about something waiting for them). */
   workspaceMembersWith(orgId: string, permission: Permission): string[] {
-    const ids = (this.db.prepare("SELECT user_id FROM org_members WHERE org_id = ?").all(orgId) as { user_id: string }[]).map((r) => r.user_id);
+    const ids = this.rows.all<{ user_id: string }>("org_members", { where: { org_id: orgId } }).map((r) => r.user_id);
     return ids.filter((id) => this.can(orgId, id, permission));
   }
 
   /** The workspace's active custom role ids. */
   workspaceRoleIds(orgId: string): string[] {
-    return (this.db.prepare("SELECT id FROM org_roles WHERE org_id = ? AND archived_at IS NULL").all(orgId) as { id: string }[]).map((r) => r.id);
+    return this.rows.all<{ id: string }>("org_roles", { where: { org_id: orgId, archived_at: null } }).map((r) => r.id);
   }
 
   /** 404 for outsiders (the workspace's existence stays hidden), 403 without the permission. Returns the base role. */
@@ -131,10 +136,7 @@ export class Authz {
   }
 
   orgRole(orgId: string, userId: string): OrgRole | null {
-    const r = this.db.prepare("SELECT role FROM org_members WHERE org_id = ? AND user_id = ?").get(orgId, userId) as
-      | { role: OrgRole }
-      | undefined;
-    return r?.role ?? null;
+    return this.rows.get<{ role: OrgRole }>("org_members", { org_id: orgId, user_id: userId })?.role ?? null;
   }
 
   isOrgAdmin(orgId: string, userId: string): boolean {
@@ -156,18 +158,15 @@ export class Authz {
 
   /** Every conversation of a community (its channels), for adding up what they hold. */
   conversationIdsOf(orgId: string): string[] {
-    return (this.db.prepare("SELECT id FROM conversations WHERE org_id = ?").all(orgId) as { id: string }[]).map((r) => r.id);
+    return this.rows.all<{ id: string }>("conversations", { where: { org_id: orgId } }).map((r) => r.id);
   }
 
   conversation(id: string): ConversationRow | undefined {
-    return this.db.prepare("SELECT * FROM conversations WHERE id = ?").get(id) as ConversationRow | undefined;
+    return this.rows.get<ConversationRow>("conversations", { id });
   }
 
   conversationRole(convId: string, userId: string): "ADMIN" | "MEMBER" | null {
-    const r = this.db
-      .prepare("SELECT role FROM conversation_members WHERE conversation_id = ? AND user_id = ?")
-      .get(convId, userId) as { role: "ADMIN" | "MEMBER" } | undefined;
-    return r?.role ?? null;
+    return this.rows.get<{ role: "ADMIN" | "MEMBER" }>("conversation_members", { conversation_id: convId, user_id: userId })?.role ?? null;
   }
 
   isMember(convId: string, userId: string): boolean {
@@ -179,9 +178,7 @@ export class Authz {
     const key = `${targetType}:${targetId}`;
     const cached = this.overwriteCache?.get(key);
     if (cached) return cached;
-    const rows = this.db
-      .prepare("SELECT subject, allow, deny FROM channel_overwrites WHERE target_type = ? AND target_id = ?")
-      .all(targetType, targetId) as { subject: string; allow: string; deny: string }[];
+    const rows = this.rows.all<{ subject: string; allow: string; deny: string }>("channel_overwrites", { where: { target_type: targetType, target_id: targetId } });
     const list = rows.map((r) => ({ subject: r.subject, allow: parseCapabilities(r.allow), deny: parseCapabilities(r.deny) }));
     this.overwriteCache?.set(key, list);
     return list;
@@ -216,9 +213,7 @@ export class Authz {
 
   /** When this member's timeout ends, or null when they aren't timed out. */
   timeoutUntil(orgId: string, userId: string): number | null {
-    const r = this.db.prepare("SELECT timeout_until FROM org_members WHERE org_id = ? AND user_id = ?").get(orgId, userId) as
-      | { timeout_until: number | null }
-      | undefined;
+    const r = this.rows.get<{ timeout_until: number | null }>("org_members", { org_id: orgId, user_id: userId });
     return r?.timeout_until && r.timeout_until > Date.now() ? r.timeout_until : null;
   }
 
@@ -299,9 +294,7 @@ export class Authz {
    * aren't a member or it has no tag. Accounts ask here, so community tables stay this module's.
    */
   communityTag(orgId: string, userId: string): { text: string; color: string | null } | null {
-    const row = this.db.prepare("SELECT o.tag, o.accent FROM orgs o JOIN org_members m ON m.org_id = o.id WHERE o.id = ? AND m.user_id = ?").get(orgId, userId) as
-      | { tag: string | null; accent: string | null }
-      | undefined;
+    const row = this.orgRole(orgId, userId) ? this.rows.get<{ tag: string | null; accent: string | null }>("orgs", { id: orgId }) : undefined;
     return row?.tag ? { text: row.tag, color: row.accent ?? null } : null;
   }
 
@@ -310,10 +303,8 @@ export class Authz {
    * members), or null when it hasn't (or the pause ended).
    */
   pausedUntil(orgId: string, what: "invites" | "dms", at: number): number | null {
-    const row = this.db.prepare("SELECT invites_paused_until AS invites, dms_paused_until AS dms FROM orgs WHERE id = ?").get(orgId) as
-      | { invites: number | null; dms: number | null }
-      | undefined;
-    const until = row?.[what] ?? null;
+    const row = this.rows.get<{ invites_paused_until: number | null; dms_paused_until: number | null }>("orgs", { id: orgId });
+    const until = (what === "invites" ? row?.invites_paused_until : row?.dms_paused_until) ?? null;
     return until !== null && until > at ? until : null;
   }
 
@@ -330,9 +321,7 @@ export class Authz {
   nextPostAt(conv: ConversationRow, userId: string, at: number): number | null {
     const sec = conv.slowmode_sec ?? 0;
     if (sec <= 0 || this.slowmodeExempt(conv, userId)) return null;
-    const row = this.db.prepare("SELECT last_post_at FROM conversation_members WHERE conversation_id = ? AND user_id = ?").get(conv.id, userId) as
-      | { last_post_at: number | null }
-      | undefined;
+    const row = this.rows.get<{ last_post_at: number | null }>("conversation_members", { conversation_id: conv.id, user_id: userId });
     const next = (row?.last_post_at ?? 0) + sec * 1000;
     return next > at ? next : null;
   }
@@ -364,23 +353,17 @@ export class Authz {
    * memberships they are no longer allowed. Guests keep the channels a manager added them to; private channels keep
    * their members unless an overwrite takes `channels.view` away. Returns the ids of conversations they were removed from.
    */
-  revalidateChannelMemberships(orgId: string, userId: string): string[] {
+  revalidateChannelMemberships(w: RowWriter, orgId: string, userId: string): string[] {
     const role = this.orgRole(orgId, userId);
-    const rows = this.db
-      .prepare(
-        `SELECT c.* FROM conversations c JOIN conversation_members m ON m.conversation_id = c.id
-         WHERE c.org_id = ? AND m.user_id = ? AND c.type = 'CHANNEL'`,
-      )
-      .all(orgId, userId) as ConversationRow[];
     const removed: string[] = [];
-    for (const conv of rows) {
+    for (const conv of this.memberChannels(orgId, userId)) {
       let keep: boolean;
       if (role === null) keep = false;
       else if (role === "GUEST") keep = true;
       else if (conv.kind === "PRIVATE") keep = this.channelPermissions(conv, userId).has("channels.view");
       else keep = this.scopeEligible(conv, userId);
       if (!keep) {
-        this.db.prepare("DELETE FROM conversation_members WHERE conversation_id = ? AND user_id = ?").run(conv.id, userId);
+        w.delete("conversation_members", { conversation_id: conv.id, user_id: userId });
         removed.push(conv.id);
       }
     }
@@ -392,16 +375,17 @@ export class Authz {
    * former role goes (public, private and announcement). Managers re-add the specific channels a guest should keep.
    * DMs and groups are not community-scoped and are left alone. Returns the ids of conversations they were removed from.
    */
-  demoteToGuest(orgId: string, userId: string): string[] {
-    const rows = this.db
-      .prepare(
-        `SELECT c.id FROM conversations c JOIN conversation_members m ON m.conversation_id = c.id
-         WHERE c.org_id = ? AND c.type = 'CHANNEL' AND m.user_id = ?`,
-      )
-      .all(orgId, userId) as { id: string }[];
-    const remove = this.db.prepare("DELETE FROM conversation_members WHERE conversation_id = ? AND user_id = ?");
-    for (const r of rows) remove.run(r.id, userId);
+  demoteToGuest(w: RowWriter, orgId: string, userId: string): string[] {
+    const rows = this.memberChannels(orgId, userId);
+    for (const r of rows) w.delete("conversation_members", { conversation_id: r.id, user_id: userId });
     return rows.map((r) => r.id);
+  }
+
+  /** The community's channels [userId] is a member of. */
+  private memberChannels(orgId: string, userId: string): ConversationRow[] {
+    const ids = this.rows.all<{ conversation_id: string }>("conversation_members", { where: { user_id: userId } }).map((m) => m.conversation_id);
+    if (ids.length === 0) return [];
+    return this.rows.all<ConversationRow>("conversations", { where: { id: { in: ids }, org_id: orgId, type: "CHANNEL" } });
   }
 
   /**
@@ -418,7 +402,7 @@ export class Authz {
 
   /** Whether [userId] is banned from the community. */
   isBanned(orgId: string, userId: string): boolean {
-    return !!this.db.prepare("SELECT 1 FROM org_bans WHERE org_id = ? AND user_id = ?").get(orgId, userId);
+    return !!this.rows.get("org_bans", { org_id: orgId, user_id: userId });
   }
 
   /**
@@ -428,32 +412,24 @@ export class Authz {
    */
   canSeePresence(viewerId: string, targetId: string): boolean {
     if (viewerId === targetId) return true;
-    const shared = this.db
-      .prepare("SELECT 1 FROM conversation_members a JOIN conversation_members b ON b.conversation_id = a.conversation_id WHERE a.user_id = ? AND b.user_id = ? LIMIT 1")
-      .get(viewerId, targetId);
-    if (shared) return true;
-    return !!this.db
-      .prepare("SELECT 1 FROM org_members a JOIN org_members b ON b.org_id = a.org_id WHERE a.user_id = ? AND a.role != 'GUEST' AND b.user_id = ? LIMIT 1")
-      .get(viewerId, targetId);
+    const conversations = this.rows.all<{ conversation_id: string }>("conversation_members", { where: { user_id: viewerId } }).map((m) => m.conversation_id);
+    if (conversations.length && this.rows.count("conversation_members", { conversation_id: { in: conversations }, user_id: targetId }) > 0) return true;
+    const orgs = this.rows.all<{ org_id: string }>("org_members", { where: { user_id: viewerId, role: { ne: "GUEST" } } }).map((m) => m.org_id);
+    return orgs.length > 0 && this.rows.count("org_members", { org_id: { in: orgs }, user_id: targetId }) > 0;
   }
 
   /** Auto-join the public and announcement channels a person may now see. Returns the channels joined. */
-  autoJoinScope(orgId: string, userId: string, now: number): string[] {
+  autoJoinScope(w: RowWriter, orgId: string, userId: string, now: number): string[] {
     const role = this.orgRole(orgId, userId);
     if (!role || role === "GUEST") return [];
-    const rows = this.db
-      .prepare(
-        `SELECT * FROM conversations WHERE org_id = ? AND type = 'CHANNEL' AND archived_at IS NULL
-         AND (kind = 'ANNOUNCEMENT' OR auto_join = 1)
-         AND id NOT IN (SELECT conversation_id FROM conversation_members WHERE user_id = ?)`,
-      )
-      .all(orgId, userId) as ConversationRow[];
+    const mine = new Set(this.rows.all<{ conversation_id: string }>("conversation_members", { where: { user_id: userId } }).map((m) => m.conversation_id));
+    const rows = this.rows
+      .all<ConversationRow>("conversations", { where: { org_id: orgId, type: "CHANNEL", archived_at: null, $or: [{ kind: "ANNOUNCEMENT" }, { auto_join: 1 }] } })
+      .filter((c) => !mine.has(c.id));
     const joined: string[] = [];
     for (const conv of rows) {
       if (this.scopeEligible(conv, userId)) {
-        this.db
-          .prepare("INSERT OR IGNORE INTO conversation_members (conversation_id, user_id, role, joined_at) VALUES (?, ?, 'MEMBER', ?)")
-          .run(conv.id, userId, now);
+        w.insert("conversation_members", { conversation_id: conv.id, user_id: userId, role: "MEMBER", joined_at: now }, { orIgnore: true });
         joined.push(conv.id);
       }
     }
@@ -464,17 +440,17 @@ export class Authz {
    * After an access change that can touch many people (a role's members, an overwrite, a channel move): re-check and
    * auto-join every member of the community. Returns, per person, the channels they lost.
    */
-  reconcileCommunity(orgId: string, now: number): Map<string, string[]> {
+  reconcileCommunity(w: RowWriter, orgId: string, now: number): Map<string, string[]> {
     const lost = new Map<string, string[]>();
-    const members = (this.db.prepare("SELECT user_id FROM org_members WHERE org_id = ?").all(orgId) as { user_id: string }[]).map((r) => r.user_id);
+    const members = this.rows.all<{ user_id: string }>("org_members", { where: { org_id: orgId } }).map((r) => r.user_id);
     // Nothing that decides access changes while this runs (the caller holds the write transaction), so overwrites and
     // each person's roles are read once instead of once per channel.
     this.overwriteCache = new Map();
     this.actorCache = new Map();
     try {
       for (const u of members) {
-        const removed = this.revalidateChannelMemberships(orgId, u);
-        this.autoJoinScope(orgId, u, now);
+        const removed = this.revalidateChannelMemberships(w, orgId, u);
+        this.autoJoinScope(w, orgId, u, now);
         if (removed.length) lost.set(u, removed);
       }
     } finally {

@@ -41,7 +41,7 @@ describe("Orbit 2.0 sign-up on an invite-only server", () => {
     const org = (await owner.req("POST", "/v1/orgs", { name: `Invited ${Date.now()}` })).org;
     const invite = (await owner.req("POST", `/v1/orgs/${org.id}/invites`, { role: "MEMBER", maxUses: 1 })).invite;
     const member = await signUpWith(invite.code, "orgmember");
-    expect(h.ctx.db.prepare("SELECT uses FROM invitations WHERE id = ?").get(invite.id)).toEqual({ uses: 1 });
+    expect(h.ctx.ws.get<{ uses: number }>("invitations", { id: invite.id })?.uses).toBe(1);
     // Reserved for this account: nobody else can sign up with it meanwhile.
     const other = new AccountClient(h.baseUrl, email("orgother"));
     await expectStatus(other.req("POST", "/v2/auth/register", { name: "O", email: other.email, password: PASSWORD, inviteCode: invite.code }), 403);
@@ -49,6 +49,6 @@ describe("Orbit 2.0 sign-up on an invite-only server", () => {
     await member.setUpIdentity();
     const ws = await member.req("GET", "/v2/workspaces");
     expect(ws.workspaces.find((w: any) => w.id === org.id)?.role).toBe("MEMBER");
-    expect(h.ctx.db.prepare("SELECT uses FROM invitations WHERE id = ?").get(invite.id)).toEqual({ uses: 1 });
+    expect(h.ctx.ws.get<{ uses: number }>("invitations", { id: invite.id })?.uses).toBe(1);
   });
 });

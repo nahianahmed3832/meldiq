@@ -64,6 +64,7 @@ export class AdminAnalytics {
     const ms = RANGE_MS[range];
     const ex = await this.exclusions.get(t);
     const db = this.ctx.db;
+    const ws = this.ctx.ws;
     const people = userCounts(db, t, 1);
     const states = accountStateCounts(db, t);
     const trio = this.activeTrio(ex.json, t);
@@ -73,10 +74,10 @@ export class AdminAnalytics {
     const activePrev = sinceOk(t - 2 * ms) ? analytics.activeBetween(db, t - 2 * ms, t - ms, ex.json) : null;
     const live = await this.ctx.telemetry.live(t);
     const presence = analytics.presenceSeries(db, t - ms, t);
-    const orgs = orgCounts(db, t, 1);
+    const orgs = orgCounts(ws, t, 1);
     // Organizations with at least one member active in the range (the largest ORGS_SHOWN).
     const fromDay = utcDay(t - ms);
-    const activeOrgs = since === null ? null : orgsWithMembers(db, ORGS_SHOWN).filter((o) => analytics.activeAmong(db, JSON.stringify(o.members), fromDay, utcDay(t), ex.json).users > 0).length;
+    const activeOrgs = since === null ? null : orgsWithMembers(ws, ORGS_SHOWN).filter((o) => analytics.activeAmong(db, JSON.stringify(o.members), fromDay, utcDay(t), ex.json).users > 0).length;
     const trafficDays = analytics.trafficDays(db, fromDay, utcDay(t), ex.json);
     const sum = (metric: string) => (since === null ? null : trafficDays.filter((d) => d.metric === metric).reduce((a, d) => a + d.value, 0));
     await this.ctx.usage.snapshot();
@@ -113,7 +114,7 @@ export class AdminAnalytics {
         wauOverMau: trio.wau.current !== null && trio.mau.current ? Math.round((trio.wau.current / trio.mau.current) * 1000) / 10 : null,
       },
       live: { users: live.users, activeUsers: live.activeUsers, devices: live.devices, sockets: live.sockets, calls: live.calls.calls, callParticipants: live.calls.participants, peakUsers: presence.peakUsers, peakAt: presence.peakAt },
-      organizations: { total: orgs.total, active: activeOrgs, newInRange: compare(orgsCreatedBetween(db, t - ms, t), orgsCreatedBetween(db, t - 2 * ms, t - ms)) },
+      organizations: { total: orgs.total, active: activeOrgs, newInRange: compare(orgsCreatedBetween(ws, t - ms, t), orgsCreatedBetween(ws, t - 2 * ms, t - ms)) },
       messaging: {
         messagesAccepted: sum("messages"),
         why: "Message envelopes the server accepted (UTC days covering the range), counted per sender; never their content. End-to-end encrypted: the server can't tell what they contain.",
@@ -186,7 +187,7 @@ export class AdminAnalytics {
   async organizations(q: { from?: string; to?: string }) {
     const { from, to } = dayRange(q);
     const ex = await this.exclusions.get();
-    const rows = orgsWithMembers(this.ctx.db, ORGS_SHOWN).map((o) => {
+    const rows = orgsWithMembers(this.ctx.ws, ORGS_SHOWN).map((o) => {
       const a = analytics.activeAmong(this.ctx.db, JSON.stringify(o.members), from, to, ex.json);
       return { id: o.id, name: o.name, kind: o.kind, members: o.members.length, activeMembers: a.users, lastActiveAt: a.lastAt };
     });
@@ -197,6 +198,7 @@ export class AdminAnalytics {
     const { from, to } = dayRange(q);
     const ex = await this.exclusions.get();
     const db = this.ctx.db;
+    const ws = this.ctx.ws;
     const t = now();
     const fromMs = Date.parse(`${from}T00:00:00Z`);
     const toMs = Math.min(Date.parse(`${to}T00:00:00Z`) + DAY_MS, t);

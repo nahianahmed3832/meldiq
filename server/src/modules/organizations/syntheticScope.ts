@@ -1,16 +1,17 @@
 /** Load-test communities (docs/LOADTEST_PROVISIONING.md): synthetic accounts may only join communities synthetic accounts made. */
 import type { DB } from "../../infrastructure/database/db.js";
+import type { RowReader, RowWriter } from "../../infrastructure/database/rows/index.js";
 import { ApiError } from "../../shared/errors.js";
 import { isSynthetic } from "../accounts/index.js";
 
-/** Marks a community its synthetic creator just made as a load-test community. */
-export function markSyntheticOrg(db: DB, orgId: string, creatorId: string): void {
-  if (isSynthetic(db, creatorId)) db.prepare("UPDATE orgs SET synthetic = 1 WHERE id = ?").run(orgId);
+/** Marks a community its synthetic creator just made as a load-test community (part of the caller's write unit). */
+export function markSyntheticOrg(db: DB, w: RowWriter, orgId: string, creatorId: string): void {
+  if (isSynthetic(db, creatorId)) w.update("orgs", { id: orgId }, { synthetic: 1 });
 }
 
 /** A synthetic account may only join load-test communities. */
-export function requireSyntheticScopeForOrg(db: DB, userId: string, orgId: string): void {
-  if (!isSynthetic(db, userId)) return;
-  const org = db.prepare("SELECT synthetic FROM orgs WHERE id = ?").get(orgId) as { synthetic: number } | undefined;
+export function requireSyntheticScopeForOrg(ctx: { db: DB; ws: RowReader }, userId: string, orgId: string): void {
+  if (!isSynthetic(ctx.db, userId)) return;
+  const org = ctx.ws.get<{ synthetic: number }>("orgs", { id: orgId });
   if (org?.synthetic !== 1) throw new ApiError(403, "synthetic_scope", "Load-test accounts can only join load-test communities");
 }

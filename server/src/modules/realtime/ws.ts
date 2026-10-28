@@ -5,6 +5,7 @@ import { type AuthInfo, authenticateToken, stillAuthenticated } from "../auth/in
 import type { Conn } from "./hub.js";
 import { canSeeLastSeen, presenceModeOf, type ProfileRow, shownPresence } from "../accounts/profile.js";
 import { acknowledge } from "../messaging/messagesRoutes.js";
+import { directPeers, memberIds } from "../messaging/index.js";
 import { now } from "../../shared/utilities/util.js";
 
 /**
@@ -23,22 +24,15 @@ import { now } from "../../shared/utilities/util.js";
 export function announcePresence(ctx: AppContext, userId: string): void {
   const { db, hub } = ctx;
   if (!db.open) return; // server shutting down
-  const peers = db
-    .prepare(
-      `SELECT DISTINCT m2.user_id FROM conversation_members m1
-       JOIN conversations c ON c.id = m1.conversation_id AND c.type IN ('DM','GROUP')
-       JOIN conversation_members m2 ON m2.conversation_id = m1.conversation_id
-       WHERE m1.user_id = ? AND m2.user_id != ?`,
-    )
-    .all(userId, userId) as { user_id: string }[];
+  const peers = directPeers(ctx, userId);
   // Someone whose "last seen" is limited is announced only to the people that setting allows (src/profile.ts).
   const u = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as ProfileRow | undefined;
   if (!u) return;
-  const audience = peers.filter((p) => canSeeLastSeen(ctx, p.user_id, u));
+  const audience = peers.filter((p) => canSeeLastSeen(ctx, p, u));
   const presence = shownPresence(ctx, u);
   const online = presence !== "offline";
   hub.sendToUsers(
-    audience.map((p) => p.user_id),
+    audience,
     { t: "presence", userId, online, presence, lastSeenAt: online ? null : hub.lastSeenAt(userId) },
   );
 }
@@ -215,9 +209,7 @@ export default async function wsRoutes(app: FastifyInstance, ctx: AppContext) {
           if (lastTyping.size > 5000) for (const [k, at] of lastTyping) if (now() - at > 10_000) lastTyping.delete(k); // bounded (D20)
           const conv = authz.conversation(convId);
           if (!conv || !authz.isMember(conv.id, auth.userId)) break;
-          const members = (db.prepare("SELECT user_id FROM conversation_members WHERE conversation_id = ?").all(conv.id) as { user_id: string }[])
-            .map((r) => r.user_id)
-            .filter((u) => u !== auth.userId);
+          const members = memberIds(ctx, conv.id).filter((u) => u !== auth.userId);
           if (members.length > 200) break; // large channels: skip typing fan-out
           hub.sendToUsers(members, { t: "typing", c: conv.id, u: auth.userId, on: !!msg.on });
           break;

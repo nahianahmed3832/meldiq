@@ -120,7 +120,7 @@ export class AdminDevices {
         connected: connectedSessions.has(s.id),
       };
     });
-    const history = authHistory(this.ctx.db, userId, AUTH_EVENTS_SHOWN).map((e) => ({
+    const history = authHistory(this.ctx.ws, userId, AUTH_EVENTS_SHOWN).map((e) => ({
       at: e.at,
       event: AUTH_LABELS[e.action] ?? e.action.replace(/^account\./, ""),
       detail: e.action === "account.login" ? (e.detail ?? "password") : null,

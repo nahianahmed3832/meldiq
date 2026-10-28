@@ -1,4 +1,5 @@
 import type { DB } from "../../infrastructure/database/db.js";
+import type { RowReader, Rows } from "../../infrastructure/database/rows/index.js";
 import { ApiError } from "../../shared/errors.js";
 
 /**
@@ -80,25 +81,30 @@ export interface EntitlementView {
   source: "workspace" | "plan" | "server" | "none";
 }
 
+/** Where a server's entitlements live: SQLite (still open?) and the workspace rows holding each community's own limits. */
+export interface EntitlementStores {
+  db: DB;
+  rows: Rows;
+}
+
 export class Entitlements {
   constructor(
     private readonly config: EntitlementConfig,
-    private readonly db?: DB,
+    private readonly stores?: EntitlementStores,
     private readonly plans?: PlanLimitsResolver,
     private readonly clock: () => number = Date.now,
   ) {}
 
   private overrides(orgId: string | undefined): Partial<Record<EntitlementKey, number>> {
-    if (!orgId || !this.db?.open) return {};
-    const rows = this.db.prepare("SELECT key, limit_value FROM org_entitlements WHERE org_id = ? AND (expires_at IS NULL OR expires_at > ?)").all(orgId, this.clock()) as {
-      key: string;
-      limit_value: number;
-    }[];
+    if (!orgId || !this.stores?.db.open) return {};
+    const rows = this.stores.rows
+      .all<{ key: string; limit_value: number; expires_at: number | null }>("org_entitlements", { where: { org_id: orgId } })
+      .filter((r) => r.expires_at === null || r.expires_at > this.clock());
     return Object.fromEntries(rows.filter((r) => isEntitlementKey(r.key)).map((r) => [r.key, r.limit_value]));
   }
 
   private planOf(orgId: string | undefined) {
-    return orgId && this.plans && this.db?.open ? this.plans(orgId, this.clock()) : null;
+    return orgId && this.plans && this.stores?.db.open ? this.plans(orgId, this.clock()) : null;
   }
 
   /** The limit that applies to [orgId] for [key], and where it comes from. */
@@ -137,29 +143,38 @@ export class Entitlements {
    * Platform admins only (the caller checks): sets or clears ([null]) a workspace's own limits, each until [expiresAt]
    * (null: no end).
    */
-  setLimits(orgId: string, actorId: string, limits: Partial<Record<EntitlementKey, number | null>>, at: number, expiresAt: number | null = null, reason: string | null = null): void {
-    if (!this.db) throw new Error("entitlements without a database");
-    const db = this.db;
-    db.transaction(() => {
+  async setLimits(
+    orgId: string,
+    actorId: string,
+    limits: Partial<Record<EntitlementKey, number | null>>,
+    at: number,
+    expiresAt: number | null = null,
+    reason: string | null = null,
+  ): Promise<void> {
+    if (!this.stores) throw new Error("entitlements without a database");
+    await this.stores.rows.write((w) => {
       for (const [key, value] of Object.entries(limits)) {
-        if (value === null || value === undefined) db.prepare("DELETE FROM org_entitlements WHERE org_id = ? AND key = ?").run(orgId, key);
-        else
-          db.prepare(
-            "INSERT INTO org_entitlements (org_id, key, limit_value, set_by, set_at, expires_at, reason) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(org_id, key) DO UPDATE SET limit_value = excluded.limit_value, set_by = excluded.set_by, set_at = excluded.set_at, expires_at = excluded.expires_at, reason = excluded.reason",
-          ).run(orgId, key, value, actorId, at, expiresAt, reason);
+        if (value === null || value === undefined) w.delete("org_entitlements", { org_id: orgId, key });
+        else {
+          const set = { limit_value: value, set_by: actorId, set_at: at, expires_at: expiresAt, reason };
+          w.upsert("org_entitlements", { org_id: orgId, key, ...set }, set);
+        }
       }
-    })();
+    });
   }
 }
 
 /** Every organization's own limits still in force, newest first (the Platform Admin Console's billing page). */
-export function orgLimitOverrides(db: DB, t: number, limit = 500): { org_id: string; key: string; limit_value: number; set_at: number; expires_at: number | null; reason: string | null }[] {
-  return db.prepare("SELECT org_id, key, limit_value, set_at, expires_at, reason FROM org_entitlements WHERE expires_at IS NULL OR expires_at > ? ORDER BY set_at DESC LIMIT ?").all(t, limit) as {
-    org_id: string;
-    key: string;
-    limit_value: number;
-    set_at: number;
-    expires_at: number | null;
-    reason: string | null;
-  }[];
+export function orgLimitOverrides(
+  rows: RowReader,
+  t: number,
+  limit = 500,
+): { org_id: string; key: string; limit_value: number; set_at: number; expires_at: number | null; reason: string | null }[] {
+  return rows
+    .all<{ org_id: string; key: string; limit_value: number; set_at: number; expires_at: number | null; reason: string | null }>("org_entitlements", {
+      orderBy: [["set_at", "desc"]],
+    })
+    .filter((r) => r.expires_at === null || r.expires_at > t)
+    .slice(0, limit)
+    .map((r) => ({ org_id: r.org_id, key: r.key, limit_value: r.limit_value, set_at: r.set_at, expires_at: r.expires_at, reason: r.reason }));
 }

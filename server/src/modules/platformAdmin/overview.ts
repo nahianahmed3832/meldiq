@@ -35,7 +35,7 @@ export async function overview(ctx: AppContext, p: AdminPrincipal, version: stri
   return {
     generatedAt: t,
     people: userCounts(ctx.db, t, TREND_DAYS),
-    organizations: orgCounts(ctx.db, t, TREND_DAYS),
+    organizations: orgCounts(ctx.ws, t, TREND_DAYS),
     storage: { workspaceBytes, measuredAt: new Date(t).toISOString().slice(0, 10) },
     requests: health ? { since: health.metrics.since, windowMinutes: health.metrics.window.minutes, requests: health.metrics.window.requests, serverErrors: health.metrics.window.serverErrors, errorRate: health.metrics.window.errorRate, p95Ms: health.metrics.window.p95Ms } : null,
     health: health

@@ -402,7 +402,7 @@ describe("with the sandbox provider", () => {
       expect(JSON.parse(lastAudit("org.limits").detail)).toEqual({ members: "default -> 50", until: new Date(until).toISOString() });
       const listed = (await as("billing_admin").expect(200, "GET", "/admin/v1/entitlements")).overrides;
       expect(listed).toContainEqual(expect.objectContaining({ orgId, key: "members", limit: 50, expiresAt: until, reason: REASON }));
-      h.ctx.db.prepare("UPDATE org_entitlements SET expires_at = ? WHERE org_id = ?").run(Date.now() - 1, orgId);
+      await h.ctx.ws.write((w) => w.update("org_entitlements", { org_id: orgId }, { expires_at: Date.now() - 1 }));
       expect(h.ctx.entitlements.limitFor("members", orgId).source).not.toBe("workspace");
       expect((await as("billing_admin").expect(200, "GET", "/admin/v1/entitlements")).overrides).toEqual([]);
       await as("super_admin").expect(200, "PUT", `/admin/v1/orgs/${orgId}/limits`, { limits: { members: 60 }, expiresAt: null, reason: REASON });

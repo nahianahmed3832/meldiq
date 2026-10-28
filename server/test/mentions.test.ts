@@ -86,7 +86,7 @@ describe("@everyone", () => {
     expect(limited.error.code).toBe("mention_all_rate_limited");
     // Ordinary messages and individual mentions are never limited.
     await bob.send(g, text(`@${cat.username} still fine`, [cat.userId]));
-    const rows = h.ctx.db.prepare("SELECT COUNT(*) n FROM mention_all_events WHERE conversation_id = ?").get(g) as { n: number };
+    const rows = { n: h.ctx.ws.count("mention_all_events", { conversation_id: g }) };
     expect(rows.n).toBe(2);
   });
 

@@ -1,4 +1,5 @@
-import type { DB } from "../../infrastructure/database/db.js";
+import type { RowReader } from "../../infrastructure/database/rows/index.js";
+import { compareText, foldAscii, likeContains } from "../../shared/utilities/sqlText.js";
 
 /**
  * What the Platform Admin Console (modules/platformAdmin) may read about workspaces and communities: names, settings,
@@ -37,124 +38,148 @@ export interface MembershipRow {
 }
 
 const DAY_MS = 86_400_000;
-const SUMMARY = `SELECT o.id, o.name, o.slug, o.kind, o.visibility, o.created_at,
-    (SELECT COUNT(*) FROM org_members m WHERE m.org_id = o.id) AS members
-  FROM orgs o`;
-const likeEscape = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
+
+type OrgRow = Omit<OrgRecordRow, "members"> & { synthetic: number };
+
+const withMembers = <O extends { id: string }>(rows: RowReader, o: O): O & { members: number } => ({ ...o, members: rows.count("org_members", { org_id: o.id }) });
+const summary = (o: OrgSummaryRow): OrgSummaryRow => ({ id: o.id, name: o.name, slug: o.slug, kind: o.kind, visibility: o.visibility, created_at: o.created_at, members: o.members });
+/** Newest first, ties by id (descending). */
+const newestFirst = (a: { created_at: number; id: string }, b: { created_at: number; id: string }) => b.created_at - a.created_at || compareText(b.id, a.id);
 
 /** Workspaces and communities, newest first, a page at a time ([after]: the previous page's last row). */
-export function searchOrgs(db: DB, opts: { q?: string; kind?: OrgKind; after?: { createdAt: number; id: string }; limit: number }): OrgSummaryRow[] {
-  const where: string[] = ["1 = 1"];
-  const args: (string | number)[] = [];
-  if (opts.q) {
-    where.push("(o.name LIKE ? ESCAPE '\\' OR o.slug LIKE ? ESCAPE '\\' OR o.id = ?)");
-    args.push(`%${likeEscape(opts.q)}%`, `${likeEscape(opts.q)}%`, opts.q);
-  }
-  if (opts.kind) {
-    where.push("o.kind = ?");
-    args.push(opts.kind);
-  }
-  if (opts.after) {
-    where.push("(o.created_at < ? OR (o.created_at = ? AND o.id < ?))");
-    args.push(opts.after.createdAt, opts.after.createdAt, opts.after.id);
-  }
-  return db.prepare(`${SUMMARY} WHERE ${where.join(" AND ")} ORDER BY o.created_at DESC, o.id DESC LIMIT ?`).all(...args, opts.limit) as OrgSummaryRow[];
+export function searchOrgs(rows: RowReader, opts: { q?: string; kind?: OrgKind; after?: { createdAt: number; id: string }; limit: number }): OrgSummaryRow[] {
+  const q = opts.q;
+  const after = opts.after;
+  return rows
+    .all<OrgRow>("orgs", { where: opts.kind ? { kind: opts.kind } : {} })
+    .filter((o) => !q || likeContains(o.name, q) || foldAscii(o.slug).startsWith(foldAscii(q)) || o.id === q)
+    .filter((o) => !after || o.created_at < after.createdAt || (o.created_at === after.createdAt && o.id < after.id))
+    .sort(newestFirst)
+    .slice(0, opts.limit)
+    .map((o) => summary(withMembers(rows, o)));
 }
 
-export function orgRecord(db: DB, orgId: string): OrgRecordRow | undefined {
-  return db
-    .prepare(
-      `SELECT o.id, o.name, o.slug, o.kind, o.visibility, o.join_policy, o.created_by, o.created_at, o.updated_at, o.invites_paused_until,
-         o.dms_paused_until, o.guests_allowed, o.activity_alerts, o.raid_alert_at,
-         (SELECT COUNT(*) FROM org_members m WHERE m.org_id = o.id) AS members
-       FROM orgs o WHERE o.id = ?`,
-    )
-    .get(orgId) as OrgRecordRow | undefined;
+export function orgRecord(rows: RowReader, orgId: string): OrgRecordRow | undefined {
+  const o = rows.get<OrgRow>("orgs", { id: orgId });
+  if (!o) return undefined;
+  const { synthetic: _synthetic, ...record } = withMembers(rows, o);
+  return {
+    id: record.id,
+    name: record.name,
+    slug: record.slug,
+    kind: record.kind,
+    visibility: record.visibility,
+    join_policy: record.join_policy,
+    created_by: record.created_by,
+    created_at: record.created_at,
+    updated_at: record.updated_at,
+    invites_paused_until: record.invites_paused_until,
+    dms_paused_until: record.dms_paused_until,
+    guests_allowed: record.guests_allowed,
+    activity_alerts: record.activity_alerts,
+    raid_alert_at: record.raid_alert_at,
+    members: record.members,
+  };
 }
 
 /** Members per base role, custom roles, bans and live invitations: counts only. */
-export function orgComposition(db: DB, orgId: string, t: number) {
-  const roles = db.prepare("SELECT role, COUNT(*) AS n FROM org_members WHERE org_id = ? GROUP BY role").all(orgId) as { role: string; n: number }[];
-  const one = (sql: string, ...args: (string | number)[]) => (db.prepare(sql).get(...args) as { n: number }).n;
+export function orgComposition(rows: RowReader, orgId: string, t: number) {
+  const members = rows.all<{ user_id: string; role: string; joined_at: number }>("org_members", { where: { org_id: orgId } });
+  const byRole: Record<string, number> = {};
+  for (const m of members) byRole[m.role] = (byRole[m.role] ?? 0) + 1;
+  const invites = rows.all<{ expires_at: number | null; uses: number; max_uses: number }>("invitations", { where: { org_id: orgId, revoked_at: null } });
   return {
-    byRole: Object.fromEntries(roles.map((r) => [r.role, r.n])) as Record<string, number>,
-    customRoles: one("SELECT COUNT(*) n FROM org_roles WHERE org_id = ?", orgId),
-    bans: one("SELECT COUNT(*) n FROM org_bans WHERE org_id = ?", orgId),
-    activeInvites: one("SELECT COUNT(*) n FROM invitations WHERE org_id = ? AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?) AND uses < max_uses", orgId, t),
-    owners: (db.prepare("SELECT user_id FROM org_members WHERE org_id = ? AND role = 'OWNER' ORDER BY joined_at LIMIT 10").all(orgId) as { user_id: string }[]).map((r) => r.user_id),
+    byRole,
+    customRoles: rows.count("org_roles", { org_id: orgId }),
+    bans: rows.count("org_bans", { org_id: orgId }),
+    activeInvites: invites.filter((i) => (i.expires_at === null || i.expires_at > t) && i.uses < i.max_uses).length,
+    owners: members
+      .filter((m) => m.role === "OWNER")
+      .sort((a, b) => a.joined_at - b.joined_at)
+      .slice(0, 10)
+      .map((m) => m.user_id),
   };
 }
 
 /** [userId]'s memberships with their base role and the names of their custom roles. */
-export function membershipsOf(db: DB, userId: string): MembershipRow[] {
-  return db
-    .prepare(
-      `SELECT m.org_id, o.name, o.kind, m.role, m.joined_at,
-         (SELECT group_concat(r.name, '\u001f') FROM org_role_members rm JOIN org_roles r ON r.id = rm.role_id WHERE rm.org_id = m.org_id AND rm.user_id = m.user_id) AS custom_roles
-       FROM org_members m JOIN orgs o ON o.id = m.org_id WHERE m.user_id = ? ORDER BY m.joined_at DESC LIMIT 200`,
-    )
-    .all(userId) as MembershipRow[];
+export function membershipsOf(rows: RowReader, userId: string): MembershipRow[] {
+  const memberships = rows.all<{ org_id: string; role: string; joined_at: number }>("org_members", { where: { user_id: userId }, orderBy: [["joined_at", "desc"]], limit: 200 });
+  return memberships.flatMap((m) => {
+    const o = rows.get<{ name: string; kind: OrgKind }>("orgs", { id: m.org_id });
+    if (!o) return [];
+    const roleIds = rows.all<{ role_id: string }>("org_role_members", { where: { org_id: m.org_id, user_id: userId } }).map((r) => r.role_id);
+    const names = rows.all<{ name: string }>("org_roles", { where: { id: { in: roleIds } } }).map((r) => r.name);
+    return [{ org_id: m.org_id, name: o.name, kind: o.kind, role: m.role, joined_at: m.joined_at, custom_roles: names.length ? names.join("\u001f") : null }];
+  });
 }
 
-export function orgCounts(db: DB, t: number, days: number) {
-  const kinds = db.prepare("SELECT kind, COUNT(*) AS n FROM orgs GROUP BY kind").all() as { kind: string; n: number }[];
-  const perDay = db
-    .prepare("SELECT strftime('%Y-%m-%d', created_at / 1000, 'unixepoch') AS day, COUNT(*) AS count FROM orgs WHERE created_at > ? GROUP BY day ORDER BY day")
-    .all(t - days * DAY_MS) as { day: string; count: number }[];
-  const byKind = Object.fromEntries(kinds.map((k) => [k.kind, k.n])) as Record<string, number>;
-  return { total: kinds.reduce((a, k) => a + k.n, 0), teams: byKind.team ?? 0, communities: byKind.community ?? 0, newPerDay: perDay };
+/** The UTC day of [ms], as SQLite's strftime('%Y-%m-%d', ms / 1000, 'unixepoch') wrote it. */
+const utcDayOf = (ms: number) => new Date(Math.floor(ms / 1000) * 1000).toISOString().slice(0, 10);
+
+export function orgCounts(rows: RowReader, t: number, days: number) {
+  const orgs = rows.all<{ kind: string; created_at: number }>("orgs");
+  const perDay = new Map<string, number>();
+  for (const o of orgs) if (o.created_at > t - days * DAY_MS) perDay.set(utcDayOf(o.created_at), (perDay.get(utcDayOf(o.created_at)) ?? 0) + 1);
+  return {
+    total: orgs.length,
+    teams: orgs.filter((o) => o.kind === "team").length,
+    communities: orgs.filter((o) => o.kind === "community").length,
+    newPerDay: [...perDay].sort(([a], [b]) => compareText(a, b)).map(([day, count]) => ({ day, count })),
+  };
 }
 
 /**
  * Sign-in and device events of a person from the security audit trail (account.*, device.*, user.*): what happened and
  * when, without the free-text detail. [ids]: their user id and account id.
  */
-export function securityEvents(db: DB, ids: string[], limit: number): { at: number; action: string }[] {
+export function securityEvents(rows: RowReader, ids: string[], limit: number): { at: number; action: string }[] {
   if (ids.length === 0) return [];
-  const marks = ids.map(() => "?").join(",");
-  return db
-    .prepare(
-      `SELECT at, action FROM audit_log WHERE (actor_id IN (${marks}) OR target IN (${marks}))
-         AND (action LIKE 'account.%' OR action LIKE 'device.%' OR action LIKE 'user.%') ORDER BY id DESC LIMIT ?`,
-    )
-    .all(...ids, ...ids, limit) as { at: number; action: string }[];
+  return rows
+    .all<{ at: number; action: string }>("audit_log", { where: { $or: [{ actor_id: { in: ids } }, { target: { in: ids } }] }, orderBy: [["id", "desc"]] })
+    .filter((e) => ["account.", "device.", "user."].some((p) => foldAscii(e.action).startsWith(p)))
+    .slice(0, limit)
+    .map((e) => ({ at: e.at, action: e.action }));
 }
 
 /** Names of organizations [ids] (pages that list ids from other tables). */
-export function orgNames(db: DB, ids: string[]): Map<string, string> {
+export function orgNames(rows: RowReader, ids: string[]): Map<string, string> {
   if (ids.length === 0) return new Map();
-  const rows = db.prepare(`SELECT id, name FROM orgs WHERE id IN (${ids.map(() => "?").join(",")})`).all(...ids) as { id: string; name: string }[];
-  return new Map(rows.map((r) => [r.id, r.name]));
+  return new Map(rows.all<{ id: string; name: string }>("orgs", { where: { id: { in: ids } } }).map((r) => [r.id, r.name]));
 }
 
 /** How many audit_log entries with [action] were written since [since] (alert rules: failed sign-ins). */
-export function auditActionCount(db: DB, action: string, since: number): number {
-  return (db.prepare("SELECT COUNT(*) n FROM audit_log WHERE action = ? AND at > ?").get(action, since) as { n: number }).n;
+export function auditActionCount(rows: RowReader, action: string, since: number): number {
+  return rows.count("audit_log", { action, at: { gt: since } });
 }
 
 /**
  * A person's sign-in history from the server's audit log (account.* entries: sign-ins, failed passwords, refresh-token
  * reuse, password changes and resets). Session ids and account ids only; never addresses or tokens.
  */
-export function authHistory(db: DB, userId: string, limit: number): { at: number; action: string; target: string | null; detail: string | null }[] {
-  return db
-    .prepare("SELECT at, action, target, detail FROM audit_log WHERE actor_id = ? AND action LIKE 'account.%' ORDER BY at DESC LIMIT ?")
-    .all(userId, limit) as { at: number; action: string; target: string | null; detail: string | null }[];
+export function authHistory(rows: RowReader, userId: string, limit: number): { at: number; action: string; target: string | null; detail: string | null }[] {
+  return rows
+    .all<{ at: number; action: string; target: string | null; detail: string | null }>("audit_log", { where: { actor_id: userId }, orderBy: [["at", "desc"]] })
+    .filter((e) => foldAscii(e.action).startsWith("account."))
+    .slice(0, limit)
+    .map((e) => ({ at: e.at, action: e.action, target: e.target, detail: e.detail }));
 }
 
 /** Organizations created in [from, to) (ms); synthetic (load-test) ones left out. */
-export function orgsCreatedBetween(db: DB, from: number, to: number): number {
-  return (db.prepare("SELECT COUNT(*) n FROM orgs WHERE created_at >= ? AND created_at < ? AND synthetic = 0").get(from, to) as { n: number }).n;
+export function orgsCreatedBetween(rows: RowReader, from: number, to: number): number {
+  return rows.all<{ created_at: number }>("orgs", { where: { created_at: { gte: from }, synthetic: 0 } }).filter((o) => o.created_at < to).length;
 }
 
 /** The biggest organizations (synthetic ones left out), with their member ids for activity figures. Bounded. */
-export function orgsWithMembers(db: DB, limit: number): { id: string; name: string; kind: OrgKind; members: string[] }[] {
-  const orgs = db.prepare(`${SUMMARY} WHERE o.synthetic = 0 ORDER BY members DESC, o.created_at LIMIT ?`).all(limit) as OrgSummaryRow[];
-  const memberIds = db.prepare("SELECT user_id FROM org_members WHERE org_id = ?");
-  return orgs.map((o) => ({ id: o.id, name: o.name, kind: o.kind, members: (memberIds.all(o.id) as { user_id: string }[]).map((r) => r.user_id) }));
+export function orgsWithMembers(rows: RowReader, limit: number): { id: string; name: string; kind: OrgKind; members: string[] }[] {
+  return rows
+    .all<OrgRow>("orgs", { where: { synthetic: 0 } })
+    .map((o) => withMembers(rows, o))
+    .sort((a, b) => b.members - a.members || a.created_at - b.created_at)
+    .slice(0, limit)
+    .map((o) => ({ id: o.id, name: o.name, kind: o.kind, members: orgMemberIds(rows, o.id) }));
 }
 
 /** The member ids of one organization (its activity figures). */
-export function orgMemberIds(db: DB, orgId: string): string[] {
-  return (db.prepare("SELECT user_id FROM org_members WHERE org_id = ?").all(orgId) as { user_id: string }[]).map((r) => r.user_id);
+export function orgMemberIds(rows: RowReader, orgId: string): string[] {
+  return rows.all<{ user_id: string }>("org_members", { where: { org_id: orgId } }).map((r) => r.user_id);
 }

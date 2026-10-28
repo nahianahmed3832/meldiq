@@ -235,7 +235,7 @@ describe("invitation states", () => {
     const used = await invite(owner, { role: "MEMBER", maxUses: 1 });
     await join(await h.client("joiner"), used.code);
     const expired = await invite(owner, { role: "GUEST" });
-    h.ctx.db.prepare("UPDATE invitations SET expires_at = ? WHERE id = ?").run(Date.now() - 1000, expired.id);
+    await h.ctx.ws.write((w) => w.update("invitations", { id: expired.id }, { expires_at: Date.now() - 1000 }));
     const byManager = await invite(bdManager, { role: "MEMBER" });
 
     const list = (await owner.req("GET", `/v1/orgs/${orgId}/invites`)).invites as any[];

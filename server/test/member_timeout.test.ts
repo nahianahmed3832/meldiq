@@ -116,7 +116,7 @@ describe("a timed-out member", () => {
     await timeout(mod, member, Date.now() + HOUR);
     await expectStatus(post(member, general), 403);
     // Runs out: the stored time passes.
-    h.ctx.db.prepare("UPDATE org_members SET timeout_until = ? WHERE org_id = ? AND user_id = ?").run(Date.now() - 1, orgId, member.userId);
+    await h.ctx.ws.write((w) => w.update("org_members", { org_id: orgId, user_id: member.userId }, { timeout_until: Date.now() - 1 }));
     await post(member, general);
     expect((await member.req("GET", `/v1/conversations/${general}`)).conversation.timedOutUntil).toBeUndefined();
   });

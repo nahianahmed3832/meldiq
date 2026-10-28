@@ -26,6 +26,9 @@ import { announceOwnSettingsChange, announceProfileChange } from "./profileEvent
 import { ApiError, badRequest, conflict, notFound } from "../../shared/errors.js";
 import { now } from "../../shared/utilities/util.js";
 import { userSummary } from "../auth/routes.js";
+import { orgMates } from "../organizations/index.js";
+import { rowsByIds } from "../../infrastructure/database/byIds.js";
+import { compareText, foldAscii } from "../../shared/utilities/sqlText.js";
 
 /** A username can change at most once an hour, so links and mentions don't churn. */
 const USERNAME_CHANGE_INTERVAL_MS = 60 * 60 * 1000;
@@ -280,21 +283,14 @@ export default async function userRoutes(app: FastifyInstance, ctx: AppContext) 
     const { userId } = me(req);
     const { q } = parse(SearchQuery, req.query);
     const term = q.replace(/^@/, "").toLowerCase();
-    const like = `${term.replace(/[%_\\]/g, (c) => "\\" + c)}%`;
-    const rows = ctx.db
-      .prepare(
-        `SELECT DISTINCT u.* FROM users u
-         WHERE u.disabled_at IS NULL AND u.home_server_id IS NULL AND u.kind = 'person' AND u.id != ? AND (
-           u.username = ? COLLATE NOCASE OR (
-             (u.username LIKE ? ESCAPE '\\' OR lower(u.display_name) LIKE ? ESCAPE '\\' OR lower(u.display_name) LIKE ? ESCAPE '\\')
-             AND EXISTS (
-               SELECT 1 FROM org_members a JOIN org_members b ON a.org_id = b.org_id
-               WHERE a.user_id = ? AND b.user_id = u.id AND a.role != 'GUEST'
-             )
-           )
-         ) ORDER BY u.username LIMIT 30`,
-      )
-      .all(userId, term, like, like, `% ${like}`, userId) as any[];
+    // Anyone by exact username; people sharing a community by the start of their username, name, or a word in it.
+    const findable = (u: any) => u.disabled_at == null && u.home_server_id == null && u.kind === "person" && u.id !== userId;
+    const startsWith = (v: string | null | undefined) => v != null && foldAscii(v).startsWith(foldAscii(term));
+    const exact = (ctx.db.prepare("SELECT * FROM users WHERE username = ? COLLATE NOCASE").all(term) as any[]).filter(findable);
+    const partial = rowsByIds<any>(ctx.db, "users", "id", orgMates(ctx, userId)).filter(
+      (u) => findable(u) && (startsWith(u.username) || startsWith(u.display_name) || (u.display_name != null && foldAscii(u.display_name).includes(` ${foldAscii(term)}`))),
+    );
+    const rows = [...new Map([...exact, ...partial].map((u) => [u.id, u])).values()].sort((a, b) => compareText(a.username, b.username)).slice(0, 30);
     // Exact-username matches can be strangers: only people who let everyone find them by username are listed to them,
     // never someone who blocked the searcher, and their presence stays hidden (null).
     const visible = rows.filter((u) => {

@@ -71,11 +71,22 @@ describe("community emoji and stickers", () => {
   });
 
   it("are limited per community", async () => {
-    for (let i = 0; i < 49; i++) {
-      h.ctx.db
-        .prepare("INSERT INTO community_expressions (id, org_id, kind, name, mime, animated, sha256, size, created_by, created_at) VALUES (?, ?, 'emoji', ?, 'image/png', 0, 'x', 1, ?, 0)")
-        .run(`emj_fill${i}`, orgId, `fill${i}`, owner.userId);
-    }
+    await h.ctx.ws.write((w) => {
+      for (let i = 0; i < 49; i++) {
+        w.insert("community_expressions", {
+          id: `emj_fill${i}`,
+          org_id: orgId,
+          kind: "emoji",
+          name: `fill${i}`,
+          mime: "image/png",
+          animated: 0,
+          sha256: "x",
+          size: 1,
+          created_by: owner.userId,
+          created_at: 0,
+        });
+      }
+    });
     await manager.req("POST", `/v1/orgs/${orgId}/expressions?name=last`, undefined, png);
     expect((await expectStatus(manager.req("POST", `/v1/orgs/${orgId}/expressions?name=one_more`, undefined, png), 409)).error.code).toBe("limit_reached");
   });

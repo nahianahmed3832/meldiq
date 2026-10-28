@@ -27,6 +27,7 @@ import { ApiError, badRequest, conflict, forbidden, notFound, unauthorized } fro
 import { humanCode, newId, normalizeCode, now, sha256Hex } from "../../shared/utilities/util.js";
 import { evictUserDevicesFromCalls } from "../calls/routes.js";
 import { notifyOrg } from "../organizations/orgsRoutes.js";
+import { conversationPeers } from "../messaging/index.js";
 
 const CHALLENGE_TTL_MS = 2 * 60 * 1000;
 const PAIRING_TTL_MS = 10 * 60 * 1000;
@@ -162,7 +163,7 @@ export default async function authRoutes(app: FastifyInstance, ctx: AppContext) 
         reply.header("retry-after", String(Math.ceil(wait / 1000)));
         throw new ApiError(429, "registration_limited", "Too many new accounts from this network. Try again later, or ask for an invitation code.");
       }
-      if (abuse.openRegistrationsPerDay > 0 && openRegistrationsToday(ctx.db) >= abuse.openRegistrationsPerDay) {
+      if (abuse.openRegistrationsPerDay > 0 && openRegistrationsToday(ctx.ws) >= abuse.openRegistrationsPerDay) {
         throw new ApiError(429, "registration_paused", "New sign-ups are paused for now. Try again later, or ask for an invitation code.");
       }
     }
@@ -179,7 +180,8 @@ export default async function authRoutes(app: FastifyInstance, ctx: AppContext) 
     const limitedUntil = open && abuse.newAccountDays > 0 ? t + abuse.newAccountDays * DAY_MS : null;
     let admitted: { via: string | null; joined: { orgId: string; inviteId: string; role: string } | null; quota?: QuotaState };
     try {
-      admitted = ctx.db.transaction(() => {
+      // One unit: the account (SQLite) and, with an org invite, the community membership (workspace rows).
+      admitted = await ctx.ws.write((w) => {
         ctx.db
           .prepare(
             "INSERT INTO users (id, username, display_name, identity_key, avatar_color, created_at, updated_at, limited_until) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -198,20 +200,20 @@ export default async function authRoutes(app: FastifyInstance, ctx: AppContext) 
         if (ctx.config.registrationMode === "invite") {
           // Looked up inside the transaction so two registrations can't both take an invite's last use.
           const reg = findRegistrationInvite(ctx.db, body.inviteCode!);
-          const org = reg ? undefined : findOrgInvite(ctx.db, ctx.authz, body.inviteCode!);
+          const org = reg ? undefined : findOrgInvite(w, ctx.authz, body.inviteCode!);
           if (reg) {
             ctx.db.prepare("UPDATE registration_invites SET uses = uses + 1 WHERE id = ?").run(reg.id);
             return { via: `registration-invite:${reg.id}`, joined: null };
           }
           // An org invite admits the person and joins them to that org in one step.
-          if (org) return { via: `org-invite:${org.id}`, joined: joinOrgByInvite(ctx, org, userId, t) };
+          if (org) return { via: `org-invite:${org.id}`, joined: joinOrgByInvite(ctx, w, org, userId, t) };
           // A known org invite that can't be used says why (expired, revoked, used up…); the code stays invalid_invite.
-          const problem = orgInviteProblem(ctx.authz, lookupOrgInvite(ctx.db, body.inviteCode!));
+          const problem = orgInviteProblem(ctx.authz, lookupOrgInvite(w, body.inviteCode!));
           const why = problem && problem !== "invite_not_found" ? INVITE_PROBLEMS[problem] : "This invitation code is invalid, expired or already used";
           throw new ApiError(403, "invalid_invite", why, problem ? { reason: problem } : undefined);
         }
         return { via: null, joined: null };
-      })();
+      });
     } catch (e) {
       if (String(e).includes("UNIQUE")) throw conflict("That username is already taken");
       if (e instanceof ApiError && loadtest) {
@@ -466,15 +468,8 @@ export function revokeDeviceRows(ctx: AppContext, deviceId: string, t: number): 
 
 /** Tell everyone who shares a conversation with this user to refresh its device list. */
 export function notifyKeyChange(ctx: AppContext, userId: string): void {
-  const peers = ctx.db
-    .prepare(
-      `SELECT DISTINCT m2.user_id FROM conversation_members m1
-       JOIN conversation_members m2 ON m2.conversation_id = m1.conversation_id
-       WHERE m1.user_id = ?`,
-    )
-    .all(userId) as { user_id: string }[];
-  ctx.hub.sendToUsers(
-    peers.map((p) => p.user_id),
-    { t: "devices.changed", userId },
-  );
+  const peers = conversationPeers(ctx, userId);
+  // Their own other devices too, when they're in any conversation.
+  const self = ctx.ws.count("conversation_members", { user_id: userId }) > 0 ? [userId] : [];
+  ctx.hub.sendToUsers([...self, ...peers], { t: "devices.changed", userId });
 }

@@ -29,6 +29,7 @@ import { ReportSealer } from "../modules/organizations/reports/seal.js";
 import { SqliteRelationshipStore } from "../modules/accounts/relationships/store.js";
 import { MongoCallStore } from "../modules/calls/mongoStore.js";
 import { SqliteCallStore } from "../modules/calls/store.js";
+import { openWorkspaceRows } from "./workspaceRows.js";
 import { SqliteReportStore } from "../modules/organizations/reports/store.js";
 import reportRoutes from "../modules/organizations/reports/routes.js";
 import applicationRoutes from "../modules/organizations/applicationsRoutes.js";
@@ -142,27 +143,40 @@ export async function buildApp(
   const ctx = {
     db,
     config,
-    authz: new Authz(db),
     livekit: config.livekit ? new LiveKitService(config.livekit) : null,
     blobs: createBlobStore(config),
     log: app.log,
     metrics: new Metrics(),
     audit: (e) => {
-      db.prepare("INSERT INTO audit_log (at, actor_id, org_id, action, target, detail) VALUES (?, ?, ?, ?, ?, ?)").run(
-        now(),
-        e.actorId ?? null,
-        e.orgId ?? null,
-        e.action,
-        e.target ?? null,
-        e.detail ?? null,
-      );
+      // Part of the write unit running now, if any (as it was part of the SQLite transaction); its own unit otherwise.
+      ctx.ws
+        .write((w) =>
+          w.insert("audit_log", { at: now(), actor_id: e.actorId ?? null, org_id: e.orgId ?? null, action: e.action, target: e.target ?? null, detail: e.detail ?? null }),
+        )
+        .catch((err) => app.log.error({ err, action: e.action }, "audit: entry not stored"));
     },
   } as AppContext;
   // MongoDB holds the domains in MONGODB_DOMAINS; it refuses to start if that would split a domain between stores.
   if (config.mongo) {
     const mongo = opts.mongo ?? (await openMongo(config.mongo, db, app.log));
     ctx.mongo = mongo;
-    if (!opts.mongo) app.addHook("onClose", async () => mongo.close());
+    // Write units still committing finish first: one cut off mid-transaction would hold its locks until it times out.
+    if (!opts.mongo)
+      app.addHook("onClose", async () => {
+        await ctx.ws?.settled();
+        await mongo.close();
+      });
+  }
+  // Communities and conversations: authorisation reads them synchronously, wherever they live.
+  ctx.ws = await openWorkspaceRows(db, ctx.mongo, app.log);
+  ctx.authz = new Authz(ctx.ws);
+  // A response leaves once the units its request queued are durable (audit entries, metering), as when they were part
+  // of SQLite's transaction: a client that reads right after sees them. SQLite's units are durable already.
+  if (ctx.ws.backend === "mongodb") {
+    app.addHook("onSend", async (_req, _reply, payload) => {
+      await ctx.ws.settled();
+      return payload;
+    });
   }
   ctx.relay = ctx.mongo?.owns("relay") ? new MongoRelayStore(ctx.mongo, db, app.log) : new SqliteRelayStore(db);
   ctx.hub = new Hub(ctx.relay, config.abuse.wsMaxSocketsPerDevice, config.presence);
@@ -180,8 +194,8 @@ export async function buildApp(
   ctx.reportSealer = ReportSealer.load(process.env, config.dataDir);
   ctx.billing = new Billing(db, config.billing, app.log);
   // A workspace's subscription adds its plan's limits between operator overrides and server-wide limits.
-  ctx.entitlements = new Entitlements(config.entitlements, db, (orgId, t) => ctx.billing.subscriptions.planLimits(orgId, t));
-  ctx.usage = new UsageMeter(db, ctx.files, ctx.calls);
+  ctx.entitlements = new Entitlements(config.entitlements, { db, rows: ctx.ws }, (orgId, t) => ctx.billing.subscriptions.planLimits(orgId, t));
+  ctx.usage = new UsageMeter(db, ctx.ws, ctx.files, ctx.calls);
   ctx.quotas = new QuotaEngine(db);
   // AI and AI Workforce were removed in API 0.47.0 (docs/AI_REMOVAL.md): their tables stay, unread.
   // Activity, traffic, concurrency and resources (docs/ANALYTICS_DEFINITIONS.md): written once a minute.

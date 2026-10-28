@@ -23,15 +23,15 @@ export class AdminOrgs {
   ) {}
 
   search(q: { q?: string; kind?: OrgKind; cursor?: string; limit: number }) {
-    const rows = searchOrgs(this.ctx.db, { q: q.q || undefined, kind: q.kind, after: decodeCursor(q.cursor), limit: q.limit + 1 });
+    const rows = searchOrgs(this.ctx.ws, { q: q.q || undefined, kind: q.kind, after: decodeCursor(q.cursor), limit: q.limit + 1 });
     const { rows: shown, nextCursor } = page(rows, q.limit);
     return { organizations: shown.map(orgView), nextCursor };
   }
 
   async detail(orgId: string) {
-    const o = orgRecord(this.ctx.db, orgId);
+    const o = orgRecord(this.ctx.ws, orgId);
     if (!o) throw notFound("No such workspace or community");
-    const composition = orgComposition(this.ctx.db, orgId, now());
+    const composition = orgComposition(this.ctx.ws, orgId, now());
     const names = usernames(this.ctx.db, composition.owners);
     await this.ctx.usage.snapshot();
     const usage = Object.fromEntries(this.ctx.usage.series(orgId, USAGE_DAYS).map((s) => [s.metric, s.total]));
@@ -48,7 +48,7 @@ export class AdminOrgs {
       },
       owners: composition.owners.map((id) => ({ id, username: names.get(id) ?? null })),
       composition: { byRole: composition.byRole, customRoles: composition.customRoles, bans: composition.bans, activeInvites: composition.activeInvites },
-      channels: channelCounts(this.ctx.db, orgId),
+      channels: channelCounts(this.ctx.ws, orgId),
       usage: { days: USAGE_DAYS, metrics: usage },
       limits: ENTITLEMENT_KEYS.map((key) => ({ key, ...this.ctx.entitlements.limitFor(key, orgId) })),
       subscription: this.billing.orgSubscription(orgId),

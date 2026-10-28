@@ -145,7 +145,7 @@ export const RULES: readonly RuleDef[] = [
     threshold: 200,
     windowMinutes: 15,
     severity: "sev3",
-    measure: (ctx, w, t) => auditActionCount(ctx.db, "account.login_failed", t - w * 60_000) + analytics.presenceWindow(ctx.db, since(t, w)).authFailures,
+    measure: (ctx, w, t) => auditActionCount(ctx.ws, "account.login_failed", t - w * 60_000) + analytics.presenceWindow(ctx.db, since(t, w)).authFailures,
   },
   {
     key: "ws.abnormal",

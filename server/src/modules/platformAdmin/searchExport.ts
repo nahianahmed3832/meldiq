@@ -53,6 +53,7 @@ export class AdminSearchExport {
 
   search(p: AdminPrincipal, q: string) {
     const db = this.ctx.db;
+    const ws = this.ctx.ws;
     const role = p.grant.role;
     const sections: string[] = [];
     const like = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
@@ -60,7 +61,7 @@ export class AdminSearchExport {
       ? searchUsers(db, { q, limit: SEARCH_EACH }).map((u) => ({ id: u.id, username: u.username, displayName: u.display_name, status: statusOf(u) }))
       : null;
     if (users) sections.push("users");
-    const organizations = can(role, "orgs.view") ? searchOrgs(db, { q, limit: SEARCH_EACH }).map((o) => ({ id: o.id, name: o.name, kind: o.kind })) : null;
+    const organizations = can(role, "orgs.view") ? searchOrgs(ws, { q, limit: SEARCH_EACH }).map((o) => ({ id: o.id, name: o.name, kind: o.kind })) : null;
     if (organizations) sections.push("organizations");
     const incidents = can(role, "incidents.view")
       ? (db.prepare("SELECT id, title, status, closed_at FROM platform_incidents WHERE id = ? OR title LIKE ? ESCAPE '\\' ORDER BY created_at DESC LIMIT ?").all(q, like, SEARCH_EACH) as {
@@ -91,6 +92,7 @@ export class AdminSearchExport {
     const fromMs = Date.parse(`${from}T00:00:00Z`);
     const toMs = Date.parse(`${to}T00:00:00Z`) + DAY_MS;
     const db = this.ctx.db;
+    const ws = this.ctx.ws;
     let header: string[];
     let rows: unknown[][];
     switch (kind) {
@@ -103,7 +105,7 @@ export class AdminSearchExport {
       }
       case "organizations": {
         header = ["id", "name", "kind", "visibility", "members", "created_at"];
-        rows = searchOrgs(db, { limit: EXPORT_MAX_ROWS }).map((o) => [o.id, o.name, o.kind, o.visibility, o.members, o.created_at]);
+        rows = searchOrgs(ws, { limit: EXPORT_MAX_ROWS }).map((o) => [o.id, o.name, o.kind, o.visibility, o.members, o.created_at]);
         break;
       }
       case "devices": {

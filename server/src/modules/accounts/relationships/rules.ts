@@ -17,9 +17,8 @@ export function blockedEitherWay(ctx: AppContext, x: string, y: string): boolean
 
 /** Whether the two are both members (not guests) of at least one community. */
 export function sharesCommunity(ctx: AppContext, x: string, y: string): boolean {
-  return !!ctx.db
-    .prepare("SELECT 1 FROM org_members a JOIN org_members b ON a.org_id = b.org_id WHERE a.user_id = ? AND b.user_id = ? AND a.role != 'GUEST' AND b.role != 'GUEST' LIMIT 1")
-    .get(x, y);
+  const theirs = ctx.ws.all<{ org_id: string }>("org_members", { where: { user_id: y, role: { ne: "GUEST" } } }).map((m) => m.org_id);
+  return theirs.length > 0 && ctx.ws.count("org_members", { user_id: x, role: { ne: "GUEST" }, org_id: { in: theirs } }) > 0;
 }
 
 /** A local, enabled account (people on other servers keep their own settings there). */

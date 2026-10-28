@@ -1,6 +1,7 @@
 import net from "node:net";
 import type { DB } from "../../infrastructure/database/db.js";
 import { now } from "../../shared/utilities/util.js";
+import type { RowReader } from "../../infrastructure/database/rows/index.js";
 
 /**
  * Abuse controls shared by several routes (docs/ABUSE_CONTROLS.md). Counters live in memory only: they hold network
@@ -103,11 +104,7 @@ export function endNewAccountLimits(db: DB, userId: string): boolean {
  * ("user.register") and Orbit 2.0 account sign-ups ("account.register"). Setting up encryption for an account is logged
  * with a detail, so one person isn't counted twice.
  */
-export function openRegistrationsToday(db: DB, t = now()): number {
-  return (
-    db.prepare("SELECT COUNT(*) n FROM audit_log WHERE action IN ('user.register', 'account.register') AND detail IS NULL AND at > ?").get(t - DAY_MS) as {
-      n: number;
-    }
-  ).n;
+export function openRegistrationsToday(rows: RowReader, t = now()): number {
+  return rows.count("audit_log", { action: { in: ["user.register", "account.register"] }, detail: null, at: { gt: t - DAY_MS } });
 }
 

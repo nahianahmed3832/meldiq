@@ -41,7 +41,7 @@ describe("connector register", () => {
     expect(r.result).toEqual({ ok: true, errorKind: null });
     expect(byId(r.connectors, "storage").state).toBe("working");
     expect(byId(r.connectors, "storage").lastOkAt).toBeGreaterThan(0);
-    const audit = h.ctx.db.prepare("SELECT detail FROM audit_log WHERE action = 'connector.check' AND target = 'storage'").get() as { detail: string };
+    const audit = h.ctx.ws.get<{ detail: string }>("audit_log", { action: "connector.check", target: "storage" })!;
     expect(audit.detail).toBe("ok");
   });
 

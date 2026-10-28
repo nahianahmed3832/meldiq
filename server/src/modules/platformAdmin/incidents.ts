@@ -171,7 +171,7 @@ export class AdminIncidents {
 
   async create(p: AdminPrincipal, b: { title: string; severity: Severity; kind: Kind; userRef?: string; orgRef?: string; notice?: string; description: string; service?: string }, meta: RequestMeta) {
     if (b.userRef && !userSummary(this.ctx.db, b.userRef)) throw badRequest("No person has that user id.");
-    if (b.orgRef && !orgRecord(this.ctx.db, b.orgRef)) throw badRequest("No workspace or community has that id.");
+    if (b.orgRef && !orgRecord(this.ctx.ws, b.orgRef)) throw badRequest("No workspace or community has that id.");
     const id = newId("inc");
     const t = now();
     this.ctx.db.transaction(() => {

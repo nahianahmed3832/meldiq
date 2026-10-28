@@ -5,3 +5,4 @@
 export { auditActionCount, authHistory, type MembershipRow, membershipsOf, orgMemberIds, orgsCreatedBetween, orgsWithMembers, orgComposition, orgCounts, type OrgKind, orgNames, orgRecord, type OrgRecordRow, type OrgSummaryRow, searchOrgs, securityEvents } from "./platformQueries.js";
 // The Platform Admin Console removes a member the same way a community manager does (everything else follows).
 export { removeFromWorkspace } from "./orgsRoutes.js";
+export { orgMates } from "./orgMates.js";

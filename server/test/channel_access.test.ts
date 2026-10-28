@@ -87,21 +87,21 @@ describe("workspace members and channels (round 7, bug 6)", () => {
     const t = Date.now();
     // Two channels as the old server stored them: opt-in, with only their creator.
     for (const [id, name] of [["c_legacy1", "legacy-general"], ["c_legacy2", "legacy-left"]]) {
-      h.ctx.db
-        .prepare("INSERT INTO conversations (id, type, org_id, scope, kind, name, auto_join, created_by, created_at, updated_at) VALUES (?, 'CHANNEL', ?, 'ORG', 'PUBLIC', ?, 0, ?, ?, ?)")
-        .run(id, orgId, name, owner.userId, t, t);
-      h.ctx.db.prepare("INSERT INTO conversation_members (conversation_id, user_id, role, joined_at) VALUES (?, ?, 'ADMIN', ?)").run(id, owner.userId, t);
+      await h.ctx.ws.write((w) => {
+        w.insert("conversations", { id, type: "CHANNEL", org_id: orgId, scope: "ORG", kind: "PUBLIC", name, auto_join: 0, created_by: owner.userId, created_at: t, updated_at: t });
+        w.insert("conversation_members", { conversation_id: id, user_id: owner.userId, role: "ADMIN", joined_at: t });
+      });
     }
-    h.ctx.db.prepare("INSERT INTO audit_log (at, actor_id, org_id, action, target) VALUES (?, ?, ?, 'channel.leave', ?)").run(t, member.userId, orgId, `c_legacy2:${member.userId}`);
+    await h.ctx.ws.write((w) => w.insert("audit_log", { at: t, actor_id: member.userId, org_id: orgId, action: "channel.leave", target: `c_legacy2:${member.userId}` }));
     const { planChannelAccessRepair, applyChannelAccessRepair } = await import("../src/modules/messaging/channelRepair.js");
-    const plan = planChannelAccessRepair(h.ctx.db).filter((r) => r.channelId.startsWith("c_legacy"));
+    const plan = planChannelAccessRepair(h.ctx.ws).filter((r) => r.channelId.startsWith("c_legacy"));
     expect(plan.find((r) => r.channelId === "c_legacy1")?.add).toEqual([member.userId]);
     expect(plan.find((r) => r.channelId === "c_legacy2")).toMatchObject({ add: [], skippedLeft: 1 });
-    applyChannelAccessRepair(h.ctx.db, plan, t);
+    await applyChannelAccessRepair(h.ctx.ws, plan, t);
     const ids = (await myChannels(member)).map((c) => c.id);
     expect(ids).toContain("c_legacy1");
     expect(ids).not.toContain("c_legacy2");
-    expect(planChannelAccessRepair(h.ctx.db).filter((r) => r.channelId.startsWith("c_legacy"))).toEqual([]);
+    expect(planChannelAccessRepair(h.ctx.ws).filter((r) => r.channelId.startsWith("c_legacy"))).toEqual([]);
     // The opt-in channel created with an explicit autoJoin: false above is listed too: the operator sees it in the dry
     // run before applying (the apps never sent that flag, so old opt-in channels were all defaults).
   });

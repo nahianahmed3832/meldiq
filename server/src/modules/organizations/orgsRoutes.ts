@@ -1,6 +1,9 @@
 import { requireStanding } from "../accounts/index.js";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { markSyntheticOrg } from "./syntheticScope.js";
+import { mapByIds } from "../../infrastructure/database/byIds.js";
+import type { RowReader } from "../../infrastructure/database/rows/index.js";
+import { compareText, likeContains } from "../../shared/utilities/sqlText.js";
 import { type ConversationRow, parsePermissionList } from "./authz.js";
 import { type AppContext } from "../../app/context.js";
 import { me, requireAuth } from "../auth/index.js";
@@ -68,7 +71,7 @@ export const CHANNEL_LIMITS = { perCommunity: 500, perCategory: 50 } as const;
 
 export function orgSummary(ctx: AppContext, org: any, userId: string) {
   const role = ctx.authz.orgRole(org.id, userId);
-  const memberCount = (ctx.db.prepare("SELECT COUNT(*) n FROM org_members WHERE org_id = ?").get(org.id) as { n: number }).n;
+  const memberCount = ctx.ws.count("org_members", { org_id: org.id });
   return {
     id: org.id,
     name: org.name,
@@ -111,16 +114,16 @@ export function orgSummary(ctx: AppContext, org: any, userId: string) {
  * by [actorId], or "expired" (a guest's end date, actorId null). Callers check permissions first.
  */
 export async function removeFromWorkspace(ctx: AppContext, orgId: string, userId: string, actorId: string | null, reason: "left" | "removed" | "expired" | "banned") {
-  const { db, authz } = ctx;
+  const { authz } = ctx;
   const role = authz.orgRole(orgId, userId);
   if (!role) return;
-  const affected: string[] = [];
-  db.transaction(() => {
-    db.prepare("DELETE FROM channel_overwrites WHERE org_id = ? AND subject = ?").run(orgId, `user:${userId}`);
-    db.prepare("DELETE FROM meeting_participants WHERE user_id = ? AND meeting_id IN (SELECT id FROM meetings WHERE org_id = ?)").run(userId, orgId);
-    db.prepare("DELETE FROM org_members WHERE org_id = ? AND user_id = ?").run(orgId, userId);
-    affected.push(...authz.revalidateChannelMemberships(orgId, userId));
-  })();
+  const affected = await ctx.ws.write((w) => {
+    w.delete("channel_overwrites", { org_id: orgId, subject: `user:${userId}` });
+    const meetings = w.all<{ id: string }>("meetings", { where: { org_id: orgId } }).map((m) => m.id);
+    if (meetings.length) w.delete("meeting_participants", { user_id: userId, meeting_id: { in: meetings } });
+    w.delete("org_members", { org_id: orgId, user_id: userId });
+    return authz.revalidateChannelMemberships(w, orgId, userId);
+  });
   // Their arrangement of this community (starred, sections) goes with them.
   await ctx.prefs.deleteForMember(userId, orgId);
   const action = { left: "member.leave", removed: "member.remove", expired: "member.expire", banned: "member.ban" }[reason];
@@ -133,7 +136,7 @@ export async function removeFromWorkspace(ctx: AppContext, orgId: string, userId
 
 /** Members who should be told that something in this org changed. */
 function orgMemberIds(ctx: AppContext, orgId: string): string[] {
-  return (ctx.db.prepare("SELECT user_id FROM org_members WHERE org_id = ?").all(orgId) as { user_id: string }[]).map((r) => r.user_id);
+  return ctx.ws.all<{ user_id: string }>("org_members", { where: { org_id: orgId } }).map((r) => r.user_id);
 }
 
 export function notifyOrg(ctx: AppContext, orgId: string) {
@@ -141,9 +144,7 @@ export function notifyOrg(ctx: AppContext, orgId: string) {
 }
 
 export function notifyConversation(ctx: AppContext, convId: string, extraUserIds: string[] = []) {
-  const ids = (ctx.db.prepare("SELECT user_id FROM conversation_members WHERE conversation_id = ?").all(convId) as { user_id: string }[]).map(
-    (r) => r.user_id,
-  );
+  const ids = ctx.ws.all<{ user_id: string }>("conversation_members", { where: { conversation_id: convId } }).map((r) => r.user_id);
   ctx.hub.sendToUsers(new Set([...ids, ...extraUserIds]), { t: "conv.updated", conversationId: convId });
 }
 
@@ -151,45 +152,56 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
   const auth = { preHandler: requireAuth(ctx) };
   const { authz, db } = ctx;
 
-  const ownerCount = (orgId: string): number =>
-    (db.prepare("SELECT COUNT(*) n FROM org_members WHERE org_id = ? AND role = 'OWNER'").get(orgId) as { n: number }).n;
+  const ws = ctx.ws;
+  const ownerCount = (orgId: string): number => ws.count("org_members", { org_id: orgId, role: "OWNER" });
+  const orgRow = (orgId: string) => ws.get<any>("orgs", { id: orgId });
 
   // ───────────── Organisations ─────────────
   app.post("/v1/orgs", auth, async (req) => {
     const { userId } = me(req);
     const body = parse(OrgCreateBody, req.body);
     requireStanding(db, userId, "create_community");
-    // Idempotent: the app sends one request id per create form, so a retry or a double tap returns the first result.
-    if (body.requestId) {
-      const prior = db.prepare("SELECT * FROM orgs WHERE created_by = ? AND create_request_id = ?").get(userId, body.requestId);
-      if (prior) return { org: orgSummary(ctx, prior, userId) };
-    }
-    // One person owning two workspaces with the same name can't tell them apart: refuse, and point at the existing one.
-    const sameName = db
-      .prepare(
-        `SELECT o.id FROM orgs o JOIN org_members m ON m.org_id = o.id AND m.user_id = ? AND m.role = 'OWNER'
-          WHERE lower(trim(o.name)) = lower(trim(?)) LIMIT 1`,
-      )
-      .get(userId, body.name) as { id: string } | undefined;
-    if (sameName) throw new ApiError(409, "org_name_taken", `You already own a community called "${body.name.trim()}". Open it, or choose another name.`, { orgId: sameName.id });
     const id = newId("o");
     const t = now();
-    let slug = slugify(body.name);
-    if (db.prepare("SELECT 1 FROM orgs WHERE slug = ?").get(slug)) slug = `${slug}-${humanCode(4).toLowerCase()}`;
-    db.transaction(() => {
-      db.prepare(
-        `INSERT INTO orgs (id, name, slug, description, created_by, created_at, updated_at, create_request_id, kind, visibility, join_policy, rules)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'community', ?, ?, ?)`,
-      ).run(id, body.name, slug, body.description ?? null, userId, t, t, body.requestId ?? null, body.visibility ?? "private", body.joinPolicy ?? "invite", body.rules ?? null);
-      db.prepare("INSERT INTO org_members (org_id, user_id, role, joined_at) VALUES (?, ?, 'OWNER', ?)").run(id, userId, t);
+    // Checked inside the write unit, so two simultaneous taps (or two people picking the same name) can't both pass.
+    const prior = await ws.write((w) => {
+      // Idempotent: the app sends one request id per create form, so a retry or a double tap returns the first result.
+      if (body.requestId) {
+        const earlier = w.get("orgs", { created_by: userId, create_request_id: body.requestId });
+        if (earlier) return earlier;
+      }
+      // One person owning two workspaces with the same name can't tell them apart: refuse, and point at the existing one.
+      const owned = w.all<{ org_id: string }>("org_members", { where: { user_id: userId, role: "OWNER" } }).map((m) => m.org_id);
+      const wanted = body.name.trim().toLowerCase();
+      const sameName = w.all<{ id: string; name: string }>("orgs", { where: { id: { in: owned } } }).find((o) => o.name.trim().toLowerCase() === wanted);
+      if (sameName) throw new ApiError(409, "org_name_taken", `You already own a community called "${body.name.trim()}". Open it, or choose another name.`, { orgId: sameName.id });
+      let slug = slugify(body.name);
+      if (w.get("orgs", { slug })) slug = `${slug}-${humanCode(4).toLowerCase()}`;
+      w.insert("orgs", {
+        id,
+        name: body.name,
+        slug,
+        description: body.description ?? null,
+        created_by: userId,
+        created_at: t,
+        updated_at: t,
+        create_request_id: body.requestId ?? null,
+        kind: "community",
+        visibility: body.visibility ?? "private",
+        join_policy: body.joinPolicy ?? "invite",
+        rules: body.rules ?? null,
+      });
+      w.insert("org_members", { org_id: id, user_id: userId, role: "OWNER", joined_at: t });
       // A community a synthetic load-test account creates is a load-test community: the only kind such accounts join.
-      markSyntheticOrg(db, id, userId);
-    })();
+      markSyntheticOrg(db, w, id, userId);
+      return null;
+    });
+    if (prior) return { org: orgSummary(ctx, prior, userId) };
     ctx.audit({ actorId: userId, orgId: id, action: "org.create", target: id, detail: `visibility=${body.visibility ?? "private"}` });
     // A community starts with its welcome, announcements, general, introductions and lounge channels in two
     // categories, so the first member who joins finds somewhere to go.
-    createCommunityStart(ctx, id, userId, body.template);
-    return { org: orgSummary(ctx, db.prepare("SELECT * FROM orgs WHERE id = ?").get(id), userId) };
+    await createCommunityStart(ctx, id, userId, body.template);
+    return { org: orgSummary(ctx, orgRow(id), userId) };
   });
 
   // The starter templates a new community can begin with (batch B2): categories and channel names, for the create form.
@@ -197,9 +209,8 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
 
   app.get("/v1/orgs", auth, async (req) => {
     const { userId } = me(req);
-    const rows = db
-      .prepare("SELECT o.* FROM orgs o JOIN org_members m ON m.org_id = o.id WHERE m.user_id = ? ORDER BY o.name")
-      .all(userId);
+    const mine = ws.all<{ org_id: string }>("org_members", { where: { user_id: userId } }).map((m) => m.org_id);
+    const rows = ws.all("orgs", { where: { id: { in: mine } }, orderBy: [["name", "asc"]] });
     return { orgs: rows.map((o) => orgSummary(ctx, o, userId)) };
   });
 
@@ -208,11 +219,9 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const { userId } = me(req);
     const { orgId } = parse(OrgParams, req.params);
     const role = authz.requireOrgMember(orgId, userId);
-    const org = db.prepare("SELECT * FROM orgs WHERE id = ?").get(orgId);
+    const org = orgRow(orgId);
     const perms = authz.permissions(orgId, userId);
-    const channelCount = (
-      db.prepare("SELECT COUNT(*) n FROM conversations WHERE org_id = ? AND type = 'CHANNEL' AND archived_at IS NULL").get(orgId) as { n: number }
-    ).n;
+    const channelCount = ws.count("conversations", { org_id: orgId, type: "CHANNEL", archived_at: null });
     const categories = categoryViews(ctx, orgId, userId);
     return {
       org: orgSummary(ctx, org, userId),
@@ -261,27 +270,32 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const { orgId } = parse(OrgParams, req.params);
     authz.requirePermission(orgId, userId, "workspace.edit", "Only people who can edit the workspace can do that");
     const body = parse(OrgUpdateBody, req.body);
-    const o = db.prepare("SELECT * FROM orgs WHERE id = ?").get(orgId) as any;
+    const o = orgRow(orgId);
     // Listing a community publicly or opening it to anyone changes who can find and enter it: owners decide that.
     const opening = (body.visibility && body.visibility !== o.visibility) || (body.joinPolicy && body.joinPolicy !== o.join_policy);
     if (opening && authz.orgRole(orgId, userId) !== "OWNER") throw forbidden("Only owners can change who can find and join this community");
-    db.prepare("UPDATE orgs SET name = ?, description = ?, visibility = ?, join_policy = ?, rules = ?, accent = ?, tag = ?, updated_at = ? WHERE id = ?").run(
-      body.name ?? o.name,
-      body.description === undefined ? o.description : body.description,
-      body.visibility ?? o.visibility,
-      body.joinPolicy ?? o.join_policy,
-      body.rules === undefined ? o.rules : body.rules,
-      body.accent === undefined ? o.accent : (body.accent?.toLowerCase() ?? null),
-      body.tag === undefined ? (o.tag ?? null) : (body.tag?.toUpperCase() ?? null),
-      now(),
-      orgId,
+    await ws.write((w) =>
+      w.update(
+        "orgs",
+        { id: orgId },
+        {
+          name: body.name ?? o.name,
+          description: body.description === undefined ? o.description : body.description,
+          visibility: body.visibility ?? o.visibility,
+          join_policy: body.joinPolicy ?? o.join_policy,
+          rules: body.rules === undefined ? o.rules : body.rules,
+          accent: body.accent === undefined ? o.accent : (body.accent?.toLowerCase() ?? null),
+          tag: body.tag === undefined ? (o.tag ?? null) : (body.tag?.toUpperCase() ?? null),
+          updated_at: now(),
+        },
+      ),
     );
     const recolored = body.accent !== undefined && (body.accent?.toLowerCase() ?? null) !== (o.accent ?? null);
     ctx.audit({ actorId: userId, orgId, action: "org.update", detail: opening ? `visibility=${body.visibility ?? o.visibility} join=${body.joinPolicy ?? o.join_policy}` : undefined });
     if (recolored) ctx.audit({ actorId: userId, orgId, action: "org.accent", detail: body.accent?.toLowerCase() ?? "removed" });
     if (body.tag !== undefined && (body.tag?.toUpperCase() ?? null) !== (o.tag ?? null)) ctx.audit({ actorId: userId, orgId, action: "org.tag", detail: body.tag?.toUpperCase() ?? "removed" });
     notifyOrg(ctx, orgId);
-    return { org: orgSummary(ctx, db.prepare("SELECT * FROM orgs WHERE id = ?").get(orgId), userId) };
+    return { org: orgSummary(ctx, orgRow(orgId), userId) };
   });
 
   // ───────────── Organization avatar (2026-10-19, docs/WORKSPACE_ADMINISTRATION.md) ─────────────
@@ -292,11 +306,11 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const { orgId } = parse(OrgParams, req.params);
     authz.requirePermission(orgId, userId, "workspace.edit", "Only people who can edit the workspace can change its photo");
     const buf = await readJpegBody(req, "Workspace photos");
-    const previous = (db.prepare("SELECT photo_rev FROM orgs WHERE id = ?").get(orgId) as { photo_rev: number | null } | undefined)?.photo_rev ?? null;
+    const previous = (orgRow(orgId)?.photo_rev as number | null | undefined) ?? null;
     const rev = Math.max(now(), (previous ?? 0) + 1);
     await storePhoto(ctx, photoBlobId(orgId, rev), buf);
     // The organisation may have been deleted while the photo uploaded: then the new blob is removed again.
-    if (db.prepare("UPDATE orgs SET photo_rev = ?, updated_at = ? WHERE id = ?").run(rev, now(), orgId).changes === 0) {
+    if ((await ws.write((w) => w.update("orgs", { id: orgId }, { photo_rev: rev, updated_at: now() }))) === 0) {
       await deleteBlobNow(ctx, "profile-photos", photoBlobId(orgId, rev));
       throw notFound("Organization not found");
     }
@@ -310,8 +324,8 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const { userId } = me(req);
     const { orgId } = parse(OrgParams, req.params);
     authz.requirePermission(orgId, userId, "workspace.edit", "Only people who can edit the workspace can change its photo");
-    const previous = (db.prepare("SELECT photo_rev FROM orgs WHERE id = ?").get(orgId) as { photo_rev: number | null }).photo_rev;
-    db.prepare("UPDATE orgs SET photo_rev = NULL, updated_at = ? WHERE id = ?").run(now(), orgId);
+    const previous = orgRow(orgId).photo_rev as number | null;
+    await ws.write((w) => w.update("orgs", { id: orgId }, { photo_rev: null, updated_at: now() }));
     if (previous) {
       await deleteBlobNow(ctx, "profile-photos", photoBlobId(orgId, previous));
       ctx.audit({ actorId: userId, orgId, action: "org.photo", detail: "removed" });
@@ -324,7 +338,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const { userId } = me(req);
     const { orgId } = parse(OrgParams, req.params);
     authz.requireOrgMember(orgId, userId);
-    const rev = (db.prepare("SELECT photo_rev FROM orgs WHERE id = ?").get(orgId) as { photo_rev: number | null }).photo_rev;
+    const rev = orgRow(orgId).photo_rev as number | null;
     const stream = rev ? await ctx.blobs.get("profile-photos", photoBlobId(orgId, rev)) : null;
     if (!stream) throw notFound("No photo");
     return reply.header("content-type", "image/jpeg").header("cache-control", "private, max-age=3600").header("etag", `"${rev}"`).send(stream);
@@ -338,11 +352,11 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const { orgId } = parse(OrgParams, req.params);
     authz.requirePermission(orgId, userId, "workspace.edit", "Only people who can edit the community can change its banner");
     const buf = await readJpegBody(req, "Banners", MAX_BANNER_BYTES);
-    const previous = (db.prepare("SELECT banner_rev FROM orgs WHERE id = ?").get(orgId) as { banner_rev: number | null } | undefined)?.banner_rev ?? null;
+    const previous = (orgRow(orgId)?.banner_rev as number | null | undefined) ?? null;
     const rev = Math.max(now(), (previous ?? 0) + 1);
     await storePhoto(ctx, bannerBlobId(orgId, rev), buf);
     // The community may have been deleted while the banner uploaded: then the new blob is removed again.
-    if (db.prepare("UPDATE orgs SET banner_rev = ?, updated_at = ? WHERE id = ?").run(rev, now(), orgId).changes === 0) {
+    if ((await ws.write((w) => w.update("orgs", { id: orgId }, { banner_rev: rev, updated_at: now() }))) === 0) {
       await deleteBlobNow(ctx, "profile-photos", bannerBlobId(orgId, rev));
       throw notFound("Organization not found");
     }
@@ -356,8 +370,8 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const { userId } = me(req);
     const { orgId } = parse(OrgParams, req.params);
     authz.requirePermission(orgId, userId, "workspace.edit", "Only people who can edit the community can change its banner");
-    const previous = (db.prepare("SELECT banner_rev FROM orgs WHERE id = ?").get(orgId) as { banner_rev: number | null }).banner_rev;
-    db.prepare("UPDATE orgs SET banner_rev = NULL, updated_at = ? WHERE id = ?").run(now(), orgId);
+    const previous = orgRow(orgId).banner_rev as number | null;
+    await ws.write((w) => w.update("orgs", { id: orgId }, { banner_rev: null, updated_at: now() }));
     if (previous) {
       await deleteBlobNow(ctx, "profile-photos", bannerBlobId(orgId, previous));
       ctx.audit({ actorId: userId, orgId, action: "org.banner", detail: "removed" });
@@ -375,7 +389,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
   app.get("/v1/orgs/:orgId/banner", auth, async (req, reply) => {
     const { userId } = me(req);
     const { orgId } = parse(OrgParams, req.params);
-    const o = db.prepare("SELECT visibility, banner_rev FROM orgs WHERE id = ?").get(orgId) as { visibility: string; banner_rev: number | null } | undefined;
+    const o = ws.get<{ visibility: string; banner_rev: number | null }>("orgs", { id: orgId });
     // Members, or anyone signed in for a community listed in Discover (which shows it); otherwise it doesn't exist.
     if (!o || (o.visibility !== "public" && !authz.orgRole(orgId, userId)) || authz.isBanned(orgId, userId)) throw notFound("No banner");
     return sendBanner(reply, orgId, o.banner_rev, "private, max-age=3600");
@@ -391,9 +405,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const { orgId } = parse(OrgParams, req.params);
     const body = parse(OrgDeleteBody, req.body ?? {});
     const previous = () =>
-      db.prepare("SELECT * FROM org_deletions WHERE org_id = ?").get(orgId) as
-        | { deleted_by: string; request_id: string | null; members: number; channels: number; files: number }
-        | undefined;
+      ws.get<{ deleted_by: string; request_id: string | null; members: number; channels: number; files: number }>("org_deletions", { org_id: orgId });
     const replay = () => {
       const d = previous();
       if (d && body.requestId && d.request_id === body.requestId && d.deleted_by === actor) {
@@ -404,7 +416,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     if (previous()) return replay();
     const role = authz.requireOrgMember(orgId, actor);
     if (role !== "OWNER") throw forbidden("Only an owner can delete the organization");
-    const org = db.prepare("SELECT name FROM orgs WHERE id = ?").get(orgId) as { name: string };
+    const org = orgRow(orgId) as { name: string };
     if (body.confirmName.trim() !== org.name.trim()) throw new ApiError(400, "confirm_mismatch", "Type the organization's name exactly as it appears to delete it");
     // The files store may not be SQLite: what the channels hold is read before the transaction (and their records go
     // inside it, through ctx.files.forgetConversation).
@@ -412,37 +424,41 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     // Calls may not be in SQLite either: the live rooms to close are read before the transaction too.
     const rooms = (await ctx.calls.liveIn(authz.conversationIdsOf(orgId))).map((c) => c.room_name);
 
-    const result = db
-      .transaction(() => {
-        // Checked again inside the write lock: a concurrent delete may have just finished.
-        if (!db.prepare("SELECT 1 FROM orgs WHERE id = ?").get(orgId)) return null;
+    const result = await ws.write((w) => {
+        // Checked again inside the write unit: a concurrent delete may have just finished.
+        if (!w.get("orgs", { id: orgId })) return null;
         if (authz.orgRole(orgId, actor) !== "OWNER") return null;
-        const members = (db.prepare("SELECT user_id FROM org_members WHERE org_id = ?").all(orgId) as { user_id: string }[]).map((r) => r.user_id);
-        const channels = (db.prepare("SELECT id FROM conversations WHERE org_id = ?").all(orgId) as { id: string }[]).map((r) => r.id);
+        const members = w.all<{ user_id: string }>("org_members", { where: { org_id: orgId } }).map((r) => r.user_id);
+        const channels = w.all<{ id: string }>("conversations", { where: { org_id: orgId } }).map((r) => r.id);
         const channelMembers = new Map<string, string[]>();
         for (const c of channels) {
-          channelMembers.set(c, (db.prepare("SELECT user_id FROM conversation_members WHERE conversation_id = ?").all(c) as { user_id: string }[]).map((r) => r.user_id));
+          channelMembers.set(c, w.all<{ user_id: string }>("conversation_members", { where: { conversation_id: c } }).map((r) => r.user_id));
           // Rows without a foreign key to the conversation; its files' bytes are scheduled for deletion and its open
           // uploads abandoned (their objects or parts are removed by the retention job).
           ctx.relay.forgetConversation(c);
           ctx.files.forgetConversation(c);
-          db.prepare("DELETE FROM mention_all_events WHERE conversation_id = ?").run(c);
+          w.delete("mention_all_events", { conversation_id: c });
         }
-        const photoRev = (db.prepare("SELECT photo_rev FROM orgs WHERE id = ?").get(orgId) as { photo_rev: number | null }).photo_rev;
-        if (photoRev) queueBlobDelete(ctx, "profile-photos", photoBlobId(orgId, photoRev));
-        const bannerRev = (db.prepare("SELECT banner_rev FROM orgs WHERE id = ?").get(orgId) as { banner_rev: number | null }).banner_rev;
-        if (bannerRev) queueBlobDelete(ctx, "profile-photos", bannerBlobId(orgId, bannerRev));
+        const o = w.get<{ photo_rev: number | null; banner_rev: number | null }>("orgs", { id: orgId })!;
+        if (o.photo_rev) queueBlobDelete(ctx, "profile-photos", photoBlobId(orgId, o.photo_rev));
+        if (o.banner_rev) queueBlobDelete(ctx, "profile-photos", bannerBlobId(orgId, o.banner_rev));
         // Batch B9: the community's own emoji and stickers.
-        for (const e of db.prepare("SELECT id FROM community_expressions WHERE org_id = ?").all(orgId) as { id: string }[]) queueBlobDelete(ctx, "profile-photos", e.id);
+        for (const e of w.all<{ id: string }>("community_expressions", { where: { org_id: orgId } })) queueBlobDelete(ctx, "profile-photos", e.id);
         // Cascades to org_members, roles, categories, overwrites, bans, invitations, the old branch and team rows, and
         // the community's conversations (members, attachment rows, calls and call participants).
-        db.prepare("DELETE FROM orgs WHERE id = ?").run(orgId);
-        db.prepare(
-          "INSERT INTO org_deletions (org_id, name_sha256, deleted_by, deleted_at, request_id, members, channels, files) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        ).run(orgId, sha256Hex(org.name), actor, now(), body.requestId ?? null, members.length, channels.length, files.length);
+        w.delete("orgs", { id: orgId });
+        w.insert("org_deletions", {
+          org_id: orgId,
+          name_sha256: sha256Hex(org.name),
+          deleted_by: actor,
+          deleted_at: now(),
+          request_id: body.requestId ?? null,
+          members: members.length,
+          channels: channels.length,
+          files: files.length,
+        });
         return { members, channelMembers, files, rooms };
-      })
-      .immediate();
+      });
     if (!result) return replay();
     // SQLite cascaded its calls with the channels; a call store elsewhere removes them itself.
     await ctx.calls.forgetConversations([...result.channelMembers.keys()]);
@@ -481,21 +497,32 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     if (role === "GUEST") throw forbidden("Guests cannot browse the member list");
     if (!authz.can(orgId, userId, "members.view")) throw forbidden("Your role doesn't include the member directory");
     const { q } = parse(MemberSearchQuery, req.query);
-    const like = q ? `%${q.toLowerCase().replace(/[%_\\]/g, (c) => "\\" + c)}%` : "%";
-    const rows = db
-      .prepare(
-        `SELECT u.*, m.role AS org_role, m.title, m.expires_at, m.timeout_until FROM org_members m JOIN users u ON u.id = m.user_id
-         WHERE m.org_id = ? AND (lower(u.display_name) LIKE ? ESCAPE '\\' OR u.username LIKE ? ESCAPE '\\')
-         ORDER BY CASE m.role WHEN 'OWNER' THEN 0 WHEN 'ADMIN' THEN 1 WHEN 'MEMBER' THEN 2 ELSE 3 END, u.display_name LIMIT 500`,
-      )
-      .all(orgId, like, like) as any[];
+    // Memberships (community rows) joined with people (SQLite), filtered and ordered as the SQL did.
+    const term = q ? q.toLowerCase() : "";
+    const memberships = ws.all<{ user_id: string; role: string; title: string | null; expires_at: number | null; timeout_until: number | null }>("org_members", {
+      where: { org_id: orgId },
+    });
+    const people = mapByIds<any>(db, "users", "id", memberships.map((m) => m.user_id));
+    const rank: Record<string, number> = { OWNER: 0, ADMIN: 1, MEMBER: 2 };
+    const rows = memberships
+      .flatMap((m) => {
+        const u = people.get(m.user_id);
+        return u ? [{ ...u, org_role: m.role, title: m.title, expires_at: m.expires_at, timeout_until: m.timeout_until }] : [];
+      })
+      .filter((u) => !term || likeContains(u.display_name, term) || likeContains(u.username, term))
+      .sort((a, b) => (rank[a.org_role] ?? 3) - (rank[b.org_role] ?? 3) || compareText(a.display_name, b.display_name))
+      .slice(0, 500);
     // Custom roles (docs/WORKSPACE_ROLES.md): names and colours only; what each grants is on GET /v1/orgs/:id/roles.
-    const roleRows = db
-      .prepare(
-        `SELECT m.user_id, r.id, r.name, r.color, r.hoist, r.position FROM org_role_members m JOIN org_roles r ON r.id = m.role_id
-         WHERE m.org_id = ? AND r.archived_at IS NULL ORDER BY r.position, r.name`,
-      )
-      .all(orgId) as { user_id: string; id: string; name: string; color: string | null; hoist: number; position: number }[];
+    const roles = new Map(
+      ws.all<{ id: string; name: string; color: string | null; hoist: number; position: number }>("org_roles", { where: { org_id: orgId, archived_at: null } }).map((r) => [r.id, r]),
+    );
+    const roleRows = ws
+      .all<{ user_id: string; role_id: string }>("org_role_members", { where: { org_id: orgId } })
+      .flatMap((m) => {
+        const r = roles.get(m.role_id);
+        return r ? [{ user_id: m.user_id, id: r.id, name: r.name, color: r.color, hoist: r.hoist, position: r.position }] : [];
+      })
+      .sort((a, b) => a.position - b.position || compareText(a.name, b.name));
     return {
       members: rows.map((u) =>
         memberView(ctx, userId, u, {
@@ -539,17 +566,18 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     if (body.title !== undefined && !titleChangeAllowed(actorNow, targetRole, self, targetPerms)) {
       throw forbidden("You can't change this person's title");
     }
-    const removedFrom: string[] = [];
-    db.transaction(() => {
-      if (body.role) db.prepare("UPDATE org_members SET role = ? WHERE org_id = ? AND user_id = ?").run(body.role, p.orgId, p.userId);
-      if (body.title !== undefined) db.prepare("UPDATE org_members SET title = ? WHERE org_id = ? AND user_id = ?").run(body.title, p.orgId, p.userId);
+    const removedFrom = await ws.write((w) => {
+      const removed: string[] = [];
+      if (body.role) w.update("org_members", { org_id: p.orgId, user_id: p.userId }, { role: body.role });
+      if (body.title !== undefined) w.update("org_members", { org_id: p.orgId, user_id: p.userId }, { title: body.title });
       if (body.role) {
         // Guests only keep what a manager grants them explicitly after the demotion.
-        if (body.role === "GUEST" && targetRole !== "GUEST") removedFrom.push(...authz.demoteToGuest(p.orgId, p.userId));
-        else removedFrom.push(...authz.revalidateChannelMemberships(p.orgId, p.userId));
-        authz.autoJoinScope(p.orgId, p.userId, now());
+        if (body.role === "GUEST" && targetRole !== "GUEST") removed.push(...authz.demoteToGuest(w, p.orgId, p.userId));
+        else removed.push(...authz.revalidateChannelMemberships(w, p.orgId, p.userId));
+        authz.autoJoinScope(w, p.orgId, p.userId, now());
       }
-    })();
+      return removed;
+    });
     if (body.role) ctx.audit({ actorId: actor, orgId: p.orgId, action: "member.role", target: p.userId, detail: `${targetRole}→${body.role}` });
     notifyOrg(ctx, p.orgId);
     // The person's devices drop the channels; members refresh them. Envelopes still addressed to
@@ -587,7 +615,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const body = parse(InviteCreateBody, req.body);
     requireStanding(db, actor, "invite");
     const actorRole = authz.requireOrgMember(orgId, actor);
-    const policy = db.prepare("SELECT guests_allowed, guest_max_days FROM orgs WHERE id = ?").get(orgId) as { guests_allowed: number; guest_max_days: number | null } | undefined;
+    const policy = ws.get<{ guests_allowed: number; guest_max_days: number | null }>("orgs", { id: orgId });
     if (body.role === "GUEST" && policy && !policy.guests_allowed) throw conflict("This community doesn't allow guests");
     if (body.role !== "GUEST" && body.guestDays) throw badRequest("Only guest invitations have an end date");
     const guestDays = body.role === "GUEST" ? (policy?.guest_max_days ? Math.min(body.guestDays ?? policy.guest_max_days, policy.guest_max_days) : (body.guestDays ?? null)) : null;
@@ -597,9 +625,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const grantRoleId = body.roleId ?? null;
     if (grantRoleId) {
       if (body.role === "GUEST") throw badRequest("Guest invitations can't give a role");
-      const r = db.prepare("SELECT permissions, denies FROM org_roles WHERE id = ? AND org_id = ? AND archived_at IS NULL").get(grantRoleId, orgId) as
-        | { permissions: string; denies: string }
-        | undefined;
+      const r = ws.get<{ permissions: string; denies: string }>("org_roles", { id: grantRoleId, org_id: orgId, archived_at: null });
       if (!r) throw badRequest("Unknown role");
       // The same rule as assigning it to someone by hand.
       const refusal = roleAssignmentRefusal(authz.actor(orgId, actor)!, { base: "MEMBER", perms: new Set(), self: false }, {
@@ -612,10 +638,23 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const id = newId("inv");
     const t = now();
     const expiresAt = t + body.expiresInHours * 3600_000;
-    db.prepare(
-      `INSERT INTO invitations (id, org_id, code_hash, code_hint, role, branch_id, team_id, max_uses, created_by, created_at, expires_at, guest_days, grant_role_id)
-       VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, ?, ?, ?)`,
-    ).run(id, orgId, sha256Hex(code), code.slice(-4), body.role, body.maxUses, actor, t, expiresAt, guestDays, grantRoleId);
+    await ws.write((w) =>
+      w.insert("invitations", {
+        id,
+        org_id: orgId,
+        code_hash: sha256Hex(code),
+        code_hint: code.slice(-4),
+        role: body.role,
+        branch_id: null,
+        team_id: null,
+        max_uses: body.maxUses,
+        created_by: actor,
+        created_at: t,
+        expires_at: expiresAt,
+        guest_days: guestDays,
+        grant_role_id: grantRoleId,
+      }),
+    );
     ctx.audit({ actorId: actor, orgId, action: "invite.create", target: id, detail: body.role });
     return {
       invite: { id, code: `${code.slice(0, 4)}-${code.slice(4, 8)}-${code.slice(8)}`, role: body.role, branchId: null, teamId: null, roleId: grantRoleId, maxUses: body.maxUses, uses: 0, expiresAt, guestDays },
@@ -627,9 +666,9 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const { orgId } = parse(OrgParams, req.params);
     authz.requireOrgMember(orgId, actor);
     const isAdmin = authz.can(orgId, actor, "members.invites.manage");
-    const rows = db
-      .prepare("SELECT i.*, u.display_name AS creator_name FROM invitations i LEFT JOIN users u ON u.id = i.created_by WHERE i.org_id = ? ORDER BY i.created_at DESC LIMIT 100")
-      .all(orgId) as any[];
+    const invites = ws.all<any>("invitations", { where: { org_id: orgId }, orderBy: [["created_at", "desc"]], limit: 100 });
+    const creators = mapByIds<{ id: string; display_name: string }>(db, "users", "id", invites.map((i) => i.created_by), "id, display_name");
+    const rows = invites.map((i) => ({ ...i, creator_name: creators.get(i.created_by)?.display_name ?? null }));
     const t = now();
     return {
       invites: rows
@@ -658,18 +697,18 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
   app.delete("/v1/invites/:id", auth, async (req) => {
     const actor = me(req).userId;
     const { id } = parse(InviteIdParams, req.params);
-    const inv = db.prepare("SELECT * FROM invitations WHERE id = ?").get(id) as any;
+    const inv = ws.get<any>("invitations", { id });
     if (!inv) throw notFound("Invite not found");
     authz.requireOrgMember(inv.org_id, actor);
     if (inv.created_by !== actor && !authz.can(inv.org_id, actor, "members.invites.manage")) throw forbidden();
-    db.prepare("UPDATE invitations SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL").run(now(), id);
+    await ws.write((w) => w.update("invitations", { id, revoked_at: null }, { revoked_at: now() }));
     ctx.audit({ actorId: actor, orgId: inv.org_id, action: "invite.revoke", target: id });
     return { ok: true };
   });
 
   /** The usable invitation for [code]; otherwise 404 with a code saying why (not found, revoked, expired, used up, unavailable). */
-  const findInvite = (code: string) => {
-    const inv = lookupOrgInvite(db, code);
+  const findInvite = (code: string, rows: RowReader = ws) => {
+    const inv = lookupOrgInvite(rows, code);
     const problem = orgInviteProblem(authz, inv);
     if (problem) throw new ApiError(404, problem, INVITE_PROBLEMS[problem]);
     return inv!;
@@ -680,7 +719,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
   app.post("/v1/invites/preview", inviteRate, async (req) => {
     const { code } = parse(InviteCodeBody, req.body);
     const inv = findInvite(code);
-    const org = db.prepare("SELECT * FROM orgs WHERE id = ?").get(inv.org_id) as any;
+    const org = orgRow(inv.org_id);
     return {
       // Same org shape as everywhere else (the app decodes it with the same model; without the slug it refused the response).
       org: {
@@ -689,14 +728,19 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
         slug: org.slug,
         description: org.description,
         rules: org.rules ?? null,
-        memberCount: (db.prepare("SELECT COUNT(*) n FROM org_members WHERE org_id = ?").get(org.id) as { n: number }).n,
+        memberCount: ws.count("org_members", { org_id: org.id }),
         accent: org.accent ?? null,
         bannerRev: org.banner_rev ?? null,
       },
       role: inv.role,
       branch: null,
       team: null,
-      grantRole: inv.grant_role_id ? ((db.prepare("SELECT id, name, color FROM org_roles WHERE id = ? AND archived_at IS NULL").get(inv.grant_role_id) as { id: string; name: string; color: string | null } | undefined) ?? null) : null,
+      grantRole: inv.grant_role_id
+        ? (() => {
+            const r = ws.get<{ id: string; name: string; color: string | null }>("org_roles", { id: inv.grant_role_id, archived_at: null });
+            return r ? { id: r.id, name: r.name, color: r.color } : null;
+          })()
+        : null,
       alreadyMember: !!authz.orgRole(inv.org_id, me(req).userId),
       banned: authz.isBanned(inv.org_id, me(req).userId),
       invitesPaused: !!authz.pausedUntil(inv.org_id, "invites", now()),
@@ -710,19 +754,14 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
   app.get("/v1/invites/:code/public", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (req) => {
     const { code } = parse(InviteCodeParams, req.params);
     const inv = findInvite(code);
-    const org = db.prepare("SELECT id, name, description, accent, banner_rev, photo_rev FROM orgs WHERE id = ?").get(inv.org_id) as {
-      id: string;
-      name: string;
-      description: string | null;
-      accent: string | null;
-      banner_rev: number | null;
-      photo_rev: number | null;
-    };
+    const org = ws.get<{ id: string; name: string; description: string | null; accent: string | null; banner_rev: number | null; photo_rev: number | null }>("orgs", {
+      id: inv.org_id,
+    })!;
     return {
       community: {
         name: org.name,
         description: org.description,
-        memberCount: (db.prepare("SELECT COUNT(*) n FROM org_members WHERE org_id = ?").get(org.id) as { n: number }).n,
+        memberCount: ws.count("org_members", { org_id: org.id }),
         accent: org.accent ?? null,
         banner: org.banner_rev !== null,
         photo: org.photo_rev !== null,
@@ -735,7 +774,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
   app.get("/v1/invites/:code/banner", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (req, reply) => {
     const { code } = parse(InviteCodeParams, req.params);
     const inv = findInvite(code);
-    const rev = (db.prepare("SELECT banner_rev FROM orgs WHERE id = ?").get(inv.org_id) as { banner_rev: number | null } | undefined)?.banner_rev ?? null;
+    const rev = (orgRow(inv.org_id)?.banner_rev as number | null | undefined) ?? null;
     return sendBanner(reply, inv.org_id, rev, "public, max-age=300");
   });
 
@@ -743,7 +782,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
   app.get("/v1/invites/:code/photo", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (req, reply) => {
     const { code } = parse(InviteCodeParams, req.params);
     const inv = findInvite(code);
-    const rev = (db.prepare("SELECT photo_rev FROM orgs WHERE id = ?").get(inv.org_id) as { photo_rev: number | null } | undefined)?.photo_rev ?? null;
+    const rev = (orgRow(inv.org_id)?.photo_rev as number | null | undefined) ?? null;
     const stream = rev ? await ctx.blobs.get("profile-photos", photoBlobId(inv.org_id, rev)) : null;
     if (!stream) throw notFound("No photo");
     return reply.header("content-type", "image/jpeg").header("cache-control", "public, max-age=300").header("etag", `"${rev}"`).send(stream);
@@ -755,19 +794,19 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     requireStanding(db, userId, "join_community");
     const t = now();
     // One transaction: two taps (or two people racing for the last use) can't both pass the checks and over-use it.
-    const result = db.transaction(() => {
-      const known = lookupOrgInvite(db, code);
+    const result = await ws.write((w) => {
+      const known = lookupOrgInvite(w, code);
       // Already joined through this invite (a retry or a double tap): succeed again without using it up, even if
       // that first accept took its last use. Grants nothing the person doesn't already have.
-      if (known && inviteAlreadySatisfied(authz, db, known, userId)) return { orgId: known.org_id, inviteId: known.id, role: authz.orgRole(known.org_id, userId)!, repeated: true };
-      return { ...joinOrgByInvite(ctx, findInvite(code), userId, t), repeated: false };
-    })();
+      if (known && inviteAlreadySatisfied(authz, w, known, userId)) return { orgId: known.org_id, inviteId: known.id, role: authz.orgRole(known.org_id, userId)!, repeated: true };
+      return { ...joinOrgByInvite(ctx, w, findInvite(code, w), userId, t), repeated: false };
+    });
     if (!result.repeated) {
       ctx.audit({ actorId: userId, orgId: result.orgId, action: "invite.accept", target: result.inviteId, detail: result.role });
       notifyOrg(ctx, result.orgId);
-      noteJoin(ctx, result.orgId, t);
+      await noteJoin(ctx, result.orgId, t);
     }
-    return { org: orgSummary(ctx, db.prepare("SELECT * FROM orgs WHERE id = ?").get(result.orgId), userId), alreadyMember: result.repeated };
+    return { org: orgSummary(ctx, orgRow(result.orgId), userId), alreadyMember: result.repeated };
   });
 
   // ───────────── Channels ─────────────
@@ -781,32 +820,48 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     if (body.voice && body.format === "forum") throw badRequest("A voice channel can't be a forum");
     const categoryId = body.categoryId ?? null;
     if (categoryId) {
-      if (!db.prepare("SELECT 1 FROM channel_categories WHERE id = ? AND org_id = ?").get(categoryId, orgId)) throw badRequest("Unknown category");
+      if (!ws.get("channel_categories", { id: categoryId, org_id: orgId })) throw badRequest("Unknown category");
       if (!authz.can(orgId, actor, "channels.create") && !authz.categoryPermissions(orgId, categoryId, actor).has("channels.create")) {
         throw forbidden("You can't create channels in this category");
       }
-      const inCategory = (db.prepare("SELECT COUNT(*) n FROM conversations WHERE category_id = ?").get(categoryId) as { n: number }).n;
-      if (inCategory >= CHANNEL_LIMITS.perCategory) throw conflict(`A category holds at most ${CHANNEL_LIMITS.perCategory} channels`);
     } else if (!authz.can(orgId, actor, "channels.create")) {
       throw forbidden("Your role doesn't include creating channels");
     }
-    const total = (db.prepare("SELECT COUNT(*) n FROM conversations WHERE org_id = ? AND type = 'CHANNEL'").get(orgId) as { n: number }).n;
-    if (total >= CHANNEL_LIMITS.perCommunity) throw conflict(`A community has at most ${CHANNEL_LIMITS.perCommunity} channels`);
     const id = newId("c");
     const t = now();
     // Public channels are joined by everyone who may see them unless the creator opts out (autoJoin: false).
     const autoJoin = body.kind === "ANNOUNCEMENT" ? true : body.kind === "PRIVATE" ? false : body.autoJoin ?? true;
-    const position = ((db.prepare("SELECT MAX(position) p FROM conversations WHERE org_id = ? AND type = 'CHANNEL' AND category_id IS ?").get(orgId, categoryId) as { p: number | null }).p ?? -1) + 1;
-    db.transaction(() => {
-      db.prepare(
-        `INSERT INTO conversations (id, type, org_id, scope, scope_id, kind, name, topic, auto_join, created_by, created_at, updated_at, voice, category_id, position, format)
-         VALUES (?, 'CHANNEL', ?, 'ORG', NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).run(id, orgId, body.kind, body.name, body.topic ?? null, autoJoin ? 1 : 0, actor, t, t, body.voice ? 1 : 0, categoryId, position, body.format);
-      db.prepare("INSERT INTO conversation_members (conversation_id, user_id, role, joined_at) VALUES (?, ?, 'ADMIN', ?)").run(id, actor, t);
+    await ws.write((w) => {
+      // The limits are checked inside the unit, so two creates can't both take the last place.
+      if (categoryId && w.count("conversations", { category_id: categoryId }) >= CHANNEL_LIMITS.perCategory) {
+        throw conflict(`A category holds at most ${CHANNEL_LIMITS.perCategory} channels`);
+      }
+      if (w.count("conversations", { org_id: orgId, type: "CHANNEL" }) >= CHANNEL_LIMITS.perCommunity) throw conflict(`A community has at most ${CHANNEL_LIMITS.perCommunity} channels`);
+      const last = w.get<{ position: number }>("conversations", { org_id: orgId, type: "CHANNEL", category_id: categoryId }, [["position", "desc"]]);
+      const position = (last?.position ?? -1) + 1;
+      w.insert("conversations", {
+        id,
+        type: "CHANNEL",
+        org_id: orgId,
+        scope: "ORG",
+        scope_id: null,
+        kind: body.kind,
+        name: body.name,
+        topic: body.topic ?? null,
+        auto_join: autoJoin ? 1 : 0,
+        created_by: actor,
+        created_at: t,
+        updated_at: t,
+        voice: body.voice ? 1 : 0,
+        category_id: categoryId,
+        position,
+        format: body.format,
+      });
+      w.insert("conversation_members", { conversation_id: id, user_id: actor, role: "ADMIN", joined_at: t });
       const conv = authz.conversation(id)!;
       const addIds = new Set(body.memberIds);
       if (autoJoin) {
-        for (const r of db.prepare("SELECT user_id FROM org_members WHERE org_id = ?").all(orgId) as { user_id: string }[]) addIds.add(r.user_id);
+        for (const r of w.all<{ user_id: string }>("org_members", { where: { org_id: orgId } })) addIds.add(r.user_id);
       }
       for (const uid of addIds) {
         if (uid === actor) continue;
@@ -816,12 +871,12 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
         // to see the channel through its permissions.
         const eligible = authz.scopeEligible(conv, uid) || (explicit && (role === "GUEST" || (body.kind === "PRIVATE" && role !== null && authz.channelPermissions(conv, uid).has("channels.view"))));
         if (eligible) {
-          db.prepare("INSERT OR IGNORE INTO conversation_members (conversation_id, user_id, role, joined_at) VALUES (?, ?, 'MEMBER', ?)").run(id, uid, t);
+          w.insert("conversation_members", { conversation_id: id, user_id: uid, role: "MEMBER", joined_at: t }, { orIgnore: true });
         } else if (explicit) {
           throw conflict("Cannot add someone who can't see this channel", { userId: uid });
         }
       }
-    })();
+    });
     ctx.audit({ actorId: actor, orgId, action: body.voice ? "voice_room.create" : "channel.create", target: id, detail: `${body.kind} ${body.name}` });
     notifyConversation(ctx, id);
     notifyOrg(ctx, orgId);
@@ -835,9 +890,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const { orgId } = parse(OrgParams, req.params);
     authz.requireOrgMember(orgId, actor);
     const { q, includeArchived } = parse(ChannelListQuery, req.query);
-    const rows = db
-      .prepare("SELECT * FROM conversations WHERE org_id = ? AND type = 'CHANNEL' ORDER BY name")
-      .all(orgId) as ConversationRow[];
+    const rows = ws.all<ConversationRow>("conversations", { where: { org_id: orgId, type: "CHANNEL" }, orderBy: [["name", "asc"]] });
     const shown = rows
       .filter((c) => (includeArchived === "true" || !c.archived_at) && authz.canViewChannel(c, actor))
       .filter((c) => !q || (c.name ?? "").toLowerCase().includes(q.toLowerCase()) || (c.topic ?? "").toLowerCase().includes(q.toLowerCase()));
@@ -878,7 +931,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const role = authz.requireOrgMember(orgId, actor);
     if (role === "GUEST") throw forbidden();
     const isAdmin = authz.can(orgId, actor, "audit.view");
-    const rows = db.prepare("SELECT * FROM audit_log WHERE org_id = ? ORDER BY id DESC LIMIT 500").all(orgId) as any[];
+    const rows = ws.all<any>("audit_log", { where: { org_id: orgId }, orderBy: [["id", "desc"]], limit: 500 });
     const names = new Map<string, string>();
     const nameOf = (id: string | null) => {
       if (!id) return null;

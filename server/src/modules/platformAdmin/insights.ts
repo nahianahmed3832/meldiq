@@ -48,7 +48,7 @@ export class AdminInsights {
     const blockers: string[] = [];
     if (!suspended) blockers.push("Suspend the account first.");
     if (isAdmin) blockers.push("This person holds a console role: revoke it first.");
-    const owned = soleOwnedWorkspaces(this.ctx.db, userId);
+    const owned = soleOwnedWorkspaces(this.ctx.ws, userId);
     if (owned.length) blockers.push(`Only owner of ${owned.map((o) => o.name).join(", ")}: another owner is needed first.`);
     return blockers;
   }
@@ -73,10 +73,10 @@ export class AdminInsights {
   }
 
   async org(orgId: string) {
-    if (!orgRecord(this.ctx.db, orgId)) throw notFound("No such organization");
+    if (!orgRecord(this.ctx.ws, orgId)) throw notFound("No such organization");
     const t = now();
     const ex = await this.exclusions.get(t);
-    const members = JSON.stringify(orgMemberIds(this.ctx.db, orgId));
+    const members = JSON.stringify(orgMemberIds(this.ctx.ws, orgId));
     const a30 = analytics.activeAmong(this.ctx.db, members, utcDay(t - 29 * DAY_MS), utcDay(t), ex.json);
     const a7 = analytics.activeAmong(this.ctx.db, members, utcDay(t - 6 * DAY_MS), utcDay(t), ex.json);
     await this.ctx.usage.snapshot();
@@ -148,7 +148,7 @@ export class AdminInsights {
   }
 
   async removeMember(p: AdminPrincipal, orgId: string, userId: string, reason: string, meta: RequestMeta) {
-    if (!orgRecord(this.ctx.db, orgId)) throw notFound("No such organization");
+    if (!orgRecord(this.ctx.ws, orgId)) throw notFound("No such organization");
     const role = this.ctx.authz.orgRole(orgId, userId);
     if (!role) throw notFound("That person isn't a member.");
     if (role === "OWNER") throw new ApiError(409, "conflict", "Owners can't be removed from the console: the community's owners decide its ownership.");

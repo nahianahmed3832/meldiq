@@ -10,6 +10,7 @@ import { ApiError, badRequest, conflict, forbidden, notFound } from "../../share
 import { newId, now } from "../../shared/utilities/util.js";
 import { forgetSharing, isScreenShare, setSharing, sharingDevices } from "./screenShares.js";
 import type { CallRow } from "./store.js";
+import { memberUsers } from "../messaging/index.js";
 
 export type { CallRow } from "./store.js";
 
@@ -82,7 +83,7 @@ function sharersOf(ctx: AppContext, callId: string, participants: { user_id: str
 }
 
 export function conversationMemberIds(ctx: AppContext, convId: string): string[] {
-  return (ctx.db.prepare("SELECT user_id FROM conversation_members WHERE conversation_id = ?").all(convId) as { user_id: string }[]).map((r) => r.user_id);
+  return ctx.ws.all<{ user_id: string }>("conversation_members", { where: { conversation_id: convId } }).map((r) => r.user_id);
 }
 
 export async function loadCall(ctx: AppContext, id: string): Promise<CallRow | undefined> {
@@ -155,14 +156,13 @@ export async function endCallRow(ctx: AppContext, c: CallRow, reason: string): P
  * also still hold `voice.connect` there (a timeout or a changed permission takes it away).
  */
 export function callAdmission(ctx: AppContext, conversationId: string): (userId: string, deviceId: string) => boolean {
-  const member = ctx.db.prepare("SELECT 1 FROM conversation_members WHERE conversation_id = ? AND user_id = ?");
   const device = ctx.db.prepare(
     "SELECT d.revoked_at, u.disabled_at FROM devices d JOIN users u ON u.id = d.user_id WHERE d.id = ? AND d.user_id = ?",
   );
   const conv = ctx.authz.conversation(conversationId);
   const voiceChannel = conv && conv.voice && conv.type === "CHANNEL" && conv.org_id ? conv : null;
   return (userId, deviceId) => {
-    if (!member.get(conversationId, userId)) return false;
+    if (!ctx.ws.get("conversation_members", { conversation_id: conversationId, user_id: userId })) return false;
     if (voiceChannel && !ctx.authz.canConnectVoice(voiceChannel, userId)) return false;
     const d = device.get(deviceId, userId) as { revoked_at: number | null; disabled_at: number | null } | undefined;
     return !!d && !d.revoked_at && !d.disabled_at;
@@ -268,9 +268,7 @@ export async function evictRemovedMember(ctx: AppContext, userId: string, conver
 
 /** After a device is revoked or an account disabled: evict it from every live call it could be in. */
 export async function evictUserDevicesFromCalls(ctx: AppContext, userId: string): Promise<number> {
-  const memberOf = (ctx.db.prepare("SELECT conversation_id FROM conversation_members WHERE user_id = ?").all(userId) as { conversation_id: string }[]).map(
-    (r) => r.conversation_id,
-  );
+  const memberOf = ctx.ws.all<{ conversation_id: string }>("conversation_members", { where: { user_id: userId } }).map((r) => r.conversation_id);
   // Live calls of their conversations, and any they're still in (a conversation they've left meanwhile), each once.
   const live = new Map<string, CallRow>();
   for (const c of [...(await ctx.calls.liveIn(memberOf)), ...(await ctx.calls.liveWithParticipant(userId))]) live.set(c.id, c);
@@ -424,7 +422,7 @@ export default async function callRoutes(app: FastifyInstance, ctx: AppContext) 
     const existing = (await ctx.calls.liveIn([conv.id]))[0];
     if (existing?.host_server_id) return { ...(await forwarded(existing, "join", userId, deviceId)), joinedExisting: true };
     if (!ctx.livekit) throw new ApiError(503, "media_unavailable", "Calling is not configured on this server");
-    const remote = db.prepare("SELECT 1 FROM conversation_members m JOIN users u ON u.id = m.user_id WHERE m.conversation_id = ? AND u.home_server_id IS NOT NULL LIMIT 1").get(conv.id);
+    const remote = memberUsers<{ home_server_id: string | null }>(ctx, conv.id, "id, home_server_id").some(({ user }) => user.home_server_id !== null);
     if (remote && !ctx.federation?.callsEnabled()) {
       throw new ApiError(409, "federated_calls_unavailable", "Calls with people on other servers aren't available yet");
     }
@@ -468,9 +466,7 @@ export default async function callRoutes(app: FastifyInstance, ctx: AppContext) 
 
   app.get("/v1/calls/active", auth, async (req) => {
     const { userId } = me(req);
-    const memberOf = (db.prepare("SELECT conversation_id FROM conversation_members WHERE user_id = ?").all(userId) as { conversation_id: string }[]).map(
-      (r) => r.conversation_id,
-    );
+    const memberOf = ctx.ws.all<{ conversation_id: string }>("conversation_members", { where: { user_id: userId } }).map((r) => r.conversation_id);
     return { calls: await views(await ctx.calls.liveIn(memberOf)) };
   });
 
@@ -481,7 +477,7 @@ export default async function callRoutes(app: FastifyInstance, ctx: AppContext) 
     const { id } = parse(idParams, req.params);
     const q = parse(ConversationCallsQuery, req.query ?? {});
     authz.requireMember(id, userId);
-    const since = (db.prepare("SELECT joined_at FROM conversation_members WHERE conversation_id = ? AND user_id = ?").get(id, userId) as { joined_at: number }).joined_at;
+    const since = ctx.ws.get<{ joined_at: number }>("conversation_members", { conversation_id: id, user_id: userId })!.joined_at;
     return { calls: await views(await ctx.calls.history(id, since, q.before ?? Number.MAX_SAFE_INTEGER, q.limit)) };
   });
 

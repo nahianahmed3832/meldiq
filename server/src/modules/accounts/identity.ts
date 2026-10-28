@@ -117,15 +117,16 @@ export class IdentityService {
         this.ctx.db
           .prepare("INSERT INTO users (id, username, display_name, identity_key, avatar_color, created_at, updated_at, limited_until) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
           .run(userId, username, a.name, identityKey, crypto.randomInt(0, AVATAR_COLORS), t, t, limitedUntil);
-        const id = insertDevice(this.ctx, userId, body.device, t);
-        this.joinAdmittingOrg(a, userId, t);
-        return id;
+        return insertDevice(this.ctx, userId, body.device, t);
       });
     } catch (e) {
       throw uniqueConflict(e);
     }
     // Another request for this account got here first (a retry or a double tap): use what it made.
     if (deviceId === null) throw new ApiError(409, "identity_exists", "This account already has encryption keys. Try again.");
+    // The admitting community, once the identity exists (best effort, as before: an invite that can't be used any more
+    // leaves the person to join later).
+    await this.joinAdmittingOrg(a, userId, t);
     // "account" in the detail: the sign-up was already counted when the account was made (abuse.openRegistrationsToday).
     this.ctx.audit({ actorId: userId, action: "user.register", target: userId, detail: "account" });
     return { userId, deviceId, username, result: "identity" };
@@ -136,16 +137,18 @@ export class IdentityService {
    * The invite's use was taken at sign-up; if it can't be used any more (revoked, its scope archived), the person simply
    * isn't joined and can join later with another invite.
    */
-  private joinAdmittingOrg(a: AccountRow, userId: string, t: number): void {
+  private async joinAdmittingOrg(a: AccountRow, userId: string, t: number): Promise<void> {
     const inviteId = a.admitted_via?.startsWith("org-invite:") ? a.admitted_via.slice("org-invite:".length) : null;
     if (!inviteId) return;
-    const inv = this.ctx.db.prepare("SELECT * FROM invitations WHERE id = ?").get(inviteId) as OrgInviteRow | undefined;
-    if (!inv || inv.revoked_at) return;
-    if (!this.ctx.authz.canIssueInvite(inv.org_id, inv.created_by, inv.role)) return;
-    // A ban placed while the account was being set up keeps them out.
-    if (this.ctx.authz.isBanned(inv.org_id, userId)) return;
-    const joined = joinOrgByInvite(this.ctx, inv, userId, t, false);
-    this.ctx.audit({ actorId: userId, orgId: joined.orgId, action: "invite.accept", target: joined.inviteId, detail: joined.role });
+    await this.ctx.ws.write((w) => {
+      const inv = w.get<OrgInviteRow>("invitations", { id: inviteId });
+      if (!inv || inv.revoked_at) return;
+      if (!this.ctx.authz.canIssueInvite(inv.org_id, inv.created_by, inv.role)) return;
+      // A ban placed while the account was being set up keeps them out.
+      if (this.ctx.authz.isBanned(inv.org_id, userId)) return;
+      const joined = joinOrgByInvite(this.ctx, w, inv, userId, t, false);
+      this.ctx.audit({ actorId: userId, orgId: joined.orgId, action: "invite.accept", target: joined.inviteId, detail: joined.role });
+    });
   }
 
   private async addDevice(s: ActiveSession, a: AccountRow, userId: string, body: EnrollDeviceBody): Promise<EnrollResponse> {

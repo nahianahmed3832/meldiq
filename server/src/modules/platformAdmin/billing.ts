@@ -69,8 +69,8 @@ export class AdminBilling {
 
   overview() {
     const t = now();
-    const overrides = orgLimitOverrides(this.ctx.db, t);
-    const names = orgNames(this.ctx.db, [...new Set(overrides.map((o) => o.org_id))]);
+    const overrides = orgLimitOverrides(this.ctx.ws, t);
+    const names = orgNames(this.ctx.ws, [...new Set(overrides.map((o) => o.org_id))]);
     const server = this.ctx.config.entitlements.limits;
     return {
       billing: { available: !!this.ctx.billing.provider, reason: this.ctx.billing.unavailableReason },
@@ -84,21 +84,20 @@ export class AdminBilling {
    * Sets or clears ([null]) an organization's own limits; the change and its before/after are audited together. Setting
    * a limit needs an end date within a year; no end ([expiresAt] null) is a super admin's explicit choice.
    */
-  setLimits(p: AdminPrincipal, orgId: string, limits: Partial<Record<EntitlementKey, number | null>>, expiresAt: number | null | undefined, reason: string, meta: RequestMeta) {
-    if (!orgRecord(this.ctx.db, orgId)) throw notFound("No such workspace or community");
+  async setLimits(p: AdminPrincipal, orgId: string, limits: Partial<Record<EntitlementKey, number | null>>, expiresAt: number | null | undefined, reason: string, meta: RequestMeta) {
+    if (!orgRecord(this.ctx.ws, orgId)) throw notFound("No such workspace or community");
     const t = now();
     const setting = Object.values(limits).some((v) => v !== null && v !== undefined);
     if (setting && expiresAt === undefined) throw new ApiError(400, "bad_request", "Choose when these limits end");
     if (setting && expiresAt === null && p.grant.role !== "super_admin") throw forbidden("Only a super admin may set a limit with no end date");
     if (setting && expiresAt != null && (expiresAt <= t || expiresAt > t + MAX_LIMIT_DAYS * DAY_MS)) throw new ApiError(400, "bad_request", "The end date must be in the next 366 days");
     const before = Object.fromEntries(limitsOf(this.ctx, orgId).filter((l) => l.source === "workspace").map((l) => [l.key, l.limit]));
-    this.ctx.db.transaction(() => {
-      this.ctx.entitlements.setLimits(orgId, `platform:${p.account.id}`, limits, t, expiresAt ?? null, reason);
-      this.record(p, "org.limits", "org", orgId, reason, meta, {
-        ...Object.fromEntries(Object.entries(limits).map(([k, v]) => [k, `${before[k] ?? "default"} -> ${v ?? "default"}`])),
-        ...(setting ? { until: expiresAt === null ? "no end" : new Date(expiresAt!).toISOString() } : {}),
-      });
-    })();
+    // The limits live with the community (possibly MongoDB): recorded once they're set.
+    await this.ctx.entitlements.setLimits(orgId, `platform:${p.account.id}`, limits, t, expiresAt ?? null, reason);
+    this.record(p, "org.limits", "org", orgId, reason, meta, {
+      ...Object.fromEntries(Object.entries(limits).map(([k, v]) => [k, `${before[k] ?? "default"} -> ${v ?? "default"}`])),
+      ...(setting ? { until: expiresAt === null ? "no end" : new Date(expiresAt!).toISOString() } : {}),
+    });
     return { limits: limitsOf(this.ctx, orgId) };
   }
 
@@ -214,7 +213,7 @@ export class AdminBilling {
   subscriptions(q: { status?: string; plan?: string; org?: string; cursor?: string; limit: number }) {
     const rows = subscriptionRows(this.ctx.db, { ...q, after: decodeCursor(q.cursor) });
     const { rows: shown, nextCursor } = page(rows, q.limit);
-    const names = orgNames(this.ctx.db, [...new Set(shown.map((s) => s.org_id))]);
+    const names = orgNames(this.ctx.ws, [...new Set(shown.map((s) => s.org_id))]);
     const t = now();
     return { subscriptions: shown.map((s) => this.summary(s, names, t)), nextCursor };
   }
@@ -223,7 +222,7 @@ export class AdminBilling {
     const s = this.ctx.billing.subscriptions.get(id);
     if (!s) throw notFound("No such subscription");
     const t = now();
-    const names = orgNames(this.ctx.db, [s.org_id]);
+    const names = orgNames(this.ctx.ws, [s.org_id]);
     const v = this.ctx.billing.catalog.version(s.plan_version_id)!;
     const versionOf = (vid: string) => this.ctx.billing.catalog.version(vid)?.version ?? null;
     const { history, invoices, events } = subscriptionRecords(this.ctx.db, id, DETAIL_ROWS);

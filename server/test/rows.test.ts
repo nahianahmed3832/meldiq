@@ -155,6 +155,19 @@ describe.each(backends)("rows on %s", (_name, make) => {
     for (const t of ["org_members", "org_roles", "conversations", "conversation_members"]) expect([t, rows.count(t)]).toEqual([t, 0]);
   });
 
+  it("deletes an organisation whose channels are still in categories (SET NULL inside the same cascade)", async () => {
+    const { rows } = await make();
+    await rows.write((w) => {
+      w.insert("orgs", org("o1", "acme"));
+      w.insert("channel_categories", { id: "cat1", org_id: "o1", name: "Cat", position: 0, created_by: "u1", created_at: T, updated_at: T });
+      w.insert("conversations", channel("c1", "o1", { category_id: "cat1" }));
+      w.insert("conversation_members", { conversation_id: "c1", user_id: "u2", role: "MEMBER", joined_at: T });
+    });
+    // The categories and channels both cascade from the organisation; a category's channels are set NULL on the way.
+    expect(await rows.write((w) => w.delete("orgs", { id: "o1" }))).toBe(1);
+    for (const t of ["channel_categories", "conversations", "conversation_members"]) expect([t, rows.count(t)]).toEqual([t, 0]);
+  });
+
   it("refuses a row whose parent in the same rows doesn't exist", async () => {
     const { rows } = await make();
     await expect(rows.write((w) => w.insert("conversation_members", { conversation_id: "missing", user_id: "u1", role: "MEMBER", joined_at: T }))).rejects.toThrow(

@@ -4,6 +4,8 @@
  * delivery. It never sees message content: it moves the same ciphertext envelopes the local queue holds.
  */
 import { withoutMentionAll } from "../messaging/mentions.js";
+import { memberUsers } from "../messaging/index.js";
+import type { RowWriter } from "../../infrastructure/database/rows/index.js";
 import type { CallEventExtras, CallEventName, ServerEvent } from "../../shared/contracts/realtime.js";
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -472,10 +474,7 @@ export class Federation {
 
   /** After an upload to a federated conversation: push the ciphertext to each remote member's server. */
   pushAttachment(conversationId: string, meta: FedAttachmentMeta) {
-    const peers = this.ctx.db
-      .prepare("SELECT DISTINCT u.home_server_id h FROM conversation_members m JOIN users u ON u.id = m.user_id WHERE m.conversation_id = ? AND u.home_server_id IS NOT NULL")
-      .all(conversationId) as { h: string }[];
-    for (const p of peers) this.enqueue(p.h, "attachment", `att:${meta.id}:${p.h}`, meta, meta.size, meta.expiresAt);
+    for (const h of this.remoteHomes(conversationId)) this.enqueue(h, "attachment", `att:${meta.id}:${h}`, meta, meta.size, meta.expiresAt);
   }
 
   // ───────────────────────── inbound ─────────────────────────
@@ -585,12 +584,14 @@ export class Federation {
         ]);
         queued.push(...rows);
       }
-      db.transaction(() => {
-        const created = this.ensureDm(convId, dmKey, it.senderUserId, rcpt.user_id, t);
-        if (deliver && it.kind === "envelope" && payload.cls === "message") db.prepare("UPDATE conversations SET updated_at = ? WHERE id = ?").run(t, convId);
+      // The inbox record (SQLite) commits with the conversation's unit (or just before it, in MongoDB).
+      const created = await this.ctx.ws.write((w) => {
+        const isNew = this.ensureDm(w, convId, dmKey, it.senderUserId, rcpt.user_id, t);
+        if (deliver && it.kind === "envelope" && payload.cls === "message") w.update("conversations", { id: convId }, { updated_at: t });
         db.prepare("INSERT OR IGNORE INTO federation_inbox (item_key, peer_server_id, expires_at) VALUES (?, ?, ?)").run(`${peer.serverId}|${it.key}`, peer.serverId, t + 8 * 86_400_000);
-        if (created) notify(convId);
-      })();
+        return isNew;
+      });
+      if (created) notify(convId);
       results.push({ key: it.key, status: "accepted" }); // blocked senders get the same answer (no block oracle)
     }
     for (const row of queued) this.ctx.hub.pushQueued(row.recipient_device_id, [row]);
@@ -598,27 +599,37 @@ export class Federation {
   }
 
   /** Creates the federated DM on first contact. Returns true if it was new. */
-  ensureDm(convId: string, dmKey: string, a: string, b: string, t = now()): boolean {
-    const { db } = this.ctx;
-    const existing = db.prepare("SELECT id FROM conversations WHERE dm_key = ?").get(dmKey) as { id: string } | undefined;
+  ensureDm(w: RowWriter, convId: string, dmKey: string, a: string, b: string, t = now()): boolean {
+    const existing = w.get<{ id: string }>("conversations", { dm_key: dmKey });
     if (existing) {
       if (existing.id !== convId) throw new FederationError(409, "conversation_conflict", "A different conversation already exists for these people");
       return false;
     }
-    db.prepare("INSERT INTO conversations (id, type, dm_key, created_by, created_at, updated_at) VALUES (?, 'DM', ?, ?, ?, ?)").run(convId, dmKey, a, t, t);
-    const ins = db.prepare("INSERT OR IGNORE INTO conversation_members (conversation_id, user_id, role, joined_at) VALUES (?, ?, 'MEMBER', ?)");
-    ins.run(convId, a, t);
-    ins.run(convId, b, t);
+    w.insert("conversations", { id: convId, type: "DM", dm_key: dmKey, created_by: a, created_at: t, updated_at: t });
+    for (const u of [a, b]) w.insert("conversation_members", { conversation_id: convId, user_id: u, role: "MEMBER", joined_at: t }, { orIgnore: true });
     return true;
+  }
+
+  /** The home servers of [conversationId]'s members from other servers, once each. */
+  private remoteHomes(conversationId: string): string[] {
+    const homes = memberUsers<{ home_server_id: string | null }>(this.ctx, conversationId, "id, home_server_id").map(({ user }) => user.home_server_id);
+    return [...new Set(homes.filter((h): h is string => h !== null))];
+  }
+
+  /** [conversationId]'s members whose account is on this server. */
+  private localMembers(conversationId: string): string[] {
+    return memberUsers<{ home_server_id: string | null }>(this.ctx, conversationId, "id, home_server_id")
+      .filter(({ user }) => user.home_server_id === null)
+      .map(({ member }) => member.user_id);
   }
 
   /** Stores a pushed attachment (ciphertext) for a federated conversation this server shares with the peer. */
   async acceptAttachment(peer: ResolvedServer, meta: FedAttachmentMeta, stream: Readable, expectedHash: string): Promise<{ status: number; code?: string }> {
     const { db, config } = this.ctx;
     if (!meta || !ATTACHMENT_ID.test(meta.id) || !Number.isSafeInteger(meta.size) || meta.size <= 0 || meta.size > config.attachmentMaxBytes + 64) return { status: 400, code: "bad_attachment" };
-    const conv = db.prepare("SELECT id FROM conversations WHERE id = ?").get(meta.conversationId);
+    const conv = this.ctx.ws.get("conversations", { id: meta.conversationId });
     const uploader = db.prepare("SELECT home_server_id FROM users WHERE id = ?").get(meta.uploaderUserId) as { home_server_id: string | null } | undefined;
-    const member = db.prepare("SELECT 1 FROM conversation_members WHERE conversation_id = ? AND user_id = ?").get(meta.conversationId, meta.uploaderUserId);
+    const member = this.ctx.ws.get("conversation_members", { conversation_id: meta.conversationId, user_id: meta.uploaderUserId });
     if (!conv || !member || uploader?.home_server_id !== peer.serverId) return { status: 403, code: "not_shared" };
     const existing = await this.ctx.files.attachment(meta.id);
     if (existing) return existing.size === meta.size ? { status: 200 } : { status: 409, code: "id_conflict" };
@@ -661,12 +672,8 @@ export class Federation {
 
   /** Who may read a local user's directory entry by id: servers hosting someone they share a conversation with. */
   sharesConversation(userId: string, peerServerId: string): boolean {
-    return !!this.ctx.db
-      .prepare(
-        `SELECT 1 FROM conversation_members a JOIN conversation_members b ON a.conversation_id = b.conversation_id JOIN users u ON u.id = b.user_id
-         WHERE a.user_id = ? AND u.home_server_id = ? LIMIT 1`,
-      )
-      .get(userId, peerServerId);
+    const mine = this.ctx.ws.all<{ conversation_id: string }>("conversation_members", { where: { user_id: userId } });
+    return mine.some((m) => this.remoteHomes(m.conversation_id).includes(peerServerId));
   }
 
   // ───────────────────────── calls (docs/CALLING_AND_E2EE.md §6) ─────────────────────────
@@ -697,13 +704,11 @@ export class Federation {
   async relayCall(c: CallRow, event: CallEventName, extra: CallEventExtras = {}, targetUserId?: string): Promise<void> {
     const homes = targetUserId
       ? (this.ctx.db.prepare("SELECT home_server_id h FROM users WHERE id = ? AND home_server_id IS NOT NULL").all(targetUserId) as { h: string }[])
-      : (this.ctx.db
-          .prepare("SELECT DISTINCT u.home_server_id h FROM conversation_members m JOIN users u ON u.id = m.user_id WHERE m.conversation_id = ? AND u.home_server_id IS NOT NULL")
-          .all(c.conversation_id) as { h: string }[]);
+      : this.remoteHomes(c.conversation_id).map((h) => ({ h }));
     if (homes.length === 0) return;
     // A ring can arrive before any message has created the conversation on the peer: it carries what the peer needs
     // to verify and create it (the caller's public directory entry and the members' ids).
-    const members = (this.ctx.db.prepare("SELECT user_id FROM conversation_members WHERE conversation_id = ?").all(c.conversation_id) as { user_id: string }[]).map((r) => r.user_id);
+    const members = this.ctx.ws.all<{ user_id: string }>("conversation_members", { where: { conversation_id: c.conversation_id } }).map((r) => r.user_id);
     const body = { event, call: await this.callRelayView(c), extra, targetUserId: targetUserId ?? null, caller: this.entry(c.created_by), members };
     for (const { h } of homes) {
       void (async () => {
@@ -730,10 +735,8 @@ export class Federation {
     }
     const creator = db.prepare("SELECT home_server_id h FROM users WHERE id = ?").get(v.createdBy) as { h: string | null } | undefined;
     if (creator?.h !== peer.serverId) throw new FederationError(403, "not_host", "Calls are hosted by the caller's own server");
-    const local = db
-      .prepare("SELECT 1 FROM conversation_members m JOIN users u ON u.id = m.user_id WHERE m.conversation_id = ? AND u.home_server_id IS NULL LIMIT 1")
-      .get(v.conversationId);
-    const creatorMember = db.prepare("SELECT 1 FROM conversation_members WHERE conversation_id = ? AND user_id = ?").get(v.conversationId, v.createdBy);
+    const local = this.localMembers(v.conversationId).length > 0;
+    const creatorMember = this.ctx.ws.get("conversation_members", { conversation_id: v.conversationId, user_id: v.createdBy });
     if (!local || !creatorMember) throw new FederationError(403, "not_shared", "No shared conversation");
     const state = (["RINGING", "ACTIVE", "ENDED"].includes(v.state) ? v.state : "ENDED") as CallRow["state"];
     const existing = await this.ctx.calls.get(v.id);
@@ -772,22 +775,17 @@ export class Federation {
   ) {
     const event = body?.event;
     if (!isRelayedCallEvent(event)) throw new FederationError(400, "bad_event", "Unknown call event");
-    this.ensureCallConversation(peer, body, notify);
+    await this.ensureCallConversation(peer, body, notify);
     const c = await this.applyCallState(peer, body.call);
     const view = await callView(this.ctx, c);
     const msg: ServerEvent = { t: "call", event, call: view, ...callExtras(body.extra) };
     if (body.targetUserId) {
-      const local = this.ctx.db
-        .prepare("SELECT 1 FROM conversation_members m JOIN users u ON u.id = m.user_id WHERE m.conversation_id = ? AND m.user_id = ? AND u.home_server_id IS NULL")
-        .get(c.conversation_id, body.targetUserId);
-      if (local) {
+      if (this.localMembers(c.conversation_id).includes(body.targetUserId)) {
         this.ctx.hub.sendToUser(body.targetUserId, msg);
         if (body.event === "ring") this.ctx.push?.ring(body.targetUserId); // devices with no open socket (payload-free)
       }
     } else {
-      const members = (this.ctx.db
-        .prepare("SELECT m.user_id FROM conversation_members m JOIN users u ON u.id = m.user_id WHERE m.conversation_id = ? AND u.home_server_id IS NULL")
-        .all(c.conversation_id) as { user_id: string }[]).map((r) => r.user_id);
+      const members = this.localMembers(c.conversation_id);
       this.ctx.hub.sendToUsers(members, msg);
       if (body.event === "ring") for (const m of members) this.ctx.push?.ring(m);
     }
@@ -798,9 +796,9 @@ export class Federation {
    * the host's own user (directory entry verified as for messages), the callee is local here, and the conversation id
    * is the one both servers derive from exactly those two people.
    */
-  private ensureCallConversation(peer: ResolvedServer, body: { call?: any; caller?: FedUser | null; members?: string[] }, notify?: (conversationId: string) => void) {
+  private async ensureCallConversation(peer: ResolvedServer, body: { call?: any; caller?: FedUser | null; members?: string[] }, notify?: (conversationId: string) => void) {
     const convId = body.call?.conversationId;
-    if (typeof convId !== "string" || this.ctx.db.prepare("SELECT 1 FROM conversations WHERE id = ?").get(convId)) return;
+    if (typeof convId !== "string" || this.ctx.ws.get("conversations", { id: convId })) return;
     const caller = body.caller;
     if (!caller || caller.userId !== body.call?.createdBy || !Array.isArray(body.members) || body.members.length !== 2) return;
     this.upsertShadow(peer, caller);
@@ -809,7 +807,7 @@ export class Federation {
     if (!callee || !local) return;
     const dmKey = [caller.userId, callee].sort().join("|");
     if (fedDmId(dmKey) !== convId) return;
-    if (this.ensureDm(convId, dmKey, caller.userId, callee)) notify?.(convId);
+    if (await this.ctx.ws.write((w) => this.ensureDm(w, convId, dmKey, caller.userId, callee))) notify?.(convId);
   }
 
   /** One of this server's users acts on a call hosted elsewhere: forwarded to the host, which owns the state and tokens. */

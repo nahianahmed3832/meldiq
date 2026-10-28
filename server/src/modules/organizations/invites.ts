@@ -1,6 +1,7 @@
 import { endNewAccountLimits, hasNewAccountLimits } from "../../app/middleware/abuse.js";
 import type { AppContext } from "../../app/context.js";
 import type { DB } from "../../infrastructure/database/db.js";
+import type { RowReader, RowWriter } from "../../infrastructure/database/rows/index.js";
 import { type Authz, parsePermissionList } from "./authz.js";
 import { roleAssignmentRefusal } from "./permissions/rules.js";
 import { ApiError } from "../../shared/errors.js";
@@ -49,8 +50,8 @@ export const INVITE_PROBLEMS: Record<InviteProblem, string> = {
 };
 
 /** The org invitation stored for this code (usable or not), or undefined if no invitation has that code. */
-export function lookupOrgInvite(db: DB, code: string): OrgInviteRow | undefined {
-  return db.prepare("SELECT * FROM invitations WHERE code_hash = ?").get(sha256Hex(normalizeCode(code))) as OrgInviteRow | undefined;
+export function lookupOrgInvite(rows: RowReader, code: string): OrgInviteRow | undefined {
+  return rows.get<OrgInviteRow>("invitations", { code_hash: sha256Hex(normalizeCode(code)) });
 }
 
 /**
@@ -81,8 +82,8 @@ function creatorMayStillGrant(authz: Authz, inv: OrgInviteRow): boolean {
 }
 
 /** A usable org invitation for this code, or undefined (see [orgInviteProblem] for why not). */
-export function findOrgInvite(db: DB, authz: Authz, code: string): OrgInviteRow | undefined {
-  const inv = lookupOrgInvite(db, code);
+export function findOrgInvite(rows: RowReader, authz: Authz, code: string): OrgInviteRow | undefined {
+  const inv = lookupOrgInvite(rows, code);
   return orgInviteProblem(authz, inv) ? undefined : inv;
 }
 
@@ -91,13 +92,13 @@ export function findOrgInvite(db: DB, authz: Authz, code: string): OrgInviteRow 
  * and already hold the role it grants. Accepting it again then succeeds without using up the invite, so a retry or a
  * double tap never consumes a second use or fails with "used up".
  */
-export function inviteAlreadySatisfied(authz: Authz, db: DB, inv: OrgInviteRow, userId: string): boolean {
+export function inviteAlreadySatisfied(authz: Authz, rows: RowReader, inv: OrgInviteRow, userId: string): boolean {
   const existing = authz.orgRole(inv.org_id, userId);
   if (!existing) return false;
   const rank: Record<string, number> = { GUEST: 0, MEMBER: 1, ADMIN: 2, OWNER: 3 };
   if (rank[inv.role] > rank[existing]) return false;
   if (existing === "GUEST") return true; // guests don't receive an invitation's role
-  if (inv.grant_role_id && !db.prepare("SELECT 1 FROM org_role_members WHERE role_id = ? AND user_id = ?").get(inv.grant_role_id, userId)) return false;
+  if (inv.grant_role_id && !rows.get("org_role_members", { role_id: inv.grant_role_id, user_id: userId })) return false;
   return true;
 }
 
@@ -130,35 +131,47 @@ export function createRegistrationInvite(db: DB, opts: { maxUses: number; days: 
  * Joins `userId` to the invite's community (upgrade only: an invite never downgrades a member), gives them the role
  * the invite grants, consumes one use and auto-joins the public channels they may now see. Banned people are refused.
  * [consume] false: the use was already taken (an Orbit 2.0 sign-up reserves it, src/accounts/service.ts).
- * Must run inside the caller's transaction.
+ * Part of the caller's write unit [w].
  */
-export function joinOrgByInvite(ctx: AppContext, inv: OrgInviteRow, userId: string, t: number, consume = true): { orgId: string; inviteId: string; role: string } {
+export function joinOrgByInvite(ctx: AppContext, w: RowWriter, inv: OrgInviteRow, userId: string, t: number, consume = true): { orgId: string; inviteId: string; role: string } {
   const { db, authz } = ctx;
   const existing = authz.orgRole(inv.org_id, userId);
   const rank: Record<string, number> = { GUEST: 0, MEMBER: 1, ADMIN: 2, OWNER: 3 };
   if (authz.isBanned(inv.org_id, userId)) throw new ApiError(403, "banned", "You've been banned from this community");
-  requireSyntheticScopeForOrg(db, userId, inv.org_id);
+  requireSyntheticScopeForOrg(ctx, userId, inv.org_id);
   if (!existing) {
     // Batch B4: a community can pause joining for a while (Security actions).
     if (authz.pausedUntil(inv.org_id, "invites", t)) throw new ApiError(403, "invites_paused", "This community has paused new members for now. Try again later.");
     // Round 7: the workspace's member limit, if one applies (docs/USAGE_AND_PLANS.md).
-    ctx.entitlements.check("members", (db.prepare("SELECT COUNT(*) n FROM org_members WHERE org_id = ?").get(inv.org_id) as { n: number }).n, inv.org_id);
+    ctx.entitlements.check("members", w.count("org_members", { org_id: inv.org_id }), inv.org_id);
     // A guest invitation can carry an end date for the membership (round 7, docs/WORKSPACE_C5.md).
     const guestDays = inv.role === "GUEST" ? (inv as { guest_days?: number | null }).guest_days ?? null : null;
-    db.prepare("INSERT INTO org_members (org_id, user_id, role, joined_at, expires_at) VALUES (?, ?, ?, ?, ?)").run(inv.org_id, userId, inv.role, t, guestDays ? t + guestDays * 86_400_000 : null);
+    w.insert("org_members", { org_id: inv.org_id, user_id: userId, role: inv.role, joined_at: t, expires_at: guestDays ? t + guestDays * 86_400_000 : null });
   } else if (rank[inv.role] > rank[existing]) {
-    db.prepare("UPDATE org_members SET role = ? WHERE org_id = ? AND user_id = ?").run(inv.role, inv.org_id, userId);
+    w.update("org_members", { org_id: inv.org_id, user_id: userId }, { role: inv.role });
   }
   const role = authz.orgRole(inv.org_id, userId)!;
   // The granted role, if it still exists (archived roles grant nothing). Guests don't get it: it may carry powers or
   // channel access a guest may not hold.
-  if (role !== "GUEST" && inv.grant_role_id && db.prepare("SELECT 1 FROM org_roles WHERE id = ? AND org_id = ? AND archived_at IS NULL").get(inv.grant_role_id, inv.org_id)) {
-    db.prepare("INSERT OR IGNORE INTO org_role_members (role_id, org_id, user_id, assigned_by, assigned_at) VALUES (?, ?, ?, ?, ?)").run(inv.grant_role_id, inv.org_id, userId, inv.created_by, t);
+  if (role !== "GUEST" && inv.grant_role_id && w.get("org_roles", { id: inv.grant_role_id, org_id: inv.org_id, archived_at: null })) {
+    w.insert("org_role_members", { role_id: inv.grant_role_id, org_id: inv.org_id, user_id: userId, assigned_by: inv.created_by, assigned_at: t }, { orIgnore: true });
   }
-  if (consume) db.prepare("UPDATE invitations SET uses = uses + 1 WHERE id = ?").run(inv.id);
+  if (consume) consumeInviteUse(w, inv.id);
   // An invitation from an established member ends new-account limits (docs/ABUSE_CONTROLS.md). One from an account
   // still under them doesn't, so nobody can vouch for their own extra accounts.
   if (!hasNewAccountLimits(db, inv.created_by, t)) endNewAccountLimits(db, userId);
-  authz.autoJoinScope(inv.org_id, userId, t);
+  authz.autoJoinScope(w, inv.org_id, userId, t);
   return { orgId: inv.org_id, inviteId: inv.id, role };
+}
+
+/** One more use of an invitation (inside a write unit: read and written in the same serialized step). */
+export function consumeInviteUse(w: RowWriter, inviteId: string): void {
+  const inv = w.get<{ uses: number }>("invitations", { id: inviteId });
+  if (inv) w.update("invitations", { id: inviteId }, { uses: inv.uses + 1 });
+}
+
+/** Gives back a use [consumeInviteUse] took (never below zero). */
+export function returnInviteUse(w: RowWriter, inviteId: string): void {
+  const inv = w.get<{ uses: number }>("invitations", { id: inviteId });
+  if (inv && inv.uses > 0) w.update("invitations", { id: inviteId }, { uses: inv.uses - 1 });
 }

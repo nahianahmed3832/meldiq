@@ -1,5 +1,5 @@
 import { Authz, type ConversationRow } from "../organizations/authz.js";
-import type { DB } from "../../infrastructure/database/db.js";
+import type { Rows } from "../../infrastructure/database/rows/index.js";
 
 /**
  * Repair for round 7 bug 6 (docs/MELDIQ_ROUND7_PLAN_2026-10-19.md): public channels created before the fix were
@@ -17,27 +17,20 @@ export interface ChannelRepair {
   skippedLeft: number;
 }
 
-export function planChannelAccessRepair(db: DB): ChannelRepair[] {
-  const authz = new Authz(db);
-  const channels = db
-    .prepare("SELECT * FROM conversations WHERE type = 'CHANNEL' AND kind = 'PUBLIC' AND auto_join = 0 AND archived_at IS NULL ORDER BY created_at")
-    .all() as ConversationRow[];
+export function planChannelAccessRepair(rows: Rows): ChannelRepair[] {
+  const authz = new Authz(rows);
+  const channels = rows.all<ConversationRow>("conversations", {
+    where: { type: "CHANNEL", kind: "PUBLIC", auto_join: 0, archived_at: null },
+    orderBy: [["created_at", "asc"]],
+  });
+  const leaves = rows.all<{ target: string }>("audit_log", { where: { action: "channel.leave" } });
   return channels.map((c) => {
-    const left = new Set(
-      (db.prepare("SELECT target FROM audit_log WHERE action = 'channel.leave' AND target LIKE ?").all(`${c.id}:%`) as { target: string }[]).map(
-        (r) => r.target.slice(c.id.length + 1),
-      ),
-    );
-    const candidates = (
-      db
-        .prepare(
-          `SELECT user_id FROM org_members WHERE org_id = ?
-           AND user_id NOT IN (SELECT user_id FROM conversation_members WHERE conversation_id = ?)`,
-        )
-        .all(c.org_id, c.id) as { user_id: string }[]
-    )
+    const left = new Set(leaves.filter((r) => r.target?.startsWith(`${c.id}:`)).map((r) => r.target.slice(c.id.length + 1)));
+    const inChannel = new Set(rows.all<{ user_id: string }>("conversation_members", { where: { conversation_id: c.id } }).map((m) => m.user_id));
+    const candidates = rows
+      .all<{ user_id: string }>("org_members", { where: { org_id: c.org_id } })
       .map((r) => r.user_id)
-      .filter((u) => authz.scopeEligible(c, u));
+      .filter((u) => !inChannel.has(u) && authz.scopeEligible(c, u));
     return {
       channelId: c.id,
       orgId: c.org_id ?? "",
@@ -49,16 +42,16 @@ export function planChannelAccessRepair(db: DB): ChannelRepair[] {
   });
 }
 
-/** Applies [plan] in one transaction; returns how many memberships were added. */
-export function applyChannelAccessRepair(db: DB, plan: ChannelRepair[], now: number): number {
-  let added = 0;
-  db.transaction(() => {
+/** Applies [plan] in one write unit; returns how many memberships were added. */
+export async function applyChannelAccessRepair(rows: Rows, plan: ChannelRepair[], now: number): Promise<number> {
+  return rows.write((w) => {
+    let added = 0;
     for (const r of plan) {
-      db.prepare("UPDATE conversations SET auto_join = 1, updated_at = ? WHERE id = ?").run(now, r.channelId);
+      w.update("conversations", { id: r.channelId }, { auto_join: 1, updated_at: now });
       for (const u of r.add) {
-        added += db.prepare("INSERT OR IGNORE INTO conversation_members (conversation_id, user_id, role, joined_at) VALUES (?, ?, 'MEMBER', ?)").run(r.channelId, u, now).changes;
+        if (w.insert("conversation_members", { conversation_id: r.channelId, user_id: u, role: "MEMBER", joined_at: now }, { orIgnore: true }).inserted) added++;
       }
     }
-  })();
-  return added;
+    return added;
+  });
 }

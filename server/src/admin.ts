@@ -67,6 +67,10 @@ import { MONGO_COMMANDS, runMongoCommand } from "./infrastructure/database/mongo
 import { RETIRED_COMMANDS, runRetiredCommand } from "./modules/administration/retiredData.js";
 import { migrateBranchesAndTeams, verifyCommunityMigration } from "./modules/organizations/communityMigration.js";
 import { openMongo } from "./infrastructure/database/mongo/index.js";
+import type { MeldiqMongo } from "./infrastructure/database/mongo/client.js";
+import { describeTables } from "./infrastructure/database/mongo/catalog.js";
+import { type Rows, SqliteRows } from "./infrastructure/database/rows/index.js";
+import { openWorkspaceRows, WORKSPACE_DOMAINS } from "./app/workspaceRows.js";
 import { MongoRelayStore } from "./modules/messaging/relay/mongoStore.js";
 import { PLATFORM_ADMIN_COMMANDS, runPlatformAdminCommand } from "./modules/platformAdmin/index.js";
 import { MongoFileStore } from "./modules/files/mongoStore.js";
@@ -85,10 +89,25 @@ const relationshipStore = (ctx: AppContext): RelationshipStore =>
   ctx.mongo?.owns("relationships") ? new MongoRelationshipStore(ctx.mongo) : new SqliteRelationshipStore(ctx.db);
 const callStore = (ctx: AppContext): CallStore => (ctx.mongo?.owns("calls") ? new MongoCallStore(ctx.mongo) : new SqliteCallStore(ctx.db));
 
+/** Communities and conversations, wherever MONGODB_DOMAINS keeps them; [close] when done. */
+async function workspace(): Promise<{ ws: Rows; mongo?: MeldiqMongo; close: () => Promise<void> }> {
+  const mongo = cfg.mongo ? await openMongo(cfg.mongo, db) : undefined;
+  const ws = await openWorkspaceRows(db, mongo, console);
+  return {
+    ws,
+    mongo,
+    close: async () => {
+      await ws.settled();
+      await mongo?.close();
+    },
+  };
+}
+
 /** The stores org repair reads (files, relay and calls may live in MongoDB); [close] when done. */
 async function repairStores(): Promise<{ stores: OrgRepairStores; close: () => Promise<void> }> {
   const ctx = { db } as AppContext;
   if (cfg.mongo) ctx.mongo = await openMongo(cfg.mongo, db);
+  ctx.ws = await openWorkspaceRows(db, ctx.mongo, console);
   ctx.files = fileStore(ctx);
   ctx.relay = relayStore(ctx);
   ctx.calls = callStore(ctx);
@@ -115,6 +134,11 @@ if (cmd === "verify-backup") {
 const cfg = loadConfig();
 const db = openDatabase(cfg.databasePath);
 if (RETIRED_COMMANDS.includes(cmd)) {
+  // The retired tables belong to the workspace domain: in MongoDB, SQLite holds only the copy taken before the move.
+  if (cfg.mongo?.domains.has("workspace")) {
+    console.error(`${cmd} reads SQLite; this server keeps the workspace domain in MongoDB (MONGODB_DOMAINS).`);
+    process.exit(1);
+  }
   try {
     process.exitCode = runRetiredCommand(cmd, rest, db);
   } catch (e) {
@@ -151,8 +175,8 @@ switch (cmd) {
     console.table({
       users: one("SELECT COUNT(*) n FROM users"),
       activeDevices: one("SELECT COUNT(*) n FROM devices WHERE revoked_at IS NULL"),
-      orgs: one("SELECT COUNT(*) n FROM orgs"),
-      conversations: one("SELECT COUNT(*) n FROM conversations"),
+      orgs: cfg.mongo?.domains.has("workspace") ? "in MongoDB" : one("SELECT COUNT(*) n FROM orgs"),
+      conversations: cfg.mongo?.domains.has("conversations") ? "in MongoDB" : one("SELECT COUNT(*) n FROM conversations"),
       queuedEnvelopes: cfg.mongo?.domains.has("relay") ? "in MongoDB" : one("SELECT COUNT(*) n FROM delivery_queue WHERE kind = 'envelope'"),
       queuedReceipts: cfg.mongo?.domains.has("relay") ? "in MongoDB" : one("SELECT COUNT(*) n FROM delivery_queue WHERE kind = 'receipt'"),
       oldestQueuedHours: cfg.mongo?.domains.has("relay")
@@ -175,15 +199,29 @@ switch (cmd) {
     break;
   case "invite": {
     const [slug, role = "MEMBER", uses = "1"] = rest;
-    const org = db.prepare("SELECT id, created_by FROM orgs WHERE slug = ?").get(slug) as { id: string; created_by: string } | undefined;
+    const w = await workspace();
+    const org = w.ws.get<{ id: string; created_by: string }>("orgs", { slug: slug ?? "" });
     if (!org || !["ADMIN", "MEMBER", "GUEST"].includes(role)) {
+      await w.close();
       console.error("usage: invite <orgSlug> [ADMIN|MEMBER|GUEST] [uses]");
       process.exit(2);
     }
     const code = humanCode(12);
-    db.prepare(
-      `INSERT INTO invitations (id, org_id, code_hash, code_hint, role, max_uses, created_by, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).run(newId("inv"), org.id, sha256Hex(code), code.slice(-4), role, Number(uses), org.created_by, now(), now() + 72 * 3600_000);
+    await w.ws
+      .write((u) =>
+        u.insert("invitations", {
+          id: newId("inv"),
+          org_id: org.id,
+          code_hash: sha256Hex(code),
+          code_hint: code.slice(-4),
+          role,
+          max_uses: Number(uses),
+          created_by: org.created_by,
+          created_at: now(),
+          expires_at: now() + 72 * 3600_000,
+        }),
+      )
+      .finally(w.close);
     console.log(`${code.slice(0, 4)}-${code.slice(4, 8)}-${code.slice(8)}  (${role}, ${uses} use(s), 72h)`);
     break;
   }
@@ -280,7 +318,7 @@ switch (cmd) {
       "created in the last 24 hours": n("SELECT COUNT(*) n FROM loadtest_registrations WHERE created_at > ?", t - 86_400_000),
       "synthetic accounts (active)": n("SELECT COUNT(*) n FROM users WHERE synthetic = 1 AND disabled_at IS NULL"),
       "synthetic accounts (disabled)": n("SELECT COUNT(*) n FROM users WHERE synthetic = 1 AND disabled_at IS NOT NULL"),
-      "load-test communities": n("SELECT COUNT(*) n FROM orgs WHERE synthetic = 1"),
+      "load-test communities": cfg.mongo?.domains.has("workspace") ? "in MongoDB" : n("SELECT COUNT(*) n FROM orgs WHERE synthetic = 1"),
       "active load-test invites": n("SELECT COUNT(*) n FROM registration_invites WHERE purpose = 'loadtest' AND revoked_at IS NULL AND expires_at > ? AND uses < max_uses", t),
     });
     break;
@@ -362,9 +400,11 @@ switch (cmd) {
     break;
   }
   case "cleanup": {
-    const ctx = { db, config: cfg, authz: new Authz(db), livekit: null, blobs: createBlobStore(cfg), log: console as any, audit: () => {} } as unknown as AppContext;
+    const ctx = { db, config: cfg, livekit: null, blobs: createBlobStore(cfg), log: console as any, audit: () => {} } as unknown as AppContext;
     // Domains kept in MongoDB are cleaned there (docs/MONGODB.md).
     if (cfg.mongo) ctx.mongo = await openMongo(cfg.mongo, db);
+    ctx.ws = await openWorkspaceRows(db, ctx.mongo, console);
+    ctx.authz = new Authz(ctx.ws);
     ctx.relay = relayStore(ctx);
     ctx.files = fileStore(ctx);
     ctx.hub = new Hub(ctx.relay);
@@ -475,15 +515,20 @@ switch (cmd) {
   }
   case "channel-access-repair": {
     // Round 7 bug 6: public channels created as opt-in before the fix. Dry run unless --yes; back up first.
-    const plan = planChannelAccessRepair(db);
-    if (plan.length === 0) console.log("No public channel needs repair.");
-    else console.table(plan.map((r) => ({ channel: r.channelId, org: r.orgId, name: r.name, scope: r.scope, add: r.add.length, leftThemselves: r.skippedLeft })));
-    if (plan.length === 0) break;
-    if (!rest.includes("--yes")) {
-      console.log("Dry run: nothing changed. Run again with --yes to mark these channels auto-joined and add the members listed.");
-      break;
+    const w = await workspace();
+    try {
+      const plan = planChannelAccessRepair(w.ws);
+      if (plan.length === 0) console.log("No public channel needs repair.");
+      else console.table(plan.map((r) => ({ channel: r.channelId, org: r.orgId, name: r.name, scope: r.scope, add: r.add.length, leftThemselves: r.skippedLeft })));
+      if (plan.length === 0) break;
+      if (!rest.includes("--yes")) {
+        console.log("Dry run: nothing changed. Run again with --yes to mark these channels auto-joined and add the members listed.");
+        break;
+      }
+      console.log(`Repaired ${plan.length} channels, added ${await applyChannelAccessRepair(w.ws, plan, now())} memberships.`);
+    } finally {
+      await w.close();
     }
-    console.log(`Repaired ${plan.length} channels, added ${applyChannelAccessRepair(db, plan, now())} memberships.`);
     break;
   }
   case "fed-block":
@@ -499,10 +544,16 @@ switch (cmd) {
   }
   case "community-migration": {
     // Idempotent: branches and teams already converted are skipped. --verify then compares access, old rules vs new.
+    // A one-off conversion of the SQLite data (2026-10-21): it never runs on communities kept in MongoDB.
+    if (cfg.mongo?.domains.has("workspace")) {
+      console.error("community-migration converts communities in SQLite; this server keeps them in MongoDB (MONGODB_DOMAINS).");
+      process.exitCode = 1;
+      break;
+    }
     const r = migrateBranchesAndTeams(db);
     console.log(`converted ${r.branches} branches and ${r.teams} teams (${r.channels} channels placed in categories)`);
     if (!rest.includes("--verify")) break;
-    const authz = new Authz(db);
+    const authz = new Authz(new SqliteRows(db, describeTables(db).filter((t) => (WORKSPACE_DOMAINS as readonly string[]).includes(t.domain))));
     const diffs = verifyCommunityMigration(db, (c, u) => {
       const conv = authz.conversation(c);
       return !!conv && authz.canViewChannel(conv, u);
@@ -541,13 +592,16 @@ switch (cmd) {
     }
     // People's photos ("<userId>-<rev>", or "<userId>" before 2026-10-17), organisations' ("<orgId>-<rev>", 2026-10-19)
     // and community banners ("<orgId>_banner-<rev>", API 0.44.0).
-    const photo = db.prepare(
-      `SELECT 1 FROM users WHERE id = ? AND photo_rev IS NOT NULL AND (? = id || '-' || photo_rev OR ? = id)
-       UNION SELECT 1 FROM orgs WHERE id = ? AND photo_rev IS NOT NULL AND ? = id || '-' || photo_rev
-       UNION SELECT 1 FROM orgs WHERE id || '_banner' = ? AND banner_rev IS NOT NULL AND ? = id || '_banner-' || banner_rev`,
-    );
+    const userPhoto = db.prepare("SELECT 1 FROM users WHERE id = ? AND photo_rev IS NOT NULL AND (? = id || '-' || photo_rev OR ? = id)");
+    const w = await workspace();
+    const orgPhoto = (owner: string, id: string) => {
+      const org = w.ws.get<{ id: string; photo_rev: number | null; banner_rev: number | null }>("orgs", { id: owner.replace(/_banner$/, "") });
+      if (!org) return false;
+      return (org.photo_rev != null && id === `${org.id}-${org.photo_rev}`) || (org.banner_rev != null && id === `${org.id}_banner-${org.banner_rev}`);
+    };
+    const photo = { get: (owner: string, id: string) => !!userPhoto.get(owner, id, id) || orgPhoto(owner, id) };
     // A community's own emoji and stickers (batch B9) are stored there too, under their own ids.
-    const expression = db.prepare("SELECT 1 FROM community_expressions WHERE id = ?");
+    const expression = { get: (id: string) => !!w.ws.get("community_expressions", { id }) };
     // API 0.45.0: people's animated avatars, their poster frames and profile banners ("<userId>_avatar-<rev>", ...).
     const profileMedia = db.prepare(
       `SELECT 1 FROM users WHERE (id || '_avatar' = ? OR id || '_poster' = ?) AND json_extract(avatar_media, '$.rev') = ?
@@ -559,8 +613,9 @@ switch (cmd) {
     };
     for await (const o of blobs.listIds("profile-photos")) {
       const owner = o.id.replace(/-\d+$/, "");
-      if (o.modifiedAt < cutoff && !photo.get(owner, o.id, o.id, owner, o.id, owner, o.id) && !expression.get(o.id) && !keptProfileMedia(o.id)) orphans.push({ kind: "profile-photos", id: o.id, size: o.size });
+      if (o.modifiedAt < cutoff && !photo.get(owner, o.id) && !expression.get(o.id) && !keptProfileMedia(o.id)) orphans.push({ kind: "profile-photos", id: o.id, size: o.size });
     }
+    await w.close();
     const bytes = orphans.reduce((a, o) => a + o.size, 0);
     console.log(`${orphans.length} orphaned file(s), ${bytes} bytes, older than a day (${blobs.backend})`);
     if (rest.includes("--delete")) {

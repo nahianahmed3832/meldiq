@@ -72,6 +72,8 @@ export interface Rows extends RowReader {
   write<T>(fn: (w: RowWriter) => T): Promise<T>;
   /** Whether [table] is one of these rows' tables. */
   has(table: string): boolean;
+  /** Resolves once every unit started so far is durable or failed (before the store's connection closes). */
+  settled(): Promise<void>;
 }
 
 /** A write broke a uniqueness rule: same message as SQLite's, so callers and logs read alike. */

@@ -140,8 +140,13 @@ function owned(module: string, tables: string): Record<string, string> {
   return Object.fromEntries(tables.split(" ").map((t) => [t, module]));
 }
 
-/** SQL statements are written with upper-case keywords; MongoDB collections are opened by name. */
-const TABLE_REF = /\b(?:FROM|JOIN|INTO|UPDATE|TABLE)\s+"?([a-z_]+)"?|\bcollection(?:<[^>]*>)?\(\s*["'`]([a-z_]+)["'`]/g;
+/**
+ * SQL statements are written with upper-case keywords; MongoDB collections are opened by name; rows
+ * (src/infrastructure/database/rows) are read and written by table name, and SQLite rows joined to them are read with
+ * rowsByIds / mapByIds (src/infrastructure/database/byIds.ts). Blob stores take a kind, not a table.
+ */
+const TABLE_REF =
+  /\b(?:FROM|JOIN|INTO|UPDATE|TABLE)\s+"?([a-z_]+)"?|\bcollection(?:<[^>]*>)?\(\s*["'`]([a-z_]+)["'`]|(?<!blobs)\.(?:get|all|count|insert|upsert|update|delete)(?:<[^>]*>)?\(\s*["'`]([a-z_]+)["'`]|\b(?:rowsByIds|mapByIds)(?:<[^>]*>)?\([^,]+,\s*["'`]([a-z_]+)["'`]/g;
 
 /** Where any table may be touched: wiring, entrypoints, and the database tools that copy every table. */
 function mayTouchAnyTable(rel: string): boolean {
@@ -157,7 +162,7 @@ function currentTableViolations(): string[] {
     const area = areaOf(rel);
     const mine = area.kind === "module" ? area.name : null;
     for (const m of fs.readFileSync(file, "utf8").matchAll(TABLE_REF)) {
-      const table = m[1] ?? m[2]!;
+      const table = m[1] ?? m[2] ?? m[3] ?? m[4]!;
       const owner = TABLE_OWNERS[table];
       if (owner && owner !== mine) found.add(`${rel} -> ${table}`);
     }

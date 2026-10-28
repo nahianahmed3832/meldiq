@@ -17,7 +17,11 @@ async function backdate(callId: string, seconds: number) {
   await backdateCall(h.ctx, callId, ms);
   // ...and the memberships with them, so the call still happened after everyone joined the conversation.
   const conversationId = (await h.ctx.calls.get(callId))!.conversation_id;
-  h.ctx.db.prepare("UPDATE conversation_members SET joined_at = joined_at - ? WHERE conversation_id = ?").run(ms, conversationId);
+  await h.ctx.ws.write((w) => {
+    for (const m of w.all<{ user_id: string; joined_at: number }>("conversation_members", { where: { conversation_id: conversationId } })) {
+      w.update("conversation_members", { conversation_id: conversationId, user_id: m.user_id }, { joined_at: m.joined_at - ms });
+    }
+  });
 }
 
 beforeAll(async () => {

@@ -25,21 +25,21 @@ export default async function meetingRoutes(app: FastifyInstance, ctx: AppContex
     return { meetings: ctx.meetings.list(orgId, me(req).userId, from, q.to ?? from + 30 * 86_400_000) };
   });
 
-  app.post("/v1/orgs/:orgId/meetings", auth, async (req) => ({ meeting: ctx.meetings.create(parse(OrgParams, req.params).orgId, me(req).userId, parse(MeetingBody, req.body)) }));
+  app.post("/v1/orgs/:orgId/meetings", auth, async (req) => ({ meeting: await ctx.meetings.create(parse(OrgParams, req.params).orgId, me(req).userId, parse(MeetingBody, req.body)) }));
 
   app.get("/v1/meetings/:id", auth, async (req) => ({ meeting: ctx.meetings.get(parse(idParams, req.params).id, me(req).userId) }));
 
   app.put("/v1/meetings/:id", auth, async (req) => {
     const { id } = parse(idParams, req.params);
     const body = parse(MeetingUpdateBody, req.body);
-    return { meeting: ctx.meetings.update(id, me(req).userId, body.rev, body) };
+    return { meeting: await ctx.meetings.update(id, me(req).userId, body.rev, body) };
   });
 
-  app.post("/v1/meetings/:id/cancel", auth, async (req) => ({ meeting: ctx.meetings.cancel(parse(idParams, req.params).id, me(req).userId) }));
+  app.post("/v1/meetings/:id/cancel", auth, async (req) => ({ meeting: await ctx.meetings.cancel(parse(idParams, req.params).id, me(req).userId) }));
 
   app.post("/v1/meetings/:id/respond", auth, async (req) => {
     const { id } = parse(idParams, req.params);
     const { response } = parse(MeetingRespondBody, req.body);
-    return { meeting: ctx.meetings.respond(id, me(req).userId, response) };
+    return { meeting: await ctx.meetings.respond(id, me(req).userId, response) };
   });
 }

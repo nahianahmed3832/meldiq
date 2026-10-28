@@ -3,7 +3,7 @@
  * SQLite exactly as before. MONGODB_DOMAINS lists the data that is authoritative in MongoDB instead; each domain moves
  * as a whole, with its own migration (src/mongo/migrate.ts), so no table ever has two writable copies.
  */
-export const MONGO_DOMAINS = ["accounts", "preferences", "history", "reports", "relationships", "relay", "files", "calls"] as const;
+export const MONGO_DOMAINS = ["accounts", "preferences", "history", "reports", "relationships", "relay", "files", "calls", "workspace", "conversations"] as const;
 /**
  * Domains that no longer exist: "integrations" went with the apps (docs/COMMUNITY_REBUILD_2026-10-21.md). A server
  * still configured with one starts and ignores it, so an unchanged environment file can't stop a deploy.
@@ -50,6 +50,17 @@ export function mongoConfig(env: NodeJS.ProcessEnv, appEnv: string, int: (name: 
     .filter((d) => d && !RETIRED_MONGO_DOMAINS.includes(d));
   for (const d of domains) {
     if (!(MONGO_DOMAINS as readonly string[]).includes(d)) throw new Error(`MONGODB_DOMAINS: unknown domain "${d}" (known: ${MONGO_DOMAINS.join(", ")})`);
+  }
+  // Authorisation reads communities and conversations together: they live in the same store.
+  if (domains.includes("workspace") !== domains.includes("conversations")) {
+    throw new Error('MONGODB_DOMAINS: "workspace" and "conversations" move together; list both or neither');
+  }
+  // SQLite's attachments, uploads and calls reference conversations by foreign key: with conversations in MongoDB, a
+  // new conversation isn't in SQLite, so those rows must live in MongoDB too.
+  for (const needed of ["files", "calls"]) {
+    if (domains.includes("conversations") && !domains.includes(needed)) {
+      throw new Error(`MONGODB_DOMAINS: "conversations" in MongoDB needs "${needed}" there too (its rows reference conversations)`);
+    }
   }
   if (!uri) {
     if (domains.length) throw new Error("MONGODB_DOMAINS needs MONGODB_URI");

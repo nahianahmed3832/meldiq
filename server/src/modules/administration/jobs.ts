@@ -80,7 +80,7 @@ export async function runCleanup(ctx: AppContext): Promise<CleanupResult> {
     challenges: db.prepare("DELETE FROM auth_challenges WHERE expires_at <= ?").run(t).changes,
     sessions: db.prepare("DELETE FROM sessions WHERE expires_at <= ?").run(t).changes,
     pairing: db.prepare("DELETE FROM pairing_requests WHERE expires_at <= ?").run(t).changes,
-    mentionAll: db.prepare("DELETE FROM mention_all_events WHERE at <= ?").run(t - 86_400_000).changes,
+    mentionAll: await ctx.ws.write((w) => w.delete("mention_all_events", { at: { lte: t - 86_400_000 } })),
     attachments: await purgeExpiredAttachments(ctx),
     blobsDeleted: 0,
     uploadsExpired: await expireDirectUploads(ctx),
@@ -124,10 +124,7 @@ export async function runCleanup(ctx: AppContext): Promise<CleanupResult> {
     ctx.log.error({ errorType: (e as Error).name }, "usage snapshot failed");
   }
   // Guests past their end date leave the workspace the same way a removal does (round 7).
-  const expired = db.prepare("SELECT org_id, user_id FROM org_members WHERE role = 'GUEST' AND expires_at IS NOT NULL AND expires_at <= ? LIMIT 200").all(t) as {
-    org_id: string;
-    user_id: string;
-  }[];
+  const expired = ctx.ws.all<{ org_id: string; user_id: string }>("org_members", { where: { role: "GUEST", expires_at: { lte: t } }, limit: 200 });
   for (const g of expired) {
     try {
       await removeFromWorkspace(ctx, g.org_id, g.user_id, null, "expired");
@@ -139,7 +136,7 @@ export async function runCleanup(ctx: AppContext): Promise<CleanupResult> {
   // Operational history (RETENTION.md, D16): ended calls and old audit rows don't accumulate forever.
   const callCutoff = t - ctx.config.callRecordRetentionDays * 86_400_000;
   r.callRecordsPruned = await ctx.calls.pruneEnded(callCutoff);
-  r.auditPruned = db.prepare("DELETE FROM audit_log WHERE at <= ?").run(t - ctx.config.auditRetentionDays * 86_400_000).changes;
+  r.auditPruned = await ctx.ws.write((w) => w.delete("audit_log", { at: { lte: t - ctx.config.auditRetentionDays * 86_400_000 } }));
   // Reports may live in MongoDB: an unreachable store mustn't stop the rest of retention.
   r.reportsPurged = await (async () => ctx.reports.purgeClosed(t - REPORT_RETENTION_MS))().catch((e) => {
     ctx.log.error({ err: e }, "report retention failed");
@@ -168,7 +165,7 @@ export async function runCleanup(ctx: AppContext): Promise<CleanupResult> {
   for (const c of live) {
     const fromLiveKit = ctx.livekit ? await ctx.livekit.participantUsers(c.room_name) : null;
     const users = fromLiveKit ?? new Set((await ctx.calls.present(c.id)).map((p) => p.user_id));
-    const type = (db.prepare("SELECT type FROM conversations WHERE id = ?").get(c.conversation_id) as { type: string } | undefined)?.type;
+    const type = ctx.ws.get<{ type: string }>("conversations", { id: c.conversation_id })?.type;
     const needed = type === "DM" ? 2 : 1;
     if (c.state === "RINGING") {
       if (users.size < needed) {

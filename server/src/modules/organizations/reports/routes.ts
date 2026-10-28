@@ -36,7 +36,7 @@ function scopeOf(ctx: AppContext, reason: string, conv: { type: string; org_id: 
 
 /** The people who see a community's reports: holders of `reports.view` there. */
 function moderators(ctx: AppContext, orgId: string): string[] {
-  const members = ctx.db.prepare("SELECT user_id FROM org_members WHERE org_id = ?").all(orgId) as { user_id: string }[];
+  const members = ctx.ws.all<{ user_id: string }>("org_members", { where: { org_id: orgId } });
   return members.map((m) => m.user_id).filter((u) => ctx.authz.can(orgId, u, "reports.view"));
 }
 
@@ -48,7 +48,7 @@ function person(ctx: AppContext, userId: string | null) {
 
 /** A report as moderators see it: never who reported it. */
 function moderatorView(ctx: AppContext, r: ReportRow) {
-  const conv = r.conversation_id ? (ctx.db.prepare("SELECT name, type FROM conversations WHERE id = ?").get(r.conversation_id) as { name: string | null; type: string } | undefined) : undefined;
+  const conv = r.conversation_id ? ctx.ws.get<{ name: string | null; type: string }>("conversations", { id: r.conversation_id }) : undefined;
   return {
     id: r.id,
     orgId: r.org_id,

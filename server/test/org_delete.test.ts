@@ -50,7 +50,7 @@ describe("deleting an organization", () => {
     expect(wrong.status).toBe(400);
     expect(wrong.body.error.code).toBe("confirm_mismatch");
     await expectStatus(owner.req("DELETE", `/v1/orgs/${orgId}`, {}), 400);
-    expect(h.ctx.db.prepare("SELECT 1 FROM orgs WHERE id = ?").get(orgId)).toBeTruthy();
+    expect(h.ctx.ws.get("orgs", { id: orgId })).toBeTruthy();
   });
 
   it("an owner deletes it: members, channels, files and invitations go; accounts, DMs, groups and other orgs stay", async () => {
@@ -81,7 +81,7 @@ describe("deleting an organization", () => {
     await member.waitFor(() => member.events.find((e) => e.t === "org.deleted" && e.orgId === orgId));
     await member.waitFor(() => member.events.find((e) => e.t === "conv.updated" && e.conversationId === channel));
     // Audited, without content.
-    const audit = h.ctx.db.prepare("SELECT * FROM audit_log WHERE action = 'org.delete' AND org_id = ?").get(orgId) as any;
+    const audit = h.ctx.ws.get<any>("audit_log", { action: "org.delete", org_id: orgId });
     expect(audit.actor_id).toBe(owner.userId);
     expect(audit.detail).not.toContain("Test Org");
     // Retrying the same request gets the same answer; anything else gets 404.
@@ -101,7 +101,7 @@ describe("deleting an organization", () => {
     expect(results.filter((x) => x.status === "fulfilled")).toHaveLength(1);
     const failed = results.find((x) => x.status === "rejected") as PromiseRejectedResult;
     expect(failed.reason.status).toBe(404);
-    expect((h.ctx.db.prepare("SELECT COUNT(*) n FROM org_deletions WHERE org_id = ?").get(o) as { n: number }).n).toBe(1);
+    expect(h.ctx.ws.count("org_deletions", { org_id: o })).toBe(1);
   });
 
   it("the organization's name can be used again afterwards", async () => {

@@ -11,6 +11,8 @@ import { DuplicateSubmission, type QueueInsert, type QueueItemRow } from "./rela
 import { ApiError, badRequest, conflict, forbidden } from "../../shared/errors.js";
 import { now } from "../../shared/utilities/util.js";
 import { MENTION_ALL_MESSAGES, mentionAllPermission, mentionAllRateLimited } from "./mentions.js";
+import { memberUsers } from "./memberUsers.js";
+import { rowsByIds } from "../../infrastructure/database/byIds.js";
 
 export default async function messageRoutes(app: FastifyInstance, ctx: AppContext) {
   const auth = { preHandler: requireAuth(ctx) };
@@ -101,14 +103,14 @@ export default async function messageRoutes(app: FastifyInstance, ctx: AppContex
     // A self-only control (audience "self") goes to the sender's own other devices and nobody else.
     const selfOnly = e.audience === "self";
     if (selfOnly && e.cls !== "control") throw badRequest("Only controls can be sent to your own devices alone");
-    const expected = db
-      .prepare(
-        `SELECT d.id, d.user_id, u.home_server_id FROM devices d JOIN conversation_members m ON m.user_id = d.user_id
-         JOIN users u ON u.id = d.user_id
-         WHERE m.conversation_id = ? AND d.revoked_at IS NULL AND u.disabled_at IS NULL AND u.kind = 'person' AND d.id != ?`,
-      )
-      .all(conv.id, deviceId)
-      .filter((d) => !selfOnly || (d as { user_id: string }).user_id === userId) as { id: string; user_id: string; home_server_id: string | null }[];
+    const people = new Map(
+      memberUsers<{ id: string; home_server_id: string | null; disabled_at: number | null; kind: string }>(ctx, conv.id, "id, home_server_id, disabled_at, kind")
+        .filter(({ user }) => user.disabled_at == null && user.kind === "person" && (!selfOnly || user.id === userId))
+        .map(({ user }) => [user.id, user]),
+    );
+    const expected = rowsByIds<{ id: string; user_id: string; revoked_at: number | null }>(db, "devices", "user_id", people.keys(), "id, user_id, revoked_at")
+      .filter((d) => d.revoked_at == null && d.id !== deviceId)
+      .map((d) => ({ id: d.id, user_id: d.user_id, home_server_id: people.get(d.user_id)!.home_server_id }));
     const expectedIds = new Map(expected.map((d) => [d.id, d.user_id]));
     const provided = new Set(e.recipients.map((r) => r.deviceId));
     const missing = expected.filter((d) => !provided.has(d.id)).map((d) => ({ deviceId: d.id, userId: d.user_id }));
@@ -176,9 +178,6 @@ export default async function messageRoutes(app: FastifyInstance, ctx: AppContex
     let inserted: QueueItemRow[];
     try {
       inserted = await ctx.relay.accept(submission, items, () => {
-        if (mentionAll) {
-          db.prepare("INSERT INTO mention_all_events (conversation_id, user_id, message_id, at) VALUES (?, ?, ?, ?)").run(conv.id, userId, e.messageId, t);
-        }
         // Devices of people on other servers go to the federation outbox (same ciphertext, same per-device key wrap).
         for (const r of remote) {
           ctx.federation!.routeRemote(r.home, {
@@ -194,10 +193,6 @@ export default async function messageRoutes(app: FastifyInstance, ctx: AppContex
             expiresAt,
           });
         }
-        if (e.cls === "message") {
-          db.prepare("UPDATE conversations SET updated_at = ? WHERE id = ?").run(t, conv.id);
-          db.prepare("UPDATE conversation_members SET last_post_at = ? WHERE conversation_id = ? AND user_id = ?").run(t, conv.id, userId);
-        }
       });
     } catch (err) {
       // The same id accepted by a concurrent request: answer as the retry it is.
@@ -206,6 +201,15 @@ export default async function messageRoutes(app: FastifyInstance, ctx: AppContex
         if (dup) return dup;
       }
       throw err;
+    }
+    // What the message changes about its conversation, once it's accepted (the conversation may not be in SQLite).
+    if (mentionAll || e.cls === "message") {
+      await ctx.ws.write((w) => {
+        if (mentionAll) w.insert("mention_all_events", { conversation_id: conv.id, user_id: userId, message_id: e.messageId, at: t });
+        if (e.cls !== "message") return;
+        w.update("conversations", { id: conv.id }, { updated_at: t });
+        w.update("conversation_members", { conversation_id: conv.id, user_id: userId }, { last_post_at: t });
+      });
     }
     for (const row of inserted) ctx.hub.pushQueued(row.recipient_device_id, [row], { wake: !quietFor.has(ownerOf.get(row.recipient_device_id) ?? "") });
     if (request?.state === "pending" && e.cls === "message") await ctx.relationships.countSent(conv.id);
@@ -241,13 +245,13 @@ export async function acknowledge(ctx: AppContext, userId: string, deviceId: str
   const t = now();
   const taken = await ctx.relay.take(deviceId, ids);
   const receipts: QueueInsert[] = [];
-  const convType = db.prepare("SELECT type FROM conversations WHERE id = ?");
+
   const senderDevices = db.prepare("SELECT d.id, u.home_server_id FROM devices d JOIN users u ON u.id = d.user_id WHERE d.user_id = ? AND d.revoked_at IS NULL");
   for (const row of taken) {
     if (row.kind !== "envelope" || row.sender_user_id === userId) continue;
     const cls = (JSON.parse(row.payload) as { cls?: string }).cls;
     if (cls !== "message") continue;
-    const type = (convType.get(row.conversation_id) as { type: string } | undefined)?.type;
+    const type = ctx.ws.get<{ type: string }>("conversations", { id: row.conversation_id })?.type;
     if (type !== "DM" && type !== "GROUP") continue;
     const payload = JSON.stringify({ status: "delivered", at: t });
     const expiresAt = t + ctx.config.queueTtlSeconds * 1000;

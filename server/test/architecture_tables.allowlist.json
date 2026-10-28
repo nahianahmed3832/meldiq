@@ -18,7 +18,6 @@
   "modules/accounts/preferences/routes.ts -> org_members",
   "modules/accounts/relationships/rules.ts -> org_members",
   "modules/accounts/service.ts -> auth_challenges",
-  "modules/accounts/usersRoutes.ts -> org_members",
   "modules/accounts/workspaces.ts -> org_members",
   "modules/accounts/workspaces.ts -> orgs",
   "modules/administration/backup.ts -> users",
@@ -65,6 +64,7 @@
   "modules/messaging/conversationsRoutes.ts -> orgs",
   "modules/messaging/conversationsRoutes.ts -> users",
   "modules/messaging/history/routes.ts -> users",
+  "modules/messaging/memberUsers.ts -> users",
   "modules/messaging/messagesRoutes.ts -> devices",
   "modules/messaging/messagesRoutes.ts -> user_blocks",
   "modules/messaging/messagesRoutes.ts -> users",
@@ -101,8 +101,6 @@
   "modules/organizations/reports/routes.ts -> users",
   "modules/organizations/rolesRoutes.ts -> conversations",
   "modules/organizations/rolesRoutes.ts -> users",
-  "modules/realtime/ws.ts -> conversation_members",
-  "modules/realtime/ws.ts -> conversations",
   "modules/realtime/ws.ts -> devices",
   "modules/realtime/ws.ts -> users"
 ]

@@ -130,9 +130,9 @@ export class AdminUsers {
           }
         : null,
       devices: userDevices(this.ctx.db, userId).map((d) => ({ id: d.id, name: d.name, createdAt: d.created_at, lastSeenAt: d.last_seen_at, revokedAt: d.revoked_at })),
-      memberships: membershipsOf(this.ctx.db, userId).map((m) => ({ orgId: m.org_id, name: m.name, kind: m.kind, role: m.role, joinedAt: m.joined_at, customRoles: m.custom_roles ? m.custom_roles.split(CUSTOM_ROLE_SEPARATOR) : [] })),
+      memberships: membershipsOf(this.ctx.ws, userId).map((m) => ({ orgId: m.org_id, name: m.name, kind: m.kind, role: m.role, joinedAt: m.joined_at, customRoles: m.custom_roles ? m.custom_roles.split(CUSTOM_ROLE_SEPARATOR) : [] })),
       platformRole: account ? (this.store.activeGrant(account.id)?.role ?? null) : null,
-      securityEvents: securityEvents(this.ctx.db, account ? [userId, account.id] : [userId], EVENTS_SHOWN),
+      securityEvents: securityEvents(this.ctx.ws, account ? [userId, account.id] : [userId], EVENTS_SHOWN),
       interventions: interventions.map((i) => ({ at: i.at, action: i.action, outcome: i.outcome, actorRole: i.actor_role, reason: i.reason })),
     };
   }

@@ -13,7 +13,7 @@ const join = async (c: GriipClient, role = "MEMBER", extra: object = {}) => {
   await c.req("POST", "/v1/invites/accept", { code });
 };
 const myChannels = async (c: GriipClient) => ((await c.req("GET", "/v1/conversations")).conversations as { id: string; name: string; type: string }[]).filter((x) => x.type === "CHANNEL");
-const expiresOf = (c: GriipClient) => (h.ctx.db.prepare("SELECT expires_at FROM org_members WHERE org_id = ? AND user_id = ?").get(orgId, c.userId) as { expires_at: number | null } | undefined)?.expires_at;
+const expiresOf = (c: GriipClient) => h.ctx.ws.get<{ expires_at: number | null }>("org_members", { org_id: orgId, user_id: c.userId })?.expires_at;
 
 beforeAll(async () => {
   h = await startServer({ WORKFLOW_TICK_MS: "0" });
@@ -53,11 +53,11 @@ describe("guests", () => {
   it("a guest past their end date is taken out by the retention job, like a removal", async () => {
     const g3 = await h.client("c5guest3");
     await join(g3, "GUEST", { guestDays: 1 });
-    h.ctx.db.prepare("UPDATE org_members SET expires_at = ? WHERE org_id = ? AND user_id = ?").run(Date.now() - 1000, orgId, g3.userId);
+    await h.ctx.ws.write((w) => w.update("org_members", { org_id: orgId, user_id: g3.userId }, { expires_at: Date.now() - 1000 }));
     const r = await runCleanup(h.ctx);
     expect(r.guestsExpired).toBeGreaterThanOrEqual(1);
     await expectStatus(g3.req("GET", `/v1/orgs/${orgId}`), 404);
-    const audit = h.ctx.db.prepare("SELECT action FROM audit_log WHERE org_id = ? AND target = ? ORDER BY id DESC LIMIT 1").get(orgId, g3.userId) as { action: string };
+    const audit = h.ctx.ws.get<{ action: string }>("audit_log", { org_id: orgId, target: g3.userId }, [["id", "desc"]])!;
     expect(audit.action).toBe("member.expire");
   });
 });
@@ -107,9 +107,9 @@ describe("meetings", () => {
     const soon = (await owner.req("POST", `/v1/orgs/${orgId}/meetings`, body({ startsAt: at(5), endsAt: at(35) }))).meeting.id;
     const cancelled = (await owner.req("POST", `/v1/orgs/${orgId}/meetings`, body({ startsAt: at(6), endsAt: at(36) }))).meeting.id;
     await owner.req("POST", `/v1/meetings/${cancelled}/cancel`);
-    expect(h.ctx.meetings.notifySoon()).toBe(1);
-    expect(h.ctx.meetings.notifySoon()).toBe(0);
-    expect((h.ctx.db.prepare("SELECT notified_at FROM meetings WHERE id = ?").get(soon) as { notified_at: number | null }).notified_at).not.toBeNull();
+    expect(await h.ctx.meetings.notifySoon()).toBe(1);
+    expect(await h.ctx.meetings.notifySoon()).toBe(0);
+    expect(h.ctx.ws.get<{ notified_at: number | null }>("meetings", { id: soon })!.notified_at).not.toBeNull();
     const features = (await owner.req("GET", "/v1/server-info")).features as string[];
     expect(features).toContain("meetings");
     // Removed with the community rebuild: older apps hide them when the server stops advertising them.

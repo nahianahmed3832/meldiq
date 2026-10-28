@@ -14,6 +14,7 @@ import type { HistoryStore } from "../modules/messaging/history/store.js";
 import type { ReportSealer } from "../modules/organizations/reports/seal.js";
 import type { RelationshipStore } from "../modules/accounts/relationships/store.js";
 import type { CallStore } from "../modules/calls/store.js";
+import type { Rows } from "../infrastructure/database/rows/index.js";
 import type { ReportStore } from "../modules/organizations/reports/store.js";
 import type { PreferenceStore } from "../modules/accounts/preferences/store.js";
 import type { PushService } from "../modules/notifications/service.js";
@@ -58,6 +59,11 @@ export interface AppContext {
   relationships: RelationshipStore;
   /** Calls, their participants and raised hands: SQLite, or MongoDB when MONGODB_DOMAINS includes "calls". */
   calls: CallStore;
+  /**
+   * Communities and conversations (orgs, members, roles, channels, their members, invitations, audit…): SQLite, or
+   * MongoDB with an in-memory copy when MONGODB_DOMAINS includes "workspace" and "conversations" (app/workspaceRows.ts).
+   */
+  ws: Rows;
   /** Present when MONGODB_URI is set: the domains in MONGODB_DOMAINS live there (docs/MONGODB.md). */
   mongo?: MeldiqMongo;
   /** Plan-based limits (src/entitlements.ts, docs/PLANS.md): none by default. */

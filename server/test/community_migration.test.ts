@@ -14,9 +14,13 @@ let owner: GriipClient, branchManager: GriipClient, branchMember: GriipClient, l
 let org: string, branch: string, team: string, crossTeam: string, archivedTeam: string;
 let branchChannel: string, teamChannel: string, teamPrivate: string, crossChannel: string, archivedChannel: string, inviteId: string;
 
+// A one-off conversion of SQLite data (src/admin.ts refuses it once the workspace domain is in MongoDB).
+const sqliteWorkspace = !(process.env.MELDIQ_TEST_MONGO_DOMAINS ?? "").split(",").includes("workspace");
+
 const ids = async (c: GriipClient) => ((await c.req("GET", "/v1/conversations")).conversations as { id: string }[]).map((x) => x.id);
 
 beforeAll(async () => {
+  if (!sqliteWorkspace) return;
   h = await startServer();
   owner = await h.client("mowner");
   branchManager = await h.client("mbranchmgr");
@@ -76,9 +80,9 @@ beforeAll(async () => {
     `INSERT INTO invitations (id, org_id, code_hash, code_hint, role, branch_id, team_id, max_uses, created_by, created_at, expires_at) VALUES (?, ?, 'h', 'abcd', 'MEMBER', ?, ?, 5, ?, ?, ?)`,
   ).run(inviteId, org, branch, team, owner.userId, t, t + 86_400_000);
 });
-afterAll(async () => h.close());
+afterAll(async () => h?.close());
 
-describe("branch and team migration", () => {
+describe.skipIf(!sqliteWorkspace)("branch and team migration", () => {
   it("converts each branch and team into a role with the same people and a category with their channels", () => {
     const r = migrateBranchesAndTeams(h.ctx.db);
     expect(r).toMatchObject({ branches: 1, teams: 3, converted: 4, channels: 5 });

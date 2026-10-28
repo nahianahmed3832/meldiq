@@ -111,6 +111,11 @@ export class SqliteRows implements Rows {
     return (this.db.prepare(s.sql).get(...s.params) as { n: number }).n;
   }
 
+  /** SQLite units are durable when write returns. */
+  settled(): Promise<void> {
+    return Promise.resolve();
+  }
+
   write<T>(fn: (w: RowWriter) => T): Promise<T> {
     try {
       return Promise.resolve(this.db.transaction(() => fn(this.writer)).immediate());

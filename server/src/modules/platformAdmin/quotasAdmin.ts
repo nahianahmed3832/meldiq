@@ -25,7 +25,7 @@ export class AdminQuotas {
 
   private names(rows: { scope_type: string; scope_id: string }[]): Map<string, string> {
     const users = usernames(this.ctx.db, rows.filter((r) => r.scope_type === "user").map((r) => r.scope_id));
-    const orgs = orgNames(this.ctx.db, rows.filter((r) => r.scope_type === "org").map((r) => r.scope_id));
+    const orgs = orgNames(this.ctx.ws, rows.filter((r) => r.scope_type === "org").map((r) => r.scope_id));
     const plans = new Map(quotaAdmin.plans(this.ctx.db).map((p) => [p.id, p.name]));
     const out = new Map<string, string>();
     for (const r of rows) {
@@ -176,7 +176,7 @@ export class AdminQuotas {
 
   private requireScope(scopeType: string, scopeId: string): void {
     if (scopeType === "user" && !userSummary(this.ctx.db, scopeId)) throw notFound("No person has that id.");
-    if (scopeType === "org" && !orgRecord(this.ctx.db, scopeId)) throw notFound("No organization has that id.");
+    if (scopeType === "org" && !orgRecord(this.ctx.ws, scopeId)) throw notFound("No organization has that id.");
     if (scopeType === "plan" && !quotaAdmin.planExists(this.ctx.db, scopeId)) throw notFound("No such plan.");
     if (scopeType === "pool" && !/^[a-z][a-z0-9_-]{1,30}$/.test(scopeId)) throw badRequest("A capacity pool is named in lower case (for example realtime).");
   }
