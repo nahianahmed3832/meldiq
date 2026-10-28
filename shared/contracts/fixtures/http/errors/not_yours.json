@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "not_yours",
+    "message": "Only the person who sent a message can change it"
+  }
+}

@@ -142,9 +142,10 @@ describe("Meldiq Mojo", () => {
       ]);
       expect(c.spark.levels.map((l: any) => [l.level, l.sparks, l.emojiSlots, l.uploadBytes, l.voiceKbps, l.screen])).toEqual([
         [0, 0, 50, null, 48, []],
-        [1, 1, 100, 50 * MB, 128, ["720p30"]],
-        [2, 2, 200, 200 * MB, 256, ["1080p60"]],
-        [3, 3, 500, 2_000_000_000, 384, ["1080p60", "1440p30"]],
+        // The owner's thresholds (2026-10-28): 2, 5 and 8 active Sparks in total.
+        [1, 2, 100, 50 * MB, 128, ["720p30"]],
+        [2, 5, 200, 200 * MB, 256, ["1080p60"]],
+        [3, 8, 500, 2_000_000_000, 384, ["1080p60", "1440p30"]],
       ]);
       expect(c.onSale).toEqual({ mode: "test", go: { currency: "USD", amountMinor: 99 }, plus: { currency: "USD", amountMinor: 399 }, spark: { currency: "USD", amountMinor: 99 }, gifts: true });
     });
@@ -156,7 +157,7 @@ describe("Meldiq Mojo", () => {
       // A portrait phone screen counts its long side as the width.
       expect(screenAllows(["1080p30"], 1080, 1920, 30)).toBe(true);
       expect(unionPresets(["720p60", "1080p30"], ["1080p60"])).toEqual(["720p60", "1080p30", "1080p60"]);
-      expect(sparkLevel(7).level).toBe(3);
+      expect([0, 1, 2, 4, 5, 7, 8, 20].map((n) => sparkLevel(n).level)).toEqual([0, 0, 1, 1, 2, 2, 3, 3]);
       expect(ciphertextCeilingB64(PLAN_PERKS.plus.messageChars, MAX_CIPHERTEXT_B64)).toBeLessThanOrEqual(MAX_CIPHERTEXT_B64);
       expect(ciphertextCeilingB64(1000, MAX_CIPHERTEXT_B64)).toBeLessThan(ciphertextCeilingB64(5000, MAX_CIPHERTEXT_B64));
       expect(new Date(addMonths(Date.UTC(2026, 0, 31), 1)).toISOString().slice(0, 10)).toBe("2026-02-28");
@@ -186,19 +187,19 @@ describe("Meldiq Mojo", () => {
   });
 
   describe("Meldiq Spark", () => {
-    it("lets a Go member give their one Spark: the server reaches level 1 for everyone in it", async () => {
+    it("lets a Go member give their one Spark: it counts toward level 1 (two Sparks) for everyone in it", async () => {
       const a = await go.req("POST", "/v2/mojo/sparks", { orgId });
       expect(a.orgId).toBe(orgId);
       const s = await sparksOf(free);
-      expect(s).toMatchObject({ level: 1, active: 1, next: { level: 2, needs: 1 }, perks: { emojiSlots: 100, uploadBytes: 50 * MB, voiceKbps: 128 } });
+      expect(s).toMatchObject({ level: 0, active: 1, next: { level: 1, needs: 1 }, perks: { emojiSlots: 50, uploadBytes: null, voiceKbps: 48 } });
       await expectStatus(go.req("POST", "/v2/mojo/sparks", { orgId }), 409);
       await expectStatus(free.req("POST", "/v2/mojo/sparks", { orgId }), 409);
     });
 
-    it("adds up members' Sparks and stops at level 3", async () => {
+    it("adds up members' Sparks toward the next level", async () => {
       await plus.req("POST", "/v2/mojo/sparks", { orgId });
       await plus.req("POST", "/v2/mojo/sparks", { orgId });
-      expect(await sparksOf(free)).toMatchObject({ level: 3, active: 3, next: null, perks: { emojiSlots: 500, voiceKbps: 384 } });
+      expect(await sparksOf(free)).toMatchObject({ level: 1, active: 3, next: { level: 2, needs: 2 }, perks: { emojiSlots: 100, voiceKbps: 128 } });
     });
 
     it("can't give the same Spark twice, even at once", async () => {
@@ -223,7 +224,7 @@ describe("Meldiq Mojo", () => {
       const m = await me(go);
       expect(m.plan).toBe("free");
       expect(m.sparks.assignments).toEqual([expect.objectContaining({ orgId, paused: true })]);
-      expect((await sparksOf(free)).level).toBe(2);
+      expect((await sparksOf(free)).level).toBe(1);
     });
 
     it("moves a Spark and takes it back, keeping the history", async () => {
@@ -260,6 +261,9 @@ describe("Meldiq Mojo", () => {
       });
       expect(tooBig.statusCode).toBe(413);
       expect(tooBig.json().error).toMatchObject({ code: "upload_limit", details: { maxBytes: 50 * MB } });
+      // Three more Sparks (the ones bought above) take the community to five: level 2, 200 MB for everyone.
+      for (let i = 0; i < 3; i++) await free.req("POST", "/v2/mojo/sparks", { orgId });
+      expect((await sparksOf(free)).level).toBe(2);
       expect(h.ctx.mojo.uploadBytes(free.userId, orgId)).toBe(200 * MB);
       expect(h.ctx.mojo.uploadBytes(plus.userId, null)).toBe(2_000_000_000);
     });

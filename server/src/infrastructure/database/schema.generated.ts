@@ -2636,6 +2636,32 @@ export const SCHEMA: readonly TableShape[] = [
     autoincrement: false,
   },
   {
+    name: "message_events",
+    columns: [
+      {"name":"id","type":"TEXT","notNull":true},
+      {"name":"conversation_id","type":"TEXT","notNull":true},
+      {"name":"sender_user_id","type":"TEXT","notNull":true},
+      {"name":"sender_device_id","type":"TEXT","notNull":false},
+      {"name":"cls","type":"TEXT","notNull":true},
+      {"name":"type","type":"TEXT","notNull":true},
+      {"name":"target","type":"TEXT","notNull":false},
+      {"name":"audience","type":"TEXT","notNull":true,"default":"all"},
+      {"name":"payload","type":"TEXT","notNull":true},
+      {"name":"sent_at","type":"INTEGER","notNull":true},
+      {"name":"server_ts","type":"INTEGER","notNull":true},
+      {"name":"mention_all","type":"INTEGER","notNull":true,"default":0},
+      {"name":"imported_by","type":"TEXT","notNull":false},
+    ],
+    primaryKey: ["id"],
+    indexes: [
+      {"name":"idx_message_events_sender","columns":["sender_user_id"],"unique":false,"nocase":false,"partialNotNull":null},
+      {"name":"idx_message_events_target","columns":["conversation_id","target"],"unique":false,"nocase":false,"partialNotNull":null},
+      {"name":"idx_message_events_page","columns":["conversation_id","cls","server_ts"],"unique":false,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [],
+    autoincrement: false,
+  },
+  {
     name: "messaging_settings",
     columns: [
       {"name":"user_id","type":"TEXT","notNull":true},

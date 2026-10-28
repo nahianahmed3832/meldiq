@@ -166,6 +166,7 @@ export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
   pending_blob_deletes: "files",
   history_accounts: "history",
   history_items: "history",
+  message_events: "history",
   reports: "reports",
   // Batch B8b: onboarding questions and members' answers (configuration of a community, like roles).
   community_onboarding: "workspace",

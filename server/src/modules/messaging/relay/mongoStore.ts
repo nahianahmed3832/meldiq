@@ -80,7 +80,7 @@ export class MongoRelayStore implements RelayStore {
   }
 
   async hasEnvelopeSince(deviceId: string, since: number, now: number): Promise<boolean> {
-    return (await this.queue.findOne({ recipient_device_id: deviceId, kind: "envelope", created_at: { $gte: since }, expires_at: { $gt: now } }, { projection: { _id: 1 } })) !== null;
+    return (await this.queue.findOne({ recipient_device_id: deviceId, kind: { $in: ["envelope", "message"] }, created_at: { $gte: since }, expires_at: { $gt: now } }, { projection: { _id: 1 } })) !== null;
   }
 
   async purgeExpired(now: number): Promise<{ queue: number; submitted: number }> {
@@ -94,7 +94,7 @@ export class MongoRelayStore implements RelayStore {
         {
           $group: {
             _id: null,
-            envelopes: { $sum: { $cond: [{ $eq: ["$kind", "envelope"] }, 1, 0] } },
+            envelopes: { $sum: { $cond: [{ $ne: ["$kind", "receipt"] }, 1, 0] } },
             receipts: { $sum: { $cond: [{ $eq: ["$kind", "receipt"] }, 1, 0] } },
             oldest: { $min: "$created_at" },
           },
@@ -173,7 +173,7 @@ export class MongoRelayStore implements RelayStore {
   private startCounter(): Promise<void> {
     this.counterReady ??= (async () => {
       const top = await this.queue.find({}, { projection: { _id: 1 } }).sort({ _id: -1 }).limit(1).toArray();
-      const sqlite = this.db.prepare("SELECT seq FROM sqlite_sequence WHERE name = 'delivery_queue'").get() as { seq: number } | undefined;
+      const sqlite = this.db.prepare("SELECT MAX(seq) AS seq FROM sqlite_sequence WHERE name = 'delivery_queue'").get() as { seq: number | null } | undefined;
       const floor = Math.max(top[0]?._id ?? 0, sqlite?.seq ?? 0);
       await this.meta.updateOne({ _id: COUNTER_ID }, { $max: { seq: floor } }, { upsert: true });
     })().catch((e) => {

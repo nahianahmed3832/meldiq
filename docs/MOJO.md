@@ -34,12 +34,14 @@ every client, so no app hard-codes a limit. A checkout always charges the billin
 
 ## Meldiq Spark
 
+Levels at 2, 5 and 8 active Sparks in total (the owner's decision, 2026-10-28; API 0.56.0; were 1, 2 and 3).
+
 | Level | Active Sparks | Server emoji slots | Largest file for everyone | Voice | Screen sharing for everyone |
 |---|---:|---:|---:|---:|---|
 | 0 | 0 | 50 (as before) | each person's plan | 48 kbps (as before) | each person's plan |
-| 1 | 1 | 100 | 50 MB | 128 kbps | 720p 30 fps |
-| 2 | 2 | 200 | 200 MB | 256 kbps | 1080p 60 fps |
-| 3 | 3 or more | 500 | 2 GB | 384 kbps | 1080p 60 fps, 2K 30 fps |
+| 1 | 2 | 100 | 50 MB | 128 kbps | 720p 30 fps |
+| 2 | 5 | 200 | 200 MB | 256 kbps | 1080p 60 fps |
+| 3 | 8 or more | 500 | 2 GB | 384 kbps | 1080p 60 fps, 2K 30 fps |
 
 - A person's Sparks = their plan's included Sparks + the **Spark add-on's quantity** ($0.99 per Spark per month, a
   recurring Stripe subscription bought with `POST /v2/mojo/sparks/checkout {quantity}`, on any plan including Free).

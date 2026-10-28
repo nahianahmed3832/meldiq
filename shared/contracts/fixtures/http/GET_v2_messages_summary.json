@@ -1,0 +1,49 @@
+{
+  "conversations": [
+    {
+      "conversationId": "c_Bj_RdWEZX8Ec35ZJZSuWDw",
+      "last": {
+        "id": "cApliakf-QFUlM3h",
+        "conversationId": "c_Bj_RdWEZX8Ec35ZJZSuWDw",
+        "senderUserId": "u_yuXvz_cGmyCBSWOEHcvwXQ",
+        "senderDeviceId": "d_0oIp0IZe0RUVmO3QMxOwHQ",
+        "cls": "message",
+        "payload": {
+          "type": "text",
+          "text": "read me"
+        },
+        "sentAt": 1793206738616,
+        "serverTs": 1793206738619,
+        "mentionAll": false,
+        "importedBy": null
+      },
+      "readUpTo": 1793206738621,
+      "unread": 0,
+      "mentions": 0
+    },
+    {
+      "conversationId": "c_XN2u789G4YEchwRUOGE3Cw",
+      "last": {
+        "id": "o-QYLnFCKDNYRemy",
+        "conversationId": "c_XN2u789G4YEchwRUOGE3Cw",
+        "senderUserId": "u_TQlfzYcBjieLzFK2nc7myQ",
+        "senderDeviceId": "d_Ak-qfUOhNZya6kVO8k1z7Q",
+        "cls": "message",
+        "payload": {
+          "type": "text",
+          "text": "two",
+          "mentions": [
+            "u_oIa0V8qFeRz245OX-z-zYQ"
+          ]
+        },
+        "sentAt": 1793206738632,
+        "serverTs": 1793206738632,
+        "mentionAll": false,
+        "importedBy": null
+      },
+      "readUpTo": 0,
+      "unread": 2,
+      "mentions": 1
+    }
+  ]
+}

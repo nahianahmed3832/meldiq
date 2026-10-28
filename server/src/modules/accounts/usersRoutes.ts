@@ -302,6 +302,8 @@ export default async function userRoutes(app: FastifyInstance, ctx: AppContext) 
         // Batch B6b: absent when hidden, like the profile's other hidden fields.
         ...(visible ? { presence: shownPresence(ctx, u) } : {}),
         lastSeenAt: visible ? ctx.hub.lastSeenAt(u.id) : null,
+        // Someone they blocked sees only the basics: neither when they joined nor where you meet.
+        ...(r.blockedByTarget ? {} : { memberSince: u.created_at, mutualCommunities: mutualCommunities(ctx, viewer, u.id) }),
       },
     };
   });
@@ -354,4 +356,19 @@ export default async function userRoutes(app: FastifyInstance, ctx: AppContext) 
         .map((u) => ({ userId: u.id, online: appearsOnline(ctx, u), presence: shownPresence(ctx, u), lastSeenAt: ctx.hub.lastSeenAt(u.id) })),
     };
   });
+}
+
+/** Communities both [viewer] and [userId] are in, with when [userId] joined each, newest first (at most 50). */
+function mutualCommunities(ctx: AppContext, viewer: string, userId: string): { id: string; name: string; photoRev: number | null; joinedAt: number }[] {
+  if (viewer === userId) return [];
+  const mine = new Set(ctx.ws.all<{ org_id: string }>("org_members", { where: { user_id: viewer } }).map((m) => m.org_id));
+  const theirs = ctx.ws.all<{ org_id: string; joined_at: number }>("org_members", { where: { user_id: userId } }).filter((m) => mine.has(m.org_id));
+  return theirs
+    .map((m) => {
+      const o = ctx.ws.get<{ name: string; photo_rev: number | null }>("orgs", { id: m.org_id });
+      return o ? { id: m.org_id, name: o.name, photoRev: o.photo_rev ?? null, joinedAt: m.joined_at } : null;
+    })
+    .filter((x): x is { id: string; name: string; photoRev: number | null; joinedAt: number } => x !== null)
+    .sort((a, b) => b.joinedAt - a.joinedAt)
+    .slice(0, 50);
 }

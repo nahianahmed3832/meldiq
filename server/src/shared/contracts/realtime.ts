@@ -15,11 +15,14 @@ const time = z.number().int().nonnegative();
 
 // ───────────── Shared payloads ─────────────
 
-/** One delivery-queue item: an encrypted envelope for this device, or a delivery receipt. */
+/**
+ * One delivery-queue item: a stored message or change ("message", API 0.56.0, readable), an encrypted envelope from an
+ * older app, or a delivery receipt.
+ */
 export const QueueItemWire = z.strictObject({
   /** Per-device order: items arrive in increasing id order and are acknowledged by id. */
   id: z.number().int().positive(),
-  kind: z.enum(["envelope", "receipt"]),
+  kind: z.enum(["envelope", "receipt", "message"]),
   conversationId: id,
   messageId: id,
   senderUserId: id,

@@ -489,6 +489,8 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     if (!result) throw notFound("Conversation not found");
     // SQLite cascaded its calls with the conversation; a call store elsewhere removes them itself.
     await ctx.calls.forgetConversations([id]);
+    // Its stored messages (they may not be in SQLite).
+    await ctx.messages.deleteConversation(id);
     ctx.audit({ actorId: userId, orgId, action: "channel.delete", target: id, detail: `${c.name ?? ""} (${result.files.length} files)` });
     // Apps refresh the channel (now 404, shown as gone) and the community's channel list.
     ctx.hub.sendToUsers(new Set(result.members), { t: "conv.updated", conversationId: id });

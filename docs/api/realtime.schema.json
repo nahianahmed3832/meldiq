@@ -76,7 +76,8 @@
                     "type": "string",
                     "enum": [
                       "envelope",
-                      "receipt"
+                      "receipt",
+                      "message"
                     ]
                   },
                   "conversationId": {

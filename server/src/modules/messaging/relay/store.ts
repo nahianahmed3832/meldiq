@@ -16,7 +16,8 @@ export interface QueueItemRow {
   /** Increasing: a device receives and acknowledges its items in id order. */
   id: number;
   recipient_device_id: string;
-  kind: "envelope" | "receipt";
+  /** "message": a stored message or change (API 0.56.0); "envelope": an older app's encrypted one. */
+  kind: "envelope" | "receipt" | "message";
   conversation_id: string;
   message_id: string;
   sender_user_id: string;
@@ -125,7 +126,7 @@ export class SqliteRelayStore implements RelayStore {
 
   async hasEnvelopeSince(deviceId: string, since: number, now: number): Promise<boolean> {
     return !!this.db
-      .prepare("SELECT 1 FROM delivery_queue WHERE recipient_device_id = ? AND kind = 'envelope' AND created_at >= ? AND expires_at > ? LIMIT 1")
+      .prepare("SELECT 1 FROM delivery_queue WHERE recipient_device_id = ? AND kind IN ('envelope', 'message') AND created_at >= ? AND expires_at > ? LIMIT 1")
       .get(deviceId, since, now);
   }
 
@@ -139,7 +140,7 @@ export class SqliteRelayStore implements RelayStore {
   async stats(): Promise<RelayStats> {
     const r = this.db
       .prepare(
-        "SELECT SUM(kind = 'envelope') AS envelopes, SUM(kind = 'receipt') AS receipts, MIN(created_at) AS oldest FROM delivery_queue",
+        "SELECT SUM(kind <> 'receipt') AS envelopes, SUM(kind = 'receipt') AS receipts, MIN(created_at) AS oldest FROM delivery_queue",
       )
       .get() as { envelopes: number | null; receipts: number | null; oldest: number | null };
     return { envelopes: r.envelopes ?? 0, receipts: r.receipts ?? 0, oldestCreatedAt: r.oldest };

@@ -176,6 +176,7 @@ async function eraseIdentity(ctx: AppContext, userId: string, actorId: string | 
   });
   const rooms = removed.flatMap((c) => liveRooms.get(c) ?? []);
   await ctx.calls.forgetConversations(removed);
+  for (const c of removed) await ctx.messages.deleteConversation(c);
   // Hands they raised in voice rooms.
   await ctx.calls.forgetUserHands(userId);
 

@@ -68,7 +68,10 @@ export const ERROR_CODES = {
   // Meldiq Mojo (API 0.54.0, docs/MOJO.md).
   no_sparks: { status: [409], meaning: "This account has no Meldiq Sparks: Mojo Go includes one, Mojo Plus two, and more can be bought." },
   no_free_sparks: { status: [409], meaning: "Every Spark this account has is already given to a community." },
-  message_too_long: { status: [413], meaning: "The encrypted message is far larger than the sender's plan allows (messages are counted in the app; the server bounds their size)." },
+  message_too_long: { status: [413], meaning: "The message is longer than the sender's plan allows (characters as people count them), or an older app's encrypted one far larger than it could need." },
+  // Server-stored messages (API 0.56.0, docs/SERVER_MESSAGES.md).
+  not_yours: { status: [403], meaning: "Only the person who sent a message can edit it, delete it or close its poll." },
+  update_required: { status: [426], meaning: "Update Meldiq to keep messaging: messages are now stored on Meldiq's servers." },
   upload_limit: { status: [413], meaning: "The file is larger than the sender's plan, or the community's Spark level, allows." },
   custom_items_limit: { status: [409], meaning: "This account has added as many custom emoji and stickers as its plan allows." },
   bad_signature: { status: [400, 401], meaning: "A signature doesn't verify (a message envelope against its device, or a federated request against its server)." },

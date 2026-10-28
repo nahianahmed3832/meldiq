@@ -11,6 +11,7 @@ import type { Entitlements } from "../modules/administration/entitlements.js";
 import type { LiveKitService } from "../modules/calls/livekit.js";
 import type { MeldiqMongo } from "../infrastructure/database/mongo/client.js";
 import type { HistoryStore } from "../modules/messaging/history/store.js";
+import type { MessageStore } from "../modules/messaging/store/messageStore.js";
 import type { ReportSealer } from "../modules/organizations/reports/seal.js";
 import type { RelationshipStore } from "../modules/accounts/relationships/store.js";
 import type { CallStore } from "../modules/calls/store.js";
@@ -52,6 +53,8 @@ export interface AppContext {
   relay: RelayStore;
   /** Encrypted message history (docs/MESSAGE_HISTORY.md): SQLite, or MongoDB when MONGODB_DOMAINS includes "history". */
   history: HistoryStore;
+  /** Messages stored and served by the server (API 0.56.0, docs/SERVER_MESSAGES.md). */
+  messages: MessageStore;
   /** Reports (batch B4): SQLite, or MongoDB when MONGODB_DOMAINS includes "reports"; their content sealed by [reportSealer]. */
   reports: ReportStore;
   reportSealer: ReportSealer;

@@ -462,6 +462,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     if (!result) return replay();
     // SQLite cascaded its calls with the channels; a call store elsewhere removes them itself.
     await ctx.calls.forgetConversations([...result.channelMembers.keys()]);
+    for (const c of result.channelMembers.keys()) await ctx.messages.deleteConversation(c);
     await ctx.prefs.deleteForWorkspace(orgId);
     await ctx.reports.deleteForOrg(orgId);
 
