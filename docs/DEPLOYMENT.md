@@ -130,6 +130,26 @@ Passkeys failed in the app installed from Google Play: Play signs it with its ap
 
 Rollback: copy the backup's `.env` back and recreate `api` the same way.
 
+### API 0.59.0 and console 1.0.0: platform controls and the redesigned admin console (2026-10-28, 20:47 and 20:48 UTC, owner's go-ahead: "after you done directly deploy no need extra permission")
+
+Branch `platform-controls`: 0.58.0 (`mojo-console` 76a3682, production's sources, checked file by file) + platform
+controls (docs/PLATFORM_CONTROLS.md): maintenance mode, sign-up modes, blocked email domains and kill switches, enforced
+by the server; `/admin/v1/controls` with the new sensitive permission `controls.edit`. No migration, no new MongoDB
+columns. Console 1.0.0 (meldiq_central_admin): the whole UI rebuilt in `src/console/` with the Platform Controls page.
+
+| Step | Result |
+|---|---|
+| Tests | server: 1155 passed, 2 failed (`mongo_capacity`, which also fails on the untouched 69603a8 here); new `platform_controls.test.ts` 12/12; console: unit 27, browser 6/6 (incl. maintenance and a kill switch end to end) under the production CSP |
+| Backup | `backups/pre-0.59.0-20261028T204306Z`: integrity ok, schema 67, 43 users, `.env`/`compose.yaml` copies; image tagged `0.58.0-rollback`; sources kept as `server.pre-0.59.0` |
+| Rehearsal | backup copy, `--network none`, MongoDB and FCM settings left out, data owned by uid 1000: healthy 0.59.0, integrity ok, `/v1/server-info` with `signups` and `maintenance`, 0 error lines; removed after |
+| Switch | `compose.yaml` image 0.59.0 at 20:47:46 (healthy 20:47:54); `.env` unchanged |
+| Checks after | `/healthz` 0.59.0 `mongodb: true` on msg.meldiq.app and msg.griipbuddy.cloud; `verify.sh` 0 restarts; 0 warn/error log lines; `/admin/v1/controls` 401 without a session |
+| Console | release 1.0.0-20261028T204814Z installed with `install-release.sh` (nginx site and headers unchanged); console `verify.sh` all passed; the live sign-in page loads the new build |
+
+Rollback: `compose.yaml` image `0.58.0-rollback`; `up -d --no-deps --no-build --force-recreate api` (no schema change,
+nothing to undo; stored controls are ignored by 0.58.0). Console: `bash /root/meldiq-admin-1.0.0-20261028T204814Z/rollback.sh`
+(back to 0.8.0-20261028T195956Z).
+
 ### API 0.57.0/0.57.1 and web ec92ad3: messages stored and served by the server, the floating redesign's second round, Meldling art (2026-10-28, 18:45 and 18:53 UTC, owner's go-ahead: "after finished deploy for production and push to github by my name")
 
 Branch `release-0.57.0`: `server-messages` (docs/SERVER_MESSAGES.md) and `mongo-finish` 1977da1 merged onto
