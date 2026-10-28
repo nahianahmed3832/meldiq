@@ -160,7 +160,9 @@ export class SqliteMessageStore implements MessageStore {
       "SELECT MAX(CAST(json_extract(payload, '$.upTo') AS INTEGER)) up FROM message_events WHERE conversation_id = ? AND cls = 'control' AND type = 'read' AND sender_user_id = ?",
     );
     const newer = this.db.prepare(
-      `SELECT payload, mention_all FROM message_events WHERE conversation_id = ? AND cls = 'message' AND sender_user_id <> ? AND server_ts > ? ORDER BY server_ts DESC LIMIT ?`,
+      // Uploaded history (imported_by) was seen on the device that kept it: never unread.
+      `SELECT payload, mention_all FROM message_events WHERE conversation_id = ? AND cls = 'message' AND sender_user_id <> ? AND server_ts > ? AND imported_by IS NULL
+         ORDER BY server_ts DESC LIMIT ?`,
     );
     return conversationIds.map((id) => {
       const up = (read.get(id, userId) as { up: number | null }).up ?? 0;

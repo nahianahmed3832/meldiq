@@ -112,7 +112,8 @@ export class MongoMessageStore implements MessageStore {
         const reads = await this.col.find({ conversation_id: id, cls: "control", type: "read", sender_user_id: userId }, { session, projection: { payload: 1 } }).toArray();
         const up = reads.reduce((max, r) => Math.max(max, Number((JSON.parse(r.payload) as { upTo?: unknown }).upTo) || 0), 0);
         const newer = await this.col
-          .find({ conversation_id: id, cls: "message", sender_user_id: { $ne: userId }, server_ts: { $gt: up } }, { session, projection: { payload: 1, mention_all: 1 } })
+          // Uploaded history (imported_by) was seen on the device that kept it: never unread.
+          .find({ conversation_id: id, cls: "message", sender_user_id: { $ne: userId }, server_ts: { $gt: up }, imported_by: null }, { session, projection: { payload: 1, mention_all: 1 } })
           .sort({ server_ts: -1 })
           .limit(cap)
           .toArray();

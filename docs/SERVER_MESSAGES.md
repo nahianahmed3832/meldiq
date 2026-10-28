@@ -63,3 +63,9 @@ and Atlas's own storage view show the growth; move to a paid tier well before 70
 - Built on API 0.56.0 (`release-0.56.0`: Google Play Billing and activity status), and carries `mongo-finish` 1977da1:
   every remaining domain can run from MongoDB, but which ones do is still `MONGODB_DOMAINS` (unchanged by this release;
   see docs/MONGODB_CUTOVER_RUNBOOK.md before adding any).
+
+## 0.57.1
+
+History a device uploaded (`importedBy`) never counts as unread or as a mention in `/v2/messages/summary`: the device
+that kept it had already shown it. (In 0.57.0 the owner's browser, uploading its history right after the deploy, showed
+every uploaded message as unread.)

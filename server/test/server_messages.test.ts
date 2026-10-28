@@ -110,6 +110,11 @@ describe("server-stored messages", () => {
     await change(alice, g, { type: "read", upTo: first.serverTs }, { audience: "self" });
     s = (await alice.req("GET", "/v2/messages/summary")).conversations.find((c: { conversationId: string }) => c.conversationId === g);
     expect(s).toMatchObject({ unread: 1, mentions: 1, readUpTo: first.serverTs });
+    // Uploaded history was seen on the device that kept it: shown as the newest message, never counted as unread.
+    const old = { id: mid(), conversationId: g, senderUserId: carol.userId, cls: "message", sentAt: Date.now(), serverTs: Date.now(), payload: { type: "text", text: "kept on a phone", mentions: [alice.userId] } };
+    expect(await alice.req("POST", "/v2/messages/import", { items: [old] })).toEqual({ added: 1, skipped: 0 });
+    s = (await alice.req("GET", "/v2/messages/summary")).conversations.find((c: { conversationId: string }) => c.conversationId === g);
+    expect(s).toMatchObject({ unread: 1, mentions: 1, last: { payload: { text: "kept on a phone" } } });
     // Your own messages never count as unread for you.
     expect((await carol.req("GET", "/v2/messages/summary")).conversations.find((c: { conversationId: string }) => c.conversationId === g)).toMatchObject({ unread: 0 });
   });
