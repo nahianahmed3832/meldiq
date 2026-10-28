@@ -97,7 +97,8 @@ verified (`admin mongo-dryrun`), so the data model is proven even where the code
 | Variable | Default | Meaning |
 |---|---|---|
 | `MONGODB_URI` | unset | Connection string. Unset: everything stays in SQLite exactly as before. Never logged (redacted). |
-| `MONGODB_DB` | `orbit` | Database name |
+| `MONGODB_DB` | `meldiq` | Database name |
+| `MONGODB_STORAGE_LIMIT_MB` | `0` (no check) | The deployment's storage limit; `mongo-migrate` and `mongo-dryrun` refuse to start when the projected usage would pass 70% of it (§7a). Set `512` on an Atlas Free (M0) cluster |
 | `MONGODB_DOMAINS` | empty | Comma list of domains whose home is MongoDB: `accounts`, `preferences`, `history`, `reports`, `relationships`, `relay`, `files` (`integrations` is retired and ignored) |
 | `MONGODB_MAX_POOL` | `20` | Connection pool size (1–200) |
 | `MONGODB_TIMEOUT_MS` | `5000` | Server selection and connect timeout; socket timeout is 6× this |
@@ -145,6 +146,25 @@ Before any production migration (owner's brief, Part 11.4):
 - MongoDB: Atlas continuous backups (M10 or above) or `mongodump --gzip` encrypted off-site for a self-run replica set.
 - **Restore drill** in non-production: `mongo-rollback` is covered by tests (`test/mongo_migration.test.ts`), and
   `mongo-dryrun --snapshot <file>` rehearses a full copy of a snapshot into a throwaway database.
+
+## 7a. Capacity (Atlas Free clusters)
+
+An Atlas Free (M0) cluster holds at most 0.5 GB, counted as **uncompressed BSON plus index bytes**, with at most 500
+collections and 100 databases, 500 connections, 10 GB in and 10 GB out per rolling 7 days (then throttled), no cloud
+backups (`mongodump` works) and possible pausing when idle. A copy that runs out of room halfway is a failed write
+freeze, so capacity is measured before anything moves (`src/infrastructure/database/mongo/capacity.ts`):
+
+- `node dist/admin.js mongo-estimate [--domain <d>] [--snapshot <file>] [--limit-mb 512]` reads SQLite only and prints,
+  per table, the rows, the BSON bytes of the documents they become (exact: the same `toDocument` the copy uses) and an
+  index estimate (key bytes plus 16 bytes per entry, erring high). Exit 1 when the total passes 70% of the limit.
+- With `MONGODB_STORAGE_LIMIT_MB` set, `mongo-migrate` and `mongo-dryrun` add what the deployment already holds
+  (`dbStats` of every database the user can see), subtract what a re-run overwrites, and refuse before copying when
+  the projection passes 70% of the limit. Nothing is written to SQLite or backed up when they refuse.
+- A dry run copies every table into a second database: on a Free cluster that doubles the usage and the collection count
+  (159 per copy at schema 061, so the server's database plus one rehearsal copy is about 320 of the 500), so run `mongo-dryrun --db meldiq_rehearsal` (a name the database user is granted) and let it drop
+  the copy afterwards (no `--keep`).
+- Free clusters have no backups: before MongoDB becomes the home of any domain on one, schedule an encrypted
+  `mongodump --gzip` off the VPS and keep the SQLite copy untouched (§6.5) as the rollback source.
 
 ## 8. Verification and smoke tests
 

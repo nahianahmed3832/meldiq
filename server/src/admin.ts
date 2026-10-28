@@ -31,7 +31,7 @@
  *   storage-orphans [--delete]     stored files no record refers to, older than a day (dry run; --delete queues them
  *                                  for the retention job)
  *   table-counts                   rows in every table, as JSON (no content; backup manifests and migration checks)
- *   mongo-status | mongo-migrate | mongo-verify | mongo-rollback | mongo-dryrun
+ *   mongo-status | mongo-estimate | mongo-migrate | mongo-verify | mongo-rollback | mongo-dryrun
  *                                  MongoDB domains and migration (src/mongo/admin.ts, docs/MONGODB.md)
  *   retired-data [--purge --yes]   rows left in the tables of modules the community rebuild removed (apps, inbox,
  *                                  workflows, documents, developer keys, AI, groups); --purge --yes deletes them (back up first)

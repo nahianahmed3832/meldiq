@@ -19,6 +19,8 @@ export interface MongoConfig {
   maxPoolSize: number;
   /** Server selection, connect and per-operation socket timeouts (ms). */
   timeoutMs: number;
+  /** The deployment's storage limit in MiB (512 on an Atlas Free cluster); 0: copies aren't checked against one. */
+  storageLimitMb: number;
 }
 
 const DEFAULT_DB = "meldiq";
@@ -66,5 +68,6 @@ export function mongoConfig(env: NodeJS.ProcessEnv, appEnv: string, int: (name: 
     domains: new Set(domains as MongoDomain[]),
     maxPoolSize: Math.min(Math.max(int("MONGODB_MAX_POOL", DEFAULT_POOL), 1), 200),
     timeoutMs: Math.min(Math.max(int("MONGODB_TIMEOUT_MS", DEFAULT_TIMEOUT_MS), 500), 60_000),
+    storageLimitMb: Math.max(int("MONGODB_STORAGE_LIMIT_MB", 0), 0),
   };
 }
