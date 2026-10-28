@@ -47,8 +47,10 @@ export default async function wsRoutes(app: FastifyInstance, ctx: AppContext) {
   const { db, hub, authz } = ctx;
   const lastTyping = new Map<string, number>();
 
-  hub.onPresenceChange = (userId) => {
+  hub.onPresenceChange = (userId, online) => {
     if (!db.open) return; // server shutting down
+    // API 0.56.0: an activity ends with the person's last connection, invisible or not (docs/ACTIVITY_STATUS.md).
+    if (!online) ctx.activity.ended(userId);
     // Batch B6b: an invisible person's apps connecting and disconnecting change nothing anyone sees.
     if (invisible(ctx, userId)) return;
     announcePresence(ctx, userId);

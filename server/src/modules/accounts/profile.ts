@@ -1,6 +1,7 @@
 import { profileMediaView, wornTag } from "./profileMedia.js";
 import type { AppContext } from "../../app/context.js";
 import { Audience as AudienceEnum, PHONE, PresenceMode as PresenceModeEnum, validBirthday } from "../../shared/contracts/http/users.js";
+import type { ActivityWire } from "../../shared/contracts/realtime.js";
 
 /**
  * Profiles and who may see each part of them (2026-10-17, docs/PROFILE_AND_PRIVACY.md).
@@ -80,6 +81,12 @@ export function shownPresence(ctx: AppContext, u: Pick<ProfileRow, "id" | "prese
   const m = presenceModeOf(u);
   if (m === "invisible") return "offline";
   return m === "auto" ? "online" : m;
+}
+
+/** API 0.56.0: what [u] is playing, as shown to people who may see their presence: nothing while they appear offline. */
+export function shownActivity(ctx: AppContext, u: Pick<ProfileRow, "id" | "presence_mode" | "presence_until">): ActivityWire | null {
+  const activity = ctx.activity.current(u.id);
+  return activity && shownPresence(ctx, u) !== "offline" ? activity : null;
 }
 
 /** Whether [userId] appears online (connected and not invisible); loads their choice when only the id is known. */
@@ -206,6 +213,7 @@ export function memberView(ctx: AppContext, viewerId: string, u: ProfileRow, bas
   const p = privacyOf(u);
   const status = activeStatus(u);
   const seen = allows(p.lastSeen, r);
+  const activity = seen ? shownActivity(ctx, u) : null;
   return {
     ...base,
     statusText: allows(p.bio, r) ? status.text : null,
@@ -217,6 +225,8 @@ export function memberView(ctx: AppContext, viewerId: string, u: ProfileRow, bas
     online: seen ? appearsOnline(ctx, u) : null,
     // Batch B6b: online, idle, do not disturb or offline (invisible people appear offline).
     ...(seen ? { presence: shownPresence(ctx, u) } : {}),
+    // API 0.56.0: "Playing PUBG Mobile", under the same rule as the presence.
+    ...(activity ? { activity } : {}),
     // "Ada has paused notifications": shown to the people who may see when Ada was last online (round 3).
     notificationsPaused: seen ? notificationsPaused(u) : null,
   };

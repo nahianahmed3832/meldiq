@@ -1,3 +1,4 @@
+import { activityRoutes } from "../activity.js";
 import { authRoutes } from "../auth.js";
 import { notificationRoutes } from "../notifications.js";
 import { preferenceRoutes } from "../preferences.js";
@@ -10,6 +11,7 @@ import { userRoutes } from "../users.js";
 export const identityRoutes: readonly RouteContract[] = [
   ...authRoutes,
   ...userRoutes,
+  ...activityRoutes,
   ...notificationRoutes,
   ...connectionRoutes,
   ...preferenceRoutes,

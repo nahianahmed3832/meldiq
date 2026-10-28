@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import { PresenceState } from "../realtime.js";
+import { ActivityWire, PresenceState } from "../realtime.js";
 import { UserIdParams, zName, zUsername } from "./auth.js";
 import { idParams, zTime } from "./primitives.js";
 import { route } from "./route.js";
@@ -238,6 +238,8 @@ export const UserProfile = z.strictObject({
   /** Absent when hidden. */
   presence: PresenceState.optional(),
   lastSeenAt: zTime.nullable(),
+  /** API 0.56.0: what they're playing; absent when nothing is shown to you. */
+  activity: ActivityWire.optional(),
 });
 
 /** A device's public keys, to encrypt to and verify. */
@@ -253,7 +255,14 @@ export const DirectoryEntry = z.strictObject({
   revokedDevices: z.array(DirectoryDevice.extend({ revokedAt: zTime })),
 });
 
-export const PresenceEntry = z.strictObject({ userId: z.string(), online: z.boolean(), presence: PresenceState, lastSeenAt: zTime.nullable() });
+export const PresenceEntry = z.strictObject({
+  userId: z.string(),
+  online: z.boolean(),
+  presence: PresenceState,
+  lastSeenAt: zTime.nullable(),
+  /** API 0.56.0: what they're playing, when shown. */
+  activity: ActivityWire.optional(),
+});
 
 const user = (url: string, extra: Omit<Parameters<typeof route>[0], "url" | "tag" | "auth">) => route({ url, tag: "users", auth: true, ...extra });
 

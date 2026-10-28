@@ -67,6 +67,11 @@ import meetingRoutes from "../modules/calls/meetingsRoutes.js";
 import communityRoutes from "../modules/organizations/communityRoutes.js";
 import { runCommunityMigration } from "../modules/organizations/communityMigration.js";
 import preferenceRoutes from "../modules/accounts/preferences/routes.js";
+import activityRoutes from "../modules/accounts/activity/routes.js";
+import { ActivityService } from "../modules/accounts/activity/service.js";
+import { MemoryActivityStore } from "../modules/accounts/activity/store.js";
+import { MongoActivityStore } from "../modules/accounts/activity/mongoStore.js";
+import { announceActivity } from "../modules/accounts/activity/visibility.js";
 import reminderRoutes from "../modules/accounts/reminders/routes.js";
 import { ReminderService } from "../modules/accounts/reminders/service.js";
 import { FcmService } from "../modules/notifications/fcm.js";
@@ -83,7 +88,7 @@ import { now } from "../shared/utilities/util.js";
 import wsRoutes from "../modules/realtime/ws.js";
 import { Billing, billingRoutes } from "../modules/billing/index.js";
 
-export const VERSION = "0.55.0";
+export const VERSION = "0.56.0";
 /**
  * The client API this server speaks and the oldest client API it accepts. Clients refuse a server whose
  * minClientApi is newer than theirs; servers from before these fields existed count as API 1.
@@ -196,6 +201,13 @@ export async function buildApp(
   ctx.reports = ctx.mongo?.owns("reports") ? new MongoReportStore(ctx.mongo) : new SqliteReportStore(db);
   ctx.relationships = ctx.mongo?.owns("relationships") ? new MongoRelationshipStore(ctx.mongo) : new SqliteRelationshipStore(db);
   ctx.calls = ctx.mongo?.owns("calls") ? new MongoCallStore(ctx.mongo) : new SqliteCallStore(db);
+  // API 0.56.0: new data, so MongoDB whenever the server has one (no domain to migrate).
+  const activityStore = ctx.mongo ? new MongoActivityStore(ctx.mongo) : new MemoryActivityStore();
+  if (activityStore instanceof MongoActivityStore) await activityStore.ensureIndexes();
+  ctx.activity = new ActivityService(activityStore, app.log);
+  ctx.activity.onChange = (userId) => announceActivity(ctx, userId);
+  await ctx.activity.start();
+  app.addHook("onClose", async () => ctx.activity.stop());
   ctx.reportSealer = ReportSealer.load(process.env, config.dataDir);
   // Billing (plans, subscriptions, Meldiq Spark, gifts): rows in SQLite, or MongoDB when MONGODB_DOMAINS includes it.
   ctx.billing = new Billing(await openBillingRows(db, ctx.mongo, app.log), config.billing, app.log, Date.now, (id) => ctx.quotas.planExists(id));
@@ -401,7 +413,7 @@ export async function buildApp(
     passkeys: ctx.accounts.passkeys.available ? { webOrigins: ctx.accounts.passkeys.webOrigins } : null,
   }));
 
-  for (const r of [authRoutes, userRoutes, profileMediaRoutes, gifRoutes, bugReportRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, expressionRoutes, discordRoutes, wsRoutes]) {
+  for (const r of [authRoutes, userRoutes, profileMediaRoutes, gifRoutes, bugReportRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, activityRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, expressionRoutes, discordRoutes, wsRoutes]) {
     await app.register(async (scope) => r(scope, ctx));
   }
   await app.register(async (scope) => opsRoutes(scope, ctx, VERSION));
@@ -528,6 +540,8 @@ export function serverFeatures(config: Config, directUploads = false): string[] 
     "account-standing",
     "bug-reports",
     "profile-links",
+    // API 0.56.0: what people are playing, reported by the Android app after they opt in (docs/ACTIVITY_STATUS.md).
+    "activity-status",
     // API 0.50.0: folders of communities on the rail, in the personal preferences (railFolders).
     "rail-folders",
     // API 0.54.0 (docs/MOJO.md): Meldiq Mojo's catalog and perks, Meldiq Spark levels, gifts and badges.

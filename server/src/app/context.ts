@@ -17,6 +17,7 @@ import type { CallStore } from "../modules/calls/store.js";
 import type { Rows } from "../infrastructure/database/rows/index.js";
 import type { ReportStore } from "../modules/organizations/reports/store.js";
 import type { PreferenceStore } from "../modules/accounts/preferences/store.js";
+import type { ActivityService } from "../modules/accounts/activity/service.js";
 import type { PushService } from "../modules/notifications/service.js";
 import type { FcmService } from "../modules/notifications/fcm.js";
 import type { Metrics } from "../modules/administration/ops/metrics.js";
@@ -57,6 +58,8 @@ export interface AppContext {
   reportSealer: ReportSealer;
   /** Connections, message requests and messaging settings (batch B6): SQLite, or MongoDB with the "relationships" domain. */
   relationships: RelationshipStore;
+  /** What people are playing (API 0.56.0, docs/ACTIVITY_STATUS.md): MongoDB when the server has one, memory otherwise. */
+  activity: ActivityService;
   /** Calls, their participants and raised hands: SQLite, or MongoDB when MONGODB_DOMAINS includes "calls". */
   calls: CallStore;
   /**
