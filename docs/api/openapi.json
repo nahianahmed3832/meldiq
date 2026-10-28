@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Meldiq API",
-    "version": "0.54.0",
+    "version": "0.55.0",
     "description": "The canonical contract of the Meldiq server (docs/architecture/ARCHITECTURE_1_0_PLAN.md §4), generated from src/shared/contracts. Fields are only ever added within a version; clients ignore unknown fields. Routes not listed here exist but aren't documented yet."
   },
   "servers": [
@@ -46400,13 +46400,17 @@
                                       "type": "null"
                                     }
                                   ]
+                                },
+                                "provider": {
+                                  "type": "string"
                                 }
                               },
                               "required": [
                                 "quantity",
                                 "status",
                                 "renews",
-                                "currentPeriodEnd"
+                                "currentPeriodEnd",
+                                "provider"
                               ],
                               "additionalProperties": false
                             },
@@ -47559,6 +47563,247 @@
           }
         ]
       }
+    },
+    "/v2/mojo/play/intent": {
+      "post": {
+        "tags": [
+          "Mojo"
+        ],
+        "summary": "Android: record a Google Play purchase about to start (a plan, a Spark pack or a gift) and get what Google's sheet carries.",
+        "operationId": "postV2MojoPlayIntent",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "reference": {
+                      "type": "string"
+                    },
+                    "accountToken": {
+                      "type": "string",
+                      "maxLength": 64
+                    }
+                  },
+                  "required": [
+                    "reference",
+                    "accountToken"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: bad_request, billed_elsewhere, billing_unavailable, conflict, device_required, not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "plan",
+                      "spark",
+                      "gift"
+                    ]
+                  },
+                  "productId": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9_]{1,40}$"
+                  },
+                  "replacing": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[a-z0-9_]{1,40}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "giftTo": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "months": {
+                    "anyOf": [
+                      {
+                        "anyOf": [
+                          {
+                            "type": "number",
+                            "const": 1
+                          },
+                          {
+                            "type": "number",
+                            "const": 3
+                          },
+                          {
+                            "type": "number",
+                            "const": 12
+                          }
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "planKey": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "go",
+                          "plus"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "quantity": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 20
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "note": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 280
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "kind",
+                  "productId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/mojo/play/verify": {
+      "post": {
+        "tags": [
+          "Mojo"
+        ],
+        "summary": "Android: a Google Play purchase token; the server reads the purchase from Google, applies it and acknowledges it.",
+        "operationId": "postV2MojoPlayVerify",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "granted",
+                        "pending",
+                        "already_linked",
+                        "invalid"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: billing_unavailable, device_required, unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "productId": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9_]{1,40}$"
+                  },
+                  "purchaseToken": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  }
+                },
+                "required": [
+                  "productId",
+                  "purchaseToken"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -47590,6 +47835,7 @@
                   "account_limited",
                   "bad_request",
                   "billing_unavailable",
+                  "billed_elsewhere",
                   "no_sparks",
                   "no_free_sparks",
                   "message_too_long",
@@ -47885,6 +48131,12 @@
         409
       ],
       "meaning": "No billing provider is configured on this server, so nothing can be bought."
+    },
+    "billed_elsewhere": {
+      "status": [
+        409
+      ],
+      "meaning": "This plan is billed on meldiq.app: change or cancel it there, not in Google Play."
     },
     "no_sparks": {
       "status": [

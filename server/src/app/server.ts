@@ -14,7 +14,7 @@ import accountRoutes from "../modules/accounts/routes.js";
 import { Authz } from "../modules/organizations/authz.js";
 import { orgMemberIds } from "../modules/organizations/index.js";
 import { openBillingRows } from "./billingRows.js";
-import { Gifts, Mojo } from "../modules/billing/index.js";
+import { Gifts, Mojo, PlayBilling } from "../modules/billing/index.js";
 import { availableUser, blockedEitherWay, namesOf } from "../modules/accounts/index.js";
 import { type Config, effectiveFileMaxBytes } from "./config.js";
 import { federationClientRoutes, federationPeerRoutes } from "../modules/federation/routes.js";
@@ -83,7 +83,7 @@ import { now } from "../shared/utilities/util.js";
 import wsRoutes from "../modules/realtime/ws.js";
 import { Billing, billingRoutes } from "../modules/billing/index.js";
 
-export const VERSION = "0.54.0";
+export const VERSION = "0.55.0";
 /**
  * The client API this server speaks and the oldest client API it accepts. Clients refuse a server whose
  * minClientApi is newer than theirs; servers from before these fields existed count as API 1.
@@ -211,6 +211,8 @@ export async function buildApp(
   ctx.mojo = new Mojo(ctx.billing, ctx.billing.rows, {
     isMember: (orgId, userId) => !!ctx.authz.orgRole(orgId, userId),
     enforce: config.mojoEnforce,
+    // Mojo on sale in Google Play counts as on sale (MOJO_ENFORCE=auto).
+    storeOnSale: () => ctx.play?.onSale() ?? false,
     notifyOrg: (orgId) => ctx.hub.sendToUsers(orgMemberIds(ctx.ws, orgId), { t: "entitlements.changed", scope: "org", orgId }),
   });
   ctx.gifts = new Gifts(
@@ -227,6 +229,7 @@ export async function buildApp(
     app.log,
   );
   ctx.billing.webhooks.payments = ctx.gifts;
+  ctx.play = config.billing.play ? new PlayBilling(ctx.billing, ctx.gifts, config.billing.play, app.log) : null;
   ctx.billing.onChange = (owner) => {
     if (owner.kind === "org") ctx.hub.sendToUsers(orgMemberIds(ctx.ws, owner.orgId), { t: "entitlements.changed", scope: "org", orgId: owner.orgId });
     else {

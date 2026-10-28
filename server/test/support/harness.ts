@@ -5,6 +5,7 @@ import { buildApp, type BuiltApp } from "../../src/app/server.js";
 import { loadConfig } from "../../src/app/config.js";
 import type { Mailer } from "../../src/infrastructure/mail/mailer.js";
 import type { BillingProvider } from "../../src/modules/billing/providers/types.js";
+import type { PlayConfig } from "../../src/modules/billing/config.js";
 import type { PushDeps } from "../../src/modules/notifications/service.js";
 import { type ContractCheck, contractCheck } from "./contracts.js";
 import { GriipClient } from "./griipClient.js";
@@ -24,11 +25,12 @@ let counter = 0;
 /**
  * [push]: replaces DNS and the network for push wake-ups (test/push_wakeup.test.ts). [mailer]: receives account emails
  * (test/support/accounts.ts MemoryMailer); without one, MAIL_TRANSPORT decides (none by default). [billingProvider]:
- * replaces the configured billing provider (a Stripe adapter talking to a fake API, or a test store adapter).
+ * replaces the configured billing provider (a Stripe adapter talking to a fake API, or a test store adapter). [play]:
+ * Google Play's settings, with a fake Developer API.
  */
 export async function startServer(
   env: Record<string, string> = {},
-  opts: { push?: PushDeps; mailer?: Mailer; billingProvider?: BillingProvider } = {},
+  opts: { push?: PushDeps; mailer?: Mailer; billingProvider?: BillingProvider; play?: PlayConfig } = {},
 ): Promise<Harness> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "griip-test-"));
   const config = loadConfig({
@@ -58,6 +60,8 @@ export async function startServer(
     ...env,
   } as NodeJS.ProcessEnv);
   if (opts.billingProvider) config.billing = { ...config.billing, provider: opts.billingProvider, unavailableReason: null };
+  // Google Play with a fake Developer API and test signing keys (test/play.test.ts).
+  if (opts.play) config.billing = { ...config.billing, play: opts.play };
   const contracts = contractCheck();
   const built = await buildApp(config, { logger: false, push: opts.push, mailer: opts.mailer, contracts: contracts.observer });
   await built.app.listen({ host: "127.0.0.1", port: 0 });

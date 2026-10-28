@@ -286,6 +286,13 @@ export default async function billingRoutes(
     userNames: ctx.userNames,
   });
 
+  // Google Play's real-time developer notifications (Pub/Sub push, API 0.55.0): authenticated by Google's OIDC token, not
+  // a body signature, so the body is parsed as usual. The notification only says what to ask Google about.
+  app.post("/v1/billing/webhooks/google_play", async (req) => {
+    if (!ctx.play) throw notFound();
+    return ctx.play.notification(req.headers.authorization, req.body);
+  });
+
   // Provider webhooks: no session, the signature is the proof. The body is kept exactly as sent, for the signature.
   await app.register(async (scope) => {
     scope.addContentTypeParser(

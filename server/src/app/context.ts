@@ -26,7 +26,7 @@ import type { ReminderService } from "../modules/accounts/reminders/service.js";
 import type { BlobStore } from "../infrastructure/storage/index.js";
 import type { Telemetry } from "../modules/telemetry/index.js";
 import type { QuotaEngine } from "../modules/quotas/index.js";
-import type { Billing, Gifts, Mojo } from "../modules/billing/index.js";
+import type { Billing, Gifts, Mojo, PlayBilling } from "../modules/billing/index.js";
 
 export interface AppContext {
   db: DB;
@@ -86,6 +86,8 @@ export interface AppContext {
   mojo: Mojo;
   /** Gifts of Meldiq Mojo (modules/billing/gifts.ts). */
   gifts: Gifts;
+  /** Google Play purchases for the Android app (API 0.55.0); null when GOOGLE_PLAY_PACKAGE isn't set. */
+  play: PlayBilling | null;
   /** Display names of users by id (identity), for billing's views. */
   userNames: (ids: readonly string[]) => Map<string, string>;
   log: FastifyBaseLogger;

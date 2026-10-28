@@ -301,17 +301,12 @@ provider (`metadata.meldiq_checkout`), never from a customer id, an owner id in 
 - Other v2 routes: `GET /v2/billing/plans` (public), `GET /v2/billing/account`, `GET /v2/billing/orgs/:orgId` (owners),
   `POST /v2/billing/checkout {planKey, orgId?}`, `/portal {orgId?}`, `/sync {orgId?}` (10 a minute).
 
-### Future clients and store billing (documented, not built)
+### Store billing: Google Play (API 0.55.0)
 
-- **Android, iOS, macOS, Windows** read the same endpoint; nothing about the provider is built into a client.
-- **Google Play Billing / Apple StoreKit:** each is another `BillingProvider` adapter: verify the store's signed
-  notification or receipt on the server (Play Developer API / App Store Server API), map it to `SubscriptionSnapshot`,
-  and pass our checkout id as the purchase's account token (`obfuscatedAccountId` / `appAccountToken`) so the purchase
-  attaches to the right account (as the test store adapter in `billing_stripe.test.ts` does). Store prices go in the
-  catalog as plan versions with that provider. Purchases are verified, never trusted from the device.
-- **Platform rules:** the Android and iOS apps must not link to the website's checkout or show external purchase
-  buttons until Google Play's and Apple's current rules (and any regional alternative-billing programs) have been
-  checked for Meldiq's app type and storefronts. Nothing in this release adds one.
+The Android app sells through Google Play (docs/MOJO_ANDROID.md): `billing/play.ts` sits beside the provider above
+(Stripe keeps its routes and webhooks unchanged). Play purchases are read from the Google Play Developer API and applied
+through the same subscription core (`provider: "google_play"`, the token's hash as the subscription ref) and gift rules;
+the Android app never links to the website's checkout. Apple StoreKit would follow the same pattern.
 
 ### Stripe Dashboard setup (owner; can't be done from here)
 

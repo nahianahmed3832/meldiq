@@ -81,8 +81,8 @@ export const MojoMe = z.strictObject({
     assignments: z.array(
       z.strictObject({ id: z.string(), orgId: z.string(), orgName: z.string().nullable(), assignedAt: zTime, paused: z.boolean(), member: z.boolean() }),
     ),
-    /** The Spark add-on subscription, when there is one. */
-    subscription: z.strictObject({ quantity: zCount, status: z.string(), renews: z.boolean(), currentPeriodEnd: zTime.nullable() }).nullable(),
+    /** The Spark add-on subscription, when there is one; [provider]: who bills it (`stripe`, `google_play`). */
+    subscription: z.strictObject({ quantity: zCount, status: z.string(), renews: z.boolean(), currentPeriodEnd: zTime.nullable(), provider: z.string() }).nullable(),
   }),
   badge: z.strictObject({ kind: z.enum(["go", "plus"]).nullable(), check: z.boolean(), hidden: z.boolean() }),
   gifts: z.strictObject({ received: z.array(zGiftView), sent: z.array(zGiftView) }),
@@ -115,3 +115,22 @@ export const GiftParams = z.strictObject({ id: zId });
 export const GiftRedeemed = z.strictObject({ startsAt: zTime, endsAt: zTime });
 export const BadgeBody = z.strictObject({ hidden: z.boolean() });
 export const BadgeSaved = z.strictObject({ hidden: z.boolean() });
+
+/** Google Play (API 0.55.0, docs/MOJO_ANDROID.md): what the Android app is about to buy, before Google's sheet opens. */
+const zPlayProductId = z.string().regex(/^[a-z0-9_]{1,40}$/);
+export const PlayIntentBody = z.strictObject({
+  kind: z.enum(["plan", "spark", "gift"]),
+  productId: zPlayProductId,
+  /** The person's current Google Play subscription product when this purchase replaces it (a plan or pack change). */
+  replacing: zPlayProductId.nullable().optional(),
+  giftTo: zId.nullable().optional(),
+  months: z.union([z.literal(1), z.literal(3), z.literal(12)]).nullable().optional(),
+  planKey: z.enum(["go", "plus"]).nullable().optional(),
+  quantity: z.number().int().min(1).max(20).nullable().optional(),
+  note: z.string().max(280).nullable().optional(),
+});
+/** [reference] goes to Google as the purchase's obfuscated profile id, [accountToken] as its obfuscated account id. */
+export const PlayIntentStarted = z.strictObject({ reference: z.string(), accountToken: z.string().max(64) });
+export const PlayVerifyBody = z.strictObject({ productId: zPlayProductId, purchaseToken: z.string().min(1).max(4096) });
+/** `granted` (verified with Google and given), `pending` (Google hasn't been paid yet), `already_linked` (another account's purchase) or `invalid`. */
+export const PlayVerified = z.strictObject({ status: z.enum(["granted", "pending", "already_linked", "invalid"]) });

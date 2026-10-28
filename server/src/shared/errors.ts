@@ -66,6 +66,8 @@ export const ERROR_CODES = {
   bad_request: { status: [400], meaning: "Give the role a name" },
   billing_unavailable: { status: [409], meaning: "No billing provider is configured on this server, so nothing can be bought." },
   // Meldiq Mojo (API 0.54.0, docs/MOJO.md).
+  // Google Play (API 0.55.0, docs/MOJO_ANDROID.md).
+  billed_elsewhere: { status: [409], meaning: "This plan is billed on meldiq.app: change or cancel it there, not in Google Play." },
   no_sparks: { status: [409], meaning: "This account has no Meldiq Sparks: Mojo Go includes one, Mojo Plus two, and more can be bought." },
   no_free_sparks: { status: [409], meaning: "Every Spark this account has is already given to a community." },
   message_too_long: { status: [413], meaning: "The encrypted message is far larger than the sender's plan allows (messages are counted in the app; the server bounds their size)." },
