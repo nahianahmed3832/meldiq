@@ -9,6 +9,8 @@ import { ENTITLEMENT_KEYS, type EntitlementKey, isEntitlementKey } from "../admi
  * stops being offered but every subscription on it keeps it: editing the catalog never reprices anyone.
  */
 export type PlanStatus = "draft" | "active" | "archived";
+/** Who a plan is for: a person's own account, or an organization (bought by its owner, used by its members). */
+export type PlanAudience = "personal" | "organization";
 export type PlanLimits = Partial<Record<EntitlementKey, number>>;
 
 export interface PlanTerms {
@@ -20,6 +22,8 @@ export interface PlanTerms {
   graceDays: number;
   limits: PlanLimits;
   notes: string;
+  /** The quota plan (modules/quotas) subscribers are on while the plan grants; null: none. */
+  quotaPlanId?: string | null;
 }
 
 export interface PlanMeta {
@@ -27,6 +31,8 @@ export interface PlanMeta {
   description: string;
   segment: string;
   public: boolean;
+  /** Fixed when the plan is created (default "organization"); never changed afterwards. */
+  audience?: PlanAudience;
 }
 
 export interface VersionRow {
@@ -42,6 +48,7 @@ export interface VersionRow {
   grace_days: number;
   limits: string;
   notes: string;
+  quota_plan_id: string | null;
   created_by: string;
   created_at: number;
   updated_at: number;
@@ -57,6 +64,7 @@ export interface PlanRow {
   description: string;
   segment: string;
   public: number;
+  audience: PlanAudience;
   status: PlanStatus;
   created_by: string;
   created_at: number;
@@ -71,7 +79,11 @@ export function parseLimits(json: string): PlanLimits {
   return Object.fromEntries(Object.entries(raw).filter(([k, v]) => isEntitlementKey(k) && Number.isSafeInteger(v) && (v as number) >= 0)) as PlanLimits;
 }
 
-function validateTerms(t: PlanTerms): void {
+/** Whether a quota plan id names an existing, unarchived quota plan (the quota module answers). */
+export type QuotaPlanCheck = (id: string) => boolean;
+
+function validateTerms(t: PlanTerms, quotaPlanExists: QuotaPlanCheck): void {
+  if (t.quotaPlanId && !quotaPlanExists(t.quotaPlanId)) throw new ApiError(400, "bad_request", `No quota plan "${t.quotaPlanId}"`);
   if (!CURRENCIES.has(t.currency)) throw new ApiError(400, "bad_request", `${t.currency} isn't an ISO 4217 currency code`);
   for (const [k, v] of Object.entries(t.limits)) {
     if (!isEntitlementKey(k)) throw new ApiError(400, "bad_request", `Unknown limit "${k}" (known: ${ENTITLEMENT_KEYS.join(", ")})`);
@@ -80,7 +92,10 @@ function validateTerms(t: PlanTerms): void {
 }
 
 export class PlanCatalog {
-  constructor(private readonly db: DB) {}
+  constructor(
+    private readonly db: DB,
+    private readonly quotaPlanExists: QuotaPlanCheck = () => false,
+  ) {}
 
   plan(id: string): PlanRow | null {
     return (this.db.prepare("SELECT * FROM billing_plans WHERE id = ?").get(id) as PlanRow | undefined) ?? null;
@@ -128,13 +143,13 @@ export class PlanCatalog {
 
   /** A new plan with its first draft. */
   create(key: string, meta: PlanMeta, terms: PlanTerms, actor: string, t: number): PlanRow {
-    validateTerms(terms);
+    validateTerms(terms, this.quotaPlanExists);
     if (this.byKey(key)) throw conflict(`A plan with the key "${key}" exists already`);
     const id = newId("pl");
     this.db.transaction(() => {
       this.db
-        .prepare("INSERT INTO billing_plans (id, key, name, description, segment, public, status, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?)")
-        .run(id, key, meta.name, meta.description, meta.segment, meta.public ? 1 : 0, actor, t, t);
+        .prepare("INSERT INTO billing_plans (id, key, name, description, segment, public, audience, status, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?)")
+        .run(id, key, meta.name, meta.description, meta.segment, meta.public ? 1 : 0, meta.audience ?? "organization", actor, t, t);
       this.insertDraft(id, 1, terms, actor, t);
     })();
     return this.plan(id)!;
@@ -143,10 +158,13 @@ export class PlanCatalog {
   private insertDraft(planId: string, version: number, terms: PlanTerms, actor: string, t: number): void {
     this.db
       .prepare(
-        `INSERT INTO billing_plan_versions (id, plan_id, version, interval, currency, amount_minor, provider_price_ref, trial_days, grace_days, limits, notes, created_by, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO billing_plan_versions (id, plan_id, version, interval, currency, amount_minor, provider_price_ref, trial_days, grace_days, limits, notes, quota_plan_id, created_by, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(newId("pv"), planId, version, terms.interval, terms.currency, terms.amountMinor, terms.providerPriceRef, terms.trialDays, terms.graceDays, JSON.stringify(terms.limits), terms.notes, actor, t, t);
+      .run(
+        newId("pv"), planId, version, terms.interval, terms.currency, terms.amountMinor, terms.providerPriceRef, terms.trialDays, terms.graceDays, JSON.stringify(terms.limits), terms.notes,
+        terms.quotaPlanId ?? null, actor, t, t,
+      );
   }
 
   updateMeta(planId: string, meta: PlanMeta, t: number): PlanRow {
@@ -157,15 +175,17 @@ export class PlanCatalog {
 
   /** Saves the plan's draft terms, starting a new draft version when every version is published. */
   saveDraft(planId: string, terms: PlanTerms, actor: string, t: number): VersionRow {
-    validateTerms(terms);
+    validateTerms(terms, this.quotaPlanExists);
     const plan = this.plan(planId);
     if (!plan) throw notFound("No such plan");
     if (plan.status === "archived") throw conflict("This plan is archived");
     const [latest] = this.versions(planId);
     if (latest && latest.published_at === null) {
       this.db
-        .prepare("UPDATE billing_plan_versions SET interval = ?, currency = ?, amount_minor = ?, provider_price_ref = ?, trial_days = ?, grace_days = ?, limits = ?, notes = ?, updated_at = ? WHERE id = ?")
-        .run(terms.interval, terms.currency, terms.amountMinor, terms.providerPriceRef, terms.trialDays, terms.graceDays, JSON.stringify(terms.limits), terms.notes, t, latest.id);
+        .prepare(
+          "UPDATE billing_plan_versions SET interval = ?, currency = ?, amount_minor = ?, provider_price_ref = ?, trial_days = ?, grace_days = ?, limits = ?, notes = ?, quota_plan_id = ?, updated_at = ? WHERE id = ?",
+        )
+        .run(terms.interval, terms.currency, terms.amountMinor, terms.providerPriceRef, terms.trialDays, terms.graceDays, JSON.stringify(terms.limits), terms.notes, terms.quotaPlanId ?? null, t, latest.id);
     } else {
       this.insertDraft(planId, (latest?.version ?? 0) + 1, terms, actor, t);
     }
@@ -217,5 +237,6 @@ export function termsOf(v: VersionRow): PlanTerms {
     graceDays: v.grace_days,
     limits: parseLimits(v.limits),
     notes: v.notes,
+    quotaPlanId: v.quota_plan_id,
   };
 }

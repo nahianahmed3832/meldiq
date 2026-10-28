@@ -307,7 +307,7 @@ export const accountsRoutes: readonly RouteContract[] = [
     auth: true,
     body: DeleteAccountBody,
     response: AccountDeleted,
-    errors: [...PASSWORD_CHECK, "confirm_mismatch", "owns_workspaces"],
+    errors: [...PASSWORD_CHECK, "confirm_mismatch", "owns_workspaces", "subscription_active"],
   }),
   route({
     method: "POST",

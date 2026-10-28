@@ -1,6 +1,7 @@
 import { z } from "zod/v4";
 import { ERROR_CODES, type ErrorCode } from "../../errors.js";
 import { accountsRoutes } from "./areas/accounts.js";
+import { billingRoutes } from "./areas/billing.js";
 import { communityRoutes } from "./areas/community.js";
 import { conversationsRoutes } from "./areas/conversations.js";
 import { identityRoutes } from "./areas/identity.js";
@@ -39,4 +40,5 @@ export const ROUTE_CONTRACTS: readonly RouteContract[] = [
   ...organizationsRoutes,
   ...communityRoutes,
   ...conversationsRoutes,
+  ...billingRoutes,
 ];

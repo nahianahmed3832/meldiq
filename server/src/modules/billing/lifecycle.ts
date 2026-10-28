@@ -5,11 +5,11 @@
  * Whether a state grants the plan's entitlements is decided here, in one place:
  * - trialing, active: yes (also while a cancellation is scheduled for the period end: the period is paid for);
  * - past_due: yes during the plan version's grace days, counted from when the payment first failed; no after;
- * - incomplete, paused, canceled, incomplete_expired: no.
+ * - incomplete, unpaid (the provider gave up retrying a failed payment), paused, canceled, incomplete_expired: no.
  * Losing entitlements never deletes anything: the organization falls back to operator or server limits, and its
  * existing files and members stay (limits only refuse adding more).
  */
-export const SUBSCRIPTION_STATUSES = ["incomplete", "trialing", "active", "past_due", "paused", "canceled", "incomplete_expired"] as const;
+export const SUBSCRIPTION_STATUSES = ["incomplete", "trialing", "active", "past_due", "unpaid", "paused", "canceled", "incomplete_expired"] as const;
 export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
 
 /** States a subscription doesn't leave (a new subscription is a new row). */
@@ -18,9 +18,10 @@ export const TERMINAL: ReadonlySet<SubscriptionStatus> = new Set(["canceled", "i
 /** Which state may follow which. A provider event asking for anything else is recorded as failed, not applied. */
 const NEXT: Readonly<Record<SubscriptionStatus, readonly SubscriptionStatus[]>> = {
   incomplete: ["incomplete", "trialing", "active", "past_due", "incomplete_expired", "canceled"],
-  trialing: ["trialing", "active", "past_due", "paused", "canceled"],
-  active: ["active", "past_due", "paused", "canceled"],
-  past_due: ["past_due", "active", "paused", "canceled"],
+  trialing: ["trialing", "active", "past_due", "unpaid", "paused", "canceled"],
+  active: ["active", "past_due", "unpaid", "paused", "canceled"],
+  past_due: ["past_due", "active", "unpaid", "paused", "canceled"],
+  unpaid: ["unpaid", "active", "past_due", "paused", "canceled"],
   paused: ["paused", "active", "trialing", "canceled"],
   canceled: ["canceled"],
   incomplete_expired: ["incomplete_expired"],

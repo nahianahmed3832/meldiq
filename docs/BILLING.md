@@ -1,4 +1,9 @@
-# Billing: plans, subscriptions, entitlements and provider events (API 0.49.0)
+# Billing: plans, subscriptions, entitlements and provider events (API 0.49.0, Stripe and personal plans 0.52.0)
+
+> **API 0.52.0 (2026-10-28, in production since 07:19 UTC with `BILLING_PROVIDER=none`):** Stripe as a provider, subscriptions owned by a person's account as well
+> as by an organization, one provider customer per owner, the `unpaid` state, and the one entitlements API every client
+> reads. See [Meldiq Mojo and Stripe (0.52.0)](#meldiq-mojo-and-stripe-0520) at the end; the sections before it describe
+> the 0.49.0 foundation, which is unchanged where that section doesn't say otherwise.
 
 Meldiq's subscription foundation. It is complete and tested end to end with a **sandbox provider (test mode, no
 money)**. **No live payment provider is configured**: production runs with `BILLING_PROVIDER=none`, so nothing can be
@@ -198,3 +203,179 @@ Tax, invoice numbering and legal terms are the provider's and the owner's: nothi
 
 Migration 061 only adds tables and two nullable columns; API 0.47.0 runs on it unchanged (it ignores them). Rolling
 back the image leaves billing rows in place, unread.
+
+## Meldiq Mojo and Stripe (0.52.0)
+
+Code: `billing/providers/stripe.ts`, `billing/owners.ts`, `billing/entitlements.ts`, the v2 routes in `billing/routes.ts`;
+migration `062_billing_owners.sql`; tests `server/test/billing_stripe.test.ts` (Stripe in test mode against a recording
+fake of Stripe's API, webhooks signed and verified with the official SDK; a test store adapter). The website that sells
+it is `meldiq_landing_website` (meldiq.app).
+
+### The product (owner, 2026-10-28)
+
+The paid offering is called **Meldiq Mojo** in every client and page, never "premium" or "paid version". Two personal
+plans, monthly, USD; no organization plans:
+
+| Console field | Mojo Go | Mojo Plus |
+|---|---|---|
+| key | `go` | `plus` |
+| name | `Mojo Go` | `Mojo Plus` |
+| audience | `personal` | `personal` |
+| public | yes | yes |
+| interval · currency · amountMinor | month · USD · `99` | month · USD · `399` |
+| providerPriceRef | the Stripe Price id (`price_…`) of a $0.99/month recurring price | of a $3.99/month price |
+| trialDays · graceDays | **owner decision pending** (0 until decided) | **pending** |
+| limits · quotaPlanId | **pending**: what each plan includes isn't decided | **pending** |
+
+Create them in the console (Billing › Plans) once the Stripe prices exist; publishing needs `BILLING_PROVIDER=stripe`.
+Until then `GET /v2/billing/plans` answers an empty list and the website shows the prices as "not on sale yet".
+
+### Owners
+
+A subscription, checkout, invoice or provider customer belongs to an **owner** (`owner_kind`):
+
+- `account`: a person's account (`accounts.id`, the permanent sign-in identity every client signs in to). Not
+  `users.id`: an account can buy on the website before it has an encryption identity. `owner_user_id` records that
+  identity once known (at checkout, and on every v2 billing request), for the quota engine.
+- `org`: an organization (community). Unchanged from 0.49.0; its OWNER role manages it, its members get its plan.
+
+A plan's `audience` (`personal` | `organization`, fixed at creation) decides which owners may buy it. The owner of a
+checkout comes from the signed-in session only; the owner of a subscription only from our own checkout id echoed by the
+provider (`metadata.meldiq_checkout`), never from a customer id, an owner id in metadata, or an email.
+
+### Stripe
+
+| Setting | |
+|---|---|
+| `BILLING_PROVIDER=stripe` | |
+| `STRIPE_SECRET_KEY` | `sk_test_…`/`rk_test_…`. A live key is refused unless `BILLING_ALLOW_LIVE=true` and `APP_ENV=production` |
+| `STRIPE_WEBHOOK_SECRET` | the endpoint's `whsec_…` |
+| `BILLING_RETURN_URL` | where Checkout and the portal send people back: `https://meldiq.app/account/billing` (https, no query) |
+| `STRIPE_ALLOW_PROMOTION_CODES` | `false` by default |
+
+- **Checkout** (Stripe-hosted, `mode: subscription`): one Stripe customer per owner, created before the first checkout
+  with the account's verified email (idempotency key per owner) and reused; `client_reference_id` and
+  `subscription_data.metadata.meldiq_checkout` carry our checkout id; the price is the catalog's, never the client's; a
+  trial only on the owner's first subscription. Starting a new checkout supersedes (and expires at Stripe) the owner's
+  unfinished one, so two payment pages can't both become subscriptions. Success and cancel URLs are fixed by
+  `BILLING_RETURN_URL`.
+- **Webhooks** (`POST /v1/billing/webhooks/stripe`): verified by `stripe.webhooks.constructEvent` against the raw body
+  (5-minute tolerance), stored once per event id, applied in one transaction. Events to enable in the Stripe Dashboard:
+  `customer.subscription.created|updated|deleted|paused|resumed|trial_will_end|pending_update_applied|pending_update_expired`,
+  `invoice.finalized|paid|payment_succeeded|payment_failed|payment_action_required|voided|marked_uncollectible|updated`,
+  `checkout.session.completed|async_payment_succeeded|async_payment_failed|expired`, `charge.refunded`,
+  `charge.dispute.created|closed` (`STRIPE_WEBHOOK_EVENTS`).
+- **Mapping** (API version `2026-09-30.endive`, pinned by stripe 23.0.0): periods from the subscription item; an
+  invoice's subscription from `parent.subscription_details`; `cancel_at` counts as ending; drafts aren't recorded.
+- **Ordering:** Stripe stamps events to the second. A snapshot older than the newest applied is ignored; one from the
+  same second that would move backwards (created after updated) is ignored too.
+- **Reconciliation:** `checkout.session.completed` naming a subscription Meldiq hasn't seen makes the server read it
+  from Stripe at once; `POST /v2/billing/sync` (the website calls it on return from Checkout) reads the owner's live
+  subscription and those its own completed checkouts created, nothing a client names.
+- **Refunds and disputes** are written into the subscription's history (`detail.refund` / `detail.dispute`); they don't
+  change access by themselves: if Stripe cancels the subscription, that event does. Whether a refund should end access
+  at once is a **business decision** (today: no).
+- **Customer portal** (`POST /v2/billing/portal`): only for the owner's stored customer; returns to `BILLING_RETURN_URL`.
+  Configure it in the Stripe Dashboard (below).
+
+### Entitlements API (every client)
+
+`GET /v2/billing/entitlements` with any v2 access token (website: no device; apps: device-bound, same token):
+
+```json
+{ "accountId": "acc_…", "billing": { "available": true, "mode": "test" },
+  "personal": { "plan": { "key": "plus", "name": "Mojo Plus" }, "standing": "entitled", "accessUntil": 1795761176000,
+                "renews": true, "quotaPlanId": null, "subscription": { "status": "active", "provider": "stripe", … } },
+  "organizations": [ … ], "revision": "4f1c…", "evaluatedAt": 1793170000000 }
+```
+
+- Computed on the server from verified subscriptions (any provider) and current memberships. Signing in grants
+  nothing; no client value (plan name, flag, receipt) is an input. `standing`: `none` (free), `entitled`, `grace`
+  (payment failing, plan still applies until `accessUntil`), `grace_ended`, `not_entitled`.
+- The same account gets the same answer on every device; `revision` changes whenever the answer does.
+- **Refresh:** at sign-in and app start, on return to the foreground, and on the realtime frame
+  `{ "t": "entitlements.changed", "scope": "account" | "org", "orgId"? }` (sent to the account's devices or the
+  organization's members when a subscription changes). On sign-out or account switch, drop the cached answer.
+- **Enforcement stays on the server** (organization limits, the quota plan a subscription grants). A client may hide or
+  show things from this answer, never decide access on its own.
+- Other v2 routes: `GET /v2/billing/plans` (public), `GET /v2/billing/account`, `GET /v2/billing/orgs/:orgId` (owners),
+  `POST /v2/billing/checkout {planKey, orgId?}`, `/portal {orgId?}`, `/sync {orgId?}` (10 a minute).
+
+### Future clients and store billing (documented, not built)
+
+- **Android, iOS, macOS, Windows** read the same endpoint; nothing about the provider is built into a client.
+- **Google Play Billing / Apple StoreKit:** each is another `BillingProvider` adapter: verify the store's signed
+  notification or receipt on the server (Play Developer API / App Store Server API), map it to `SubscriptionSnapshot`,
+  and pass our checkout id as the purchase's account token (`obfuscatedAccountId` / `appAccountToken`) so the purchase
+  attaches to the right account (as the test store adapter in `billing_stripe.test.ts` does). Store prices go in the
+  catalog as plan versions with that provider. Purchases are verified, never trusted from the device.
+- **Platform rules:** the Android and iOS apps must not link to the website's checkout or show external purchase
+  buttons until Google Play's and Apple's current rules (and any regional alternative-billing programs) have been
+  checked for Meldiq's app type and storefronts. Nothing in this release adds one.
+
+### Stripe Dashboard setup (owner; can't be done from here)
+
+1. Test mode first. Create product **Meldiq Mojo** with two recurring monthly USD prices: Mojo Go $0.99, Mojo Plus $3.99.
+2. Webhook endpoint `https://msg.meldiq.app/v1/billing/webhooks/stripe` with the events above; copy its `whsec_…`.
+3. Customer portal: allow updating payment methods, invoice history, cancellation at period end, and (optional)
+   switching between the two prices.
+4. Tax (Stripe Tax or none), statement descriptor, business details, receipts emails: owner's choices.
+5. API `.env`: the settings above; `bash deploy/scripts/validate-env.sh`; restart the API; create and publish the two
+   plans in the console with the price ids.
+6. Test with Stripe test cards end to end (subscribe, renew with a test clock, failed payment, cancel, portal) before
+   any live key.
+
+### Account deletion
+
+`DELETE /v2/account` answers `409 subscription_active` while the account's own subscription still renews (deleting the
+account wouldn't stop Stripe charging it). Billing rows aren't deleted with the account (accounting).
+
+### Rollback
+
+Migration 062 rebuilds `billing_checkouts`, `billing_subscriptions` and `billing_invoices` with every 0.49.0 column
+kept (`org_id` only becomes nullable) and adds `billing_customers` and two nullable columns: API 0.51.1 runs on it and
+ignores personal rows. Roll back the image as usual; `BILLING_PROVIDER=none` stops all buying at once.
+
+## Trials and invite links (0.53.0, owner's decisions 2026-10-28)
+
+Free Meldiq Mojo periods with no payment provider involved: `billing/grants.ts`, migration `063_billing_grants.sql`,
+tests `server/test/billing_trials.test.ts`.
+
+| Rule | Setting (default) |
+|---|---|
+| Trials on from a moment (unset: off) | `BILLING_TRIAL_STARTS_AT` (ISO time) |
+| The plan a free period gives | `BILLING_TRIAL_PLAN` (`plus`: Mojo Plus) |
+| Every account's trial: 14 days from sign-up, or from `BILLING_TRIAL_STARTS_AT` for older accounts | `BILLING_TRIAL_DAYS` (14) |
+| Through someone's invite link: the new account gets 30 days (from sign-up, instead of 14), and so does the inviter | `BILLING_REFERRAL_DAYS` (30) |
+| Each invite adds 30 days to the inviter, up to 90 days in any 365 | `BILLING_REFERRAL_YEARLY_CAP_DAYS` (90) |
+| An invite link counts only for an account at most this old, once per account, never one's own | `BILLING_REFERRAL_CLAIM_DAYS` (7) |
+
+- A grant is "this account has this plan until then": the entitlements answer it like a subscription that doesn't
+  renew (`personal.trial: { source: signup | invite | invite_bonus, endsAt }`), and it puts the person on the plan's
+  quota plan. No card, nothing charged, nothing renews.
+- The trial is recorded the first time the account reads its entitlements or billing page (with its sign-up time, so
+  reading late doesn't extend it). Inviter bonus days follow on from the inviter's latest grant.
+- Subscribing during a free period: Stripe Checkout gets `subscription_data.trial_end` = the period's end (if more than
+  two days are left), so the first payment is taken then.
+- Routes: `GET /v2/billing/referral` (code, invited, bonus days this year, cap), `POST /v2/billing/referral/claim
+  { code }` (10 a minute). Invite links: `https://meldiq.app/signup?ref=<code>`; the website claims it after the new
+  account verifies its address and signs in.
+- Abuse limits: verified email needed to sign in at all; one invite per account; 7-day window; the inviter's yearly cap.
+  Operators can see referrals in `billing_referrals` (audit action `billing.referral`).
+
+## Stripe setup (one command, test mode)
+
+Needs API 0.53.0 or later in production. From the `meldiq_android` folder on your Mac:
+
+```bash
+bash deploy/scripts/stripe-setup.sh
+```
+
+It asks for the Stripe **test** secret key (hidden), and on the server: backs `.env` up, stores the key, runs
+`admin.js stripe-setup` (creates or finds the Meldiq Mojo product, the $0.99 and $3.99 monthly USD prices with lookup
+keys `meldiq_mojo_go_monthly` / `meldiq_mojo_plus_monthly`, the webhook endpoint
+`https://msg.meldiq.app/v1/billing/webhooks/stripe` and a customer portal configuration), writes
+`STRIPE_WEBHOOK_SECRET`, `STRIPE_PORTAL_CONFIGURATION`, `BILLING_RETURN_URL` and `BILLING_PROVIDER=stripe`, restarts the
+API (restoring the backup if it doesn't come back healthy), publishes Mojo Go and Mojo Plus (`admin.js
+billing-mojo-plans`), and prints the public price list. No secret is ever printed. Live keys are refused. Run it again
+safely; `--replace-webhook` makes a new signing secret if the old one was lost. Tax: none collected (owner's decision).

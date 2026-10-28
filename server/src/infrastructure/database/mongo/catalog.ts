@@ -235,6 +235,10 @@ export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
   billing_invoices: "platform",
   billing_provider_events: "platform",
   billing_webhook_rejections: "platform",
+  billing_customers: "platform",
+  billing_grants: "platform",
+  billing_referral_codes: "platform",
+  billing_referrals: "platform",
 };
 
 export interface ColumnSpec {

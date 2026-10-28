@@ -12,6 +12,7 @@ import { Accounts } from "../modules/accounts/index.js";
 import type { Mailer } from "../infrastructure/mail/mailer.js";
 import accountRoutes from "../modules/accounts/routes.js";
 import { Authz } from "../modules/organizations/authz.js";
+import { orgMemberIds } from "../modules/organizations/index.js";
 import { type Config, effectiveFileMaxBytes } from "./config.js";
 import { federationClientRoutes, federationPeerRoutes } from "../modules/federation/routes.js";
 import { Federation } from "../modules/federation/service.js";
@@ -79,7 +80,7 @@ import { now } from "../shared/utilities/util.js";
 import wsRoutes from "../modules/realtime/ws.js";
 import { Billing, billingRoutes } from "../modules/billing/index.js";
 
-export const VERSION = "0.51.1";
+export const VERSION = "0.53.0";
 /**
  * The client API this server speaks and the oldest client API it accepts. Clients refuse a server whose
  * minClientApi is newer than theirs; servers from before these fields existed count as API 1.
@@ -192,11 +193,20 @@ export async function buildApp(
   ctx.relationships = ctx.mongo?.owns("relationships") ? new MongoRelationshipStore(ctx.mongo) : new SqliteRelationshipStore(db);
   ctx.calls = ctx.mongo?.owns("calls") ? new MongoCallStore(ctx.mongo) : new SqliteCallStore(db);
   ctx.reportSealer = ReportSealer.load(process.env, config.dataDir);
-  ctx.billing = new Billing(db, config.billing, app.log);
+  ctx.billing = new Billing(db, config.billing, app.log, Date.now, (id) => ctx.quotas.planExists(id));
+  // Entitlement changes reach every signed-in device at once (they also refresh on their own): the account's own
+  // sessions for a personal subscription, every member for an organization's.
+  ctx.billing.onChange = (owner) => {
+    if (owner.kind === "org") ctx.hub.sendToUsers(orgMemberIds(ctx.ws, owner.orgId), { t: "entitlements.changed", scope: "org", orgId: owner.orgId });
+    else {
+      const userIds = new Set([...ctx.billing.subscriptions.ownerUserIds(owner.accountId), ...ctx.billing.grants.userIdsOf(owner.accountId)]);
+      for (const userId of userIds) ctx.hub.sendToUser(userId, { t: "entitlements.changed", scope: "account" });
+    }
+  };
   // A workspace's subscription adds its plan's limits between operator overrides and server-wide limits.
   ctx.entitlements = new Entitlements(config.entitlements, { db, rows: ctx.ws }, (orgId, t) => ctx.billing.subscriptions.planLimits(orgId, t));
   ctx.usage = new UsageMeter(db, ctx.ws, ctx.files, ctx.calls);
-  ctx.quotas = new QuotaEngine(db);
+  ctx.quotas = new QuotaEngine(db, Date.now, (scope, t) => ctx.billing.quotaPlanFor(scope, t));
   // AI and AI Workforce were removed in API 0.47.0 (docs/AI_REMOVAL.md): their tables stay, unread.
   // Activity, traffic, concurrency and resources (docs/ANALYTICS_DEFINITIONS.md): written once a minute.
   ctx.telemetry = new Telemetry(ctx);
