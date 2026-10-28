@@ -213,7 +213,7 @@ private fun ChatsHome(nav: NavHostController, request: DmListRequest) {
                 }
             }
             item(key = "connection") { ConnectionBanner(conn, Modifier.padding(horizontal = Space.gutter, vertical = 4.dp)) { container.realtime.reconnectNow() } }
-            // API 0.56.0 (the owner's decision of 2026-10-28): said once, plainly, where messages are kept now.
+            // API 0.57.0 (the owner's decision of 2026-10-28): said once, plainly, where messages are kept now.
             if (!archivedView && !serverNoticeSeen) item(key = "server-notice") {
                 StatusBanner(
                     stringResource(R.string.srv_notice), BannerKind.Info, Modifier.padding(horizontal = Space.gutter, vertical = 4.dp),

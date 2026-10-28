@@ -1,8 +1,9 @@
-# Server-stored messages on Android (API 0.56.0, 2026-10-29)
+# Server-stored messages on Android (API 0.57.0, 2026-10-29)
 
 The owner's decision of 2026-10-28: Meldiq stops encrypting messages end to end. The server stores every message and
-every change and serves them to each device (server: `docs/SERVER_MESSAGES.md`, branch `server-messages`). This is the
-Android side, built against API 0.56.0 alongside Meldiq Web.
+every change and serves them to each device (server: `docs/SERVER_MESSAGES.md`, branch `release-0.57.0`; in production as API 0.57.1 since 2026-10-29). This is the
+Android side, built against API 0.57.0 alongside Meldiq Web. Everything here runs only on a server that announces the
+`server-messages` feature (`/v1/server-info`); the version number isn't checked.
 
 ## What changed
 
@@ -45,7 +46,8 @@ Deleted messages, call lines and undecryptable placeholders upload nothing; the 
 
 ## Not done here
 
-- `MESSAGES_ACCEPT_ENCRYPTED` (server) decides how long older apps can still send envelopes; the new app never does.
+- Production has `MESSAGES_ACCEPT_ENCRYPTED` off: installed apps older than this build get `426 update_required` when they
+  send, so this build should reach testers and Google Play soon. The new app never sends envelopes.
 - The encrypted-history and key-backup code stays in the app for sign-in and the one-time import; removing it is a
   follow-up once every device has moved.
 - Thread lists, pinned and file views read what the phone has loaded; the server has no per-thread or per-file query yet.

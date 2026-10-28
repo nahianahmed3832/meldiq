@@ -1,0 +1,19 @@
+{
+  "messages": [
+    {
+      "id": "cl17jY2UFVWYW8ek",
+      "conversationId": "c_Bj_RdWEZX8Ec35ZJZSuWDw",
+      "senderUserId": "u_oIa0V8qFeRz245OX-z-zYQ",
+      "senderDeviceId": "d_aL9hpWZ90y8oaVk15DRZsA",
+      "cls": "message",
+      "payload": {
+        "type": "text",
+        "text": "the Cozy Corner cafe at 6"
+      },
+      "sentAt": 1793206738638,
+      "serverTs": 1793206738638,
+      "mentionAll": false,
+      "importedBy": null
+    }
+  ]
+}

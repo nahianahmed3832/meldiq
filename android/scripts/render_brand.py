@@ -1,84 +1,65 @@
-"""Renders every Android brand image from the one official brand asset, brand/meldling.png (Meldling, the mascot: the
-white bear cub on its deep teal, as Meldiq Web uses everywhere since 2026-10-27). Until 2026-10-28 the source was the
-ribbon logo, brand/meldiq-logo.webp, kept as a reference. Nothing is redrawn: the script crops, scales and, for the
-single-colour icons, keeps only the bright mark. The web app derives its icons from the same file (meldiq-web
-scripts/render-brand-assets.mjs).
+"""Renders every Android brand image from the owner's Meldling art (2026-10-29, "use these image assets on mobile app and
+webapp"): the originals are in brand/meldling/ (as in meldiq-web brand/meldling/), and brand/meldling/rendered/ holds what
+meldiq-web's scripts/render-brand-assets.mjs makes from them (the app icon square, the launch icon, the cropped poses and
+posters), so Android and the web show the same pictures. Nothing is redrawn: this script scales, places and, for the
+single-colour icons, keeps only the white cub as opacity (as the web's badge and favicons). Until 2026-10-29 the source
+was brand/meldling.png (the earlier teal Meldling), kept as a reference.
 
-Run after replacing the asset (needs Pillow and NumPy):
+Run after replacing the art (needs Pillow and NumPy):
     python3 -I android/scripts/render_brand.py
 
 Writes, under android/app/src/main/res:
-- mipmap-*/ic_launcher_foreground.webp  adaptive icon foreground (the asset, mark inside the 66 dp safe zone)
-- mipmap-*/ic_launcher_monochrome.webp  themed-icon layer (white mark, transparent elsewhere)
-- drawable-*/ic_stat_meldiq.png          notification icon (white mark, 24 dp)
-- drawable-*/splash_mark.webp            launch screen icon (288 dp, mark inside the 192 dp circle)
-- drawable-nodpi/meldiq_mark.webp        in-app tile (mark on its ground, 14% padding)
-- drawable-nodpi/meldling_glyph.png      the mark alone, white on transparent and tightly cropped (tinted in Compose:
-                                         the Messages tab, the typing indicator)
-- values/brand_colors.xml                the ground colour, sampled from the asset
+- mipmap-*/ic_launcher_foreground.webp  adaptive icon foreground: the art's square at 80 dp, so the 72 dp mask shows it
+                                         edge to edge on the navy ground (ic_launcher_background)
+- mipmap-*/ic_launcher_monochrome.webp  themed-icon layer: the cub's white shape inside the 66 dp safe zone
+- drawable-*/ic_stat_meldiq.png          notification icon: the cub's white shape, 22 dp wide in 24 dp
+- drawable-*/splash_mark.webp            launch screen icon: the rounded app icon inside the system's 192 dp circle
+- drawable-nodpi/meldiq_mark.webp        in-app tile: the rounded app icon
+- drawable-nodpi/meldling_glyph.png      the cub's shape alone, white on transparent, tightly cropped (tinted in Compose)
+- drawable-nodpi/meldling_<pose>.webp    the poses and posters (intro pages, empty states, sign-in, Mojo and Spark heroes)
+- values/brand_colors.xml                the art's ground, #070a24 (as the web's GROUND)
 """
 import os
+import shutil
 
 import numpy as np
 from PIL import Image
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 RES = os.path.join(ROOT, "android", "app", "src", "main", "res")
+ART = os.path.join(ROOT, "brand", "meldling", "rendered")
 DENSITIES = {"mdpi": 1.0, "hdpi": 1.5, "xhdpi": 2.0, "xxhdpi": 3.0, "xxxhdpi": 4.0}
-SOURCE = os.path.join("brand", "meldling.png")
-# The mark is bright (any channel well above 120); the ground stays below.
-BRIGHT = 120
-# Soft edge for the single-colour layers: fully transparent at or below LOW, opaque at or above HIGH.
-LOW, HIGH = 115, 175
+GROUND = (0x07, 0x0A, 0x24)
+# The cub is near white in every channel; the glow around it is saturated blue or violet (one channel low). The darkest
+# channel, from LOW (transparent) to HIGH (opaque), is the cub's opacity; its eyes and nose stay holes.
+LOW, HIGH = 110, 185
+POSES = ["hello", "gaming", "all-set", "loading", "waving", "confused", "love", "banner", "plus", "spark"]
 
-logo = Image.open(os.path.join(ROOT, SOURCE)).convert("RGB")
-px = np.asarray(logo).astype(np.float32)
-n = logo.width
-bright = px.max(axis=2)
-ys, xs = np.nonzero(bright > BRIGHT)
-x0, x1, y0, y1 = xs.min(), xs.max(), ys.min(), ys.max()
-mark_w, mark_h = x1 - x0, y1 - y0
-mark_diag = (mark_w ** 2 + mark_h ** 2) ** 0.5
-cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
-ground = tuple(int(v) for v in np.median(np.concatenate([px[:40, :40].reshape(-1, 3), px[-40:, -40:].reshape(-1, 3)]), axis=0))
+square = Image.open(os.path.join(ART, "meldling-maskable-512.png")).convert("RGBA")  # the art, edge to edge
+rounded = Image.open(os.path.join(ART, "meldling-512.png")).convert("RGBA")  # the app icon, corners see-through
 
 
-def feathered_logo():
-    """The logo with its outer edge faded into the ground, so it can sit on a larger canvas of that colour."""
-    yy, xx = np.mgrid[0:n, 0:n]
-    r = np.hypot(xx - n / 2, yy - n / 2) / (n / 2)
-    alpha = np.clip((1.0 - r) / 0.25, 0, 1) * 255
-    rgba = logo.copy().convert("RGBA")
-    rgba.putalpha(Image.fromarray(alpha.astype(np.uint8)))
-    return rgba
-
-
-FEATHERED = feathered_logo()
-
-
-def ribbon_only():
-    """White where the ribbon is, transparent elsewhere (themed icons and the notification icon)."""
-    a = np.clip((bright - LOW) / (HIGH - LOW), 0, 1) * 255
-    out = np.zeros((n, n, 4), dtype=np.uint8)
+def silhouette():
+    """White where the cub is, transparent elsewhere, cropped to the cub."""
+    px = np.asarray(square.convert("RGB")).astype(np.float32)
+    a = np.clip((px.min(axis=2) - LOW) / (HIGH - LOW), 0, 1)
+    ys, xs = np.nonzero(a > 0.5)
+    out = np.zeros(px.shape[:2] + (4,), dtype=np.uint8)
     out[..., :3] = 255
-    out[..., 3] = a.astype(np.uint8)
-    return Image.fromarray(out, "RGBA")
+    out[..., 3] = (a * 255).astype(np.uint8)
+    return Image.fromarray(out, "RGBA").crop((int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1))
 
 
-RIBBON = ribbon_only()
+CUB = silhouette()
 
 
-def place(source, canvas_px, mark_span_px, by="diag", fill=None):
-    """Scales [source] so the mark spans [mark_span_px] (its diagonal or width) and centres the mark on the canvas."""
-    span = mark_diag if by == "diag" else max(mark_w, mark_h)
-    scale = mark_span_px / span
-    size = max(1, round(n * scale))
-    scaled = source.resize((size, size), Image.LANCZOS)
+def centred(img, canvas_px, span_px, fill=None):
+    """[img] scaled so its larger side is [span_px], centred on a square canvas (transparent, or [fill])."""
+    scale = span_px / max(img.width, img.height)
+    scaled = img.resize((max(1, round(img.width * scale)), max(1, round(img.height * scale))), Image.LANCZOS)
     canvas = Image.new("RGBA", (canvas_px, canvas_px), fill + (255,) if fill else (0, 0, 0, 0))
-    ox = round(canvas_px / 2 - cx * scale)
-    oy = round(canvas_px / 2 - cy * scale)
     layer = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
-    layer.paste(scaled, (ox, oy))  # a plain copy (clipped at the edges), then composited once
+    layer.paste(scaled, ((canvas_px - scaled.width) // 2, (canvas_px - scaled.height) // 2))
     canvas.alpha_composite(layer)
     return canvas
 
@@ -88,33 +69,36 @@ def save(img, folder, name, fmt):
     os.makedirs(d, exist_ok=True)
     path = os.path.join(d, name)
     if fmt == "webp":
-        img.save(path, "WEBP", lossless=True, quality=100, method=6)
+        img.save(path, "WEBP", quality=90, method=6)
     else:
         img.save(path, "PNG", optimize=True)
     print(os.path.relpath(path, ROOT))
 
 
 for dens, k in DENSITIES.items():
-    # Adaptive icon: 108 dp canvas, visible area a 72 dp mask, safe zone a 66 dp circle. The mark's diagonal is 66 dp.
-    save(place(FEATHERED, round(108 * k), 66 * k, fill=ground), f"mipmap-{dens}", "ic_launcher_foreground.webp", "webp")
-    save(place(RIBBON, round(108 * k), 66 * k), f"mipmap-{dens}", "ic_launcher_monochrome.webp", "webp")
-    # Notification icon: 24 dp, the mark's width 22 dp (status bars draw it as a white silhouette).
-    save(place(RIBBON, round(24 * k), 22 * k, by="width"), f"drawable-{dens}", "ic_stat_meldiq.png", "png")
-    # Launch screen: 288 dp icon on the ground colour, cropped by the system to a 192 dp circle; the mark's diagonal 176 dp.
-    save(place(FEATHERED, round(288 * k), 176 * k, fill=ground), f"drawable-{dens}", "splash_mark.webp", "webp")
+    # Adaptive icon: 108 dp canvas, visible area a 72 dp mask: the art's square at 80 dp fills it with room for parallax.
+    save(centred(square, round(108 * k), 80 * k), f"mipmap-{dens}", "ic_launcher_foreground.webp", "webp")
+    # Themed icon: the cub inside the 66 dp safe zone (its larger side 48 dp).
+    save(centred(CUB, round(108 * k), 48 * k), f"mipmap-{dens}", "ic_launcher_monochrome.webp", "webp")
+    # Notification icon: 24 dp, the cub 22 dp (status bars draw it as a white silhouette).
+    save(centred(CUB, round(24 * k), 22 * k), f"drawable-{dens}", "ic_stat_meldiq.png", "png")
+    # Launch screen: 288 dp icon on the ground, cropped by the system to a 192 dp circle; the rounded icon's diagonal fits it.
+    save(centred(rounded, round(288 * k), 136 * k, fill=GROUND), f"drawable-{dens}", "splash_mark.webp", "webp")
 
-# In-app tile: the mark with 14% padding on each side, on its ground (the shape is clipped in Compose).
-tile_px = 384
-save(place(FEATHERED, tile_px, tile_px / 1.28, by="width", fill=ground), "drawable-nodpi", "meldiq_mark.webp", "webp")
+# In-app tile (the shape is clipped in Compose) and the tintable glyph.
+save(rounded.resize((384, 384), Image.LANCZOS), "drawable-nodpi", "meldiq_mark.webp", "webp")
+save(centred(CUB, 96, 96), "drawable-nodpi", "meldling_glyph.png", "png")
 
-# The mark alone for tinting: its width fills a 96 px square.
-save(place(RIBBON, 96, 96, by="width"), "drawable-nodpi", "meldling_glyph.png", "png")
+# The poses and posters, as the web renders them.
+for pose in POSES:
+    dest = os.path.join(RES, "drawable-nodpi", "meldling_" + pose.replace("-", "_") + ".webp")
+    shutil.copyfile(os.path.join(ART, pose + ".webp"), dest)
+    print(os.path.relpath(dest, ROOT))
 
-hex_ground = "#FF%02X%02X%02X" % ground
 with open(os.path.join(RES, "values", "brand_colors.xml"), "w", encoding="utf-8") as f:
     f.write(
         '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n'
-        f"    <!-- Sampled from {SOURCE} by android/scripts/render_brand.py: the brand asset's ground. -->\n"
-        f'    <color name="brand_ground">{hex_ground}</color>\n</resources>\n'
+        "    <!-- The Meldling art's ground (brand/meldling, as meldiq-web's GROUND), by android/scripts/render_brand.py. -->\n"
+        '    <color name="brand_ground">#FF%02X%02X%02X</color>\n</resources>\n' % GROUND
     )
-print("mark bbox", (int(x0), int(y0), int(x1), int(y1)), "ground", hex_ground)
+print("cub", CUB.size)

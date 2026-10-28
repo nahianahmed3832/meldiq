@@ -1,0 +1,9 @@
+{
+  "error": {
+    "code": "message_too_long",
+    "message": "Messages can be up to 1,000 characters on your plan",
+    "details": {
+      "maxChars": 1000
+    }
+  }
+}

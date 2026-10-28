@@ -3,6 +3,7 @@ package com.meldiq.android.ui.screens.mojo
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -127,10 +128,12 @@ internal fun SparkHero(total: Int?, free: Int?) {
         Modifier.fillMaxWidth().padding(horizontal = Space.gutter).clip(Shapes.hero)
             .background(Brush.linearGradient(listOf(c.primarySoft, c.surface))).border(1.dp, c.border, Shapes.hero).padding(20.dp),
     ) {
-        Box(Modifier.size(44.dp).clip(Shapes.pill).background(Brush.linearGradient(listOf(c.accentStart, c.accentEnd))), contentAlignment = Alignment.Center) {
-            Icon(Icons.Rounded.Bolt, null, tint = c.onAccent, modifier = Modifier.size(26.dp))
-        }
-        Spacer(Modifier.height(12.dp))
+        // Meldling's Spark poster (the owner's art, as Meldiq Web's Spark page).
+        androidx.compose.foundation.Image(
+            androidx.compose.ui.res.painterResource(R.drawable.meldling_spark), null,
+            Modifier.fillMaxWidth().aspectRatio(1200f / 675f).clip(Shapes.card), contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+        )
+        Spacer(Modifier.height(14.dp))
         Text(stringResource(R.string.mojo_spark_title), style = Griip.type.headline.copy(fontWeight = FontWeight.Bold), color = c.textPrimary, modifier = Modifier.semantics { heading() })
         Spacer(Modifier.height(4.dp))
         Text(stringResource(R.string.mojo_spark_body), style = Griip.type.bodySmall, color = c.textSecondary)

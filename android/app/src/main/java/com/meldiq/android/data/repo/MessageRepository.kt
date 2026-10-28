@@ -108,10 +108,10 @@ class MessageRepository(
         signals, controls, notify, ::sendControl, ::kick,
     )
 
-    /** Messages served by the server (API 0.56.0): history pages, the chat list's summary, search and the one-time import. */
+    /** Messages served by the server (API 0.57.0): history pages, the chat list's summary, search and the one-time import. */
     val history = ServerHistory(
         context, api, db, attachmentsDir, ingest = { e, loaded -> receiver.ingest(e, history = loaded) },
-        restoreEncryptedHistory = { restoreEncryptedHistory() },
+        restoreEncryptedHistory = { restoreEncryptedHistory() }, supported = { serverHas(ServerFeatures.SERVER_MESSAGES) },
     )
     /** Set by the container: reads what the account's old encrypted history on the server holds, before the import. */
     var restoreEncryptedHistory: suspend () -> Unit = {}
@@ -181,7 +181,7 @@ class MessageRepository(
                 if (st == ConnState.Connected) {
                     kick()
                     runCatching { conversations.refresh() }
-                    // API 0.56.0: the phone's earlier history goes to the server once; then the list comes from the server.
+                    // API 0.57.0: the phone's earlier history goes to the server once; then the list comes from the server.
                     runCatching { history.importLegacy() }.onFailure { Log.w(TAG, "history import: ${it.javaClass.simpleName}") }
                     runCatching { history.syncSummary() }.onFailure { Log.w(TAG, "summary: ${it.javaClass.simpleName}") }
                 } else backlogDrained.value = false
@@ -211,7 +211,7 @@ class MessageRepository(
         db.messages().observeThreadReplies(me, since, limit, followed.toList())
     fun observeMessage(id: String) = db.messages().observe(id)
     suspend fun search(q: String, cid: String? = null): List<MessageEntity> {
-        // API 0.56.0: the server keeps the messages, so it searches them; what it finds is loaded here first.
+        // API 0.57.0: the server keeps the messages, so it searches them; what it finds is loaded here first.
         runCatching { history.search(q, cid) }
         val esc = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         return if (cid == null) db.messages().search(esc) else db.messages().searchIn(cid, esc)
@@ -741,7 +741,7 @@ class MessageRepository(
     }
 
     /**
-     * Sends one outbox entry to the server's message store (API 0.56.0, docs/SERVER_MESSAGES.md): the payload as it is,
+     * Sends one outbox entry to the server's message store (API 0.57.0, docs/SERVER_MESSAGES.md): the payload as it is,
      * over TLS; the server stores it and delivers it to every member's devices. Idempotent on the message id, so a retry
      * of an accepted message is answered as a duplicate.
      */

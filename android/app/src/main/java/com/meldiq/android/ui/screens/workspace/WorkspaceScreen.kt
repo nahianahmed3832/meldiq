@@ -201,7 +201,7 @@ fun WorkspaceScreen(nav: NavHostController) {
         }
         error?.let { item { StatusBanner(it, BannerKind.Warning, Modifier.padding(horizontal = Space.gutter, vertical = 4.dp), action = "Retry", onAction = { vm.refresh() }) } }
         if (d == null) {
-            item { if (loading && orgs == null) ShimmerList(4) else EmptyState(Icons.Outlined.Workspaces, stringResource(R.string.cm_none_title), stringResource(R.string.cm_none_body)) }
+            item { if (loading && orgs == null) ShimmerList(4) else EmptyState(Icons.Outlined.Workspaces, stringResource(R.string.cm_none_title), stringResource(R.string.cm_none_body), art = com.meldiq.android.R.drawable.meldling_hello) }
             return@LazyColumn
         }
         if (sections.isEmpty()) item { EmptyState(Icons.Outlined.Tag, stringResource(R.string.cm_empty_category), stringResource(R.string.cm_none_body)) }

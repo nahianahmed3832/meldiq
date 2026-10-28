@@ -300,6 +300,7 @@ fun CommunityHomeScreen(nav: NavHostController) {
                             EmptyState(
                                 Icons.Outlined.Workspaces, stringResource(R.string.cm_none_title), stringResource(R.string.cm_none_body),
                                 action = if (discovery) stringResource(R.string.cm_discover) else null, onAction = if (discovery) ({ nav.navigate(Routes.DISCOVER) }) else null,
+                                art = com.meldiq.android.R.drawable.meldling_hello,
                             )
                             PillButton(stringResource(R.string.cm_join_or_create), { nav.navigate(Routes.JOIN + "?code=") }, Modifier.fillMaxWidth().padding(horizontal = 16.dp), tone = ButtonTone.Glass, height = 50.dp)
                         }

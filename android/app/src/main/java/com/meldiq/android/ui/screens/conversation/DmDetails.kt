@@ -236,7 +236,7 @@ private fun tabLabel(t: DetailsRules.Tab) = when (t) {
 /** Photos and videos, three to a row, the newest first; tapping one opens its message in the chat. */
 internal fun LazyListScope.mediaGrid(items: List<DetailsRules.Item<AttachmentRef>>, localFile: (AttachmentRef) -> File?, onOpen: (String) -> Unit) {
     if (items.isEmpty()) {
-        item(key = "media-none") { EmptyState(Icons.Rounded.Image, androidx.compose.ui.res.stringResource(R.string.b14_none_media), "") }
+        item(key = "media-none") { EmptyState(Icons.Rounded.Image, androidx.compose.ui.res.stringResource(R.string.b14_none_media), "", art = null) }
         return
     }
     items(items.chunked(3), key = { row -> "media-" + row.first().messageId + row.first().value.id }) { row ->
@@ -280,7 +280,7 @@ private fun MediaTile(a: AttachmentRef, local: File?, modifier: Modifier, onOpen
 /** Files that aren't photos, videos or voice notes; tapping one opens its message, where it downloads and opens. */
 internal fun LazyListScope.fileRows(items: List<DetailsRules.Item<AttachmentRef>>, senderName: (String) -> String, onOpen: (String) -> Unit) {
     if (items.isEmpty()) {
-        item(key = "files-none") { EmptyState(Icons.AutoMirrored.Rounded.InsertDriveFile, androidx.compose.ui.res.stringResource(R.string.b14_none_files), "") }
+        item(key = "files-none") { EmptyState(Icons.AutoMirrored.Rounded.InsertDriveFile, androidx.compose.ui.res.stringResource(R.string.b14_none_files), "", art = null) }
         return
     }
     items(items, key = { "file-" + it.messageId + it.value.id }) { item ->
@@ -297,7 +297,7 @@ internal fun LazyListScope.fileRows(items: List<DetailsRules.Item<AttachmentRef>
 /** Links shared here, each once; tapping one opens it the way Settings › Chats says. */
 internal fun LazyListScope.linkRows(items: List<DetailsRules.Item<String>>, senderName: (String) -> String, onOpen: (String) -> Unit) {
     if (items.isEmpty()) {
-        item(key = "links-none") { EmptyState(Icons.Outlined.Link, androidx.compose.ui.res.stringResource(R.string.b14_none_links), "") }
+        item(key = "links-none") { EmptyState(Icons.Outlined.Link, androidx.compose.ui.res.stringResource(R.string.b14_none_links), "", art = null) }
         return
     }
     items(items, key = { "link-" + it.value }) { item ->
@@ -315,7 +315,7 @@ internal fun LazyListScope.linkRows(items: List<DetailsRules.Item<String>>, send
 /** Pinned messages, newest first; tapping one opens it in the chat. */
 internal fun LazyListScope.pinRows(pinned: List<com.meldiq.android.data.db.MessageEntity>, senderName: (String) -> String, preview: (com.meldiq.android.data.db.MessageEntity) -> String, onOpen: (String) -> Unit) {
     if (pinned.isEmpty()) {
-        item(key = "pins-none") { EmptyState(Icons.Outlined.PushPin, androidx.compose.ui.res.stringResource(R.string.b14_none_pins), "") }
+        item(key = "pins-none") { EmptyState(Icons.Outlined.PushPin, androidx.compose.ui.res.stringResource(R.string.b14_none_pins), "", art = null) }
         return
     }
     items(pinned, key = { "pin-" + it.id }) { m ->

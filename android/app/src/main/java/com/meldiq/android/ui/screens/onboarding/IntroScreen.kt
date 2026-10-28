@@ -59,15 +59,16 @@ import com.meldiq.android.ui.theme.rememberReducedMotion
 import kotlinx.coroutines.launch
 
 /** One introduction page. [soon] marks a feature that is planned but not in the app yet; the page says so. */
-private data class IntroPage(val icon: ImageVector, val title: Int, val body: Int, val soon: Boolean = false)
+/** [art]: Meldling's pose for the page (the owner's art, 2026-10-29, the same poses as Meldiq Web's intro). */
+private data class IntroPage(val icon: ImageVector, val title: Int, val body: Int, val soon: Boolean = false, val art: Int)
 
 private val Pages = listOf(
-    IntroPage(Icons.Outlined.Forum, R.string.intro_talk_title, R.string.intro_talk_body),
-    IntroPage(Icons.Outlined.NotificationsActive, R.string.intro_remind_title, R.string.intro_remind_body),
-    IntroPage(Icons.Outlined.Headset, R.string.intro_voice_title, R.string.intro_voice_body),
+    IntroPage(Icons.Outlined.Forum, R.string.intro_talk_title, R.string.intro_talk_body, art = R.drawable.meldling_waving),
+    IntroPage(Icons.Outlined.NotificationsActive, R.string.intro_remind_title, R.string.intro_remind_body, art = R.drawable.meldling_love),
+    IntroPage(Icons.Outlined.Headset, R.string.intro_voice_title, R.string.intro_voice_body, art = R.drawable.meldling_gaming),
     // 2026-10-21: communities replaced the connector and HR pages (both features were removed).
-    IntroPage(Icons.Outlined.Workspaces, R.string.nv_intro_communities_title, R.string.nv_intro_communities_body),
-    IntroPage(Icons.Outlined.AdminPanelSettings, R.string.nv_intro_roles_title, R.string.nv_intro_roles_body),
+    IntroPage(Icons.Outlined.Workspaces, R.string.nv_intro_communities_title, R.string.nv_intro_communities_body, art = R.drawable.meldling_hello),
+    IntroPage(Icons.Outlined.AdminPanelSettings, R.string.nv_intro_roles_title, R.string.nv_intro_roles_body, art = R.drawable.meldling_all_set),
 )
 
 private val MaxIntroWidth = 520.dp
@@ -115,14 +116,12 @@ private fun IntroPageView(page: IntroPage, selected: Boolean) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Box(
-            Modifier.size(IllustrationSize).clearAndSetSemantics {}
-                .graphicsLayer { alpha = 0.4f + 0.6f * shown; val s = 0.9f + 0.1f * shown; scaleX = s; scaleY = s }
-                .clip(CircleShape).background(c.primarySoft),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(page.icon, null, tint = c.primary, modifier = Modifier.size(IllustrationSize * 0.42f))
-        }
+        androidx.compose.foundation.Image(
+            androidx.compose.ui.res.painterResource(page.art), null,
+            Modifier.widthIn(max = MaxIntroWidth).fillMaxWidth().height(IllustrationSize * 1.25f).clearAndSetSemantics {}
+                .graphicsLayer { alpha = 0.4f + 0.6f * shown; val s = 0.9f + 0.1f * shown; scaleX = s; scaleY = s },
+            contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+        )
         Spacer(Modifier.height(Space.xxl))
         if (page.soon) {
             Text(

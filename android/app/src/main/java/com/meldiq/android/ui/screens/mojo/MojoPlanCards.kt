@@ -3,6 +3,7 @@ package com.meldiq.android.ui.screens.mojo
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -57,7 +58,7 @@ internal fun MojoHero(e: Entitlements?, catalog: MojoCatalog?) {
     val current = MojoPlans.currentKey(e)
     Column(
         Modifier.padding(horizontal = Space.gutter).fillMaxWidth().clip(Shapes.panel)
-            .background(Brush.linearGradient(listOf(c.heroStart, c.heroMid, c.heroEnd)))
+            .background(Brush.linearGradient(listOf(c.accentStart, c.accentEnd))) // the plate's brand ends, text in onAccent (as the web's --mojo-a/b)
             .padding(20.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -259,6 +260,11 @@ internal fun BenefitCards(catalog: MojoCatalog) {
         Icons.Outlined.WorkspacePremium to (stringResource(R.string.mojo_perk_badge_plus) to stringResource(R.string.mojo_perk_badge_body)),
     )
     Column(Modifier.padding(horizontal = Space.gutter), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        // Meldling's Mojo Plus poster above what Plus adds (the owner's art, as Meldiq Web's Mojo page).
+        androidx.compose.foundation.Image(
+            androidx.compose.ui.res.painterResource(R.drawable.meldling_plus), null,
+            Modifier.fillMaxWidth().aspectRatio(1200f / 800f).clip(Shapes.card), contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+        )
         items.forEach { (icon, text) ->
             Row(Modifier.fillMaxWidth().clip(Shapes.card).background(c.surface).border(1.dp, c.border, Shapes.card).padding(14.dp)) {
                 Box(

@@ -109,8 +109,8 @@ private fun ActivityFeed(nav: NavHostController) {
             }
             if (ActivityRules.empty(filter, mentions.size, threads.size, missed.size, unreadGroups.sumOf { it.conversations.size })) {
                 item(key = "empty") {
-                    if (filter == ActivityRules.Filter.UNREADS) EmptyState(Icons.Outlined.NotificationsNone, stringResource(R.string.b5_unreads_empty), stringResource(R.string.b5_unreads_empty_body))
-                    else EmptyState(Icons.Outlined.NotificationsNone, stringResource(R.string.activity_empty_title), stringResource(R.string.activity_empty_body))
+                    if (filter == ActivityRules.Filter.UNREADS) EmptyState(Icons.Outlined.NotificationsNone, stringResource(R.string.b5_unreads_empty), stringResource(R.string.b5_unreads_empty_body), art = com.meldiq.android.R.drawable.meldling_all_set)
+                    else EmptyState(Icons.Outlined.NotificationsNone, stringResource(R.string.activity_empty_title), stringResource(R.string.activity_empty_body), art = com.meldiq.android.R.drawable.meldling_all_set)
                 }
             }
             if (filter == ActivityRules.Filter.UNREADS && unreadGroups.isNotEmpty()) {

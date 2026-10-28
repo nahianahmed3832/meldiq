@@ -89,7 +89,7 @@ fun ApplicationsScreen(nav: NavHostController, orgId: String) {
         val shown = list
         if (shown == null) item { ShimmerList(3) }
         else if (shown.isEmpty()) item {
-            EmptyState(Icons.Outlined.HowToReg, stringResource(if (closed) R.string.ja_empty_closed else R.string.ja_empty_pending), "")
+            EmptyState(Icons.Outlined.HowToReg, stringResource(if (closed) R.string.ja_empty_closed else R.string.ja_empty_pending), "", art = com.meldiq.android.R.drawable.meldling_all_set)
         } else items(shown, key = { it.id }) { a -> ApplicationCard(a, onApprove = { deciding = a to true }, onDeny = { deciding = a to false }) }
     }
     deciding?.let { (a, approve) ->

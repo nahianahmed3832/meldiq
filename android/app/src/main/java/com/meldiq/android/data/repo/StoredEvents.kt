@@ -13,7 +13,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 
 /**
- * Server-stored messages (API 0.56.0, the owner's decision of 2026-10-28, server docs/SERVER_MESSAGES.md): the pure
+ * Server-stored messages (API 0.57.0, the owner's decision of 2026-10-28, server docs/SERVER_MESSAGES.md): the pure
  * parts, unit-tested in `StoredEventsTest`. The payload is the JSON the app used to encrypt, now sent and stored as it is.
  */
 object StoredEvents {

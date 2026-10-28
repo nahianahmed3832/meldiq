@@ -125,7 +125,7 @@ class MessageReceiver(
     }
 
     /**
-     * A stored message or change (API 0.56.0, docs/SERVER_MESSAGES.md): from the delivery queue, a history page, the
+     * A stored message or change (API 0.57.0, docs/SERVER_MESSAGES.md): from the delivery queue, a history page, the
      * summary or search. Applied as a decrypted envelope was: nothing to open, the server already checked who may send
      * and change what. [history]: loaded, not just arrived: shown, never counted unread, notified, rung or marked read.
      */
@@ -144,7 +144,7 @@ class MessageReceiver(
         // Never "succeed" without a session: that would acknowledge (and lose) the item unprocessed.
         val me = myUserId ?: throw ApiException(0, "not_signed_in", "Not signed in yet")
         val myDevice = myDeviceId ?: throw ApiException(0, "not_signed_in", "Not signed in yet")
-        // API 0.56.0: a stored message, sent as it is (no envelope to open).
+        // API 0.57.0: a stored message, sent as it is (no envelope to open).
         if (item.kind == "message") {
             val event = item.payload.event ?: throw EnvelopeException("malformed message")
             return ingest(event, item.id)

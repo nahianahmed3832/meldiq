@@ -131,7 +131,7 @@ class AppContainer(
 
     init {
         session.accountRenewal = { if (accounts.record?.tokens != null) accounts.refreshTokens() else null }
-        // API 0.56.0 (docs/SERVER_MESSAGES.md): the server keeps every message, so the encrypted history upload is off;
+        // API 0.57.0 (docs/SERVER_MESSAGES.md): the server keeps every message, so the encrypted history upload is off;
         // what it already holds is read once, for the one-time import of this phone's history.
         messages.restoreEncryptedHistory = { history.catchUp(fromStart = true) }
         messages.start()

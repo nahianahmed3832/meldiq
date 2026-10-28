@@ -17,7 +17,7 @@ import java.io.File
 import java.net.URLEncoder
 
 /**
- * Messages served by the server (API 0.56.0, the owner's decision of 2026-10-28, server docs/SERVER_MESSAGES.md). The
+ * Messages served by the server (API 0.57.0, the owner's decision of 2026-10-28, server docs/SERVER_MESSAGES.md). The
  * server stores every message and every change; this phone only shows them. Conversations load their history in pages
  * from the server, the chat list comes from the server's summary, search asks the server, and what the phone shows is
  * a working copy: it is emptied at every start ([clearWorkingCopy]) and loaded again. Unsent messages stay until sent.
@@ -32,6 +32,8 @@ class ServerHistory(
     private val attachmentsDir: File,
     private val ingest: suspend (StoredEventDto, Boolean) -> Unit,
     private val restoreEncryptedHistory: suspend () -> Unit,
+    /** Whether the server stores messages (its "server-messages" feature, API 0.57.0); nothing here runs without it. */
+    private val supported: suspend () -> Boolean = { true },
 ) {
     private val prefs by lazy { context.getSharedPreferences("server_messages_" + (db.openHelper.databaseName ?: "default"), Context.MODE_PRIVATE) }
     private val importLock = Mutex()
@@ -61,6 +63,7 @@ class ServerHistory(
     suspend fun loadAround(cid: String, messageId: String) = page(cid, "?around=${enc(messageId)}&limit=$PAGE")
 
     private suspend fun page(cid: String, query: String): Boolean {
+        if (!supported()) return false
         val r = api.get<HistoryPageRes>("/v2/conversations/${enc(cid)}/messages" + query)
         // Oldest first, so the list's preview ends on the newest; then the changes, oldest first, like live ones.
         for (e in r.messages.asReversed()) apply(e)
@@ -75,6 +78,7 @@ class ServerHistory(
      * as the server keeps them (your read position is your own "read" changes).
      */
     suspend fun syncSummary() {
+        if (!supported()) return
         val r = api.get<SummaryRes>("/v2/messages/summary")
         for (s in r.conversations) {
             if (db.conversations().get(s.conversationId) == null) continue
@@ -85,6 +89,7 @@ class ServerHistory(
 
     /** Text messages containing the words, in conversations you're in (all of them, or [cid]); loaded here and returned. */
     suspend fun search(q: String, cid: String? = null): List<MessageEntity> {
+        if (!supported()) return emptyList()
         val query = "?q=${enc(q)}&limit=50" + (cid?.let { "&conversationId=${enc(it)}" } ?: "")
         val r = api.get<StoredSearchRes>("/v2/messages/search" + query)
         r.messages.forEach { apply(it) }
@@ -96,7 +101,7 @@ class ServerHistory(
      * sending or failed) stay. Runs at start-up, after the one-time import.
      */
     suspend fun clearWorkingCopy() {
-        if (!imported) return
+        if (!imported || !supported()) return
         db.messages().clearStored()
         oldest.clear()
         exhausted.clear()
@@ -110,7 +115,7 @@ class ServerHistory(
      * batch was accepted; a failure leaves them for the next start. Returns how many messages the server didn't have yet.
      */
     suspend fun importLegacy(): Int = importLock.withLock {
-        if (imported) return 0
+        if (imported || !supported()) return 0
         runCatching { restoreEncryptedHistory() }.onFailure { Log.w(TAG, "encrypted history not restored: ${it.javaClass.simpleName}") }
         val items = StoredEvents.importItems(db.messages().keptForImport())
         var added = 0

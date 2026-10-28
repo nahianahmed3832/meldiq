@@ -180,7 +180,7 @@ fun SearchScreen(nav: NavHostController) {
                 }
                 return@LazyColumn
             }
-            if (nothing) item { EmptyState(Icons.Outlined.SearchOff, stringResource(R.string.search_none), stringResource(R.string.search_none_body)) }
+            if (nothing) item { EmptyState(Icons.Outlined.SearchOff, stringResource(R.string.search_none), stringResource(R.string.search_none_body), art = com.meldiq.android.R.drawable.meldling_confused) }
             if (convMatches.isNotEmpty()) {
                 item { SectionHeader(stringResource(R.string.search_conversations), Modifier.padding(vertical = 8.dp)) }
                 items(convMatches.take(limit), key = { "c" + it.id }) { conv -> ConversationHit(conv, me) { opened(); nav.navigate(Routes.conversation(conv.id)) } }

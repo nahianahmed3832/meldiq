@@ -62,7 +62,7 @@ S = {
 "pf_close": ("Close", "关闭", "বন্ধ করুন"),
 "pf_copy_username": ("Copy username", "复制用户名", "ইউজারনেম কপি করুন"),
 "pf_unavailable": ("This profile isn't available to you.", "你无法查看此个人资料。", "এই প্রোফাইলটি আপনার জন্য উপলব্ধ নয়।"),
-# Server-stored messages (API 0.56.0, owner's decision 2026-10-28)
+# Server-stored messages (API 0.57.0, owner's decision 2026-10-28)
 "srv_notice": ("Your messages now live on Meldiq's servers, so they're on every device you sign in to. They travel over encrypted connections; members of a conversation can read them, and Meldiq's staff can when a report or the law requires it.", "你的消息现在保存在 Meldiq 的服务器上，因此会出现在你登录的每台设备上。它们通过加密连接传输；对话成员可以阅读，在举报或法律要求时 Meldiq 的工作人员也可以。", "আপনার মেসেজ এখন Meldiq-এর সার্ভারে থাকে, তাই আপনার সাইন ইন করা প্রতিটি ডিভাইসে পাবেন। এগুলো এনক্রিপ্টেড সংযোগে আসা-যাওয়া করে; কথোপকথনের সদস্যরা পড়তে পারেন, আর রিপোর্ট বা আইনের প্রয়োজনে Meldiq-এর কর্মীরাও পারেন।"),
 "srv_notice_ok": ("Got it", "知道了", "বুঝেছি"),
 }

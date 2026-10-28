@@ -127,7 +127,7 @@ fun StorageScreen(nav: NavHostController) {
                 })
             }
         }
-        // API 0.56.0 (the owner's decision of 2026-10-28, docs/SERVER_MESSAGES.md): Meldiq's servers keep every message, so
+        // API 0.57.0 (the owner's decision of 2026-10-28, docs/SERVER_MESSAGES.md): Meldiq's servers keep every message, so
         // there is no history to upload or restore; this phone keeps only what it's showing, emptied at every start.
         item { SectionHeader("Message history", Modifier.padding(top = 16.dp, bottom = 6.dp)) }
         item {

@@ -335,11 +335,23 @@ fun EmptyState(
     action: String? = null,
     onAction: (() -> Unit)? = null,
     tint: Color = Griip.colors.primary,
+    /**
+     * Meldling's pose for this state (the owner's art, 2026-10-29, as Meldiq Web's empty states): waving by default,
+     * `confused` where nothing was found, `all_set` when caught up, `hello` for a first step. Null draws [icon] instead.
+     */
+    art: Int? = com.meldiq.android.R.drawable.meldling_waving,
 ) {
     val c = Griip.colors
     Column(modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.size(72.dp).clip(CircleShape).background(c.primarySoft), contentAlignment = Alignment.Center) {
-            Icon(icon, null, tint = tint, modifier = Modifier.size(32.dp))
+        if (art != null) {
+            androidx.compose.foundation.Image(
+                androidx.compose.ui.res.painterResource(art), null,
+                Modifier.size(width = 200.dp, height = 150.dp), contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+            )
+        } else {
+            Box(Modifier.size(72.dp).clip(CircleShape).background(c.primarySoft), contentAlignment = Alignment.Center) {
+                Icon(icon, null, tint = tint, modifier = Modifier.size(32.dp))
+            }
         }
         Spacer(Modifier.height(16.dp))
         Text(title, style = Griip.type.title, color = c.textPrimary, textAlign = TextAlign.Center)

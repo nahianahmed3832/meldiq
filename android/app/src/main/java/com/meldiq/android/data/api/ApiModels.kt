@@ -118,7 +118,7 @@ import kotlinx.serialization.json.JsonObject
     val customRoles: List<RoleRef> = emptyList(),
     /** API 0.54.0: the Meldiq Mojo badge they show (Go or Plus, with Meldiq Check), when they show one. */
     val mojo: MojoMarkDto? = null,
-    /** API 0.55.0+ profiles: when they joined Meldiq, and the communities you share with when they joined each. */
+    /** API 0.57.0 profiles: when they joined Meldiq, and the communities you share with when they joined each. */
     val memberSince: Long? = null,
     val mutualCommunities: List<MutualCommunityDto>? = null,
 )
@@ -276,11 +276,11 @@ object ChannelFormat {
     val status: String? = null, val at: Long? = null,
     /** The server attested @everyone on this copy (servers from 2026-10-17). */
     val mentionAll: Boolean? = null,
-    /** API 0.56.0, items of kind "message" (`v` 2): the stored message or change itself (docs/SERVER_MESSAGES.md). */
+    /** API 0.57.0, items of kind "message" (`v` 2): the stored message or change itself (docs/SERVER_MESSAGES.md). */
     val event: StoredEventDto? = null,
 )
 
-// ───────── Server-stored messages (API 0.56.0, owner's decision 2026-10-28, docs/SERVER_MESSAGES.md) ─────────
+// ───────── Server-stored messages (API 0.57.0, owner's decision 2026-10-28, docs/SERVER_MESSAGES.md) ─────────
 /** A stored message or change, as the server serves it in pages, search, the summary and the queue's "message" items. */
 @Serializable data class StoredEventDto(
     val id: String, val conversationId: String, val senderUserId: String, val senderDeviceId: String? = null,

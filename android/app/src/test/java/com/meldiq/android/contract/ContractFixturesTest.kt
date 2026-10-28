@@ -205,6 +205,12 @@ class ContractFixturesTest {
         "GET_v2_account_recovery-codes" to serializer<RecoveryCodesStatus>(),
         "GET_v2_account_sessions" to serializer<SessionListRes>(),
         "GET_v2_workspaces" to serializer<WorkspacesRes>(),
+        // API 0.57.0: messages stored and served by the server (docs/SERVER_MESSAGES_ANDROID.md).
+        "GET_v2_conversations_id_messages" to serializer<com.meldiq.android.data.api.HistoryPageRes>(),
+        "GET_v2_messages_summary" to serializer<com.meldiq.android.data.api.SummaryRes>(),
+        "GET_v2_messages_search" to serializer<com.meldiq.android.data.api.StoredSearchRes>(),
+        "POST_v2_messages" to serializer<com.meldiq.android.data.api.SendStoredRes>(),
+        "POST_v2_messages_import" to serializer<com.meldiq.android.data.api.ImportRes>(),
         "PATCH_v1_applications_id" to serializer<ApplicationRes>(),
         "PATCH_v1_categories_id" to serializer<CategoryRes>(),
         "PATCH_v1_conversations_id" to serializer<ConversationRes>(),

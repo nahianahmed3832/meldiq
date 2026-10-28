@@ -15,7 +15,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Server-stored messages (API 0.56.0): stored events as queue items, and the one-time import of the phone's history. */
+/** Server-stored messages (API 0.57.0): stored events as queue items, and the one-time import of the phone's history. */
 class StoredEventsTest {
     private fun msg(id: String = "message-0001", serverTs: Long? = 2_000, kind: String = "text", deleted: Boolean = false) = MessageEntity(
         id = id, conversationId = "conv-1", senderUserId = "alice", senderDeviceId = "d1", outgoing = false, kind = kind, text = "hello",

@@ -119,7 +119,7 @@ fun CommunitySettingsScreen(nav: NavHostController) {
         item { GriipTopBar(stringResource(R.string.nv_community_settings), subtitle = d?.org?.name, onBack = { nav.popBackStack() }) }
         error?.let { item { StatusBanner(it, BannerKind.Warning, Modifier.padding(horizontal = Space.gutter, vertical = 4.dp), action = stringResource(R.string.common_retry), onAction = { vm.refresh() }) } }
         if (d == null) {
-            item { if (loading) ShimmerList(4) else EmptyState(Icons.Outlined.Workspaces, stringResource(R.string.cm_none_title), stringResource(R.string.cm_none_body)) }
+            item { if (loading) ShimmerList(4) else EmptyState(Icons.Outlined.Workspaces, stringResource(R.string.cm_none_title), stringResource(R.string.cm_none_body), art = com.meldiq.android.R.drawable.meldling_hello) }
             return@LazyColumn
         }
         val p = d.permissions

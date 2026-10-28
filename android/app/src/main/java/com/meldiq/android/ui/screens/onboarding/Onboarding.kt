@@ -240,6 +240,7 @@ fun RevokedScreen(reason: String) {
         EmptyState(
             Icons.Outlined.Badge, "This device was signed out", "$reason. For your security, local data on this phone should be erased before you continue.",
             action = "Erase & start over", onAction = { (ctx.applicationContext as GriipApp).eraseEverything() }, tint = Griip.colors.danger,
+            art = com.meldiq.android.R.drawable.meldling_confused,
         )
     }
 }

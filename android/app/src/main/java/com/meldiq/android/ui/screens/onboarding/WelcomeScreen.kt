@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -148,7 +149,7 @@ internal fun WelcomeScreen(
 }
 
 /**
- * The official logo over a soft glow in the palette's accent. It settles in once (a short scale and fade) unless the
+ * Meldling's banner over a soft glow in the palette's accent. It settles in once (a short scale and fade) unless the
  * person turned animations off; nothing loops.
  */
 @Composable
@@ -162,17 +163,25 @@ private fun MeldiqHero(size: Dp) {
     )
     Box(
         // Decoration: the lockup above already names Meldiq for TalkBack.
-        Modifier.size(size).clearAndSetSemantics {}.drawBehind {
+        Modifier.fillMaxWidth().clearAndSetSemantics {}.drawBehind {
             val r = this.size.minDimension / 2
             drawCircle(Brush.radialGradient(listOf(c.accentStart.copy(alpha = 0.22f * progress), c.accentEnd.copy(alpha = 0.10f * progress), Color.Transparent), center, r), r, center)
         },
         contentAlignment = Alignment.Center,
     ) {
-        MeldiqLogo(size * HERO_LOGO, Modifier.graphicsLayer {
-            alpha = progress
-            val scale = HERO_START_SCALE + (1f - HERO_START_SCALE) * progress
-            scaleX = scale
-            scaleY = scale
-        })
+        // The owner's Meldling banner (2026-10-29, as Meldiq Web's sign-in hero), settling in once.
+        androidx.compose.foundation.Image(
+            androidx.compose.ui.res.painterResource(com.meldiq.android.R.drawable.meldling_banner), null,
+            Modifier.fillMaxWidth().aspectRatio(BANNER_RATIO).clip(com.meldiq.android.ui.theme.Shapes.hero).graphicsLayer {
+                alpha = progress
+                val scale = HERO_START_SCALE + (1f - HERO_START_SCALE) * progress
+                scaleX = scale
+                scaleY = scale
+            },
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+        )
     }
 }
+
+/** The banner art's width to height (1600 × 635). */
+private const val BANNER_RATIO = 1600f / 635f

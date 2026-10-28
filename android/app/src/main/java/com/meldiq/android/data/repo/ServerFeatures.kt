@@ -119,6 +119,8 @@ class ServerFeatures(private val api: ApiClient, private val clock: () -> Long =
         const val ORG_PHOTOS = "org-photos"
         /** API 0.43.0: self-only encrypted controls (audience "self"): a channel read here clears on this person's other devices. */
         const val SELF_CONTROLS = "self-controls"
+        /** API 0.57.0: messages stored and served by the server (/v2/messages, history, summary, search, import). */
+        const val SERVER_MESSAGES = "server-messages"
         const val DISCORD_IMPORT = "discord-import"
         /** API 0.44.0: a community's accent colour and banner (docs/COMMUNITY_BRANDING.md). */
         const val COMMUNITY_BRANDING = "community-branding"

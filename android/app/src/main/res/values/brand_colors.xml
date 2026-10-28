@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Sampled from brand/meldling.png by android/scripts/render_brand.py: the brand asset's ground. -->
-    <color name="brand_ground">#FF045349</color>
+    <!-- The Meldling art's ground (brand/meldling, as meldiq-web's GROUND), by android/scripts/render_brand.py. -->
+    <color name="brand_ground">#FF070A24</color>
 </resources>

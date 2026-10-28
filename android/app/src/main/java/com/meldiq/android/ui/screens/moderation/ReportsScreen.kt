@@ -87,7 +87,7 @@ fun ReportsScreen(nav: NavHostController, orgId: String) {
         val list = reports
         if (list == null) item { ShimmerList(4) }
         else if (list.isEmpty()) item {
-            EmptyState(Icons.Outlined.Flag, stringResource(if (closed) R.string.rq_empty_closed else R.string.rq_empty_open), "")
+            EmptyState(Icons.Outlined.Flag, stringResource(if (closed) R.string.rq_empty_closed else R.string.rq_empty_open), "", art = com.meldiq.android.R.drawable.meldling_all_set)
         } else items(list, key = { it.id }) { r -> ReportCard(r, aboutMe = r.target?.id == container.session.session?.userId && !isOwner, onHandle = { closing = r to "actioned" }, onDismissIt = { closing = r to "dismissed" }, onReopen = { set(r, "open", null) }) }
         item {
             Text(stringResource(R.string.rq_retention), style = Griip.type.caption, color = c.textTertiary, modifier = Modifier.padding(horizontal = Space.gutter, vertical = 12.dp))
