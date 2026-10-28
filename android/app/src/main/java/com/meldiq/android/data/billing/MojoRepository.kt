@@ -68,7 +68,8 @@ data class PlayLaunch(val productId: String, val accountToken: String, val refer
 sealed interface MojoPurchase {
     val productId: String
     data class Plan(val planKey: String, override val productId: String, val replacing: String?) : MojoPurchase
-    data class Sparks(val quantity: Int, override val productId: String) : MojoPurchase
+    /** A Spark pack; [replacing]: the pack bought on Google Play before (packs are switched, never held side by side). */
+    data class Sparks(val quantity: Int, override val productId: String, val replacing: String? = null) : MojoPurchase
     data class Gift(val planKey: String, val months: Int, val recipientUserId: String, val note: String?, override val productId: String) : MojoPurchase
 }
 
@@ -161,21 +162,27 @@ class MojoRepository(private val backend: MojoBackend, private val play: PlaySto
         if (state.value.busy != null) return null
         mutable.update { it.copy(busy = purchase.productId, notice = null) }
         val req = when (purchase) {
-            is MojoPurchase.Plan -> PlayIntentReq("plan", purchase.productId, planKey = purchase.planKey)
-            is MojoPurchase.Sparks -> PlayIntentReq("spark", purchase.productId, quantity = purchase.quantity)
+            is MojoPurchase.Plan -> PlayIntentReq("plan", purchase.productId, replacing = purchase.replacing, planKey = purchase.planKey)
+            is MojoPurchase.Sparks -> PlayIntentReq("spark", purchase.productId, replacing = purchase.replacing, quantity = purchase.quantity)
             is MojoPurchase.Gift -> PlayIntentReq(
                 "gift", purchase.productId, planKey = purchase.planKey, giftTo = purchase.recipientUserId, months = purchase.months,
                 note = purchase.note?.trim()?.takeIf { it.isNotEmpty() },
             )
         }
         return runCatching { backend.intent(req) }.fold(
-            { PlayLaunch(purchase.productId, it.accountToken, it.reference, (purchase as? MojoPurchase.Plan)?.replacing) },
+            { PlayLaunch(purchase.productId, it.accountToken, it.reference, replacingOf(purchase)) },
             { e ->
                 if (e is CancellationException) throw e
                 finish(MojoNotice.Failed(if (e is ApiException && e.status in 400..499) PlayError.NOT_SET_UP else PlayError.NETWORK))
                 null
             },
         )
+    }
+
+    private fun replacingOf(p: MojoPurchase): String? = when (p) {
+        is MojoPurchase.Plan -> p.replacing
+        is MojoPurchase.Sparks -> p.replacing
+        is MojoPurchase.Gift -> null
     }
 
     fun launch(activity: Activity, launch: PlayLaunch) {
@@ -241,7 +248,5 @@ class MojoRepository(private val backend: MojoBackend, private val play: PlaySto
         const val STATUS_GRANTED = "granted"
         const val STATUS_PENDING = "pending"
         const val STATUS_OTHER_ACCOUNT = "already_linked"
-        /** The realtime frame the server sends an account's devices when what it has changes. */
-        const val CHANGED_FRAME = "entitlements.changed"
     }
 }

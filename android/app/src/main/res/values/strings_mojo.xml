@@ -77,7 +77,7 @@
     <string name="mojo_spark_pack_desc_one">1 extra Spark every month</string>
     <string name="mojo_spark_pack_desc">%1$d extra Sparks every month</string>
     <string name="mojo_spark_pack_buy">Buy for %1$s/month</string>
-    <string name="mojo_spark_pack_note">Each pack is its own monthly subscription in Google Play, so two packs means two charges. Extra Sparks stay yours if your plan ends.</string>
+    <string name="mojo_spark_pack_note">Each pack is a monthly subscription in Google Play. You hold one pack at a time: switching changes it at once, and Google credits what\'s left of the old one. Extra Sparks stay yours if your plan ends.</string>
     <string name="mojo_spark_level_cap">Servers top out at Level 3: more Sparks on one server don\'t add anything. Keep extras for other servers.</string>
     <string name="mojo_gift_title">Gift Mojo to a friend</string>
     <string name="mojo_gift_body">One payment, straight onto their account, with a note from you. 1 month, 3 months or a year. It never renews.</string>
@@ -152,4 +152,7 @@
     <string name="mojo_gift_overlap">You\'re paying for this plan already: starting the gift now overlaps with your subscription. You can keep it for later; gifts don\'t expire.</string>
     <string name="mojo_gift_start_anyway">Start anyway</string>
     <string name="mojo_cancel">Cancel</string>
+    <string name="mojo_spark_pack_current">Your pack</string>
+    <string name="mojo_spark_pack_switch">Switch to +%1$d for %2$s/month</string>
+    <string name="mojo_spark_pack_elsewhere">Your extra Sparks are billed on meldiq.app: change them there.</string>
 </resources>

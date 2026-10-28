@@ -157,4 +157,15 @@ class MojoPlansTest {
         assertEquals(false, MojoPlans.giftOverlaps(ent("plus"), "plus"))
         assertEquals(false, MojoPlans.giftOverlaps(ent(null, "none"), "go"))
     }
+
+    @Test
+    fun `a Spark pack bought on Google Play is switched, one bought on the website is left alone`() {
+        fun me(provider: String?, quantity: Int, status: String = "active") =
+            MojoMe(sparks = MySparks(subscription = SparkSubscription(quantity = quantity, status = status, provider = provider)))
+        assertEquals(MojoPlans.PackState.None, MojoPlans.packState(null))
+        assertEquals(MojoPlans.PackState.None, MojoPlans.packState(MojoMe()))
+        assertEquals(MojoPlans.PackState.OnPlay("spark_2", 2), MojoPlans.packState(me("google_play", 2)))
+        assertEquals(MojoPlans.PackState.Elsewhere, MojoPlans.packState(me("stripe", 4)))
+        assertEquals(MojoPlans.PackState.None, MojoPlans.packState(me("google_play", 2, status = "canceled")))
+    }
 }

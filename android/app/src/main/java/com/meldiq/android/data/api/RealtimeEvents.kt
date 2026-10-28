@@ -73,6 +73,8 @@ sealed interface ServerEvent {
     @Serializable data class RemindersChanged(val id: String, val rev: Int? = null, val deleted: Boolean = false) : ServerEvent
     @Serializable data class ReminderDue(val id: String, val occurrenceAt: Long? = null, val firedAt: Long? = null) : ServerEvent
     /** Round 7 meetings (docs/WORKSPACE_C5.md). */
+    /** Meldiq Mojo: what an account (`scope` "account") or a community's members ("org", [orgId]) have changed; read them again. */
+    @Serializable data class EntitlementsChanged(val scope: String = "account", val orgId: String? = null) : ServerEvent
     @Serializable data class MeetingUpdated(val orgId: String, val meetingId: String? = null, val startsAt: Long? = null) : ServerEvent
     @Serializable data class MeetingSoon(val orgId: String? = null, val meetingId: String, val startsAt: Long? = null) : ServerEvent
 
@@ -130,6 +132,7 @@ object RealtimeCodec {
         "reminders.changed" to ServerEvent.RemindersChanged.serializer(),
         "reminder.due" to ServerEvent.ReminderDue.serializer(),
         "meeting.updated" to ServerEvent.MeetingUpdated.serializer(),
+        "entitlements.changed" to ServerEvent.EntitlementsChanged.serializer(),
         "meeting.soon" to ServerEvent.MeetingSoon.serializer(),
     )
     private val fieldless: Map<String, ServerEvent> = mapOf(

@@ -85,7 +85,7 @@ S = {
 "mojo_spark_pack_desc_one": ("1 extra Spark every month", "每月额外 1 个 Spark", "প্রতি মাসে ১টি বাড়তি Spark"),
 "mojo_spark_pack_desc": ("%1$d extra Sparks every month", "每月额外 %1$d 个 Spark", "প্রতি মাসে %1$dটি বাড়তি Spark"),
 "mojo_spark_pack_buy": ("Buy for %1$s/month", "以 %1$s/月 购买", "%1$s/মাস দিয়ে কিনুন"),
-"mojo_spark_pack_note": ("Each pack is its own monthly subscription in Google Play, so two packs means two charges. Extra Sparks stay yours if your plan ends.", "每个组合包在 Google Play 中都是单独的月度订阅，买两个就会扣两次费。即使方案结束，额外的 Spark 仍归你所有。", "প্রতিটি প্যাক Google Play-তে আলাদা মাসিক সাবস্ক্রিপশন, তাই দুটি প্যাক মানে দুটি চার্জ। প্ল্যান শেষ হলেও বাড়তি Spark আপনারই থাকবে।"),
+"mojo_spark_pack_note": ("Each pack is a monthly subscription in Google Play. You hold one pack at a time: switching changes it at once, and Google credits what's left of the old one. Extra Sparks stay yours if your plan ends.", "每个组合包都是 Google Play 中的月度订阅。你一次只能持有一个组合包：切换会立即生效，Google 会抵扣旧组合包的剩余部分。即使方案结束，额外的 Spark 仍归你所有。", "প্রতিটি প্যাক Google Play-তে একটি মাসিক সাবস্ক্রিপশন। একবারে একটি প্যাকই রাখা যায়: বদলালে সাথে সাথে বদলায়, আর পুরোনোটির বাকি অংশ Google ক্রেডিট দেয়। প্ল্যান শেষ হলেও বাড়তি Spark আপনারই থাকবে।"),
 "mojo_spark_level_cap": ("Servers top out at Level 3: more Sparks on one server don't add anything. Keep extras for other servers.", "服务器最高为等级 3：同一服务器上更多的 Spark 不会增加任何权益。多余的可留给其他服务器。", "সার্ভার সর্বোচ্চ লেভেল ৩ পর্যন্ত যায়: এক সার্ভারে আরও Spark দিলে কিছু বাড়ে না। বাড়তিগুলো অন্য সার্ভারের জন্য রাখুন।"),
 # Gifts
 "mojo_gift_title": ("Gift Mojo to a friend", "把 Mojo 送给朋友", "বন্ধুকে Mojo উপহার দিন"),
@@ -166,4 +166,7 @@ S = {
 "mojo_gift_overlap": ("You're paying for this plan already: starting the gift now overlaps with your subscription. You can keep it for later; gifts don't expire.", "你已在付费订阅此方案：现在开始礼物会与订阅重叠。你可以留到以后，礼物不会过期。", "আপনি ইতিমধ্যে এই প্ল্যানের জন্য টাকা দিচ্ছেন: এখন উপহার শুরু করলে সাবস্ক্রিপশনের সাথে মিলে যাবে। পরে রাখতে পারেন; উপহারের মেয়াদ শেষ হয় না।"),
 "mojo_gift_start_anyway": ("Start anyway", "仍然开始", "তবুও শুরু করুন"),
 "mojo_cancel": ("Cancel", "取消", "বাতিল"),
+"mojo_spark_pack_current": ("Your pack", "你的组合包", "আপনার প্যাক"),
+"mojo_spark_pack_switch": ("Switch to +%1$d for %2$s/month", "以 %2$s/月 切换到 +%1$d", "%2$s/মাস দিয়ে +%1$d-এ বদলান"),
+"mojo_spark_pack_elsewhere": ("Your extra Sparks are billed on meldiq.app: change them there.", "你的额外 Spark 在 meldiq.app 计费：请在那里更改。", "আপনার বাড়তি Spark meldiq.app-এ বিল হয়: সেখানেই বদলান।"),
 }

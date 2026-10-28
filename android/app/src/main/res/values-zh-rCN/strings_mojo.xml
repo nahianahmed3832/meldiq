@@ -77,7 +77,7 @@
     <string name="mojo_spark_pack_desc_one">每月额外 1 个 Spark</string>
     <string name="mojo_spark_pack_desc">每月额外 %1$d 个 Spark</string>
     <string name="mojo_spark_pack_buy">以 %1$s/月 购买</string>
-    <string name="mojo_spark_pack_note">每个组合包在 Google Play 中都是单独的月度订阅，买两个就会扣两次费。即使方案结束，额外的 Spark 仍归你所有。</string>
+    <string name="mojo_spark_pack_note">每个组合包都是 Google Play 中的月度订阅。你一次只能持有一个组合包：切换会立即生效，Google 会抵扣旧组合包的剩余部分。即使方案结束，额外的 Spark 仍归你所有。</string>
     <string name="mojo_spark_level_cap">服务器最高为等级 3：同一服务器上更多的 Spark 不会增加任何权益。多余的可留给其他服务器。</string>
     <string name="mojo_gift_title">把 Mojo 送给朋友</string>
     <string name="mojo_gift_body">一次付款，直接送到对方账户，并附上你的留言。1 个月、3 个月或 1 年。不会自动续订。</string>
@@ -152,4 +152,7 @@
     <string name="mojo_gift_overlap">你已在付费订阅此方案：现在开始礼物会与订阅重叠。你可以留到以后，礼物不会过期。</string>
     <string name="mojo_gift_start_anyway">仍然开始</string>
     <string name="mojo_cancel">取消</string>
+    <string name="mojo_spark_pack_current">你的组合包</string>
+    <string name="mojo_spark_pack_switch">以 %2$s/月 切换到 +%1$d</string>
+    <string name="mojo_spark_pack_elsewhere">你的额外 Spark 在 meldiq.app 计费：请在那里更改。</string>
 </resources>

@@ -15,6 +15,8 @@ data class MojoCatalog(
     val gifts: GiftCatalog = GiftCatalog(),
     /** What the server sells right now (on the website); Android sells through Google Play's own catalog. */
     val onSale: OnSale = OnSale(),
+    /** Whether plan limits apply yet (MOJO_ENFORCE): until Mojo is on sale, nobody could raise a limit, so none apply. */
+    val enforced: Boolean = false,
 ) {
     fun plan(key: String?): PlanPerks? = plans.firstOrNull { it.key == (key ?: MojoPlans.FREE) }
     fun preset(id: String): ScreenPreset? = screenPresets.firstOrNull { it.id == id }
@@ -102,7 +104,14 @@ data class SparkAssignment(
 )
 
 @Serializable
-data class SparkSubscription(val quantity: Int = 0, val status: String = "", val renews: Boolean = false, val currentPeriodEnd: Long? = null)
+data class SparkSubscription(
+    val quantity: Int = 0,
+    val status: String = "",
+    val renews: Boolean = false,
+    val currentPeriodEnd: Long? = null,
+    /** Who bills the Spark add-on: `google_play` (a pack bought here), `stripe` (the website). */
+    val provider: String? = null,
+)
 
 @Serializable
 data class BadgeView(val kind: String? = null, val check: Boolean = false, val hidden: Boolean = false)
@@ -202,6 +211,8 @@ data class TrialView(val source: String, val endsAt: Long)
 data class PlayIntentReq(
     val kind: String,
     val productId: String,
+    /** The person's current Google Play subscription product, when this purchase replaces it (a plan or pack change). */
+    val replacing: String? = null,
     val planKey: String? = null,
     val quantity: Int? = null,
     val giftTo: String? = null,

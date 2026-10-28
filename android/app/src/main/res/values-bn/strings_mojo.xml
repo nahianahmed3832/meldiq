@@ -77,7 +77,7 @@
     <string name="mojo_spark_pack_desc_one">প্রতি মাসে ১টি বাড়তি Spark</string>
     <string name="mojo_spark_pack_desc">প্রতি মাসে %1$dটি বাড়তি Spark</string>
     <string name="mojo_spark_pack_buy">%1$s/মাস দিয়ে কিনুন</string>
-    <string name="mojo_spark_pack_note">প্রতিটি প্যাক Google Play-তে আলাদা মাসিক সাবস্ক্রিপশন, তাই দুটি প্যাক মানে দুটি চার্জ। প্ল্যান শেষ হলেও বাড়তি Spark আপনারই থাকবে।</string>
+    <string name="mojo_spark_pack_note">প্রতিটি প্যাক Google Play-তে একটি মাসিক সাবস্ক্রিপশন। একবারে একটি প্যাকই রাখা যায়: বদলালে সাথে সাথে বদলায়, আর পুরোনোটির বাকি অংশ Google ক্রেডিট দেয়। প্ল্যান শেষ হলেও বাড়তি Spark আপনারই থাকবে।</string>
     <string name="mojo_spark_level_cap">সার্ভার সর্বোচ্চ লেভেল ৩ পর্যন্ত যায়: এক সার্ভারে আরও Spark দিলে কিছু বাড়ে না। বাড়তিগুলো অন্য সার্ভারের জন্য রাখুন।</string>
     <string name="mojo_gift_title">বন্ধুকে Mojo উপহার দিন</string>
     <string name="mojo_gift_body">একবার পেমেন্ট, সরাসরি তাদের অ্যাকাউন্টে, আপনার একটি নোটসহ। ১ মাস, ৩ মাস বা ১ বছর। কখনো নবায়ন হয় না।</string>
@@ -152,4 +152,7 @@
     <string name="mojo_gift_overlap">আপনি ইতিমধ্যে এই প্ল্যানের জন্য টাকা দিচ্ছেন: এখন উপহার শুরু করলে সাবস্ক্রিপশনের সাথে মিলে যাবে। পরে রাখতে পারেন; উপহারের মেয়াদ শেষ হয় না।</string>
     <string name="mojo_gift_start_anyway">তবুও শুরু করুন</string>
     <string name="mojo_cancel">বাতিল</string>
+    <string name="mojo_spark_pack_current">আপনার প্যাক</string>
+    <string name="mojo_spark_pack_switch">%2$s/মাস দিয়ে +%1$d-এ বদলান</string>
+    <string name="mojo_spark_pack_elsewhere">আপনার বাড়তি Spark meldiq.app-এ বিল হয়: সেখানেই বদলান।</string>
 </resources>

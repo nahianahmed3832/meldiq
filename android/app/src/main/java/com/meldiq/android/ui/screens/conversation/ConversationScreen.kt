@@ -901,7 +901,8 @@ fun ConversationScreen(nav: NavHostController, conversationId: String, threadRoo
                     }
                 }
                 val mojoState by vm.c.mojo.state.collectAsStateWithLifecycle()
-                val mojoChars = mojoState.catalog?.plan(com.meldiq.android.data.billing.MojoPlans.currentKey(mojoState.entitlements))?.messageChars ?: 0
+                // Only once the server enforces plan limits (Mojo on sale): until then nobody's messages are limited by plan.
+                val mojoChars = mojoState.catalog?.takeIf { it.enforced }?.plan(com.meldiq.android.data.billing.MojoPlans.currentKey(mojoState.entitlements))?.messageChars ?: 0
                 Composer(
                     text = field,
                     onText = { field = it; vm.typingChanged(it.text) },

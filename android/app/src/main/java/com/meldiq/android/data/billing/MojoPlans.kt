@@ -113,6 +113,21 @@ object MojoPlans {
     /** Whether starting a gift of [giftPlan] now overlaps a subscription this person already pays for. */
     fun giftOverlaps(e: Entitlements?, giftPlan: String): Boolean = billedBy(e) != null && rank(currentKey(e)) >= rank(giftPlan)
 
+    /** Who bills a person's Spark pack, and which pack: a pack bought on the website isn't changed here. */
+    sealed interface PackState {
+        data object None : PackState
+        data class OnPlay(val productId: String?, val quantity: Int) : PackState
+        data object Elsewhere : PackState
+    }
+
+    fun packState(me: MojoMe?): PackState {
+        val sub = me?.sparks?.subscription ?: return PackState.None
+        if (sub.status in ENDED) return PackState.None
+        return if (sub.provider == null || sub.provider == PROVIDER_PLAY) PackState.OnPlay(PlayProducts.SPARK_PACKS[sub.quantity], sub.quantity) else PackState.Elsewhere
+    }
+
+    private val ENDED = setOf("canceled", "incomplete_expired")
+
     /** Sparks a person holds: their plan's included ones (while it applies) plus the ones they pay for separately. */
     fun sparksHeld(plan: PlanPerks?, paid: Int): Int = (plan?.sparks ?: 0) + paid.coerceAtLeast(0)
 }

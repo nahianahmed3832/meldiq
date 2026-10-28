@@ -88,7 +88,7 @@ internal fun SparkSection(
             )
             Text(stringResource(R.string.mojo_spark_give_hint), style = Griip.type.caption, color = c.textTertiary, modifier = Modifier.padding(top = 6.dp))
         }
-        SparkPacks(offers, busy, onBuy)
+        SparkPacks(offers, busy, MojoPlans.packState(me), onBuy)
     }
 }
 
@@ -122,11 +122,16 @@ private fun LevelLine(text: String) {
 }
 
 @Composable
-private fun SparkPacks(offers: Map<String, PlayOffer>, busy: String?, onBuy: (MojoPurchase) -> Unit) {
+private fun SparkPacks(offers: Map<String, PlayOffer>, busy: String?, pack: MojoPlans.PackState, onBuy: (MojoPurchase) -> Unit) {
     val c = Griip.colors
+    if (pack == MojoPlans.PackState.Elsewhere) {
+        Text(stringResource(R.string.mojo_spark_pack_elsewhere), style = Griip.type.caption, color = c.textTertiary)
+        return
+    }
     val packs = PlayProducts.SPARK_PACKS.filterValues { it in offers }
     if (packs.isEmpty()) return
-    var picked by rememberSaveable { mutableIntStateOf(packs.keys.first()) }
+    val current = (pack as? MojoPlans.PackState.OnPlay)?.quantity
+    var picked by rememberSaveable { mutableIntStateOf(current?.takeIf { it in packs } ?: packs.keys.first()) }
     if (picked !in packs) picked = packs.keys.first()
     Text(stringResource(R.string.mojo_spark_buy), style = Griip.type.titleSmall, color = c.textPrimary)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -147,10 +152,15 @@ private fun SparkPacks(offers: Map<String, PlayOffer>, busy: String?, onBuy: (Mo
         if (picked == 1) stringResource(R.string.mojo_spark_pack_desc_one) else stringResource(R.string.mojo_spark_pack_desc, picked),
         style = Griip.type.bodySmall, color = c.textSecondary,
     )
-    PillButton(
-        stringResource(R.string.mojo_spark_pack_buy, offer.price), { onBuy(MojoPurchase.Sparks(picked, productId)) },
-        Modifier.fillMaxWidth(), enabled = busy == null, loading = busy == productId, height = 48.dp,
-    )
+    val replacing = (pack as? MojoPlans.PackState.OnPlay)?.productId
+    when {
+        picked == current -> PillButton(stringResource(R.string.mojo_spark_pack_current), {}, Modifier.fillMaxWidth(), tone = ButtonTone.Glass, enabled = false, height = 48.dp)
+        else -> PillButton(
+            if (current != null) stringResource(R.string.mojo_spark_pack_switch, picked, offer.price) else stringResource(R.string.mojo_spark_pack_buy, offer.price),
+            { onBuy(MojoPurchase.Sparks(picked, productId, replacing)) },
+            Modifier.fillMaxWidth(), enabled = busy == null, loading = busy == productId, height = 48.dp,
+        )
+    }
     Text(stringResource(R.string.mojo_spark_pack_note), style = Griip.type.caption, color = c.textTertiary)
 }
 

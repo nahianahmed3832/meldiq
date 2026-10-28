@@ -38,7 +38,7 @@ class MessageSignals(
     /** Batch B6: someone sent, accepted, cancelled or removed a connection with you (screens reload their lists). */
     val connectionsChanged: SharedFlow<Unit> = _connectionsChanged
     private val _entitlementsChanged = MutableSharedFlow<Unit>(extraBufferCapacity = 4)
-    /** Meldiq Mojo: what this account has changed (`entitlements.changed`, docs/BILLING.md); the plans screen reads it again. */
+    /** Meldiq Mojo: what this account or one of its communities has changed (`entitlements.changed`, docs/BILLING.md). */
     val entitlementsChanged: SharedFlow<Unit> = _entitlementsChanged
     private val _orgDeleted = MutableSharedFlow<String>(extraBufferCapacity = 16)
     val orgDeleted: SharedFlow<String> = _orgDeleted
@@ -101,13 +101,8 @@ class MessageSignals(
             // Moderator and applicant signals: the screens that show them reload when opened.
             is ServerEvent.OrgReports, is ServerEvent.OrgApplications, is ServerEvent.OrgApplication, is ServerEvent.OrgAlert -> Unit
             // The socket's own bookkeeping, and frames from a newer server.
-            is ServerEvent.Unknown -> if (e.t == ENTITLEMENTS_CHANGED) _entitlementsChanged.tryEmit(Unit)
-            is ServerEvent.Hello, is ServerEvent.Pong -> Unit
+            is ServerEvent.EntitlementsChanged -> _entitlementsChanged.tryEmit(Unit)
+            is ServerEvent.Hello, is ServerEvent.Pong, is ServerEvent.Unknown -> Unit
         }
-    }
-
-    companion object {
-        /** Sent without fields; it decodes as an unknown frame. */
-        const val ENTITLEMENTS_CHANGED = "entitlements.changed"
     }
 }
