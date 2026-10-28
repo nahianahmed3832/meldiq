@@ -39,7 +39,7 @@ state that could split a domain between the stores (`src/mongo/index.ts`):
 | workspace | orgs, org_members, branches, branch_members, departments, teams, team_members, invitations, org_deletions, audit_log, org_roles, org_role_members, join_applications | SQLite | Copy and verify only |
 | conversations | conversations, conversation_members, mention_all_events | SQLite | Copy and verify only |
 | relay | delivery_queue, submitted_messages | SQLite (prod default) | **Yes** (`MongoRelayStore`, 2026-10-22, Architecture 1.0 D1: one transaction per accepted message, numeric queue ids from a counter that starts above every SQLite id; tests run on both stores) |
-| calls | calls, call_participants, call_hands (split from relay 2026-10-22) | SQLite | Copy and verify only |
+| calls | calls, call_participants, call_hands (split from relay 2026-10-22) | SQLite (prod) | **Yes** (`MongoCallStore`, 2026-10-28: every check-and-write one conditional update; ending a call, mirroring a federated call and retention in one transaction; conversations' call deletes, which SQLite cascades, done by the store; live calls of a list of conversations read once per request) |
 | files | attachments, attachment_uploads, abandoned_uploads, pending_blob_deletes | SQLite (prod default) | **Yes** (`MongoFileStore`, 2026-10-22, Architecture 1.0 D2: completing an upload is one transaction; quota sums take uploader and conversation ids from their own modules; S3 objects don't move) |
 | history | history_accounts, history_items | SQLite (prod default) | **Yes** (`MongoHistoryStore`, 2026-10-21; `docs/product/MELDIQ_MONGODB_MIGRATION.md` §5) |
 | reports | reports | SQLite (prod default) | **Yes** (`MongoReportStore`, 2026-10-21, batch B4; one document per report, no transactions needed) |
@@ -129,7 +129,7 @@ whole restore and changes nothing), verifies, and marks SQLite as the home again
 `MONGODB_DOMAINS`; start the API. MongoDB keeps its copy. An old image that doesn't know MongoDB must only be started
 after this step, or it would serve SQLite's stale copy.
 
-**Next domains, in order** (relay and files done 2026-10-22): federation → calls → conversations + workspace → identity. Each needs
+**Next domains, in order** (relay and files done 2026-10-22, calls 2026-10-28): conversations + workspace → identity → platform. Federation (off in production, its tables empty there) is ported last. Each needs
 its SQL moved behind an async store, `authz.ts` made async where it reads the domain, the full suite run on both stores
 (`MELDIQ_TEST_MONGO_DOMAINS`), and a migration rehearsal. Rough size: workspace + conversations ≈ 200 statements (the
 largest step, with authorisation). The relay's MongoDB store exists and passes the suite, but it is the message hot

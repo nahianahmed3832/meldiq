@@ -1,6 +1,5 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type { AppContext } from "../../app/context.js";
-import { activeCallCounts } from "../calls/index.js";
 import { signupTimes } from "../accounts/index.js";
 import { ACTIVE_NOW_MS, ActivityTracker, requestKind } from "./activity.js";
 import { type ClientInfo, classifyClient } from "./client.js";
@@ -126,7 +125,7 @@ export class Telemetry {
       .timeJob("telemetry.minute", async () => {
         const t = this.clock();
         this.flush();
-        this.samplePresence(t);
+        await this.samplePresence(t);
         await this.sampleResources(t);
         this.rollup(t);
         if (t - this.lastRetentionAt > HOUR_MS) {
@@ -138,7 +137,7 @@ export class Telemetry {
   }
 
   /** Live counts now (the console's concurrency card), without writing anything. */
-  live(t = this.clock()) {
+  async live(t = this.clock()) {
     const conns = this.ctx.hub.connections();
     const people = new Set<string>();
     const platforms: Record<string, Set<string>> = {};
@@ -156,12 +155,12 @@ export class Telemetry {
       devices: this.ctx.hub.onlineDeviceCount(),
       sockets: conns.length,
       platforms: Object.fromEntries(Object.entries(platforms).map(([p, s]) => [p, s.size])),
-      calls: activeCallCounts(this.ctx.db),
+      calls: await this.ctx.calls.activeCounts(),
     };
   }
 
-  private samplePresence(t: number): void {
-    const now = this.live(t);
+  private async samplePresence(t: number): Promise<void> {
+    const now = await this.live(t);
     const s = this.ctx.hub.stats;
     const prev = this.last ?? s;
     const delta = (k: keyof RealtimeStats) => Math.max(0, s[k] - prev[k]);

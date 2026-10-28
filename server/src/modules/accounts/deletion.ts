@@ -145,8 +145,13 @@ async function eraseIdentity(ctx: AppContext, userId: string, actorId: string | 
   const devices = ids(db, "SELECT id FROM devices WHERE user_id = ?", userId);
   const photoRev = (db.prepare("SELECT photo_rev FROM users WHERE id = ?").get(userId) as { photo_rev: number | null } | undefined)?.photo_rev ?? null;
 
+  // Calls may not be in SQLite: the live rooms of conversations that may be removed are read first (SQLite cascades its
+  // calls inside the transaction below).
+  const liveRooms = new Map<string, string[]>();
+  for (const c of await ctx.calls.liveIn(memberships.filter((m) => m.type !== "CHANNEL").map((m) => m.id))) {
+    liveRooms.set(c.conversation_id, [...(liveRooms.get(c.conversation_id) ?? []), c.room_name]);
+  }
   let removed: string[] = [];
-  let rooms: string[] = [];
   db.transaction(() => {
     for (const d of devices) revokeDeviceRows(ctx, d, t);
     deletePersonalRecords(db, userId);
@@ -157,8 +162,12 @@ async function eraseIdentity(ctx: AppContext, userId: string, actorId: string | 
     leaveConversations(db, userId, memberships);
     anonymize(ctx, userId, photoRev, t);
     removed = memberships.filter((m) => m.type !== "CHANNEL" && !hasLiveMember(db, m.id)).map((m) => m.id);
-    rooms = removed.flatMap((c) => removeConversation(ctx, c));
+    for (const c of removed) removeConversation(ctx, c);
   }).immediate();
+  const rooms = removed.flatMap((c) => liveRooms.get(c) ?? []);
+  await ctx.calls.forgetConversations(removed);
+  // Hands they raised in voice rooms.
+  await ctx.calls.forgetUserHands(userId);
 
   // Stores that may live outside SQLite (MongoDB domains).
   await ctx.prefs.deleteForUser(userId);
@@ -191,7 +200,6 @@ function deletePersonalRecords(db: DB, userId: string): void {
     "DELETE FROM history_items WHERE user_id = ?",
     "DELETE FROM history_accounts WHERE user_id = ?",
     "DELETE FROM reminders WHERE user_id = ?",
-    "DELETE FROM call_hands WHERE user_id = ?",
   ]) {
     db.prepare(sql).run(userId);
   }
@@ -239,14 +247,12 @@ function hasLiveMember(db: DB, convId: string): boolean {
     .get(convId);
 }
 
-/** Removes a group or direct conversation nobody is left in, with its files and queued items. Returns its live rooms. */
-function removeConversation(ctx: AppContext, convId: string): string[] {
+/** Removes a group or direct conversation nobody is left in, with its files and queued items (its calls: the caller). */
+function removeConversation(ctx: AppContext, convId: string): void {
   const { db } = ctx;
-  const rooms = ids(db, "SELECT room_name AS id FROM calls WHERE conversation_id = ? AND state != 'ENDED'", convId);
   // Its files and uploads, queued items, and rows without a foreign key to the conversation (members and calls cascade).
   ctx.files.forgetConversation(convId);
   ctx.relay.forgetConversation(convId);
   db.prepare("DELETE FROM mention_all_events WHERE conversation_id = ?").run(convId);
   db.prepare("DELETE FROM conversations WHERE id = ?").run(convId);
-  return rooms;
 }

@@ -13,6 +13,7 @@ import type { MeldiqMongo } from "../infrastructure/database/mongo/client.js";
 import type { HistoryStore } from "../modules/messaging/history/store.js";
 import type { ReportSealer } from "../modules/organizations/reports/seal.js";
 import type { RelationshipStore } from "../modules/accounts/relationships/store.js";
+import type { CallStore } from "../modules/calls/store.js";
 import type { ReportStore } from "../modules/organizations/reports/store.js";
 import type { PreferenceStore } from "../modules/accounts/preferences/store.js";
 import type { PushService } from "../modules/notifications/service.js";
@@ -55,6 +56,8 @@ export interface AppContext {
   reportSealer: ReportSealer;
   /** Connections, message requests and messaging settings (batch B6): SQLite, or MongoDB with the "relationships" domain. */
   relationships: RelationshipStore;
+  /** Calls, their participants and raised hands: SQLite, or MongoDB when MONGODB_DOMAINS includes "calls". */
+  calls: CallStore;
   /** Present when MONGODB_URI is set: the domains in MONGODB_DOMAINS live there (docs/MONGODB.md). */
   mongo?: MeldiqMongo;
   /** Plan-based limits (src/entitlements.ts, docs/PLANS.md): none by default. */

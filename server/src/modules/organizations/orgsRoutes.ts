@@ -33,7 +33,7 @@ import { userSummary } from "../auth/routes.js";
 import { deleteBlobNow, processBlobDeletes, queueBlobDelete } from "../files/routes.js";
 import { bannerBlobId, MAX_BANNER_BYTES, photoBlobId, readJpegBody, storePhoto } from "../accounts/photos.js";
 import { evictRemovedMember } from "../calls/routes.js";
-import { conversationView } from "../messaging/conversationsRoutes.js";
+import { conversationView, liveCallsOf } from "../messaging/conversationsRoutes.js";
 import { orgRoleChangeRefusal, removalAllowed, titleChangeAllowed } from "./roleRules.js";
 import { createCommunityStart, type TemplateId, templateList } from "./communityStart.js";
 import { roleAssignmentRefusal } from "./permissions/rules.js";
@@ -409,6 +409,8 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     // The files store may not be SQLite: what the channels hold is read before the transaction (and their records go
     // inside it, through ctx.files.forgetConversation).
     const files = await ctx.files.attachmentIdsIn(authz.conversationIdsOf(orgId));
+    // Calls may not be in SQLite either: the live rooms to close are read before the transaction too.
+    const rooms = (await ctx.calls.liveIn(authz.conversationIdsOf(orgId))).map((c) => c.room_name);
 
     const result = db
       .transaction(() => {
@@ -418,10 +420,8 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
         const members = (db.prepare("SELECT user_id FROM org_members WHERE org_id = ?").all(orgId) as { user_id: string }[]).map((r) => r.user_id);
         const channels = (db.prepare("SELECT id FROM conversations WHERE org_id = ?").all(orgId) as { id: string }[]).map((r) => r.id);
         const channelMembers = new Map<string, string[]>();
-        const rooms: string[] = [];
         for (const c of channels) {
           channelMembers.set(c, (db.prepare("SELECT user_id FROM conversation_members WHERE conversation_id = ?").all(c) as { user_id: string }[]).map((r) => r.user_id));
-          rooms.push(...(db.prepare("SELECT room_name FROM calls WHERE conversation_id = ? AND state != 'ENDED'").all(c) as { room_name: string }[]).map((r) => r.room_name));
           // Rows without a foreign key to the conversation; its files' bytes are scheduled for deletion and its open
           // uploads abandoned (their objects or parts are removed by the retention job).
           ctx.relay.forgetConversation(c);
@@ -444,6 +444,8 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
       })
       .immediate();
     if (!result) return replay();
+    // SQLite cascaded its calls with the channels; a call store elsewhere removes them itself.
+    await ctx.calls.forgetConversations([...result.channelMembers.keys()]);
     await ctx.prefs.deleteForWorkspace(orgId);
     await ctx.reports.deleteForOrg(orgId);
 
@@ -823,7 +825,8 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     ctx.audit({ actorId: actor, orgId, action: body.voice ? "voice_room.create" : "channel.create", target: id, detail: `${body.kind} ${body.name}` });
     notifyConversation(ctx, id);
     notifyOrg(ctx, orgId);
-    return { channel: conversationView(ctx, authz.conversation(id)!, actor) };
+    const channel = authz.conversation(id)!;
+    return { channel: conversationView(ctx, channel, actor, await liveCallsOf(ctx, [channel])) };
   });
 
   /** Browse channels visible to the caller (joined + joinable public ones). */
@@ -835,12 +838,11 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const rows = db
       .prepare("SELECT * FROM conversations WHERE org_id = ? AND type = 'CHANNEL' ORDER BY name")
       .all(orgId) as ConversationRow[];
-    return {
-      channels: rows
-        .filter((c) => (includeArchived === "true" || !c.archived_at) && authz.canViewChannel(c, actor))
-        .filter((c) => !q || (c.name ?? "").toLowerCase().includes(q.toLowerCase()) || (c.topic ?? "").toLowerCase().includes(q.toLowerCase()))
-        .map((c) => conversationView(ctx, c, actor)),
-    };
+    const shown = rows
+      .filter((c) => (includeArchived === "true" || !c.archived_at) && authz.canViewChannel(c, actor))
+      .filter((c) => !q || (c.name ?? "").toLowerCase().includes(q.toLowerCase()) || (c.topic ?? "").toLowerCase().includes(q.toLowerCase()));
+    const live = await liveCallsOf(ctx, shown);
+    return { channels: shown.map((c) => conversationView(ctx, c, actor, live)) };
   });
 
   // ───────────── Activity ─────────────

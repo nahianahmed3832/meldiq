@@ -27,6 +27,8 @@ import { MongoRelationshipStore } from "../modules/accounts/relationships/mongoS
 import { MongoReportStore } from "../modules/organizations/reports/mongoStore.js";
 import { ReportSealer } from "../modules/organizations/reports/seal.js";
 import { SqliteRelationshipStore } from "../modules/accounts/relationships/store.js";
+import { MongoCallStore } from "../modules/calls/mongoStore.js";
+import { SqliteCallStore } from "../modules/calls/store.js";
 import { SqliteReportStore } from "../modules/organizations/reports/store.js";
 import reportRoutes from "../modules/organizations/reports/routes.js";
 import applicationRoutes from "../modules/organizations/applicationsRoutes.js";
@@ -174,11 +176,12 @@ export async function buildApp(
   ctx.history = ctx.mongo?.owns("history") ? new MongoHistoryStore(ctx.mongo) : new SqliteHistoryStore(db);
   ctx.reports = ctx.mongo?.owns("reports") ? new MongoReportStore(ctx.mongo) : new SqliteReportStore(db);
   ctx.relationships = ctx.mongo?.owns("relationships") ? new MongoRelationshipStore(ctx.mongo) : new SqliteRelationshipStore(db);
+  ctx.calls = ctx.mongo?.owns("calls") ? new MongoCallStore(ctx.mongo) : new SqliteCallStore(db);
   ctx.reportSealer = ReportSealer.load(process.env, config.dataDir);
   ctx.billing = new Billing(db, config.billing, app.log);
   // A workspace's subscription adds its plan's limits between operator overrides and server-wide limits.
   ctx.entitlements = new Entitlements(config.entitlements, db, (orgId, t) => ctx.billing.subscriptions.planLimits(orgId, t));
-  ctx.usage = new UsageMeter(db, ctx.files);
+  ctx.usage = new UsageMeter(db, ctx.files, ctx.calls);
   ctx.quotas = new QuotaEngine(db);
   // AI and AI Workforce were removed in API 0.47.0 (docs/AI_REMOVAL.md): their tables stay, unread.
   // Activity, traffic, concurrency and resources (docs/ANALYTICS_DEFINITIONS.md): written once a minute.

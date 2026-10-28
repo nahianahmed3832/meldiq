@@ -37,7 +37,7 @@ import { ApiError, badRequest, conflict, forbidden, notFound } from "../../share
 import { newId, now } from "../../shared/utilities/util.js";
 import { noteJoin } from "./activityAlerts.js";
 import { joinQuestions } from "./applicationsRoutes.js";
-import { evictFromCall, evictRemovedMember, type CallRow } from "../calls/routes.js";
+import { evictFromCall, evictRemovedMember } from "../calls/routes.js";
 import { CHANNEL_LIMITS, notifyConversation, notifyOrg, orgSummary, removeFromWorkspace } from "./orgsRoutes.js";
 
 /**
@@ -545,10 +545,8 @@ export default async function communityRoutes(app: FastifyInstance, ctx: AppCont
       detail: body.until === null ? null : `${new Date(body.until).toISOString()}${body.reason ? ` ${body.reason}` : ""}`,
     });
     // Out of the community's live voice calls at once; every app reloads what it may do.
-    const voice = db
-      .prepare("SELECT c.* FROM calls c JOIN conversations v ON v.id = c.conversation_id WHERE v.org_id = ? AND v.voice = 1 AND c.state != 'ENDED'")
-      .all(p.orgId) as CallRow[];
-    for (const c of voice) await evictFromCall(ctx, c);
+    const voiceChannels = (db.prepare("SELECT id FROM conversations WHERE org_id = ? AND voice = 1").all(p.orgId) as { id: string }[]).map((r) => r.id);
+    for (const c of await ctx.calls.liveIn(voiceChannels)) await evictFromCall(ctx, c);
     notifyOrg(ctx, p.orgId);
     // Only the person's own view of each channel changes (posting, voice), so only their devices reload them.
     const channels = db

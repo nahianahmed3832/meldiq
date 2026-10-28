@@ -143,10 +143,10 @@ describe("live activity and concurrency", () => {
     await a.connect();
     await tab.connect();
     await phone.connect();
-    const live = h.ctx.telemetry.live();
+    const live = await h.ctx.telemetry.live();
     expect(live).toMatchObject({ users: 1, devices: 2, sockets: 3 });
     h.ctx.telemetry.setExcluded([a.userId]);
-    expect(h.ctx.telemetry.live()).toMatchObject({ users: 0, devices: 2, sockets: 3 });
+    expect(await h.ctx.telemetry.live()).toMatchObject({ users: 0, devices: 2, sockets: 3 });
     h.ctx.telemetry.setExcluded([]);
     await h.ctx.telemetry.minute();
     const sample = h.ctx.db.prepare("SELECT users, sockets, connects FROM presence_samples ORDER BY minute DESC LIMIT 1").get() as any;
@@ -156,7 +156,7 @@ describe("live activity and concurrency", () => {
     await phone.disconnect();
     await a.disconnect();
     await new Promise((r) => setTimeout(r, 50));
-    expect(h.ctx.telemetry.live()).toMatchObject({ users: 0, devices: 0, sockets: 0 });
+    expect(await h.ctx.telemetry.live()).toMatchObject({ users: 0, devices: 0, sockets: 0 });
     expect(h.ctx.hub.stats.disconnects).toBeGreaterThanOrEqual(3);
   });
 

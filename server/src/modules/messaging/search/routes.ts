@@ -17,6 +17,6 @@ export default async function searchRoutes(app: FastifyInstance, ctx: AppContext
     );
     // A workspace filter only for a workspace you're in (404 otherwise, like every other workspace route).
     if (p.orgId) ctx.authz.requireOrgMember(p.orgId, userId);
-    return { query: p.q, results: search(ctx, userId, p.q, kinds, { orgId: p.orgId, limit: p.limit, cursor: p.cursor }) };
+    return { query: p.q, results: await search(ctx, userId, p.q, kinds, { orgId: p.orgId, limit: p.limit, cursor: p.cursor }) };
   });
 }

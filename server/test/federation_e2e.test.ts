@@ -212,7 +212,7 @@ describe("cross-server calls (hosted by the caller's server)", () => {
     const ring = await bob.waitFor(() => bob.events.find((e) => e.t === "call" && e.event === "ring" && e.call?.id === callId));
     expect(ring.call).toMatchObject({ createdBy: alice.userId, conversationId: conv, video: true, state: "RINGING" });
     expect(ring.from.userId).toBe(alice.userId);
-    expect((B.ctx.db.prepare("SELECT host_server_id h FROM calls WHERE id = ?").get(callId) as any).h).toBe(A.ctx.federation!.serverId);
+    expect((await B.ctx.calls.get(callId))!.host_server_id).toBe(A.ctx.federation!.serverId);
     // Ring recovery on B sees it too.
     expect((await bob.req("GET", "/v1/calls/active")).calls.map((c: any) => c.id)).toContain(callId);
 
@@ -230,11 +230,11 @@ describe("cross-server calls (hosted by the caller's server)", () => {
     await alice.req("POST", `/v1/calls/${callId}/connected`);
     await bob.req("POST", `/v1/calls/${callId}/connected`);
     await bob.waitFor(() => bob.events.find((e) => e.t === "call" && e.event === "updated" && e.call?.id === callId && e.call.state === "ACTIVE"));
-    expect((A.ctx.db.prepare("SELECT state FROM calls WHERE id = ?").get(callId) as any).state).toBe("ACTIVE");
+    expect((await A.ctx.calls.get(callId))!.state).toBe("ACTIVE");
 
     await alice.req("POST", `/v1/calls/${callId}/end`);
     await bob.waitFor(() => bob.events.find((e) => e.t === "call" && e.event === "ended" && e.call?.id === callId));
-    expect((B.ctx.db.prepare("SELECT state, end_reason FROM calls WHERE id = ?").get(callId) as any)).toMatchObject({ state: "ENDED", end_reason: "hangup" });
+    expect(await B.ctx.calls.get(callId)).toMatchObject({ state: "ENDED", end_reason: "hangup" });
   });
 
   it("rings someone on another server before any message has created the conversation there", async () => {
@@ -269,10 +269,10 @@ describe("cross-server calls (hosted by the caller's server)", () => {
     expect(r.status).toBe(403);
     // C claims to host a call created by Alice (A's user) in the shared conversation.
     const peerB = await fedC.resolver.server(B.ctx.federation!.serverId);
-    const forged = { ...A.ctx.federation!.callRelayView(A.ctx.db.prepare("SELECT * FROM calls WHERE id = ?").get(id) as any), id: "call_" + "x".repeat(22) };
+    const forged = { ...(await A.ctx.federation!.callRelayView((await A.ctx.calls.get(id))!)), id: "call_" + "x".repeat(22) };
     const ev = await fedC.request(peerB, "POST", "/fed/v1/calls/event", { event: "ring", call: forged, extra: {} });
     expect(ev.status).toBe(403);
-    expect(B.ctx.db.prepare("SELECT 1 FROM calls WHERE id = ?").get(forged.id)).toBeUndefined();
+    expect(await B.ctx.calls.get(forged.id)).toBeNull();
     await alice.req("POST", `/v1/calls/${id}/end`);
   });
 });

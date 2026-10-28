@@ -58,7 +58,9 @@ import { createRegistrationInvite } from "./modules/organizations/invites.js";
 import type { AppContext } from "./app/context.js";
 import { runCleanup } from "./modules/administration/jobs.js";
 import { applyChannelAccessRepair, planChannelAccessRepair } from "./modules/messaging/channelRepair.js";
-import { deleteEmptyOrg, findDuplicateOrgs, keepReason, orgFootprint } from "./modules/organizations/orgRepair.js";
+import { deleteEmptyOrg, findDuplicateOrgs, keepReason, orgFootprint, type OrgRepairStores } from "./modules/organizations/orgRepair.js";
+import { MongoCallStore } from "./modules/calls/mongoStore.js";
+import { type CallStore, SqliteCallStore } from "./modules/calls/store.js";
 import { humanCode, newId, now, sha256Hex } from "./shared/utilities/util.js";
 import { createBlobStore } from "./infrastructure/storage/index.js";
 import { MONGO_COMMANDS, runMongoCommand } from "./infrastructure/database/mongo/admin.js";
@@ -81,6 +83,23 @@ const relayStore = (ctx: AppContext): RelayStore =>
 const reportStore = (ctx: AppContext): ReportStore => (ctx.mongo?.owns("reports") ? new MongoReportStore(ctx.mongo) : new SqliteReportStore(ctx.db));
 const relationshipStore = (ctx: AppContext): RelationshipStore =>
   ctx.mongo?.owns("relationships") ? new MongoRelationshipStore(ctx.mongo) : new SqliteRelationshipStore(ctx.db);
+const callStore = (ctx: AppContext): CallStore => (ctx.mongo?.owns("calls") ? new MongoCallStore(ctx.mongo) : new SqliteCallStore(ctx.db));
+
+/** The stores org repair reads (files, relay and calls may live in MongoDB); [close] when done. */
+async function repairStores(): Promise<{ stores: OrgRepairStores; close: () => Promise<void> }> {
+  const ctx = { db } as AppContext;
+  if (cfg.mongo) ctx.mongo = await openMongo(cfg.mongo, db);
+  ctx.files = fileStore(ctx);
+  ctx.relay = relayStore(ctx);
+  ctx.calls = callStore(ctx);
+  return {
+    stores: ctx,
+    close: async () => {
+      await ctx.files.settled();
+      await ctx.mongo?.close();
+    },
+  };
+}
 
 const [cmd, ...rest] = process.argv.slice(2);
 // verify-backup only reads the snapshot: it must not open (or migrate) the live database.
@@ -140,7 +159,7 @@ switch (cmd) {
         ? "in MongoDB"
         : Math.round((now() - (one("SELECT COALESCE(MIN(created_at), 0) n FROM delivery_queue") || now())) / 3600_000),
       attachments: cfg.mongo?.domains.has("files") ? "in MongoDB" : one("SELECT COUNT(*) n FROM attachments"),
-      liveCalls: one("SELECT COUNT(*) n FROM calls WHERE state != 'ENDED'"),
+      liveCalls: cfg.mongo?.domains.has("calls") ? "in MongoDB" : one("SELECT COUNT(*) n FROM calls WHERE state != 'ENDED'"),
       pushEndpoints: one("SELECT COUNT(*) n FROM push_endpoints"),
       pushEndpointsFailing: one("SELECT COUNT(*) n FROM push_endpoints WHERE failing_since IS NOT NULL"),
     });
@@ -352,6 +371,7 @@ switch (cmd) {
     ctx.accounts = new Accounts(ctx);
     ctx.reports = reportStore(ctx);
     ctx.relationships = relationshipStore(ctx);
+    ctx.calls = callStore(ctx);
     try {
       const r = await runCleanup(ctx);
       console.table(r);
@@ -408,7 +428,8 @@ switch (cmd) {
     break;
   }
   case "org-duplicates": {
-    const groups = findDuplicateOrgs(db);
+    const repair = await repairStores();
+    const groups = await findDuplicateOrgs(repair.stores).finally(repair.close);
     if (groups.length === 0) console.log("No duplicate workspaces.");
     for (const g of groups) {
       console.log(`\n"${g.name}" owned by ${g.ownerUsername ?? g.ownerId}: ${g.orgs.length} workspaces (oldest first)`);
@@ -432,16 +453,24 @@ switch (cmd) {
       console.error("usage: org-delete-empty <orgId> [--yes]   (refuses anything that isn't provably empty; back up first)");
       process.exit(2);
     }
-    const f = orgFootprint(db, orgId);
-    const reason = keepReason(db, orgId);
-    console.log(JSON.stringify({ org: f ?? null, removable: reason === null, keepReason: reason }, null, 2));
-    if (reason) process.exit(1);
-    if (!rest.includes("--yes")) {
-      console.log("Dry run: nothing deleted. Run again with --yes to remove it.");
-      break;
+    const repair = await repairStores();
+    try {
+      const f = await orgFootprint(repair.stores, orgId);
+      const reason = await keepReason(repair.stores, orgId);
+      console.log(JSON.stringify({ org: f ?? null, removable: reason === null, keepReason: reason }, null, 2));
+      if (reason) {
+        process.exitCode = 1;
+        break;
+      }
+      if (!rest.includes("--yes")) {
+        console.log("Dry run: nothing deleted. Run again with --yes to remove it.");
+        break;
+      }
+      await deleteEmptyOrg(repair.stores, orgId);
+      console.log(`Deleted empty workspace ${orgId}.`);
+    } finally {
+      await repair.close();
     }
-    deleteEmptyOrg(db, orgId);
-    console.log(`Deleted empty workspace ${orgId}.`);
     break;
   }
   case "channel-access-repair": {

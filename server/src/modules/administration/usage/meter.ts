@@ -1,4 +1,5 @@
 import type { DB } from "../../../infrastructure/database/db.js";
+import type { CallStore } from "../../calls/index.js";
 import type { FileStore } from "../../files/index.js";
 
 /**
@@ -49,6 +50,8 @@ export class UsageMeter {
     private readonly db: DB,
     /** Stored file sizes live with the files module (SQLite or MongoDB). */
     private readonly files: FileStore,
+    /** Call minutes live with the calls module (SQLite or MongoDB). */
+    private readonly calls: CallStore,
     private readonly clock: () => number = Date.now,
   ) {}
 
@@ -81,9 +84,14 @@ export class UsageMeter {
     // Read first (the files store may not be SQLite), then every gauge is written in one transaction.
     const conversationsOf = this.db.prepare("SELECT id FROM conversations WHERE org_id = ?");
     const stored = new Map<string, number>();
+    const days = [Date.parse(`${today}T00:00:00Z`) - DAY_MS, Date.parse(`${today}T00:00:00Z`)];
+    const callMinutes = new Map<string, number[]>();
     for (const { id } of orgs) {
       const conversations = (conversationsOf.all(id) as { id: string }[]).map((r) => r.id);
       stored.set(id, (await this.files.storedUsage({ conversations, liveAt: t })).bytes);
+      const minutes: number[] = [];
+      for (const dayStart of days) minutes.push(await this.calls.participantMinutes(conversations, dayStart, dayStart + DAY_MS, t));
+      callMinutes.set(id, minutes);
     }
     this.db.transaction(() => {
       for (const { id } of orgs) {
@@ -93,15 +101,7 @@ export class UsageMeter {
           one("SELECT COUNT(DISTINCT m.user_id) n FROM org_members m JOIN devices d ON d.user_id = m.user_id WHERE m.org_id = ? AND d.last_seen_at > ?", id, t - 30 * DAY_MS),
         );
         this.setGauge(id, today, "storage.bytes", stored.get(id) ?? 0);
-        for (const dayStart of [Date.parse(`${today}T00:00:00Z`) - DAY_MS, Date.parse(`${today}T00:00:00Z`)]) {
-          const minutes = one(
-            `SELECT SUM((MIN(COALESCE(p.left_at, ?), ?) - MAX(p.joined_at, ?)) / 60000.0) n FROM call_participants p
-             JOIN calls k ON k.id = p.call_id JOIN conversations c ON c.id = k.conversation_id
-             WHERE c.org_id = ? AND p.joined_at < ? AND COALESCE(p.left_at, ?) > ?`,
-            t, dayStart + DAY_MS, dayStart, id, dayStart + DAY_MS, t, dayStart,
-          );
-          this.setGauge(id, utcDay(dayStart), "calls.participant_minutes", Math.max(0, minutes));
-        }
+        days.forEach((dayStart, i) => this.setGauge(id, utcDay(dayStart), "calls.participant_minutes", Math.max(0, callMinutes.get(id)![i])));
       }
     })();
     return orgs.length;

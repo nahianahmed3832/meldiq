@@ -145,7 +145,7 @@ export async function federationCallRoutes(app: FastifyInstance, ctx: AppContext
 
   // A call this peer hosts changed (ring, updated, ended, …): mirror it and tell our people in it.
   app.post("/fed/v1/calls/event", signed, async (req) => {
-    fed.acceptCallEvent(req.fedPeer!, req.body as never, (convId) => notifyConversation(ctx, convId));
+    await fed.acceptCallEvent(req.fedPeer!, req.body as never, (convId) => notifyConversation(ctx, convId));
     return { ok: true };
   });
 
@@ -157,7 +157,7 @@ export async function federationCallRoutes(app: FastifyInstance, ctx: AppContext
       z.object({ userId: z.string().max(64), deviceId: z.string().max(64), reason: z.enum(["declined", "busy"]).default("declined") }),
       req.body ?? {},
     );
-    const c = loadCall(ctx, id);
+    const c = await loadCall(ctx, id);
     if (!c || c.host_server_id) throw notFound("Call not found");
     const dev = ctx.db
       .prepare("SELECT u.home_server_id h, d.revoked_at FROM devices d JOIN users u ON u.id = d.user_id WHERE d.id = ? AND d.user_id = ?")
@@ -171,7 +171,7 @@ export async function federationCallRoutes(app: FastifyInstance, ctx: AppContext
     else if (action === "decline") r = await actions.decline(c, body.userId, body.reason);
     else if (action === "end") r = await actions.end(c, body.userId);
     else r = await actions.leave(c, body.userId, body.deviceId);
-    return { call: fed.callRelayView(loadCall(ctx, id)!), ...(r.media ? { media: r.media } : {}) };
+    return { call: await fed.callRelayView((await loadCall(ctx, id))!), ...(r.media ? { media: r.media } : {}) };
   });
 }
 

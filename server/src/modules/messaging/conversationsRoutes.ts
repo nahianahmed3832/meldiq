@@ -35,7 +35,28 @@ import { deviceDirectory } from "../accounts/usersRoutes.js";
 
 export { FORUM_GUIDELINES_MAX, FORUM_TAG_LIMIT, SLOWMODE_STEPS };
 
-export function conversationView(ctx: AppContext, c: ConversationRow, userId: string) {
+/** A conversation's live call (the newest) and, in a voice room, who is in it (at most 12). */
+export interface LiveCallInfo {
+  call: { id: string; video: number; state: string; created_at: number };
+  inRoom?: string[];
+}
+
+/**
+ * The live calls of [convs], read once per request: one call-store query for all of them (which may be MongoDB), plus
+ * who is present only for voice rooms with a call. [conversationView] takes the result.
+ */
+export async function liveCallsOf(ctx: AppContext, convs: readonly Pick<ConversationRow, "id" | "voice">[]): Promise<Map<string, LiveCallInfo>> {
+  const out = new Map<string, LiveCallInfo>();
+  // Newest first: the first call seen per conversation is its current one.
+  for (const call of await ctx.calls.liveIn(convs.map((c) => c.id))) if (!out.has(call.conversation_id)) out.set(call.conversation_id, { call });
+  for (const c of convs) {
+    const info = out.get(c.id);
+    if (c.voice && info) info.inRoom = [...new Set((await ctx.calls.present(info.call.id)).map((p) => p.user_id))].slice(0, 12);
+  }
+  return out;
+}
+
+export function conversationView(ctx: AppContext, c: ConversationRow, userId: string, live: ReadonlyMap<string, LiveCallInfo>) {
   const { db, authz } = ctx;
   const memberCount = (db.prepare("SELECT COUNT(*) n FROM conversation_members WHERE conversation_id = ?").get(c.id) as { n: number }).n;
   const myRole = authz.conversationRole(c.id, userId);
@@ -47,14 +68,9 @@ export function conversationView(ctx: AppContext, c: ConversationRow, userId: st
         .all(c.id) as any[]
     ).map((u) => memberView(ctx, userId, u, { ...userSummary(u), role: u.conv_role }));
   }
-  const call = db.prepare("SELECT id, video, state, created_at FROM calls WHERE conversation_id = ? AND state != 'ENDED' ORDER BY created_at DESC LIMIT 1").get(c.id) as
-    | { id: string; video: number; state: string; created_at: number }
-    | undefined;
+  const call = live.get(c.id)?.call;
   // Who is in a voice room right now (shown on the room before joining), at most 12 people.
-  const inRoom =
-    c.voice && call
-      ? (db.prepare("SELECT DISTINCT user_id FROM call_participants WHERE call_id = ? AND left_at IS NULL LIMIT 12").all(call.id) as { user_id: string }[]).map((r) => r.user_id)
-      : undefined;
+  const inRoom = c.voice && call ? live.get(c.id)?.inRoom : undefined;
   // Older apps group channels by scope: a channel in a category is shown to them as a team named after the category,
   // so they list categories too. Newer apps read categoryId and position (docs/COMMUNITY_REBUILD_2026-10-21.md §7).
   // categoryPosition (API 0.48.0): the category's place too, so an app orders categories right before it has loaded the
@@ -198,7 +214,8 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
       if (r && r.recipient === userId && r.state === "declined") return false;
       return requests === "1" ? r?.recipient === userId && r.state === "pending" : true;
     });
-    return { conversations: shown.map((c) => ({ ...conversationView(ctx, c, userId), request: requestView(byConv.get(c.id), userId) })) };
+    const live = await liveCallsOf(ctx, shown);
+    return { conversations: shown.map((c) => ({ ...conversationView(ctx, c, userId, live), request: requestView(byConv.get(c.id), userId) })) };
   });
 
   /**
@@ -226,7 +243,7 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     if (!visible) throw notFound("Conversation not found");
     const r = c.type === "DM" ? await ctx.relationships.request(c.id) : null;
     if (r && r.recipient === userId && r.state === "declined") throw notFound("Conversation not found");
-    return { conversation: { ...conversationView(ctx, c, userId), request: requestView(r, userId) } };
+    return { conversation: { ...conversationView(ctx, c, userId, await liveCallsOf(ctx, [c])), request: requestView(r, userId) } };
   });
 
   app.get("/v1/conversations/:id/members", auth, async (req) => {
@@ -309,7 +326,7 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
       }
       notifyConversation(ctx, id);
     }
-    return { conversation: { ...conversationView(ctx, c, userId), request: requestView(request, userId) } };
+    return { conversation: { ...conversationView(ctx, c, userId, await liveCallsOf(ctx, [c])), request: requestView(request, userId) } };
   });
 
   // ───────────── Group photo (batch B6b, Discord reference GDM-CTRL-002) ─────────────
@@ -378,7 +395,8 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
       for (const m of ids) ins.run(id, m, t);
     })();
     notifyConversation(ctx, id);
-    return { conversation: conversationView(ctx, authz.conversation(id)!, userId) };
+    const view = authz.conversation(id)!;
+    return { conversation: conversationView(ctx, view, userId, await liveCallsOf(ctx, [view])) };
   });
 
   app.patch("/v1/conversations/:id", auth, async (req) => {
@@ -432,7 +450,8 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
       if (kindChange && body.kind !== "PRIVATE") await reconcileAccess(ctx, c.org_id);
     }
     notifyConversation(ctx, id);
-    return { conversation: conversationView(ctx, authz.conversation(id)!, userId) };
+    const view = authz.conversation(id)!;
+    return { conversation: conversationView(ctx, view, userId, await liveCallsOf(ctx, [view])) };
   });
 
   /**
@@ -453,11 +472,12 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     const orgId = c.org_id;
     // Read before the transaction: the files store may not be SQLite.
     const files = await ctx.files.attachmentIdsIn([id]);
+    // Calls may not be in SQLite either: the live rooms to close are read before the transaction too.
+    const rooms = (await ctx.calls.liveIn([id])).map((call) => call.room_name);
     const result = db
       .transaction(() => {
         if (!db.prepare("SELECT 1 FROM conversations WHERE id = ?").get(id)) return null;
         const members = (db.prepare("SELECT user_id FROM conversation_members WHERE conversation_id = ?").all(id) as { user_id: string }[]).map((r) => r.user_id);
-        const rooms = (db.prepare("SELECT room_name FROM calls WHERE conversation_id = ? AND state != 'ENDED'").all(id) as { room_name: string }[]).map((r) => r.room_name);
         // Its files and uploads, queued items, and rows without a foreign key to the conversation (members and calls
         // cascade), and its overwrites.
         ctx.files.forgetConversation(id);
@@ -469,6 +489,8 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
       })
       .immediate();
     if (!result) throw notFound("Conversation not found");
+    // SQLite cascaded its calls with the conversation; a call store elsewhere removes them itself.
+    await ctx.calls.forgetConversations([id]);
     ctx.audit({ actorId: userId, orgId, action: "channel.delete", target: id, detail: `${c.name ?? ""} (${result.files.length} files)` });
     // Apps refresh the channel (now 404, shown as gone) and the community's channel list.
     ctx.hub.sendToUsers(new Set(result.members), { t: "conv.updated", conversationId: id });
@@ -489,7 +511,7 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     if (!authz.scopeEligible(c, userId)) throw forbidden();
     db.prepare("INSERT OR IGNORE INTO conversation_members (conversation_id, user_id, role, joined_at) VALUES (?, ?, 'MEMBER', ?)").run(id, userId, now());
     notifyConversation(ctx, id);
-    return { conversation: conversationView(ctx, c, userId) };
+    return { conversation: conversationView(ctx, c, userId, await liveCallsOf(ctx, [c])) };
   });
 
   app.put("/v1/conversations/:id/members/:userId", auth, async (req) => {

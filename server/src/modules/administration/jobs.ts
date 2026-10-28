@@ -138,16 +138,7 @@ export async function runCleanup(ctx: AppContext): Promise<CleanupResult> {
   }
   // Operational history (RETENTION.md, D16): ended calls and old audit rows don't accumulate forever.
   const callCutoff = t - ctx.config.callRecordRetentionDays * 86_400_000;
-  const oldCalls = db.prepare("SELECT id FROM calls WHERE state = 'ENDED' AND COALESCE(ended_at, created_at) <= ?").all(callCutoff) as { id: string }[];
-  if (oldCalls.length) {
-    db.transaction(() => {
-      for (const c of oldCalls) {
-        db.prepare("DELETE FROM call_participants WHERE call_id = ?").run(c.id);
-        db.prepare("DELETE FROM calls WHERE id = ?").run(c.id);
-      }
-    })();
-    r.callRecordsPruned = oldCalls.length;
-  }
+  r.callRecordsPruned = await ctx.calls.pruneEnded(callCutoff);
   r.auditPruned = db.prepare("DELETE FROM audit_log WHERE at <= ?").run(t - ctx.config.auditRetentionDays * 86_400_000).changes;
   // Reports may live in MongoDB: an unreachable store mustn't stop the rest of retention.
   r.reportsPurged = await (async () => ctx.reports.purgeClosed(t - REPORT_RETENTION_MS))().catch((e) => {
@@ -159,31 +150,24 @@ export async function runCleanup(ctx: AppContext): Promise<CleanupResult> {
   // Call membership: anyone no longer admitted (removed from the conversation, revoked device,
   // disabled account) is removed from the room. This repairs evictions missed while LiveKit was
   // unreachable, rejoins with a token issued before removal, and `admin disable` from the CLI process.
-  for (const c of db.prepare("SELECT * FROM calls WHERE state != 'ENDED' AND host_server_id IS NULL").all() as CallRow[]) {
+  for (const c of await ctx.calls.live(true)) {
     r.callEvictions += await evictFromCall(ctx, c);
   }
   // Calls hosted by another server are that server's to time out. If it vanished mid-call, close the local mirror
   // instead of showing a call forever (no relay: the host is gone or will send its own end).
-  for (const c of db
-    .prepare("SELECT * FROM calls WHERE state != 'ENDED' AND host_server_id IS NOT NULL AND ((state = 'RINGING' AND created_at <= ?) OR created_at <= ?)")
-    .all(t - 2 * ctx.config.ringTimeoutSeconds * 1000, t - 12 * 3_600_000) as CallRow[]) {
-    db.prepare("UPDATE calls SET state = 'ENDED', ended_at = ?, end_reason = ? WHERE id = ? AND state != 'ENDED'").run(t, c.state === "RINGING" ? "missed" : "lost", c.id);
-    r.callsTimedOut++;
+  const ringCutoff = t - 2 * ctx.config.ringTimeoutSeconds * 1000;
+  const mirrorCutoff = t - 12 * 3_600_000;
+  for (const c of await ctx.calls.live(false)) {
+    if (!((c.state === "RINGING" && c.created_at <= ringCutoff) || c.created_at <= mirrorCutoff)) continue;
+    if (await ctx.calls.end(c.id, t, c.state === "RINGING" ? "missed" : "lost")) r.callsTimedOut++;
   }
   // Reconcile live calls with LiveKit (authoritative participant list) once they are past the
   // ring window: unanswered 1:1 calls become "missed", empty rooms are closed.
-  const live = db
-    .prepare("SELECT * FROM calls WHERE state != 'ENDED' AND host_server_id IS NULL AND created_at <= ?")
-    .all(t - ctx.config.ringTimeoutSeconds * 1000) as CallRow[];
+  const ringWindowEnd = t - ctx.config.ringTimeoutSeconds * 1000;
+  const live = (await ctx.calls.live(true)).filter((c) => c.created_at <= ringWindowEnd);
   for (const c of live) {
     const fromLiveKit = ctx.livekit ? await ctx.livekit.participantUsers(c.room_name) : null;
-    const users =
-      fromLiveKit ??
-      new Set(
-        (db.prepare("SELECT DISTINCT user_id FROM call_participants WHERE call_id = ? AND left_at IS NULL").all(c.id) as { user_id: string }[]).map(
-          (p) => p.user_id,
-        ),
-      );
+    const users = fromLiveKit ?? new Set((await ctx.calls.present(c.id)).map((p) => p.user_id));
     const type = (db.prepare("SELECT type FROM conversations WHERE id = ?").get(c.conversation_id) as { type: string } | undefined)?.type;
     const needed = type === "DM" ? 2 : 1;
     if (c.state === "RINGING") {
@@ -191,8 +175,8 @@ export async function runCleanup(ctx: AppContext): Promise<CleanupResult> {
         await endCallRow(ctx, c, "missed");
         r.callsTimedOut++;
       } else {
-        db.prepare("UPDATE calls SET state = 'ACTIVE', answered_at = COALESCE(answered_at, ?) WHERE id = ?").run(t, c.id);
-        broadcastCall(ctx, loadCall(ctx, c.id)!, "updated");
+        await ctx.calls.markAnswered(c.id, t);
+        await broadcastCall(ctx, (await loadCall(ctx, c.id))!, "updated");
       }
     } else if (users.size === 0) {
       await endCallRow(ctx, c, "empty");
@@ -211,16 +195,12 @@ export async function runCleanup(ctx: AppContext): Promise<CleanupResult> {
  */
 async function reconcileParticipants(ctx: AppContext, c: CallRow, isDm: boolean, t: number): Promise<number> {
   const identities = new Set((ctx.livekit && (await ctx.livekit.participantIdentities(c.room_name))) ?? []);
-  const rows = ctx.db
-    .prepare("SELECT user_id, device_id, joined_at FROM call_participants WHERE call_id = ? AND left_at IS NULL")
-    .all(c.id) as { user_id: string; device_id: string; joined_at: number }[];
   let stale = 0;
-  for (const p of rows) {
+  for (const p of await ctx.calls.present(c.id)) {
     if (identities.has(`${p.user_id}.${p.device_id}`) || t - p.joined_at < ctx.config.callPeerGraceMs) continue;
-    ctx.db.prepare("UPDATE call_participants SET left_at = ? WHERE call_id = ? AND device_id = ? AND left_at IS NULL").run(t, c.id, p.device_id);
-    stale++;
+    if (await ctx.calls.leave(c.id, p.device_id, t)) stale++;
   }
-  if (stale > 0) broadcastCall(ctx, loadCall(ctx, c.id)!, "updated");
+  if (stale > 0) await broadcastCall(ctx, (await loadCall(ctx, c.id))!, "updated");
   const users = new Set([...identities].map((i) => i.split(".")[0]));
   if (isDm && c.state === "ACTIVE" && users.size < 2) scheduleLost(ctx, c);
   return stale;

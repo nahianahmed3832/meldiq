@@ -213,7 +213,7 @@ export class AdminDevices {
     const t = now();
     await this.exclusions.get(t);
     const ms = { "1h": 3_600_000, "24h": DAY_MS, "7d": 7 * DAY_MS, "30d": 30 * DAY_MS, "90d": 90 * DAY_MS }[range];
-    const live = this.ctx.telemetry.live(t);
+    const live = await this.ctx.telemetry.live(t);
     const series = analytics.presenceSeries(this.ctx.db, t - ms, t);
     const totals = series.points.reduce((a, p) => ({ connects: a.connects + p.connects, disconnects: a.disconnects + p.disconnects, abnormal: a.abnormal + p.abnormal, authFailures: a.authFailures + p.authFailures }), {
       connects: 0,

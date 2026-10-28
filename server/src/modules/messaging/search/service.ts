@@ -2,7 +2,7 @@ import type { ConversationRow } from "../../organizations/authz.js";
 import type { AppContext } from "../../../app/context.js";
 import { allows, appearsOnline, canSeeLastSeen, privacyOf, relation } from "../../accounts/profile.js";
 import { userSummary } from "../../auth/routes.js";
-import { conversationView } from "../conversationsRoutes.js";
+import { conversationView, liveCallsOf } from "../conversationsRoutes.js";
 
 /**
  * Universal search on the server (docs/SEARCH.md, round 7 slice C2): what the server can read and the searcher may see.
@@ -83,7 +83,7 @@ export function searchPeople(ctx: AppContext, userId: string, q: string, orgId?:
   );
 }
 
-export function searchChannels(ctx: AppContext, userId: string, q: string, orgId?: string) {
+export async function searchChannels(ctx: AppContext, userId: string, q: string, orgId?: string) {
   const term = q.replace(/^#/, "").toLowerCase();
   const like = `%${escapeLike(term)}%`;
   const rows = ctx.db
@@ -95,15 +95,16 @@ export function searchChannels(ctx: AppContext, userId: string, q: string, orgId
        LIMIT ${MAX_CANDIDATES}`,
     )
     .all(userId, orgId ?? null, orgId ?? null, like, like) as (ConversationRow & { org_name: string })[];
+  const visible = rows.filter((c) => ctx.authz.canViewChannel(c, userId));
+  const live = await liveCallsOf(ctx, visible);
   return sortRanked(
-    rows
-      .filter((c) => ctx.authz.canViewChannel(c, userId))
+    visible
       .flatMap((c) => {
         const rank = bestRank(term, c.name, c.topic);
         if (rank === null) return [];
         // A topic-only match ranks below any name match.
         const byName = matchRank(c.name, term) !== null;
-        return [{ rank: byName ? rank : rank + 4, name: c.name ?? "", item: { ...conversationView(ctx, c, userId), orgName: c.org_name } }];
+        return [{ rank: byName ? rank : rank + 4, name: c.name ?? "", item: { ...conversationView(ctx, c, userId, live), orgName: c.org_name } }];
       }),
   );
 }
@@ -124,7 +125,7 @@ export function searchWorkspaces(ctx: AppContext, userId: string, q: string) {
   );
 }
 
-export function searchGroups(ctx: AppContext, userId: string, q: string) {
+export async function searchGroups(ctx: AppContext, userId: string, q: string) {
   const term = q.toLowerCase();
   const rows = ctx.db
     .prepare(
@@ -132,10 +133,11 @@ export function searchGroups(ctx: AppContext, userId: string, q: string) {
        WHERE m.user_id = ? AND c.type = 'GROUP' AND lower(coalesce(c.name, '')) LIKE ? ESCAPE '\\' LIMIT ${MAX_CANDIDATES}`,
     )
     .all(userId, `%${escapeLike(term)}%`) as ConversationRow[];
+  const live = await liveCallsOf(ctx, rows);
   return sortRanked(
     rows.flatMap((c) => {
       const rank = matchRank(c.name, term);
-      return rank === null ? [] : [{ rank, name: c.name ?? "", item: conversationView(ctx, c, userId) }];
+      return rank === null ? [] : [{ rank, name: c.name ?? "", item: conversationView(ctx, c, userId, live) }];
     }),
   );
 }
@@ -153,12 +155,13 @@ export function page<T>(all: T[], cursor: string | undefined, limit: number): Se
   return { items, next: end < all.length ? Buffer.from(String(end), "utf8").toString("base64url") : null };
 }
 
-export function search(ctx: AppContext, userId: string, q: string, kinds: readonly SearchKind[], opts: { orgId?: string; limit: number; cursor?: string }) {
-  const run: Record<SearchKind, () => unknown[]> = {
+export async function search(ctx: AppContext, userId: string, q: string, kinds: readonly SearchKind[], opts: { orgId?: string; limit: number; cursor?: string }) {
+  const run: Record<SearchKind, () => unknown[] | Promise<unknown[]>> = {
     people: () => searchPeople(ctx, userId, q, opts.orgId),
     channels: () => searchChannels(ctx, userId, q, opts.orgId),
     workspaces: () => (opts.orgId ? [] : searchWorkspaces(ctx, userId, q)),
     groups: () => (opts.orgId ? [] : searchGroups(ctx, userId, q)),
   };
-  return Object.fromEntries(kinds.map((k) => [k, page(run[k](), kinds.length === 1 ? opts.cursor : undefined, opts.limit)])) as Partial<Record<SearchKind, SearchPage<unknown>>>;
+  const pages = await Promise.all(kinds.map(async (k) => [k, page(await run[k](), kinds.length === 1 ? opts.cursor : undefined, opts.limit)] as const));
+  return Object.fromEntries(pages) as Partial<Record<SearchKind, SearchPage<unknown>>>;
 }

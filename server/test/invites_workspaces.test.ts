@@ -191,16 +191,16 @@ describe("operator repair of existing duplicates (phase 3)", () => {
     // The second has an owner-only channel; the third is completely empty.
     await c.req("POST", `/v1/orgs/${ids[1]}/channels`, { name: "notes", scope: "ORG" });
 
-    const group = findDuplicateOrgs(db).find((g) => g.ownerId === c.userId)!;
+    const group = (await findDuplicateOrgs(h.ctx)).find((g) => g.ownerId === c.userId)!;
     expect(group.orgs.map((o) => o.id)).toEqual(ids);
     expect(group.orgs.map((o) => o.removable)).toEqual([false, true, true]);
-    expect(keepReason(db, ids[0])).toMatch(/members|joined/);
+    expect(await keepReason(h.ctx, ids[0])).toMatch(/members|joined/);
 
-    expect(() => deleteEmptyOrg(db, ids[0])).toThrow(/refusing/);
-    deleteEmptyOrg(db, ids[2]);
-    deleteEmptyOrg(db, ids[1]);
+    await expect(deleteEmptyOrg(h.ctx, ids[0])).rejects.toThrow(/refusing/);
+    await deleteEmptyOrg(h.ctx, ids[2]);
+    await deleteEmptyOrg(h.ctx, ids[1]);
     expect(db.prepare("SELECT COUNT(*) n FROM conversations WHERE org_id = ?").get(ids[1])).toEqual({ n: 0 });
     expect((await c.req("GET", "/v1/orgs")).orgs.map((o: any) => o.id)).toEqual([ids[0]]);
-    expect(findDuplicateOrgs(db).find((g) => g.ownerId === c.userId)).toBeUndefined();
+    expect((await findDuplicateOrgs(h.ctx)).find((g) => g.ownerId === c.userId)).toBeUndefined();
   });
 });

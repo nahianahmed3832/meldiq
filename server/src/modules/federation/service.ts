@@ -672,10 +672,8 @@ export class Federation {
   // ───────────────────────── calls (docs/CALLING_AND_E2EE.md §6) ─────────────────────────
 
   /** What a peer needs to mirror a call this server hosts (no tokens, no keys). */
-  callRelayView(c: CallRow) {
-    const participants = this.ctx.db
-      .prepare("SELECT user_id, device_id, joined_at FROM call_participants WHERE call_id = ? AND left_at IS NULL")
-      .all(c.id) as { user_id: string; device_id: string; joined_at: number }[];
+  async callRelayView(c: CallRow) {
+    const participants = await this.ctx.calls.present(c.id);
     return {
       id: c.id,
       conversationId: c.conversation_id,
@@ -696,7 +694,7 @@ export class Federation {
    * Sends a call event about a call hosted here to the home servers of the remote people in it (or of one person).
    * Realtime and best effort: three quick attempts, then the peer's next sync (join, active list) catches up.
    */
-  relayCall(c: CallRow, event: CallEventName, extra: CallEventExtras = {}, targetUserId?: string) {
+  async relayCall(c: CallRow, event: CallEventName, extra: CallEventExtras = {}, targetUserId?: string): Promise<void> {
     const homes = targetUserId
       ? (this.ctx.db.prepare("SELECT home_server_id h FROM users WHERE id = ? AND home_server_id IS NOT NULL").all(targetUserId) as { h: string }[])
       : (this.ctx.db
@@ -706,7 +704,7 @@ export class Federation {
     // A ring can arrive before any message has created the conversation on the peer: it carries what the peer needs
     // to verify and create it (the caller's public directory entry and the members' ids).
     const members = (this.ctx.db.prepare("SELECT user_id FROM conversation_members WHERE conversation_id = ?").all(c.conversation_id) as { user_id: string }[]).map((r) => r.user_id);
-    const body = { event, call: this.callRelayView(c), extra, targetUserId: targetUserId ?? null, caller: this.entry(c.created_by), members };
+    const body = { event, call: await this.callRelayView(c), extra, targetUserId: targetUserId ?? null, caller: this.entry(c.created_by), members };
     for (const { h } of homes) {
       void (async () => {
         for (let attempt = 0; attempt < 3; attempt++) {
@@ -725,7 +723,7 @@ export class Federation {
   }
 
   /** Mirrors a call hosted by `peer` from an event or a forwarded action's answer. Returns the mirror row. */
-  applyCallState(peer: ResolvedServer, v: ReturnType<Federation["callRelayView"]>): CallRow {
+  async applyCallState(peer: ResolvedServer, v: Awaited<ReturnType<Federation["callRelayView"]>>): Promise<CallRow> {
     const { db } = this.ctx;
     if (!v || typeof v.id !== "string" || !/^call_[A-Za-z0-9_-]{22}$/.test(v.id) || typeof v.roomName !== "string" || v.roomName.length > 80) {
       throw new FederationError(400, "bad_call", "Invalid call");
@@ -737,36 +735,37 @@ export class Federation {
       .get(v.conversationId);
     const creatorMember = db.prepare("SELECT 1 FROM conversation_members WHERE conversation_id = ? AND user_id = ?").get(v.conversationId, v.createdBy);
     if (!local || !creatorMember) throw new FederationError(403, "not_shared", "No shared conversation");
-    const state = ["RINGING", "ACTIVE", "ENDED"].includes(v.state) ? v.state : "ENDED";
-    const existing = db.prepare("SELECT * FROM calls WHERE id = ?").get(v.id) as CallRow | undefined;
-    db.transaction(() => {
-      if (!existing) {
-        db.prepare(
-          "INSERT INTO calls (id, conversation_id, room_name, created_by, video, state, created_at, answered_at, ended_at, end_reason, alerted_at, host_server_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        ).run(v.id, v.conversationId, v.roomName, v.createdBy, v.video ? 1 : 0, state, v.createdAt, v.answeredAt, v.endedAt, v.endReason, v.alertedAt, peer.serverId);
-      } else {
-        if (existing.host_server_id !== peer.serverId) throw new FederationError(409, "call_conflict", "That call isn't hosted by your server");
-        if (existing.state !== "ENDED") {
-          db.prepare("UPDATE calls SET state = ?, answered_at = ?, ended_at = ?, end_reason = ?, alerted_at = COALESCE(alerted_at, ?) WHERE id = ?").run(
-            state,
-            v.answeredAt,
-            v.endedAt,
-            v.endReason,
-            v.alertedAt,
-            v.id,
-          );
-        }
-      }
-      // Participants as the host sees them (people known here only).
-      db.prepare("DELETE FROM call_participants WHERE call_id = ?").run(v.id);
-      const ins = db.prepare("INSERT OR IGNORE INTO call_participants (call_id, user_id, device_id, joined_at) SELECT ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM devices WHERE id = ? AND user_id = ?)");
-      for (const p of Array.isArray(v.participants) ? v.participants.slice(0, 50) : []) ins.run(v.id, p.userId, p.deviceId, p.joinedAt, p.deviceId, p.userId);
-    })();
-    return db.prepare("SELECT * FROM calls WHERE id = ?").get(v.id) as CallRow;
+    const state = (["RINGING", "ACTIVE", "ENDED"].includes(v.state) ? v.state : "ENDED") as CallRow["state"];
+    const existing = await this.ctx.calls.get(v.id);
+    if (existing && existing.host_server_id !== peer.serverId) throw new FederationError(409, "call_conflict", "That call isn't hosted by your server");
+    // Participants as the host sees them (people and devices known here only).
+    const known = db.prepare("SELECT 1 FROM devices WHERE id = ? AND user_id = ?");
+    const participants = (Array.isArray(v.participants) ? v.participants.slice(0, 50) : [])
+      .filter((p) => known.get(p.deviceId, p.userId))
+      .map((p) => ({ user_id: p.userId, device_id: p.deviceId, joined_at: p.joinedAt }));
+    await this.ctx.calls.applyMirror(
+      {
+        id: v.id,
+        conversation_id: v.conversationId,
+        room_name: v.roomName,
+        created_by: v.createdBy,
+        video: v.video ? 1 : 0,
+        state,
+        created_at: v.createdAt,
+        answered_at: v.answeredAt,
+        ended_at: v.endedAt,
+        end_reason: v.endReason,
+        alerted_at: v.alertedAt,
+        host_server_id: peer.serverId,
+        room: 0,
+      },
+      participants,
+    );
+    return (await this.ctx.calls.get(v.id))!;
   }
 
   /** A call event from its host: update the mirror and pass it to this server's members (or the one targeted). */
-  acceptCallEvent(
+  async acceptCallEvent(
     peer: ResolvedServer,
     body: { event?: string; call?: any; extra?: object; targetUserId?: string | null; caller?: FedUser | null; members?: string[] },
     notify?: (conversationId: string) => void,
@@ -774,8 +773,8 @@ export class Federation {
     const event = body?.event;
     if (!isRelayedCallEvent(event)) throw new FederationError(400, "bad_event", "Unknown call event");
     this.ensureCallConversation(peer, body, notify);
-    const c = this.applyCallState(peer, body.call);
-    const view = callView(this.ctx, c);
+    const c = await this.applyCallState(peer, body.call);
+    const view = await callView(this.ctx, c);
     const msg: ServerEvent = { t: "call", event, call: view, ...callExtras(body.extra) };
     if (body.targetUserId) {
       const local = this.ctx.db
@@ -818,8 +817,8 @@ export class Federation {
     const peer = await this.resolver.server(c.host_server_id!);
     const r = await this.request(peer, "POST", `/fed/v1/calls/${c.id}/${action}`, { userId, deviceId, ...body });
     if (r.status !== 200) throw new ApiError(r.status === 404 ? 404 : r.status, remoteCode(r.json?.error?.code), r.json?.error?.message ?? "The call's server refused that");
-    const mirror = this.applyCallState(peer, r.json.call);
-    return { call: callView(this.ctx, mirror), ...(r.json.media ? { media: r.json.media } : {}) };
+    const mirror = await this.applyCallState(peer, r.json.call);
+    return { call: await callView(this.ctx, mirror), ...(r.json.media ? { media: r.json.media } : {}) };
   }
 
   cleanup(t = now()) {

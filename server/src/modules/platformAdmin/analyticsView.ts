@@ -71,7 +71,7 @@ export class AdminAnalytics {
     const sinceOk = (from: number) => since !== null && from >= since;
     const activeNow = analytics.activeBetween(db, t - ms, t, ex.json);
     const activePrev = sinceOk(t - 2 * ms) ? analytics.activeBetween(db, t - 2 * ms, t - ms, ex.json) : null;
-    const live = this.ctx.telemetry.live(t);
+    const live = await this.ctx.telemetry.live(t);
     const presence = analytics.presenceSeries(db, t - ms, t);
     const orgs = orgCounts(db, t, 1);
     // Organizations with at least one member active in the range (the largest ORGS_SHOWN).
