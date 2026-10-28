@@ -242,6 +242,18 @@ export interface ColumnSpec {
   /** SQLite declared type, upper case (INTEGER, TEXT, BLOB, REAL). */
   type: string;
   notNull: boolean;
+  /** The column's literal DEFAULT (undefined: none; an expression default is kept as { expression }). */
+  default?: string | number | null | { expression: string };
+  /** Declared COLLATE NOCASE: equality and uniqueness ignore ASCII case. */
+  nocase?: boolean;
+}
+
+/** A foreign key: [columns] of this table reference [references] of [table]. */
+export interface ForeignKeySpec {
+  columns: string[];
+  table: string;
+  references: string[];
+  onDelete: "CASCADE" | "SET NULL" | "SET DEFAULT" | "RESTRICT" | "NO ACTION";
 }
 
 export interface IndexSpec {
@@ -260,6 +272,19 @@ export interface TableSpec {
   /** Primary key columns in key order; empty for a rowid table (then `_id` is the rowid). */
   primaryKey: string[];
   indexes: IndexSpec[];
+  foreignKeys: ForeignKeySpec[];
+  /** INTEGER PRIMARY KEY AUTOINCREMENT: ids are assigned in increasing order and never reused. */
+  autoincrement: boolean;
+}
+
+/** A PRAGMA table_info default as a value: a number, a quoted string, NULL, or an expression kept as text. */
+function parseDefault(raw: string | null): ColumnSpec["default"] {
+  if (raw === null) return undefined;
+  if (/^-?\d+(\.\d+)?$/.test(raw)) return Number(raw);
+  const quoted = raw.match(/^'([\s\S]*)'$/);
+  if (quoted) return quoted[1].replaceAll("''", "'");
+  if (/^NULL$/i.test(raw)) return null;
+  return { expression: raw };
 }
 
 /** Columns stored as JSON text in SQLite and as embedded documents in MongoDB. */
@@ -273,10 +298,17 @@ export function describeTables(db: DB): TableSpec[] {
     if (name in EXCLUDED_TABLES) continue;
     const domain = TABLE_DOMAINS[name];
     if (!domain) throw new Error(`Table ${name} has no MongoDB domain: classify it in src/infrastructure/database/mongo/catalog.ts`);
-    const info = db.prepare(`PRAGMA table_info("${name}")`).all() as { name: string; type: string; notnull: number; pk: number }[];
-    const columns = info.map((c) => ({ name: c.name, type: (c.type || "TEXT").toUpperCase(), notNull: c.notnull === 1 || c.pk > 0 }));
+    const info = db.prepare(`PRAGMA table_info("${name}")`).all() as { name: string; type: string; notnull: number; pk: number; dflt_value: string | null }[];
+    const columns: ColumnSpec[] = info.map((c) => ({
+      name: c.name,
+      type: (c.type || "TEXT").toUpperCase(),
+      notNull: c.notnull === 1 || c.pk > 0,
+      ...(c.dflt_value !== null ? { default: parseDefault(c.dflt_value) } : {}),
+      ...(columnNocase(db, name, c.name) ? { nocase: true } : {}),
+    }));
     const primaryKey = info.filter((c) => c.pk > 0).sort((a, b) => a.pk - b.pk).map((c) => c.name);
-    specs.push({ name, domain, columns, primaryKey, indexes: describeIndexes(db, name, columns) });
+    const sql = (db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?").get(name) as { sql: string }).sql;
+    specs.push({ name, domain, columns, primaryKey, indexes: describeIndexes(db, name, columns), foreignKeys: describeForeignKeys(db, name), autoincrement: /AUTOINCREMENT/i.test(sql) });
   }
   return specs;
 }
@@ -311,6 +343,18 @@ function describeIndexes(db: DB, table: string, columns: ColumnSpec[]): IndexSpe
     const nullable = ix.columns.filter((c) => !columns.find((col) => col.name === c)?.notNull);
     return nullable.length ? { ...ix, partialNotNull: nullable } : ix;
   });
+}
+
+function describeForeignKeys(db: DB, table: string): ForeignKeySpec[] {
+  const rows = db.prepare(`PRAGMA foreign_key_list("${table}")`).all() as { id: number; seq: number; table: string; from: string; to: string; on_delete: string }[];
+  const byId = new Map<number, ForeignKeySpec>();
+  for (const r of [...rows].sort((a, b) => a.id - b.id || a.seq - b.seq)) {
+    const fk = byId.get(r.id) ?? { columns: [], table: r.table, references: [], onDelete: r.on_delete as ForeignKeySpec["onDelete"] };
+    fk.columns.push(r.from);
+    fk.references.push(r.to);
+    byId.set(r.id, fk);
+  }
+  return [...byId.values()];
 }
 
 /** A column declared COLLATE NOCASE (its implicit UNIQUE index reports BINARY otherwise). */
