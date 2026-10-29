@@ -78,6 +78,15 @@ import decorationRoutes from "../modules/accounts/decorations/routes.js";
 import { DecorationService } from "../modules/accounts/decorations/service.js";
 import { MemoryDecorationStore } from "../modules/accounts/decorations/store.js";
 import { MongoDecorationStore } from "../modules/accounts/decorations/mongoStore.js";
+import { MemoryFavoriteStore } from "../modules/accounts/decorations/favoritesStore.js";
+import { MongoFavoriteStore } from "../modules/accounts/decorations/mongoFavoritesStore.js";
+import { MemoryPrivacyStore } from "../modules/accounts/relationships/privacyStore.js";
+import { MongoPrivacyStore } from "../modules/accounts/relationships/mongoPrivacyStore.js";
+import { UsernameHolds } from "../modules/accounts/usernameHolds.js";
+import { MemoryUsernameHoldStore } from "../modules/accounts/usernameHoldStore.js";
+import { MongoUsernameHoldStore } from "../modules/accounts/mongoUsernameHoldStore.js";
+import { MemoryPointsStore, MongoPointsStore, PointsService, pointsRoutes } from "../modules/points/index.js";
+import leaveManyRoutes from "../modules/organizations/leaveMany.js";
 import { ActivityService } from "../modules/accounts/activity/service.js";
 import { MemoryActivityStore } from "../modules/accounts/activity/store.js";
 import { MongoActivityStore } from "../modules/accounts/activity/mongoStore.js";
@@ -98,7 +107,7 @@ import { now } from "../shared/utilities/util.js";
 import wsRoutes from "../modules/realtime/ws.js";
 import { Billing, billingRoutes } from "../modules/billing/index.js";
 
-export const VERSION = "0.63.0";
+export const VERSION = "0.65.0";
 /**
  * The client API this server speaks and the oldest client API it accepts. Clients refuse a server whose
  * minClientApi is newer than theirs; servers from before these fields existed count as API 1.
@@ -244,8 +253,20 @@ export async function buildApp(
   // API 0.61.0: profile decorations people send in (docs/PROFILE_DECORATIONS.md), new data, so MongoDB whenever there is one.
   const decorationStore = ctx.mongo ? new MongoDecorationStore(ctx.mongo) : new MemoryDecorationStore();
   if (decorationStore instanceof MongoDecorationStore) await decorationStore.ensureIndexes();
-  ctx.decorations = new DecorationService(ctx, decorationStore);
+  // API 0.65.0 (docs/SETTINGS_PARITY_API.md): favourites, privacy choices, username holds and points are new data too.
+  const favoriteStore = ctx.mongo ? new MongoFavoriteStore(ctx.mongo) : new MemoryFavoriteStore();
+  if (favoriteStore instanceof MongoFavoriteStore) await favoriteStore.ensureIndexes();
+  ctx.decorations = new DecorationService(ctx, decorationStore, favoriteStore);
   await ctx.decorations.load();
+  ctx.privacyChoices = ctx.mongo ? new MongoPrivacyStore(ctx.mongo) : new MemoryPrivacyStore();
+  const holdStore = ctx.mongo ? new MongoUsernameHoldStore(ctx.mongo) : new MemoryUsernameHoldStore();
+  if (holdStore instanceof MongoUsernameHoldStore) await holdStore.ensureIndexes();
+  ctx.usernames = new UsernameHolds(holdStore);
+  await ctx.usernames.load();
+  const pointsStore = ctx.mongo ? new MongoPointsStore(ctx.mongo) : new MemoryPointsStore();
+  if (pointsStore instanceof MongoPointsStore) await pointsStore.ensureIndexes();
+  ctx.points = new PointsService(ctx, pointsStore);
+  await ctx.points.load();
   ctx.reportSealer = ReportSealer.load(process.env, config.dataDir);
   // Billing (plans, subscriptions, Meldiq Spark, gifts): rows in SQLite, or MongoDB when MONGODB_DOMAINS includes it.
   ctx.billing = new Billing(await openBillingRows(db, ctx.mongo, app.log), config.billing, app.log, Date.now, (id) => ctx.quotas.planExists(id));
@@ -473,7 +494,7 @@ export async function buildApp(
     passkeys: ctx.accounts.passkeys.available ? { webOrigins: ctx.accounts.passkeys.webOrigins } : null,
   }));
 
-  for (const r of [authRoutes, userRoutes, profileMediaRoutes, gifRoutes, bugReportRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, serverMessagesRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, activityRoutes, decorationRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, expressionRoutes, discordRoutes, wsRoutes]) {
+  for (const r of [authRoutes, userRoutes, profileMediaRoutes, gifRoutes, bugReportRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, serverMessagesRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, activityRoutes, decorationRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, expressionRoutes, discordRoutes, leaveManyRoutes, pointsRoutes, wsRoutes]) {
     await app.register(async (scope) => r(scope, ctx));
   }
   await app.register(async (scope) => opsRoutes(scope, ctx, VERSION));
@@ -610,6 +631,17 @@ export function serverFeatures(config: Config, directUploads = false): string[] 
     "server-messages",
     // API 0.61.0 (docs/PROFILE_DECORATIONS.md): Meldiq's own decorations and reviewed community ones (/v2/decorations).
     "profile-decorations",
+    // API 0.65.0 (docs/SETTINGS_PARITY_API.md): a two-colour profile theme and the badge shown by the name (profile
+    // style), leaving several communities at once, the group-chat add choice and suggested people, old usernames held
+    // 7 days, decoration favourites, and points with quests and account levels.
+    "profile-theme",
+    "shown-badge",
+    "leave-many",
+    "group-add-policy",
+    "suggested-people",
+    "username-holds",
+    "decoration-favorites",
+    "points",
   ];
   if (config.accounts.legacy.migration) f.push("legacy-migration");
   if (directUploads) f.push("direct-upload");

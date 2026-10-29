@@ -20,6 +20,9 @@ import type { ReportStore } from "../modules/organizations/reports/store.js";
 import type { PreferenceStore } from "../modules/accounts/preferences/store.js";
 import type { ActivityService } from "../modules/accounts/activity/service.js";
 import type { DecorationService } from "../modules/accounts/decorations/service.js";
+import type { PrivacyStore } from "../modules/accounts/relationships/privacyStore.js";
+import type { UsernameHolds } from "../modules/accounts/usernameHolds.js";
+import type { PointsService } from "../modules/points/index.js";
 import type { PushService } from "../modules/notifications/service.js";
 import type { FcmService } from "../modules/notifications/fcm.js";
 import type { Metrics } from "../modules/administration/ops/metrics.js";
@@ -66,6 +69,12 @@ export interface AppContext {
   activity: ActivityService;
   /** Profile decorations: Meldiq's own and reviewed community ones (API 0.61.0, docs/PROFILE_DECORATIONS.md). */
   decorations: DecorationService;
+  /** API 0.65.0: who may add someone to group chats and whether they're suggested (MongoDB when there is one, memory otherwise). */
+  privacyChoices: PrivacyStore;
+  /** API 0.65.0: old usernames held 7 days for their last owner. */
+  usernames: UsernameHolds;
+  /** API 0.65.0: points, quests and account levels (modules/points, docs/SETTINGS_PARITY_API.md). */
+  points: PointsService;
   /** Calls, their participants and raised hands: SQLite, or MongoDB when MONGODB_DOMAINS includes "calls". */
   calls: CallStore;
   /**

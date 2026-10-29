@@ -1,0 +1,28 @@
+{
+  "people": [
+    {
+      "user": {
+        "id": "u_RzBMJZriVTzaOXUwDi0n-Q",
+        "username": "sugcat16",
+        "displayName": "sugcat",
+        "avatarColor": 0,
+        "statusText": null,
+        "statusEmoji": null,
+        "homeServer": null
+      },
+      "sharedCommunities": 2
+    },
+    {
+      "user": {
+        "id": "u_UNwIU_SSS9KZzaADneH0mA",
+        "username": "sugfay19",
+        "displayName": "sugfay",
+        "avatarColor": 0,
+        "statusText": null,
+        "statusEmoji": null,
+        "homeServer": null
+      },
+      "sharedCommunities": 1
+    }
+  ]
+}

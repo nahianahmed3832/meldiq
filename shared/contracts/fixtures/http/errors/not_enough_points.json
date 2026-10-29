@@ -1,0 +1,10 @@
+{
+  "error": {
+    "code": "not_enough_points",
+    "message": "The next level costs 100 points; you have 0.",
+    "details": {
+      "cost": 100,
+      "balance": 0
+    }
+  }
+}

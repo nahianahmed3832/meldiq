@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Meldiq API",
-    "version": "0.63.0",
+    "version": "0.65.0",
     "description": "The canonical contract of the Meldiq server (docs/architecture/ARCHITECTURE_1_0_PLAN.md §4), generated from src/shared/contracts. Fields are only ever added within a version; clients ignore unknown fields. Routes not listed here exist but aren't documented yet."
   },
   "servers": [
@@ -52,6 +52,9 @@
     },
     {
       "name": "reminders"
+    },
+    {
+      "name": "points"
     },
     {
       "name": "communities"
@@ -12087,6 +12090,35 @@
                                   "type": "null"
                                 }
                               ]
+                            },
+                            "themeColors": {
+                              "anyOf": [
+                                {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "shownBadge": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "mojo",
+                                    "bug-hunter",
+                                    "artist",
+                                    "none"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
                             }
                           },
                           "required": [
@@ -12173,6 +12205,11 @@
                               "bug-hunter"
                             ]
                           }
+                        },
+                        "level": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 9007199254740991
                         },
                         "privacy": {
                           "type": "object",
@@ -12551,6 +12588,35 @@
                                   "type": "null"
                                 }
                               ]
+                            },
+                            "themeColors": {
+                              "anyOf": [
+                                {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "shownBadge": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "mojo",
+                                    "bug-hunter",
+                                    "artist",
+                                    "none"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
                             }
                           },
                           "required": [
@@ -12637,6 +12703,11 @@
                               "bug-hunter"
                             ]
                           }
+                        },
+                        "level": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 9007199254740991
                         },
                         "privacy": {
                           "type": "object",
@@ -13779,7 +13850,7 @@
         "tags": [
           "users"
         ],
-        "summary": "Your profile's decoration, effect and accent colour (fields sent change; null removes).",
+        "summary": "Your profile's decoration, effect, accent or two-colour theme, name style, worn tag and shown badge (fields sent change; null removes).",
         "operationId": "putV1UsersMeProfileStyle",
         "parameters": [],
         "responses": {
@@ -13879,6 +13950,35 @@
                           "anyOf": [
                             {
                               "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "themeColors": {
+                          "anyOf": [
+                            {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "shownBadge": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "mojo",
+                                "bug-hunter",
+                                "artist",
+                                "none"
+                              ]
                             },
                             {
                               "type": "null"
@@ -14016,6 +14116,38 @@
                       {
                         "type": "string",
                         "maxLength": 64
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "themeColors": {
+                    "anyOf": [
+                      {
+                        "minItems": 1,
+                        "maxItems": 2,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^#[0-9a-fA-F]{6}$"
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "shownBadge": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "mojo",
+                          "bug-hunter",
+                          "artist",
+                          "none"
+                        ]
                       },
                       {
                         "type": "null"
@@ -14502,6 +14634,35 @@
                                   "type": "null"
                                 }
                               ]
+                            },
+                            "themeColors": {
+                              "anyOf": [
+                                {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "shownBadge": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "mojo",
+                                    "bug-hunter",
+                                    "artist",
+                                    "none"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
                             }
                           },
                           "required": [
@@ -14588,6 +14749,11 @@
                               "bug-hunter"
                             ]
                           }
+                        },
+                        "level": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 9007199254740991
                         },
                         "privacy": {
                           "type": "object",
@@ -15458,6 +15624,179 @@
                   },
                   "required": [
                     "activity"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/decorations/favorites": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "The decorations you starred, newest first (up to 200).",
+        "operationId": "getV2DecorationsFavorites",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "favorites": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "limit": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "favorites",
+                    "limit"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/decorations/favorites/{decorationId}": {
+      "put": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Star a decoration anyone can wear (Meldiq's own or a community one); starring it again changes nothing.",
+        "operationId": "putV2DecorationsFavoritesDecorationId",
+        "parameters": [
+          {
+            "name": "decorationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(?:[a-z0-9-]{2,32}|c_[a-z0-9]{16})$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "decorationId": {
+                      "type": "string",
+                      "pattern": "^(?:[a-z0-9-]{2,32}|c_[a-z0-9]{16})$"
+                    },
+                    "favorite": {
+                      "type": "boolean"
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "decorationId",
+                    "favorite",
+                    "count"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, limit_reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Unstar a decoration.",
+        "operationId": "deleteV2DecorationsFavoritesDecorationId",
+        "parameters": [
+          {
+            "name": "decorationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(?:[a-z0-9-]{2,32}|c_[a-z0-9]{16})$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "decorationId": {
+                      "type": "string",
+                      "pattern": "^(?:[a-z0-9-]{2,32}|c_[a-z0-9]{16})$"
+                    },
+                    "favorite": {
+                      "type": "boolean"
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "decorationId",
+                    "favorite",
+                    "count"
                   ],
                   "additionalProperties": false
                 }
@@ -16891,7 +17230,7 @@
         "tags": [
           "connections"
         ],
-        "summary": "Who may message you and who may send you connection requests.",
+        "summary": "Who may message you, send you connection requests or add you to group chats, and whether you're suggested to others.",
         "operationId": "getV1UsersMeMessaging",
         "parameters": [],
         "responses": {
@@ -16917,11 +17256,24 @@
                         "communities",
                         "nobody"
                       ]
+                    },
+                    "groupAddPolicy": {
+                      "type": "string",
+                      "enum": [
+                        "everyone",
+                        "friends",
+                        "nobody"
+                      ]
+                    },
+                    "suggestable": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
                     "dmPolicy",
-                    "requestPolicy"
+                    "requestPolicy",
+                    "groupAddPolicy",
+                    "suggestable"
                   ],
                   "additionalProperties": false
                 }
@@ -16942,7 +17294,7 @@
         "tags": [
           "connections"
         ],
-        "summary": "Change who may message you or send you connection requests; only the fields sent change.",
+        "summary": "Change who may message you, send you connection requests or add you to group chats, and whether you're suggested to others; only the fields sent change.",
         "operationId": "putV1UsersMeMessaging",
         "parameters": [],
         "responses": {
@@ -16968,11 +17320,24 @@
                         "communities",
                         "nobody"
                       ]
+                    },
+                    "groupAddPolicy": {
+                      "type": "string",
+                      "enum": [
+                        "everyone",
+                        "friends",
+                        "nobody"
+                      ]
+                    },
+                    "suggestable": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
                     "dmPolicy",
-                    "requestPolicy"
+                    "requestPolicy",
+                    "groupAddPolicy",
+                    "suggestable"
                   ],
                   "additionalProperties": false
                 }
@@ -17010,6 +17375,17 @@
                       "communities",
                       "nobody"
                     ]
+                  },
+                  "groupAddPolicy": {
+                    "type": "string",
+                    "enum": [
+                      "everyone",
+                      "friends",
+                      "nobody"
+                    ]
+                  },
+                  "suggestable": {
+                    "type": "boolean"
                   }
                 },
                 "additionalProperties": false
@@ -17017,6 +17393,124 @@
             }
           }
         }
+      }
+    },
+    "/v2/people/suggested": {
+      "get": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "Up to 20 people who share communities with you and let themselves be suggested, most shared communities first; never friends, requests or blocked people.",
+        "operationId": "getV2PeopleSuggested",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "people": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "user": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "username": {
+                                "type": "string"
+                              },
+                              "displayName": {
+                                "type": "string"
+                              },
+                              "avatarColor": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "statusText": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "statusEmoji": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "photoRev": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "homeServer": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "username",
+                              "displayName",
+                              "avatarColor",
+                              "statusText",
+                              "statusEmoji",
+                              "homeServer"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "sharedCommunities": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "user",
+                          "sharedCommunities"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "people"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
       }
     },
     "/v1/conversations/{id}/request": {
@@ -19140,6 +19634,555 @@
             }
           }
         }
+      }
+    },
+    "/v2/points": {
+      "get": {
+        "tags": [
+          "points"
+        ],
+        "summary": "Your points: balance, today's earnings, level, streak, quests, invites and the last 50 changes.",
+        "operationId": "getV2Points",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "balance": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "earnedToday": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "earnedTotal": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "level": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "nextLevelCost": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "multiplier": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "streak": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "chatMinutesToday": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "chatPointsToday": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "chatDailyCap": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "earning": {
+                      "type": "boolean"
+                    },
+                    "day": {
+                      "type": "string"
+                    },
+                    "resetsAt": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "quests": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "daily",
+                              "once"
+                            ]
+                          },
+                          "reward": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "progress": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "goal": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "open",
+                              "claimed"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "kind",
+                          "reward",
+                          "progress",
+                          "goal",
+                          "state"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "invites": {
+                      "type": "object",
+                      "properties": {
+                        "pending": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "credited": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "creditedThisMonth": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "monthlyLimit": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "pending",
+                        "credited",
+                        "creditedThisMonth",
+                        "monthlyLimit"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "history": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "visit",
+                              "streak",
+                              "chat",
+                              "invite",
+                              "quest",
+                              "level"
+                            ]
+                          },
+                          "amount": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "detail": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "at": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "amount",
+                          "detail",
+                          "at"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "balance",
+                    "earnedToday",
+                    "earnedTotal",
+                    "level",
+                    "nextLevelCost",
+                    "multiplier",
+                    "streak",
+                    "chatMinutesToday",
+                    "chatPointsToday",
+                    "chatDailyCap",
+                    "earning",
+                    "day",
+                    "resetsAt",
+                    "quests",
+                    "invites",
+                    "history"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/points/checkin": {
+      "post": {
+        "tags": [
+          "points"
+        ],
+        "summary": "Count today's visit (the apps call it when they open): 5 points once a UTC day, and 30 more every 7 days in a row.",
+        "operationId": "postV2PointsCheckin",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "counted": {
+                      "type": "boolean"
+                    },
+                    "points": {
+                      "type": "object",
+                      "properties": {
+                        "balance": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "earnedToday": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "earnedTotal": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "level": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 9007199254740991
+                        },
+                        "nextLevelCost": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "multiplier": {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        },
+                        "streak": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "chatMinutesToday": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "chatPointsToday": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "chatDailyCap": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "earning": {
+                          "type": "boolean"
+                        },
+                        "day": {
+                          "type": "string"
+                        },
+                        "resetsAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "quests": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "daily",
+                                  "once"
+                                ]
+                              },
+                              "reward": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "progress": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "goal": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "state": {
+                                "type": "string",
+                                "enum": [
+                                  "open",
+                                  "claimed"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "kind",
+                              "reward",
+                              "progress",
+                              "goal",
+                              "state"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "invites": {
+                          "type": "object",
+                          "properties": {
+                            "pending": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "credited": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "creditedThisMonth": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "monthlyLimit": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "pending",
+                            "credited",
+                            "creditedThisMonth",
+                            "monthlyLimit"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "history": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "visit",
+                                  "streak",
+                                  "chat",
+                                  "invite",
+                                  "quest",
+                                  "level"
+                                ]
+                              },
+                              "amount": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "detail": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "at": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "amount",
+                              "detail",
+                              "at"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "balance",
+                        "earnedToday",
+                        "earnedTotal",
+                        "level",
+                        "nextLevelCost",
+                        "multiplier",
+                        "streak",
+                        "chatMinutesToday",
+                        "chatPointsToday",
+                        "chatDailyCap",
+                        "earning",
+                        "day",
+                        "resetsAt",
+                        "quests",
+                        "invites",
+                        "history"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "counted",
+                    "points"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/points/level-up": {
+      "post": {
+        "tags": [
+          "points"
+        ],
+        "summary": "Spend points on the next account level (100 points a level).",
+        "operationId": "postV2PointsLevelUp",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "level": {
+                      "type": "integer",
+                      "minimum": 2,
+                      "maximum": 9007199254740991
+                    },
+                    "balance": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "nextLevelCost": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "level",
+                    "balance",
+                    "nextLevelCost"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_enough_points",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
       }
     },
     "/v1/orgs": {
@@ -21860,6 +22903,35 @@
                                     "type": "null"
                                   }
                                 ]
+                              },
+                              "themeColors": {
+                                "anyOf": [
+                                  {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "shownBadge": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "mojo",
+                                      "bug-hunter",
+                                      "artist",
+                                      "none"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
                               }
                             },
                             "required": [
@@ -22321,6 +23393,88 @@
             "bearer": []
           }
         ]
+      }
+    },
+    "/v2/orgs/leave": {
+      "post": {
+        "tags": [
+          "communities"
+        ],
+        "summary": "Leave several communities at once (1 to 100). Communities you own are skipped and listed; each leave is the same as leaving one.",
+        "operationId": "postV2OrgsLeave",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "left": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "skippedOwned": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "notMember": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "left",
+                    "skippedOwned",
+                    "notMember"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "orgIds": {
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    }
+                  }
+                },
+                "required": [
+                  "orgIds"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
       }
     },
     "/v1/orgs/{orgId}/invites": {
@@ -23977,6 +25131,35 @@
                                         "type": "null"
                                       }
                                     ]
+                                  },
+                                  "themeColors": {
+                                    "anyOf": [
+                                      {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "shownBadge": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "mojo",
+                                          "bug-hunter",
+                                          "artist",
+                                          "none"
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
                                   }
                                 },
                                 "required": [
@@ -24847,6 +26030,35 @@
                                       "anyOf": [
                                         {
                                           "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "themeColors": {
+                                      "anyOf": [
+                                        {
+                                          "type": "array",
+                                          "items": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "shownBadge": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "mojo",
+                                            "bug-hunter",
+                                            "artist",
+                                            "none"
+                                          ]
                                         },
                                         {
                                           "type": "null"
@@ -35722,6 +36934,35 @@
                                           "type": "null"
                                         }
                                       ]
+                                    },
+                                    "themeColors": {
+                                      "anyOf": [
+                                        {
+                                          "type": "array",
+                                          "items": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "shownBadge": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "mojo",
+                                            "bug-hunter",
+                                            "artist",
+                                            "none"
+                                          ]
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
                                     }
                                   },
                                   "required": [
@@ -36575,6 +37816,35 @@
                                         "type": "null"
                                       }
                                     ]
+                                  },
+                                  "themeColors": {
+                                    "anyOf": [
+                                      {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "shownBadge": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "mojo",
+                                          "bug-hunter",
+                                          "artist",
+                                          "none"
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
                                   }
                                 },
                                 "required": [
@@ -37368,6 +38638,35 @@
                                         "type": "null"
                                       }
                                     ]
+                                  },
+                                  "themeColors": {
+                                    "anyOf": [
+                                      {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "shownBadge": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "mojo",
+                                          "bug-hunter",
+                                          "artist",
+                                          "none"
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
                                   }
                                 },
                                 "required": [
@@ -38103,6 +39402,35 @@
                                     "type": "null"
                                   }
                                 ]
+                              },
+                              "themeColors": {
+                                "anyOf": [
+                                  {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "shownBadge": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "mojo",
+                                      "bug-hunter",
+                                      "artist",
+                                      "none"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
                               }
                             },
                             "required": [
@@ -38829,6 +40157,35 @@
                                         "type": "null"
                                       }
                                     ]
+                                  },
+                                  "themeColors": {
+                                    "anyOf": [
+                                      {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "shownBadge": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "mojo",
+                                          "bug-hunter",
+                                          "artist",
+                                          "none"
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
                                   }
                                 },
                                 "required": [
@@ -39357,7 +40714,7 @@
         "tags": [
           "conversations"
         ],
-        "summary": "Create a group with people on this server; the creator is its admin.",
+        "summary": "Create a group with people on this server; the creator is its admin. Each person's group-add choice applies (API 0.65.0).",
         "operationId": "postV1ConversationsGroup",
         "parameters": [],
         "responses": {
@@ -39802,6 +41159,35 @@
                                         "type": "null"
                                       }
                                     ]
+                                  },
+                                  "themeColors": {
+                                    "anyOf": [
+                                      {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "shownBadge": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "mojo",
+                                          "bug-hunter",
+                                          "artist",
+                                          "none"
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
                                   }
                                 },
                                 "required": [
@@ -40084,7 +41470,14 @@
             }
           },
           "default": {
-            "$ref": "#/components/responses/Error"
+            "description": "Error. Codes: group_add_not_allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -40584,6 +41977,35 @@
                                         "type": "null"
                                       }
                                     ]
+                                  },
+                                  "themeColors": {
+                                    "anyOf": [
+                                      {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "shownBadge": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "mojo",
+                                          "bug-hunter",
+                                          "artist",
+                                          "none"
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
                                   }
                                 },
                                 "required": [
@@ -40888,7 +42310,7 @@
         "tags": [
           "conversations"
         ],
-        "summary": "Add someone to a group or channel, or change their role there. Managers only.",
+        "summary": "Add someone to a group or channel, or change their role there. Managers only; adding someone to a group asks their group-add choice.",
         "operationId": "putV1ConversationsIdMembersUserId",
         "parameters": [
           {
@@ -40932,7 +42354,7 @@
             }
           },
           "default": {
-            "description": "Error. Codes: not_found, forbidden, conflict",
+            "description": "Error. Codes: not_found, forbidden, conflict, group_add_not_allowed",
             "content": {
               "application/json": {
                 "schema": {
@@ -41636,6 +43058,35 @@
                                               "anyOf": [
                                                 {
                                                   "type": "string"
+                                                },
+                                                {
+                                                  "type": "null"
+                                                }
+                                              ]
+                                            },
+                                            "themeColors": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "array",
+                                                  "items": {
+                                                    "type": "string"
+                                                  }
+                                                },
+                                                {
+                                                  "type": "null"
+                                                }
+                                              ]
+                                            },
+                                            "shownBadge": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "string",
+                                                  "enum": [
+                                                    "mojo",
+                                                    "bug-hunter",
+                                                    "artist",
+                                                    "none"
+                                                  ]
                                                 },
                                                 {
                                                   "type": "null"
@@ -42422,6 +43873,35 @@
                                               "anyOf": [
                                                 {
                                                   "type": "string"
+                                                },
+                                                {
+                                                  "type": "null"
+                                                }
+                                              ]
+                                            },
+                                            "themeColors": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "array",
+                                                  "items": {
+                                                    "type": "string"
+                                                  }
+                                                },
+                                                {
+                                                  "type": "null"
+                                                }
+                                              ]
+                                            },
+                                            "shownBadge": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "string",
+                                                  "enum": [
+                                                    "mojo",
+                                                    "bug-hunter",
+                                                    "artist",
+                                                    "none"
+                                                  ]
                                                 },
                                                 {
                                                   "type": "null"
@@ -50193,6 +51673,7 @@
                   "discord_bot_missing",
                   "discord_not_allowed",
                   "discord_not_configured",
+                  "group_add_not_allowed",
                   "gifs_not_configured",
                   "gif_provider_unavailable",
                   "discord_unreachable",
@@ -50250,6 +51731,7 @@
                   "mention_all_rate_limited",
                   "migration_closed",
                   "mode_not_supported",
+                  "not_enough_points",
                   "no_key_backup",
                   "not_archived",
                   "not_available",
@@ -50648,6 +52130,12 @@
       ],
       "meaning": "Importing from Discord isn't set up on this server yet."
     },
+    "group_add_not_allowed": {
+      "status": [
+        403
+      ],
+      "meaning": "This person doesn't let you add them to group chats."
+    },
     "gifs_not_configured": {
       "status": [
         503
@@ -50989,6 +52477,12 @@
         400
       ],
       "meaning": "Platform Admin Console: this quota can only be observed or warned about."
+    },
+    "not_enough_points": {
+      "status": [
+        409
+      ],
+      "meaning": "You don't have enough points for that yet."
     },
     "no_key_backup": {
       "status": [

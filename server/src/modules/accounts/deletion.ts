@@ -186,6 +186,11 @@ async function eraseIdentity(ctx: AppContext, userId: string, actorId: string | 
   await ctx.reports.deleteForUser(userId);
   // Batch B6: connections, message requests and messaging settings.
   await ctx.relationships.deleteForUser(userId);
+  // API 0.65.0: privacy choices, decoration favourites, held usernames and points.
+  await ctx.privacyChoices.deleteForUser(userId);
+  await ctx.decorations.favorites.deleteForUser(userId);
+  await ctx.usernames.deleteForUser(userId);
+  await ctx.points.deleteForUser(userId);
   await deleteHistoryAfterCommit(ctx, userId, "account deleted");
 
   ctx.hub.disconnectUser(userId, "account deleted");

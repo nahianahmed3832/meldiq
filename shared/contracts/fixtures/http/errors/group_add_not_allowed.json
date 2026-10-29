@@ -1,0 +1,12 @@
+{
+  "error": {
+    "code": "group_add_not_allowed",
+    "message": "Some of these people don't let you add them to group chats",
+    "details": {
+      "userIds": [
+        "u_IIUFpNSV2ZDc9bFFZ4cDQQ",
+        "u_c5UF3Ge2s5v_AAY5SvYwXQ"
+      ]
+    }
+  }
+}

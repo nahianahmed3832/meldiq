@@ -1,0 +1,88 @@
+{
+  "balance": 0,
+  "earnedToday": 0,
+  "earnedTotal": 0,
+  "level": 1,
+  "nextLevelCost": 100,
+  "multiplier": 1,
+  "streak": 0,
+  "chatMinutesToday": 1,
+  "chatPointsToday": 0,
+  "chatDailyCap": 25,
+  "earning": true,
+  "day": "2026-10-29",
+  "resetsAt": 1793318400000,
+  "quests": [
+    {
+      "id": "daily-chats",
+      "kind": "daily",
+      "reward": 10,
+      "progress": 2,
+      "goal": 3,
+      "state": "open"
+    },
+    {
+      "id": "daily-reactions",
+      "kind": "daily",
+      "reward": 5,
+      "progress": 0,
+      "goal": 3,
+      "state": "open"
+    },
+    {
+      "id": "daily-reply",
+      "kind": "daily",
+      "reward": 5,
+      "progress": 0,
+      "goal": 1,
+      "state": "open"
+    },
+    {
+      "id": "profile",
+      "kind": "once",
+      "reward": 25,
+      "progress": 0,
+      "goal": 2,
+      "state": "open"
+    },
+    {
+      "id": "friend",
+      "kind": "once",
+      "reward": 25,
+      "progress": 0,
+      "goal": 1,
+      "state": "open"
+    },
+    {
+      "id": "communities",
+      "kind": "once",
+      "reward": 25,
+      "progress": 0,
+      "goal": 3,
+      "state": "open"
+    },
+    {
+      "id": "decoration",
+      "kind": "once",
+      "reward": 15,
+      "progress": 0,
+      "goal": 1,
+      "state": "open"
+    },
+    {
+      "id": "two-step",
+      "kind": "once",
+      "reward": 50,
+      "progress": 0,
+      "goal": 1,
+      "state": "open"
+    }
+  ],
+  "invites": {
+    "pending": 0,
+    "credited": 0,
+    "creditedThisMonth": 0,
+    "monthlyLimit": 10
+  },
+  "history": []
+}
