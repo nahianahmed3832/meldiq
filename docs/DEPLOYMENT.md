@@ -130,6 +130,34 @@ Passkeys failed in the app installed from Google Play: Play signs it with its ap
 
 Rollback: copy the backup's `.env` back and recreate `api` the same way.
 
+### API 0.66.0, web fc19c44 and console 1.4.0: Free/Go/Plus, the landing page, and keeping everything (2026-10-29, 19:38–19:47 UTC, owner's go-ahead: "Deploy all three"; and "Chat history should keeps unlimited per person, 2 GB files post limit (per file) and all data will be keep in server no autmatic removal")
+
+Branch `plans-v2` (on `settings-parity` 0.65.0; 5827e75, e172c19, 6db4f96, VERSION and test bumps): the owner's
+Free/Go/Plus spec (docs/PLANS.md), prices and limits editable in the console, extra bots locked after a downgrade,
+subscriptions compared with Stripe, and files kept for good (`ATTACHMENT_KEEP_FOREVER`). No migration. Web
+`landing-plans` fc19c44 (on `floating-redesign` e8df569): the dark landing page, 2K 60 sharing, the 1440p60 preset.
+Console 1.4.0 (meldiq_central_admin, not git).
+
+| Step | Result |
+|---|---|
+| Tests | server `vitest --maxWorkers=3`: 140 files pass, `mongo_capacity` timed out under load and passes alone (9/9); web unit 94 files (636), e2e landing/mojo/accounts/languages/stage1/screen-share pass (launch "reduced motion" fails on e8df569 too); console unit 27, lint and format clean, billing e2e pass |
+| Pre-flight | 0.65.0 healthy; VPS `server/` and `scripts/` byte-equal to `settings-parity`; 33 GB free |
+| Backup | `backups/pre-0.66.0-20261029T193333Z` (integrity checked, `.env`/`compose.yaml` copies); image `0.65.0-rollback`; sources kept as `server.pre-0.66.0` |
+| Web | `0.5.0-beta-fc19c44` installed 19:38:47 (previous e8df569), same install values as e7bcfa4; `verify.sh https://web.meldiq.app` all passed |
+| Build | 25 server files + 2 scripts + `.env.example` synced; `docker build --network host` |
+| Rehearsal | volume copy, `--network none`, MongoDB/FCM settings out, the new `.env` values: 0.66.0 healthy, catalog 2,000/4,000/8,000 · 50 MB/500 MB/2 GB · 720p60/1080p60/1440p60 · $1.99/$4.99, 47 users, 285 attachments (SQLite copy), 0 error lines; `0.65.0-rollback` healthy on the same copy; copy removed |
+| Config | `.env`: `FILE_MAX_BYTES=2000000000` (was 1073741824), `ATTACHMENT_KEEP_FOREVER=true`, `HISTORY_MAX_BYTES_PER_USER=1000000000000000`, `HISTORY_MAX_ITEMS_PER_USER=1000000000000`, `HISTORY_TOTAL_BYTES=0`, `CALL_RECORD_RETENTION_DAYS=36500`, `AUDIT_RETENTION_DAYS=36500`. `validate-env.sh`: only the known `MONGODB_DOMAINS needs MONGODB_URI` and the usual warnings; `config -q` ok. Billing unchanged (`BILLING_PROVIDER` unset, nothing on sale, plan limits not enforced) |
+| Switch | `compose.yaml` image 0.66.0, `up -d --no-deps --no-build --force-recreate api` at 19:44:35, healthy 19:44:49; LiveKit and ntfy untouched |
+| Checks after | `/healthz` 0.66.0 `mongodb: true` on both hosts; catalog `2026-10-30.1` with the new numbers; server-info `fileMaxBytes` 2000000000; `verify.sh` 0 restarts; 0 warn/error log lines; the first retention run (19:45:59) kept all 353 stored files (MongoDB) for good, 0 left with an expiry |
+| Console | release 1.4.0-20261029T194557Z (previous 1.3.0-20261029T111029Z); console `verify.sh` all passed; `PUT /admin/v1/billing/mojo/prices` 401 without a session |
+| Live page | https://web.meldiq.app signed out: the new landing page, the plans from the live catalog, no app console errors (Cloudflare's beacon refused by the CSP, as before) |
+
+Rollback: web `bash /root/meldiq-web-0.5.0-beta-fc19c44/rollback.sh` (back to e8df569; **only after the API is back on
+0.65.0**, since e8df569 refuses the 1440p60 preset). API: reset the console's Mojo limits and prices first, then
+`compose.yaml` image `0.65.0-rollback` and `up -d --no-deps --no-build --force-recreate api` (files kept for good stay
+kept; restore the `.env` copy in the backup folder to bring back the old limits). Console:
+`bash /root/meldiq-admin-1.4.0-20261029T194557Z/rollback.sh`.
+
 ### Meldiq Web 0.5.0-beta-e8df569: no readable source in the browser (2026-10-29, 17:08 UTC, owner's go-ahead: "Yes, install it"; web only, API 0.65.0 unchanged)
 
 | | |
