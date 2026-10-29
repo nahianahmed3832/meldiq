@@ -562,6 +562,7 @@ export const AdminCreatedAccount = z.strictObject({
   updatedAt: zTime,
 });
 export const AdminCreatedAccountsPage = z.strictObject({ accounts: z.array(AdminCreatedAccount), nextCursor: z.string().nullable() });
+export const AdminCreatedAccountChanged = z.strictObject({ account: AdminCreatedAccount });
 export const AdminAccountCreated = z.strictObject({
   account: AdminCreatedAccount,
   /** The generated password, shown once; null when the operator chose it. */

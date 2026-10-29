@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { staticCodeMatches, staticCodeHash } from "../src/modules/accounts/operatorAccounts.js";
-import { AdminAccountCreated, AdminCreatedAccountsPage } from "../src/shared/contracts/http/platformAdminInsights.js";
+import { AdminAccountCreated, AdminCreatedAccountChanged, AdminCreatedAccountsPage } from "../src/shared/contracts/http/platformAdminInsights.js";
 import { email, MemoryMailer, PASSWORD } from "./support/accounts.js";
 import { type ConsoleAdmin, consoleAdmin } from "./support/adminConsole.js";
 import { type Harness, startServer } from "./support/harness.js";
@@ -117,6 +117,7 @@ describe("protection and changes", () => {
     const id = r.account.accountId;
     await as("super_admin").expect(400, "PUT", `/admin/v1/accounts/${id}/verification`, { verification: "static_code", staticCode: "111222", codeExpiresAt: Date.now() - 1000, ...REASON });
     const changed = await as("operations_admin").expect(200, "PUT", `/admin/v1/accounts/${id}/verification`, { verification: "verified", ...REASON });
+    expect(AdminCreatedAccountChanged.safeParse(changed).success).toBe(true);
     expect(changed.account).toMatchObject({ verification: "verified", verified: true });
     expect(lastAudit("account.verification")).toMatchObject({ target_id: id, reason: REASON.reason });
     expect((await login(address, PASSWORD)).status).toBe(200);
