@@ -26,11 +26,15 @@ here="$(cd "$(dirname "$0")" && pwd)"
 
 live=false
 replace=""
+# --list-prices: sell at the server's built-in list prices (Go $1.99, Plus $4.99, Spark $0.99; API 0.66.0) instead of
+# the catalog's published ones. Use it once to move from earlier prices; the console changes prices after that.
+prices_flag=""
 for arg in "$@"; do
   case "$arg" in
     --live) live=true ;;
     --replace-webhook) replace="--replace-webhook" ;;
-    *) echo "Unknown option $arg (known: --live, --replace-webhook); nothing changed." >&2; exit 1 ;;
+    --list-prices) prices_flag="--list-prices" ;;
+    *) echo "Unknown option $arg (known: --live, --replace-webhook, --list-prices); nothing changed." >&2; exit 1 ;;
   esac
 done
 
@@ -82,5 +86,5 @@ fi
 mode=""
 if $live; then mode="--live"; fi
 # The key travels on SSH's standard input, never as an argument (arguments show up in process lists).
-printf '%s\n' "$key" | ssh "$host" "bash '$dir/scripts/stripe-setup-remote.sh' $mode $replace"
+printf '%s\n' "$key" | ssh "$host" "bash '$dir/scripts/stripe-setup-remote.sh' $mode $replace $prices_flag"
 unset key

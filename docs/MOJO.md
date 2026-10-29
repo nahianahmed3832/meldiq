@@ -1,5 +1,8 @@
 # Meldiq Mojo, Meldiq Spark and gifts (API 0.54.0, 2026-10-28)
 
+> **API 0.66.0 (2026-10-30):** the plan numbers, prices and screen ceilings below are superseded by the owner's
+> Free/Go/Plus spec: see `PLANS.md`. Bots exist since 0.65.0. Spark levels and gifts are unchanged.
+
 Meldiq's paid plans are called **Meldiq Mojo** (docs/BILLING.md › Meldiq Mojo and Stripe). This release turns the
 owner's finalized plan matrix into real limits, adds **Meldiq Spark** (server boosts with three levels) and **gifts**.
 All of it lives in the billing domain, which since this release can live in MongoDB (`MONGODB_DOMAINS=…,billing`,

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # The server half of deploy/scripts/stripe-setup.sh (run by it over SSH; the Stripe key arrives on standard input).
-# Options: --live (a live key: real charges; needs APP_ENV=production), --replace-webhook.
+# Options: --live (a live key: real charges; needs APP_ENV=production), --replace-webhook, --list-prices (sell at the
+# server's built-in list prices instead of the catalog's published ones; API 0.66.0).
 # Never prints a secret. Backs .env up first and restores it if anything fails before plans are published.
 set -euo pipefail
 cd "${MELDIQ_DIR:-$(dirname "$0")/..}"
@@ -9,10 +10,12 @@ web_return="${MELDIQ_WEB_RETURN_URL:-https://web.meldiq.app/settings/mojo}"
 
 live=false
 replace=""
+prices_flag=""
 for arg in "$@"; do
   case "$arg" in
     --live) live=true ;;
     --replace-webhook) replace="--replace-webhook" ;;
+    --list-prices) prices_flag="--list-prices" ;;
     *) echo "Unknown option $arg; nothing changed." >&2; exit 1 ;;
   esac
 done
@@ -71,7 +74,7 @@ grep -q '^BILLING_WEB_RETURN_URL=' .env || set_env BILLING_WEB_RETURN_URL web_re
 
 echo "Setting up Stripe ($(if $live; then echo LIVE; else echo test; fi) mode)…"
 # shellcheck disable=SC2086
-out=$("${compose[@]}" run --rm --no-deps -T api node dist/admin.js stripe-setup --emit-env $live_flag $replace < /dev/null) || { restore; exit 1; }
+out=$("${compose[@]}" run --rm --no-deps -T api node dist/admin.js stripe-setup --emit-env $live_flag $replace $prices_flag < /dev/null) || { restore; exit 1; }
 prices=""
 while IFS= read -r line; do
   case "$line" in
@@ -93,7 +96,9 @@ if [ "$(wc -w <<< "$prices")" -eq 2 ]; then
   spark=$("${compose[@]}" run --rm --no-deps -T api node dist/admin.js stripe-setup $live_flag < /dev/null 2> /dev/null | grep -oE '"spark": "price_[A-Za-z0-9]+"' | grep -oE 'price_[A-Za-z0-9]+' || true)
   [ -n "$spark" ] && prices="$prices $spark"
 fi
-[ "$(wc -w <<< "$prices")" -eq 3 ] || { restore; echo "Stripe setup didn't report the Go, Plus and Spark prices." >&2; exit 1; }
+# API 0.66.0 adds the three amounts in US cents after the price ids, so the catalog is published at what Stripe charges.
+words=$(wc -w <<< "$prices")
+[ "$words" -eq 3 ] || [ "$words" -eq 6 ] || { restore; echo "Stripe setup didn't report the Go, Plus and Spark prices." >&2; exit 1; }
 
 BILLING_PROVIDER=stripe
 set_env BILLING_PROVIDER BILLING_PROVIDER
