@@ -135,7 +135,8 @@ export default async function userRoutes(app: FastifyInstance, ctx: AppContext) 
       if (u.username_changed_at && now() - u.username_changed_at < USERNAME_CHANGE_INTERVAL_MS) {
         throw new ApiError(429, "username_recently_changed", "You can change your username once an hour");
       }
-      if (ctx.identity.get("users", { username: body.username, id: { ne: userId } })) {
+      // API 0.65.0: someone's old username stays theirs for 7 days (they can take it back).
+      if (ctx.identity.get("users", { username: body.username, id: { ne: userId } }) || ctx.usernames.heldFromOthers(body.username, userId)) {
         throw conflict("That username is taken");
       }
       username = body.username;
@@ -177,6 +178,7 @@ export default async function userRoutes(app: FastifyInstance, ctx: AppContext) 
       if (String(e).includes("users.username")) throw conflict("That username is taken");
       throw e;
     }
+    if (username !== u.username) await ctx.usernames.changed(userId, u.username, username);
     const updated = ctx.identity.get<any>("users", { id: userId });
     announceProfileChange(ctx, userId);
     return { user: meView(updated) };

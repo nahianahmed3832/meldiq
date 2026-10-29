@@ -100,6 +100,8 @@ interface Admission {
  * if that fails the new account is removed again, so a refused invite never leaves an account behind.
  */
 async function admitAccount(ctx: AppContext, a: NewAccount): Promise<Admission> {
+  // API 0.65.0: a name someone gave up in the last 7 days is still theirs.
+  if (ctx.usernames.heldFromOthers(a.username)) throw conflict("That username is already taken");
   const inviteMode = signupMode(ctx.platform, ctx.config.registrationMode) === "invite" && !a.loadtest;
   const reg = inviteMode ? findRegistrationInvite(ctx.identity, a.inviteCode!) : undefined;
   if (inviteMode && !reg) requireOrgInvite(ctx, ctx.ws, a.inviteCode!);

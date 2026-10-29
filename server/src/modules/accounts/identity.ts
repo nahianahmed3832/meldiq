@@ -62,12 +62,13 @@ function freeUsername(ctx: AppContext, wanted: string | undefined, name: string)
   if (wanted) {
     const parsed = zUsername.safeParse(wanted);
     if (!parsed.success) throw new ApiError(400, "bad_username", parsed.error.issues[0]?.message ?? "That username isn't allowed");
-    if (ctx.identity.get("users", { username: parsed.data })) throw new ApiError(409, "username_taken", "That username is already taken");
+    // API 0.65.0: a name someone gave up in the last 7 days is still theirs.
+    if (ctx.identity.get("users", { username: parsed.data }) || ctx.usernames.heldFromOthers(parsed.data)) throw new ApiError(409, "username_taken", "That username is already taken");
     return parsed.data;
   }
   for (let i = 0; i < USERNAME_ATTEMPTS; i++) {
     const c = usernameCandidate(name);
-    if (zUsername.safeParse(c).success && !ctx.identity.get("users", { username: c })) return c;
+    if (zUsername.safeParse(c).success && !ctx.identity.get("users", { username: c }) && !ctx.usernames.heldFromOthers(c)) return c;
   }
   return `meldiq${crypto.randomBytes(5).toString("hex")}`;
 }
