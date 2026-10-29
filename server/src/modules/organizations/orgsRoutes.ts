@@ -808,6 +808,9 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
       ctx.audit({ actorId: userId, orgId: result.orgId, action: "invite.accept", target: result.inviteId, detail: result.role });
       notifyOrg(ctx, result.orgId);
       await noteJoin(ctx, result.orgId, t);
+      // API 0.65.0: the inviter earns points once this person has stayed 7 days.
+      const inviter = ws.get<{ created_by: string }>("invitations", { id: result.inviteId })?.created_by;
+      if (inviter) await ctx.points.noteInviteJoin(inviter, userId, result.orgId, t).catch((err) => req.log.warn({ err }, "points: invite join not noted"));
     }
     return { org: orgSummary(ctx, orgRow(result.orgId), userId), alreadyMember: result.repeated };
   });

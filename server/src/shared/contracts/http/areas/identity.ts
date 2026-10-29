@@ -2,6 +2,7 @@ import { activityRoutes } from "../activity.js";
 import { decorationRoutes } from "../decorations.js";
 import { authRoutes } from "../auth.js";
 import { notificationRoutes } from "../notifications.js";
+import { pointsRoutes } from "../points.js";
 import { preferenceRoutes } from "../preferences.js";
 import { connectionRoutes } from "../relationships.js";
 import { reminderRoutes } from "../reminders.js";
@@ -18,4 +19,5 @@ export const identityRoutes: readonly RouteContract[] = [
   ...connectionRoutes,
   ...preferenceRoutes,
   ...reminderRoutes,
+  ...pointsRoutes,
 ];

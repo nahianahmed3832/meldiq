@@ -151,6 +151,12 @@ export default async function serverMessagesRoutes(app: FastifyInstance, ctx: Ap
     // Controls (reactions, read markers, call keys) don't wake a sleeping phone; messages do, unless it's a request's.
     for (const row of queued) ctx.hub.pushQueued(row.recipient_device_id, [row], { wake: m.cls === "message" && !quietFor.has(ownerOf.get(row.recipient_device_id) ?? "") });
     if (request?.state === "pending" && m.cls === "message") await ctx.relationships.countSent(conv.id);
+    // API 0.65.0: chat minutes and the daily quests. Points never hold up or fail a message: a failure is only logged.
+    if (!selfOnly) {
+      await ctx.points
+        .noteMessage({ userId, conversationId: conv.id, messageId: m.messageId, cls: m.cls, payload: m.payload, at: t })
+        .catch((err) => req.log.warn({ err }, "points: message not counted"));
+    }
     return { messageId: m.messageId, serverTs: t, duplicate: false };
   });
 

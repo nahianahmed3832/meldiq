@@ -1,4 +1,5 @@
 import { profileMediaView, wornTag } from "./profileMedia.js";
+import { holdsBadge } from "./badges.js";
 import type { AppContext } from "../../app/context.js";
 import { Audience as AudienceEnum, PHONE, PresenceMode as PresenceModeEnum, validBirthday } from "../../shared/contracts/http/users.js";
 import type { ActivityWire } from "../../shared/contracts/realtime.js";
@@ -178,7 +179,9 @@ export function profileView(u: ProfileRow, r: Relation, ctx?: AppContext) {
   }
   if (show("photo") && u.photo_rev) view.photoRev = u.photo_rev;
   // API 0.45.0: an animated avatar and banner under the photo's setting, and the profile's style.
-  Object.assign(view, profileMediaView(u, show("photo")), ctx ? mojoBadge(ctx, u.id) : {});
+  Object.assign(view, profileMediaView(u, show("photo"), ctx ? (b) => holdsBadge(ctx, u.id, b) : undefined), ctx ? mojoBadge(ctx, u.id) : {});
+  // API 0.65.0: the account level bought with points (someone the person blocked sees only the basics).
+  if (ctx?.points && !r.blockedByTarget) view.level = ctx.points.levelOf(u.id);
   if (show("birthday") && u.birthday) view.birthday = u.birthday;
   if (show("phone") && u.phone) view.phone = u.phone;
   if (r.self) {
@@ -234,7 +237,7 @@ export function memberView(ctx: AppContext, viewerId: string, u: ProfileRow, bas
 
 /** What a list adds from profile media (API 0.46.0): the animated avatar to whoever may see the photo, the style, the tag. */
 function listMedia(ctx: AppContext, u: ProfileRow, photoAllowed: boolean): Record<string, unknown> {
-  const { profileBanner: _banner, ...media } = profileMediaView(u as never, photoAllowed);
+  const { profileBanner: _banner, ...media } = profileMediaView(u as never, photoAllowed, (b) => holdsBadge(ctx, u.id, b));
   const tag = wornTag(ctx, u as never);
   return { ...media, ...(tag ? { tag } : {}), ...mojoBadge(ctx, u.id) };
 }
