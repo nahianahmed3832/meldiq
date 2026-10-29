@@ -130,6 +130,35 @@ Passkeys failed in the app installed from Google Play: Play signs it with its ap
 
 Rollback: copy the backup's `.env` back and recreate `api` the same way.
 
+### API 0.65.0 and web e7bcfa4: settings parity, rules channels, apps and bots, and reloads that open like an app (2026-10-29, 16:53 and 16:55 UTC, owner's go-ahead: "after finished push for productions asap")
+
+Branch `settings-parity` 12d5f63 on production's `profile-pins` (0.64.0, merged in c5359ce): settings parity batches A
+and B (docs/SETTINGS_PARITY_API.md: profile theme and shown badge, leaving several communities, group-add policy and
+suggested people, username holds, decoration favourites, points and quests, creator verification and programme,
+linked accounts), "Log in with Meldiq" apps (`oauth-apps`), bots (`bots`), rules channels (`rules-channel`), history
+read receipts, and 133 built-in decorations. No migration (schema stays 68); new MongoDB collections only, indexes made
+at start. Web `floating-redesign` e7bcfa4 (on `pins-fixes` aa88094, merged in b5df9d4): reloads open like an app
+(`/boot.js`, the sealed snapshot), no browser source maps for the app's chunks.
+
+| Step | Result |
+|---|---|
+| Tests | server `tsc` clean; `vitest --no-file-parallelism` 1380 passed, 18 skipped (141 files); web typecheck and `eslint src` clean, unit 635 passed (`MELDIQ_CONTRACTS_DIR` = settings-parity) |
+| Pre-flight | 0.64.0 healthy; VPS `server/`, `scripts/` byte-equal to `profile-pins` (tests aside); the live nginx web files equal a re-render of aa88094's templates with the install values below; 33 GB free |
+| Backup | `backups/pre-0.65.0-20261029T165014Z`: integrity ok, schema 68, 46 users, `.env`/`compose.yaml` copies; image `0.64.0-rollback`; sources kept as `server.pre-0.65.0` |
+| Config | `.env` += `DEFAULT_GROUP_ADD_POLICY=everyone` (the owner keeps today's group behaviour; the code default is `friends`). `COMMUNITY_RULES` unset (rules channels on); Steam/AniList/Last.fm/Trakt keys unset (linked accounts off). `validate-env.sh`: only the known `MONGODB_DOMAINS needs MONGODB_URI`; `config -q` ok |
+| Build | 176 rsync items (server sources, `validate-env.sh`); `docker build --network host`; image with 133 decoration webp files + the template |
+| Rehearsal | backup copy, `--network none`, MongoDB and FCM settings left out, uid 1000: 0.65.0 healthy, same counts (46 users, 12 orgs, 166 conversations), 0 warn/error lines; `0.64.0-rollback` healthy on the same copy; copy removed |
+| Switch | `compose.yaml` image 0.65.0, `up -d --no-deps --no-build --force-recreate api` at 16:53:12, healthy 16:53:25; LiveKit and ntfy untouched |
+| Checks after | `/healthz` 0.65.0 `mongodb: true` on both hosts; 94 features incl. `profile-theme`, `points`, `bots`, `oauth-apps`, `rules-channel`, `group-add-policy`, `connections-v2`; `verify.sh` 0 restarts; 0 warn/error lines; `DEFAULT_GROUP_ADD_POLICY` inside the container; the readWrite MongoDB user created all new collections and indexes (`oauth_*`, `bots`, `bot_interactions`, `points_*`, `community_rule_agreements`, `username_holds`, `decoration_favorites`, `creator_*`, `linked_account*`); new decoration images served |
+| Web | `0.5.0-beta-e7bcfa4` installed 16:55:19 (previous `0.5.0-beta-aa88094`), same install values (`MELDIQ_CONNECT_EXTRA` with rtc.meldiq.app, rtc.griipbuddy.cloud and the S3 origin; redirect web.griipbuddy.cloud); the site gains the `/boot.js` block (`max-age=3600, stale-while-revalidate=604800`), `nginx -t` ok; `verify.sh https://web.meldiq.app` all passed; CSP unchanged; `/boot.js` and `/sw.js` served; chunk maps 404. Signed out in a browser: straight to sign-in, no console errors from the app (Cloudflare's injected analytics beacon is refused by the CSP, as before) |
+
+Left: `sw.js.map` (the service worker's map, 73 sources with their content, `vite.sw.config.ts` `sourcemap: true`) and
+one empty chunk map are still served; the app's own chunks have none.
+
+Rollback: `compose.yaml` image `0.64.0-rollback` and `up -d --no-deps --no-build --force-recreate api` (0.64.0 ignores
+the new collections and `DEFAULT_GROUP_ADD_POLICY`); web `bash /root/meldiq-web-0.5.0-beta-e7bcfa4/rollback.sh` (back to
+aa88094; the `/boot.js` block stays in nginx and is harmless for it).
+
 ### API 0.64.0 and web aa88094: profile pins, animated community images and the owner's fixes (2026-10-29, 13:22 UTC, owner's request: "fix these and deploy for productions")
 
 Branch `profile-pins` (7a320d7, ec79b65) on production's `admin-accounts` 24cae29 (0.63.0): profile pins
