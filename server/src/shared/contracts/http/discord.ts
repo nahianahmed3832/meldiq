@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { COMMUNITY_NAME_MAX } from "./orgs.js";
 import { zTime } from "./primitives.js";
 import { route } from "./route.js";
 
@@ -32,7 +33,7 @@ export const DiscordCallbackBody = z.object({
 
 export const DiscordImportBody = z.object({
   connectionId: zId,
-  destination: z.union([z.strictObject({ orgId: zId }), z.strictObject({ name: z.string().trim().min(1).max(80) })]),
+  destination: z.union([z.strictObject({ orgId: zId }), z.strictObject({ name: z.string().trim().min(1).max(COMMUNITY_NAME_MAX) })]),
   options: DiscordImportOptions,
 });
 

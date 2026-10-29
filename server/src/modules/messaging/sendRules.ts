@@ -38,6 +38,11 @@ export function admitConversation(ctx: AppContext, userId: string, conversationI
   }
   // API 0.65.0: a community that asks members to agree to its rules first (bots are added by people who can edit it).
   const needsAgreement = cls === "message" || (!!opts.type && NEEDS_AGREEMENT.has(opts.type));
+  // Community parity A3: new members of a community that asks them to finish onboarding first (its flow ends with
+  // the rules, so this comes before them).
+  if (needsAgreement && !opts.bot && conv.org_id && authz.mustFinishOnboarding(conv.org_id, userId)) {
+    throw new ApiError(403, "onboarding_not_finished", "Finish this community's onboarding before you post or react", { orgId: conv.org_id });
+  }
   if (needsAgreement && !opts.bot && conv.org_id && authz.mustAgreeRules(conv.org_id, userId)) {
     throw new ApiError(403, "rules_not_agreed", "Agree to this community's rules before you post or react", { orgId: conv.org_id });
   }

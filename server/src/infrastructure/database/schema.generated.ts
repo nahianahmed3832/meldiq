@@ -1692,6 +1692,62 @@ export const SCHEMA: readonly TableShape[] = [
     autoincrement: false,
   },
   {
+    name: "community_settings",
+    columns: [
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"background","type":"TEXT","notNull":false},
+      {"name":"links","type":"TEXT","notNull":true,"default":"[]"},
+      {"name":"onboarding_required","type":"INTEGER","notNull":true,"default":0},
+      {"name":"onboarding_required_since","type":"INTEGER","notNull":false},
+      {"name":"start_channel_id","type":"TEXT","notNull":false},
+      {"name":"updated_at","type":"INTEGER","notNull":true},
+      {"name":"updated_by","type":"TEXT","notNull":true},
+    ],
+    primaryKey: ["org_id"],
+    indexes: [],
+    foreignKeys: [
+      {"columns":["org_id"],"table":"orgs","references":["id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
+    name: "community_standard_invites",
+    columns: [
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"user_id","type":"TEXT","notNull":true},
+      {"name":"invite_id","type":"TEXT","notNull":true},
+      {"name":"code","type":"TEXT","notNull":true},
+    ],
+    primaryKey: ["org_id","user_id"],
+    indexes: [
+      {"name":"idx_community_standard_invites_user","columns":["user_id"],"unique":false,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [
+      {"columns":["invite_id"],"table":"invitations","references":["id"],"onDelete":"CASCADE"},
+      {"columns":["org_id"],"table":"orgs","references":["id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
+    name: "community_vanity_invites",
+    columns: [
+      {"name":"slug","type":"TEXT","notNull":true,"nocase":true},
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"invite_id","type":"TEXT","notNull":true},
+      {"name":"claimed_by","type":"TEXT","notNull":true},
+      {"name":"claimed_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["slug"],
+    indexes: [
+      {"name":"sqlite_autoindex_community_vanity_invites_2","columns":["org_id"],"unique":true,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [
+      {"columns":["invite_id"],"table":"invitations","references":["id"],"onDelete":"CASCADE"},
+      {"columns":["org_id"],"table":"orgs","references":["id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
     name: "connections",
     columns: [
       {"name":"pair","type":"TEXT","notNull":true},
@@ -2862,6 +2918,22 @@ export const SCHEMA: readonly TableShape[] = [
     ],
     primaryKey: ["org_id","user_id"],
     indexes: [],
+    foreignKeys: [
+      {"columns":["org_id"],"table":"orgs","references":["id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
+    name: "onboarding_completions",
+    columns: [
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"user_id","type":"TEXT","notNull":true},
+      {"name":"finished_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["org_id","user_id"],
+    indexes: [
+      {"name":"idx_onboarding_completions_user","columns":["user_id"],"unique":false,"nocase":false,"partialNotNull":null},
+    ],
     foreignKeys: [
       {"columns":["org_id"],"table":"orgs","references":["id"],"onDelete":"CASCADE"},
     ],

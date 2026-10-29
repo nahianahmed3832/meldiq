@@ -183,6 +183,11 @@ export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
   org_role_extras: "workspace",
   channel_options: "workspace",
   stage_speakers: "workspace",
+  // Community parity A3 (migration 071): background tint, links, onboarding gate, custom and standard invite links.
+  community_settings: "workspace",
+  community_vanity_invites: "workspace",
+  community_standard_invites: "workspace",
+  onboarding_completions: "workspace",
   // Batch B6: connections, message requests and who may message you.
   connections: "relationships",
   dm_requests: "relationships",

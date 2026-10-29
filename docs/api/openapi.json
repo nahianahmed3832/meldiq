@@ -84,6 +84,9 @@
       "name": "community-rules"
     },
     {
+      "name": "community-settings"
+    },
+    {
       "name": "reports"
     },
     {
@@ -1102,7 +1105,7 @@
             }
           },
           "default": {
-            "description": "Error. Codes: not_found, forbidden, timed_out, rules_channel, rules_not_agreed, voice_channel, bad_clock, conflict, slowmode, request_pending, request_limit, message_too_long, not_yours, mention_all_not_in_dm, mention_all_not_allowed, mention_all_rate_limited",
+            "description": "Error. Codes: not_found, forbidden, timed_out, rules_channel, onboarding_not_finished, rules_not_agreed, voice_channel, bad_clock, conflict, slowmode, request_pending, request_limit, message_too_long, not_yours, mention_all_not_in_dm, mention_all_not_allowed, mention_all_rate_limited",
             "content": {
               "application/json": {
                 "schema": {
@@ -18958,6 +18961,9 @@
                             "maxLength": 64,
                             "pattern": "^[A-Za-z0-9_-]+$"
                           }
+                        },
+                        "communityThemes": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -19312,6 +19318,9 @@
                             "maxLength": 64,
                             "pattern": "^[A-Za-z0-9_-]+$"
                           }
+                        },
+                        "communityThemes": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -19621,6 +19630,9 @@
                           "maxLength": 64,
                           "pattern": "^[A-Za-z0-9_-]+$"
                         }
+                      },
+                      "communityThemes": {
+                        "type": "boolean"
                       }
                     },
                     "additionalProperties": false
@@ -21577,6 +21589,64 @@
                             "mustAgree"
                           ],
                           "additionalProperties": false
+                        },
+                        "background": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "links": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "label": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "label",
+                              "url"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "inviteSlug": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "onboardingRequired": {
+                          "type": "boolean"
+                        },
+                        "onboardingDone": {
+                          "type": "boolean"
+                        },
+                        "startChannelId": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "mustFinishOnboarding": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -21642,7 +21712,7 @@
                   "name": {
                     "type": "string",
                     "minLength": 1,
-                    "maxLength": 80
+                    "maxLength": 100
                   },
                   "description": {
                     "anyOf": [
@@ -22057,6 +22127,64 @@
                               "mustAgree"
                             ],
                             "additionalProperties": false
+                          },
+                          "background": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "links": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "label": {
+                                  "type": "string"
+                                },
+                                "url": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "label",
+                                "url"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "inviteSlug": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "onboardingRequired": {
+                            "type": "boolean"
+                          },
+                          "onboardingDone": {
+                            "type": "boolean"
+                          },
+                          "startChannelId": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "mustFinishOnboarding": {
+                            "type": "boolean"
                           }
                         },
                         "required": [
@@ -22573,6 +22701,64 @@
                             "mustAgree"
                           ],
                           "additionalProperties": false
+                        },
+                        "background": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "links": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "label": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "label",
+                              "url"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "inviteSlug": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "onboardingRequired": {
+                          "type": "boolean"
+                        },
+                        "onboardingDone": {
+                          "type": "boolean"
+                        },
+                        "startChannelId": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "mustFinishOnboarding": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -23222,6 +23408,64 @@
                             "mustAgree"
                           ],
                           "additionalProperties": false
+                        },
+                        "background": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "links": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "label": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "label",
+                              "url"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "inviteSlug": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "onboardingRequired": {
+                          "type": "boolean"
+                        },
+                        "onboardingDone": {
+                          "type": "boolean"
+                        },
+                        "startChannelId": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "mustFinishOnboarding": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -23287,7 +23531,7 @@
                   "name": {
                     "type": "string",
                     "minLength": 1,
-                    "maxLength": 80
+                    "maxLength": 100
                   },
                   "description": {
                     "anyOf": [
@@ -24799,6 +25043,12 @@
                           "minimum": 0,
                           "maximum": 9007199254740991
                         },
+                        "neverExpires": {
+                          "type": "boolean"
+                        },
+                        "noUseLimit": {
+                          "type": "boolean"
+                        },
                         "guestDays": {
                           "anyOf": [
                             {
@@ -24822,6 +25072,8 @@
                         "maxUses",
                         "uses",
                         "expiresAt",
+                        "neverExpires",
+                        "noUseLimit",
                         "guestDays"
                       ],
                       "additionalProperties": false
@@ -24902,15 +25154,29 @@
                   },
                   "maxUses": {
                     "default": 1,
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 500
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 500
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "expiresInHours": {
                     "default": 72,
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 720
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 720
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "guestDays": {
                     "anyOf": [
@@ -25010,6 +25276,12 @@
                             "minimum": 0,
                             "maximum": 9007199254740991
                           },
+                          "neverExpires": {
+                            "type": "boolean"
+                          },
+                          "noUseLimit": {
+                            "type": "boolean"
+                          },
                           "revokedAt": {
                             "anyOf": [
                               {
@@ -25059,6 +25331,8 @@
                           "uses",
                           "createdAt",
                           "expiresAt",
+                          "neverExpires",
+                          "noUseLimit",
                           "revokedAt",
                           "active",
                           "status",
@@ -25226,6 +25500,35 @@
                               "type": "null"
                             }
                           ]
+                        },
+                        "background": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "links": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "label": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "label",
+                              "url"
+                            ],
+                            "additionalProperties": false
+                          }
                         }
                       },
                       "required": [
@@ -25338,7 +25641,7 @@
                 "properties": {
                   "code": {
                     "type": "string",
-                    "minLength": 8,
+                    "minLength": 3,
                     "maxLength": 40
                   }
                 },
@@ -25365,7 +25668,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "minLength": 8,
+              "minLength": 3,
               "maxLength": 40
             }
           }
@@ -25466,7 +25769,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "minLength": 8,
+              "minLength": 3,
               "maxLength": 40
             }
           }
@@ -25510,7 +25813,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "minLength": 8,
+              "minLength": 3,
               "maxLength": 40
             }
           }
@@ -25885,6 +26188,64 @@
                             "mustAgree"
                           ],
                           "additionalProperties": false
+                        },
+                        "background": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "links": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "label": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "label",
+                              "url"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "inviteSlug": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "onboardingRequired": {
+                          "type": "boolean"
+                        },
+                        "onboardingDone": {
+                          "type": "boolean"
+                        },
+                        "startChannelId": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "mustFinishOnboarding": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -25953,7 +26314,7 @@
                 "properties": {
                   "code": {
                     "type": "string",
-                    "minLength": 8,
+                    "minLength": 3,
                     "maxLength": 40
                   }
                 },
@@ -32489,7 +32850,7 @@
                           "name": {
                             "type": "string",
                             "minLength": 1,
-                            "maxLength": 80
+                            "maxLength": 100
                           }
                         },
                         "required": [
@@ -35111,6 +35472,64 @@
                             "mustAgree"
                           ],
                           "additionalProperties": false
+                        },
+                        "background": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "links": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "label": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "label",
+                              "url"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "inviteSlug": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "onboardingRequired": {
+                          "type": "boolean"
+                        },
+                        "onboardingDone": {
+                          "type": "boolean"
+                        },
+                        "startChannelId": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "mustFinishOnboarding": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -35633,6 +36052,64 @@
                             "mustAgree"
                           ],
                           "additionalProperties": false
+                        },
+                        "background": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "links": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "label": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "label",
+                              "url"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "inviteSlug": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "onboardingRequired": {
+                          "type": "boolean"
+                        },
+                        "onboardingDone": {
+                          "type": "boolean"
+                        },
+                        "startChannelId": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "mustFinishOnboarding": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -38893,6 +39370,601 @@
           },
           "default": {
             "description": "Error. Codes: not_found, forbidden, feature_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/orgs/{orgId}/settings": {
+      "get": {
+        "tags": [
+          "community-settings"
+        ],
+        "summary": "The community's profile, theme, links, custom invite link and onboarding gate (people who can edit it).",
+        "operationId": "getV1OrgsOrgIdSettings",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "accent": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "background": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "links": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "label",
+                          "url"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "inviteSlug": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "inviteSlugMinMembers": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "memberCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "onboardingRequired": {
+                      "type": "boolean"
+                    },
+                    "onboardingRequiredSince": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "startChannelId": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "updatedAt": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "accent",
+                    "background",
+                    "links",
+                    "inviteSlug",
+                    "inviteSlugMinMembers",
+                    "memberCount",
+                    "onboardingRequired",
+                    "onboardingRequiredSince",
+                    "startChannelId",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, feature_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "community-settings"
+        ],
+        "summary": "Change any of the community's settings (fields sent change; null clears); people who can edit it.",
+        "operationId": "putV1OrgsOrgIdSettings",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "accent": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "background": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "links": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "label",
+                          "url"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "inviteSlug": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "inviteSlugMinMembers": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "memberCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "onboardingRequired": {
+                      "type": "boolean"
+                    },
+                    "onboardingRequiredSince": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "startChannelId": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "updatedAt": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "accent",
+                    "background",
+                    "links",
+                    "inviteSlug",
+                    "inviteSlugMinMembers",
+                    "memberCount",
+                    "onboardingRequired",
+                    "onboardingRequiredSince",
+                    "startChannelId",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, invite_slug_invalid, invite_slug_taken, invite_slug_needs_members, start_channel_invalid, feature_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  "accent": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^#[0-9a-fA-F]{6}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "background": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^#[0-9a-fA-F]{6}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "links": {
+                    "maxItems": 5,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "label": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 40
+                        },
+                        "url": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 500
+                        }
+                      },
+                      "required": [
+                        "label",
+                        "url"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "inviteSlug": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 64
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "onboardingRequired": {
+                    "type": "boolean"
+                  },
+                  "startChannelId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/orgs/{orgId}/invites/standard": {
+      "post": {
+        "tags": [
+          "community-settings"
+        ],
+        "summary": "The caller's standard invite link for the community (never expires, no use limit), made the first time.",
+        "operationId": "postV1OrgsOrgIdInvitesStandard",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "invite": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "uses": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "neverExpires": {
+                          "type": "boolean",
+                          "const": true
+                        },
+                        "noUseLimit": {
+                          "type": "boolean",
+                          "const": true
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "code",
+                        "uses",
+                        "createdAt",
+                        "neverExpires",
+                        "noUseLimit"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "invite"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, feature_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/orgs/{orgId}/onboarding/finish": {
+      "post": {
+        "tags": [
+          "community-settings"
+        ],
+        "summary": "Finish (or redo) the community's onboarding: after the required questions and agreeing to the rules.",
+        "operationId": "postV1OrgsOrgIdOnboardingFinish",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "onboardingRequired": {
+                      "type": "boolean"
+                    },
+                    "onboardingDone": {
+                      "type": "boolean"
+                    },
+                    "finishedAt": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "startChannelId": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "mustFinishOnboarding": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "onboardingRequired",
+                    "onboardingDone",
+                    "finishedAt",
+                    "startChannelId",
+                    "mustFinishOnboarding"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, onboarding_off, answer_required, rules_not_agreed, feature_disabled",
             "content": {
               "application/json": {
                 "schema": {
@@ -59189,7 +60261,7 @@
             }
           },
           "default": {
-            "description": "Error. Codes: not_found, bot_not_here, forbidden, rules_not_agreed, rate_limited",
+            "description": "Error. Codes: not_found, bot_not_here, forbidden, onboarding_not_finished, rules_not_agreed, rate_limited",
             "content": {
               "application/json": {
                 "schema": {
@@ -60192,6 +61264,9 @@
                 "enum": [
                   "account_deleted",
                   "account_disabled",
+                  "invite_slug_invalid",
+                  "invite_slug_needs_members",
+                  "invite_slug_taken",
                   "media_engine_unavailable",
                   "allow_and_deny",
                   "already_migrated",
@@ -60208,6 +61283,8 @@
                   "no_free_sparks",
                   "message_too_long",
                   "not_yours",
+                  "onboarding_not_finished",
+                  "start_channel_invalid",
                   "update_required",
                   "upload_limit",
                   "custom_items_limit",
@@ -60505,6 +61582,24 @@
       ],
       "meaning": "This account is disabled."
     },
+    "invite_slug_invalid": {
+      "status": [
+        400
+      ],
+      "meaning": "Use 3 to 32 lowercase letters, digits or hyphens (not at either end) that aren't a reserved word."
+    },
+    "invite_slug_needs_members": {
+      "status": [
+        403
+      ],
+      "meaning": "A custom invite link opens up once the community has enough members."
+    },
+    "invite_slug_taken": {
+      "status": [
+        409
+      ],
+      "meaning": "Another community already uses that invite link."
+    },
     "media_engine_unavailable": {
       "status": [
         503
@@ -60600,6 +61695,18 @@
         403
       ],
       "meaning": "Only the person who sent a message can edit it, delete it or close its poll."
+    },
+    "onboarding_not_finished": {
+      "status": [
+        403
+      ],
+      "meaning": "Finish this community's onboarding before you post or react."
+    },
+    "start_channel_invalid": {
+      "status": [
+        400
+      ],
+      "meaning": "The starting channel has to be a text channel of this community that everyone can see."
     },
     "update_required": {
       "status": [

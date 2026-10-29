@@ -128,6 +128,7 @@ export const serverMessagesRoutes = [
       "forbidden",
       "timed_out",
       "rules_channel",
+      "onboarding_not_finished",
       "rules_not_agreed",
       "voice_channel",
       "bad_clock",

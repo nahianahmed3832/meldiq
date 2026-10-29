@@ -211,7 +211,7 @@ export const botRoutes = [
     body: InteractionBody,
     response: InteractionCreated,
     status: 201,
-    errors: ["not_found", "bot_not_here", "forbidden", "rules_not_agreed", "rate_limited"],
+    errors: ["not_found", "bot_not_here", "forbidden", "onboarding_not_finished", "rules_not_agreed", "rate_limited"],
   }),
   bot({ method: "GET", url: "/v2/bot/me", summary: "The bot itself.", response: BotSelf }),
   bot({ method: "GET", url: "/v2/bot/communities", summary: "The communities the bot is in, with the channels it's in and whether it can post there.", response: BotCommunities }),

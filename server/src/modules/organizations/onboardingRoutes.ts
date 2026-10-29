@@ -62,6 +62,18 @@ export function onboardingOn(ctx: AppContext, orgId: string): boolean {
   return s.enabled && s.prompts.length > 0;
 }
 
+/**
+ * Community parity A3: the first required question [userId] hasn't answered (null when there's none), so finishing
+ * onboarding can't skip the questions.
+ */
+export function unansweredRequiredPrompt(ctx: AppContext, orgId: string, userId: string): OnboardingPrompt | null {
+  const required = stored(ctx, orgId).prompts.filter((p) => p.required);
+  if (required.length === 0) return null;
+  const answer = ctx.ws.get<{ option_ids: string }>("onboarding_answers", { org_id: orgId, user_id: userId });
+  const chosen = new Set(answer ? (JSON.parse(answer.option_ids) as string[]) : []);
+  return required.find((p) => !p.options.some((o) => chosen.has(o.id))) ?? null;
+}
+
 export default async function onboardingRoutes(app: FastifyInstance, ctx: AppContext) {
   const { ws, authz } = ctx;
   const auth = { preHandler: requireAuth(ctx) };

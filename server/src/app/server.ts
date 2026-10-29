@@ -49,6 +49,8 @@ import { CommunityPermissions } from "../modules/organizations/communityPermissi
 import { CommunityRules } from "../modules/organizations/rules/service.js";
 import { MemoryRulesStore } from "../modules/organizations/rules/store.js";
 import { MongoRulesStore } from "../modules/organizations/rules/mongoStore.js";
+import communitySettingsRoutes from "../modules/organizations/settings/routes.js";
+import { CommunitySettings } from "../modules/organizations/settings/service.js";
 import expressionRoutes from "../modules/organizations/expressionsRoutes.js";
 import { MongoPreferenceStore } from "../modules/accounts/preferences/mongoStore.js";
 import { type PushDeps, PushService } from "../modules/notifications/service.js";
@@ -310,6 +312,10 @@ export async function buildApp(
   // workspace rows like the rest of authorisation. Authorisation reads them only while the feature is on.
   ctx.communityPermissions = new CommunityPermissions(ctx, config.communityPermissions);
   if (config.communityPermissions) ctx.authz.extras = ctx.communityPermissions;
+  // Community parity A3 (docs/COMMUNITY_SETTINGS_API.md): invite links, links, background tint, the onboarding gate.
+  ctx.communitySettings = new CommunitySettings(ctx, config.communitySettings);
+  ctx.authz.mustFinishOnboarding = (orgId, userId) => ctx.communitySettings.mustFinish(orgId, userId);
+  ctx.authz.inviteSlugsOn = () => ctx.communitySettings.enabled;
   ctx.reportSealer = ReportSealer.load(process.env, config.dataDir);
   // Billing (plans, subscriptions, Meldiq Spark, gifts): rows in SQLite, or MongoDB when MONGODB_DOMAINS includes it.
   ctx.billing = new Billing(await openBillingRows(db, ctx.mongo, app.log), config.billing, app.log, Date.now, (id) => ctx.quotas.planExists(id));
@@ -541,6 +547,8 @@ export async function buildApp(
   for (const r of [authRoutes, userRoutes, profileMediaRoutes, gifRoutes, bugReportRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, serverMessagesRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, activityRoutes, decorationRoutes, pinRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, communityRulesRoutes, communityPermissionsRoutes, expressionRoutes, discordRoutes, leaveManyRoutes, pointsRoutes, creatorRoutes, linkedAccountRoutes, oauthRoutes, botRoutes, wsRoutes]) {
     await app.register(async (scope) => r(scope, ctx));
   }
+  // Community parity A3: the community settings routes.
+  await app.register(async (scope) => communitySettingsRoutes(scope, ctx));
   await app.register(async (scope) => opsRoutes(scope, ctx, VERSION));
   await app.register(async (scope) => searchRoutes(scope, ctx));
   await app.register(async (scope) => meetingRoutes(scope, ctx));
@@ -705,6 +713,9 @@ export function serverFeatures(config: Config, directUploads = false): string[] 
   // Community parity A1 (docs/COMMUNITY_PERMISSIONS.md): @everyone defaults, nicknames, role extras and order, channel
   // options and stages, and the new message permissions (COMMUNITY_PERMISSIONS=off switches it off).
   if (config.communityPermissions) f.push("community-permissions");
+  // Community parity A3 (docs/COMMUNITY_SETTINGS_API.md): never-expiring and custom invite links, community links, the
+  // background tint and onboarding's "must finish" (COMMUNITY_SETTINGS=off switches it off).
+  if (config.communitySettings) f.push("community-settings");
   if (config.accounts.legacy.migration) f.push("legacy-migration");
   if (directUploads) f.push("direct-upload");
   if (config.history.enabled) f.push("history");

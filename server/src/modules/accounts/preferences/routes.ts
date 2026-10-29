@@ -63,6 +63,8 @@ export default async function preferenceRoutes(app: FastifyInstance, ctx: AppCon
     // Batch B3: timed mutes (any document), and a community's category levels and hidden channels (its document only):
     // only its own categories, and only its channels the person can see (joined or not).
     const mutedUntil = body.prefs.mutedUntil ?? stored?.mutedUntil;
+    // Community parity A3: showing communities' themes, a personal choice kept when an app leaves it out.
+    const communityThemes = personal ? (body.prefs.communityThemes ?? stored?.communityThemes) : undefined;
     const categories = new Set<string>();
     let categoryNotify: NavPrefs["categoryNotify"];
     let hidden: string[] | undefined;
@@ -85,7 +87,7 @@ export default async function preferenceRoutes(app: FastifyInstance, ctx: AppCon
       const cat = channelCategory.get(id);
       return (cat && categoryNotify?.[cat]) || communityLevel;
     };
-    const prefs = normalizePrefs({ ...body.prefs, saved, community, railOrder, railFolders, mutedUntil, categoryNotify, hidden }, (id) => mine.has(id), parentLevel);
+    const prefs = normalizePrefs({ ...body.prefs, saved, community, railOrder, railFolders, mutedUntil, categoryNotify, hidden, communityThemes }, (id) => mine.has(id), parentLevel);
     const result = await ctx.prefs.put(userId, workspaceId, prefs, body.baseRev, now());
     if (!result.ok) {
       throw new ApiError(409, "stale_preferences", "These preferences changed on another device. Apply your change to this copy and try again.", {

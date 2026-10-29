@@ -1,0 +1,22 @@
+{
+  "name": "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN",
+  "accent": "#112233",
+  "background": "#aabbcc",
+  "links": [
+    {
+      "label": "Website",
+      "url": "https://example.com"
+    },
+    {
+      "label": "Rules doc",
+      "url": "https://example.com/rules"
+    }
+  ],
+  "inviteSlug": null,
+  "inviteSlugMinMembers": 5,
+  "memberCount": 4,
+  "onboardingRequired": false,
+  "onboardingRequiredSince": null,
+  "startChannelId": null,
+  "updatedAt": 1793308647228
+}

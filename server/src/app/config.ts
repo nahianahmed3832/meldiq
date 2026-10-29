@@ -123,6 +123,13 @@ export interface Config {
    * set (kept for when it's back on).
    */
   communityPermissions: boolean;
+  /**
+   * Community parity A3 (docs/COMMUNITY_SETTINGS_API.md): never-expiring and custom invite links, community links, the
+   * background tint and onboarding's "must finish before chatting" (feature "community-settings"). On unless
+   * COMMUNITY_SETTINGS=off, which answers its routes with 503, stops resolving custom links and stops holding members
+   * back; what communities set is kept for when it's back on.
+   */
+  communitySettings: boolean;
   history: { enabled: boolean; maxItemsPerUser: number; maxBytesPerUser: number; maxItemBytes: number; tombstoneDays: number; maxTotalBytes: number };
   /**
    * Direct uploads from the app to S3 (2026-10-17). How long an upload URL may be started with, how long an upload may
@@ -550,6 +557,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     messages: { acceptEncrypted: env.MESSAGES_ACCEPT_ENCRYPTED === "true" },
     communityRules: (env.COMMUNITY_RULES ?? "on").trim().toLowerCase() !== "off",
     communityPermissions: (env.COMMUNITY_PERMISSIONS ?? "on").trim().toLowerCase() !== "off",
+    communitySettings: (env.COMMUNITY_SETTINGS ?? "on").trim().toLowerCase() !== "off",
     history: {
       enabled: env.HISTORY_ENABLED !== "false",
       maxItemsPerUser: Math.max(int("HISTORY_MAX_ITEMS_PER_USER", 500_000), 0),

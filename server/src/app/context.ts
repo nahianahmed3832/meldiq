@@ -15,6 +15,7 @@ import type { MessageStore } from "../modules/messaging/store/messageStore.js";
 import type { ReportSealer } from "../modules/organizations/reports/seal.js";
 import type { CommunityRules } from "../modules/organizations/rules/service.js";
 import type { CommunityPermissions } from "../modules/organizations/communityPermissions/service.js";
+import type { CommunitySettings } from "../modules/organizations/settings/service.js";
 import type { RelationshipStore } from "../modules/accounts/relationships/store.js";
 import type { CallStore } from "../modules/calls/store.js";
 import type { Rows } from "../infrastructure/database/rows/index.js";
@@ -96,6 +97,8 @@ export interface AppContext {
   communityRules: CommunityRules;
   /** Community parity A1: @everyone defaults, nicknames, role extras, channel options (docs/COMMUNITY_PERMISSIONS.md). */
   communityPermissions: CommunityPermissions;
+  /** Community parity A3: invite links, links, background tint and the onboarding gate (feature community-settings). */
+  communitySettings: CommunitySettings;
   /** Calls, their participants and raised hands: SQLite, or MongoDB when MONGODB_DOMAINS includes "calls". */
   calls: CallStore;
   /**

@@ -111,6 +111,11 @@ export const zNavPrefs = z
       .optional(),
     /** Batch B3, community documents only: channels hidden from the person's channel list (they stay joined). */
     hidden: z.array(zConversationId).max(LIMITS.hidden).optional(),
+    /**
+     * Community parity A3, personal document only: whether to show communities' accent colours and background tints
+     * (false: Meldiq's own theme everywhere). Left out, the stored choice is kept; never set means shown.
+     */
+    communityThemes: z.boolean().optional(),
   })
   .strict();
 
@@ -175,6 +180,7 @@ export function normalizePrefs(
     ...(p.mutedUntil ? { mutedUntil: Object.fromEntries(Object.entries(p.mutedUntil).filter(([id, until]) => until > at && keep(id))) } : {}),
     ...(p.categoryNotify ? { categoryNotify: p.categoryNotify } : {}),
     ...(p.hidden ? { hidden: [...new Set(p.hidden)] } : {}),
+    ...(p.communityThemes !== undefined ? { communityThemes: p.communityThemes } : {}),
   };
 }
 

@@ -13,6 +13,7 @@ import type { Permission } from "../permissions/catalog.js";
 import { type DiscordClient, DiscordError } from "./client.js";
 import type { RowReader } from "../../../infrastructure/database/rows/index.js";
 import { foldAscii } from "../../../shared/utilities/sqlText.js";
+import { COMMUNITY_NAME_MAX } from "../../../shared/contracts/http/orgs.js";
 import { type ImportOptions, type ItemSpec, type PlanItem, planImport, type PlanLimits } from "./mapping.js";
 
 /**
@@ -205,7 +206,7 @@ async function createCommunity(ctx: AppContext, imp: ImportRow): Promise<string>
   const { db, ws } = ctx;
   const id = newId("o");
   const t = now();
-  const name = (imp.new_name ?? imp.guild_name).trim().slice(0, 80) || "Community";
+  const name = (imp.new_name ?? imp.guild_name).trim().slice(0, COMMUNITY_NAME_MAX) || "Community";
   let slug = slugify(name);
   if (ws.get("orgs", { slug })) slug = `${slug}-${crypto.randomBytes(3).toString("hex")}`;
   await ws.write((w) => {

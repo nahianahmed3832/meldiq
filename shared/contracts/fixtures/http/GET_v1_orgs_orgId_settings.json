@@ -1,0 +1,13 @@
+{
+  "name": "Settings Club",
+  "accent": null,
+  "background": null,
+  "links": [],
+  "inviteSlug": null,
+  "inviteSlugMinMembers": 5,
+  "memberCount": 4,
+  "onboardingRequired": false,
+  "onboardingRequiredSince": null,
+  "startChannelId": null,
+  "updatedAt": null
+}

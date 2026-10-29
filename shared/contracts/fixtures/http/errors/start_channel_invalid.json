@@ -1,0 +1,9 @@
+{
+  "error": {
+    "code": "start_channel_invalid",
+    "message": "Pick a text channel of this community that everyone can see",
+    "details": {
+      "channelId": "c_j0AHnktUY_msV9CLgpdAkw"
+    }
+  }
+}
