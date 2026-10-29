@@ -316,6 +316,18 @@ export const ChannelListQuery = z.object({ q: z.string().trim().max(40).optional
 
 const INVITE_PROBLEM_CODES = ["invite_not_found", "invite_revoked", "invite_expired", "invite_used_up", "invite_unavailable"] as const;
 
+/** API 0.65.0: leave up to 100 communities at once (Settings › Privacy). */
+export const LEAVE_MANY_MAX = 100;
+export const LeaveOrgsBody = z.strictObject({ orgIds: z.array(z.string().min(1).max(64)).min(1).max(LEAVE_MANY_MAX) });
+export const LeaveOrgsResult = z.strictObject({
+  /** Communities you left. */
+  left: z.array(z.string()),
+  /** Communities you own: owners stay (hand the community over first). */
+  skippedOwned: z.array(z.string()),
+  /** Ids of communities you weren't in (or that don't exist). */
+  notMember: z.array(z.string()),
+});
+
 const community = (c: Omit<Parameters<typeof route>[0], "tag" | "auth"> & { auth?: boolean }) => route({ tag: "communities", auth: true, ...c });
 
 export const orgRoutes = [
@@ -445,6 +457,13 @@ export const orgRoutes = [
     params: OrgMemberParams,
     response: Ok,
     errors: ["not_found", "forbidden", "conflict"],
+  }),
+  community({
+    method: "POST",
+    url: "/v2/orgs/leave",
+    summary: "Leave several communities at once (1 to 100). Communities you own are skipped and listed; each leave is the same as leaving one.",
+    body: LeaveOrgsBody,
+    response: LeaveOrgsResult,
   }),
   community({
     method: "POST",
