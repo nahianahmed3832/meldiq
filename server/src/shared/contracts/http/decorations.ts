@@ -78,9 +78,36 @@ export const SubmitDecorationQuery = z.strictObject({
   original: z.literal("true", { error: "Confirm that you made this yourself" }),
 });
 
+/** API 0.65.0: the most decorations one person can star. */
+export const DECORATION_FAVORITES_MAX = 200;
+export const DecorationFavorites = z.strictObject({
+  /** Decoration ids, newest first (Meldiq's own and community ones; one taken down stays until you unstar it). */
+  favorites: z.array(z.string()),
+  limit: z.number().int(),
+});
+export const DecorationFavoriteChanged = z.strictObject({ decorationId: zDecorationId, favorite: z.boolean(), count: z.number().int().nonnegative() });
+
 const decoration = (extra: Omit<Parameters<typeof route>[0], "tag">) => route({ tag: "users", ...extra });
 
 export const decorationRoutes = [
+  decoration({ method: "GET", url: "/v2/decorations/favorites", auth: true, summary: "The decorations you starred, newest first (up to 200).", response: DecorationFavorites }),
+  decoration({
+    method: "PUT",
+    url: "/v2/decorations/favorites/:decorationId",
+    auth: true,
+    summary: "Star a decoration anyone can wear (Meldiq's own or a community one); starring it again changes nothing.",
+    params: z.strictObject({ decorationId: zDecorationId }),
+    response: DecorationFavoriteChanged,
+    errors: ["not_found", "limit_reached"],
+  }),
+  decoration({
+    method: "DELETE",
+    url: "/v2/decorations/favorites/:decorationId",
+    auth: true,
+    summary: "Unstar a decoration.",
+    params: z.strictObject({ decorationId: zDecorationId }),
+    response: DecorationFavoriteChanged,
+  }),
   decoration({ method: "GET", url: "/v2/decorations", auth: true, summary: "Every decoration anyone can wear: Meldiq's own, then approved community ones (newest first).", response: DecorationCatalog }),
   decoration({
     method: "GET",

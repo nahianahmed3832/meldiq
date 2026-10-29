@@ -3,15 +3,17 @@ import path from "node:path";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod/v4";
 import type { AppContext } from "../../../app/context.js";
-import { SubmitDecorationQuery, zDecorationId } from "../../../shared/contracts/http/decorations.js";
+import { DECORATION_FAVORITES_MAX, SubmitDecorationQuery, zDecorationId } from "../../../shared/contracts/http/decorations.js";
 import { idParams } from "../../../shared/contracts/http/primitives.js";
-import { notFound } from "../../../shared/errors.js";
+import { ApiError, notFound } from "../../../shared/errors.js";
+import { now } from "../../../shared/utilities/util.js";
 import { parse } from "../../../shared/validation/index.js";
 import { me, requireAuth } from "../../auth/index.js";
 import { readBody } from "../profileMediaRoutes.js";
 import { builtinDir, CLASSIC_DECORATIONS, DECORATION_LIMITS } from "./service.js";
 
 const decorationParams = z.strictObject({ id: zDecorationId });
+const favoriteParams = z.strictObject({ decorationId: zDecorationId });
 
 type Image = { type: string; body: NodeJS.ReadableStream | Buffer; immutable: boolean };
 
@@ -24,6 +26,29 @@ function sendImage(reply: FastifyReply, image: Image | null, cache: string) {
 export default async function decorationRoutes(app: FastifyInstance, ctx: AppContext) {
   const auth = { preHandler: requireAuth(ctx), config: { rateLimit: { max: 60, timeWindow: "1 minute" } } };
   const deco = ctx.decorations;
+
+  // API 0.65.0: decorations people starred (up to 200 each).
+  const favorites = deco.favorites;
+  app.get("/v2/decorations/favorites", auth, async (req) => ({ favorites: await favorites.list(me(req).userId), limit: DECORATION_FAVORITES_MAX }));
+
+  app.put("/v2/decorations/favorites/:decorationId", auth, async (req) => {
+    const { userId } = me(req);
+    const { decorationId } = parse(favoriteParams, req.params);
+    if (!deco.wearable(decorationId)) throw notFound("That decoration isn't available");
+    const known = (await favorites.list(userId)).includes(decorationId);
+    if (!known && (await favorites.count(userId)) >= DECORATION_FAVORITES_MAX) {
+      throw new ApiError(409, "limit_reached", `You can star up to ${DECORATION_FAVORITES_MAX} decorations. Unstar one first.`);
+    }
+    if (!known) await favorites.add(userId, decorationId, now());
+    return { decorationId, favorite: true, count: await favorites.count(userId) };
+  });
+
+  app.delete("/v2/decorations/favorites/:decorationId", auth, async (req) => {
+    const { userId } = me(req);
+    const { decorationId } = parse(favoriteParams, req.params);
+    await favorites.remove(userId, decorationId);
+    return { decorationId, favorite: false, count: await favorites.count(userId) };
+  });
 
   app.get("/v2/decorations", auth, async () => ({ decorations: deco.catalog(), classic: [...CLASSIC_DECORATIONS], templateUrl: "/v2/decorations/template" }));
 

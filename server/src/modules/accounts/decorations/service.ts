@@ -14,6 +14,7 @@ import { announceProfileChange } from "../profileEvents.js";
 import { styleOf } from "../profileMedia.js";
 import { BUILTIN_DECORATIONS } from "./builtins.generated.js";
 import type { DecorationStore, StoredDecoration } from "./store.js";
+import { type FavoriteStore, MemoryFavoriteStore } from "./favoritesStore.js";
 
 /** What a submission may be (docs/PROFILE_DECORATIONS.md). */
 export const DECORATION_LIMITS = {
@@ -73,6 +74,8 @@ export class DecorationService {
   constructor(
     private readonly ctx: AppContext,
     readonly store: DecorationStore,
+    /** API 0.65.0: decorations people starred. */
+    readonly favorites: FavoriteStore = new MemoryFavoriteStore(),
   ) {}
 
   async load(): Promise<void> {
