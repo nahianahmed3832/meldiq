@@ -444,7 +444,8 @@ switch (cmd) {
       console.log(`ENV BILLING_RETURN_URL=${site}/account/billing`);
       console.log(`ENV STRIPE_PORTAL_CONFIGURATION=${result.portalConfiguration}`);
       if (result.webhook.secret) console.log(`ENV STRIPE_WEBHOOK_SECRET=${result.webhook.secret}`);
-      console.log(`PRICES ${result.prices.go} ${result.prices.plus}`);
+      // In the order billing-mojo-plans takes them.
+      console.log(`PRICES ${result.prices.go} ${result.prices.plus} ${result.prices.spark}`);
     } else console.log(JSON.stringify({ ...result, webhook: { ...result.webhook, secret: result.webhook.secret ? "(created; not shown)" : null } }, null, 2));
     break;
   }

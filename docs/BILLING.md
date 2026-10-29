@@ -278,6 +278,15 @@ provider (`metadata.meldiq_checkout`), never from a customer id, an owner id in 
 - **Customer portal** (`POST /v2/billing/portal`): only for the owner's stored customer; returns to `BILLING_RETURN_URL`.
   Configure it in the Stripe Dashboard (below).
 
+- **End to end against Stripe's test mode** (`server/test/billing_stripe_e2e.test.ts`, opt-in, skipped otherwise):
+  real Checkout Sessions, subscriptions on test clocks, renewal, a failed renewal (`pm_card_chargeCustomerFail`) into
+  grace and back, cancellation, Sparks by quantity, a gift's one-time payment expiring, and a resent and a late
+  webhook, all delivered by `stripe listen`. Paying on the hosted Checkout page needs a browser, so the test creates
+  the subscription Checkout would create (our checkout id in its metadata). It reuses its own prices
+  (`meldiq_e2e_*` lookup keys) and deletes its test clocks afterwards. Needs the Stripe CLI and a file holding
+  `STRIPE_SECRET_KEY=sk_test_…` (live keys refused):
+  `STRIPE_E2E_KEY_FILE=~/.config/meldiq/stripe-test.env npx vitest run test/billing_stripe_e2e.test.ts`
+
 ### Entitlements API (every client)
 
 `GET /v2/billing/entitlements` with any v2 access token (website: no device; apps: device-bound, same token):
@@ -310,7 +319,8 @@ the Android app never links to the website's checkout. Apple StoreKit would foll
 
 ### Stripe Dashboard setup (owner; can't be done from here)
 
-1. Test mode first. Create product **Meldiq Mojo** with two recurring monthly USD prices: Mojo Go $0.99, Mojo Plus $3.99.
+1. Test mode first. Products **Mojo Go** ($0.99/month) and **Mojo Plus** ($3.99/month), one recurring monthly USD price
+   each (one product per plan: the portal only switches between products with one price per interval; API 0.61.1).
 2. Webhook endpoint `https://msg.meldiq.app/v1/billing/webhooks/stripe` with the events above; copy its `whsec_…`.
 3. Customer portal: allow updating payment methods, invoice history, cancellation at period end, and (optional)
    switching between the two prices.
@@ -403,10 +413,40 @@ bash deploy/scripts/stripe-setup.sh
 ```
 
 It asks for the Stripe **test** secret key (hidden), and on the server: backs `.env` up, stores the key, runs
-`admin.js stripe-setup` (creates or finds the Meldiq Mojo product, the $0.99 and $3.99 monthly USD prices with lookup
-keys `meldiq_mojo_go_monthly` / `meldiq_mojo_plus_monthly`, the webhook endpoint
+`admin.js stripe-setup` (creates or finds the Mojo Go, Mojo Plus and Meldiq Spark products, their $0.99, $3.99 and $0.99
+monthly USD prices with lookup keys `meldiq_mojo_go_monthly` / `meldiq_mojo_plus_monthly` / `meldiq_spark_monthly`, the
+webhook endpoint
 `https://msg.meldiq.app/v1/billing/webhooks/stripe` and a customer portal configuration), writes
 `STRIPE_WEBHOOK_SECRET`, `STRIPE_PORTAL_CONFIGURATION`, `BILLING_RETURN_URL` and `BILLING_PROVIDER=stripe`, restarts the
 API (restoring the backup if it doesn't come back healthy), publishes Mojo Go and Mojo Plus (`admin.js
 billing-mojo-plans`), and prints the public price list. No secret is ever printed. Live keys are refused. Run it again
 safely; `--replace-webhook` makes a new signing secret if the old one was lost. Tax: none collected (owner's decision).
+
+## Going live
+
+`bash deploy/scripts/stripe-setup.sh --live`, from the `meldiq_android` folder on your Mac, once the test-mode setup
+works and Stripe has activated the account for live payments. Needs API 0.61.1 or later (refused before). It:
+
+1. asks for the live secret key (hidden), reads the key's Stripe account (id, name, country, whether it can take
+   payments and pay out) and refuses one that can't take payments yet;
+2. asks you to type `go live`, then copies its server half (`scripts/stripe-setup-remote.sh`) to the server;
+3. on the server: backs `.env` up; refuses if `APP_ENV` is set to anything but `production`; writes
+   `STRIPE_SECRET_KEY`, `BILLING_ALLOW_LIVE=true` and `APP_ENV=production` (until 0.61.0 production ran with
+   `APP_ENV` unset, i.e. development; production makes the API also insist on MongoDB over TLS, real mail and
+   full-strength password hashing, all already true there), and `BILLING_WEB_RETURN_URL` if missing;
+4. runs `admin.js stripe-setup --live`: the live products and the Go, Plus and Spark prices, the webhook endpoint
+   `https://msg.meldiq.app/v1/billing/webhooks/stripe` (its new `whsec_…` into `.env`) and the customer portal. Test
+   and live mode are separate at Stripe, so nothing from test mode carries over;
+5. sets `BILLING_PROVIDER=stripe`, restarts only the API (restoring the backup if it isn't healthy within 90 s), and
+   publishes Mojo Go, Mojo Plus and Spark at the live prices (restoring the backup if that fails).
+
+**The first attempt (2026-10-29 04:28 UTC, API 0.61.0) failed and rolled back:** Stripe refused the portal ("For each
+product, its price must have unique billing intervals") because 0.60.0's setup put both monthly plans on one product.
+API 0.61.1 gives each plan its own product; on the next run it moves the Go and Plus prices that attempt left on the old
+"Meldiq Mojo" product (a new price takes each lookup key, the old one and that product are archived; refused if anyone
+subscribes to them). That attempt also left a live webhook endpoint whose secret was lost with the rolled-back `.env`:
+run `--live --replace-webhook`. Images before 0.61.1 reported only the Go and Plus price ids from `--emit-env`; the
+script still finds Spark's by running the setup once more (never replacing the webhook a second time).
+
+Undo: `BILLING_PROVIDER=none` in `.env` (or the backup it names) and recreate the API: nothing can be bought, existing
+subscriptions keep renewing at Stripe until cancelled there.

@@ -191,31 +191,48 @@ describe("with trials and invite links", () => {
   });
 });
 
-/** Stripe's setup calls, answered like Stripe and remembered between runs. */
+/** Stripe's setup calls, answered like Stripe (including the rules it enforces) and remembered between runs. */
 class FakeStripeSetup implements StripeSetupApi {
-  products: { id: string; metadata: Record<string, string> }[] = [];
-  prices: { id: string; unit_amount: number; currency: string; product: string; lookup_key: string }[] = [];
+  products: { id: string; active: boolean; metadata: Record<string, string> }[] = [];
+  prices: { id: string; active: boolean; unit_amount: number; currency: string; product: string; lookup_key: string | null; interval: string }[] = [];
   webhooks: { id: string; url: string }[] = [];
-  portals: { id: string }[] = [];
+  portals: { id: string; products: { product: string; prices: string[] }[] }[] = [];
+  /** Prices someone subscribes to. */
+  subscribed = new Set<string>();
   calls: string[] = [];
   private n = 0;
-  async findProduct(kind = "mojo") {
-    return this.products.find((p) => p.metadata.meldiq === kind) ?? null;
+  async findProduct(kind: string) {
+    return this.products.find((p) => p.active && p.metadata.meldiq === kind) ?? null;
   }
   async createProduct(p: Stripe.ProductCreateParams) {
-    this.calls.push("createProduct");
-    const prod = { id: `prod_${++this.n}`, metadata: (p.metadata ?? {}) as Record<string, string> };
+    this.calls.push(`createProduct:${p.metadata?.meldiq}`);
+    const prod = { id: `prod_${++this.n}`, active: true, metadata: (p.metadata ?? {}) as Record<string, string> };
     this.products.push(prod);
     return prod;
   }
+  async archiveProduct(id: string) {
+    this.calls.push(`archiveProduct:${id}`);
+    this.products = this.products.map((p) => (p.id === id ? { ...p, active: false } : p));
+  }
   async findPrice(lookupKey: string) {
-    return this.prices.find((p) => p.lookup_key === lookupKey) ?? null;
+    return this.prices.find((p) => p.active && p.lookup_key === lookupKey) ?? null;
   }
   async createPrice(p: Stripe.PriceCreateParams) {
     this.calls.push(`createPrice:${p.lookup_key}`);
-    const price = { id: `price_${++this.n}`, unit_amount: p.unit_amount!, currency: p.currency, product: p.product as string, lookup_key: p.lookup_key! };
+    const holder = this.prices.find((x) => x.lookup_key === p.lookup_key);
+    // Stripe: a lookup key belongs to one price; taking it from another needs transfer_lookup_key.
+    if (holder && !p.transfer_lookup_key) throw new Error(`A price (${holder.id}) already uses the lookup key ${p.lookup_key}`);
+    this.prices = this.prices.map((x) => (x.lookup_key === p.lookup_key ? { ...x, lookup_key: null } : x));
+    const price = { id: `price_${++this.n}`, active: true, unit_amount: p.unit_amount!, currency: p.currency, product: p.product as string, lookup_key: p.lookup_key!, interval: p.recurring!.interval };
     this.prices.push(price);
     return price;
+  }
+  async archivePrice(id: string) {
+    this.calls.push(`archivePrice:${id}`);
+    this.prices = this.prices.map((p) => (p.id === id ? { ...p, active: false } : p));
+  }
+  async priceInUse(id: string) {
+    return this.subscribed.has(id);
   }
   async findWebhook(url: string) {
     return this.webhooks.find((w) => w.url === url) ?? null;
@@ -234,21 +251,35 @@ class FakeStripeSetup implements StripeSetupApi {
   async findPortalConfiguration() {
     return this.portals[0] ?? null;
   }
+  /** Stripe's rules for plan switching in the portal (the one that refused the first live setup, 2026-10-29). */
+  private checkPortal(features: Stripe.BillingPortal.ConfigurationCreateParams.Features | undefined) {
+    const products = features?.subscription_update?.products ?? [];
+    for (const entry of products) {
+      const prices = entry.prices.map((id) => this.prices.find((p) => p.id === id)!);
+      if (prices.some((p) => !p || !p.active || p.product !== entry.product)) throw new Error(`Prices listed for ${entry.product} must be its active prices`);
+      const intervals = prices.map((p) => p.interval);
+      if (new Set(intervals).size !== intervals.length) throw new Error("For each product, its price must have unique billing intervals.");
+    }
+    return products.map((e) => ({ product: e.product, prices: [...e.prices] }));
+  }
   async createPortalConfiguration(p: Stripe.BillingPortal.ConfigurationCreateParams) {
     this.calls.push("createPortal");
     expect(p.features.subscription_cancel).toEqual({ enabled: true, mode: "at_period_end" });
-    const c = { id: `bpc_${++this.n}` };
+    const c = { id: `bpc_${++this.n}`, products: this.checkPortal(p.features) };
     this.portals.push(c);
     return c;
   }
-  async updatePortalConfiguration(id: string) {
+  async updatePortalConfiguration(id: string, p: Stripe.BillingPortal.ConfigurationUpdateParams) {
     this.calls.push("updatePortal");
+    const products = this.checkPortal(p.features as Stripe.BillingPortal.ConfigurationCreateParams.Features);
+    this.portals = this.portals.map((c) => (c.id === id ? { ...c, products } : c));
     return { id };
   }
 }
 
 describe("one-command Stripe setup", () => {
   const opts = { webhookUrl: "https://msg.meldiq.test/v1/billing/webhooks/stripe", siteUrl: "https://meldiq.test" };
+  const productOf = (api: FakeStripeSetup, lookupKey: string) => api.prices.find((p) => p.active && p.lookup_key === lookupKey)?.product;
 
   it("creates the products, the three prices, the webhook and the portal, then finds them again instead of duplicating", async () => {
     const api = new FakeStripeSetup();
@@ -259,20 +290,57 @@ describe("one-command Stripe setup", () => {
     expect(again.prices).toEqual(first.prices);
     expect(again.webhook).toEqual({ id: first.webhook.id, created: false, secret: null });
     expect(api.calls.filter((c) => c.startsWith("create"))).toEqual([
-      "createProduct",
-      "createProduct",
+      "createProduct:go",
+      "createProduct:plus",
+      "createProduct:spark",
       "createPrice:meldiq_mojo_go_monthly",
       "createPrice:meldiq_mojo_plus_monthly",
       "createPrice:meldiq_spark_monthly",
       "createWebhook",
       "createPortal",
     ]);
-    // Sparks are their own product (their own line on invoices).
-    expect(api.prices.find((p) => p.lookup_key === "meldiq_spark_monthly")?.product).not.toBe(api.prices[0]!.product);
+    // Every price on its own product: the portal can switch between Go and Plus (Stripe allows one price per interval
+    // and product there), and Sparks are their own line on invoices.
+    expect(new Set(MOJO_PRICES.map((p) => productOf(api, p.lookupKey))).size).toBe(3);
+    expect(api.portals[0]!.products).toEqual([
+      { product: productOf(api, "meldiq_mojo_go_monthly"), prices: [first.prices.go] },
+      { product: productOf(api, "meldiq_mojo_plus_monthly"), prices: [first.prices.plus] },
+    ]);
     expect(api.calls).toContain("updatePortal");
     const replaced = await stripeSetup(api, { ...opts, replaceWebhook: true });
     expect(replaced.webhook.created).toBe(true);
     expect(api.webhooks).toHaveLength(1);
+  });
+
+  it("moves Go and Plus off the one Meldiq Mojo product API 0.60.0 made, keeping their lookup keys, then archives it", async () => {
+    // What the first live setup left at Stripe (2026-10-29): both plans' prices on one product, the portal refused.
+    const api = new FakeStripeSetup();
+    api.products.push({ id: "prod_old_mojo", active: true, metadata: { meldiq: "mojo" } }, { id: "prod_old_spark", active: true, metadata: { meldiq: "spark" } });
+    api.prices.push(
+      { id: "price_old_go", active: true, unit_amount: 99, currency: "usd", product: "prod_old_mojo", lookup_key: "meldiq_mojo_go_monthly", interval: "month" },
+      { id: "price_old_plus", active: true, unit_amount: 399, currency: "usd", product: "prod_old_mojo", lookup_key: "meldiq_mojo_plus_monthly", interval: "month" },
+      { id: "price_old_spark", active: true, unit_amount: 99, currency: "usd", product: "prod_old_spark", lookup_key: "meldiq_spark_monthly", interval: "month" },
+    );
+    const r = await stripeSetup(api, opts);
+    expect(r.prices.spark).toBe("price_old_spark");
+    expect([r.prices.go, r.prices.plus]).not.toContain("price_old_go");
+    expect(productOf(api, "meldiq_mojo_go_monthly")).not.toBe(productOf(api, "meldiq_mojo_plus_monthly"));
+    expect(api.prices.filter((p) => !p.active).map((p) => p.id)).toEqual(["price_old_go", "price_old_plus"]);
+    expect(api.products.find((p) => p.id === "prod_old_mojo")!.active).toBe(false);
+    expect(r.steps.join("\n")).toMatch(/moved .*price_old_go/);
+    // Nothing left to move: a second run changes nothing.
+    const before = api.calls.length;
+    expect((await stripeSetup(api, opts)).prices).toEqual(r.prices);
+    expect(api.calls.slice(before).filter((c) => /^(create|archive)/.test(c))).toEqual([]);
+  });
+
+  it("won't move a price someone already subscribes to", async () => {
+    const api = new FakeStripeSetup();
+    api.products.push({ id: "prod_old_mojo", active: true, metadata: { meldiq: "mojo" } });
+    api.prices.push({ id: "price_old_go", active: true, unit_amount: 99, currency: "usd", product: "prod_old_mojo", lookup_key: "meldiq_mojo_go_monthly", interval: "month" });
+    api.subscribed.add("price_old_go");
+    await expect(stripeSetup(api, opts)).rejects.toThrow(/price_old_go.*subscri/);
+    expect(api.prices.find((p) => p.id === "price_old_go")!.active).toBe(true);
   });
 
   it("refuses to sell a price someone made by hand at another amount", async () => {
