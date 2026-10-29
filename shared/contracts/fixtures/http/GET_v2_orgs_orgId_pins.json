@@ -1,0 +1,15 @@
+{
+  "pins": [
+    {
+      "id": "p_5jsochsgfos8z5nb",
+      "name": "Top helper",
+      "description": "Answered 100 questions",
+      "imageUrl": "/v2/pins/p_5jsochsgfos8z5nb/image",
+      "animated": true,
+      "holders": 0,
+      "createdAt": 1793277636541
+    }
+  ],
+  "canManage": false,
+  "limit": 30
+}
