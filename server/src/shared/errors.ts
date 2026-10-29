@@ -55,6 +55,9 @@ const FEDERATION_ERROR_CODES = {
 export const ERROR_CODES = {
   account_deleted: { status: [401], meaning: "This account was deleted" },
   account_disabled: { status: [401, 403], meaning: "This account is disabled." },
+  invite_slug_invalid: { status: [400], meaning: "Use 3 to 32 lowercase letters, digits or hyphens (not at either end) that aren't a reserved word." },
+  invite_slug_needs_members: { status: [403], meaning: "A custom invite link opens up once the community has enough members." },
+  invite_slug_taken: { status: [409], meaning: "Another community already uses that invite link." },
   media_engine_unavailable: { status: [503], meaning: "The server's media engine (ffmpeg) isn't installed, so video and audio can't be processed." },
   allow_and_deny: { status: [400], meaning: "An overwrite can't both allow and deny \"…\"" },
   already_migrated: { status: [409], meaning: "This account has already moved to email sign-in. Sign in with …." },
@@ -74,6 +77,8 @@ export const ERROR_CODES = {
   message_too_long: { status: [413], meaning: "The message is longer than the sender's plan allows (characters as people count them), or an older app's encrypted one far larger than it could need." },
   // Server-stored messages (API 0.57.0, docs/SERVER_MESSAGES.md).
   not_yours: { status: [403], meaning: "Only the person who sent a message can edit it, delete it or close its poll." },
+  onboarding_not_finished: { status: [403], meaning: "Finish this community's onboarding before you post or react." },
+  start_channel_invalid: { status: [400], meaning: "The starting channel has to be a text channel of this community that everyone can see." },
   update_required: { status: [426], meaning: "Update Meldiq to keep messaging: messages are now stored on Meldiq's servers." },
   upload_limit: { status: [413], meaning: "The file is larger than the sender's plan, or the community's Spark level, allows." },
   custom_items_limit: { status: [409], meaning: "This account has added as many custom emoji and stickers as its plan allows." },

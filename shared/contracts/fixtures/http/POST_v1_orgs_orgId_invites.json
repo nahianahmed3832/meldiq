@@ -1,14 +1,16 @@
 {
   "invite": {
-    "id": "inv_PUckDbtrFFfTiyRQNzhshg",
-    "code": "4K4K-W7WU-HJZE",
+    "id": "inv_Imwy7i9Bu13JPRb_NXKeyg",
+    "code": "WUCR-DN8N-GNS5",
     "role": "MEMBER",
     "branchId": null,
     "teamId": null,
     "roleId": null,
-    "maxUses": 1,
+    "maxUses": 50,
     "uses": 0,
-    "expiresAt": 1792935874884,
+    "expiresAt": 1793567847186,
+    "neverExpires": false,
+    "noUseLimit": false,
     "guestDays": null
   }
 }

@@ -1,0 +1,9 @@
+{
+  "error": {
+    "code": "invite_slug_invalid",
+    "message": "Use 3 to 32 lowercase letters, digits or hyphens (not at either end) that aren't a reserved word",
+    "details": {
+      "slug": "ab"
+    }
+  }
+}

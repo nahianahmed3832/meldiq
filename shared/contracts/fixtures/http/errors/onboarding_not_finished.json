@@ -1,0 +1,9 @@
+{
+  "error": {
+    "code": "onboarding_not_finished",
+    "message": "Finish this community's onboarding before you post or react",
+    "details": {
+      "orgId": "o_AIdxoxWOelbAoyybAG6wag"
+    }
+  }
+}

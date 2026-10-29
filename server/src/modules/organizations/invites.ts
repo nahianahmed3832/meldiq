@@ -21,7 +21,19 @@ export interface OrgInviteRow {
   expires_at: number;
   revoked_at: number | null;
   created_by: string;
+  /** Set (not stored) when the code was a community's custom invite link (community parity A3). */
+  via_slug?: true;
 }
+
+/**
+ * Community parity A3: invitations that never expire and have no use limit keep these in their NOT NULL columns, so
+ * every existing check (expiry, uses) treats them as always valid; views report them as neverExpires / noUseLimit.
+ */
+export const NEVER_EXPIRES_AT = Date.UTC(9999, 11, 31);
+export const NO_USE_LIMIT = 1_000_000_000;
+
+/** A custom invite link's form: 3–32 lowercase letters, digits and hyphens, not starting or ending with a hyphen. */
+export const INVITE_SLUG = /^[a-z0-9](?:[a-z0-9-]{1,30})[a-z0-9]$/;
 
 export interface RegistrationInviteRow {
   id: string;
@@ -48,9 +60,18 @@ export const INVITE_PROBLEMS: Record<InviteProblem, string> = {
   invite_unavailable: "This invite can no longer be used: whoever created it can't invite people there any more. Ask for a new one.",
 };
 
-/** The org invitation stored for this code (usable or not), or undefined if no invitation has that code. */
+/**
+ * The org invitation stored for this code (usable or not), or undefined if no invitation has that code. A code that
+ * isn't one may be a community's custom invite link (community parity A3): its invitation, marked [via_slug].
+ */
 export function lookupOrgInvite(rows: RowReader, code: string): OrgInviteRow | undefined {
-  return rows.get<OrgInviteRow>("invitations", { code_hash: sha256Hex(normalizeCode(code)) });
+  const byCode = rows.get<OrgInviteRow>("invitations", { code_hash: sha256Hex(normalizeCode(code)) });
+  if (byCode) return byCode;
+  const slug = code.trim().toLowerCase();
+  if (!INVITE_SLUG.test(slug)) return undefined;
+  const vanity = rows.get<{ invite_id: string }>("community_vanity_invites", { slug });
+  const inv = vanity ? rows.get<OrgInviteRow>("invitations", { id: vanity.invite_id }) : undefined;
+  return inv ? { ...inv, via_slug: true } : undefined;
 }
 
 /**
@@ -58,7 +79,7 @@ export function lookupOrgInvite(rows: RowReader, code: string): OrgInviteRow | u
  * an invite made by someone who has since been demoted or removed stops working.
  */
 export function orgInviteProblem(authz: Authz, inv: OrgInviteRow | undefined): InviteProblem | null {
-  if (!inv) return "invite_not_found";
+  if (!inv || (inv.via_slug && !authz.inviteSlugsOn())) return "invite_not_found";
   if (inv.revoked_at) return "invite_revoked";
   if (inv.expires_at <= now()) return "invite_expired";
   if (inv.uses >= inv.max_uses) return "invite_used_up";

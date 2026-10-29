@@ -103,6 +103,8 @@ const prefsFields = {
     .optional(),
   /** Community documents only: channels hidden from the person's channel list (they stay joined). */
   hidden: z.array(zConversationId).max(PREFS_LIMITS.hidden).optional(),
+  /** Community parity A3, personal document only: show communities' accent and background tint (false: Meldiq's own). */
+  communityThemes: z.boolean().optional(),
 };
 
 export const NavPrefs = z.strictObject(prefsFields);

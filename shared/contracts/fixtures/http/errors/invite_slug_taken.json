@@ -1,0 +1,9 @@
+{
+  "error": {
+    "code": "invite_slug_taken",
+    "message": "Another community already uses that invite link",
+    "details": {
+      "slug": "settings-club"
+    }
+  }
+}

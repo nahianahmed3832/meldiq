@@ -94,7 +94,7 @@ export function categoryViews(ctx: AppContext, orgId: string, userId: string) {
 }
 
 /** What a plain member without roles sees: the preview of a public community shows only these channels. */
-function visibleToEveryone(ctx: AppContext, conv: ConversationRow): boolean {
+export function visibleToEveryone(ctx: AppContext, conv: ConversationRow): boolean {
   if (conv.kind === "PRIVATE" || conv.archived_at) return false;
   const levels = [conv.category_id ? ctx.authz.overwrites("category", conv.category_id) : [], ctx.authz.overwrites("channel", conv.id)];
   const perms = channelPermissions({ base: "MEMBER", userId: "", perms: BASE_ROLE_PERMISSIONS.MEMBER, roleIds: [], restricted: new Set() }, levels);

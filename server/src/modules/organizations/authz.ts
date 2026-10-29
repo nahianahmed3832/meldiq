@@ -71,6 +71,10 @@ export class Authz {
   rulesChannelId: (orgId: string) => string | null = () => null;
   /** API 0.65.0: whether [userId] must agree to [orgId]'s rules before posting or reacting. Set by CommunityRules. */
   mustAgreeRules: (orgId: string, userId: string) => boolean = () => false;
+  /** Community parity A3: whether [userId] must finish [orgId]'s onboarding before posting. Set by CommunitySettings. */
+  mustFinishOnboarding: (orgId: string, userId: string) => boolean = () => false;
+  /** Community parity A3: whether custom invite links resolve (feature "community-settings"). Set by CommunitySettings. */
+  inviteSlugsOn: () => boolean = () => false;
 
   /** Set only while [reconcileCommunity] runs: overwrites and channel actors read once per target and person. */
   private overwriteCache: Map<string, Overwrite[]> | null = null;

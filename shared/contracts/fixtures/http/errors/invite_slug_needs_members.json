@@ -1,0 +1,10 @@
+{
+  "error": {
+    "code": "invite_slug_needs_members",
+    "message": "A custom invite link opens up once the community has 5 members",
+    "details": {
+      "minMembers": 5,
+      "members": 4
+    }
+  }
+}

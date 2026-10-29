@@ -13,7 +13,9 @@ import { listMediaFields } from "./users.js";
 // ───────────── Shared pieces ─────────────
 
 export const OrgRole = z.enum(["OWNER", "ADMIN", "MEMBER", "GUEST"]);
-const zName = z.string().trim().min(1).max(80);
+/** A community's name: up to 100 characters (community parity A3; 80 before). */
+export const COMMUNITY_NAME_MAX = 100;
+export const zCommunityName = z.string().trim().min(1).max(COMMUNITY_NAME_MAX);
 const zText = z.string().trim().max(500);
 const zOptText = zText.nullable().optional();
 
@@ -38,8 +40,9 @@ const zRetired = z.array(z.never()).max(0);
 export const OrgParams = z.object({ orgId: z.string().max(64) });
 export const OrgMemberParams = z.object({ orgId: z.string().max(64), userId: z.string().max(64) });
 export const InviteIdParams = z.object({ id: z.string().max(64) });
-export const InviteCodeParams = z.object({ code: z.string().min(8).max(40) });
-export const InviteCodeBody = z.object({ code: z.string().min(8).max(40) });
+/** An invitation code, or (community parity A3) a community's custom invite link of 3 or more characters. */
+export const InviteCodeParams = z.object({ code: z.string().min(3).max(40) });
+export const InviteCodeBody = z.object({ code: z.string().min(3).max(40) });
 
 const Ok = z.strictObject({ ok: z.literal(true) });
 
@@ -64,6 +67,30 @@ export const RulesSummary = z.strictObject({
   /** Whether the viewer must agree before posting now. */
   mustAgree: z.boolean(),
 });
+
+/** One of a community's links (community parity A3): a label and an https address. */
+export const CommunityLink = z.strictObject({ label: z.string(), url: z.string() });
+
+/**
+ * What community views carry from its settings (community parity A3, feature "community-settings"; absent while it's
+ * off). The onboarding fields are there for members only.
+ */
+const communitySettingsFields = {
+  /** The background tint ("#rrggbb"), null for none. Members may turn community themes off (personal preferences). */
+  background: z.string().nullable().optional(),
+  /** Up to five links shown on the community's profile. */
+  links: z.array(CommunityLink).optional(),
+  /** The custom invite link's slug (meldiq.app/invite/<slug>), null without one. */
+  inviteSlug: z.string().nullable().optional(),
+  /** New members must finish onboarding before they post or react (when onboarding is on). */
+  onboardingRequired: z.boolean().optional(),
+  /** Whether the viewer has finished onboarding (members who joined before it was required may never have). */
+  onboardingDone: z.boolean().optional(),
+  /** Where people land when they finish onboarding; null: wherever they'd usually go. */
+  startChannelId: z.string().nullable().optional(),
+  /** Whether the viewer must finish onboarding before posting now. */
+  mustFinishOnboarding: z.boolean().optional(),
+};
 
 /** A community as one of its members sees it (orgSummary). */
 export const CommunityView = z.strictObject({
@@ -103,6 +130,7 @@ export const CommunityView = z.strictObject({
   activityAlert: z.strictObject({ kind: z.literal("joins"), count: zCount, at: zTime }).nullable(),
   /** API 0.65.0: the rules channel and whether the viewer has to agree to the rules (absent without either). */
   rulesChannel: RulesSummary.optional(),
+  ...communitySettingsFields,
 });
 export const CommunityOnly = z.strictObject({ org: CommunityView });
 
@@ -178,6 +206,10 @@ export const InviteListItem = z.strictObject({
   uses: zCount,
   createdAt: zTime,
   expiresAt: zTime,
+  /** Community parity A3: it never expires ([expiresAt] is then far in the future). */
+  neverExpires: z.boolean(),
+  /** Community parity A3: anyone may use it, any number of times ([maxUses] is then very large). */
+  noUseLimit: z.boolean(),
   revokedAt: zTime.nullable(),
   active: z.boolean(),
   /** One state: revoked beats expired beats used up. */
@@ -197,6 +229,8 @@ export const CreatedInvite = z.strictObject({
   maxUses: zCount,
   uses: z.literal(0),
   expiresAt: zTime,
+  neverExpires: z.boolean(),
+  noUseLimit: z.boolean(),
   guestDays: zCount.nullable(),
 });
 
@@ -262,7 +296,7 @@ export const CommunityDetail = z.strictObject({
 // ───────────── Inputs ─────────────
 
 export const OrgCreateBody = z.object({
-  name: zName,
+  name: zCommunityName,
   description: zOptText,
   /** One per create form: a retry with the same id answers the first result. */
   requestId: z.string().trim().min(8).max(64).optional(),
@@ -275,7 +309,7 @@ export const OrgCreateBody = z.object({
 });
 
 export const OrgUpdateBody = z.object({
-  name: zName.optional(),
+  name: zCommunityName.optional(),
   description: zOptText,
   kind: zOrgKind.optional(),
   visibility: Visibility.optional(),
@@ -304,12 +338,15 @@ export const InviteCreateBody = z.object({
   teamId: z.string().max(64).nullable().optional(),
   /** A custom role the invitation gives on joining (the inviter must be able to assign it). */
   roleId: z.string().max(64).nullable().optional(),
-  maxUses: z.number().int().min(1).max(500).default(1),
+  /** null (community parity A3, member invitations only): no use limit. */
+  maxUses: z.number().int().min(1).max(500).nullable().default(1),
+  /** null (community parity A3, member invitations only): it never expires. */
   expiresInHours: z
     .number()
     .int()
     .min(1)
     .max(24 * 30)
+    .nullable()
     .default(72),
   /** How long a guest's membership lasts once they join. */
   guestDays: z.number().int().min(1).max(365).nullish(),
@@ -537,6 +574,9 @@ export const orgRoutes = [
         /** Its look (API 0.44.0): the accent, and the banner's revision (GET /v1/invites/:code/banner). */
         accent: z.string().nullable(),
         bannerRev: zTime.nullable(),
+        /** Community parity A3: its background tint and links (absent while the feature is off). */
+        background: z.string().nullable().optional(),
+        links: z.array(CommunityLink).optional(),
       }),
       role: z.enum(["ADMIN", "MEMBER", "GUEST"]),
       branch: z.null(),

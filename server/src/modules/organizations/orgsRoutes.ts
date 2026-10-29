@@ -32,7 +32,7 @@ import { activityAlert, noteJoin } from "./activityAlerts.js";
 import { joinQuestions } from "./applicationsRoutes.js";
 import { guideOf } from "./guideRoutes.js";
 import { onboardingOn } from "./onboardingRoutes.js";
-import { INVITE_PROBLEMS, inviteAlreadySatisfied, joinOrgByInvite, lookupOrgInvite, orgInviteProblem } from "./invites.js";
+import { INVITE_PROBLEMS, inviteAlreadySatisfied, joinOrgByInvite, lookupOrgInvite, NEVER_EXPIRES_AT, NO_USE_LIMIT, orgInviteProblem } from "./invites.js";
 import { userSummary } from "../auth/routes.js";
 import { deleteBlobNow, processBlobDeletes, queueBlobDelete } from "../files/routes.js";
 import { bannerBlobId, photoBlobId, storePhoto } from "../accounts/photos.js";
@@ -109,6 +109,8 @@ export function orgSummary(ctx: AppContext, org: any, userId: string) {
     activityAlert: activityAlert(ctx, org, userId, Date.now()),
     // API 0.65.0: the rules channel (members only; absent without a rules channel or rules).
     ...(role ? ctx.communityRules.summary(org.id, userId) : {}),
+    // Community parity A3: background tint, links, custom invite link, and the member's onboarding.
+    ...ctx.communitySettings.summary(org.id, userId, !!role),
   };
 }
 
@@ -131,6 +133,7 @@ export async function removeFromWorkspace(ctx: AppContext, orgId: string, userId
   // Their arrangement of this community (starred, sections) goes with them, and so does agreeing to its rules.
   await ctx.prefs.deleteForMember(userId, orgId);
   await ctx.communityRules.forgetMember(orgId, userId);
+  await ctx.communitySettings.forgetMember(orgId, userId);
   const action = { left: "member.leave", removed: "member.remove", expired: "member.expire", banned: "member.ban" }[reason];
   ctx.audit({ actorId, orgId, action, target: userId });
   notifyOrg(ctx, orgId);
@@ -632,6 +635,13 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     if (body.branchId || body.teamId) throw badRequest("Branches and teams are now roles: invite with a role instead");
     if (body.role === "ADMIN" && actorRole !== "OWNER") throw forbidden("Only owners can invite admins");
     if (!authz.canIssueInvite(orgId, actor, body.role)) throw forbidden("Your role doesn't include inviting people");
+    // Community parity A3: member invitations may never expire and have no use limit; admin and guest ones keep both.
+    const neverExpires = body.expiresInHours === null;
+    const noUseLimit = body.maxUses === null;
+    if (neverExpires || noUseLimit) {
+      ctx.communitySettings.requireEnabled();
+      if (body.role !== "MEMBER") throw badRequest("Only member invitations can last forever or have no use limit");
+    }
     const grantRoleId = body.roleId ?? null;
     if (grantRoleId) {
       if (body.role === "GUEST") throw badRequest("Guest invitations can't give a role");
@@ -647,7 +657,8 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const code = humanCode(12);
     const id = newId("inv");
     const t = now();
-    const expiresAt = t + body.expiresInHours * 3600_000;
+    const expiresAt = body.expiresInHours === null ? NEVER_EXPIRES_AT : t + body.expiresInHours * 3600_000;
+    const maxUses = body.maxUses ?? NO_USE_LIMIT;
     await ws.write((w) =>
       w.insert("invitations", {
         id,
@@ -657,7 +668,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
         role: body.role,
         branch_id: null,
         team_id: null,
-        max_uses: body.maxUses,
+        max_uses: maxUses,
         created_by: actor,
         created_at: t,
         expires_at: expiresAt,
@@ -667,7 +678,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     );
     ctx.audit({ actorId: actor, orgId, action: "invite.create", target: id, detail: body.role });
     return {
-      invite: { id, code: `${code.slice(0, 4)}-${code.slice(4, 8)}-${code.slice(8)}`, role: body.role, branchId: null, teamId: null, roleId: grantRoleId, maxUses: body.maxUses, uses: 0, expiresAt, guestDays },
+      invite: { id, code: `${code.slice(0, 4)}-${code.slice(4, 8)}-${code.slice(8)}`, role: body.role, branchId: null, teamId: null, roleId: grantRoleId, maxUses, uses: 0, expiresAt, neverExpires, noUseLimit, guestDays },
     };
   });
 
@@ -694,6 +705,8 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
           uses: r.uses,
           createdAt: r.created_at,
           expiresAt: r.expires_at,
+          neverExpires: r.expires_at >= NEVER_EXPIRES_AT,
+          noUseLimit: r.max_uses >= NO_USE_LIMIT,
           revokedAt: r.revoked_at,
           active: inviteStatus(r, t) === "active",
           // One state, in this order: revoked beats expired beats used up (docs/WORKSPACE_ADMINISTRATION.md).
@@ -741,6 +754,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
         memberCount: ws.count("org_members", { org_id: org.id }),
         accent: org.accent ?? null,
         bannerRev: org.banner_rev ?? null,
+        ...ctx.communitySettings.profile(org.id),
       },
       role: inv.role,
       branch: null,
