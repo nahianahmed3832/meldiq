@@ -8,6 +8,13 @@ let h: Harness;
 let owner: GriipClient, admin: GriipClient, member: GriipClient, outsider: GriipClient;
 let orgId: string, privateOrg: string, code: string;
 
+/** A GIF of [frames] frames of [w] × [h] (see profile_media.test.ts): enough for the server's parser. */
+function gif(w: number, h: number, frames: number): Buffer {
+  const head = Buffer.concat([Buffer.from("GIF89a"), Buffer.from([w & 255, w >> 8, h & 255, h >> 8, 0x80, 0, 0]), Buffer.from([0, 0, 0, 255, 255, 255])]);
+  const frame = Buffer.concat([Buffer.from([0x21, 0xf9, 4, 0, 10, 0, 0, 0]), Buffer.from([0x2c, 0, 0, 0, 0, w & 255, w >> 8, h & 255, h >> 8, 0]), Buffer.from([2, 2, 0x44, 0x01, 0])]);
+  return Buffer.concat([head, ...Array.from({ length: frames }, () => frame), Buffer.from([0x3b])]);
+}
+
 const jpeg = (n: number) => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), crypto.randomBytes(n), Buffer.from([0xff, 0xd9])]);
 
 beforeAll(async () => {
@@ -98,5 +105,28 @@ describe("community branding", () => {
     expect(res.headers.get("content-type")).toBe("image/jpeg");
     expect(Buffer.compare(Buffer.from(await res.arrayBuffer()), icon)).toBe(0);
     expect((await fetch(`${h.baseUrl}/v1/invites/AAAA-BBBB-CCCC/photo`)).status).toBe(404);
+  });
+
+  it("takes an animated GIF icon and banner (API 0.64.0) and serves them as GIFs, checking their size and frames", async () => {
+    const icon = gif(256, 256, 12);
+    await expectStatus(member.req("PUT", `/v1/orgs/${orgId}/photo`, undefined, icon), 403);
+    await owner.req("PUT", `/v1/orgs/${orgId}/photo`, undefined, icon);
+    const res = await fetch(`${h.baseUrl}/v1/invites/${code}/photo`);
+    expect(res.headers.get("content-type")).toBe("image/gif");
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(Buffer.compare(Buffer.from(await res.arrayBuffer()), icon)).toBe(0);
+    expect(Buffer.compare(await member.req("GET", `/v1/orgs/${orgId}/photo`), icon)).toBe(0);
+    await expectStatus(owner.req("PUT", `/v1/orgs/${orgId}/photo`, undefined, gif(2000, 2000, 2)), 400);
+    await expectStatus(owner.req("PUT", `/v1/orgs/${orgId}/photo`, undefined, gif(64, 64, 601)), 400);
+
+    const banner = gif(1200, 480, 20);
+    await owner.req("PUT", `/v1/orgs/${orgId}/banner`, undefined, banner);
+    const b = await fetch(`${h.baseUrl}/v1/invites/${code}/banner`);
+    expect(b.headers.get("content-type")).toBe("image/gif");
+    expect(Buffer.compare(Buffer.from(await b.arrayBuffer()), banner)).toBe(0);
+    await expectStatus(owner.req("PUT", `/v1/orgs/${orgId}/banner`, undefined, gif(4000, 480, 2)), 400);
+    // A still JPEG afterwards is served as a JPEG again.
+    await owner.req("PUT", `/v1/orgs/${orgId}/banner`, undefined, jpeg(2000));
+    expect((await fetch(`${h.baseUrl}/v1/invites/${code}/banner`)).headers.get("content-type")).toBe("image/jpeg");
   });
 });

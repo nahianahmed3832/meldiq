@@ -78,6 +78,10 @@ import decorationRoutes from "../modules/accounts/decorations/routes.js";
 import { DecorationService } from "../modules/accounts/decorations/service.js";
 import { MemoryDecorationStore } from "../modules/accounts/decorations/store.js";
 import { MongoDecorationStore } from "../modules/accounts/decorations/mongoStore.js";
+import pinRoutes from "../modules/accounts/pins/routes.js";
+import { PinService } from "../modules/accounts/pins/service.js";
+import { MemoryPinStore } from "../modules/accounts/pins/store.js";
+import { MongoPinStore } from "../modules/accounts/pins/mongoStore.js";
 import { ActivityService } from "../modules/accounts/activity/service.js";
 import { MemoryActivityStore } from "../modules/accounts/activity/store.js";
 import { MongoActivityStore } from "../modules/accounts/activity/mongoStore.js";
@@ -98,7 +102,7 @@ import { now } from "../shared/utilities/util.js";
 import wsRoutes from "../modules/realtime/ws.js";
 import { Billing, billingRoutes } from "../modules/billing/index.js";
 
-export const VERSION = "0.63.0";
+export const VERSION = "0.64.0";
 /**
  * The client API this server speaks and the oldest client API it accepts. Clients refuse a server whose
  * minClientApi is newer than theirs; servers from before these fields existed count as API 1.
@@ -246,6 +250,11 @@ export async function buildApp(
   if (decorationStore instanceof MongoDecorationStore) await decorationStore.ensureIndexes();
   ctx.decorations = new DecorationService(ctx, decorationStore);
   await ctx.decorations.load();
+  // API 0.64.0: community pins (docs/PROFILE_PINS.md), new data, so MongoDB whenever there is one.
+  const pinStore = ctx.mongo ? new MongoPinStore(ctx.mongo) : new MemoryPinStore();
+  if (pinStore instanceof MongoPinStore) await pinStore.ensureIndexes();
+  ctx.pins = new PinService(ctx, pinStore);
+  await ctx.pins.load();
   ctx.reportSealer = ReportSealer.load(process.env, config.dataDir);
   // Billing (plans, subscriptions, Meldiq Spark, gifts): rows in SQLite, or MongoDB when MONGODB_DOMAINS includes it.
   ctx.billing = new Billing(await openBillingRows(db, ctx.mongo, app.log), config.billing, app.log, Date.now, (id) => ctx.quotas.planExists(id));
@@ -473,7 +482,7 @@ export async function buildApp(
     passkeys: ctx.accounts.passkeys.available ? { webOrigins: ctx.accounts.passkeys.webOrigins } : null,
   }));
 
-  for (const r of [authRoutes, userRoutes, profileMediaRoutes, gifRoutes, bugReportRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, serverMessagesRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, activityRoutes, decorationRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, expressionRoutes, discordRoutes, wsRoutes]) {
+  for (const r of [authRoutes, userRoutes, profileMediaRoutes, gifRoutes, bugReportRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, serverMessagesRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, activityRoutes, decorationRoutes, pinRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, expressionRoutes, discordRoutes, wsRoutes]) {
     await app.register(async (scope) => r(scope, ctx));
   }
   await app.register(async (scope) => opsRoutes(scope, ctx, VERSION));
@@ -610,6 +619,9 @@ export function serverFeatures(config: Config, directUploads = false): string[] 
     "server-messages",
     // API 0.61.0 (docs/PROFILE_DECORATIONS.md): Meldiq's own decorations and reviewed community ones (/v2/decorations).
     "profile-decorations",
+    // API 0.64.0 (docs/PROFILE_PINS.md): pins on profiles, Meldiq's for milestones and communities' own; animated community icons and banners.
+    "profile-pins",
+    "animated-community-images",
   ];
   if (config.accounts.legacy.migration) f.push("legacy-migration");
   if (directUploads) f.push("direct-upload");

@@ -4,6 +4,7 @@ import { photoBlobId, readJpegBody, storePhoto } from "./photos.js";
 import { type AppContext } from "../../app/context.js";
 import { wornTag } from "./profileMedia.js";
 import { isBugHunter } from "./bugReports.js";
+import type { ProfilePin } from "../../shared/contracts/http/pins.js";
 import { me, requireAuth } from "../auth/index.js";
 import { parse } from "../../shared/validation/index.js";
 import { UserIdParams } from "../../shared/contracts/http/auth.js";
@@ -311,6 +312,8 @@ export default async function userRoutes(app: FastifyInstance, ctx: AppContext) 
         ...(r.blockedByTarget ? {} : { memberSince: u.created_at, mutualCommunities: mutualCommunities(ctx, viewer, u.id) }),
         // API 0.61.0: the Artist badge.
         ...(ctx.decorations.isArtist(u.id) ? { decorationArtist: true as const } : {}),
+        // API 0.64.0: pins (Meldiq's for milestones, communities' own); someone they blocked sees none.
+        ...pinsField(r.blockedByTarget ? [] : ctx.pins.profilePins(u.id, viewer)),
       },
     };
   });
@@ -372,6 +375,8 @@ export default async function userRoutes(app: FastifyInstance, ctx: AppContext) 
 }
 
 /** Communities both [viewer] and [userId] are in, with when [userId] joined each, newest first (at most 50). */
+const pinsField = (pins: ProfilePin[]) => (pins.length ? { pins } : {});
+
 function mutualCommunities(ctx: AppContext, viewer: string, userId: string): { id: string; name: string; photoRev: number | null; joinedAt: number }[] {
   if (viewer === userId) return [];
   const mine = new Set(ctx.ws.all<{ org_id: string }>("org_members", { where: { user_id: viewer } }).map((m) => m.org_id));
