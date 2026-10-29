@@ -1,0 +1,86 @@
+{
+  "settings": {
+    "enabled": true,
+    "tagline": null,
+    "buttons": [],
+    "about": null,
+    "mainChannelIds": [],
+    "faq": [],
+    "showWhoRunsIt": true,
+    "look": {
+      "layout": "classic",
+      "accent": "auto",
+      "background": "glow",
+      "cards": "filled",
+      "font": "default",
+      "bannerHeight": "normal",
+      "title": "left"
+    },
+    "sections": [
+      {
+        "key": "about",
+        "shown": true,
+        "column": "main"
+      },
+      {
+        "key": "main_channels",
+        "shown": true,
+        "column": "main"
+      },
+      {
+        "key": "live_now",
+        "shown": true,
+        "column": "main"
+      },
+      {
+        "key": "giveaways",
+        "shown": true,
+        "column": "main"
+      },
+      {
+        "key": "feed",
+        "shown": true,
+        "column": "main"
+      },
+      {
+        "key": "faq",
+        "shown": true,
+        "column": "main"
+      },
+      {
+        "key": "leaderboard",
+        "shown": true,
+        "column": "side"
+      },
+      {
+        "key": "pick_roles",
+        "shown": true,
+        "column": "side"
+      },
+      {
+        "key": "rules",
+        "shown": true,
+        "column": "side"
+      },
+      {
+        "key": "who_runs_it",
+        "shown": true,
+        "column": "side"
+      },
+      {
+        "key": "links",
+        "shown": true,
+        "column": "side"
+      }
+    ],
+    "leaderboards": [
+      "levels",
+      "messages_week",
+      "invites"
+    ]
+  },
+  "rev": 0,
+  "updatedAt": null,
+  "canEdit": false,
+  "feed": null
+}

@@ -1,0 +1,113 @@
+{
+  "settings": {
+    "enabled": true,
+    "tagline": "Make things together",
+    "buttons": [
+      {
+        "label": "Chat",
+        "url": null,
+        "channelId": "c_pmUlspHOzb-O0vMa7AkNLw"
+      },
+      {
+        "label": "Site",
+        "url": "https://example.com/club",
+        "channelId": null
+      },
+      {
+        "label": "Staff",
+        "url": null,
+        "channelId": "c_Vbw4ZNyTsLlqvPUENUe7nw"
+      }
+    ],
+    "about": "**Welcome!** Say hi.",
+    "mainChannelIds": [],
+    "faq": [
+      {
+        "id": "faq_m-7eINDiXvHJ",
+        "question": "Is it free?",
+        "answer": "Yes."
+      },
+      {
+        "id": "keep_me",
+        "question": "Who runs it?",
+        "answer": "See the card."
+      }
+    ],
+    "showWhoRunsIt": true,
+    "look": {
+      "layout": "classic",
+      "accent": "#8b5cf6",
+      "background": "mesh",
+      "cards": "glass",
+      "font": "display",
+      "bannerHeight": "tall",
+      "title": "left"
+    },
+    "sections": [
+      {
+        "key": "live_now",
+        "shown": true,
+        "column": "main"
+      },
+      {
+        "key": "main_channels",
+        "shown": true,
+        "column": "main"
+      },
+      {
+        "key": "giveaways",
+        "shown": true,
+        "column": "main"
+      },
+      {
+        "key": "feed",
+        "shown": true,
+        "column": "main"
+      },
+      {
+        "key": "about",
+        "shown": true,
+        "column": "main"
+      },
+      {
+        "key": "faq",
+        "shown": true,
+        "column": "main"
+      },
+      {
+        "key": "leaderboard",
+        "shown": true,
+        "column": "side"
+      },
+      {
+        "key": "pick_roles",
+        "shown": true,
+        "column": "side"
+      },
+      {
+        "key": "rules",
+        "shown": true,
+        "column": "side"
+      },
+      {
+        "key": "who_runs_it",
+        "shown": true,
+        "column": "side"
+      },
+      {
+        "key": "links",
+        "shown": false,
+        "column": "side"
+      }
+    ],
+    "leaderboards": [
+      "levels",
+      "messages_week",
+      "invites"
+    ]
+  },
+  "rev": 5,
+  "updatedAt": 1793309688115,
+  "canEdit": true,
+  "feed": null
+}

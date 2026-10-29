@@ -114,6 +114,8 @@ export function orgSummary(ctx: AppContext, org: any, userId: string) {
     ...ctx.communitySettings.summary(org.id, userId, !!role),
     // Community parity A2: the lock for members, the safety settings for people who edit the community or ban.
     ...ctx.communitySafety.summary(org.id, userId),
+    // Community parity B: whether the lobby is on and the member has seen it (members only; absent while switched off).
+    ...(role ? ctx.lobby.summary(org.id, userId) : {}),
   };
 }
 
@@ -138,6 +140,7 @@ export async function removeFromWorkspace(ctx: AppContext, orgId: string, userId
   await ctx.communityRules.forgetMember(orgId, userId);
   await ctx.communitySettings.forgetMember(orgId, userId);
   await ctx.communitySafety.forgetMember(orgId, userId);
+  await ctx.lobby.forgetMember(orgId, userId);
   const action = { left: "member.leave", removed: "member.remove", expired: "member.expire", banned: "member.ban" }[reason];
   ctx.audit({ actorId, orgId, action, target: userId });
   notifyOrg(ctx, orgId);

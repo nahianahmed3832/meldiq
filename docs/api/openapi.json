@@ -81,7 +81,7 @@
       "name": "community-rules"
     },
     {
-      "name": "community-safety"
+      "name": "community-lobby"
     },
     {
       "name": "reports"
@@ -763,7 +763,7 @@
             }
           },
           "default": {
-            "description": "Error. Codes: not_found, forbidden, timed_out, community_locked_posting, verification_required, voice_channel, bad_clock, conflict, bad_signature, slowmode, request_pending, request_limit, mention_all_not_in_dm, mention_all_not_allowed, mention_all_rate_limited, device_mismatch, federation_disabled",
+            "description": "Error. Codes: not_found, forbidden, timed_out, voice_channel, bad_clock, conflict, bad_signature, slowmode, request_pending, request_limit, mention_all_not_in_dm, mention_all_not_allowed, mention_all_rate_limited, device_mismatch, federation_disabled",
             "content": {
               "application/json": {
                 "schema": {
@@ -1102,7 +1102,7 @@
             }
           },
           "default": {
-            "description": "Error. Codes: not_found, forbidden, timed_out, rules_channel, rules_not_agreed, community_locked_posting, verification_required, voice_channel, bad_clock, conflict, slowmode, request_pending, request_limit, message_too_long, not_yours, mention_all_not_in_dm, mention_all_not_allowed, mention_all_rate_limited",
+            "description": "Error. Codes: not_found, forbidden, timed_out, rules_channel, rules_not_agreed, voice_channel, bad_clock, conflict, slowmode, request_pending, request_limit, message_too_long, not_yours, mention_all_not_in_dm, mention_all_not_allowed, mention_all_rate_limited",
             "content": {
               "application/json": {
                 "schema": {
@@ -3970,7 +3970,7 @@
             }
           },
           "default": {
-            "description": "Error. Codes: not_found, conflict, request_pending, media_unavailable, text_channel_no_calls, call_full, forbidden, voice_banned",
+            "description": "Error. Codes: not_found, conflict, request_pending, media_unavailable, text_channel_no_calls, call_full, forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -5056,7 +5056,7 @@
             }
           },
           "default": {
-            "description": "Error. Codes: not_found, call_ended, call_full, media_unavailable, forbidden, voice_banned",
+            "description": "Error. Codes: not_found, call_ended, call_full, media_unavailable, forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -21578,76 +21578,19 @@
                           ],
                           "additionalProperties": false
                         },
-                        "lockedUntil": {
-                          "anyOf": [
-                            {
-                              "type": "integer",
-                              "minimum": 0,
-                              "maximum": 9007199254740991
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "safety": {
+                        "lobby": {
                           "type": "object",
                           "properties": {
-                            "verificationLevel": {
-                              "type": "string",
-                              "enum": [
-                                "none",
-                                "low",
-                                "medium",
-                                "high"
-                              ]
-                            },
-                            "newAccountGate": {
-                              "type": "string",
-                              "enum": [
-                                "off",
-                                "10m",
-                                "1h",
-                                "1d",
-                                "7d"
-                              ]
-                            },
-                            "raidProtection": {
+                            "enabled": {
                               "type": "boolean"
                             },
-                            "lockedUntil": {
-                              "anyOf": [
-                                {
-                                  "type": "integer",
-                                  "minimum": 0,
-                                  "maximum": 9007199254740991
-                                },
-                                {
-                                  "type": "null"
-                                }
-                              ]
-                            },
-                            "lockReason": {
-                              "anyOf": [
-                                {
-                                  "type": "string",
-                                  "enum": [
-                                    "manual",
-                                    "raid"
-                                  ]
-                                },
-                                {
-                                  "type": "null"
-                                }
-                              ]
+                            "seen": {
+                              "type": "boolean"
                             }
                           },
                           "required": [
-                            "verificationLevel",
-                            "newAccountGate",
-                            "raidProtection",
-                            "lockedUntil",
-                            "lockReason"
+                            "enabled",
+                            "seen"
                           ],
                           "additionalProperties": false
                         }
@@ -22131,76 +22074,19 @@
                             ],
                             "additionalProperties": false
                           },
-                          "lockedUntil": {
-                            "anyOf": [
-                              {
-                                "type": "integer",
-                                "minimum": 0,
-                                "maximum": 9007199254740991
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "safety": {
+                          "lobby": {
                             "type": "object",
                             "properties": {
-                              "verificationLevel": {
-                                "type": "string",
-                                "enum": [
-                                  "none",
-                                  "low",
-                                  "medium",
-                                  "high"
-                                ]
-                              },
-                              "newAccountGate": {
-                                "type": "string",
-                                "enum": [
-                                  "off",
-                                  "10m",
-                                  "1h",
-                                  "1d",
-                                  "7d"
-                                ]
-                              },
-                              "raidProtection": {
+                              "enabled": {
                                 "type": "boolean"
                               },
-                              "lockedUntil": {
-                                "anyOf": [
-                                  {
-                                    "type": "integer",
-                                    "minimum": 0,
-                                    "maximum": 9007199254740991
-                                  },
-                                  {
-                                    "type": "null"
-                                  }
-                                ]
-                              },
-                              "lockReason": {
-                                "anyOf": [
-                                  {
-                                    "type": "string",
-                                    "enum": [
-                                      "manual",
-                                      "raid"
-                                    ]
-                                  },
-                                  {
-                                    "type": "null"
-                                  }
-                                ]
+                              "seen": {
+                                "type": "boolean"
                               }
                             },
                             "required": [
-                              "verificationLevel",
-                              "newAccountGate",
-                              "raidProtection",
-                              "lockedUntil",
-                              "lockReason"
+                              "enabled",
+                              "seen"
                             ],
                             "additionalProperties": false
                           }
@@ -22720,76 +22606,19 @@
                           ],
                           "additionalProperties": false
                         },
-                        "lockedUntil": {
-                          "anyOf": [
-                            {
-                              "type": "integer",
-                              "minimum": 0,
-                              "maximum": 9007199254740991
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "safety": {
+                        "lobby": {
                           "type": "object",
                           "properties": {
-                            "verificationLevel": {
-                              "type": "string",
-                              "enum": [
-                                "none",
-                                "low",
-                                "medium",
-                                "high"
-                              ]
-                            },
-                            "newAccountGate": {
-                              "type": "string",
-                              "enum": [
-                                "off",
-                                "10m",
-                                "1h",
-                                "1d",
-                                "7d"
-                              ]
-                            },
-                            "raidProtection": {
+                            "enabled": {
                               "type": "boolean"
                             },
-                            "lockedUntil": {
-                              "anyOf": [
-                                {
-                                  "type": "integer",
-                                  "minimum": 0,
-                                  "maximum": 9007199254740991
-                                },
-                                {
-                                  "type": "null"
-                                }
-                              ]
-                            },
-                            "lockReason": {
-                              "anyOf": [
-                                {
-                                  "type": "string",
-                                  "enum": [
-                                    "manual",
-                                    "raid"
-                                  ]
-                                },
-                                {
-                                  "type": "null"
-                                }
-                              ]
+                            "seen": {
+                              "type": "boolean"
                             }
                           },
                           "required": [
-                            "verificationLevel",
-                            "newAccountGate",
-                            "raidProtection",
-                            "lockedUntil",
-                            "lockReason"
+                            "enabled",
+                            "seen"
                           ],
                           "additionalProperties": false
                         }
@@ -23442,76 +23271,19 @@
                           ],
                           "additionalProperties": false
                         },
-                        "lockedUntil": {
-                          "anyOf": [
-                            {
-                              "type": "integer",
-                              "minimum": 0,
-                              "maximum": 9007199254740991
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "safety": {
+                        "lobby": {
                           "type": "object",
                           "properties": {
-                            "verificationLevel": {
-                              "type": "string",
-                              "enum": [
-                                "none",
-                                "low",
-                                "medium",
-                                "high"
-                              ]
-                            },
-                            "newAccountGate": {
-                              "type": "string",
-                              "enum": [
-                                "off",
-                                "10m",
-                                "1h",
-                                "1d",
-                                "7d"
-                              ]
-                            },
-                            "raidProtection": {
+                            "enabled": {
                               "type": "boolean"
                             },
-                            "lockedUntil": {
-                              "anyOf": [
-                                {
-                                  "type": "integer",
-                                  "minimum": 0,
-                                  "maximum": 9007199254740991
-                                },
-                                {
-                                  "type": "null"
-                                }
-                              ]
-                            },
-                            "lockReason": {
-                              "anyOf": [
-                                {
-                                  "type": "string",
-                                  "enum": [
-                                    "manual",
-                                    "raid"
-                                  ]
-                                },
-                                {
-                                  "type": "null"
-                                }
-                              ]
+                            "seen": {
+                              "type": "boolean"
                             }
                           },
                           "required": [
-                            "verificationLevel",
-                            "newAccountGate",
-                            "raidProtection",
-                            "lockedUntil",
-                            "lockReason"
+                            "enabled",
+                            "seen"
                           ],
                           "additionalProperties": false
                         }
@@ -26165,76 +25937,19 @@
                           ],
                           "additionalProperties": false
                         },
-                        "lockedUntil": {
-                          "anyOf": [
-                            {
-                              "type": "integer",
-                              "minimum": 0,
-                              "maximum": 9007199254740991
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "safety": {
+                        "lobby": {
                           "type": "object",
                           "properties": {
-                            "verificationLevel": {
-                              "type": "string",
-                              "enum": [
-                                "none",
-                                "low",
-                                "medium",
-                                "high"
-                              ]
-                            },
-                            "newAccountGate": {
-                              "type": "string",
-                              "enum": [
-                                "off",
-                                "10m",
-                                "1h",
-                                "1d",
-                                "7d"
-                              ]
-                            },
-                            "raidProtection": {
+                            "enabled": {
                               "type": "boolean"
                             },
-                            "lockedUntil": {
-                              "anyOf": [
-                                {
-                                  "type": "integer",
-                                  "minimum": 0,
-                                  "maximum": 9007199254740991
-                                },
-                                {
-                                  "type": "null"
-                                }
-                              ]
-                            },
-                            "lockReason": {
-                              "anyOf": [
-                                {
-                                  "type": "string",
-                                  "enum": [
-                                    "manual",
-                                    "raid"
-                                  ]
-                                },
-                                {
-                                  "type": "null"
-                                }
-                              ]
+                            "seen": {
+                              "type": "boolean"
                             }
                           },
                           "required": [
-                            "verificationLevel",
-                            "newAccountGate",
-                            "raidProtection",
-                            "lockedUntil",
-                            "lockReason"
+                            "enabled",
+                            "seen"
                           ],
                           "additionalProperties": false
                         }
@@ -26281,7 +25996,7 @@
             }
           },
           "default": {
-            "description": "Error. Codes: invite_not_found, invite_revoked, invite_expired, invite_used_up, invite_unavailable, banned, invites_paused, community_locked, account_too_new, limit_reached",
+            "description": "Error. Codes: invite_not_found, invite_revoked, invite_expired, invite_used_up, invite_unavailable, banned, invites_paused, limit_reached",
             "content": {
               "application/json": {
                 "schema": {
@@ -28219,8 +27934,6 @@
                               "expressions.manage",
                               "voice.connect",
                               "voice.speak",
-                              "voice.mute_members",
-                              "voice.move_members",
                               "audit.view",
                               "reports.view"
                             ]
@@ -28334,8 +28047,6 @@
                                 "expressions.manage",
                                 "voice.connect",
                                 "voice.speak",
-                                "voice.mute_members",
-                                "voice.move_members",
                                 "audit.view",
                                 "reports.view"
                               ]
@@ -28374,8 +28085,6 @@
                                 "expressions.manage",
                                 "voice.connect",
                                 "voice.speak",
-                                "voice.mute_members",
-                                "voice.move_members",
                                 "audit.view",
                                 "reports.view"
                               ]
@@ -28462,8 +28171,6 @@
                                 "expressions.manage",
                                 "voice.connect",
                                 "voice.speak",
-                                "voice.mute_members",
-                                "voice.move_members",
                                 "audit.view",
                                 "reports.view"
                               ]
@@ -28563,8 +28270,6 @@
                                 "expressions.manage",
                                 "voice.connect",
                                 "voice.speak",
-                                "voice.mute_members",
-                                "voice.move_members",
                                 "audit.view",
                                 "reports.view"
                               ]
@@ -28603,8 +28308,6 @@
                                 "expressions.manage",
                                 "voice.connect",
                                 "voice.speak",
-                                "voice.mute_members",
-                                "voice.move_members",
                                 "audit.view",
                                 "reports.view"
                               ]
@@ -28774,8 +28477,6 @@
                               "expressions.manage",
                               "voice.connect",
                               "voice.speak",
-                              "voice.mute_members",
-                              "voice.move_members",
                               "audit.view",
                               "reports.view"
                             ]
@@ -28929,8 +28630,6 @@
                               "expressions.manage",
                               "voice.connect",
                               "voice.speak",
-                              "voice.mute_members",
-                              "voice.move_members",
                               "audit.view",
                               "reports.view"
                             ]
@@ -28969,8 +28668,6 @@
                               "expressions.manage",
                               "voice.connect",
                               "voice.speak",
-                              "voice.mute_members",
-                              "voice.move_members",
                               "audit.view",
                               "reports.view"
                             ]
@@ -29273,8 +28970,6 @@
                               "expressions.manage",
                               "voice.connect",
                               "voice.speak",
-                              "voice.mute_members",
-                              "voice.move_members",
                               "audit.view",
                               "reports.view"
                             ]
@@ -29313,8 +29008,6 @@
                               "expressions.manage",
                               "voice.connect",
                               "voice.speak",
-                              "voice.mute_members",
-                              "voice.move_members",
                               "audit.view",
                               "reports.view"
                             ]
@@ -29745,8 +29438,6 @@
                           "expressions.manage",
                           "voice.connect",
                           "voice.speak",
-                          "voice.mute_members",
-                          "voice.move_members",
                           "audit.view",
                           "reports.view"
                         ]
@@ -29850,8 +29541,6 @@
                           "expressions.manage",
                           "voice.connect",
                           "voice.speak",
-                          "voice.mute_members",
-                          "voice.move_members",
                           "audit.view",
                           "reports.view"
                         ]
@@ -29992,8 +29681,6 @@
                           "expressions.manage",
                           "voice.connect",
                           "voice.speak",
-                          "voice.mute_members",
-                          "voice.move_members",
                           "audit.view",
                           "reports.view"
                         ]
@@ -30044,8 +29731,6 @@
                           "expressions.manage",
                           "voice.connect",
                           "voice.speak",
-                          "voice.mute_members",
-                          "voice.move_members",
                           "audit.view",
                           "reports.view"
                         ]
@@ -32516,9 +32201,7 @@
                                 "channels.manage",
                                 "channels.create",
                                 "voice.connect",
-                                "voice.speak",
-                                "voice.mute_members",
-                                "voice.move_members"
+                                "voice.speak"
                               ]
                             }
                           },
@@ -32534,9 +32217,7 @@
                                 "channels.manage",
                                 "channels.create",
                                 "voice.connect",
-                                "voice.speak",
-                                "voice.mute_members",
-                                "voice.move_members"
+                                "voice.speak"
                               ]
                             }
                           }
@@ -32567,9 +32248,7 @@
                               "channels.manage",
                               "channels.create",
                               "voice.connect",
-                              "voice.speak",
-                              "voice.mute_members",
-                              "voice.move_members"
+                              "voice.speak"
                             ]
                           },
                           "label": {
@@ -32715,9 +32394,7 @@
                                 "channels.manage",
                                 "channels.create",
                                 "voice.connect",
-                                "voice.speak",
-                                "voice.mute_members",
-                                "voice.move_members"
+                                "voice.speak"
                               ]
                             }
                           },
@@ -32733,9 +32410,7 @@
                                 "channels.manage",
                                 "channels.create",
                                 "voice.connect",
-                                "voice.speak",
-                                "voice.mute_members",
-                                "voice.move_members"
+                                "voice.speak"
                               ]
                             }
                           }
@@ -32766,9 +32441,7 @@
                               "channels.manage",
                               "channels.create",
                               "voice.connect",
-                              "voice.speak",
-                              "voice.mute_members",
-                              "voice.move_members"
+                              "voice.speak"
                             ]
                           },
                           "label": {
@@ -32867,7 +32540,7 @@
                   },
                   "allow": {
                     "default": [],
-                    "maxItems": 10,
+                    "maxItems": 8,
                     "type": "array",
                     "items": {
                       "type": "string",
@@ -32879,15 +32552,13 @@
                         "channels.manage",
                         "channels.create",
                         "voice.connect",
-                        "voice.speak",
-                        "voice.mute_members",
-                        "voice.move_members"
+                        "voice.speak"
                       ]
                     }
                   },
                   "deny": {
                     "default": [],
-                    "maxItems": 10,
+                    "maxItems": 8,
                     "type": "array",
                     "items": {
                       "type": "string",
@@ -32899,9 +32570,7 @@
                         "channels.manage",
                         "channels.create",
                         "voice.connect",
-                        "voice.speak",
-                        "voice.mute_members",
-                        "voice.move_members"
+                        "voice.speak"
                       ]
                     }
                   }
@@ -32982,9 +32651,7 @@
                                 "channels.manage",
                                 "channels.create",
                                 "voice.connect",
-                                "voice.speak",
-                                "voice.mute_members",
-                                "voice.move_members"
+                                "voice.speak"
                               ]
                             }
                           },
@@ -33000,9 +32667,7 @@
                                 "channels.manage",
                                 "channels.create",
                                 "voice.connect",
-                                "voice.speak",
-                                "voice.mute_members",
-                                "voice.move_members"
+                                "voice.speak"
                               ]
                             }
                           }
@@ -33033,9 +32698,7 @@
                               "channels.manage",
                               "channels.create",
                               "voice.connect",
-                              "voice.speak",
-                              "voice.mute_members",
-                              "voice.move_members"
+                              "voice.speak"
                             ]
                           },
                           "label": {
@@ -33181,9 +32844,7 @@
                                 "channels.manage",
                                 "channels.create",
                                 "voice.connect",
-                                "voice.speak",
-                                "voice.mute_members",
-                                "voice.move_members"
+                                "voice.speak"
                               ]
                             }
                           },
@@ -33199,9 +32860,7 @@
                                 "channels.manage",
                                 "channels.create",
                                 "voice.connect",
-                                "voice.speak",
-                                "voice.mute_members",
-                                "voice.move_members"
+                                "voice.speak"
                               ]
                             }
                           }
@@ -33232,9 +32891,7 @@
                               "channels.manage",
                               "channels.create",
                               "voice.connect",
-                              "voice.speak",
-                              "voice.mute_members",
-                              "voice.move_members"
+                              "voice.speak"
                             ]
                           },
                           "label": {
@@ -33333,7 +32990,7 @@
                   },
                   "allow": {
                     "default": [],
-                    "maxItems": 10,
+                    "maxItems": 8,
                     "type": "array",
                     "items": {
                       "type": "string",
@@ -33345,15 +33002,13 @@
                         "channels.manage",
                         "channels.create",
                         "voice.connect",
-                        "voice.speak",
-                        "voice.mute_members",
-                        "voice.move_members"
+                        "voice.speak"
                       ]
                     }
                   },
                   "deny": {
                     "default": [],
-                    "maxItems": 10,
+                    "maxItems": 8,
                     "type": "array",
                     "items": {
                       "type": "string",
@@ -33365,9 +33020,7 @@
                         "channels.manage",
                         "channels.create",
                         "voice.connect",
-                        "voice.speak",
-                        "voice.mute_members",
-                        "voice.move_members"
+                        "voice.speak"
                       ]
                     }
                   }
@@ -33896,76 +33549,19 @@
                           ],
                           "additionalProperties": false
                         },
-                        "lockedUntil": {
-                          "anyOf": [
-                            {
-                              "type": "integer",
-                              "minimum": 0,
-                              "maximum": 9007199254740991
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "safety": {
+                        "lobby": {
                           "type": "object",
                           "properties": {
-                            "verificationLevel": {
-                              "type": "string",
-                              "enum": [
-                                "none",
-                                "low",
-                                "medium",
-                                "high"
-                              ]
-                            },
-                            "newAccountGate": {
-                              "type": "string",
-                              "enum": [
-                                "off",
-                                "10m",
-                                "1h",
-                                "1d",
-                                "7d"
-                              ]
-                            },
-                            "raidProtection": {
+                            "enabled": {
                               "type": "boolean"
                             },
-                            "lockedUntil": {
-                              "anyOf": [
-                                {
-                                  "type": "integer",
-                                  "minimum": 0,
-                                  "maximum": 9007199254740991
-                                },
-                                {
-                                  "type": "null"
-                                }
-                              ]
-                            },
-                            "lockReason": {
-                              "anyOf": [
-                                {
-                                  "type": "string",
-                                  "enum": [
-                                    "manual",
-                                    "raid"
-                                  ]
-                                },
-                                {
-                                  "type": "null"
-                                }
-                              ]
+                            "seen": {
+                              "type": "boolean"
                             }
                           },
                           "required": [
-                            "verificationLevel",
-                            "newAccountGate",
-                            "raidProtection",
-                            "lockedUntil",
-                            "lockReason"
+                            "enabled",
+                            "seen"
                           ],
                           "additionalProperties": false
                         }
@@ -34491,76 +34087,19 @@
                           ],
                           "additionalProperties": false
                         },
-                        "lockedUntil": {
-                          "anyOf": [
-                            {
-                              "type": "integer",
-                              "minimum": 0,
-                              "maximum": 9007199254740991
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "safety": {
+                        "lobby": {
                           "type": "object",
                           "properties": {
-                            "verificationLevel": {
-                              "type": "string",
-                              "enum": [
-                                "none",
-                                "low",
-                                "medium",
-                                "high"
-                              ]
-                            },
-                            "newAccountGate": {
-                              "type": "string",
-                              "enum": [
-                                "off",
-                                "10m",
-                                "1h",
-                                "1d",
-                                "7d"
-                              ]
-                            },
-                            "raidProtection": {
+                            "enabled": {
                               "type": "boolean"
                             },
-                            "lockedUntil": {
-                              "anyOf": [
-                                {
-                                  "type": "integer",
-                                  "minimum": 0,
-                                  "maximum": 9007199254740991
-                                },
-                                {
-                                  "type": "null"
-                                }
-                              ]
-                            },
-                            "lockReason": {
-                              "anyOf": [
-                                {
-                                  "type": "string",
-                                  "enum": [
-                                    "manual",
-                                    "raid"
-                                  ]
-                                },
-                                {
-                                  "type": "null"
-                                }
-                              ]
+                            "seen": {
+                              "type": "boolean"
                             }
                           },
                           "required": [
-                            "verificationLevel",
-                            "newAccountGate",
-                            "raidProtection",
-                            "lockedUntil",
-                            "lockReason"
+                            "enabled",
+                            "seen"
                           ],
                           "additionalProperties": false
                         }
@@ -34607,7 +34146,7 @@
             }
           },
           "default": {
-            "description": "Error. Codes: not_found, forbidden, application_required, banned, invites_paused, community_locked, account_too_new, limit_reached",
+            "description": "Error. Codes: not_found, forbidden, application_required, banned, invites_paused, limit_reached",
             "content": {
               "application/json": {
                 "schema": {
@@ -34629,7 +34168,7 @@
         "tags": [
           "community"
         ],
-        "summary": "The community's bans, newest first (at most 500), and its voice bans while community safety is on.",
+        "summary": "The community's bans, newest first (at most 500).",
         "operationId": "getV1OrgsOrgIdBans",
         "parameters": [
           {
@@ -34651,61 +34190,6 @@
                   "type": "object",
                   "properties": {
                     "bans": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "userId": {
-                            "type": "string"
-                          },
-                          "displayName": {
-                            "type": "string"
-                          },
-                          "username": {
-                            "type": "string"
-                          },
-                          "reason": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "bannedAt": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          },
-                          "bannedBy": {
-                            "type": "string"
-                          },
-                          "bannedByName": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          }
-                        },
-                        "required": [
-                          "userId",
-                          "displayName",
-                          "username",
-                          "reason",
-                          "bannedAt",
-                          "bannedBy",
-                          "bannedByName"
-                        ],
-                        "additionalProperties": false
-                      }
-                    },
-                    "voiceBans": {
                       "type": "array",
                       "items": {
                         "type": "object",
@@ -35634,7 +35118,7 @@
             }
           },
           "default": {
-            "description": "Error. Codes: not_found, conflict, banned, invites_paused, community_locked, account_too_new",
+            "description": "Error. Codes: not_found, conflict, banned, invites_paused",
             "content": {
               "application/json": {
                 "schema": {
@@ -36020,7 +35504,7 @@
             }
           },
           "default": {
-            "description": "Error. Codes: not_found, conflict, banned, limit_reached, community_locked, account_too_new",
+            "description": "Error. Codes: not_found, conflict, banned, limit_reached",
             "content": {
               "application/json": {
                 "schema": {
@@ -37894,13 +37378,13 @@
         ]
       }
     },
-    "/v1/orgs/{orgId}/safety": {
+    "/v1/orgs/{orgId}/lobby": {
       "get": {
         "tags": [
-          "community-safety"
+          "community-lobby"
         ],
-        "summary": "The community's safety settings and lock (people who can edit the community or ban members).",
-        "operationId": "getV1OrgsOrgIdSafety",
+        "summary": "The community's lobby as the viewer sees it: header, settings, main channels, who runs it, live rooms, leaderboards and feed.",
+        "operationId": "getV1OrgsOrgIdLobby",
         "parameters": [
           {
             "name": "orgId",
@@ -37921,29 +37405,318 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "verificationLevel": {
-                      "type": "string",
-                      "enum": [
-                        "none",
-                        "low",
-                        "medium",
-                        "high"
-                      ]
+                    "community": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "photoRev": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "bannerRev": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "accent": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "memberCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "onlineCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "photoRev",
+                        "bannerRev",
+                        "accent",
+                        "memberCount",
+                        "onlineCount"
+                      ],
+                      "additionalProperties": false
                     },
-                    "newAccountGate": {
-                      "type": "string",
-                      "enum": [
-                        "off",
-                        "10m",
-                        "1h",
-                        "1d",
-                        "7d"
-                      ]
+                    "settings": {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "tagline": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "buttons": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "label": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "channelId": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "label",
+                              "url",
+                              "channelId"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "about": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "mainChannelIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "faq": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "question": {
+                                "type": "string"
+                              },
+                              "answer": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "question",
+                              "answer"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "showWhoRunsIt": {
+                          "type": "boolean"
+                        },
+                        "look": {
+                          "type": "object",
+                          "properties": {
+                            "layout": {
+                              "type": "string",
+                              "enum": [
+                                "classic",
+                                "spotlight",
+                                "magazine",
+                                "compact"
+                              ]
+                            },
+                            "accent": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "const": "auto"
+                                },
+                                {
+                                  "type": "string",
+                                  "pattern": "^#[0-9a-fA-F]{6}$"
+                                }
+                              ]
+                            },
+                            "background": {
+                              "type": "string",
+                              "enum": [
+                                "glow",
+                                "mesh",
+                                "banner_blur",
+                                "plain"
+                              ]
+                            },
+                            "cards": {
+                              "type": "string",
+                              "enum": [
+                                "filled",
+                                "glass",
+                                "outline"
+                              ]
+                            },
+                            "font": {
+                              "type": "string",
+                              "enum": [
+                                "default",
+                                "rounded",
+                                "serif",
+                                "mono",
+                                "display"
+                              ]
+                            },
+                            "bannerHeight": {
+                              "type": "string",
+                              "enum": [
+                                "tall",
+                                "normal",
+                                "short"
+                              ]
+                            },
+                            "title": {
+                              "type": "string",
+                              "enum": [
+                                "left",
+                                "centered"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "layout",
+                            "accent",
+                            "background",
+                            "cards",
+                            "font",
+                            "bannerHeight",
+                            "title"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "sections": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string",
+                                "enum": [
+                                  "about",
+                                  "main_channels",
+                                  "live_now",
+                                  "giveaways",
+                                  "feed",
+                                  "faq",
+                                  "leaderboard",
+                                  "pick_roles",
+                                  "rules",
+                                  "who_runs_it",
+                                  "links"
+                                ]
+                              },
+                              "shown": {
+                                "type": "boolean"
+                              },
+                              "column": {
+                                "type": "string",
+                                "enum": [
+                                  "main",
+                                  "side"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "shown",
+                              "column"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "leaderboards": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "levels",
+                              "messages_week",
+                              "invites"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "enabled",
+                        "tagline",
+                        "buttons",
+                        "about",
+                        "mainChannelIds",
+                        "faq",
+                        "showWhoRunsIt",
+                        "look",
+                        "sections",
+                        "leaderboards"
+                      ],
+                      "additionalProperties": false
                     },
-                    "raidProtection": {
+                    "rev": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "canEdit": {
                       "type": "boolean"
                     },
-                    "lockedUntil": {
+                    "seen": {
+                      "type": "boolean"
+                    },
+                    "seenAt": {
                       "anyOf": [
                         {
                           "type": "integer",
@@ -37955,14 +37728,884 @@
                         }
                       ]
                     },
-                    "lockReason": {
+                    "mainChannels": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "kind": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "PUBLIC",
+                                  "PRIVATE",
+                                  "ANNOUNCEMENT"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "voice": {
+                            "type": "boolean"
+                          },
+                          "format": {
+                            "type": "string",
+                            "enum": [
+                              "text",
+                              "forum"
+                            ]
+                          },
+                          "lastActiveAt": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "kind",
+                          "voice",
+                          "format",
+                          "lastActiveAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "mainChannelsPicked": {
+                      "type": "boolean"
+                    },
+                    "whoRunsIt": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "user": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "username": {
+                                "type": "string"
+                              },
+                              "displayName": {
+                                "type": "string"
+                              },
+                              "avatarColor": {
+                                "type": "number"
+                              },
+                              "photoRev": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "username",
+                              "displayName",
+                              "avatarColor",
+                              "photoRev"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "badge": {
+                            "type": "string",
+                            "enum": [
+                              "owner",
+                              "admin",
+                              "mod"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "user",
+                          "badge"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "liveNow": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "channelId": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "callId": {
+                            "type": "string"
+                          },
+                          "startedAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "participantCount": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "participants": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "username": {
+                                  "type": "string"
+                                },
+                                "displayName": {
+                                  "type": "string"
+                                },
+                                "avatarColor": {
+                                  "type": "number"
+                                },
+                                "photoRev": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "username",
+                                "displayName",
+                                "avatarColor",
+                                "photoRev"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "channelId",
+                          "name",
+                          "callId",
+                          "startedAt",
+                          "participantCount",
+                          "participants"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "rules": {
                       "anyOf": [
                         {
-                          "type": "string",
-                          "enum": [
-                            "manual",
-                            "raid"
+                          "type": "object",
+                          "properties": {
+                            "channelId": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "channelId"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "links": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "label",
+                          "url"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "pickRoles": {
+                      "type": "object",
+                      "properties": {
+                        "prompts": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "single": {
+                                "type": "boolean"
+                              },
+                              "options": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "title": {
+                                      "type": "string"
+                                    },
+                                    "emoji": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "roles": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "object",
+                                        "properties": {
+                                          "id": {
+                                            "type": "string"
+                                          },
+                                          "name": {
+                                            "type": "string"
+                                          },
+                                          "color": {
+                                            "anyOf": [
+                                              {
+                                                "type": "string"
+                                              },
+                                              {
+                                                "type": "null"
+                                              }
+                                            ]
+                                          }
+                                        },
+                                        "required": [
+                                          "id",
+                                          "name",
+                                          "color"
+                                        ],
+                                        "additionalProperties": false
+                                      }
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "title",
+                                    "emoji",
+                                    "roles"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "title",
+                              "single",
+                              "options"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "answered": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "prompts",
+                        "answered"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "leaderboards": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "board": {
+                            "type": "string",
+                            "enum": [
+                              "levels",
+                              "messages_week",
+                              "invites"
+                            ]
+                          },
+                          "entries": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "rank": {
+                                  "type": "integer",
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "user": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "username": {
+                                      "type": "string"
+                                    },
+                                    "displayName": {
+                                      "type": "string"
+                                    },
+                                    "avatarColor": {
+                                      "type": "number"
+                                    },
+                                    "photoRev": {
+                                      "anyOf": [
+                                        {
+                                          "type": "number"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "username",
+                                    "displayName",
+                                    "avatarColor",
+                                    "photoRev"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                "count": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "rank",
+                                "user",
+                                "count"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "board",
+                          "entries"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "giveaways": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "endsAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "entrants": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "title",
+                          "endsAt",
+                          "entrants"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "feed": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "text": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "url": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "image": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "postedAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "title",
+                          "text",
+                          "url",
+                          "image",
+                          "postedAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "community",
+                    "settings",
+                    "rev",
+                    "canEdit",
+                    "seen",
+                    "seenAt",
+                    "mainChannels",
+                    "mainChannelsPicked",
+                    "whoRunsIt",
+                    "liveNow",
+                    "rules",
+                    "links",
+                    "pickRoles",
+                    "leaderboards",
+                    "giveaways",
+                    "feed"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, feature_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/orgs/{orgId}/lobby/settings": {
+      "get": {
+        "tags": [
+          "community-lobby"
+        ],
+        "summary": "The lobby's settings and revision (the feed URL's state for people who can edit the community).",
+        "operationId": "getV1OrgsOrgIdLobbySettings",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "settings": {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "tagline": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
                           ]
+                        },
+                        "buttons": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "label": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "channelId": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "label",
+                              "url",
+                              "channelId"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "about": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "mainChannelIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "faq": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "question": {
+                                "type": "string"
+                              },
+                              "answer": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "question",
+                              "answer"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "showWhoRunsIt": {
+                          "type": "boolean"
+                        },
+                        "look": {
+                          "type": "object",
+                          "properties": {
+                            "layout": {
+                              "type": "string",
+                              "enum": [
+                                "classic",
+                                "spotlight",
+                                "magazine",
+                                "compact"
+                              ]
+                            },
+                            "accent": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "const": "auto"
+                                },
+                                {
+                                  "type": "string",
+                                  "pattern": "^#[0-9a-fA-F]{6}$"
+                                }
+                              ]
+                            },
+                            "background": {
+                              "type": "string",
+                              "enum": [
+                                "glow",
+                                "mesh",
+                                "banner_blur",
+                                "plain"
+                              ]
+                            },
+                            "cards": {
+                              "type": "string",
+                              "enum": [
+                                "filled",
+                                "glass",
+                                "outline"
+                              ]
+                            },
+                            "font": {
+                              "type": "string",
+                              "enum": [
+                                "default",
+                                "rounded",
+                                "serif",
+                                "mono",
+                                "display"
+                              ]
+                            },
+                            "bannerHeight": {
+                              "type": "string",
+                              "enum": [
+                                "tall",
+                                "normal",
+                                "short"
+                              ]
+                            },
+                            "title": {
+                              "type": "string",
+                              "enum": [
+                                "left",
+                                "centered"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "layout",
+                            "accent",
+                            "background",
+                            "cards",
+                            "font",
+                            "bannerHeight",
+                            "title"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "sections": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string",
+                                "enum": [
+                                  "about",
+                                  "main_channels",
+                                  "live_now",
+                                  "giveaways",
+                                  "feed",
+                                  "faq",
+                                  "leaderboard",
+                                  "pick_roles",
+                                  "rules",
+                                  "who_runs_it",
+                                  "links"
+                                ]
+                              },
+                              "shown": {
+                                "type": "boolean"
+                              },
+                              "column": {
+                                "type": "string",
+                                "enum": [
+                                  "main",
+                                  "side"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "shown",
+                              "column"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "leaderboards": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "levels",
+                              "messages_week",
+                              "invites"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "enabled",
+                        "tagline",
+                        "buttons",
+                        "about",
+                        "mainChannelIds",
+                        "faq",
+                        "showWhoRunsIt",
+                        "look",
+                        "sections",
+                        "leaderboards"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "rev": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "updatedAt": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "canEdit": {
+                      "type": "boolean"
+                    },
+                    "feed": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "createdAt": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "lastPostAt": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "createdAt",
+                            "lastPostAt"
+                          ],
+                          "additionalProperties": false
                         },
                         {
                           "type": "null"
@@ -37971,11 +38614,1143 @@
                     }
                   },
                   "required": [
-                    "verificationLevel",
-                    "newAccountGate",
-                    "raidProtection",
-                    "lockedUntil",
-                    "lockReason"
+                    "settings",
+                    "rev",
+                    "updatedAt",
+                    "canEdit",
+                    "feed"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, feature_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "community-lobby"
+        ],
+        "summary": "Change the lobby (people who can edit the community); fields left out stay, a stale revision is refused.",
+        "operationId": "putV1OrgsOrgIdLobbySettings",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "settings": {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "tagline": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "buttons": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "label": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "channelId": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "label",
+                              "url",
+                              "channelId"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "about": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "mainChannelIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "faq": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "question": {
+                                "type": "string"
+                              },
+                              "answer": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "question",
+                              "answer"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "showWhoRunsIt": {
+                          "type": "boolean"
+                        },
+                        "look": {
+                          "type": "object",
+                          "properties": {
+                            "layout": {
+                              "type": "string",
+                              "enum": [
+                                "classic",
+                                "spotlight",
+                                "magazine",
+                                "compact"
+                              ]
+                            },
+                            "accent": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "const": "auto"
+                                },
+                                {
+                                  "type": "string",
+                                  "pattern": "^#[0-9a-fA-F]{6}$"
+                                }
+                              ]
+                            },
+                            "background": {
+                              "type": "string",
+                              "enum": [
+                                "glow",
+                                "mesh",
+                                "banner_blur",
+                                "plain"
+                              ]
+                            },
+                            "cards": {
+                              "type": "string",
+                              "enum": [
+                                "filled",
+                                "glass",
+                                "outline"
+                              ]
+                            },
+                            "font": {
+                              "type": "string",
+                              "enum": [
+                                "default",
+                                "rounded",
+                                "serif",
+                                "mono",
+                                "display"
+                              ]
+                            },
+                            "bannerHeight": {
+                              "type": "string",
+                              "enum": [
+                                "tall",
+                                "normal",
+                                "short"
+                              ]
+                            },
+                            "title": {
+                              "type": "string",
+                              "enum": [
+                                "left",
+                                "centered"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "layout",
+                            "accent",
+                            "background",
+                            "cards",
+                            "font",
+                            "bannerHeight",
+                            "title"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "sections": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string",
+                                "enum": [
+                                  "about",
+                                  "main_channels",
+                                  "live_now",
+                                  "giveaways",
+                                  "feed",
+                                  "faq",
+                                  "leaderboard",
+                                  "pick_roles",
+                                  "rules",
+                                  "who_runs_it",
+                                  "links"
+                                ]
+                              },
+                              "shown": {
+                                "type": "boolean"
+                              },
+                              "column": {
+                                "type": "string",
+                                "enum": [
+                                  "main",
+                                  "side"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "shown",
+                              "column"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "leaderboards": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "levels",
+                              "messages_week",
+                              "invites"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "enabled",
+                        "tagline",
+                        "buttons",
+                        "about",
+                        "mainChannelIds",
+                        "faq",
+                        "showWhoRunsIt",
+                        "look",
+                        "sections",
+                        "leaderboards"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "rev": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "updatedAt": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "canEdit": {
+                      "type": "boolean"
+                    },
+                    "feed": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "createdAt": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "lastPostAt": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "createdAt",
+                            "lastPostAt"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "settings",
+                    "rev",
+                    "updatedAt",
+                    "canEdit",
+                    "feed"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, lobby_stale, lobby_channel_invalid, feature_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "rev": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "tagline": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "buttons": {
+                    "maxItems": 4,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "label": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 40
+                        },
+                        "url": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 500,
+                              "pattern": "^https:\\/\\/[^\\s]+$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "channelId": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "label"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "about": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 2000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "mainChannelIds": {
+                    "maxItems": 6,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    }
+                  },
+                  "faq": {
+                    "maxItems": 10,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "maxLength": 32
+                        },
+                        "question": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "answer": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 1000
+                        }
+                      },
+                      "required": [
+                        "question",
+                        "answer"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "showWhoRunsIt": {
+                    "type": "boolean"
+                  },
+                  "look": {
+                    "type": "object",
+                    "properties": {
+                      "layout": {
+                        "type": "string",
+                        "enum": [
+                          "classic",
+                          "spotlight",
+                          "magazine",
+                          "compact"
+                        ]
+                      },
+                      "accent": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "const": "auto"
+                          },
+                          {
+                            "type": "string",
+                            "pattern": "^#[0-9a-fA-F]{6}$"
+                          }
+                        ]
+                      },
+                      "background": {
+                        "type": "string",
+                        "enum": [
+                          "glow",
+                          "mesh",
+                          "banner_blur",
+                          "plain"
+                        ]
+                      },
+                      "cards": {
+                        "type": "string",
+                        "enum": [
+                          "filled",
+                          "glass",
+                          "outline"
+                        ]
+                      },
+                      "font": {
+                        "type": "string",
+                        "enum": [
+                          "default",
+                          "rounded",
+                          "serif",
+                          "mono",
+                          "display"
+                        ]
+                      },
+                      "bannerHeight": {
+                        "type": "string",
+                        "enum": [
+                          "tall",
+                          "normal",
+                          "short"
+                        ]
+                      },
+                      "title": {
+                        "type": "string",
+                        "enum": [
+                          "left",
+                          "centered"
+                        ]
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "sections": {
+                    "minItems": 11,
+                    "maxItems": 11,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string",
+                          "enum": [
+                            "about",
+                            "main_channels",
+                            "live_now",
+                            "giveaways",
+                            "feed",
+                            "faq",
+                            "leaderboard",
+                            "pick_roles",
+                            "rules",
+                            "who_runs_it",
+                            "links"
+                          ]
+                        },
+                        "shown": {
+                          "type": "boolean"
+                        },
+                        "column": {
+                          "type": "string",
+                          "enum": [
+                            "main",
+                            "side"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "key",
+                        "shown",
+                        "column"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "leaderboards": {
+                    "minItems": 1,
+                    "maxItems": 3,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "levels",
+                        "messages_week",
+                        "invites"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "rev"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/orgs/{orgId}/lobby/template": {
+      "post": {
+        "tags": [
+          "community-lobby"
+        ],
+        "summary": "Apply a template's look and sections; text, channels and buttons stay, starter questions fill an empty FAQ.",
+        "operationId": "postV1OrgsOrgIdLobbyTemplate",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "settings": {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "tagline": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "buttons": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "label": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "channelId": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "label",
+                              "url",
+                              "channelId"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "about": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "mainChannelIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "faq": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "question": {
+                                "type": "string"
+                              },
+                              "answer": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "question",
+                              "answer"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "showWhoRunsIt": {
+                          "type": "boolean"
+                        },
+                        "look": {
+                          "type": "object",
+                          "properties": {
+                            "layout": {
+                              "type": "string",
+                              "enum": [
+                                "classic",
+                                "spotlight",
+                                "magazine",
+                                "compact"
+                              ]
+                            },
+                            "accent": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "const": "auto"
+                                },
+                                {
+                                  "type": "string",
+                                  "pattern": "^#[0-9a-fA-F]{6}$"
+                                }
+                              ]
+                            },
+                            "background": {
+                              "type": "string",
+                              "enum": [
+                                "glow",
+                                "mesh",
+                                "banner_blur",
+                                "plain"
+                              ]
+                            },
+                            "cards": {
+                              "type": "string",
+                              "enum": [
+                                "filled",
+                                "glass",
+                                "outline"
+                              ]
+                            },
+                            "font": {
+                              "type": "string",
+                              "enum": [
+                                "default",
+                                "rounded",
+                                "serif",
+                                "mono",
+                                "display"
+                              ]
+                            },
+                            "bannerHeight": {
+                              "type": "string",
+                              "enum": [
+                                "tall",
+                                "normal",
+                                "short"
+                              ]
+                            },
+                            "title": {
+                              "type": "string",
+                              "enum": [
+                                "left",
+                                "centered"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "layout",
+                            "accent",
+                            "background",
+                            "cards",
+                            "font",
+                            "bannerHeight",
+                            "title"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "sections": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string",
+                                "enum": [
+                                  "about",
+                                  "main_channels",
+                                  "live_now",
+                                  "giveaways",
+                                  "feed",
+                                  "faq",
+                                  "leaderboard",
+                                  "pick_roles",
+                                  "rules",
+                                  "who_runs_it",
+                                  "links"
+                                ]
+                              },
+                              "shown": {
+                                "type": "boolean"
+                              },
+                              "column": {
+                                "type": "string",
+                                "enum": [
+                                  "main",
+                                  "side"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "shown",
+                              "column"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "leaderboards": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "levels",
+                              "messages_week",
+                              "invites"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "enabled",
+                        "tagline",
+                        "buttons",
+                        "about",
+                        "mainChannelIds",
+                        "faq",
+                        "showWhoRunsIt",
+                        "look",
+                        "sections",
+                        "leaderboards"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "rev": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "updatedAt": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "canEdit": {
+                      "type": "boolean"
+                    },
+                    "feed": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "createdAt": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "lastPostAt": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "createdAt",
+                            "lastPostAt"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "settings",
+                    "rev",
+                    "updatedAt",
+                    "canEdit",
+                    "feed"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, lobby_stale, feature_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "enum": [
+                      "gaming",
+                      "study",
+                      "creators",
+                      "hangout",
+                      "minimal"
+                    ]
+                  },
+                  "rev": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "key"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/orgs/{orgId}/lobby/seen": {
+      "post": {
+        "tags": [
+          "community-lobby"
+        ],
+        "summary": "The viewer has opened the lobby (apps open it first only before this); the first time is kept.",
+        "operationId": "postV1OrgsOrgIdLobbySeen",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "seen": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "seenAt": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "seen",
+                    "seenAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, feature_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/orgs/{orgId}/lobby/feed": {
+      "post": {
+        "tags": [
+          "community-lobby"
+        ],
+        "summary": "Create the lobby's feed URL, or replace it (the old one stops working); the token is shown only now.",
+        "operationId": "postV1OrgsOrgIdLobbyFeed",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": {
+                      "type": "string"
+                    },
+                    "feed": {
+                      "type": "object",
+                      "properties": {
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "lastPostAt": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "createdAt",
+                        "lastPostAt"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "token",
+                    "feed"
                   ],
                   "additionalProperties": false
                 }
@@ -37999,12 +39774,12 @@
           }
         ]
       },
-      "put": {
+      "delete": {
         "tags": [
-          "community-safety"
+          "community-lobby"
         ],
-        "summary": "Change the verification level, the account-age gate or raid protection (people who can edit the community).",
-        "operationId": "putV1OrgsOrgIdSafety",
+        "summary": "Delete the lobby's feed URL (posts already in the lobby stay).",
+        "operationId": "deleteV1OrgsOrgIdLobbyFeed",
         "parameters": [
           {
             "name": "orgId",
@@ -38025,61 +39800,12 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "verificationLevel": {
-                      "type": "string",
-                      "enum": [
-                        "none",
-                        "low",
-                        "medium",
-                        "high"
-                      ]
-                    },
-                    "newAccountGate": {
-                      "type": "string",
-                      "enum": [
-                        "off",
-                        "10m",
-                        "1h",
-                        "1d",
-                        "7d"
-                      ]
-                    },
-                    "raidProtection": {
-                      "type": "boolean"
-                    },
-                    "lockedUntil": {
-                      "anyOf": [
-                        {
-                          "type": "integer",
-                          "minimum": 0,
-                          "maximum": 9007199254740991
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    },
-                    "lockReason": {
-                      "anyOf": [
-                        {
-                          "type": "string",
-                          "enum": [
-                            "manual",
-                            "raid"
-                          ]
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
+                    "feed": {
+                      "type": "null"
                     }
                   },
                   "required": [
-                    "verificationLevel",
-                    "newAccountGate",
-                    "raidProtection",
-                    "lockedUntil",
-                    "lockReason"
+                    "feed"
                   ],
                   "additionalProperties": false
                 }
@@ -38101,60 +39827,25 @@
           {
             "bearer": []
           }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "verificationLevel": {
-                    "type": "string",
-                    "enum": [
-                      "none",
-                      "low",
-                      "medium",
-                      "high"
-                    ]
-                  },
-                  "newAccountGate": {
-                    "type": "string",
-                    "enum": [
-                      "off",
-                      "10m",
-                      "1h",
-                      "1d",
-                      "7d"
-                    ]
-                  },
-                  "raidProtection": {
-                    "type": "boolean"
-                  }
-                },
-                "additionalProperties": false
-              }
-            }
-          }
-        }
+        ]
       }
     },
-    "/v1/orgs/{orgId}/lock": {
-      "put": {
+    "/v1/lobby-feed/{token}": {
+      "post": {
         "tags": [
-          "community-safety"
+          "community-lobby"
         ],
-        "summary": "Lock the community for 15 minutes, 1 hour, 8 hours or a day (nobody new joins, only moderators post), or unlock it.",
-        "operationId": "putV1OrgsOrgIdLock",
+        "summary": "Post to a community's lobby feed through its secret URL: {title, text, url, image} or a Discord-style webhook body.",
+        "operationId": "postV1LobbyFeedToken",
         "parameters": [
           {
-            "name": "orgId",
+            "name": "token",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "minLength": 1,
-              "maxLength": 64
+              "minLength": 10,
+              "maxLength": 128
             }
           }
         ],
@@ -38166,47 +39857,18 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "lockedUntil": {
-                      "anyOf": [
-                        {
-                          "type": "integer",
-                          "minimum": 0,
-                          "maximum": 9007199254740991
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
+                    "id": {
+                      "type": "string"
                     },
-                    "lockReason": {
-                      "anyOf": [
-                        {
-                          "type": "string",
-                          "enum": [
-                            "manual",
-                            "raid"
-                          ]
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    },
-                    "lockedBy": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
+                    "postedAt": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
                     }
                   },
                   "required": [
-                    "lockedUntil",
-                    "lockReason",
-                    "lockedBy"
+                    "id",
+                    "postedAt"
                   ],
                   "additionalProperties": false
                 }
@@ -38214,7 +39876,7 @@
             }
           },
           "default": {
-            "description": "Error. Codes: not_found, forbidden, feature_disabled",
+            "description": "Error. Codes: not_found, lobby_feed_invalid, feature_disabled",
             "content": {
               "application/json": {
                 "schema": {
@@ -38224,11 +39886,6 @@
             }
           }
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -38236,574 +39893,188 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "duration": {
+                  "title": {
                     "anyOf": [
                       {
                         "type": "string",
-                        "enum": [
-                          "15m",
-                          "1h",
-                          "8h",
-                          "1d"
+                        "maxLength": 8000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "text": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 8000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "url": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 8000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "image": {
+                    "anyOf": [
+                      {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 8000
+                          },
+                          {
+                            "type": "null"
+                          }
                         ]
                       },
                       {
-                        "type": "null"
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "url": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "maxLength": 8000
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
                       }
                     ]
-                  }
-                },
-                "required": [
-                  "duration"
-                ],
-                "additionalProperties": false
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/orgs/{orgId}/voice-bans": {
-      "get": {
-        "tags": [
-          "community-safety"
-        ],
-        "summary": "The community's voice bans, newest first (people who can ban).",
-        "operationId": "getV1OrgsOrgIdVoiceBans",
-        "parameters": [
-          {
-            "name": "orgId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 64
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "voiceBans": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "userId": {
-                            "type": "string"
-                          },
-                          "displayName": {
-                            "type": "string"
-                          },
-                          "username": {
-                            "type": "string"
-                          },
-                          "reason": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "bannedAt": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          },
-                          "bannedBy": {
-                            "type": "string"
-                          },
-                          "bannedByName": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          }
-                        },
-                        "required": [
-                          "userId",
-                          "displayName",
-                          "username",
-                          "reason",
-                          "bannedAt",
-                          "bannedBy",
-                          "bannedByName"
-                        ],
-                        "additionalProperties": false
-                      }
-                    }
                   },
-                  "required": [
-                    "voiceBans"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "Error. Codes: not_found, forbidden, feature_disabled",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      },
-      "post": {
-        "tags": [
-          "community-safety"
-        ],
-        "summary": "Keep someone out of the community's voice channels (they're taken out of a call they're in); they can still chat.",
-        "operationId": "postV1OrgsOrgIdVoiceBans",
-        "parameters": [
-          {
-            "name": "orgId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 64
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "voiceBans": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "userId": {
-                            "type": "string"
-                          },
-                          "displayName": {
-                            "type": "string"
-                          },
-                          "username": {
-                            "type": "string"
-                          },
-                          "reason": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "bannedAt": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          },
-                          "bannedBy": {
-                            "type": "string"
-                          },
-                          "bannedByName": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          }
-                        },
-                        "required": [
-                          "userId",
-                          "displayName",
-                          "username",
-                          "reason",
-                          "bannedAt",
-                          "bannedBy",
-                          "bannedByName"
-                        ],
-                        "additionalProperties": false
-                      }
-                    }
-                  },
-                  "required": [
-                    "voiceBans"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "Error. Codes: not_found, forbidden, bad_request, feature_disabled",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "userId": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 64
-                  },
-                  "reason": {
+                  "content": {
                     "anyOf": [
                       {
                         "type": "string",
-                        "maxLength": 300
+                        "maxLength": 8000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "embeds": {
+                    "anyOf": [
+                      {
+                        "maxItems": 10,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "title": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 8000
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "description": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 8000
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "url": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 8000
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "image": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "url": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "maxLength": 8000
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  }
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "thumbnail": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "url": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "maxLength": 8000
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  }
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          }
+                        }
                       },
                       {
                         "type": "null"
                       }
                     ]
                   }
-                },
-                "required": [
-                  "userId"
-                ],
-                "additionalProperties": false
+                }
               }
             }
           }
         }
-      }
-    },
-    "/v1/orgs/{orgId}/voice-bans/{userId}": {
-      "delete": {
-        "tags": [
-          "community-safety"
-        ],
-        "summary": "Lift a voice ban.",
-        "operationId": "deleteV1OrgsOrgIdVoiceBansUserId",
-        "parameters": [
-          {
-            "name": "orgId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 64
-            }
-          },
-          {
-            "name": "userId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 64
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "voiceBans": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "userId": {
-                            "type": "string"
-                          },
-                          "displayName": {
-                            "type": "string"
-                          },
-                          "username": {
-                            "type": "string"
-                          },
-                          "reason": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "bannedAt": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          },
-                          "bannedBy": {
-                            "type": "string"
-                          },
-                          "bannedByName": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          }
-                        },
-                        "required": [
-                          "userId",
-                          "displayName",
-                          "username",
-                          "reason",
-                          "bannedAt",
-                          "bannedBy",
-                          "bannedByName"
-                        ],
-                        "additionalProperties": false
-                      }
-                    }
-                  },
-                  "required": [
-                    "voiceBans"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "Error. Codes: not_found, forbidden, feature_disabled",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/v1/orgs/{orgId}/voice/members/{userId}/mute": {
-      "put": {
-        "tags": [
-          "community-safety"
-        ],
-        "summary": "Mute someone in the community's voice channels until unmuted, or unmute them (`voice.mute_members`).",
-        "operationId": "putV1OrgsOrgIdVoiceMembersUserIdMute",
-        "parameters": [
-          {
-            "name": "orgId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 64
-            }
-          },
-          {
-            "name": "userId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 64
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "userId": {
-                      "type": "string"
-                    },
-                    "muted": {
-                      "type": "boolean"
-                    },
-                    "mutedAt": {
-                      "anyOf": [
-                        {
-                          "type": "integer",
-                          "minimum": 0,
-                          "maximum": 9007199254740991
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    },
-                    "devices": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 9007199254740991
-                    }
-                  },
-                  "required": [
-                    "userId",
-                    "muted",
-                    "mutedAt",
-                    "devices"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "Error. Codes: not_found, forbidden, bad_request, feature_disabled",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "muted": {
-                    "type": "boolean"
-                  }
-                },
-                "required": [
-                  "muted"
-                ],
-                "additionalProperties": false
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/orgs/{orgId}/voice/members/{userId}/disconnect": {
-      "post": {
-        "tags": [
-          "community-safety"
-        ],
-        "summary": "Take someone out of the voice channel call they're in (`voice.move_members`); they may join again.",
-        "operationId": "postV1OrgsOrgIdVoiceMembersUserIdDisconnect",
-        "parameters": [
-          {
-            "name": "orgId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 64
-            }
-          },
-          {
-            "name": "userId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 64
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "userId": {
-                      "type": "string"
-                    },
-                    "disconnected": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 9007199254740991
-                    }
-                  },
-                  "required": [
-                    "userId",
-                    "disconnected"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "Error. Codes: not_found, forbidden, bad_request, feature_disabled",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
       }
     },
     "/v1/reports": {
@@ -59863,15 +61134,13 @@
                   "invite_unavailable",
                   "invite_used_up",
                   "invites_paused",
-                  "account_too_new",
-                  "community_locked",
-                  "community_locked_posting",
-                  "verification_required",
-                  "voice_banned",
                   "loadtest_disabled",
                   "loadtest_network",
                   "loadtest_quota",
                   "leave_community",
+                  "lobby_channel_invalid",
+                  "lobby_feed_invalid",
+                  "lobby_stale",
                   "legacy_login_closed",
                   "legacy_registration_closed",
                   "legacy_verification_failed",
@@ -60621,36 +61890,6 @@
       ],
       "meaning": "This community has paused new members for now. Try again later."
     },
-    "account_too_new": {
-      "status": [
-        403
-      ],
-      "meaning": "This community doesn't take accounts this new yet. Try again later."
-    },
-    "community_locked": {
-      "status": [
-        403
-      ],
-      "meaning": "This community is locked for now: nobody new can join. Try again later."
-    },
-    "community_locked_posting": {
-      "status": [
-        403
-      ],
-      "meaning": "This community is locked for now: only moderators can post. You can still read and react."
-    },
-    "verification_required": {
-      "status": [
-        403
-      ],
-      "meaning": "This community asks for a verified email, or a few minutes' wait, before posting or reacting."
-    },
-    "voice_banned": {
-      "status": [
-        403
-      ],
-      "meaning": "You've been kept out of this community's voice channels."
-    },
     "loadtest_disabled": {
       "status": [
         403
@@ -60674,6 +61913,24 @@
         403
       ],
       "meaning": "Leave the community instead of one of its channels"
+    },
+    "lobby_channel_invalid": {
+      "status": [
+        400
+      ],
+      "meaning": "Pick channels of this community for the lobby."
+    },
+    "lobby_feed_invalid": {
+      "status": [
+        400
+      ],
+      "meaning": "A lobby feed post needs a title, text or an https link."
+    },
+    "lobby_stale": {
+      "status": [
+        409
+      ],
+      "meaning": "Someone else changed the lobby meanwhile. Load the latest version and try again."
     },
     "legacy_login_closed": {
       "status": [

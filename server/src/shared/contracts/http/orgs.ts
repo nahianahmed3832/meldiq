@@ -154,6 +154,11 @@ export const CommunityView = z.strictObject({
   lockedUntil: zTime.nullable().optional(),
   /** Community parity A2: the safety settings, for people who can edit the community or ban members. */
   safety: SafetySettings.optional(),
+  /**
+   * Community parity B (feature "community-lobby"): whether the lobby is shown to members and whether the viewer has
+   * opened it; apps open the lobby first while it's on and unseen. Members only; absent while the feature is off.
+   */
+  lobby: z.strictObject({ enabled: z.boolean(), seen: z.boolean() }).optional(),
 });
 export const CommunityOnly = z.strictObject({ org: CommunityView });
 

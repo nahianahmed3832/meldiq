@@ -17,6 +17,7 @@ import type { CommunityRules } from "../modules/organizations/rules/service.js";
 import type { CommunityPermissions } from "../modules/organizations/communityPermissions/service.js";
 import type { CommunitySettings } from "../modules/organizations/settings/service.js";
 import type { CommunitySafety } from "../modules/organizations/safety/service.js";
+import type { CommunityLobby } from "../modules/organizations/lobby/service.js";
 import type { RelationshipStore } from "../modules/accounts/relationships/store.js";
 import type { CallStore } from "../modules/calls/store.js";
 import type { Rows } from "../infrastructure/database/rows/index.js";
@@ -102,6 +103,8 @@ export interface AppContext {
   communitySettings: CommunitySettings;
   /** Community parity A2: locks, raid protection, verification levels, the account-age gate, voice bans and mutes (feature community-safety). */
   communitySafety: CommunitySafety;
+  /** Community parity B: the community lobby, its feed URL and who has seen it (feature community-lobby, docs/COMMUNITY_PARITY_API.md). */
+  lobby: CommunityLobby;
   /** Calls, their participants and raised hands: SQLite, or MongoDB when MONGODB_DOMAINS includes "calls". */
   calls: CallStore;
   /**

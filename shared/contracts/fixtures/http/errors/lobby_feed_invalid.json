@@ -1,0 +1,9 @@
+{
+  "error": {
+    "code": "lobby_feed_invalid",
+    "message": "Links in the lobby feed must start with https://",
+    "details": {
+      "field": "url"
+    }
+  }
+}

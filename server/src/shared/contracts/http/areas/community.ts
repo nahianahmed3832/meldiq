@@ -5,6 +5,7 @@ import { onboardingRoutes } from "../onboarding.js";
 import { communityRulesRoutes } from "../communityRules.js";
 import { communitySettingsRoutes } from "../communitySettings.js";
 import { communitySafetyRoutes } from "../communitySafety.js";
+import { communityLobbyRoutes } from "../communityLobbyRoutes.js";
 import { reportRoutes } from "../reports.js";
 import type { RouteContract } from "../route.js";
 
@@ -19,5 +20,6 @@ export const communityRoutes: readonly RouteContract[] = [
   ...communityRulesRoutes,
   ...communitySettingsRoutes,
   ...communitySafetyRoutes,
+  ...communityLobbyRoutes,
   ...reportRoutes,
 ];

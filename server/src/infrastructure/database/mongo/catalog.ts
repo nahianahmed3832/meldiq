@@ -192,6 +192,11 @@ export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
   community_vanity_invites: "workspace",
   community_standard_invites: "workspace",
   onboarding_completions: "workspace",
+  // Community parity B (migration 072): the lobby, its feed URL and posts, and who has seen it.
+  community_lobbies: "workspace",
+  community_lobby_feeds: "workspace",
+  community_lobby_posts: "workspace",
+  community_lobby_seen: "workspace",
   // Batch B6: connections, message requests and who may message you.
   connections: "relationships",
   dm_requests: "relationships",
