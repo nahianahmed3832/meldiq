@@ -1,5 +1,6 @@
 import { activityRoutes } from "../activity.js";
 import { decorationRoutes } from "../decorations.js";
+import { pinRoutes } from "../pins.js";
 import { authRoutes } from "../auth.js";
 import { notificationRoutes } from "../notifications.js";
 import { pointsRoutes } from "../points.js";
@@ -15,6 +16,7 @@ export const identityRoutes: readonly RouteContract[] = [
   ...userRoutes,
   ...activityRoutes,
   ...decorationRoutes,
+  ...pinRoutes,
   ...notificationRoutes,
   ...connectionRoutes,
   ...preferenceRoutes,

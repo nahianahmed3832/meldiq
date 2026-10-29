@@ -16,6 +16,17 @@ community photo. A new banner gets a new revision and the old blob is deleted; d
 for deletion with its photo. `admin storage-orphans` knows banner blobs (and, since this release, community emoji and
 stickers) so it never reports them as orphans.
 
+## Animated icons and banners (API 0.64.0)
+
+The owner, 2026-10-29: "similar to profile image and banner community banner and profile can be animated". Besides the
+JPEG the apps make from a still picture, `PUT /v1/orgs/:orgId/photo` and `PUT /v1/orgs/:orgId/banner` take an animated
+GIF or WebP, stored as sent (`server/src/modules/organizations/communityImages.ts`): an icon up to 4 MB and 1024 × 1024,
+a banner up to 6 MB and 2048 × 1024, at most 600 frames; stills keep their limits (512 KB and 1 MB). The kind isn't
+stored: every route that serves them (`/v1/orgs/:orgId/photo`, `/banner`, `/v1/invites/:code/photo`, `/banner`) reads
+it from the file's first bytes and answers `image/gif`, `image/webp` or `image/jpeg` with `nosniff`. Rolling back to an
+older server is safe: it serves the same files as `image/jpeg`, which browsers still show. Feature:
+`animated-community-images`.
+
 ## API
 
 | Route | Who | Notes |

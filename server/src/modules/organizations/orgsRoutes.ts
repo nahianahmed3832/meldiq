@@ -35,7 +35,8 @@ import { onboardingOn } from "./onboardingRoutes.js";
 import { INVITE_PROBLEMS, inviteAlreadySatisfied, joinOrgByInvite, lookupOrgInvite, orgInviteProblem } from "./invites.js";
 import { userSummary } from "../auth/routes.js";
 import { deleteBlobNow, processBlobDeletes, queueBlobDelete } from "../files/routes.js";
-import { bannerBlobId, MAX_BANNER_BYTES, photoBlobId, readJpegBody, storePhoto } from "../accounts/photos.js";
+import { bannerBlobId, photoBlobId, storePhoto } from "../accounts/photos.js";
+import { readCommunityImage, withImageType } from "./communityImages.js";
 import { evictRemovedMember } from "../calls/routes.js";
 import { conversationView, liveCallsOf } from "../messaging/conversationsRoutes.js";
 import { orgRoleChangeRefusal, removalAllowed, titleChangeAllowed } from "./roleRules.js";
@@ -301,13 +302,13 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
   });
 
   // ───────────── Organization avatar (2026-10-19, docs/WORKSPACE_ADMINISTRATION.md) ─────────────
-  // A JPEG like people's photos, stored per revision. Owners and admins set it; every member can see it. It isn't
-  // end-to-end encrypted: like the organisation's name, the server can see it.
+  // A JPEG like people's photos, or (API 0.64.0) an animated GIF or WebP, stored per revision. Owners and admins set it;
+  // every member can see it. It isn't end-to-end encrypted: like the organisation's name, the server can see it.
   app.put("/v1/orgs/:orgId/photo", auth, async (req) => {
     const { userId } = me(req);
     const { orgId } = parse(OrgParams, req.params);
     authz.requirePermission(orgId, userId, "workspace.edit", "Only people who can edit the workspace can change its photo");
-    const buf = await readJpegBody(req, "Workspace photos");
+    const buf = await readCommunityImage(req, "icon", "Community icons");
     const previous = (orgRow(orgId)?.photo_rev as number | null | undefined) ?? null;
     const rev = Math.max(now(), (previous ?? 0) + 1);
     await storePhoto(ctx, photoBlobId(orgId, rev), buf);
@@ -343,17 +344,18 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const rev = orgRow(orgId).photo_rev as number | null;
     const stream = rev ? await ctx.blobs.get("profile-photos", photoBlobId(orgId, rev)) : null;
     if (!stream) throw notFound("No photo");
-    return reply.header("content-type", "image/jpeg").header("cache-control", "private, max-age=3600").header("etag", `"${rev}"`).send(stream);
+    const { type, body } = await withImageType(stream);
+    return reply.header("content-type", type).header("x-content-type-options", "nosniff").header("cache-control", "private, max-age=3600").header("etag", `"${rev}"`).send(body);
   });
 
   // ───────────── Community banner (API 0.44.0, docs/COMMUNITY_BRANDING.md) ─────────────
-  // A wide JPEG stored per revision beside the photo. Whoever can edit the community sets it; members see it, and so
+  // A wide JPEG, or (API 0.64.0) an animated GIF or WebP, stored per revision beside the photo. Whoever can edit the community sets it; members see it, and so
   // does anyone signed in when the community is listed publicly (Discover shows it). Like the name, it isn't encrypted.
   app.put("/v1/orgs/:orgId/banner", auth, async (req) => {
     const { userId } = me(req);
     const { orgId } = parse(OrgParams, req.params);
     authz.requirePermission(orgId, userId, "workspace.edit", "Only people who can edit the community can change its banner");
-    const buf = await readJpegBody(req, "Banners", MAX_BANNER_BYTES);
+    const buf = await readCommunityImage(req, "banner", "Banners");
     const previous = (orgRow(orgId)?.banner_rev as number | null | undefined) ?? null;
     const rev = Math.max(now(), (previous ?? 0) + 1);
     await storePhoto(ctx, bannerBlobId(orgId, rev), buf);
@@ -385,7 +387,8 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
   const sendBanner = async (reply: FastifyReply, orgId: string, rev: number | null, cache: string) => {
     const stream = rev ? await ctx.blobs.get("profile-photos", bannerBlobId(orgId, rev)) : null;
     if (!stream) throw notFound("No banner");
-    return reply.header("content-type", "image/jpeg").header("cache-control", cache).header("etag", `"${rev}"`).send(stream);
+    const { type, body } = await withImageType(stream);
+    return reply.header("content-type", type).header("x-content-type-options", "nosniff").header("cache-control", cache).header("etag", `"${rev}"`).send(body);
   };
 
   app.get("/v1/orgs/:orgId/banner", auth, async (req, reply) => {
@@ -788,7 +791,8 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const rev = (orgRow(inv.org_id)?.photo_rev as number | null | undefined) ?? null;
     const stream = rev ? await ctx.blobs.get("profile-photos", photoBlobId(inv.org_id, rev)) : null;
     if (!stream) throw notFound("No photo");
-    return reply.header("content-type", "image/jpeg").header("cache-control", "public, max-age=300").header("etag", `"${rev}"`).send(stream);
+    const { type, body } = await withImageType(stream);
+    return reply.header("content-type", type).header("x-content-type-options", "nosniff").header("cache-control", "public, max-age=300").header("etag", `"${rev}"`).send(body);
   });
 
   app.post("/v1/invites/accept", inviteRate, async (req) => {

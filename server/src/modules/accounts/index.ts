@@ -19,6 +19,9 @@ import { PasskeyService } from "./passkeys.js";
 import { TotpService } from "./totp.js";
 import { EmailChangeService } from "./emailChange.js";
 
+// API 0.64.0: reading an uploaded image (animated community icons and banners, modules/organizations/communityImages.ts).
+export { readBody } from "./profileMediaRoutes.js";
+export { gifInfo, type ImageInfo, sniff, webpInfo } from "./mediaFormats.js";
 // API 0.46.0: what warnings from staff limit (docs/ACCOUNT_SAFETY.md).
 export { requireStanding } from "./standing.js";
 // For the Platform Admin Console (modules/platformAdmin), which signs admins in with their account password.

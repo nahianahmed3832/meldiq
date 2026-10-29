@@ -130,6 +130,27 @@ Passkeys failed in the app installed from Google Play: Play signs it with its ap
 
 Rollback: copy the backup's `.env` back and recreate `api` the same way.
 
+### API 0.64.0 and web aa88094: profile pins, animated community images and the owner's fixes (2026-10-29, 13:22 UTC, owner's request: "fix these and deploy for productions")
+
+Branch `profile-pins` (7a320d7, ec79b65) on production's `admin-accounts` 24cae29 (0.63.0): profile pins
+(docs/PROFILE_PINS.md; MongoDB `community_pins` and `community_pin_awards`, new collections, indexes created at start;
+Meldiq's pin images in `server/assets/pins`) and animated GIF/WebP community icons and banners
+(docs/COMMUNITY_BRANDING.md; the type is read from the file when served). No migration; `.env` unchanged.
+
+| Step | Result |
+|---|---|
+| Tests | server 1205 passed (the MongoDB suites that timed out under full load pass alone); `profile_pins.test.ts` 18/18 on memory and MongoDB, `community_branding.test.ts` 9/9; web unit 712; browser pins + decorations 2/2; Android unit 803 |
+| Pre-flight | 0.63.0 healthy; VPS `server/` byte-equal to `admin-accounts` (tests aside); 34 GB free |
+| Backup | `backups/pre-0.64.0-20261029T131707Z`: integrity ok, schema 68, 46 users, `.env`/`compose.yaml` copies; image `0.63.0-rollback`; sources kept as `server.pre-0.64.0` |
+| Build | `docker build --network host`: inside Docker's bridge network the Node headers host (IPv6 first) timed out, so `npm ci` couldn't build better-sqlite3; the host network works. 24 files synced; image with 7 pin images |
+| Rehearsal | backup copy, `--network none`, MongoDB and FCM settings left out: 0.64.0 healthy, `/v2/pins/early-member/image` served, both features listed, 0 error lines; `0.63.0-rollback` healthy on the same copy; copy removed |
+| Switch | 13:22:29, healthy 13:22:36; `/healthz` 0.64.0 `mongodb: true` on both hosts; `verify.sh` 0 restarts; 0 warn/error lines |
+| Web | `0.5.0-beta-aa88094` (branch `pins-fixes` in meldiq-web, on `d33a893`) installed, previous `0.5.0-beta-d33a893`; `verify.sh` all passed |
+
+Rollback: `compose.yaml` image `0.63.0-rollback` and `up -d --no-deps --no-build --force-recreate api` (0.63.0 ignores
+the pin collections; animated community images it serves as `image/jpeg`, which browsers still show); web
+`bash /root/meldiq-web-0.5.0-beta-aa88094/rollback.sh`.
+
 ### API 0.62.0 and console 1.3.0: creating accounts from the admin console (2026-10-29, 11:10 UTC, owner's request: "make this system and push for productions")
 
 Branch `admin-accounts`: production's 0.61.1 (`stripe-live` 612d78c, sources checked file by file before and again

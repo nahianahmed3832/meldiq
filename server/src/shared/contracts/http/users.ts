@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { ProfilePin } from "./pins.js";
 import { ActivityWire, PresenceState } from "../realtime.js";
 import { UserIdParams, zName, zUsername } from "./auth.js";
 import { idParams, zTime } from "./primitives.js";
@@ -269,6 +270,8 @@ export const UserProfile = z.strictObject({
   mutualCommunities: z.array(z.strictObject({ id: z.string(), name: z.string(), photoRev: z.number().int().nullable(), joinedAt: zTime })).optional(),
   /** API 0.61.0: they have a profile decoration approved (the Artist badge); absent otherwise. */
   decorationArtist: z.literal(true).optional(),
+  /** API 0.64.0: their pins (docs/PROFILE_PINS.md), Meldiq's then communities'; absent when there are none. */
+  pins: z.array(ProfilePin).optional(),
 });
 
 /** A device's public keys, to encrypt to and verify. */

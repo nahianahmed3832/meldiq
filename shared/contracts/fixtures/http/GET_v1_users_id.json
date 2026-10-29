@@ -1,15 +1,27 @@
 {
   "user": {
     "statusText": null,
-    "id": "u_p37EsaRglzNapa2uwMBiOA",
-    "username": "ben2",
-    "displayName": "ben",
+    "id": "u_S6eUa988Y8ElV-SkN-ComQ",
+    "username": "member3",
+    "displayName": "member",
     "avatarColor": 0,
     "homeServer": null,
-    "identityKey": "pt6Fx3hUGhyQYbLRT/MzUZ8L5SlHXlwmVzixpTgDhY0=",
-    "fingerprint": "97905 91440 99063 26616 91977 69601",
-    "online": true,
-    "presence": "online",
-    "lastSeenAt": null
+    "identityKey": "8GfL4PAWb4aEOTvrJlhLJ8TU8gwdFzwjzhvImfgyaMQ=",
+    "fingerprint": "39821 54316 94762 71010 73503 30172",
+    "online": null,
+    "lastSeenAt": null,
+    "memberSince": 1793277655973,
+    "mutualCommunities": [],
+    "pins": [
+      {
+        "id": "early-member",
+        "kind": "meldiq",
+        "name": "Early member",
+        "description": "Joined Meldiq during its beta",
+        "imageUrl": "/v2/pins/early-member/image",
+        "animated": false,
+        "since": 1793277655973
+      }
+    ]
   }
 }

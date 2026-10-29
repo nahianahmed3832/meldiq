@@ -78,6 +78,10 @@ import decorationRoutes from "../modules/accounts/decorations/routes.js";
 import { DecorationService } from "../modules/accounts/decorations/service.js";
 import { MemoryDecorationStore } from "../modules/accounts/decorations/store.js";
 import { MongoDecorationStore } from "../modules/accounts/decorations/mongoStore.js";
+import pinRoutes from "../modules/accounts/pins/routes.js";
+import { PinService } from "../modules/accounts/pins/service.js";
+import { MemoryPinStore } from "../modules/accounts/pins/store.js";
+import { MongoPinStore } from "../modules/accounts/pins/mongoStore.js";
 import { MemoryFavoriteStore } from "../modules/accounts/decorations/favoritesStore.js";
 import { MongoFavoriteStore } from "../modules/accounts/decorations/mongoFavoritesStore.js";
 import { MemoryPrivacyStore } from "../modules/accounts/relationships/privacyStore.js";
@@ -258,6 +262,11 @@ export async function buildApp(
   if (favoriteStore instanceof MongoFavoriteStore) await favoriteStore.ensureIndexes();
   ctx.decorations = new DecorationService(ctx, decorationStore, favoriteStore);
   await ctx.decorations.load();
+  // API 0.64.0: community pins (docs/PROFILE_PINS.md), new data, so MongoDB whenever there is one.
+  const pinStore = ctx.mongo ? new MongoPinStore(ctx.mongo) : new MemoryPinStore();
+  if (pinStore instanceof MongoPinStore) await pinStore.ensureIndexes();
+  ctx.pins = new PinService(ctx, pinStore);
+  await ctx.pins.load();
   ctx.privacyChoices = ctx.mongo ? new MongoPrivacyStore(ctx.mongo) : new MemoryPrivacyStore();
   const holdStore = ctx.mongo ? new MongoUsernameHoldStore(ctx.mongo) : new MemoryUsernameHoldStore();
   if (holdStore instanceof MongoUsernameHoldStore) await holdStore.ensureIndexes();
@@ -494,7 +503,7 @@ export async function buildApp(
     passkeys: ctx.accounts.passkeys.available ? { webOrigins: ctx.accounts.passkeys.webOrigins } : null,
   }));
 
-  for (const r of [authRoutes, userRoutes, profileMediaRoutes, gifRoutes, bugReportRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, serverMessagesRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, activityRoutes, decorationRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, expressionRoutes, discordRoutes, leaveManyRoutes, pointsRoutes, wsRoutes]) {
+  for (const r of [authRoutes, userRoutes, profileMediaRoutes, gifRoutes, bugReportRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, serverMessagesRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, activityRoutes, decorationRoutes, pinRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, expressionRoutes, discordRoutes, leaveManyRoutes, pointsRoutes, wsRoutes]) {
     await app.register(async (scope) => r(scope, ctx));
   }
   await app.register(async (scope) => opsRoutes(scope, ctx, VERSION));
@@ -631,6 +640,9 @@ export function serverFeatures(config: Config, directUploads = false): string[] 
     "server-messages",
     // API 0.61.0 (docs/PROFILE_DECORATIONS.md): Meldiq's own decorations and reviewed community ones (/v2/decorations).
     "profile-decorations",
+    // API 0.64.0 (docs/PROFILE_PINS.md): pins on profiles, Meldiq's for milestones and communities' own; animated community icons and banners.
+    "profile-pins",
+    "animated-community-images",
     // API 0.65.0 (docs/SETTINGS_PARITY_API.md): a two-colour profile theme and the badge shown by the name (profile
     // style), leaving several communities at once, the group-chat add choice and suggested people, old usernames held
     // 7 days, decoration favourites, and points with quests and account levels.
