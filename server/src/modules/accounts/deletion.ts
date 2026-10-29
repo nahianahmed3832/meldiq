@@ -128,6 +128,14 @@ export async function eraseAccount(ctx: AppContext, accounts: Accounts, account:
 }
 
 /**
+ * Deletes a bot's account (API 0.65.0, modules/bots): it leaves every community and conversation and becomes "Deleted
+ * account", exactly like a person's identity; messages it sent stay, attributed to that name. A bot has no account row.
+ */
+export async function eraseBotIdentity(ctx: AppContext, botUserId: string, actorId: string | null): Promise<void> {
+  await eraseIdentity(ctx, botUserId, actorId, now());
+}
+
+/**
  * Leaves every workspace, then anonymises the identity and removes its devices (identity rows), then takes it out of
  * conversations (workspace rows), then tells everyone concerned. Each step can be repeated if a later one fails.
  */
@@ -191,7 +199,8 @@ async function eraseIdentity(ctx: AppContext, userId: string, actorId: string | 
   await ctx.decorations.favorites.deleteForUser(userId);
   await ctx.usernames.deleteForUser(userId);
   await ctx.points.deleteForUser(userId);
-  // API 0.65.0 batch B: their "Log in with Meldiq" apps and their sign-ins to apps.
+  // API 0.65.0 batch B: their bots (each deleted like this), their "Log in with Meldiq" apps and their sign-ins to apps.
+  await ctx.bots.deleteForUser(userId, actorId ?? userId);
   await ctx.oauth.deleteForUser(userId);
   await deleteHistoryAfterCommit(ctx, userId, "account deleted");
 

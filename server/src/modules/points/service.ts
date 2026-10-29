@@ -1,7 +1,7 @@
 import type { AppContext } from "../../app/context.js";
 import type { PointsView } from "../../shared/contracts/http/points.js";
 import { ApiError } from "../../shared/errors.js";
-import { accountFacts, announceProfileChange, createdBefore } from "../accounts/index.js";
+import { accountFacts, announceProfileChange, createdBefore, isBotUser } from "../accounts/index.js";
 import { communityCount } from "../organizations/index.js";
 import { entryId, monthStart, nextDayStart, POINTS, previousDay, type QuestId, QUESTS, type QuestSpec, questSpec, scaled, utcDay } from "./rules.js";
 import type { InviteJoin, PointsKind, PointsStore } from "./store.js";
@@ -166,7 +166,8 @@ export class PointsService {
   /** Whether [messageId] is a stored message in [m]'s conversation that someone other than [m]'s sender sent. */
   private async fromSomeoneElse(messageId: string, m: SentMessage): Promise<boolean> {
     const target = await this.ctx.messages.get(messageId);
-    return !!target && target.conversation_id === m.conversationId && target.sender_user_id !== m.userId;
+    // API 0.65.0 batch B: bots never count for quests (reacting to or replying to a bot earns nothing).
+    return !!target && target.conversation_id === m.conversationId && target.sender_user_id !== m.userId && !isBotUser(this.ctx, target.sender_user_id);
   }
 
   /** Counts [value] toward a daily quest, and gives its reward the moment it's complete. */

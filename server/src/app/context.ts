@@ -24,6 +24,7 @@ import type { PrivacyStore } from "../modules/accounts/relationships/privacyStor
 import type { UsernameHolds } from "../modules/accounts/usernameHolds.js";
 import type { PointsService } from "../modules/points/index.js";
 import type { OAuthService } from "../modules/oauth/index.js";
+import type { BotService } from "../modules/bots/index.js";
 import type { PushService } from "../modules/notifications/service.js";
 import type { FcmService } from "../modules/notifications/fcm.js";
 import type { Metrics } from "../modules/administration/ops/metrics.js";
@@ -78,6 +79,8 @@ export interface AppContext {
   points: PointsService;
   /** API 0.65.0 batch B: "Log in with Meldiq" apps and OAuth (modules/oauth, docs/SETTINGS_PARITY_API.md). */
   oauth: OAuthService;
+  /** API 0.65.0 batch B: bots, their slash commands and interactions (modules/bots, docs/SETTINGS_PARITY_API.md). */
+  bots: BotService;
   /** Calls, their participants and raised hands: SQLite, or MongoDB when MONGODB_DOMAINS includes "calls". */
   calls: CallStore;
   /**

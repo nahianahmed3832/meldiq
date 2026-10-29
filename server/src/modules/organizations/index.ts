@@ -6,3 +6,5 @@ export { auditActionCount, authHistory, type MembershipRow, membershipsOf, orgMe
 // The Platform Admin Console removes a member the same way a community manager does (everything else follows).
 export { removeFromWorkspace } from "./orgsRoutes.js";
 export { communityCount, orgMates, presenceWatchers, sharedCommunityCounts } from "./orgMates.js";
+// API 0.65.0 batch B: bots joining and leaving communities (modules/bots decides who may add which bot).
+export { addBotMember, type BotChannelView, botChannels, removeBotMember, requireBotManager } from "./botMembers.js";
