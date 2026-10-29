@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Meldiq API",
-    "version": "0.62.0",
+    "version": "0.63.0",
     "description": "The canonical contract of the Meldiq server (docs/architecture/ARCHITECTURE_1_0_PLAN.md §4), generated from src/shared/contracts. Fields are only ever added within a version; clients ignore unknown fields. Routes not listed here exist but aren't documented yet."
   },
   "servers": [
@@ -9900,7 +9900,7 @@
         "tags": [
           "accounts"
         ],
-        "summary": "Key backup on a new device, step 1: email a code for this session.",
+        "summary": "Key backup on a new device, step 1: email a code for this session (or say it needs a tester's fixed code, or none).",
         "operationId": "postV2AccountKeyBackupUnlockStart",
         "parameters": [],
         "responses": {
@@ -9918,11 +9918,20 @@
                       "type": "integer",
                       "minimum": 0,
                       "maximum": 9007199254740991
+                    },
+                    "delivery": {
+                      "type": "string",
+                      "enum": [
+                        "email",
+                        "fixed_code",
+                        "none"
+                      ]
                     }
                   },
                   "required": [
                     "email",
-                    "expiresAt"
+                    "expiresAt",
+                    "delivery"
                   ],
                   "additionalProperties": false
                 }
@@ -9952,7 +9961,7 @@
         "tags": [
           "accounts"
         ],
-        "summary": "Key backup on a new device, step 2: the emailed code gives back the sealed keys.",
+        "summary": "Key backup on a new device, step 2: the code (when one is needed) gives back the sealed keys.",
         "operationId": "postV2AccountKeyBackupUnlock",
         "parameters": [],
         "responses": {
@@ -10027,10 +10036,7 @@
                     "minLength": 4,
                     "maxLength": 32
                   }
-                },
-                "required": [
-                  "code"
-                ]
+                }
               }
             }
           }

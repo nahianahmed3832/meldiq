@@ -1,4 +1,4 @@
-# Accounts made in the admin console (API 0.62.0)
+# Accounts made in the admin console (API 0.62.0; new devices 0.63.0)
 
 Operators create Meldiq accounts from the console's **Accounts** page (`#/accounts`) — for testers before the store
 release, reviewers, or people the team signs up by hand — and choose how each one proves its email address:
@@ -11,6 +11,22 @@ release, reviewers, or people the team signs up by hand — and choose how each 
 
 After the address is verified, signing in is email and password (plus the person's own two-step code if they turn it
 on), exactly as for everyone else: there is no code at every sign-in for any account.
+
+**A new device** (API 0.63.0, reported 2026-10-29: testers were stuck on the second browser or phone). Opening the
+encrypted messages on a device that has no keys yet normally needs a code emailed to the account (docs/KEY_BACKUP.md).
+For accounts made here, `POST /v2/account/key-backup/unlock/start` answers `delivery` and sends no email unless it is
+`email`:
+
+| Verification | `delivery` | Step 2 (`POST /v2/account/key-backup/unlock`) |
+|---|---|---|
+| `verified` | `none` | no code: `{}` gives back the sealed keys, which still open only with the password |
+| `static_code` (until its end) | `fixed_code` | the fixed code |
+| `static_code` after its end, `email`, every other account | `email` | the emailed code, as before |
+
+Step 2 is still bound to the session that started it, single use and limited to 5 wrong tries; starts share the 5-an-hour limit of emailed codes, so a fixed code cannot be guessed by starting again. The audit entry
+`account.key_unlock_started` carries `none` or `fixed_code` in its detail. The web app skips the code screen for
+`none` and asks for the tester code for `fixed_code`; an older app shows the emailed-code screen, where the fixed code
+works and, for `none`, any six digits do.
 
 Rules:
 

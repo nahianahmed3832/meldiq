@@ -53,8 +53,8 @@ Only while the account's password and identity are the ones it was made for. The
 | `GET /v2/account/key-backup` | any session | `{exists, updatedAt}` for the current password and identity |
 | `PUT /v2/account/key-backup` | a session bound to a device, with `{password, backup}` | checks the password and that `backup.identityKey` is the current identity |
 | `DELETE /v2/account/key-backup` | a session bound to a device | turns it off |
-| `POST /v2/account/key-backup/unlock/start` | any session | emails a code for this session; 404 `no_key_backup` when there's nothing to unlock |
-| `POST /v2/account/key-backup/unlock` | the same session, `{code}` | the sealed keys; single use |
+| `POST /v2/account/key-backup/unlock/start` | any session | emails a code for this session; answers `delivery` (`email`, or for a console-made account `fixed_code`/`none` with no email, docs/ADMIN_ACCOUNTS.md); 404 `no_key_backup` when there's nothing to unlock |
+| `POST /v2/account/key-backup/unlock` | the same session, `{code}` (`{}` for `delivery: none`) | the sealed keys; single use |
 | `POST /v2/account/password` | as before, plus optional `keyBackup` | the keys sealed under the new password replace the backup |
 
 Feature flag `key-backup`. Audit events: `account.key_backup_saved`, `account.key_backup_removed`,
@@ -79,7 +79,9 @@ This is weaker than the recovery key, by the owner's choice (2026-10-21). Stated
 - **Someone with the password and the inbox** can set up a new device and read messages. Before this change they'd
   also have needed the recovery key or another device. Every unlock sends an email, and the device appears in the
   device list.
-- **Without the inbox**, the password alone isn't enough: the code is required.
+- **Without the inbox**, the password alone isn't enough: the code is required. The exception is an account an
+  operator made in the admin console with no code or a fixed tester code (API 0.63.0, docs/ADMIN_ACCOUNTS.md): the
+  operator chose that, for testers whose addresses may not receive mail.
 
 People who want the old guarantee can turn the backup off (Android Settings › Key backup, web Settings › Account).
 Then a new device needs the recovery key or another device again.

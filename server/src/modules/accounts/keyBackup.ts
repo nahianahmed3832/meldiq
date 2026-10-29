@@ -4,6 +4,7 @@ import type { AppContext } from "../../app/context.js";
 import { ApiError } from "../../shared/errors.js";
 import { now, sha256Hex } from "../../shared/utilities/util.js";
 import type { KeyBackupRow, KeyBackupStore } from "./keyBackupStore.js";
+import { operatorAccount, staticCodeMatches } from "./operatorAccounts.js";
 import { mailTexts } from "../../infrastructure/mail/mailer.js";
 import type { KeyBackupBody } from "../../shared/contracts/http/accounts.js";
 import { type AccountService, maskEmail } from "./service.js";
@@ -14,6 +15,12 @@ const CODE_DIGITS = 6;
 const UNLOCK_CODES_PER_HOUR = 5;
 
 type Reply = { header: (k: string, v: string) => unknown };
+
+/**
+ * How a new device proves the inbox (docs/ADMIN_ACCOUNTS.md): the emailed code; a console-made tester account's fixed
+ * code while it lasts (nothing is emailed); or nothing more than the password, for an account the console vouched for.
+ */
+export type UnlockDelivery = "email" | "fixed_code" | "none";
 
 /** The sealed keys as the clients read and write them. */
 export interface KeyBackupView {
@@ -105,16 +112,31 @@ export class KeyBackupService {
     this.ctx.audit({ actorId: a.user_id, action: "account.key_backup_removed", target: a.id });
   }
 
-  /** Step 1 on a new device: emails a code for this session. Past the hourly limit nothing more is sent. */
-  async startUnlock(s: ActiveSession): Promise<{ email: string; expiresAt: number }> {
+  /**
+   * Step 1 on a new device: emails a code for this session. Past the hourly limit nothing more is sent (or opened). A
+   * console-made account that needs no emailed code gets nothing by email: its step is still opened for this session,
+   * so step 2 is bound to it and wrong tries count the same way.
+   */
+  async startUnlock(s: ActiveSession): Promise<{ email: string; expiresAt: number; delivery: UnlockDelivery }> {
     const a = await this.account(s);
     if (!(await this.current(a))) throw noBackup();
-    if (!this.accounts.mailer.available) throw emailUnavailable();
     const t = now();
+    const delivery = this.delivery(a, t);
     const expiresAt = t + this.ctx.config.accounts.codeTtlMs;
-    if (!this.codesSent.allows(a.id)) return { email: maskEmail(a.email), expiresAt };
+    const answer = { email: maskEmail(a.email), expiresAt, delivery };
+    if (delivery === "email" && !this.accounts.mailer.available) throw emailUnavailable();
+    // Every start opens a fresh step with fresh tries, so starts share the hourly limit: a fixed code can't be guessed
+    // by starting again after each few wrong tries.
+    if (!this.codesSent.allows(a.id)) return answer;
+    // Nothing is sent: a random value no code can match only marks the step as opened for this session.
+    if (delivery !== "email") {
+      await this.openUnlock(a, s, crypto.randomBytes(32).toString("hex"), t, expiresAt);
+      this.codesSent.record(a.id, t);
+      this.ctx.audit({ actorId: a.user_id, action: "account.key_unlock_started", target: a.id, detail: delivery });
+      return answer;
+    }
     const code = crypto.randomInt(0, 10 ** CODE_DIGITS).toString().padStart(CODE_DIGITS, "0");
-    await this.store.putUnlock({ account_id: a.id, session_id: s.id, code_hash: unlockHash(a.id, s.id, code), attempts: 0, created_at: t, expires_at: expiresAt });
+    await this.openUnlock(a, s, unlockHash(a.id, s.id, code), t, expiresAt);
     this.codesSent.record(a.id, t);
     try {
       await this.accounts.mailer.send({ to: a.email, ...mailTexts.keyUnlock(code) });
@@ -124,17 +146,19 @@ export class KeyBackupService {
       throw new ApiError(503, "email_failed", "We couldn't send the email just now. Try again in a minute.");
     }
     this.ctx.audit({ actorId: a.user_id, action: "account.key_unlock_started", target: a.id });
-    return { email: maskEmail(a.email), expiresAt };
+    return answer;
   }
 
-  /** Step 2: the emailed code, from the same session, gives back the sealed keys. Single use; wrong tries count. */
-  async unlock(s: ActiveSession, code: string): Promise<KeyBackupView> {
+  /**
+   * Step 2: the emailed code, from the same session, gives back the sealed keys. Single use; wrong tries count. A
+   * tester's fixed code works in its place, and an account the console vouched for needs no code.
+   */
+  async unlock(s: ActiveSession, code: string | undefined): Promise<KeyBackupView> {
     const a = await this.account(s);
     const row = await this.store.unlock(a.id);
-    if (!row || row.session_id !== s.id || row.expires_at <= now() || row.attempts >= this.ctx.config.accounts.codeMaxAttempts) throw invalidCode();
-    const expected = Buffer.from(row.code_hash, "hex");
-    const given = Buffer.from(unlockHash(a.id, s.id, code), "hex");
-    if (!crypto.timingSafeEqual(expected, given)) {
+    const t = now();
+    if (!row || row.session_id !== s.id || row.expires_at <= t || row.attempts >= this.ctx.config.accounts.codeMaxAttempts) throw invalidCode();
+    if (!this.codeAccepted(a, s, row.code_hash, code ?? "", t)) {
       await this.store.countUnlockAttempt(a.id);
       throw invalidCode();
     }
@@ -143,6 +167,27 @@ export class KeyBackupService {
     if (!backup) throw noBackup();
     this.ctx.audit({ actorId: a.user_id, action: "account.key_unlocked", target: a.id });
     return view(backup);
+  }
+
+  private codeAccepted(a: AccountRow, s: ActiveSession, codeHash: string, code: string, t: number): boolean {
+    const delivery = this.delivery(a, t);
+    if (delivery === "none") return true;
+    const digits = code.replace(/\D/g, "");
+    if (delivery === "fixed_code" && staticCodeMatches(operatorAccount(this.ctx.platform, a.id), a.id, digits, t)) return true;
+    const expected = Buffer.from(codeHash, "hex");
+    const given = Buffer.from(unlockHash(a.id, s.id, digits), "hex");
+    return expected.length === given.length && crypto.timingSafeEqual(expected, given);
+  }
+
+  private delivery(a: AccountRow, t: number): UnlockDelivery {
+    const operator = operatorAccount(this.ctx.platform, a.id);
+    if (operator?.verification === "verified") return "none";
+    if (operator?.verification === "static_code" && (operator.code_expires_at === null || operator.code_expires_at > t)) return "fixed_code";
+    return "email";
+  }
+
+  private openUnlock(a: AccountRow, s: ActiveSession, codeHash: string, t: number, expiresAt: number): Promise<void> {
+    return this.store.putUnlock({ account_id: a.id, session_id: s.id, code_hash: codeHash, attempts: 0, created_at: t, expires_at: expiresAt });
   }
 
   purgeExpired(): Promise<number> {

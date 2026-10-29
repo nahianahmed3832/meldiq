@@ -86,7 +86,8 @@ export const DeleteAccountBody = z.object({ password: zPassword, confirmEmail: z
 /** [keyBackup]: the keys sealed again under the new password, so a backup survives the change. */
 export const ChangePasswordBody = z.object({ currentPassword: zPassword, newPassword: zPassword, keyBackup: KeyBackupBody.optional() });
 export const PutKeyBackupBody = z.object({ password: zPassword, backup: KeyBackupBody });
-export const KeyUnlockBody = z.object({ code: zVerifyCode });
+/** The code is left out only when the unlock step said it needs none (delivery "none", docs/ADMIN_ACCOUNTS.md). */
+export const KeyUnlockBody = z.object({ code: zVerifyCode.optional() });
 export const SessionIdParams = z.object({ id: z.string().min(3).max(64) });
 export const PreferencesBody = z.object({ selectedWorkspaceId: z.string().min(3).max(64) });
 
@@ -213,7 +214,11 @@ export const RecoveryDone = z.strictObject({ email: z.string(), remainingCodes: 
 export const KeyBackupStatus = z.strictObject({ exists: z.boolean(), updatedAt: zTime.nullable() });
 export const KeyBackupSaved = z.strictObject({ updatedAt: zTime });
 /** An unlock code went to [email] (masked, "n****2@gmail.com"), valid until [expiresAt]. */
-export const KeyUnlockStarted = z.strictObject({ email: z.string(), expiresAt: zTime });
+/**
+ * Where the unlock code went (masked) and how it reaches the person (API 0.63.0, docs/ADMIN_ACCOUNTS.md): "email" (the
+ * emailed code), "fixed_code" (a console-made tester account's fixed code; nothing is emailed) or "none" (no code).
+ */
+export const KeyUnlockStarted = z.strictObject({ email: z.string(), expiresAt: zTime, delivery: z.enum(["email", "fixed_code", "none"]) });
 /** The sealed keys, as written by the device that backed them up. */
 export const KeyBackupView = z.strictObject({
   version: z.number().int(),

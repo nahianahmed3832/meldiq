@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { insertOperatorAccount, type OperatorVerification, staticCodeHash } from "../src/modules/accounts/operatorAccounts.js";
 import { AccountClient, email, MemoryMailer, PASSWORD } from "./support/accounts.js";
 import { newEd25519, newX25519 } from "./support/griipClient.js";
 import { expectStatus, type Harness, startServer } from "./support/harness.js";
@@ -170,5 +171,85 @@ describe("keys backed up under the password", () => {
     await d.req("DELETE", "/v2/account", { password: PASSWORD, confirmEmail: d.email });
     expect(await h.ctx.accounts.keyBackups.store.backup(d.accountId)).toBeUndefined();
     expect(await h.ctx.accounts.keyBackups.store.unlock(d.accountId)).toBeUndefined();
+  });
+});
+
+/** Marks [accountId] as made in the console (docs/ADMIN_ACCOUNTS.md) with [verification]. */
+async function madeInConsole(accountId: string, verification: OperatorVerification, staticCode?: string, codeExpiresAt: number | null = null) {
+  const t = Date.now();
+  await h.ctx.platform.write((w) =>
+    insertOperatorAccount(w, {
+      account_id: accountId,
+      verification,
+      code_hash: staticCode ? staticCodeHash(accountId, staticCode) : null,
+      code_expires_at: staticCode ? codeExpiresAt : null,
+      tester: 1,
+      note: null,
+      created_by: "acc_operator",
+      created_at: t,
+      updated_by: "acc_operator",
+      updated_at: t,
+    }),
+  );
+}
+
+const unlockMails = (to: string) => mailer.sent.filter((m) => m.to === to && /code to set up Meldiq on a new device/.test(m.subject)).length;
+
+describe("a new device of an account made in the console", () => {
+  it("emails the code as usual for an ordinary account", async () => {
+    const { c } = await backedUp("ordinary");
+    const p = await newPhone(c);
+    expect(await p.req("POST", "/v2/account/key-backup/unlock/start")).toMatchObject({ delivery: "email" });
+    expect(unlockMails(c.email)).toBe(1);
+  });
+
+  it("fixed tester code: nothing is emailed and the fixed code unlocks the keys, once, in the session that started", async () => {
+    const { c, backup } = await backedUp("fixedcode");
+    await madeInConsole(c.accountId, "static_code", "135790");
+    const p = await newPhone(c);
+    expect(await p.req("POST", "/v2/account/key-backup/unlock/start")).toMatchObject({ delivery: "fixed_code" });
+    expect(unlockMails(c.email)).toBe(0);
+    const q = await newPhone(c);
+    await expectStatus(q.req("POST", "/v2/account/key-backup/unlock", { code: "135790" }), 400);
+    await expectStatus(p.req("POST", "/v2/account/key-backup/unlock", { code: "111111" }), 400);
+    await expectStatus(p.req("POST", "/v2/account/key-backup/unlock", {}), 400);
+    expect(await p.req("POST", "/v2/account/key-backup/unlock", { code: "135-790" })).toEqual(backup);
+    await expectStatus(p.req("POST", "/v2/account/key-backup/unlock", { code: "135790" }), 400);
+  });
+
+  it("fixed tester code: starting again for fresh tries is limited like emailing codes", async () => {
+    const { c } = await backedUp("fixedguess");
+    await madeInConsole(c.accountId, "static_code", "135790");
+    const p = await newPhone(c);
+    const wrong = async () => {
+      await p.req("POST", "/v2/account/key-backup/unlock/start");
+      for (let i = 0; i < h.ctx.config.accounts.codeMaxAttempts; i++) await expectStatus(p.req("POST", "/v2/account/key-backup/unlock", { code: "000000" }), 400);
+    };
+    for (let i = 0; i < 5; i++) await wrong();
+    // The hourly starts are used up: a new start opens no fresh tries, so even the right code is refused now.
+    await p.req("POST", "/v2/account/key-backup/unlock/start");
+    await expectStatus(p.req("POST", "/v2/account/key-backup/unlock", { code: "135790" }), 400);
+  });
+
+  it("fixed tester code that has ended: back to the emailed code", async () => {
+    const { c, backup } = await backedUp("fixedended");
+    await madeInConsole(c.accountId, "static_code", "135790", Date.now() - 1000);
+    const p = await newPhone(c);
+    expect(await p.req("POST", "/v2/account/key-backup/unlock/start")).toMatchObject({ delivery: "email" });
+    await expectStatus(p.req("POST", "/v2/account/key-backup/unlock", { code: "135790" }), 400);
+    expect(await p.req("POST", "/v2/account/key-backup/unlock", { code: unlockCode(c.email) })).toEqual(backup);
+  });
+
+  it("no code: nothing is emailed and the keys come back without a code, still only after the step was started", async () => {
+    const { c, backup } = await backedUp("nocode");
+    await madeInConsole(c.accountId, "verified");
+    const p = await newPhone(c);
+    await expectStatus(p.req("POST", "/v2/account/key-backup/unlock", {}), 400);
+    expect(await p.req("POST", "/v2/account/key-backup/unlock/start")).toMatchObject({ delivery: "none" });
+    expect(unlockMails(c.email)).toBe(0);
+    expect(await p.req("POST", "/v2/account/key-backup/unlock", {})).toEqual(backup);
+    await expectStatus(p.req("POST", "/v2/account/key-backup/unlock", {}), 400);
+    const audit = h.ctx.ws.all<{ action: string; detail: string | null }>("audit_log", { where: { target: c.accountId, action: "account.key_unlock_started" } });
+    expect(audit.map((a) => a.detail)).toEqual(["none"]);
   });
 });
