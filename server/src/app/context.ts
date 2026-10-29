@@ -13,6 +13,7 @@ import type { MeldiqMongo } from "../infrastructure/database/mongo/client.js";
 import type { HistoryStore } from "../modules/messaging/history/store.js";
 import type { MessageStore } from "../modules/messaging/store/messageStore.js";
 import type { ReportSealer } from "../modules/organizations/reports/seal.js";
+import type { CommunityRules } from "../modules/organizations/rules/service.js";
 import type { RelationshipStore } from "../modules/accounts/relationships/store.js";
 import type { CallStore } from "../modules/calls/store.js";
 import type { Rows } from "../infrastructure/database/rows/index.js";
@@ -90,6 +91,8 @@ export interface AppContext {
   oauth: OAuthService;
   /** API 0.65.0 batch B: bots, their slash commands and interactions (modules/bots, docs/SETTINGS_PARITY_API.md). */
   bots: BotService;
+  /** API 0.65.0: rules channels, the communities' rules and who agreed (feature rules-channel, docs/SETTINGS_PARITY_API.md). */
+  communityRules: CommunityRules;
   /** Calls, their participants and raised hands: SQLite, or MongoDB when MONGODB_DOMAINS includes "calls". */
   calls: CallStore;
   /**

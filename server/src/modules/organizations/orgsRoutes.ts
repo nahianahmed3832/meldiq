@@ -107,6 +107,8 @@ export function orgSummary(ctx: AppContext, org: any, userId: string) {
     onboarding: onboardingOn(ctx, org.id),
     activityAlerts: org.activity_alerts === undefined ? true : !!org.activity_alerts,
     activityAlert: activityAlert(ctx, org, userId, Date.now()),
+    // API 0.65.0: the rules channel (members only; absent without a rules channel or rules).
+    ...(role ? ctx.communityRules.summary(org.id, userId) : {}),
   };
 }
 
@@ -126,8 +128,9 @@ export async function removeFromWorkspace(ctx: AppContext, orgId: string, userId
     w.delete("org_members", { org_id: orgId, user_id: userId });
     return authz.revalidateChannelMemberships(w, orgId, userId);
   });
-  // Their arrangement of this community (starred, sections) goes with them.
+  // Their arrangement of this community (starred, sections) goes with them, and so does agreeing to its rules.
   await ctx.prefs.deleteForMember(userId, orgId);
+  await ctx.communityRules.forgetMember(orgId, userId);
   const action = { left: "member.leave", removed: "member.remove", expired: "member.expire", banned: "member.ban" }[reason];
   ctx.audit({ actorId, orgId, action, target: userId });
   notifyOrg(ctx, orgId);
@@ -470,6 +473,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     for (const c of result.channelMembers.keys()) await ctx.messages.deleteConversation(c);
     await ctx.prefs.deleteForWorkspace(orgId);
     await ctx.reports.deleteForOrg(orgId);
+    await ctx.communityRules.removeOrg(orgId);
 
     ctx.audit({
       actorId: actor,

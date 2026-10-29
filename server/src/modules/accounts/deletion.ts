@@ -205,6 +205,8 @@ async function eraseIdentity(ctx: AppContext, userId: string, actorId: string | 
   // API 0.65.0 batch B: their bots (each deleted like this), their "Log in with Meldiq" apps and their sign-ins to apps.
   await ctx.bots.deleteForUser(userId, actorId ?? userId);
   await ctx.oauth.deleteForUser(userId);
+  // API 0.65.0: the communities' rules they agreed to.
+  await ctx.communityRules.deleteForUser(userId);
   await deleteHistoryAfterCommit(ctx, userId, "account deleted");
 
   ctx.hub.disconnectUser(userId, "account deleted");

@@ -343,3 +343,50 @@ done
 
 Collections: `bots` (by the bot's user id; the token hash has a unique index) and `bot_interactions` (kept an hour past
 their expiry, then swept).
+
+# Settings parity: the rules channel (API 0.65.0)
+
+The server side of the "Rules channel" in the web repo's `docs/MELDIQ_SETTINGS_PARITY.md`. Additive like the batches
+above: one feature name, `rules-channel`, two new MongoDB collections (memory without MongoDB), no SQLite table or
+MongoDB validator change. Code: `server/src/modules/organizations/rules` (store, MongoDB store, service, routes);
+contracts in `src/shared/contracts/http/communityRules.ts`. Tests: `test/rules_channel.test.ts` (memory and MongoDB).
+`COMMUNITY_RULES=off` switches it off: the feature name goes, the routes answer `503 feature_disabled`, nothing is
+enforced, and what communities set is kept for when it comes back.
+
+| Feature name | What |
+| --- | --- |
+| `rules-channel` | `/v1/orgs/:orgId/rules`, `/v1/orgs/:orgId/rules/agree`, `rulesChannel` on community views |
+
+**Setting it.** `PUT /v1/orgs/:orgId/rules` `{ channelId: string | null, required: boolean, rules: [{ id?, title,
+description? }] }` → the rules view. Needs the Edit community permission (`workspace.edit`; owners and admins have it).
+Up to 25 rules, titles up to 100 characters, descriptions up to 1,000. Ids are kept when sent back (1–32 of
+`A-Za-z0-9_-`), so editors can reorder and edit; new rules get one. The channel must be a live text or announcement
+channel of the community that isn't private (`400 rules_channel_invalid` otherwise: voice, forum, private, archived or
+elsewhere). `required: true` needs at least one rule (`400 bad_request`). Audit: `community.rules`.
+
+The rules are also written to the community's plain `rules` text ("1. Title", the description below, a blank line
+between rules, at most 4,000 characters), so the community preview and older apps show them. Emptying the list clears
+that text only when it is still the copy the server wrote.
+
+**Reading it.** `GET /v1/orgs/:orgId/rules` (members) → `{ channelId, required, rules: [{ id, title, description }],
+updatedAt, agreedAt, mustAgree }`. `channelId` is null without a rules channel, and while that channel is archived or
+gone. Community views (`GET /v1/orgs`, `GET /v1/orgs/:orgId`, and every other answer with a community) carry
+`rulesChannel: { channelId, required, count, agreedAt, mustAgree }` once the community has a rules channel or rules;
+the field is absent otherwise.
+
+**The rules channel.** Only people who can edit the community post there, whatever the channel's kind:
+`403 rules_channel` for everyone else, and `canPost` is false in their conversation view. Everyone who reads it still
+reacts, votes and sends read markers (`POST /v2/messages` with `cls: "control"` and payload type `reaction`, `vote` or
+`read`), unless they are timed out.
+
+**Agreeing.** With `required` on, members who haven't agreed get `403 rules_not_agreed` (`details.orgId`) for messages
+and for `edit`, `reaction`, `vote` and `pin` changes anywhere in the community, and for running a bot's slash command
+(`POST /v2/interactions`). Read markers, deletions and call signalling still go through. People who can edit the
+community never have to agree, and bots don't either. It applies to everyone who hasn't agreed, members from before it
+was turned on included. `POST /v1/orgs/:orgId/rules/agree` → the rules view; agreeing again keeps the first time
+(audit `community.rules_agreed` once). The member's own devices get `org.updated`. Leaving or being removed forgets the
+agreement, so someone who comes back agrees again. Changing the rules later doesn't ask anyone again.
+
+Collections: `community_rules` (one per community) and `community_rule_agreements` (`<orgId>|<userId>`). The service
+keeps an in-memory copy of both, because posting is checked synchronously. Deleting a community removes both; deleting
+an account removes its agreements.

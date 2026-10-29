@@ -67,6 +67,11 @@ export function parsePermissionList(json: string): Permission[] {
 export class Authz {
   constructor(private readonly rows: Rows) {}
 
+  /** API 0.65.0 (feature "rules-channel"): the community's rules channel id, or null. Set by CommunityRules. */
+  rulesChannelId: (orgId: string) => string | null = () => null;
+  /** API 0.65.0: whether [userId] must agree to [orgId]'s rules before posting or reacting. Set by CommunityRules. */
+  mustAgreeRules: (orgId: string, userId: string) => boolean = () => false;
+
   /** Set only while [reconcileCommunity] runs: overwrites and channel actors read once per target and person. */
   private overwriteCache: Map<string, Overwrite[]> | null = null;
   private actorCache: Map<string, ChannelActor | null> | null = null;
@@ -285,8 +290,24 @@ export class Authz {
     // A role or a channel overwrite may restrict posting; announcements need a manager or `messages.announce`.
     const perms = this.channelPermissions(conv, userId);
     if (!perms.has("messages.post")) return false;
+    // API 0.65.0: only people who can edit the community post in its rules channel (whatever its kind).
+    if (this.isRulesChannel(conv)) return this.can(conv.org_id, userId, "workspace.edit");
     if (conv.kind === "ANNOUNCEMENT") return perms.has("messages.announce") || this.canManageConversation(conv, userId);
     return true;
+  }
+
+  /** Whether [conv] is its community's rules channel (API 0.65.0). */
+  isRulesChannel(conv: ConversationRow): boolean {
+    return conv.type === "CHANNEL" && !!conv.org_id && this.rulesChannelId(conv.org_id) === conv.id;
+  }
+
+  /**
+   * Reacting, voting and read markers (API 0.65.0): in the rules channel every member who reads it and isn't timed
+   * out does them; everywhere else they follow posting.
+   */
+  canReact(conv: ConversationRow, userId: string): boolean {
+    if (!this.isRulesChannel(conv)) return this.canPost(conv, userId);
+    return !conv.archived_at && this.isMember(conv.id, userId) && (this.timeoutUntil(conv.org_id!, userId) === null || this.orgRole(conv.org_id!, userId) === "OWNER");
   }
 
   /**

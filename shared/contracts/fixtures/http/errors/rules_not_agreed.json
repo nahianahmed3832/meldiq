@@ -1,0 +1,9 @@
+{
+  "error": {
+    "code": "rules_not_agreed",
+    "message": "Agree to this community's rules before you post or react",
+    "details": {
+      "orgId": "o_eQByRwjoBO6pAVFUMh6elQ"
+    }
+  }
+}

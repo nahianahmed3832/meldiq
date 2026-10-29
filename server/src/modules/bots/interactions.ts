@@ -82,6 +82,7 @@ export class Interactions {
     const conv = authz.requireMember(body.channelId, userId);
     if (conv.type !== "CHANNEL" || !conv.org_id) throw badRequest("Slash commands work in community channels");
     if (!authz.canPost(conv, userId)) throw forbidden("You can't post in this channel");
+    if (authz.mustAgreeRules(conv.org_id, userId)) throw new ApiError(403, "rules_not_agreed", "Agree to this community's rules before you post or react", { orgId: conv.org_id });
     const bot = await this.bots.store.bot(body.botId);
     if (!bot || !authz.orgRole(conv.org_id, bot.id) || !authz.isMember(conv.id, bot.id)) throw new ApiError(404, "bot_not_here", "That bot isn't in this channel");
     const cmd = bot.commands.find((c) => c.name === body.command);

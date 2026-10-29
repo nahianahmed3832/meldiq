@@ -48,6 +48,23 @@ const Ok = z.strictObject({ ok: z.literal(true) });
 /** A community guide item: a "Get started" task or a resource, each opening a channel. */
 const GuideItem = z.strictObject({ id: z.string(), title: z.string(), channelId: z.string() });
 
+/**
+ * A community's rules channel as its views carry it (API 0.65.0, feature "rules-channel"; the rules themselves come from
+ * GET /v1/orgs/:orgId/rules). Absent while the community has neither a rules channel nor rules.
+ */
+export const RulesSummary = z.strictObject({
+  /** The rules channel, null without one (or once it's deleted or archived). */
+  channelId: z.string().nullable(),
+  /** Members must agree to the rules before they post or react. */
+  required: z.boolean(),
+  /** How many rules there are. */
+  count: zCount,
+  /** When the viewer agreed; null before they did. */
+  agreedAt: zTime.nullable(),
+  /** Whether the viewer must agree before posting now. */
+  mustAgree: z.boolean(),
+});
+
 /** A community as one of its members sees it (orgSummary). */
 export const CommunityView = z.strictObject({
   id: z.string(),
@@ -84,6 +101,8 @@ export const CommunityView = z.strictObject({
   activityAlerts: z.boolean(),
   /** A join spike shown to moderators for a day, null otherwise. */
   activityAlert: z.strictObject({ kind: z.literal("joins"), count: zCount, at: zTime }).nullable(),
+  /** API 0.65.0: the rules channel and whether the viewer has to agree to the rules (absent without either). */
+  rulesChannel: RulesSummary.optional(),
 });
 export const CommunityOnly = z.strictObject({ org: CommunityView });
 

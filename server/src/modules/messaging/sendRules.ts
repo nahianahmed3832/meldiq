@@ -7,19 +7,37 @@ import { MENTION_ALL_MESSAGES, mentionAllPermission, mentionAllRateLimited } fro
 
 type Cls = "message" | "control";
 
+/** Changes that react to a message rather than say something (API 0.65.0): anyone who reads the rules channel may. */
+const REACTING = new Set(["reaction", "vote", "read"]);
+/** What members who haven't agreed to their community's rules can't send yet (API 0.65.0): messages and these changes. */
+const NEEDS_AGREEMENT = new Set(["edit", "reaction", "vote", "pin"]);
+
+/** The sender as posting rules need it: the payload's type when the server can read it, and whether it's a bot. */
+export interface AdmitOptions {
+  type?: string;
+  bot?: boolean;
+}
+
 /**
  * Who may send in a conversation (shared by POST /v1/messages and POST /v2/messages): the account's standing,
- * membership, posting rights and timeouts, and voice channels. Returns the conversation.
+ * membership, posting rights and timeouts, the community's rules, and voice channels. Returns the conversation.
  */
-export function admitConversation(ctx: AppContext, userId: string, conversationId: string, cls: Cls) {
+export function admitConversation(ctx: AppContext, userId: string, conversationId: string, cls: Cls, opts: AdmitOptions = {}) {
   // API 0.46.0: a suspended account can't send (account standing); controls and receipts still flow.
   if (cls === "message") requireStanding(ctx.safety, userId, "send_message");
   const { authz } = ctx;
   const conv = authz.requireMember(conversationId, userId);
-  if (!authz.canPost(conv, userId)) {
+  const reacting = cls === "control" && !!opts.type && REACTING.has(opts.type);
+  if (!(reacting ? authz.canReact(conv, userId) : authz.canPost(conv, userId))) {
     const timedOut = conv.org_id ? authz.timeoutUntil(conv.org_id, userId) : null;
     if (timedOut) throw new ApiError(403, "timed_out", `You're timed out in this community until ${new Date(timedOut).toISOString()}`, { until: timedOut });
+    if (!conv.archived_at && authz.isRulesChannel(conv)) throw new ApiError(403, "rules_channel", "Only people who can edit the community post in its rules channel. You can still read and react.");
     throw forbidden(conv.archived_at ? "This channel is archived" : conv.kind === "ANNOUNCEMENT" ? "Only managers can post in announcement channels" : "You can't post in this channel");
+  }
+  // API 0.65.0: a community that asks members to agree to its rules first (bots are added by people who can edit it).
+  const needsAgreement = cls === "message" || (!!opts.type && NEEDS_AGREEMENT.has(opts.type));
+  if (needsAgreement && !opts.bot && conv.org_id && authz.mustAgreeRules(conv.org_id, userId)) {
+    throw new ApiError(403, "rules_not_agreed", "Agree to this community's rules before you post or react", { orgId: conv.org_id });
   }
   // Batch B14: a voice channel is for talking. Its calls' controls (keys) still pass; messages don't.
   if (conv.voice === 1 && cls === "message") throw new ApiError(403, "voice_channel", "Voice channels don't take messages");

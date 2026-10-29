@@ -1,0 +1,9 @@
+{
+  "error": {
+    "code": "rules_channel_invalid",
+    "message": "Pick a text or announcement channel of this community that everyone can see",
+    "details": {
+      "channelId": "c_772hjpmFBBaAACYr67FaYQ"
+    }
+  }
+}

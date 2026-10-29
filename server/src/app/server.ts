@@ -43,6 +43,10 @@ import applicationRoutes from "../modules/organizations/applicationsRoutes.js";
 import connectionRoutes from "../modules/accounts/relationships/routes.js";
 import onboardingRoutes from "../modules/organizations/onboardingRoutes.js";
 import guideRoutes from "../modules/organizations/guideRoutes.js";
+import communityRulesRoutes from "../modules/organizations/rules/routes.js";
+import { CommunityRules } from "../modules/organizations/rules/service.js";
+import { MemoryRulesStore } from "../modules/organizations/rules/store.js";
+import { MongoRulesStore } from "../modules/organizations/rules/mongoStore.js";
 import expressionRoutes from "../modules/organizations/expressionsRoutes.js";
 import { MongoPreferenceStore } from "../modules/accounts/preferences/mongoStore.js";
 import { type PushDeps, PushService } from "../modules/notifications/service.js";
@@ -292,6 +296,14 @@ export async function buildApp(
   const botStore = ctx.mongo ? new MongoBotStore(ctx.mongo) : new MemoryBotStore();
   if (botStore instanceof MongoBotStore) await botStore.ensureIndexes();
   ctx.bots = new BotService(ctx, botStore);
+  // API 0.65.0 (docs/SETTINGS_PARITY_API.md): rules channels, the rules and who agreed to them, new data too.
+  const rulesStore = ctx.mongo ? new MongoRulesStore(ctx.mongo) : new MemoryRulesStore();
+  if (rulesStore instanceof MongoRulesStore) await rulesStore.ensureIndexes();
+  ctx.communityRules = new CommunityRules(ctx, rulesStore, config.communityRules);
+  await ctx.communityRules.load();
+  // Authorisation was made before the rules: it asks them from here on.
+  ctx.authz.rulesChannelId = (orgId) => ctx.communityRules.channelIdOf(orgId);
+  ctx.authz.mustAgreeRules = (orgId, userId) => ctx.communityRules.mustAgree(orgId, userId);
   ctx.reportSealer = ReportSealer.load(process.env, config.dataDir);
   // Billing (plans, subscriptions, Meldiq Spark, gifts): rows in SQLite, or MongoDB when MONGODB_DOMAINS includes it.
   ctx.billing = new Billing(await openBillingRows(db, ctx.mongo, app.log), config.billing, app.log, Date.now, (id) => ctx.quotas.planExists(id));
@@ -519,7 +531,7 @@ export async function buildApp(
     passkeys: ctx.accounts.passkeys.available ? { webOrigins: ctx.accounts.passkeys.webOrigins } : null,
   }));
 
-  for (const r of [authRoutes, userRoutes, profileMediaRoutes, gifRoutes, bugReportRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, serverMessagesRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, activityRoutes, decorationRoutes, pinRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, expressionRoutes, discordRoutes, leaveManyRoutes, pointsRoutes, creatorRoutes, linkedAccountRoutes, oauthRoutes, botRoutes, wsRoutes]) {
+  for (const r of [authRoutes, userRoutes, profileMediaRoutes, gifRoutes, bugReportRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, serverMessagesRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, activityRoutes, decorationRoutes, pinRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, communityRulesRoutes, expressionRoutes, discordRoutes, leaveManyRoutes, pointsRoutes, creatorRoutes, linkedAccountRoutes, oauthRoutes, botRoutes, wsRoutes]) {
     await app.register(async (scope) => r(scope, ctx));
   }
   await app.register(async (scope) => opsRoutes(scope, ctx, VERSION));
@@ -680,6 +692,9 @@ export function serverFeatures(config: Config, directUploads = false): string[] 
     "oauth-apps",
     "bots",
   ];
+  // API 0.65.0 (docs/SETTINGS_PARITY_API.md): a community's rules channel, its numbered rules and agreeing to them
+  // before posting (COMMUNITY_RULES=off switches it off).
+  if (config.communityRules) f.push("rules-channel");
   if (config.accounts.legacy.migration) f.push("legacy-migration");
   if (directUploads) f.push("direct-upload");
   if (config.history.enabled) f.push("history");

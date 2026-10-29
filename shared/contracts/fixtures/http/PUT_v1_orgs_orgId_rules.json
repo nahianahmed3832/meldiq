@@ -1,0 +1,24 @@
+{
+  "channelId": "c_o1IRDHIDpk2tZT7gbRiL0w",
+  "required": false,
+  "rules": [
+    {
+      "id": "rule_vhYgBtt0hzuqIEhn5yMXtA",
+      "title": "Be kind",
+      "description": "No hate, harassment or slurs."
+    },
+    {
+      "id": "rule_vm5AAQO7jjOLNRkwMYyjUg",
+      "title": "No spam",
+      "description": "Ads and invites only in #promote."
+    },
+    {
+      "id": "rule_f2i5DUXqDbpEB4s9PlYUyA",
+      "title": "Keep it safe for work",
+      "description": null
+    }
+  ],
+  "updatedAt": 1793286935948,
+  "agreedAt": null,
+  "mustAgree": false
+}

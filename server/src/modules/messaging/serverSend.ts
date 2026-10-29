@@ -55,7 +55,7 @@ export async function sendServerMessage(ctx: AppContext, sender: Sender, m: Send
   const relayDevice = deviceId ?? `bot-${userId}`;
   const payload = JSON.stringify(m.payload);
   if (Buffer.byteLength(payload) > MAX_PAYLOAD_BYTES) throw new ApiError(413, "message_too_long", "That message is too large");
-  const conv = admitConversation(ctx, userId, m.conversationId, m.cls);
+  const conv = admitConversation(ctx, userId, m.conversationId, m.cls, { type: m.payload.type, bot: deviceId === null });
   const type = m.payload.type;
   // Meldiq Mojo: the plan's characters per message and per edit, counted as people count them.
   const limits = ctx.mojo.limitsOf(userId);

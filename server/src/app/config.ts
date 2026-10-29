@@ -101,6 +101,12 @@ export interface Config {
    * so an app from before the change is told to update.
    */
   messages: { acceptEncrypted: boolean };
+  /**
+   * API 0.65.0 (docs/SETTINGS_PARITY_API.md): community rules channels and agreeing to the rules (feature
+   * "rules-channel"). On unless COMMUNITY_RULES=off, which hides the feature, answers its routes with 503 and stops
+   * enforcing it; what communities set is kept for when it's back on.
+   */
+  communityRules: boolean;
   history: { enabled: boolean; maxItemsPerUser: number; maxBytesPerUser: number; maxItemBytes: number; tombstoneDays: number; maxTotalBytes: number };
   /**
    * Direct uploads from the app to S3 (2026-10-17). How long an upload URL may be started with, how long an upload may
@@ -525,6 +531,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       maxPendingPerUser: Math.max(int("DIRECT_UPLOAD_MAX_PENDING_PER_USER", 10), 1),
     },
     messages: { acceptEncrypted: env.MESSAGES_ACCEPT_ENCRYPTED === "true" },
+    communityRules: (env.COMMUNITY_RULES ?? "on").trim().toLowerCase() !== "off",
     history: {
       enabled: env.HISTORY_ENABLED !== "false",
       maxItemsPerUser: Math.max(int("HISTORY_MAX_ITEMS_PER_USER", 500_000), 0),

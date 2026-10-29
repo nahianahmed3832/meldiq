@@ -78,6 +78,9 @@
       "name": "onboarding"
     },
     {
+      "name": "community-rules"
+    },
+    {
       "name": "reports"
     },
     {
@@ -1096,7 +1099,7 @@
             }
           },
           "default": {
-            "description": "Error. Codes: not_found, forbidden, timed_out, voice_channel, bad_clock, conflict, slowmode, request_pending, request_limit, message_too_long, not_yours, mention_all_not_in_dm, mention_all_not_allowed, mention_all_rate_limited",
+            "description": "Error. Codes: not_found, forbidden, timed_out, rules_channel, rules_not_agreed, voice_channel, bad_clock, conflict, slowmode, request_pending, request_limit, message_too_long, not_yours, mention_all_not_in_dm, mention_all_not_allowed, mention_all_rate_limited",
             "content": {
               "application/json": {
                 "schema": {
@@ -21525,6 +21528,52 @@
                               "type": "null"
                             }
                           ]
+                        },
+                        "rulesChannel": {
+                          "type": "object",
+                          "properties": {
+                            "channelId": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "required": {
+                              "type": "boolean"
+                            },
+                            "count": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "agreedAt": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "mustAgree": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "channelId",
+                            "required",
+                            "count",
+                            "agreedAt",
+                            "mustAgree"
+                          ],
+                          "additionalProperties": false
                         }
                       },
                       "required": [
@@ -21959,6 +22008,52 @@
                                 "type": "null"
                               }
                             ]
+                          },
+                          "rulesChannel": {
+                            "type": "object",
+                            "properties": {
+                              "channelId": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "required": {
+                                "type": "boolean"
+                              },
+                              "count": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "agreedAt": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "mustAgree": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "channelId",
+                              "required",
+                              "count",
+                              "agreedAt",
+                              "mustAgree"
+                            ],
+                            "additionalProperties": false
                           }
                         },
                         "required": [
@@ -22429,6 +22524,52 @@
                               "type": "null"
                             }
                           ]
+                        },
+                        "rulesChannel": {
+                          "type": "object",
+                          "properties": {
+                            "channelId": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "required": {
+                              "type": "boolean"
+                            },
+                            "count": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "agreedAt": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "mustAgree": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "channelId",
+                            "required",
+                            "count",
+                            "agreedAt",
+                            "mustAgree"
+                          ],
+                          "additionalProperties": false
                         }
                       },
                       "required": [
@@ -23032,6 +23173,52 @@
                               "type": "null"
                             }
                           ]
+                        },
+                        "rulesChannel": {
+                          "type": "object",
+                          "properties": {
+                            "channelId": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "required": {
+                              "type": "boolean"
+                            },
+                            "count": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "agreedAt": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "mustAgree": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "channelId",
+                            "required",
+                            "count",
+                            "agreedAt",
+                            "mustAgree"
+                          ],
+                          "additionalProperties": false
                         }
                       },
                       "required": [
@@ -25636,6 +25823,52 @@
                               "type": "null"
                             }
                           ]
+                        },
+                        "rulesChannel": {
+                          "type": "object",
+                          "properties": {
+                            "channelId": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "required": {
+                              "type": "boolean"
+                            },
+                            "count": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "agreedAt": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "mustAgree": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "channelId",
+                            "required",
+                            "count",
+                            "agreedAt",
+                            "mustAgree"
+                          ],
+                          "additionalProperties": false
                         }
                       },
                       "required": [
@@ -33186,6 +33419,52 @@
                               "type": "null"
                             }
                           ]
+                        },
+                        "rulesChannel": {
+                          "type": "object",
+                          "properties": {
+                            "channelId": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "required": {
+                              "type": "boolean"
+                            },
+                            "count": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "agreedAt": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "mustAgree": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "channelId",
+                            "required",
+                            "count",
+                            "agreedAt",
+                            "mustAgree"
+                          ],
+                          "additionalProperties": false
                         }
                       },
                       "required": [
@@ -33662,6 +33941,52 @@
                               "type": "null"
                             }
                           ]
+                        },
+                        "rulesChannel": {
+                          "type": "object",
+                          "properties": {
+                            "channelId": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "required": {
+                              "type": "boolean"
+                            },
+                            "count": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "agreedAt": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "mustAgree": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "channelId",
+                            "required",
+                            "count",
+                            "agreedAt",
+                            "mustAgree"
+                          ],
+                          "additionalProperties": false
                         }
                       },
                       "required": [
@@ -36486,6 +36811,456 @@
             }
           }
         }
+      }
+    },
+    "/v1/orgs/{orgId}/rules": {
+      "get": {
+        "tags": [
+          "community-rules"
+        ],
+        "summary": "The community's rules channel and rules, and whether the viewer has agreed to them.",
+        "operationId": "getV1OrgsOrgIdRules",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "channelId": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "required": {
+                      "type": "boolean"
+                    },
+                    "rules": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "title",
+                          "description"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "updatedAt": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "agreedAt": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "mustAgree": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "channelId",
+                    "required",
+                    "rules",
+                    "updatedAt",
+                    "agreedAt",
+                    "mustAgree"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, feature_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "community-rules"
+        ],
+        "summary": "Set the rules channel, the rules and whether members must agree (people who can edit the community).",
+        "operationId": "putV1OrgsOrgIdRules",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "channelId": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "required": {
+                      "type": "boolean"
+                    },
+                    "rules": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "title",
+                          "description"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "updatedAt": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "agreedAt": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "mustAgree": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "channelId",
+                    "required",
+                    "rules",
+                    "updatedAt",
+                    "agreedAt",
+                    "mustAgree"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, rules_channel_invalid, feature_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "channelId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "required": {
+                    "type": "boolean"
+                  },
+                  "rules": {
+                    "maxItems": 25,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "maxLength": 32
+                        },
+                        "title": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 100
+                        },
+                        "description": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 1000
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "title"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "channelId",
+                  "required",
+                  "rules"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/orgs/{orgId}/rules/agree": {
+      "post": {
+        "tags": [
+          "community-rules"
+        ],
+        "summary": "Agree to the community's rules; agreeing again keeps the first time.",
+        "operationId": "postV1OrgsOrgIdRulesAgree",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "channelId": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "required": {
+                      "type": "boolean"
+                    },
+                    "rules": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "title",
+                          "description"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "updatedAt": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "agreedAt": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "mustAgree": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "channelId",
+                    "required",
+                    "rules",
+                    "updatedAt",
+                    "agreedAt",
+                    "mustAgree"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, feature_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
       }
     },
     "/v1/reports": {
@@ -56429,7 +57204,7 @@
             }
           },
           "default": {
-            "description": "Error. Codes: not_found, bot_not_here, forbidden, rate_limited",
+            "description": "Error. Codes: not_found, bot_not_here, forbidden, rules_not_agreed, rate_limited",
             "content": {
               "application/json": {
                 "schema": {
@@ -57586,6 +58361,9 @@
                   "requests_not_allowed",
                   "role_name_taken",
                   "role_not_givable",
+                  "rules_channel",
+                  "rules_channel_invalid",
+                  "rules_not_agreed",
                   "same_email",
                   "session_expired",
                   "session_revoked",
@@ -58649,6 +59427,24 @@
         400
       ],
       "meaning": "Onboarding can only give this community's roles without administrative permissions"
+    },
+    "rules_channel": {
+      "status": [
+        403
+      ],
+      "meaning": "Only people who can edit the community post in its rules channel. You can still read and react."
+    },
+    "rules_channel_invalid": {
+      "status": [
+        400
+      ],
+      "meaning": "The rules channel has to be a text or announcement channel of this community that everyone can see."
+    },
+    "rules_not_agreed": {
+      "status": [
+        403
+      ],
+      "meaning": "Agree to this community's rules before you post or react."
     },
     "same_email": {
       "status": [
