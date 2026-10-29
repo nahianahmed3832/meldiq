@@ -150,6 +150,11 @@ export interface Config {
    * posting and reactions stop giving roles; what communities set up is kept for when it's back on.
    */
   postingTools: { webhooks: boolean; reactionRoles: boolean; tickets: boolean };
+  /**
+   * Community parity batch D (docs/COMMUNITY_PARITY_API.md › Official bots): official bots (feature "community-bots").
+   * On unless COMMUNITY_BOTS is "off": its routes then answer 503 and the bots stop acting; what communities set is kept.
+   */
+  communityBots: boolean;
   history: { enabled: boolean; maxItemsPerUser: number; maxBytesPerUser: number; maxItemBytes: number; tombstoneDays: number; maxTotalBytes: number };
   /**
    * Direct uploads from the app to S3 (2026-10-17). How long an upload URL may be started with, how long an upload may
@@ -593,6 +598,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       reactionRoles: switchedOn(env.REACTION_ROLES),
       tickets: switchedOn(env.COMMUNITY_TICKETS),
     },
+    communityBots: switchedOn(env.COMMUNITY_BOTS),
     history: {
       enabled: env.HISTORY_ENABLED !== "false",
       maxItemsPerUser: Math.max(int("HISTORY_MAX_ITEMS_PER_USER", 500_000), 0),

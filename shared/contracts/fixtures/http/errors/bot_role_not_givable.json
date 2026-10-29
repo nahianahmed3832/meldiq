@@ -1,0 +1,9 @@
+{
+  "error": {
+    "code": "bot_role_not_givable",
+    "message": "Bots can only give roles that are just for show, or that you could assign yourself without administrative powers.",
+    "details": {
+      "roleId": "rl_DvbMl4_o9q-ToNFA41Z-aQ"
+    }
+  }
+}

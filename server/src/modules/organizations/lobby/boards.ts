@@ -75,9 +75,10 @@ function invitesBoard(ctx: AppContext, orgId: string): Leaderboard["entries"] {
   return ranked(ctx, orgId, counts);
 }
 
-/** Seam for the Levels bot (community parity D): its board comes from here once it exists. Empty until then. */
-function levelsBoard(): Leaderboard["entries"] {
-  return [];
+/** The Levels bot's board (community parity D): the most XP first, while the bot is on; empty otherwise. */
+function levelsBoard(ctx: AppContext, orgId: string): Leaderboard["entries"] {
+  // Twice the board's size, so people who left since still leave ten to show.
+  return ranked(ctx, orgId, ctx.officialBots.levelsTop(orgId, LOBBY_LIMITS.leaderboard * 2));
 }
 
 /** The boards [boards] asks for, in that order. */
@@ -85,6 +86,6 @@ export function leaderboards(ctx: AppContext, orgId: string, boards: readonly Bo
   return boards.map((board) => {
     if (board === "messages_week") return { board, entries: ranked(ctx, orgId, week.topSenders) };
     if (board === "invites") return { board, entries: invitesBoard(ctx, orgId) };
-    return { board, entries: levelsBoard() };
+    return { board, entries: levelsBoard(ctx, orgId) };
   });
 }

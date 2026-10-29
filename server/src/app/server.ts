@@ -62,6 +62,7 @@ import ticketRoutes from "../modules/organizations/posting/ticketRoutes.js";
 import { Tickets } from "../modules/organizations/posting/tickets.js";
 import webhookRoutes from "../modules/organizations/posting/webhookRoutes.js";
 import { Webhooks } from "../modules/organizations/posting/webhooks.js";
+import { OfficialBots, officialBotRoutes } from "../modules/officialBots/index.js";
 import expressionRoutes from "../modules/organizations/expressionsRoutes.js";
 import { MongoPreferenceStore } from "../modules/accounts/preferences/mongoStore.js";
 import { type PushDeps, PushService } from "../modules/notifications/service.js";
@@ -212,6 +213,8 @@ export async function buildApp(
           w.insert("audit_log", { at: now(), actor_id: e.actorId ?? null, org_id: e.orgId ?? null, action: e.action, target: e.target ?? null, detail: e.detail ?? null }),
         )
         .catch((err) => app.log.error({ err, action: e.action }, "audit: entry not stored"));
+      // Community parity batch D: official bots hear about joins, leaves, moderation and roles (only queued here).
+      ctx.officialBots?.noteAudit(e);
     },
   } as AppContext;
   // MongoDB holds the domains in MONGODB_DOMAINS; it refuses to start if that would split a domain between stores.
@@ -341,6 +344,10 @@ export async function buildApp(
   ctx.webhooks = new Webhooks(ctx, config.postingTools.webhooks);
   ctx.reactionRoles = new ReactionRoles(ctx, config.postingTools.reactionRoles);
   ctx.tickets = new Tickets(ctx, config.postingTools.tickets);
+  // Community parity batch D (docs/COMMUNITY_PARITY_API.md › Official bots): official bots, kept in workspace rows
+  // (migration 074). Registered after the stores' own onClose hooks, so queued bot work finishes before they close.
+  ctx.officialBots = new OfficialBots(ctx, config.communityBots);
+  app.addHook("onClose", async () => ctx.officialBots.settled());
   ctx.reportSealer = ReportSealer.load(process.env, config.dataDir);
   // Billing (plans, subscriptions, Meldiq Spark, gifts): rows in SQLite, or MongoDB when MONGODB_DOMAINS includes it.
   ctx.billing = new Billing(await openBillingRows(db, ctx.mongo, app.log), config.billing, app.log, Date.now, (id) => ctx.quotas.planExists(id));
@@ -569,7 +576,7 @@ export async function buildApp(
     passkeys: ctx.accounts.passkeys.available ? { webOrigins: ctx.accounts.passkeys.webOrigins } : null,
   }));
 
-  for (const r of [authRoutes, userRoutes, profileMediaRoutes, gifRoutes, bugReportRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, serverMessagesRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, activityRoutes, decorationRoutes, pinRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, communityRulesRoutes, communityPermissionsRoutes, communitySafetyRoutes, voiceModerationRoutes, expressionRoutes, discordRoutes, leaveManyRoutes, pointsRoutes, creatorRoutes, linkedAccountRoutes, oauthRoutes, botRoutes, communityLobbyRoutes, webhookRoutes, reactionRoleRoutes, ticketRoutes, wsRoutes]) {
+  for (const r of [authRoutes, userRoutes, profileMediaRoutes, gifRoutes, bugReportRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, serverMessagesRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, activityRoutes, decorationRoutes, pinRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, communityRulesRoutes, communityPermissionsRoutes, communitySafetyRoutes, voiceModerationRoutes, expressionRoutes, discordRoutes, leaveManyRoutes, pointsRoutes, creatorRoutes, linkedAccountRoutes, oauthRoutes, botRoutes, communityLobbyRoutes, webhookRoutes, reactionRoleRoutes, ticketRoutes, officialBotRoutes, wsRoutes]) {
     await app.register(async (scope) => r(scope, ctx));
   }
   // Community parity A3: the community settings routes.
@@ -751,6 +758,8 @@ export function serverFeatures(config: Config, directUploads = false): string[] 
   if (config.postingTools.webhooks) f.push("channel-webhooks");
   if (config.postingTools.reactionRoles) f.push("reaction-roles");
   if (config.postingTools.tickets) f.push("community-tickets");
+  // Community parity batch D (docs/COMMUNITY_PARITY_API.md › Official bots): COMMUNITY_BOTS=off switches it off.
+  if (config.communityBots) f.push("community-bots");
   if (config.accounts.legacy.migration) f.push("legacy-migration");
   if (directUploads) f.push("direct-upload");
   if (config.history.enabled) f.push("history");

@@ -143,7 +143,7 @@ export class Accounts {
 // Account deletion for the Platform Admin Console (the same erasure people trigger themselves; docs/ACCOUNT_DELETION.md).
 export { eraseAccount, eraseBotIdentity, soleOwnedWorkspaces } from "./deletion.js";
 // API 0.65.0 batch B: bot accounts (modules/bots) and what "Log in with Meldiq" apps may see (modules/oauth).
-export { BOT_KIND, botsAmong, createBotIdentity, isBotUser, renameBotIdentity } from "./botIdentity.js";
+export { BOT_KIND, botsAmong, createBotIdentity, isBotUser, renameBotIdentity, setBotPhoto } from "./botIdentity.js";
 export { type AppIdentity, appIdentity, photoBytes } from "./appIdentity.js";
 
 // Load-test provisioning (docs/LOADTEST_PROVISIONING.md), used by auth, organizations and messaging.
@@ -152,7 +152,7 @@ export {
   loadtestQuota, requireSyntheticScopeForPeople, type LoadtestPolicy, type QuotaState,
 } from "./loadtest.js";
 // Community photos made from a Discord server's icon (modules/organizations/discord).
-export { MAX_PHOTO_BYTES, photoBlobId, storePhoto } from "./photos.js";
+export { MAX_PHOTO_BYTES, photoBlobId, readJpegBody, storePhoto } from "./photos.js";
 
 /** Accounts in SQLite keep their identity rows there too (the startup check refuses identity in MongoDB without them). */
 function sqliteIdentity(identity: AppContext["identity"]): SqliteRows {

@@ -1,0 +1,142 @@
+{
+  "botsPlus": false,
+  "botsPlusUntil": null,
+  "canEdit": false,
+  "bots": [
+    {
+      "key": "welcomer",
+      "name": "Welcomer",
+      "available": true,
+      "enabled": false,
+      "userId": null,
+      "look": {
+        "name": null,
+        "displayName": "Welcomer",
+        "photoRev": null
+      },
+      "settings": null,
+      "plusPaused": [],
+      "updatedAt": null
+    },
+    {
+      "key": "helper",
+      "name": "Helper",
+      "available": true,
+      "enabled": false,
+      "userId": null,
+      "look": {
+        "name": null,
+        "displayName": "Helper",
+        "photoRev": null
+      },
+      "settings": null,
+      "plusPaused": [],
+      "updatedAt": null
+    },
+    {
+      "key": "levels",
+      "name": "Levels",
+      "available": true,
+      "enabled": false,
+      "userId": null,
+      "look": {
+        "name": null,
+        "displayName": "Levels",
+        "photoRev": null
+      },
+      "settings": null,
+      "plusPaused": [],
+      "updatedAt": null
+    },
+    {
+      "key": "logger",
+      "name": "Logger",
+      "available": true,
+      "enabled": false,
+      "userId": null,
+      "look": {
+        "name": null,
+        "displayName": "Logger",
+        "photoRev": null
+      },
+      "settings": null,
+      "plusPaused": [],
+      "updatedAt": null
+    },
+    {
+      "key": "starboard",
+      "name": "Starboard",
+      "available": true,
+      "enabled": false,
+      "userId": null,
+      "look": {
+        "name": null,
+        "displayName": "Starboard",
+        "photoRev": null
+      },
+      "settings": null,
+      "plusPaused": [],
+      "updatedAt": null
+    },
+    {
+      "key": "giveaways",
+      "name": "Giveaways",
+      "available": false,
+      "enabled": false,
+      "userId": null,
+      "look": {
+        "name": null,
+        "displayName": "Giveaways",
+        "photoRev": null
+      },
+      "settings": null,
+      "plusPaused": [],
+      "updatedAt": null
+    },
+    {
+      "key": "tickets",
+      "name": "Tickets",
+      "available": false,
+      "enabled": false,
+      "userId": null,
+      "look": {
+        "name": null,
+        "displayName": "Tickets",
+        "photoRev": null
+      },
+      "settings": null,
+      "plusPaused": [],
+      "updatedAt": null
+    },
+    {
+      "key": "alerts",
+      "name": "Alerts",
+      "available": false,
+      "enabled": false,
+      "userId": null,
+      "look": {
+        "name": null,
+        "displayName": "Alerts",
+        "photoRev": null
+      },
+      "settings": null,
+      "plusPaused": [],
+      "updatedAt": null
+    },
+    {
+      "key": "wordy",
+      "name": "Wordy",
+      "available": false,
+      "enabled": false,
+      "userId": null,
+      "look": {
+        "name": null,
+        "displayName": "Wordy",
+        "photoRev": null
+      },
+      "settings": null,
+      "plusPaused": [],
+      "updatedAt": null
+    }
+  ]
+}

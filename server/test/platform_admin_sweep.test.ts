@@ -64,6 +64,9 @@ const GUARDED: Record<string, Permission> = {
   "POST /admin/v1/creators/program/:id/reject": "creators.review",
   "GET /admin/v1/creators/posts": "creators.review",
   "POST /admin/v1/creators/posts/:id/review": "creators.review",
+  // Community parity batch D: Bots+ for a community, while billing for it is off.
+  "GET /admin/v1/orgs/:orgId/bots-plus": "entitlements.view",
+  "PUT /admin/v1/orgs/:orgId/bots-plus": "entitlements.edit",
   "GET /admin/v1/infrastructure": "health.view",
   "POST /admin/v1/connectors/:id/check": "connectors.check",
   "GET /admin/v1/incidents": "incidents.view",

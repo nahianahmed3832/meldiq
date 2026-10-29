@@ -1436,6 +1436,63 @@ export const SCHEMA: readonly TableShape[] = [
     autoincrement: false,
   },
   {
+    name: "bot_afk",
+    columns: [
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"user_id","type":"TEXT","notNull":true},
+      {"name":"reason","type":"TEXT","notNull":true},
+      {"name":"since","type":"INTEGER","notNull":true},
+      {"name":"notified","type":"TEXT","notNull":true,"default":"[]"},
+    ],
+    primaryKey: ["org_id","user_id"],
+    indexes: [
+      {"name":"idx_bot_afk_user","columns":["user_id"],"unique":false,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [
+      {"columns":["org_id"],"table":"orgs","references":["id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
+    name: "bot_levels",
+    columns: [
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"user_id","type":"TEXT","notNull":true},
+      {"name":"xp","type":"INTEGER","notNull":true},
+      {"name":"last_xp_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["org_id","user_id"],
+    indexes: [
+      {"name":"idx_bot_levels_user","columns":["user_id"],"unique":false,"nocase":false,"partialNotNull":null},
+      {"name":"idx_bot_levels_xp","columns":["org_id","xp"],"unique":false,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [
+      {"columns":["org_id"],"table":"orgs","references":["id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
+    name: "bot_starboard",
+    columns: [
+      {"name":"message_id","type":"TEXT","notNull":true},
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"channel_id","type":"TEXT","notNull":true},
+      {"name":"star_channel_id","type":"TEXT","notNull":true},
+      {"name":"star_message_id","type":"TEXT","notNull":false},
+      {"name":"stars","type":"INTEGER","notNull":true},
+      {"name":"created_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["message_id"],
+    indexes: [
+      {"name":"idx_bot_starboard_org","columns":["org_id"],"unique":false,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [
+      {"columns":["channel_id"],"table":"conversations","references":["id"],"onDelete":"CASCADE"},
+      {"columns":["org_id"],"table":"orgs","references":["id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
     name: "branch_members",
     columns: [
       {"name":"branch_id","type":"TEXT","notNull":true},
@@ -3068,6 +3125,43 @@ export const SCHEMA: readonly TableShape[] = [
     ],
     foreignKeys: [
       {"columns":["user_id"],"table":"users","references":["id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
+    name: "official_bots",
+    columns: [
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"bot_key","type":"TEXT","notNull":true},
+      {"name":"enabled","type":"INTEGER","notNull":true},
+      {"name":"settings","type":"TEXT","notNull":true},
+      {"name":"look_name","type":"TEXT","notNull":false},
+      {"name":"user_id","type":"TEXT","notNull":false},
+      {"name":"updated_by","type":"TEXT","notNull":true},
+      {"name":"updated_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["org_id","bot_key"],
+    indexes: [
+      {"name":"idx_official_bots_user","columns":["user_id"],"unique":false,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [
+      {"columns":["org_id"],"table":"orgs","references":["id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
+    name: "official_bots_plus",
+    columns: [
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"granted_by","type":"TEXT","notNull":true},
+      {"name":"granted_at","type":"INTEGER","notNull":true},
+      {"name":"expires_at","type":"INTEGER","notNull":false},
+      {"name":"reason","type":"TEXT","notNull":true},
+    ],
+    primaryKey: ["org_id"],
+    indexes: [],
+    foreignKeys: [
+      {"columns":["org_id"],"table":"orgs","references":["id"],"onDelete":"CASCADE"},
     ],
     autoincrement: false,
   },
