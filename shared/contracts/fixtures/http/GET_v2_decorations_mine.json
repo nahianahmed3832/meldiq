@@ -1,0 +1,18 @@
+{
+  "submissions": [
+    {
+      "id": "c_ndkthjajfpa9jun3",
+      "name": "Moon ring",
+      "status": "pending",
+      "reason": null,
+      "animated": true,
+      "imageUrl": "/v2/decorations/mine/c_ndkthjajfpa9jun3/image",
+      "wearers": 0,
+      "createdAt": 1793243981436,
+      "reviewedAt": null
+    }
+  ],
+  "artist": false,
+  "pendingLimit": 3,
+  "pending": 1
+}

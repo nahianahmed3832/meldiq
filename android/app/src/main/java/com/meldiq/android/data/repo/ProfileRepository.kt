@@ -140,6 +140,33 @@ class ProfileRepository(
     suspend fun setProfileStyle(changes: kotlinx.serialization.json.JsonObject): com.meldiq.android.data.model.ProfileStyleDto =
         api.put<kotlinx.serialization.json.JsonObject, ProfileStyleRes>("/v1/users/me/profile-style", changes).profileStyle.also { refreshMe() }
 
+    // ───── Profile decorations (API 0.60.0, server docs/PROFILE_DECORATIONS.md) ─────
+
+    /** Everything anyone can wear: Meldiq's own, then approved community ones (newest first). */
+    suspend fun decorationCatalog(): com.meldiq.android.data.model.DecorationCatalogDto = api.get("/v2/decorations")
+
+    /** Your submissions and how their review went, and how many more can wait. */
+    suspend fun myDecorations(): com.meldiq.android.data.model.MyDecorationsDto = api.get("/v2/decorations/mine")
+
+    /** Sends [image] in for review under [name], with your word that you made it. */
+    suspend fun submitDecoration(name: String, image: ByteArray): com.meldiq.android.data.model.DecorationSubmissionDto =
+        api.sendBytes("POST", "/v2/decorations?name=${android.net.Uri.encode(name.trim())}&original=true", image, com.meldiq.android.data.model.SubmissionRes.serializer()).submission
+
+    /** Withdraws one of yours; an approved one leaves the catalog and comes off everyone wearing it. */
+    suspend fun withdrawDecoration(id: String) {
+        api.delete<kotlinx.serialization.json.JsonObject>("/v2/decorations/mine/${android.net.Uri.encode(id)}")
+    }
+
+    /** A person's approved decorations, to try on and wear. */
+    suspend fun userDecorations(userId: String): List<com.meldiq.android.data.model.DecorationDto> =
+        api.get<com.meldiq.android.data.model.UserDecorationsRes>("/v2/users/${android.net.Uri.encode(userId)}/decorations").decorations
+
+    /** A decoration's image (WebP, PNG or GIF), kept on this phone: an id's picture never changes. */
+    suspend fun decorationImage(id: String): File? = cachedPhoto("deco-$id", 1, "/v2/decorations/${android.net.Uri.encode(id)}/image", kind = "decoration", ext = "img")
+
+    /** One of your own submissions' image while it isn't public. */
+    suspend fun ownDecorationImage(id: String): File? = cachedPhoto("mydeco-$id", 1, "/v2/decorations/mine/${android.net.Uri.encode(id)}/image", kind = "decoration", ext = "img")
+
     /** API 0.46.0: About me (≤ 300 characters) and up to five https links; null clears either. */
     suspend fun setAbout(aboutMe: String?, links: List<com.meldiq.android.data.api.ProfileLinkDto>?): UserDto = patchMe(
         kotlinx.serialization.json.buildJsonObject {

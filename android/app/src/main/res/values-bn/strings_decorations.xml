@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Profile decorations (API 0.60.0, server docs/PROFILE_DECORATIONS.md), as Meldiq Web. -->
+<resources>
+    <string name="deco_title">অ্যাভাটার সাজ</string>
+    <string name="deco_tab_meldiq">Meldiq</string>
+    <string name="deco_tab_community">কমিউনিটি</string>
+    <string name="deco_tab_yours">আপনার</string>
+    <string name="deco_make">নিজে বানান</string>
+    <string name="deco_by">@%1$s-এর তৈরি</string>
+    <string name="deco_search">নাম বা নির্মাতা দিয়ে খুঁজুন</string>
+    <string name="deco_community_empty">এখনো কোনো কমিউনিটি সাজ নেই। প্রথমটি আপনিই বানান!</string>
+    <string name="deco_no_match">এর সাথে মেলে এমন কোনো সাজ নেই।</string>
+    <string name="deco_waiting">%2$d-এর মধ্যে %1$dটি রিভিউয়ের অপেক্ষায়।</string>
+    <string name="deco_artist_you">আপনি একজন Meldiq শিল্পী।</string>
+    <string name="deco_mine_empty">এখনো কিছু পাঠাননি। একটি বানান, রিভিউয়ের সময় এটি এখানে দেখা যাবে।</string>
+    <string name="deco_status_pending">রিভিউয়ের অপেক্ষায়</string>
+    <string name="deco_status_approved">অনুমোদিত</string>
+    <string name="deco_status_rejected">নাকচ হয়েছে</string>
+    <string name="deco_status_removed">সরিয়ে নেওয়া হয়েছে</string>
+    <string name="deco_wearers_one">১ জন এটি পরেছেন</string>
+    <string name="deco_wearers_many">%1$d জন এটি পরেছেন</string>
+    <string name="deco_wear">পরুন</string>
+    <string name="deco_wearing">পরে আছেন</string>
+    <string name="deco_withdraw">তুলে নিন</string>
+    <string name="deco_withdraw_confirm">“%1$s” তুলে নেবেন?</string>
+    <string name="deco_withdraw_approved">“%1$s” তালিকা থেকে সরাবেন? যাঁরা এটি পরেছেন তাঁদের সাজ চলে যাবে।</string>
+    <string name="deco_make_title">সাজ বানান</string>
+    <string name="deco_make_intro">অ্যাভাটারের জন্য একটি ফ্রেম আঁকুন ও পাঠান। Meldiq টিম অনুমোদন দিলে যে কেউ আপনার নামসহ এটি পরতে পারবে।</string>
+    <string name="deco_rule_size">বর্গাকার, ১২৮ থেকে ১০২৪ পিক্সেল (৫১২ × ৫১২ সবচেয়ে ভালো), স্বচ্ছ ব্যাকগ্রাউন্ডসহ PNG, WebP বা GIF, ১.৫ MB পর্যন্ত। অ্যানিমেটেডও চলবে।</string>
+    <string name="deco_rule_middle">মাঝের বৃত্তটি ফাঁকা রাখুন: সেখানে অ্যাভাটার বসবে।</string>
+    <string name="deco_rule_bottom">বড় অংশগুলো ওপরে ও পাশে রাখুন। নিচের অংশটি নামের ঠিক ওপরে থাকে, তাই হালকা রাখুন।</string>
+    <string name="deco_rule_original">শুধু আপনার নিজের মৌলিক কাজ। ইন্টারনেট বা অন্য অ্যাপ থেকে নেওয়া ছবি, বা অন্যের কাজের নকল বা সম্পাদিত কপি নয়। নকল সরিয়ে দেওয়া হয় এবং আপনার শিল্পী ব্যাজ হারাতে পারেন।</string>
+    <string name="deco_rule_content">নগ্নতা, রক্তারক্তি, ঘৃণা বা অন্যের লোগো ও চরিত্র নয়।</string>
+    <string name="deco_template">টেমপ্লেট নিন</string>
+    <string name="deco_perks">প্রথমটি অনুমোদিত হলে পাবেন শিল্পী ব্যাজ, প্রোফাইলে আপনার সাজ যা যে কেউ পরে দেখতে পারে, একসাথে ৬টি অপেক্ষমাণ রাখার সুযোগ (তার আগে ৩টি), আর প্রতিটি কতজন পরছেন তার হিসাব।</string>
+    <string name="deco_pick">ছবি বাছুন</string>
+    <string name="deco_pick_again">অন্য ছবি বাছুন</string>
+    <string name="deco_name">নাম দিন</string>
+    <string name="deco_original">এটি আমি নিজে বানিয়েছি। অন্য কারো বা ইন্টারনেট থেকে নেওয়া নয়।</string>
+    <string name="deco_send">পাঠান</string>
+    <string name="deco_err_type">সাজ হতে হবে PNG, WebP বা GIF ছবি।</string>
+    <string name="deco_err_size">সাজ সর্বোচ্চ ১.৫ MB হতে পারে।</string>
+    <string name="deco_err_square">সাজ বর্গাকার হতে হবে; এই ছবিটি %1$d × %2$d।</string>
+    <string name="deco_err_side">সাজ ১২৮ থেকে ১০২৪ পিক্সেলের বর্গ হতে হবে (৫১২ × ৫১২ সবচেয়ে ভালো)।</string>
+    <string name="deco_err_read">ছবিটি পড়া গেল না।</string>
+    <string name="deco_badge_artist">শিল্পী</string>
+    <string name="deco_by_artist">%1$s-এর সাজ</string>
+    <string name="deco_load_failed">সাজ লোড করা গেল না।</string>
+</resources>

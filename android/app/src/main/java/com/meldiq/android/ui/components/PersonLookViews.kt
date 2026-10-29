@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
@@ -158,9 +159,20 @@ private fun frameColors(decoration: String): List<Color>? = when (decoration) {
 
 private const val FRAME_SPIN_MS = 6000
 
-/** An avatar frame around [content] of [size]: a ring 7% outside it, never over the face. Decorative. */
+/**
+ * An avatar frame around [content] of [size]: a classic frame is a ring 7% outside it, never over the face; since API
+ * 0.60.0 a decoration can also be an image (Meldiq's own or a community one), drawn over the avatar 1.2 times its size.
+ * Decorative.
+ */
 @Composable
 fun AvatarFrame(decoration: String?, size: Dp, content: @Composable () -> Unit) {
+    if (com.meldiq.android.data.model.DecorationRules.isImage(decoration)) {
+        Box(Modifier.size(size), contentAlignment = Alignment.Center) {
+            content()
+            DecorationImage(decoration!!, size)
+        }
+        return
+    }
     val colors = decoration?.let(::frameColors)
     if (colors == null) {
         content()
@@ -222,6 +234,30 @@ fun LookAvatar(
     }
 }
 
+/**
+ * An image decoration over an avatar of [size] (API 0.60.0): 1.2 times as large, centred, allowed outside the avatar's
+ * bounds; it plays when animated (Android 9+, not with reduced motion), and is simply absent until it loads.
+ */
+@Composable
+fun DecorationImage(id: String, size: Dp, file: java.io.File? = null) {
+    val container = LocalContainer.current
+    val still = rememberReducedMotion()
+    val loaded by produceState(file, id, file) {
+        if (file == null) value = runCatching { container.profiles.decorationImage(id) }.getOrNull()
+    }
+    val f = loaded ?: return
+    val side = size * com.meldiq.android.data.model.DecorationRules.SCALE
+    val m = Modifier.requiredSize(side)
+    if (still || Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+        val bmp by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, f) {
+            value = withContext(Dispatchers.IO) { android.graphics.BitmapFactory.decodeFile(f.path)?.asImageBitmapSafe() }
+        }
+        bmp?.let { androidx.compose.foundation.Image(it, null, modifier = m) }
+    } else {
+        AnimatedImageIn(f, null, m, fit = true)
+    }
+}
+
 @Composable
 private fun StillImage(file: java.io.File, name: String, size: Dp, modifier: Modifier) {
     val bmp by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, file) {
@@ -240,18 +276,18 @@ private fun android.graphics.Bitmap.asImageBitmapSafe() = asImageBitmap()
 private fun AnimatedImage(file: java.io.File, name: String, size: Dp, modifier: Modifier) =
     AnimatedImageIn(file, name, modifier.size(size).clip(CircleShape))
 
-/** A GIF or WebP that plays (Android 9+), filling [modifier]'s bounds; a still picture on older Android. */
+/** A GIF or WebP that plays (Android 9+), filling [modifier]'s bounds (or fitting inside them); a still picture on older Android. */
 @Composable
-private fun AnimatedImageIn(file: java.io.File, name: String?, modifier: Modifier) {
+private fun AnimatedImageIn(file: java.io.File, name: String?, modifier: Modifier, fit: Boolean = false) {
     val drawable by produceState<android.graphics.drawable.Drawable?>(null, file) {
         value = withContext(Dispatchers.IO) {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) null
             else runCatching { ImageDecoder.decodeDrawable(ImageDecoder.createSource(file)) }.getOrNull()
         }
     }
-    val d = drawable ?: return Box(modifier.background(Griip.colors.surfaceVariant))
+    val d = drawable ?: return Box(if (fit) modifier else modifier.background(Griip.colors.surfaceVariant))
     AndroidView(
-        factory = { ctx -> android.widget.ImageView(ctx).apply { scaleType = android.widget.ImageView.ScaleType.CENTER_CROP; contentDescription = name } },
+        factory = { ctx -> android.widget.ImageView(ctx).apply { scaleType = if (fit) android.widget.ImageView.ScaleType.FIT_CENTER else android.widget.ImageView.ScaleType.CENTER_CROP; contentDescription = name } },
         update = { v ->
             v.setImageDrawable(d)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) (d as? AnimatedImageDrawable)?.start()

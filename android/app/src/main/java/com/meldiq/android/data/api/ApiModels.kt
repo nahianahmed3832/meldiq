@@ -123,6 +123,8 @@ import kotlinx.serialization.json.JsonObject
     val mutualCommunities: List<MutualCommunityDto>? = null,
     /** API 0.56.0: what they're playing, when shown to you (docs/ACTIVITY_STATUS.md). */
     val activity: com.meldiq.android.activity.ActivityDto? = null,
+    /** API 0.60.0: they have a profile decoration approved (the Artist badge). */
+    val decorationArtist: Boolean = false,
 )
 @Serializable data class MojoMarkDto(val badge: String, val check: Boolean = false)
 @Serializable data class MutualCommunityDto(val id: String, val name: String, val photoRev: Long? = null, val joinedAt: Long = 0)

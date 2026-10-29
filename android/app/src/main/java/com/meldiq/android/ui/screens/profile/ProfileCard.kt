@@ -30,6 +30,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.outlined.Block
+import androidx.compose.material.icons.outlined.Brush
 import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.Cake
 import androidx.compose.material.icons.outlined.ContentCopy
@@ -215,7 +216,8 @@ fun UserProfileScreen(nav: NavHostController, userId: String, orgId: String? = n
                 }
                 // The avatar overlaps the banner; Connect sits at the top right.
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(AVATAR_OVERHANG), verticalAlignment = Alignment.Top) {
-                    Box(Modifier.offset(y = -(AVATAR / 2)).clip(CircleShape).background(c.surface).padding(5.dp)) {
+                    // Not clipped: a decoration (API 0.60.0) reaches past the avatar's circle.
+                    Box(Modifier.offset(y = -(AVATAR / 2)).background(c.surface, CircleShape).padding(5.dp)) {
                         com.meldiq.android.ui.components.LookAvatar(u.id, u.displayName, u.avatarColor, u.photoRev, look, size = AVATAR, online = u.online, presence = u.presence)
                     }
                     Spacer(Modifier.weight(1f))
@@ -230,6 +232,8 @@ fun UserProfileScreen(nav: NavHostController, userId: String, orgId: String? = n
                         u.tag?.let { t -> Chip(t.text, dot = com.meldiq.android.data.model.LookRules.argb(t.color)?.let { Color(it) }) }
                         ProfileCardRules.mojoName(u.mojo?.badge)?.let { name -> Chip(name, icon = if (u.mojo?.check == true) Icons.Outlined.Verified else null, accent = true) }
                         if ("bug-hunter" in u.badges.orEmpty()) Chip(stringResource(R.string.wp_badge_bug_hunter), icon = Icons.Outlined.BugReport)
+                        // API 0.60.0: they made a decoration Meldiq approved.
+                        if (u.decorationArtist) Chip(stringResource(R.string.deco_badge_artist), icon = Icons.Outlined.Brush)
                     }
                     ProfileCardRules.statusLine(u)?.let { Text(it, style = Griip.type.body, color = c.textPrimary, modifier = Modifier.padding(top = 10.dp)) }
                     // API 0.56.0: what they're playing, live (docs/ACTIVITY_STATUS.md).
@@ -240,6 +244,7 @@ fun UserProfileScreen(nav: NavHostController, userId: String, orgId: String? = n
                     error?.let { StatusBanner(it, BannerKind.Error, Modifier.padding(top = 10.dp)) }
 
                     if (!u.aboutMe.isNullOrBlank()) Section(stringResource(R.string.wp_about_me)) { Text(u.aboutMe, style = Griip.type.body, color = c.textPrimary) }
+                    if (u.decorationArtist) ArtistDecorations(u.id, u.displayName) { title, body -> Section(title) { body() } }
                     val links = ProfileCardRules.links(u)
                     if (links.isNotEmpty()) Section(stringResource(R.string.pf_links)) {
                         val ctx = LocalContext.current

@@ -1,0 +1,557 @@
+{
+  "decorations": [
+    {
+      "id": "flames",
+      "name": "Flames",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/flames/image",
+      "creator": null
+    },
+    {
+      "id": "crown",
+      "name": "Crown",
+      "kind": "meldiq",
+      "animated": false,
+      "imageUrl": "/v2/decorations/crown/image",
+      "creator": null
+    },
+    {
+      "id": "halo",
+      "name": "Halo",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/halo/image",
+      "creator": null
+    },
+    {
+      "id": "horns",
+      "name": "Horns",
+      "kind": "meldiq",
+      "animated": false,
+      "imageUrl": "/v2/decorations/horns/image",
+      "creator": null
+    },
+    {
+      "id": "cat-ears",
+      "name": "Cat ears",
+      "kind": "meldiq",
+      "animated": false,
+      "imageUrl": "/v2/decorations/cat-ears/image",
+      "creator": null
+    },
+    {
+      "id": "wings",
+      "name": "Wings",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/wings/image",
+      "creator": null
+    },
+    {
+      "id": "headphones",
+      "name": "Headphones",
+      "kind": "meldiq",
+      "animated": false,
+      "imageUrl": "/v2/decorations/headphones/image",
+      "creator": null
+    },
+    {
+      "id": "laurel",
+      "name": "Laurel",
+      "kind": "meldiq",
+      "animated": false,
+      "imageUrl": "/v2/decorations/laurel/image",
+      "creator": null
+    },
+    {
+      "id": "snow",
+      "name": "Snow",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/snow/image",
+      "creator": null
+    },
+    {
+      "id": "hearts",
+      "name": "Hearts",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/hearts/image",
+      "creator": null
+    },
+    {
+      "id": "stars",
+      "name": "Stars",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/stars/image",
+      "creator": null
+    },
+    {
+      "id": "lightning",
+      "name": "Lightning",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/lightning/image",
+      "creator": null
+    },
+    {
+      "id": "glow",
+      "name": "Glow",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/glow/image",
+      "creator": null
+    },
+    {
+      "id": "rainbow",
+      "name": "Rainbow",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/rainbow/image",
+      "creator": null
+    },
+    {
+      "id": "fire",
+      "name": "Fire",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/fire/image",
+      "creator": null
+    },
+    {
+      "id": "ice",
+      "name": "Ice",
+      "kind": "meldiq",
+      "animated": false,
+      "imageUrl": "/v2/decorations/ice/image",
+      "creator": null
+    },
+    {
+      "id": "gold",
+      "name": "Gold",
+      "kind": "meldiq",
+      "animated": false,
+      "imageUrl": "/v2/decorations/gold/image",
+      "creator": null
+    },
+    {
+      "id": "sparkle",
+      "name": "Sparkle",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/sparkle/image",
+      "creator": null
+    },
+    {
+      "id": "galaxy",
+      "name": "Galaxy",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/galaxy/image",
+      "creator": null
+    },
+    {
+      "id": "neon-ring",
+      "name": "Neon",
+      "kind": "meldiq",
+      "animated": false,
+      "imageUrl": "/v2/decorations/neon-ring/image",
+      "creator": null
+    },
+    {
+      "id": "heartbeat",
+      "name": "Heartbeat",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/heartbeat/image",
+      "creator": null
+    },
+    {
+      "id": "toxic",
+      "name": "Toxic",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/toxic/image",
+      "creator": null
+    },
+    {
+      "id": "starry-night",
+      "name": "Starry night",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/starry-night/image",
+      "creator": null
+    },
+    {
+      "id": "smoke",
+      "name": "Black smoke",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/smoke/image",
+      "creator": null
+    },
+    {
+      "id": "white-lace",
+      "name": "White lace",
+      "kind": "meldiq",
+      "animated": false,
+      "imageUrl": "/v2/decorations/white-lace/image",
+      "creator": null
+    },
+    {
+      "id": "black-lace",
+      "name": "Black lace",
+      "kind": "meldiq",
+      "animated": false,
+      "imageUrl": "/v2/decorations/black-lace/image",
+      "creator": null
+    },
+    {
+      "id": "crimson",
+      "name": "Crimson thorns",
+      "kind": "meldiq",
+      "animated": false,
+      "imageUrl": "/v2/decorations/crimson/image",
+      "creator": null
+    },
+    {
+      "id": "blossom",
+      "name": "Blossom",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/blossom/image",
+      "creator": null
+    },
+    {
+      "id": "black-cats",
+      "name": "Black cats",
+      "kind": "meldiq",
+      "animated": false,
+      "imageUrl": "/v2/decorations/black-cats/image",
+      "creator": null
+    },
+    {
+      "id": "chains",
+      "name": "Chains",
+      "kind": "meldiq",
+      "animated": false,
+      "imageUrl": "/v2/decorations/chains/image",
+      "creator": null
+    },
+    {
+      "id": "black-glitter",
+      "name": "Black glitter",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/black-glitter/image",
+      "creator": null
+    },
+    {
+      "id": "clouds",
+      "name": "Clouds",
+      "kind": "meldiq",
+      "animated": false,
+      "imageUrl": "/v2/decorations/clouds/image",
+      "creator": null
+    },
+    {
+      "id": "blood-moon",
+      "name": "Blood moon",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/blood-moon/image",
+      "creator": null
+    },
+    {
+      "id": "cute-bow",
+      "name": "Cute bow",
+      "kind": "meldiq",
+      "animated": false,
+      "imageUrl": "/v2/decorations/cute-bow/image",
+      "creator": null
+    },
+    {
+      "id": "gg",
+      "name": "GG",
+      "kind": "meldiq",
+      "animated": false,
+      "imageUrl": "/v2/decorations/gg/image",
+      "creator": null
+    },
+    {
+      "id": "acid",
+      "name": "Acid",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/acid/image",
+      "creator": null
+    },
+    {
+      "id": "star-orbit",
+      "name": "Star orbit",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/star-orbit/image",
+      "creator": null
+    },
+    {
+      "id": "circlet",
+      "name": "Circlet",
+      "kind": "meldiq",
+      "animated": false,
+      "imageUrl": "/v2/decorations/circlet/image",
+      "creator": null
+    },
+    {
+      "id": "blue-ring",
+      "name": "Blue ring",
+      "kind": "meldiq",
+      "animated": false,
+      "imageUrl": "/v2/decorations/blue-ring/image",
+      "creator": null
+    },
+    {
+      "id": "money",
+      "name": "Money",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/money/image",
+      "creator": null
+    },
+    {
+      "id": "black-cat-ears",
+      "name": "Black cat ears",
+      "kind": "meldiq",
+      "animated": false,
+      "imageUrl": "/v2/decorations/black-cat-ears/image",
+      "creator": null
+    },
+    {
+      "id": "angel-wings",
+      "name": "Pink angel wings",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/angel-wings/image",
+      "creator": null
+    },
+    {
+      "id": "crows",
+      "name": "Crows",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/crows/image",
+      "creator": null
+    },
+    {
+      "id": "halo-wings",
+      "name": "Halo and wings",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/halo-wings/image",
+      "creator": null
+    },
+    {
+      "id": "ice-fairy",
+      "name": "Ice fairy",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/ice-fairy/image",
+      "creator": null
+    },
+    {
+      "id": "bat-wings",
+      "name": "Bat wings",
+      "kind": "meldiq",
+      "animated": false,
+      "imageUrl": "/v2/decorations/bat-wings/image",
+      "creator": null
+    },
+    {
+      "id": "static",
+      "name": "Static",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/static/image",
+      "creator": null
+    },
+    {
+      "id": "inferno",
+      "name": "Inferno",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/inferno/image",
+      "creator": null
+    },
+    {
+      "id": "toast",
+      "name": "Toast",
+      "kind": "meldiq",
+      "animated": false,
+      "imageUrl": "/v2/decorations/toast/image",
+      "creator": null
+    },
+    {
+      "id": "shooting-stars",
+      "name": "Shooting stars",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/shooting-stars/image",
+      "creator": null
+    },
+    {
+      "id": "moonlit-orb",
+      "name": "Moonlit orb",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/moonlit-orb/image",
+      "creator": null
+    },
+    {
+      "id": "doodle-notes",
+      "name": "Doodle notes",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/doodle-notes/image",
+      "creator": null
+    },
+    {
+      "id": "glitch",
+      "name": "Glitch",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/glitch/image",
+      "creator": null
+    },
+    {
+      "id": "censored",
+      "name": "Censored",
+      "kind": "meldiq",
+      "animated": false,
+      "imageUrl": "/v2/decorations/censored/image",
+      "creator": null
+    },
+    {
+      "id": "look-here",
+      "name": "Look here",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/look-here/image",
+      "creator": null
+    },
+    {
+      "id": "bubbles",
+      "name": "Bubbles",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/bubbles/image",
+      "creator": null
+    },
+    {
+      "id": "autumn",
+      "name": "Autumn leaves",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/autumn/image",
+      "creator": null
+    },
+    {
+      "id": "gamepad",
+      "name": "Gamepad",
+      "kind": "meldiq",
+      "animated": false,
+      "imageUrl": "/v2/decorations/gamepad/image",
+      "creator": null
+    },
+    {
+      "id": "meldling-ears",
+      "name": "Meldling ears",
+      "kind": "meldiq",
+      "animated": false,
+      "imageUrl": "/v2/decorations/meldling-ears/image",
+      "creator": null
+    },
+    {
+      "id": "sunflower",
+      "name": "Sunflower",
+      "kind": "meldiq",
+      "animated": false,
+      "imageUrl": "/v2/decorations/sunflower/image",
+      "creator": null
+    },
+    {
+      "id": "vines",
+      "name": "Vines",
+      "kind": "meldiq",
+      "animated": false,
+      "imageUrl": "/v2/decorations/vines/image",
+      "creator": null
+    },
+    {
+      "id": "roses",
+      "name": "Roses",
+      "kind": "meldiq",
+      "animated": false,
+      "imageUrl": "/v2/decorations/roses/image",
+      "creator": null
+    },
+    {
+      "id": "ocean",
+      "name": "Ocean",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/ocean/image",
+      "creator": null
+    },
+    {
+      "id": "bunny-ears",
+      "name": "Bunny ears",
+      "kind": "meldiq",
+      "animated": false,
+      "imageUrl": "/v2/decorations/bunny-ears/image",
+      "creator": null
+    },
+    {
+      "id": "confetti",
+      "name": "Confetti",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/confetti/image",
+      "creator": null
+    },
+    {
+      "id": "headset",
+      "name": "Gamer headset",
+      "kind": "meldiq",
+      "animated": false,
+      "imageUrl": "/v2/decorations/headset/image",
+      "creator": null
+    },
+    {
+      "id": "witch-hat",
+      "name": "Witch hat",
+      "kind": "meldiq",
+      "animated": false,
+      "imageUrl": "/v2/decorations/witch-hat/image",
+      "creator": null
+    },
+    {
+      "id": "mint-glow",
+      "name": "Mint glow",
+      "kind": "meldiq",
+      "animated": true,
+      "imageUrl": "/v2/decorations/mint-glow/image",
+      "creator": null
+    }
+  ],
+  "classic": [
+    "aurora",
+    "ember",
+    "frost",
+    "neon",
+    "sakura",
+    "pixel"
+  ],
+  "templateUrl": "/v2/decorations/template"
+}

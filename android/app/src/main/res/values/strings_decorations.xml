@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Profile decorations (API 0.60.0, server docs/PROFILE_DECORATIONS.md), as Meldiq Web. -->
+<resources>
+    <string name="deco_title">Avatar decoration</string>
+    <string name="deco_tab_meldiq">Meldiq</string>
+    <string name="deco_tab_community">Community</string>
+    <string name="deco_tab_yours">Yours</string>
+    <string name="deco_make">Make your own</string>
+    <string name="deco_by">by @%1$s</string>
+    <string name="deco_search">Search by name or maker</string>
+    <string name="deco_community_empty">No community decorations yet. Make the first one!</string>
+    <string name="deco_no_match">No decoration matches that.</string>
+    <string name="deco_waiting">%1$d of %2$d waiting for review.</string>
+    <string name="deco_artist_you">You\'re a Meldiq artist.</string>
+    <string name="deco_mine_empty">Nothing sent in yet. Make one and it shows up here while it\'s reviewed.</string>
+    <string name="deco_status_pending">Waiting for review</string>
+    <string name="deco_status_approved">Approved</string>
+    <string name="deco_status_rejected">Turned down</string>
+    <string name="deco_status_removed">Taken down</string>
+    <string name="deco_wearers_one">1 person wears it</string>
+    <string name="deco_wearers_many">%1$d people wear it</string>
+    <string name="deco_wear">Wear</string>
+    <string name="deco_wearing">Wearing</string>
+    <string name="deco_withdraw">Withdraw</string>
+    <string name="deco_withdraw_confirm">Withdraw “%1$s”?</string>
+    <string name="deco_withdraw_approved">Take “%1$s” out of the catalog? Everyone wearing it goes back to no decoration.</string>
+    <string name="deco_make_title">Make a decoration</string>
+    <string name="deco_make_intro">Draw a frame for avatars and send it in. Once Meldiq\'s team approves it, anyone can wear it, with your name on it.</string>
+    <string name="deco_rule_size">Square, 128 to 1024 pixels (512 × 512 works best), PNG, WebP or GIF with a see-through background, up to 1.5 MB. Animated is fine.</string>
+    <string name="deco_rule_middle">Keep the middle circle empty: that\'s where the avatar goes.</string>
+    <string name="deco_rule_bottom">Keep big pieces to the top and sides. The bottom strip sits right above the name, so keep it light.</string>
+    <string name="deco_rule_original">Only your own original work. No art saved from the internet or another app, and no traced or edited copies of someone else\'s work. Copies are taken down and can cost you your Artist badge.</string>
+    <string name="deco_rule_content">No nudity, gore, hate, or other people\'s logos and characters.</string>
+    <string name="deco_template">Get the template</string>
+    <string name="deco_perks">Get your first one approved and you earn the Artist badge, your decorations on your profile for anyone to try on, room for 6 waiting at once (3 until then), and a count of how many people wear each one.</string>
+    <string name="deco_pick">Pick a picture</string>
+    <string name="deco_pick_again">Pick another picture</string>
+    <string name="deco_name">Name it</string>
+    <string name="deco_original">I made this myself. It isn\'t taken from someone else or the internet.</string>
+    <string name="deco_send">Send it in</string>
+    <string name="deco_err_type">Decorations are PNG, WebP or GIF images.</string>
+    <string name="deco_err_size">Decorations can be up to 1.5 MB.</string>
+    <string name="deco_err_square">Decorations are square; that image is %1$d × %2$d.</string>
+    <string name="deco_err_side">Decorations are 128 to 1024 pixels square (512 × 512 works best).</string>
+    <string name="deco_err_read">That image couldn\'t be read.</string>
+    <string name="deco_badge_artist">Artist</string>
+    <string name="deco_by_artist">Decorations by %1$s</string>
+    <string name="deco_load_failed">Decorations couldn\'t be loaded.</string>
+</resources>

@@ -161,10 +161,8 @@ fun ProfileStyleScreen(nav: NavHostController) {
             )
         }
         item {
-            ChoiceCard(stringResource(R.string.wp_style_frame)) {
-                Choice(stringResource(R.string.wp_style_none), style.decoration == null) { save(buildJsonObject { put("decoration", JsonNull) }) }
-                LookRules.DECORATIONS.forEach { d -> Choice(label(d), style.decoration == d) { save(buildJsonObject { put("decoration", JsonPrimitive(d)) }) } }
-            }
+            // API 0.60.0: Meldiq's own, community and your own decorations (DecorationPicker.kt).
+            DecorationSection(u, style.decoration, busy, classicLabel = ::label) { d -> save(buildJsonObject { put("decoration", d?.let(::JsonPrimitive) ?: JsonNull) }) }
         }
         item {
             ChoiceCard(stringResource(R.string.wp_style_effect)) {

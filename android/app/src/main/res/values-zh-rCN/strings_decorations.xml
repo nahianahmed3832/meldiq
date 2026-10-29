@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Profile decorations (API 0.60.0, server docs/PROFILE_DECORATIONS.md), as Meldiq Web. -->
+<resources>
+    <string name="deco_title">头像装饰</string>
+    <string name="deco_tab_meldiq">Meldiq</string>
+    <string name="deco_tab_community">社区</string>
+    <string name="deco_tab_yours">你的</string>
+    <string name="deco_make">自己制作</string>
+    <string name="deco_by">作者 @%1$s</string>
+    <string name="deco_search">按名称或作者搜索</string>
+    <string name="deco_community_empty">还没有社区装饰。来做第一个吧！</string>
+    <string name="deco_no_match">没有符合的装饰。</string>
+    <string name="deco_waiting">%1$d / %2$d 个等待审核。</string>
+    <string name="deco_artist_you">你是 Meldiq 创作者。</string>
+    <string name="deco_mine_empty">还没有提交。做一个，审核期间会显示在这里。</string>
+    <string name="deco_status_pending">等待审核</string>
+    <string name="deco_status_approved">已通过</string>
+    <string name="deco_status_rejected">未通过</string>
+    <string name="deco_status_removed">已下架</string>
+    <string name="deco_wearers_one">1 人在用</string>
+    <string name="deco_wearers_many">%1$d 人在用</string>
+    <string name="deco_wear">使用</string>
+    <string name="deco_wearing">使用中</string>
+    <string name="deco_withdraw">撤回</string>
+    <string name="deco_withdraw_confirm">撤回“%1$s”？</string>
+    <string name="deco_withdraw_approved">将“%1$s”移出装饰库？正在使用的人会变回无装饰。</string>
+    <string name="deco_make_title">制作装饰</string>
+    <string name="deco_make_intro">为头像画一个框并提交。Meldiq 团队通过后，任何人都可以使用，并显示你的名字。</string>
+    <string name="deco_rule_size">正方形，128 到 1024 像素（512 × 512 最佳），透明背景的 PNG、WebP 或 GIF，最大 1.5 MB。可以是动图。</string>
+    <string name="deco_rule_middle">中间的圆留空：那里放头像。</string>
+    <string name="deco_rule_bottom">大的元素放在上方和两侧。底部紧挨名字，尽量简洁。</string>
+    <string name="deco_rule_original">只能是你自己的原创作品。不要用网上或其他应用里的图，也不要描摹或修改别人的作品。抄袭的会被下架，并可能失去创作者徽章。</string>
+    <string name="deco_rule_content">不允许裸露、血腥、仇恨内容，或他人的标志和角色。</string>
+    <string name="deco_template">获取模板</string>
+    <string name="deco_perks">第一个通过后，你会获得创作者徽章，你的装饰会显示在个人资料上供他人试戴，可同时等待审核 6 个（之前是 3 个），并能看到每个装饰有多少人在用。</string>
+    <string name="deco_pick">选择图片</string>
+    <string name="deco_pick_again">换一张图片</string>
+    <string name="deco_name">起个名字</string>
+    <string name="deco_original">这是我自己做的，不是从别人或网上拿的。</string>
+    <string name="deco_send">提交</string>
+    <string name="deco_err_type">装饰必须是 PNG、WebP 或 GIF 图片。</string>
+    <string name="deco_err_size">装饰最大 1.5 MB。</string>
+    <string name="deco_err_square">装饰必须是正方形；这张图片是 %1$d × %2$d。</string>
+    <string name="deco_err_side">装饰需为 128 到 1024 像素的正方形（512 × 512 最佳）。</string>
+    <string name="deco_err_read">无法读取这张图片。</string>
+    <string name="deco_badge_artist">创作者</string>
+    <string name="deco_by_artist">%1$s 的装饰</string>
+    <string name="deco_load_failed">无法加载装饰。</string>
+</resources>

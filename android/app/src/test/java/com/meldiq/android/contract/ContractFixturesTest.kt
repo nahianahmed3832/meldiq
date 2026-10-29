@@ -131,6 +131,12 @@ class ContractFixturesTest {
         // AI Workforce (docs/AI_WORKFORCE.md, API 0.35.0).
         // AI Workforce 2 (API 0.36.0–0.40.0): readiness, activity, test, triggers, tasks, readers, direct conversations.
         // API 0.41.0: the work overview and the Full System Check.
+        // API 0.61.0: profile decorations (server docs/PROFILE_DECORATIONS.md).
+        "GET_v2_decorations" to serializer<com.meldiq.android.data.model.DecorationCatalogDto>(),
+        "GET_v2_decorations_mine" to serializer<com.meldiq.android.data.model.MyDecorationsDto>(),
+        "POST_v2_decorations" to serializer<com.meldiq.android.data.model.SubmissionRes>(),
+        "GET_v2_users_id_decorations" to serializer<com.meldiq.android.data.model.UserDecorationsRes>(),
+        "DELETE_v2_decorations_mine_id" to serializer<OkRes>(),
         "DELETE_v1_applications_id" to serializer<OkRes>(),
         "DELETE_v1_blocks_userId" to serializer<OkRes>(),
         "DELETE_v1_categories_id" to serializer<OkRes>(),
