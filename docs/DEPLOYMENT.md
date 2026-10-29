@@ -130,6 +130,26 @@ Passkeys failed in the app installed from Google Play: Play signs it with its ap
 
 Rollback: copy the backup's `.env` back and recreate `api` the same way.
 
+### API 0.62.0 and console 1.3.0: creating accounts from the admin console (2026-10-29, 11:10 UTC, owner's request: "make this system and push for productions")
+
+Branch `admin-accounts`: production's 0.61.1 (`stripe-live` 612d78c, sources checked file by file before and again
+right before the switch) + accounts made in the console (docs/ADMIN_ACCOUNTS.md): verified, fixed tester code or
+emailed code; `accounts.create` for super and operations admins. Migration 068 (`operator_accounts`, a new SQLite
+table; the platform domain isn't in `MONGODB_DOMAINS`). Console 1.3.0 adds the Create Accounts page.
+
+| Step | Result |
+|---|---|
+| Tests | server: 1187 passed, 2 failed before the last fixes (`architecture_boundaries`: fixed, table owner; `mongo_migration`: the known MongoDB timeout here); `admin_accounts.test.ts` 8/8 and the affected suites pass after; console: unit 27, browser 8/8 under the production CSP (incl. a tester account verified with its fixed code) |
+| Backup | `backups/pre-0.62.0-20261029T110714Z`: integrity ok, schema 67, 44 users, `.env`/`compose.yaml` copies; image tagged `0.61.1-rollback`; sources kept as `server.pre-0.62.0` |
+| Rehearsal | backup copy, `--network none`, MongoDB and FCM settings left out: healthy 0.62.0, migration 068 applied (schema 68, integrity ok, 44 users), 0 error lines; removed after |
+| Switch | `compose.yaml` image 0.62.0 at 11:10:01 (healthy 11:10:15); `.env` unchanged |
+| Checks after | `/healthz` 0.62.0 `mongodb: true` on msg.meldiq.app and msg.griipbuddy.cloud; `verify.sh` 0 restarts; 0 warn/error log lines; `/admin/v1/accounts` 401 without a session |
+| Console | release 1.3.0-20261029T111029Z (previous 1.2.0-20261029T034913Z); console `verify.sh` all passed; the live site serves the new build |
+
+Rollback: `compose.yaml` image `0.61.1-rollback`; `up -d --no-deps --no-build --force-recreate api` (068 only adds a
+table 0.61.1 ignores; accounts made meanwhile stay normal accounts, without the fixed code or takeover protection).
+Console: `bash /root/meldiq-admin-1.3.0-20261029T111029Z/rollback.sh`.
+
 ### API 0.61.1: Mojo Go and Plus on their own Stripe products (2026-10-29, 05:01 UTC, owner's go-ahead: "Yes, deploy it")
 
 Branch `stripe-live` 13d706a on production's `profile-decorations` 703e92b (0.61.0). The first live Stripe setup (04:28
