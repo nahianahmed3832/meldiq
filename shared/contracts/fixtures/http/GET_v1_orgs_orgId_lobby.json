@@ -1,0 +1,197 @@
+{
+  "community": {
+    "id": "o_JBgq-r0RTynQ1DJGw0BSkA",
+    "name": "Lobby Club",
+    "photoRev": null,
+    "bannerRev": null,
+    "accent": null,
+    "memberCount": 4,
+    "onlineCount": 0
+  },
+  "settings": {
+    "enabled": true,
+    "tagline": "Make things together",
+    "buttons": [
+      {
+        "label": "Chat",
+        "url": null,
+        "channelId": "c_pmUlspHOzb-O0vMa7AkNLw"
+      },
+      {
+        "label": "Site",
+        "url": "https://example.com/club",
+        "channelId": null
+      }
+    ],
+    "about": "**Welcome!** Say hi.",
+    "mainChannelIds": [
+      "c_pmUlspHOzb-O0vMa7AkNLw"
+    ],
+    "faq": [
+      {
+        "id": "faq_m-7eINDiXvHJ",
+        "question": "Is it free?",
+        "answer": "Yes."
+      },
+      {
+        "id": "keep_me",
+        "question": "Who runs it?",
+        "answer": "See the card."
+      }
+    ],
+    "showWhoRunsIt": true,
+    "look": {
+      "layout": "classic",
+      "accent": "#aabbcc",
+      "background": "glow",
+      "cards": "filled",
+      "font": "serif",
+      "bannerHeight": "normal",
+      "title": "left"
+    },
+    "sections": [
+      {
+        "key": "about",
+        "shown": true,
+        "column": "main"
+      },
+      {
+        "key": "main_channels",
+        "shown": true,
+        "column": "main"
+      },
+      {
+        "key": "live_now",
+        "shown": true,
+        "column": "main"
+      },
+      {
+        "key": "giveaways",
+        "shown": true,
+        "column": "main"
+      },
+      {
+        "key": "feed",
+        "shown": true,
+        "column": "main"
+      },
+      {
+        "key": "faq",
+        "shown": true,
+        "column": "main"
+      },
+      {
+        "key": "leaderboard",
+        "shown": true,
+        "column": "side"
+      },
+      {
+        "key": "pick_roles",
+        "shown": true,
+        "column": "side"
+      },
+      {
+        "key": "rules",
+        "shown": true,
+        "column": "side"
+      },
+      {
+        "key": "who_runs_it",
+        "shown": true,
+        "column": "side"
+      },
+      {
+        "key": "links",
+        "shown": true,
+        "column": "side"
+      }
+    ],
+    "leaderboards": [
+      "levels",
+      "messages_week",
+      "invites"
+    ]
+  },
+  "rev": 1,
+  "canEdit": false,
+  "seen": false,
+  "seenAt": null,
+  "mainChannels": [
+    {
+      "id": "c_pmUlspHOzb-O0vMa7AkNLw",
+      "name": "chat",
+      "kind": "PUBLIC",
+      "voice": false,
+      "format": "text",
+      "lastActiveAt": null
+    }
+  ],
+  "mainChannelsPicked": true,
+  "whoRunsIt": [
+    {
+      "user": {
+        "id": "u_vtxH6zT2Dvxl8iz_tmcOow",
+        "username": "lbowner1",
+        "displayName": "lbowner",
+        "avatarColor": 0,
+        "photoRev": null
+      },
+      "badge": "owner"
+    },
+    {
+      "user": {
+        "id": "u_zpNAJQ0xTL_VyFfsnFBrRQ",
+        "username": "lbadmin2",
+        "displayName": "lbadmin",
+        "avatarColor": 0,
+        "photoRev": null
+      },
+      "badge": "admin"
+    },
+    {
+      "user": {
+        "id": "u_fa9CkhHk_Z6TQ5VT8-acXg",
+        "username": "lbmod3",
+        "displayName": "lbmod",
+        "avatarColor": 0,
+        "photoRev": null
+      },
+      "badge": "mod"
+    }
+  ],
+  "liveNow": [],
+  "rules": null,
+  "links": [],
+  "pickRoles": {
+    "prompts": [],
+    "answered": []
+  },
+  "leaderboards": [
+    {
+      "board": "levels",
+      "entries": []
+    },
+    {
+      "board": "messages_week",
+      "entries": []
+    },
+    {
+      "board": "invites",
+      "entries": [
+        {
+          "rank": 1,
+          "user": {
+            "id": "u_vtxH6zT2Dvxl8iz_tmcOow",
+            "username": "lbowner1",
+            "displayName": "lbowner",
+            "avatarColor": 0,
+            "photoRev": null
+          },
+          "count": 3
+        }
+      ]
+    }
+  ],
+  "giveaways": [],
+  "feed": []
+}

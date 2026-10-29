@@ -47,6 +47,8 @@ import communityRulesRoutes from "../modules/organizations/rules/routes.js";
 import { CommunityRules } from "../modules/organizations/rules/service.js";
 import { MemoryRulesStore } from "../modules/organizations/rules/store.js";
 import { MongoRulesStore } from "../modules/organizations/rules/mongoStore.js";
+import communityLobbyRoutes from "../modules/organizations/lobby/routes.js";
+import { CommunityLobby } from "../modules/organizations/lobby/service.js";
 import expressionRoutes from "../modules/organizations/expressionsRoutes.js";
 import { MongoPreferenceStore } from "../modules/accounts/preferences/mongoStore.js";
 import { type PushDeps, PushService } from "../modules/notifications/service.js";
@@ -304,6 +306,8 @@ export async function buildApp(
   // Authorisation was made before the rules: it asks them from here on.
   ctx.authz.rulesChannelId = (orgId) => ctx.communityRules.channelIdOf(orgId);
   ctx.authz.mustAgreeRules = (orgId, userId) => ctx.communityRules.mustAgree(orgId, userId);
+  // Community parity B (docs/COMMUNITY_PARITY_API.md): the community lobby, kept in the workspace rows (migration 072).
+  ctx.lobby = new CommunityLobby(ctx, config.communityLobby.enabled, config.communityLobby.feedImageHosts);
   ctx.reportSealer = ReportSealer.load(process.env, config.dataDir);
   // Billing (plans, subscriptions, Meldiq Spark, gifts): rows in SQLite, or MongoDB when MONGODB_DOMAINS includes it.
   ctx.billing = new Billing(await openBillingRows(db, ctx.mongo, app.log), config.billing, app.log, Date.now, (id) => ctx.quotas.planExists(id));
@@ -532,7 +536,7 @@ export async function buildApp(
     passkeys: ctx.accounts.passkeys.available ? { webOrigins: ctx.accounts.passkeys.webOrigins } : null,
   }));
 
-  for (const r of [authRoutes, userRoutes, profileMediaRoutes, gifRoutes, bugReportRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, serverMessagesRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, activityRoutes, decorationRoutes, pinRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, communityRulesRoutes, expressionRoutes, discordRoutes, leaveManyRoutes, pointsRoutes, creatorRoutes, linkedAccountRoutes, oauthRoutes, botRoutes, wsRoutes]) {
+  for (const r of [authRoutes, userRoutes, profileMediaRoutes, gifRoutes, bugReportRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, serverMessagesRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, activityRoutes, decorationRoutes, pinRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, communityRulesRoutes, communityLobbyRoutes, expressionRoutes, discordRoutes, leaveManyRoutes, pointsRoutes, creatorRoutes, linkedAccountRoutes, oauthRoutes, botRoutes, wsRoutes]) {
     await app.register(async (scope) => r(scope, ctx));
   }
   await app.register(async (scope) => opsRoutes(scope, ctx, VERSION));
@@ -696,6 +700,8 @@ export function serverFeatures(config: Config, directUploads = false): string[] 
   // API 0.65.0 (docs/SETTINGS_PARITY_API.md): a community's rules channel, its numbered rules and agreeing to them
   // before posting (COMMUNITY_RULES=off switches it off).
   if (config.communityRules) f.push("rules-channel");
+  // Community parity B (docs/COMMUNITY_PARITY_API.md): the community lobby (COMMUNITY_LOBBY=off switches it off).
+  if (config.communityLobby.enabled) f.push("community-lobby");
   if (config.accounts.legacy.migration) f.push("legacy-migration");
   if (directUploads) f.push("direct-upload");
   if (config.history.enabled) f.push("history");

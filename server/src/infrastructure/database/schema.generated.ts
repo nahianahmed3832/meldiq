@@ -1622,6 +1622,76 @@ export const SCHEMA: readonly TableShape[] = [
     autoincrement: false,
   },
   {
+    name: "community_lobbies",
+    columns: [
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"settings","type":"TEXT","notNull":true},
+      {"name":"rev","type":"INTEGER","notNull":true},
+      {"name":"updated_at","type":"INTEGER","notNull":true},
+      {"name":"updated_by","type":"TEXT","notNull":true},
+    ],
+    primaryKey: ["org_id"],
+    indexes: [],
+    foreignKeys: [
+      {"columns":["org_id"],"table":"orgs","references":["id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
+    name: "community_lobby_feeds",
+    columns: [
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"token_hash","type":"TEXT","notNull":true},
+      {"name":"created_at","type":"INTEGER","notNull":true},
+      {"name":"created_by","type":"TEXT","notNull":true},
+      {"name":"last_post_at","type":"INTEGER","notNull":false},
+    ],
+    primaryKey: ["org_id"],
+    indexes: [
+      {"name":"sqlite_autoindex_community_lobby_feeds_2","columns":["token_hash"],"unique":true,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [
+      {"columns":["org_id"],"table":"orgs","references":["id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
+    name: "community_lobby_posts",
+    columns: [
+      {"name":"id","type":"TEXT","notNull":true},
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"title","type":"TEXT","notNull":false},
+      {"name":"text","type":"TEXT","notNull":false},
+      {"name":"url","type":"TEXT","notNull":false},
+      {"name":"image","type":"TEXT","notNull":false},
+      {"name":"posted_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["id"],
+    indexes: [
+      {"name":"idx_community_lobby_posts_org","columns":["org_id","posted_at"],"unique":false,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [
+      {"columns":["org_id"],"table":"orgs","references":["id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
+    name: "community_lobby_seen",
+    columns: [
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"user_id","type":"TEXT","notNull":true},
+      {"name":"seen_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["org_id","user_id"],
+    indexes: [
+      {"name":"idx_community_lobby_seen_user","columns":["user_id"],"unique":false,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [
+      {"columns":["org_id"],"table":"orgs","references":["id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
     name: "community_migration_runs",
     columns: [
       {"name":"source_type","type":"TEXT","notNull":true},

@@ -116,6 +116,13 @@ export interface Config {
    * enforcing it; what communities set is kept for when it's back on.
    */
   communityRules: boolean;
+  /**
+   * Community parity B (docs/COMMUNITY_PARITY_API.md › Lobby): the community lobby (feature "community-lobby"). On
+   * unless COMMUNITY_LOBBY=off, which hides the feature and answers its routes with 503; what communities set is kept.
+   * [feedImageHosts]: picture hosts the lobby feed accepts besides YouTube, Twitch and Imgur (LOBBY_FEED_IMAGE_HOSTS,
+   * comma-separated; a host covers its subdomains).
+   */
+  communityLobby: { enabled: boolean; feedImageHosts: string[] };
   history: { enabled: boolean; maxItemsPerUser: number; maxBytesPerUser: number; maxItemBytes: number; tombstoneDays: number; maxTotalBytes: number };
   /**
    * Direct uploads from the app to S3 (2026-10-17). How long an upload URL may be started with, how long an upload may
@@ -542,6 +549,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     },
     messages: { acceptEncrypted: env.MESSAGES_ACCEPT_ENCRYPTED === "true" },
     communityRules: (env.COMMUNITY_RULES ?? "on").trim().toLowerCase() !== "off",
+    communityLobby: {
+      enabled: (env.COMMUNITY_LOBBY ?? "on").trim().toLowerCase() !== "off",
+      feedImageHosts: [...new Set((env.LOBBY_FEED_IMAGE_HOSTS ?? "").split(",").map((h) => h.trim().toLowerCase().replace(/^\*\./, "")).filter(Boolean))],
+    },
     history: {
       enabled: env.HISTORY_ENABLED !== "false",
       maxItemsPerUser: Math.max(int("HISTORY_MAX_ITEMS_PER_USER", 500_000), 0),

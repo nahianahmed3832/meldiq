@@ -62,6 +62,8 @@ export {
 /** API 0.65.0: what the points module's quests read, and profile change notices (a new level shows on profiles). */
 export { type AccountFacts, accountFacts, createdBefore } from "./questFacts.js";
 export { announceProfileChange } from "./profileEvents.js";
+/** Community parity B: people as the lobby lists them, and how many of a community appear online. */
+export { onlineCount, type PersonCard, personCards } from "./peopleCards.js";
 /** Who may reach whom (connections, blocks, messaging settings): for other modules' consent checks. */
 export { availableUser, blockedEitherWay, dmDecision, sharesCommunity } from "./relationships/rules.js";
 

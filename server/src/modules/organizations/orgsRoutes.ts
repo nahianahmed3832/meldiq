@@ -109,6 +109,8 @@ export function orgSummary(ctx: AppContext, org: any, userId: string) {
     activityAlert: activityAlert(ctx, org, userId, Date.now()),
     // API 0.65.0: the rules channel (members only; absent without a rules channel or rules).
     ...(role ? ctx.communityRules.summary(org.id, userId) : {}),
+    // Community parity B: whether the lobby is on and the member has seen it (members only; absent while switched off).
+    ...(role ? ctx.lobby.summary(org.id, userId) : {}),
   };
 }
 
@@ -131,6 +133,7 @@ export async function removeFromWorkspace(ctx: AppContext, orgId: string, userId
   // Their arrangement of this community (starred, sections) goes with them, and so does agreeing to its rules.
   await ctx.prefs.deleteForMember(userId, orgId);
   await ctx.communityRules.forgetMember(orgId, userId);
+  await ctx.lobby.forgetMember(orgId, userId);
   const action = { left: "member.leave", removed: "member.remove", expired: "member.expire", banned: "member.ban" }[reason];
   ctx.audit({ actorId, orgId, action, target: userId });
   notifyOrg(ctx, orgId);

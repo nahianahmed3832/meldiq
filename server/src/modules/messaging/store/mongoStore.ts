@@ -1,6 +1,6 @@
 import type { Collection } from "mongodb";
 import type { MeldiqMongo } from "../../../infrastructure/database/mongo/client.js";
-import { type ConversationSummary, type HistoryPage, type MessageEvent, type MessageStore, mentionsOf, PAGE_READERS, pageChanges } from "./messageStore.js";
+import { type ConversationSummary, type HistoryPage, type MessageActivity, type MessageEvent, type MessageStore, mentionsOf, PAGE_READERS, pageChanges } from "./messageStore.js";
 
 /** message_events: the SQLite row itself (same field names, docs/MONGODB.md §3), keyed by its id. */
 type EventDoc = MessageEvent & { _id: string };
@@ -153,5 +153,27 @@ export class MongoMessageStore implements MessageStore {
   async stats(): Promise<{ messages: number; changes: number }> {
     const [messages, changes] = await Promise.all([this.col.countDocuments({ cls: "message" }), this.col.countDocuments({ cls: "control" })]);
     return { messages, changes };
+  }
+
+  async activitySince(conversationIds: readonly string[], since: number, top: number): Promise<MessageActivity> {
+    if (conversationIds.length === 0) return { perConversation: {}, topSenders: [] };
+    const session = this.mongo.session();
+    const match = { $match: { conversation_id: { $in: [...conversationIds] }, cls: "message", server_ts: { $gte: since }, imported_by: null } };
+    const [per, senders] = await Promise.all([
+      this.col.aggregate<{ _id: string; n: number }>([match, { $group: { _id: "$conversation_id", n: { $sum: 1 } } }], { session }).toArray(),
+      this.col.aggregate<{ _id: string; n: number }>([match, { $group: { _id: "$sender_user_id", n: { $sum: 1 } } }, { $sort: { n: -1, _id: 1 } }, { $limit: top }], { session }).toArray(),
+    ]);
+    return { perConversation: Object.fromEntries(per.map((r) => [r._id, r.n])), topSenders: senders.map((r) => ({ userId: r._id, count: r.n })) };
+  }
+
+  async lastMessageAt(conversationIds: readonly string[]): Promise<Record<string, number>> {
+    const session = this.mongo.session();
+    const found = await Promise.all(
+      conversationIds.map(async (id) => {
+        const [d] = await this.col.find({ conversation_id: id, cls: "message" }, { session, projection: { server_ts: 1 } }).sort({ server_ts: -1 }).limit(1).toArray();
+        return d ? ([id, d.server_ts] as const) : null;
+      }),
+    );
+    return Object.fromEntries(found.filter((x) => x !== null));
   }
 }

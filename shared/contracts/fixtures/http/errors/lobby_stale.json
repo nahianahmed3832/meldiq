@@ -1,0 +1,9 @@
+{
+  "error": {
+    "code": "lobby_stale",
+    "message": "Someone else changed the lobby meanwhile. Load the latest version and try again.",
+    "details": {
+      "rev": 1
+    }
+  }
+}

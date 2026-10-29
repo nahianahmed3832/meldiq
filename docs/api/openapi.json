@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Meldiq API",
-    "version": "0.65.0",
+    "version": "0.66.1",
     "description": "The canonical contract of the Meldiq server (docs/architecture/ARCHITECTURE_1_0_PLAN.md §4), generated from src/shared/contracts. Fields are only ever added within a version; clients ignore unknown fields. Routes not listed here exist but aren't documented yet."
   },
   "servers": [
@@ -79,6 +79,9 @@
     },
     {
       "name": "community-rules"
+    },
+    {
+      "name": "community-lobby"
     },
     {
       "name": "reports"
@@ -21574,6 +21577,22 @@
                             "mustAgree"
                           ],
                           "additionalProperties": false
+                        },
+                        "lobby": {
+                          "type": "object",
+                          "properties": {
+                            "enabled": {
+                              "type": "boolean"
+                            },
+                            "seen": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "enabled",
+                            "seen"
+                          ],
+                          "additionalProperties": false
                         }
                       },
                       "required": [
@@ -22052,6 +22071,22 @@
                               "count",
                               "agreedAt",
                               "mustAgree"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "lobby": {
+                            "type": "object",
+                            "properties": {
+                              "enabled": {
+                                "type": "boolean"
+                              },
+                              "seen": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "enabled",
+                              "seen"
                             ],
                             "additionalProperties": false
                           }
@@ -22568,6 +22603,22 @@
                             "count",
                             "agreedAt",
                             "mustAgree"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "lobby": {
+                          "type": "object",
+                          "properties": {
+                            "enabled": {
+                              "type": "boolean"
+                            },
+                            "seen": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "enabled",
+                            "seen"
                           ],
                           "additionalProperties": false
                         }
@@ -23217,6 +23268,22 @@
                             "count",
                             "agreedAt",
                             "mustAgree"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "lobby": {
+                          "type": "object",
+                          "properties": {
+                            "enabled": {
+                              "type": "boolean"
+                            },
+                            "seen": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "enabled",
+                            "seen"
                           ],
                           "additionalProperties": false
                         }
@@ -25867,6 +25934,22 @@
                             "count",
                             "agreedAt",
                             "mustAgree"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "lobby": {
+                          "type": "object",
+                          "properties": {
+                            "enabled": {
+                              "type": "boolean"
+                            },
+                            "seen": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "enabled",
+                            "seen"
                           ],
                           "additionalProperties": false
                         }
@@ -33465,6 +33548,22 @@
                             "mustAgree"
                           ],
                           "additionalProperties": false
+                        },
+                        "lobby": {
+                          "type": "object",
+                          "properties": {
+                            "enabled": {
+                              "type": "boolean"
+                            },
+                            "seen": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "enabled",
+                            "seen"
+                          ],
+                          "additionalProperties": false
                         }
                       },
                       "required": [
@@ -33985,6 +34084,22 @@
                             "count",
                             "agreedAt",
                             "mustAgree"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "lobby": {
+                          "type": "object",
+                          "properties": {
+                            "enabled": {
+                              "type": "boolean"
+                            },
+                            "seen": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "enabled",
+                            "seen"
                           ],
                           "additionalProperties": false
                         }
@@ -37261,6 +37376,2705 @@
             "bearer": []
           }
         ]
+      }
+    },
+    "/v1/orgs/{orgId}/lobby": {
+      "get": {
+        "tags": [
+          "community-lobby"
+        ],
+        "summary": "The community's lobby as the viewer sees it: header, settings, main channels, who runs it, live rooms, leaderboards and feed.",
+        "operationId": "getV1OrgsOrgIdLobby",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "community": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "photoRev": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "bannerRev": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "accent": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "memberCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "onlineCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "photoRev",
+                        "bannerRev",
+                        "accent",
+                        "memberCount",
+                        "onlineCount"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "settings": {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "tagline": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "buttons": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "label": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "channelId": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "label",
+                              "url",
+                              "channelId"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "about": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "mainChannelIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "faq": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "question": {
+                                "type": "string"
+                              },
+                              "answer": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "question",
+                              "answer"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "showWhoRunsIt": {
+                          "type": "boolean"
+                        },
+                        "look": {
+                          "type": "object",
+                          "properties": {
+                            "layout": {
+                              "type": "string",
+                              "enum": [
+                                "classic",
+                                "spotlight",
+                                "magazine",
+                                "compact"
+                              ]
+                            },
+                            "accent": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "const": "auto"
+                                },
+                                {
+                                  "type": "string",
+                                  "pattern": "^#[0-9a-fA-F]{6}$"
+                                }
+                              ]
+                            },
+                            "background": {
+                              "type": "string",
+                              "enum": [
+                                "glow",
+                                "mesh",
+                                "banner_blur",
+                                "plain"
+                              ]
+                            },
+                            "cards": {
+                              "type": "string",
+                              "enum": [
+                                "filled",
+                                "glass",
+                                "outline"
+                              ]
+                            },
+                            "font": {
+                              "type": "string",
+                              "enum": [
+                                "default",
+                                "rounded",
+                                "serif",
+                                "mono",
+                                "display"
+                              ]
+                            },
+                            "bannerHeight": {
+                              "type": "string",
+                              "enum": [
+                                "tall",
+                                "normal",
+                                "short"
+                              ]
+                            },
+                            "title": {
+                              "type": "string",
+                              "enum": [
+                                "left",
+                                "centered"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "layout",
+                            "accent",
+                            "background",
+                            "cards",
+                            "font",
+                            "bannerHeight",
+                            "title"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "sections": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string",
+                                "enum": [
+                                  "about",
+                                  "main_channels",
+                                  "live_now",
+                                  "giveaways",
+                                  "feed",
+                                  "faq",
+                                  "leaderboard",
+                                  "pick_roles",
+                                  "rules",
+                                  "who_runs_it",
+                                  "links"
+                                ]
+                              },
+                              "shown": {
+                                "type": "boolean"
+                              },
+                              "column": {
+                                "type": "string",
+                                "enum": [
+                                  "main",
+                                  "side"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "shown",
+                              "column"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "leaderboards": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "levels",
+                              "messages_week",
+                              "invites"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "enabled",
+                        "tagline",
+                        "buttons",
+                        "about",
+                        "mainChannelIds",
+                        "faq",
+                        "showWhoRunsIt",
+                        "look",
+                        "sections",
+                        "leaderboards"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "rev": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "canEdit": {
+                      "type": "boolean"
+                    },
+                    "seen": {
+                      "type": "boolean"
+                    },
+                    "seenAt": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "mainChannels": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "kind": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "PUBLIC",
+                                  "PRIVATE",
+                                  "ANNOUNCEMENT"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "voice": {
+                            "type": "boolean"
+                          },
+                          "format": {
+                            "type": "string",
+                            "enum": [
+                              "text",
+                              "forum"
+                            ]
+                          },
+                          "lastActiveAt": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "kind",
+                          "voice",
+                          "format",
+                          "lastActiveAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "mainChannelsPicked": {
+                      "type": "boolean"
+                    },
+                    "whoRunsIt": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "user": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "username": {
+                                "type": "string"
+                              },
+                              "displayName": {
+                                "type": "string"
+                              },
+                              "avatarColor": {
+                                "type": "number"
+                              },
+                              "photoRev": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "username",
+                              "displayName",
+                              "avatarColor",
+                              "photoRev"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "badge": {
+                            "type": "string",
+                            "enum": [
+                              "owner",
+                              "admin",
+                              "mod"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "user",
+                          "badge"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "liveNow": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "channelId": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "callId": {
+                            "type": "string"
+                          },
+                          "startedAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "participantCount": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "participants": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "username": {
+                                  "type": "string"
+                                },
+                                "displayName": {
+                                  "type": "string"
+                                },
+                                "avatarColor": {
+                                  "type": "number"
+                                },
+                                "photoRev": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "username",
+                                "displayName",
+                                "avatarColor",
+                                "photoRev"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "channelId",
+                          "name",
+                          "callId",
+                          "startedAt",
+                          "participantCount",
+                          "participants"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "rules": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "channelId": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "channelId"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "links": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "label",
+                          "url"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "pickRoles": {
+                      "type": "object",
+                      "properties": {
+                        "prompts": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "single": {
+                                "type": "boolean"
+                              },
+                              "options": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "title": {
+                                      "type": "string"
+                                    },
+                                    "emoji": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "roles": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "object",
+                                        "properties": {
+                                          "id": {
+                                            "type": "string"
+                                          },
+                                          "name": {
+                                            "type": "string"
+                                          },
+                                          "color": {
+                                            "anyOf": [
+                                              {
+                                                "type": "string"
+                                              },
+                                              {
+                                                "type": "null"
+                                              }
+                                            ]
+                                          }
+                                        },
+                                        "required": [
+                                          "id",
+                                          "name",
+                                          "color"
+                                        ],
+                                        "additionalProperties": false
+                                      }
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "title",
+                                    "emoji",
+                                    "roles"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "title",
+                              "single",
+                              "options"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "answered": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "prompts",
+                        "answered"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "leaderboards": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "board": {
+                            "type": "string",
+                            "enum": [
+                              "levels",
+                              "messages_week",
+                              "invites"
+                            ]
+                          },
+                          "entries": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "rank": {
+                                  "type": "integer",
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "user": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "username": {
+                                      "type": "string"
+                                    },
+                                    "displayName": {
+                                      "type": "string"
+                                    },
+                                    "avatarColor": {
+                                      "type": "number"
+                                    },
+                                    "photoRev": {
+                                      "anyOf": [
+                                        {
+                                          "type": "number"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "username",
+                                    "displayName",
+                                    "avatarColor",
+                                    "photoRev"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                "count": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "rank",
+                                "user",
+                                "count"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "board",
+                          "entries"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "giveaways": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "endsAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "entrants": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "title",
+                          "endsAt",
+                          "entrants"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "feed": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "text": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "url": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "image": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "postedAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "title",
+                          "text",
+                          "url",
+                          "image",
+                          "postedAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "community",
+                    "settings",
+                    "rev",
+                    "canEdit",
+                    "seen",
+                    "seenAt",
+                    "mainChannels",
+                    "mainChannelsPicked",
+                    "whoRunsIt",
+                    "liveNow",
+                    "rules",
+                    "links",
+                    "pickRoles",
+                    "leaderboards",
+                    "giveaways",
+                    "feed"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, feature_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/orgs/{orgId}/lobby/settings": {
+      "get": {
+        "tags": [
+          "community-lobby"
+        ],
+        "summary": "The lobby's settings and revision (the feed URL's state for people who can edit the community).",
+        "operationId": "getV1OrgsOrgIdLobbySettings",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "settings": {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "tagline": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "buttons": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "label": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "channelId": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "label",
+                              "url",
+                              "channelId"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "about": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "mainChannelIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "faq": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "question": {
+                                "type": "string"
+                              },
+                              "answer": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "question",
+                              "answer"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "showWhoRunsIt": {
+                          "type": "boolean"
+                        },
+                        "look": {
+                          "type": "object",
+                          "properties": {
+                            "layout": {
+                              "type": "string",
+                              "enum": [
+                                "classic",
+                                "spotlight",
+                                "magazine",
+                                "compact"
+                              ]
+                            },
+                            "accent": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "const": "auto"
+                                },
+                                {
+                                  "type": "string",
+                                  "pattern": "^#[0-9a-fA-F]{6}$"
+                                }
+                              ]
+                            },
+                            "background": {
+                              "type": "string",
+                              "enum": [
+                                "glow",
+                                "mesh",
+                                "banner_blur",
+                                "plain"
+                              ]
+                            },
+                            "cards": {
+                              "type": "string",
+                              "enum": [
+                                "filled",
+                                "glass",
+                                "outline"
+                              ]
+                            },
+                            "font": {
+                              "type": "string",
+                              "enum": [
+                                "default",
+                                "rounded",
+                                "serif",
+                                "mono",
+                                "display"
+                              ]
+                            },
+                            "bannerHeight": {
+                              "type": "string",
+                              "enum": [
+                                "tall",
+                                "normal",
+                                "short"
+                              ]
+                            },
+                            "title": {
+                              "type": "string",
+                              "enum": [
+                                "left",
+                                "centered"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "layout",
+                            "accent",
+                            "background",
+                            "cards",
+                            "font",
+                            "bannerHeight",
+                            "title"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "sections": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string",
+                                "enum": [
+                                  "about",
+                                  "main_channels",
+                                  "live_now",
+                                  "giveaways",
+                                  "feed",
+                                  "faq",
+                                  "leaderboard",
+                                  "pick_roles",
+                                  "rules",
+                                  "who_runs_it",
+                                  "links"
+                                ]
+                              },
+                              "shown": {
+                                "type": "boolean"
+                              },
+                              "column": {
+                                "type": "string",
+                                "enum": [
+                                  "main",
+                                  "side"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "shown",
+                              "column"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "leaderboards": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "levels",
+                              "messages_week",
+                              "invites"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "enabled",
+                        "tagline",
+                        "buttons",
+                        "about",
+                        "mainChannelIds",
+                        "faq",
+                        "showWhoRunsIt",
+                        "look",
+                        "sections",
+                        "leaderboards"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "rev": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "updatedAt": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "canEdit": {
+                      "type": "boolean"
+                    },
+                    "feed": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "createdAt": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "lastPostAt": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "createdAt",
+                            "lastPostAt"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "settings",
+                    "rev",
+                    "updatedAt",
+                    "canEdit",
+                    "feed"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, feature_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "community-lobby"
+        ],
+        "summary": "Change the lobby (people who can edit the community); fields left out stay, a stale revision is refused.",
+        "operationId": "putV1OrgsOrgIdLobbySettings",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "settings": {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "tagline": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "buttons": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "label": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "channelId": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "label",
+                              "url",
+                              "channelId"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "about": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "mainChannelIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "faq": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "question": {
+                                "type": "string"
+                              },
+                              "answer": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "question",
+                              "answer"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "showWhoRunsIt": {
+                          "type": "boolean"
+                        },
+                        "look": {
+                          "type": "object",
+                          "properties": {
+                            "layout": {
+                              "type": "string",
+                              "enum": [
+                                "classic",
+                                "spotlight",
+                                "magazine",
+                                "compact"
+                              ]
+                            },
+                            "accent": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "const": "auto"
+                                },
+                                {
+                                  "type": "string",
+                                  "pattern": "^#[0-9a-fA-F]{6}$"
+                                }
+                              ]
+                            },
+                            "background": {
+                              "type": "string",
+                              "enum": [
+                                "glow",
+                                "mesh",
+                                "banner_blur",
+                                "plain"
+                              ]
+                            },
+                            "cards": {
+                              "type": "string",
+                              "enum": [
+                                "filled",
+                                "glass",
+                                "outline"
+                              ]
+                            },
+                            "font": {
+                              "type": "string",
+                              "enum": [
+                                "default",
+                                "rounded",
+                                "serif",
+                                "mono",
+                                "display"
+                              ]
+                            },
+                            "bannerHeight": {
+                              "type": "string",
+                              "enum": [
+                                "tall",
+                                "normal",
+                                "short"
+                              ]
+                            },
+                            "title": {
+                              "type": "string",
+                              "enum": [
+                                "left",
+                                "centered"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "layout",
+                            "accent",
+                            "background",
+                            "cards",
+                            "font",
+                            "bannerHeight",
+                            "title"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "sections": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string",
+                                "enum": [
+                                  "about",
+                                  "main_channels",
+                                  "live_now",
+                                  "giveaways",
+                                  "feed",
+                                  "faq",
+                                  "leaderboard",
+                                  "pick_roles",
+                                  "rules",
+                                  "who_runs_it",
+                                  "links"
+                                ]
+                              },
+                              "shown": {
+                                "type": "boolean"
+                              },
+                              "column": {
+                                "type": "string",
+                                "enum": [
+                                  "main",
+                                  "side"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "shown",
+                              "column"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "leaderboards": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "levels",
+                              "messages_week",
+                              "invites"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "enabled",
+                        "tagline",
+                        "buttons",
+                        "about",
+                        "mainChannelIds",
+                        "faq",
+                        "showWhoRunsIt",
+                        "look",
+                        "sections",
+                        "leaderboards"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "rev": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "updatedAt": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "canEdit": {
+                      "type": "boolean"
+                    },
+                    "feed": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "createdAt": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "lastPostAt": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "createdAt",
+                            "lastPostAt"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "settings",
+                    "rev",
+                    "updatedAt",
+                    "canEdit",
+                    "feed"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, lobby_stale, lobby_channel_invalid, feature_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "rev": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "tagline": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "buttons": {
+                    "maxItems": 4,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "label": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 40
+                        },
+                        "url": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 500,
+                              "pattern": "^https:\\/\\/[^\\s]+$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "channelId": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "label"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "about": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 2000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "mainChannelIds": {
+                    "maxItems": 6,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    }
+                  },
+                  "faq": {
+                    "maxItems": 10,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "maxLength": 32
+                        },
+                        "question": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "answer": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 1000
+                        }
+                      },
+                      "required": [
+                        "question",
+                        "answer"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "showWhoRunsIt": {
+                    "type": "boolean"
+                  },
+                  "look": {
+                    "type": "object",
+                    "properties": {
+                      "layout": {
+                        "type": "string",
+                        "enum": [
+                          "classic",
+                          "spotlight",
+                          "magazine",
+                          "compact"
+                        ]
+                      },
+                      "accent": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "const": "auto"
+                          },
+                          {
+                            "type": "string",
+                            "pattern": "^#[0-9a-fA-F]{6}$"
+                          }
+                        ]
+                      },
+                      "background": {
+                        "type": "string",
+                        "enum": [
+                          "glow",
+                          "mesh",
+                          "banner_blur",
+                          "plain"
+                        ]
+                      },
+                      "cards": {
+                        "type": "string",
+                        "enum": [
+                          "filled",
+                          "glass",
+                          "outline"
+                        ]
+                      },
+                      "font": {
+                        "type": "string",
+                        "enum": [
+                          "default",
+                          "rounded",
+                          "serif",
+                          "mono",
+                          "display"
+                        ]
+                      },
+                      "bannerHeight": {
+                        "type": "string",
+                        "enum": [
+                          "tall",
+                          "normal",
+                          "short"
+                        ]
+                      },
+                      "title": {
+                        "type": "string",
+                        "enum": [
+                          "left",
+                          "centered"
+                        ]
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "sections": {
+                    "minItems": 11,
+                    "maxItems": 11,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string",
+                          "enum": [
+                            "about",
+                            "main_channels",
+                            "live_now",
+                            "giveaways",
+                            "feed",
+                            "faq",
+                            "leaderboard",
+                            "pick_roles",
+                            "rules",
+                            "who_runs_it",
+                            "links"
+                          ]
+                        },
+                        "shown": {
+                          "type": "boolean"
+                        },
+                        "column": {
+                          "type": "string",
+                          "enum": [
+                            "main",
+                            "side"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "key",
+                        "shown",
+                        "column"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "leaderboards": {
+                    "minItems": 1,
+                    "maxItems": 3,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "levels",
+                        "messages_week",
+                        "invites"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "rev"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/orgs/{orgId}/lobby/template": {
+      "post": {
+        "tags": [
+          "community-lobby"
+        ],
+        "summary": "Apply a template's look and sections; text, channels and buttons stay, starter questions fill an empty FAQ.",
+        "operationId": "postV1OrgsOrgIdLobbyTemplate",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "settings": {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "tagline": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "buttons": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "label": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "channelId": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "label",
+                              "url",
+                              "channelId"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "about": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "mainChannelIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "faq": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "question": {
+                                "type": "string"
+                              },
+                              "answer": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "question",
+                              "answer"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "showWhoRunsIt": {
+                          "type": "boolean"
+                        },
+                        "look": {
+                          "type": "object",
+                          "properties": {
+                            "layout": {
+                              "type": "string",
+                              "enum": [
+                                "classic",
+                                "spotlight",
+                                "magazine",
+                                "compact"
+                              ]
+                            },
+                            "accent": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "const": "auto"
+                                },
+                                {
+                                  "type": "string",
+                                  "pattern": "^#[0-9a-fA-F]{6}$"
+                                }
+                              ]
+                            },
+                            "background": {
+                              "type": "string",
+                              "enum": [
+                                "glow",
+                                "mesh",
+                                "banner_blur",
+                                "plain"
+                              ]
+                            },
+                            "cards": {
+                              "type": "string",
+                              "enum": [
+                                "filled",
+                                "glass",
+                                "outline"
+                              ]
+                            },
+                            "font": {
+                              "type": "string",
+                              "enum": [
+                                "default",
+                                "rounded",
+                                "serif",
+                                "mono",
+                                "display"
+                              ]
+                            },
+                            "bannerHeight": {
+                              "type": "string",
+                              "enum": [
+                                "tall",
+                                "normal",
+                                "short"
+                              ]
+                            },
+                            "title": {
+                              "type": "string",
+                              "enum": [
+                                "left",
+                                "centered"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "layout",
+                            "accent",
+                            "background",
+                            "cards",
+                            "font",
+                            "bannerHeight",
+                            "title"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "sections": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string",
+                                "enum": [
+                                  "about",
+                                  "main_channels",
+                                  "live_now",
+                                  "giveaways",
+                                  "feed",
+                                  "faq",
+                                  "leaderboard",
+                                  "pick_roles",
+                                  "rules",
+                                  "who_runs_it",
+                                  "links"
+                                ]
+                              },
+                              "shown": {
+                                "type": "boolean"
+                              },
+                              "column": {
+                                "type": "string",
+                                "enum": [
+                                  "main",
+                                  "side"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "shown",
+                              "column"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "leaderboards": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "levels",
+                              "messages_week",
+                              "invites"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "enabled",
+                        "tagline",
+                        "buttons",
+                        "about",
+                        "mainChannelIds",
+                        "faq",
+                        "showWhoRunsIt",
+                        "look",
+                        "sections",
+                        "leaderboards"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "rev": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "updatedAt": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "canEdit": {
+                      "type": "boolean"
+                    },
+                    "feed": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "createdAt": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "lastPostAt": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "createdAt",
+                            "lastPostAt"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "settings",
+                    "rev",
+                    "updatedAt",
+                    "canEdit",
+                    "feed"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, lobby_stale, feature_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "enum": [
+                      "gaming",
+                      "study",
+                      "creators",
+                      "hangout",
+                      "minimal"
+                    ]
+                  },
+                  "rev": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "key"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/orgs/{orgId}/lobby/seen": {
+      "post": {
+        "tags": [
+          "community-lobby"
+        ],
+        "summary": "The viewer has opened the lobby (apps open it first only before this); the first time is kept.",
+        "operationId": "postV1OrgsOrgIdLobbySeen",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "seen": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "seenAt": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "seen",
+                    "seenAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, feature_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/orgs/{orgId}/lobby/feed": {
+      "post": {
+        "tags": [
+          "community-lobby"
+        ],
+        "summary": "Create the lobby's feed URL, or replace it (the old one stops working); the token is shown only now.",
+        "operationId": "postV1OrgsOrgIdLobbyFeed",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": {
+                      "type": "string"
+                    },
+                    "feed": {
+                      "type": "object",
+                      "properties": {
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "lastPostAt": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "createdAt",
+                        "lastPostAt"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "token",
+                    "feed"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, feature_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "community-lobby"
+        ],
+        "summary": "Delete the lobby's feed URL (posts already in the lobby stay).",
+        "operationId": "deleteV1OrgsOrgIdLobbyFeed",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "feed": {
+                      "type": "null"
+                    }
+                  },
+                  "required": [
+                    "feed"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, feature_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/lobby-feed/{token}": {
+      "post": {
+        "tags": [
+          "community-lobby"
+        ],
+        "summary": "Post to a community's lobby feed through its secret URL: {title, text, url, image} or a Discord-style webhook body.",
+        "operationId": "postV1LobbyFeedToken",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 10,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "postedAt": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "postedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, lobby_feed_invalid, feature_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 8000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "text": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 8000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "url": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 8000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "image": {
+                    "anyOf": [
+                      {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 8000
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "url": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "maxLength": 8000
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "content": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 8000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "embeds": {
+                    "anyOf": [
+                      {
+                        "maxItems": 10,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "title": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 8000
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "description": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 8000
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "url": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 8000
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "image": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "url": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "maxLength": 8000
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  }
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "thumbnail": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "url": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "maxLength": 8000
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  }
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/v1/reports": {
@@ -58324,6 +61138,9 @@
                   "loadtest_network",
                   "loadtest_quota",
                   "leave_community",
+                  "lobby_channel_invalid",
+                  "lobby_feed_invalid",
+                  "lobby_stale",
                   "legacy_login_closed",
                   "legacy_registration_closed",
                   "legacy_verification_failed",
@@ -59096,6 +61913,24 @@
         403
       ],
       "meaning": "Leave the community instead of one of its channels"
+    },
+    "lobby_channel_invalid": {
+      "status": [
+        400
+      ],
+      "meaning": "Pick channels of this community for the lobby."
+    },
+    "lobby_feed_invalid": {
+      "status": [
+        400
+      ],
+      "meaning": "A lobby feed post needs a title, text or an https link."
+    },
+    "lobby_stale": {
+      "status": [
+        409
+      ],
+      "meaning": "Someone else changed the lobby meanwhile. Load the latest version and try again."
     },
     "legacy_login_closed": {
       "status": [

@@ -1,0 +1,9 @@
+{
+  "error": {
+    "code": "lobby_channel_invalid",
+    "message": "Pick channels of this community for the lobby",
+    "details": {
+      "channelId": "c_m_sHkBtDUWHd2iMIsxNtOA"
+    }
+  }
+}

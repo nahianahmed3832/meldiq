@@ -75,6 +75,20 @@ export interface MessageStore {
   deleteConversation(conversationId: string): Promise<number>;
   /** Counts for the operator (no content). */
   stats(): Promise<{ messages: number; changes: number }>;
+  /**
+   * Community parity B (the lobby): messages sent live in [conversationIds] since [since] (uploaded history doesn't
+   * count), per conversation and for the [top] busiest senders. No content is read.
+   */
+  activitySince(conversationIds: readonly string[], since: number, top: number): Promise<MessageActivity>;
+  /** The newest message's time in each of [conversationIds] that has one ("Active 5m ago"). */
+  lastMessageAt(conversationIds: readonly string[]): Promise<Record<string, number>>;
+}
+
+/** How busy some conversations were (MessageStore.activitySince). */
+export interface MessageActivity {
+  perConversation: Record<string, number>;
+  /** Busiest first. */
+  topSenders: { userId: string; count: number }[];
 }
 
 /** Whether a stored message mentions [userId] or everyone. */
@@ -211,5 +225,25 @@ export class SqliteMessageStore implements MessageStore {
   async stats(): Promise<{ messages: number; changes: number }> {
     const r = this.db.prepare("SELECT SUM(cls = 'message') m, SUM(cls = 'control') c FROM message_events").get() as { m: number | null; c: number | null };
     return { messages: r.m ?? 0, changes: r.c ?? 0 };
+  }
+
+  async activitySince(conversationIds: readonly string[], since: number, top: number): Promise<MessageActivity> {
+    if (conversationIds.length === 0) return { perConversation: {}, topSenders: [] };
+    const where = `conversation_id IN (${conversationIds.map(() => "?").join(",")}) AND cls = 'message' AND server_ts >= ? AND imported_by IS NULL`;
+    const per = this.db.prepare(`SELECT conversation_id id, COUNT(*) n FROM message_events WHERE ${where} GROUP BY conversation_id`).all(...conversationIds, since) as { id: string; n: number }[];
+    const senders = this.db
+      .prepare(`SELECT sender_user_id id, COUNT(*) n FROM message_events WHERE ${where} GROUP BY sender_user_id ORDER BY n DESC, id ASC LIMIT ?`)
+      .all(...conversationIds, since, top) as { id: string; n: number }[];
+    return { perConversation: Object.fromEntries(per.map((r) => [r.id, r.n])), topSenders: senders.map((r) => ({ userId: r.id, count: r.n })) };
+  }
+
+  async lastMessageAt(conversationIds: readonly string[]): Promise<Record<string, number>> {
+    const q = this.db.prepare("SELECT MAX(server_ts) t FROM message_events WHERE conversation_id = ? AND cls = 'message'");
+    const out: Record<string, number> = {};
+    for (const id of conversationIds) {
+      const t = (q.get(id) as { t: number | null }).t;
+      if (t !== null) out[id] = t;
+    }
+    return out;
   }
 }
