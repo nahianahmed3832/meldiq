@@ -137,6 +137,8 @@ export class Accounts {
 
 // Account deletion for the Platform Admin Console (the same erasure people trigger themselves; docs/ACCOUNT_DELETION.md).
 export { eraseAccount, soleOwnedWorkspaces } from "./deletion.js";
+// API 0.65.0 batch B: what "Log in with Meldiq" apps may see (modules/oauth).
+export { type AppIdentity, appIdentity, photoBytes } from "./appIdentity.js";
 
 // Load-test provisioning (docs/LOADTEST_PROVISIONING.md), used by auth, organizations and messaging.
 export {

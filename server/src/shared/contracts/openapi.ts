@@ -1,6 +1,7 @@
 import { z } from "zod/v4";
 import { ERROR_CODES } from "../errors.js";
 import { ErrorEnvelope, ROUTE_CONTRACTS, type RouteContract } from "./http/index.js";
+import { OAuthErrorBody } from "./http/oauthApps.js";
 import { ClientEvent, ServerEvent } from "./realtime.js";
 
 /**
@@ -35,7 +36,9 @@ function operation(c: RouteContract): Json {
     c.binary === "response"
       ? { description: "The bytes (or 302 to a storage URL)", content: { "application/octet-stream": { schema: { type: "string", format: "binary" } } } }
       : { description: "OK", content: { "application/json": { schema: schemaOf(c.response, "output") } } };
-  const errors = c.errors?.length
+  const errors = c.errorFormat === "oauth"
+    ? { default: { description: "Error (RFC 6749 §5.2)", content: { "application/json": { schema: { $ref: "#/components/schemas/OAuthError" } } } } }
+    : c.errors?.length
     ? {
         default: {
           description: `Error. Codes: ${c.errors.join(", ")}`,
@@ -50,7 +53,7 @@ function operation(c: RouteContract): Json {
     parameters: parameters(c),
     responses: { [ok]: success, ...errors },
   };
-  if (c.auth) op.security = [{ bearer: [] }];
+  if (c.auth) op.security = [{ [c.scheme === "bot" ? "bot" : c.scheme === "oauth" ? "oauthToken" : "bearer"]: [] }];
   if (c.binary === "request") op.requestBody = { required: true, content: { "application/octet-stream": { schema: { type: "string", format: "binary" } } } };
   else if (c.body) op.requestBody = { required: true, content: { "application/json": { schema: schemaOf(c.body, "input") } } };
   return op;
@@ -75,8 +78,13 @@ export function buildOpenApi(version: string): Json {
     tags: [...new Set(ROUTE_CONTRACTS.map((c) => c.tag))].map((name) => ({ name })),
     paths,
     components: {
-      securitySchemes: { bearer: { type: "http", scheme: "bearer" } },
-      schemas: { ErrorEnvelope: schemaOf(ErrorEnvelope, "output") },
+      securitySchemes: {
+        bearer: { type: "http", scheme: "bearer" },
+        // API 0.65.0 batch B: bots send `Authorization: Bot <token>`; apps send their OAuth access token as the bearer.
+        bot: { type: "apiKey", in: "header", name: "Authorization", description: "Bot <token>" },
+        oauthToken: { type: "http", scheme: "bearer", description: "An OAuth access token from POST /v2/oauth/token (only /v2/oauth/userinfo accepts it)" },
+      },
+      schemas: { ErrorEnvelope: schemaOf(ErrorEnvelope, "output"), OAuthError: schemaOf(OAuthErrorBody, "output") },
       responses: { Error: { description: "Error", content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorEnvelope" } } } } },
     },
     "x-error-codes": ERROR_CODES,

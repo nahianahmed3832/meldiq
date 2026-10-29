@@ -191,6 +191,8 @@ async function eraseIdentity(ctx: AppContext, userId: string, actorId: string | 
   await ctx.decorations.favorites.deleteForUser(userId);
   await ctx.usernames.deleteForUser(userId);
   await ctx.points.deleteForUser(userId);
+  // API 0.65.0 batch B: their "Log in with Meldiq" apps and their sign-ins to apps.
+  await ctx.oauth.deleteForUser(userId);
   await deleteHistoryAfterCommit(ctx, userId, "account deleted");
 
   ctx.hub.disconnectUser(userId, "account deleted");

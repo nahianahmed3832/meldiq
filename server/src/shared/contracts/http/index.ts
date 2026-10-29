@@ -5,6 +5,7 @@ import { billingRoutes } from "./areas/billing.js";
 import { mojoRoutes } from "./areas/mojo.js";
 import { communityRoutes } from "./areas/community.js";
 import { conversationsRoutes } from "./areas/conversations.js";
+import { developerRoutes } from "./areas/developer.js";
 import { identityRoutes } from "./areas/identity.js";
 import { organizationsRoutes } from "./areas/organizations.js";
 import { callRoutes } from "./calls.js";
@@ -45,4 +46,5 @@ export const ROUTE_CONTRACTS: readonly RouteContract[] = [
   ...conversationsRoutes,
   ...billingRoutes,
   ...mojoRoutes,
+  ...developerRoutes,
 ];

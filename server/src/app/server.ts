@@ -87,6 +87,7 @@ import { MemoryUsernameHoldStore } from "../modules/accounts/usernameHoldStore.j
 import { MongoUsernameHoldStore } from "../modules/accounts/mongoUsernameHoldStore.js";
 import { MemoryPointsStore, MongoPointsStore, PointsService, pointsRoutes } from "../modules/points/index.js";
 import leaveManyRoutes from "../modules/organizations/leaveMany.js";
+import { MemoryOAuthStore, MongoOAuthStore, OAuthService, oauthRoutes } from "../modules/oauth/index.js";
 import { ActivityService } from "../modules/accounts/activity/service.js";
 import { MemoryActivityStore } from "../modules/accounts/activity/store.js";
 import { MongoActivityStore } from "../modules/accounts/activity/mongoStore.js";
@@ -267,6 +268,10 @@ export async function buildApp(
   if (pointsStore instanceof MongoPointsStore) await pointsStore.ensureIndexes();
   ctx.points = new PointsService(ctx, pointsStore);
   await ctx.points.load();
+  // API 0.65.0 batch B (docs/SETTINGS_PARITY_API.md): "Log in with Meldiq" apps, new data too.
+  const oauthStore = ctx.mongo ? new MongoOAuthStore(ctx.mongo) : new MemoryOAuthStore();
+  if (oauthStore instanceof MongoOAuthStore) await oauthStore.ensureIndexes();
+  ctx.oauth = new OAuthService(ctx, oauthStore);
   ctx.reportSealer = ReportSealer.load(process.env, config.dataDir);
   // Billing (plans, subscriptions, Meldiq Spark, gifts): rows in SQLite, or MongoDB when MONGODB_DOMAINS includes it.
   ctx.billing = new Billing(await openBillingRows(db, ctx.mongo, app.log), config.billing, app.log, Date.now, (id) => ctx.quotas.planExists(id));
@@ -494,7 +499,7 @@ export async function buildApp(
     passkeys: ctx.accounts.passkeys.available ? { webOrigins: ctx.accounts.passkeys.webOrigins } : null,
   }));
 
-  for (const r of [authRoutes, userRoutes, profileMediaRoutes, gifRoutes, bugReportRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, serverMessagesRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, activityRoutes, decorationRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, expressionRoutes, discordRoutes, leaveManyRoutes, pointsRoutes, wsRoutes]) {
+  for (const r of [authRoutes, userRoutes, profileMediaRoutes, gifRoutes, bugReportRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, serverMessagesRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, activityRoutes, decorationRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, expressionRoutes, discordRoutes, leaveManyRoutes, pointsRoutes, oauthRoutes, wsRoutes]) {
     await app.register(async (scope) => r(scope, ctx));
   }
   await app.register(async (scope) => opsRoutes(scope, ctx, VERSION));
@@ -642,6 +647,8 @@ export function serverFeatures(config: Config, directUploads = false): string[] 
     "username-holds",
     "decoration-favorites",
     "points",
+    // API 0.65.0 batch B (docs/SETTINGS_PARITY_API.md): "Log in with Meldiq" apps (OAuth code flow with PKCE).
+    "oauth-apps",
   ];
   if (config.accounts.legacy.migration) f.push("legacy-migration");
   if (directUploads) f.push("direct-upload");
