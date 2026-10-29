@@ -130,6 +130,23 @@ Passkeys failed in the app installed from Google Play: Play signs it with its ap
 
 Rollback: copy the backup's `.env` back and recreate `api` the same way.
 
+### API 0.66.1: the Meldling face in account emails (2026-10-29, 20:27 UTC, owner's go-ahead: "Deploy it"; API only, web and console unchanged)
+
+Branch `plans-v2` (4cf14a1, 090a6d7, f529dc4): `render-mail-logo.py` draws from `brand/meldling.png` and writes to
+`server/src/infrastructure/mail/mailLogo.ts`; the embedded email logo is regenerated. No migration, no `.env` change.
+
+| Step | Result |
+|---|---|
+| Tests | typecheck clean; `mail_template`, `settings_parity`, `names_and_tags` 30/30 |
+| Pre-flight | 0.66.0 healthy; VPS `server/` differed from `plans-v2` only in this release's files |
+| Backup | `backups/pre-0.66.1-20261029T202301Z` (integrity ok, schema 68, 47 users, `.env`/`compose.yaml` copies); image `0.66.0-rollback`; sources kept as `server.pre-0.66.1` |
+| Build | 5 server files synced; `docker build --network host`; the logo in the image hashes the same as `mailLogo.ts` |
+| Rehearsal | volume copy, `--network none`, MongoDB/FCM settings out: 0.66.1 healthy, 0 error lines; copy removed |
+| Switch | `compose.yaml` image 0.66.1, `up -d --no-deps --no-build --force-recreate api` at 20:27:14, healthy 20:27:27; LiveKit and ntfy untouched |
+| Checks after | `/healthz` 0.66.1 `mongodb: true` on msg.meldiq.app and msg.griipbuddy.cloud; `verify.sh` 0 restarts; `validate-env.sh` only the known `MONGODB_DOMAINS needs MONGODB_URI`; 0 error log lines; one test email to the owner over Hostinger SMTP (250 queued) |
+
+Rollback: `compose.yaml` image `0.66.0-rollback`, then `up -d --no-deps --no-build --force-recreate api`.
+
 ### Meldiq Web 0.5.0-beta-3fe5aba: a simple homepage and Mojo banners in the app's design (2026-10-29, 20:18 UTC, owner's go-ahead: "Deploy it"; web only, API 0.66.0 unchanged)
 
 meldiq-web `landing-plans` 3fe5aba. The owner: "don't show plans in homepage, just keep simple and login options",
