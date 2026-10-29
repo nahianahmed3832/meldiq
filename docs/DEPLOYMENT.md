@@ -130,6 +130,31 @@ Passkeys failed in the app installed from Google Play: Play signs it with its ap
 
 Rollback: copy the backup's `.env` back and recreate `api` the same way.
 
+### API 0.61.1: Mojo Go and Plus on their own Stripe products (2026-10-29, 05:01 UTC, owner's go-ahead: "Yes, deploy it")
+
+Branch `stripe-live` 13d706a on production's `profile-decorations` 703e92b (0.61.0). The first live Stripe setup (04:28
+UTC, on 0.61.0) failed and rolled back: Stripe's portal refuses two monthly prices on one product (docs/BILLING.md ›
+Going live). 0.61.1 fixes the setup (`billing/stripeSetup.ts`, `admin.js stripe-setup`) and adds `stripe-setup.sh
+--live`. No migration; `.env` unchanged; billing still off (`BILLING_PROVIDER` unset) until the owner runs the script.
+
+| Step | Result |
+|---|---|
+| Tests | server 1179 passed with 4 workers (`history_mongo`, `mongo_capacity` time out under load, pass alone); setup 13/13 against a fake that enforces Stripe's portal rule; scripts rehearsed against stub docker/curl/ssh; `tsc` clean |
+| Pre-flight | 0.61.0 healthy; VPS `server/` byte-equal to 703e92b (tests aside); no newer branch; 36 GB free |
+| Backup | `backups/pre-0.61.1-20261029T045819Z`: integrity ok, schema 67, 43 users, `.env`/`compose.yaml`; image `0.61.0-rollback`; sources kept as `server.pre-0.61.1` |
+| Build and rehearsal | 5 server files and 2 scripts changed; image `0.61.1` (`VERSION` 0.61.1, setup emits three prices); backup copy offline: 0.61.1 and `0.61.0-rollback` healthy, 0 warn/error lines; copy removed |
+| Switch | 05:01:01, healthy 05:01:22; `/healthz` 0.61.1 `mongodb: true` on both hosts; `verify.sh` 0 failures, 0 restarts; 0 warn/error lines; LiveKit and ntfy untouched |
+
+`validate-env.sh` reports `MONGODB_DOMAINS needs MONGODB_URI`: not new (`.env` identical to the pre-0.61.0 copy). The
+script sources `.env` as shell, and `MONGODB_URI` has two unquoted `&`; Docker's env file reader takes the line as is,
+so the API connects. Quoting the value would quiet it; left alone in this release.
+
+Left at Stripe (live) by the failed attempt, cleaned up by the next `stripe-setup.sh --live --replace-webhook`: the
+"Meldiq Mojo" product with the Go and Plus prices (moved and archived), the Spark product and price (reused), a webhook
+endpoint whose secret was lost with the rolled-back `.env` (replaced).
+
+Rollback: `compose.yaml` image `0.61.0-rollback` and `up -d --no-deps --no-build --force-recreate api`.
+
 ### API 0.61.0, web ce60cee and console 1.2.0: profile decorations (2026-10-29, 03:45 UTC, owner's go-ahead: "Yes, ship it")
 
 Branch `profile-decorations` aaabc85: production's `site-details` 66507d8 (0.60.0) + profile decorations
