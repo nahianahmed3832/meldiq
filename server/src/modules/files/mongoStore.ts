@@ -2,7 +2,7 @@ import type { FastifyBaseLogger } from "fastify";
 import type { Collection, Filter } from "mongodb";
 import { isDuplicateKey, type MeldiqMongo } from "../../infrastructure/database/mongo/client.js";
 import type { BlobKind } from "../../infrastructure/storage/index.js";
-import type { Abandoned, AttachmentRow, FileStore, PendingBlobDelete, UploadRow, Usage, UsageFilter } from "./store.js";
+import { type Abandoned, type AttachmentRow, type FileStore, KEPT_FOREVER, type PendingBlobDelete, type UploadRow, type Usage, type UsageFilter } from "./store.js";
 
 /** The SQLite rows (same field names, docs/MONGODB.md §3) keyed as the migration keys them. */
 type AttachmentDoc = AttachmentRow & { _id: string };
@@ -95,6 +95,10 @@ export class MongoFileStore implements FileStore {
       await this.attachments.insertOne({ _id: a.id, ...a, kept: 0 }, { session });
       return true;
     });
+  }
+
+  async keepAllForever(now: number): Promise<number> {
+    return (await this.attachments.updateMany({ expires_at: { $gt: now, $lt: KEPT_FOREVER } }, { $set: { expires_at: KEPT_FOREVER } })).modifiedCount;
   }
 
   async purgeExpired(now: number): Promise<string[]> {

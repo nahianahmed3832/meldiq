@@ -1,7 +1,8 @@
 import { requireFeature } from "../../app/platformControls.js";
 import crypto from "node:crypto";
 import { AsyncLock } from "../../shared/utilities/lock.js";
-import type { UploadRow, UsageFilter } from "./store.js";
+import { KEPT_FOREVER, type UploadRow, type UsageFilter } from "./store.js";
+import type { Config } from "../../app/config.js";
 import { CompleteBody, ConversationQuery, PartsBody, UploadStartBody } from "../../shared/contracts/http/files.js";
 import { idParams } from "../../shared/contracts/http/primitives.js";
 import fs from "node:fs";
@@ -245,7 +246,7 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
       track(who, reserve, -1);
       await quotaSettle(id, storedSize);
     }
-    const expiresAt = t + cfg.attachmentTtlSeconds * 1000;
+    const expiresAt = expiryOf(cfg, t);
     await files.recordAttachment({ id, conversation_id: conv.id, uploader_user_id: userId, size, created_at: t, expires_at: expiresAt });
     ctx.usage?.add(conv.org_id, "files.upload_bytes", size);
     ctx.telemetry?.activity.addTraffic(userId, "files.upload", size, t);
@@ -308,8 +309,9 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
     const a = await files.attachment(id);
     const t = now();
     if (!a || a.expires_at <= t || !ctx.authz.isMember(a.conversation_id, userId)) throw notFound("Attachment not found or expired");
-    if (cfg.attachmentKeepDays === 0) return { kept: false, expiresAt: a.expires_at };
-    const until = t + cfg.attachmentKeepDays * 86_400_000;
+    if (!cfg.attachmentKeepForever && cfg.attachmentKeepDays === 0) return { kept: false, expiresAt: a.expires_at };
+    // Files kept for good (ATTACHMENT_KEEP_FOREVER) stay kept for good; otherwise for ATTACHMENT_KEEP_DAYS from now.
+    const until = cfg.attachmentKeepForever ? KEPT_FOREVER : t + cfg.attachmentKeepDays * 86_400_000;
     if (!a.kept) {
       const kept = (await files.storedUsage({ uploaders: [a.uploader_user_id], kept: true, liveAt: t })).bytes;
       if (exceeds(cfg.attachmentUserKeptBytes, kept + a.size)) {
@@ -466,7 +468,7 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
       throw new ApiError(400, "upload_corrupt", "The stored file doesn't match what was announced. Send it again.");
     }
     const t = now();
-    const expiresAt = t + cfg.attachmentTtlSeconds * 1000;
+    const expiresAt = expiryOf(cfg, t);
     // Exactly one of this and the expiry job wins: the attachment exists only if this upload session was still open.
     const recorded = await files.completeUpload(u.id, { id: u.id, conversation_id: conv.id, uploader_user_id: userId, size: u.size, created_at: t, expires_at: expiresAt });
     if (!recorded) {
@@ -501,8 +503,19 @@ export function removeStalePartials(dir: string): number {
   return n;
 }
 
+/** When a file uploaded at [t] expires: never while files are kept for good (ATTACHMENT_KEEP_FOREVER), else after the relay window. */
+function expiryOf(cfg: Pick<Config, "attachmentKeepForever" | "attachmentTtlSeconds">, t: number): number {
+  return cfg.attachmentKeepForever ? KEPT_FOREVER : t + cfg.attachmentTtlSeconds * 1000;
+}
+
+/**
+ * The retention job's file step. Keeping files for good, it first keeps every file still stored (files from before the
+ * setting, idempotent and cheap after the first run), so nothing is purged; otherwise expired files are deleted.
+ */
 export async function purgeExpiredAttachments(ctx: AppContext): Promise<number> {
-  return (await ctx.files.purgeExpired(now())).length;
+  const t = now();
+  if (ctx.config.attachmentKeepForever) await ctx.files.keepAllForever(t);
+  return (await ctx.files.purgeExpired(t)).length;
 }
 
 /**

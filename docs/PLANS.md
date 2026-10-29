@@ -126,6 +126,28 @@ subscriber stay below the break-even above. Before calling them profitable: fill
 watch S3 data out and the VPS transfer for a month, and consider storage without egress fees (for example Cloudflare
 R2) for files.
 
+## Keeping everything (owner's decision, 2026-10-30)
+
+"Chat history should keep unlimited per person, 2 GB per file, and all data will be kept on the server, no automatic
+removal."
+
+| Data | Before | Now |
+|---|---|---|
+| Messages (server-stored, `message_events`) | kept | kept (never removed automatically; only when a person or community deletes them) |
+| Files | 7 days, or 365 days once kept for history, then deleted with their bytes | **kept for good** (`ATTACHMENT_KEEP_FOREVER`, default on): new uploads never expire; on the first retention run every file still stored is kept for good. Files already deleted before 0.66.0 can't come back |
+| Encrypted history per person | 1 GiB and 500,000 items; 10 GiB for the whole server | no practical limit: `HISTORY_MAX_BYTES_PER_USER=1000000000000000`, `HISTORY_MAX_ITEMS_PER_USER=1000000000000`, `HISTORY_TOTAL_BYTES=0` (no server-wide cap) |
+| Call records, audit log | 90 and 365 days | kept: `CALL_RECORD_RETENTION_DAYS=36500`, `AUDIT_RETENTION_DAYS=36500` |
+| Largest file | — | 2 GB per file for Plus (`FILE_MAX_BYTES=2000000000`); Free 50 MB and Go 500 MB per file, by plan |
+
+Still removed automatically, because they are transport or security records rather than data: the per-device delivery
+queue (a message stays in the server's history; the queue only carries it to devices), sign-in challenges and expired
+sessions, unfinished uploads, and closed reports after their retention. `ATTACHMENT_KEEP_FOREVER=false` brings the
+7-day window back.
+
+**Cost:** storage now only grows. S3 Standard at $0.025 per GB-month: every 1 TB kept costs about $25 a month, for
+good. Watch the bucket size in the console (Traffic & Costs) and decide on a lifecycle rule (for example S3
+Intelligent-Tiering) before it matters.
+
 ## Migration and rollback
 
 No database migration: plan numbers live in code, operators' changes in `mojo_controls` (JSON; new keys `bots`,
@@ -134,21 +156,20 @@ read preset ids as strings; the web before `landing-plans` refuses a catalog wit
 the web first**.
 
 1. Web `landing-plans` (accepts `1440p60`, the landing page, 2K 60 sharing).
-2. API 0.66.0. `.env`: `FILE_MAX_BYTES=2000000000` (production pins 1073741824; drop any `ATTACHMENT_MAX_BYTES` pin).
+2. API 0.66.0. `.env`: `FILE_MAX_BYTES=2000000000` (production pins 1073741824; drop any `ATTACHMENT_MAX_BYTES` pin),
+   and the history and retention values in "Keeping everything" above.
    With `STORAGE_BACKEND=local`, nginx's `client_max_body_size` must allow it too (S3 uploads go straight to the bucket).
 3. Console 1.4.0.
 4. Billing (owner): `bash deploy/scripts/stripe-setup.sh --live --replace-webhook --list-prices` once, so Stripe sells
    at $1.99 / $4.99 and the live leftovers of 2026-10-29 are archived. After that the console changes prices.
 5. When ready: console › Mojo › "Plan limits apply" (or it follows automatically once Go/Plus are on sale).
 
-Rollback: the API image `0.65.0-rollback`. **Before rolling back**, reset the console's Mojo limits (leave bots and
+Rollback: the API image `0.65.0-rollback`. Files kept for good stay kept (0.65.0 reads their expiry as far away). **Before rolling back**, reset the console's Mojo limits (leave bots and
 screen at their built-in values and save) and prices, because 0.65.0 doesn't know the new override keys. Stripe prices
 made in the meantime stay archived or active at Stripe; nothing is deleted.
 
 ## Open issues
 
-- **History keeps at most 1 GiB per person** (`HISTORY_MAX_BYTES_PER_USER`): a 2 GB file can be shared, but it isn't
-  kept in history beyond the 7-day relay. Raise it, or decide that's intended.
 - Android has no 2K 60 share setting yet; it offers the presets it knows.
 - The marketing site (meldiq.app, `meldiq_landing_website`) has its own pricing page; check that it reads the catalog
   rather than old prices.

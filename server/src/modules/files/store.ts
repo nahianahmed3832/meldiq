@@ -65,6 +65,9 @@ export interface Usage {
   bytes: number;
 }
 
+/** The expiry of a file kept for good (9999-12-31T23:59:59Z): every "is it still here" check stays true. */
+export const KEPT_FOREVER = 253_402_300_799_000;
+
 export interface FileStore {
   readonly backend: "sqlite" | "mongodb";
   attachment(id: string): Promise<AttachmentRow | null>;
@@ -87,6 +90,8 @@ export interface FileStore {
   /** Turns an open upload into an attachment, atomically; false when the session was gone (expired meanwhile). */
   completeUpload(id: string, attachment: Omit<AttachmentRow, "kept">): Promise<boolean>;
 
+  /** Keeps every attachment still stored (not expired at [now]) for good; returns how many changed. */
+  keepAllForever(now: number): Promise<number>;
   /** Deletes expired attachments, schedules their bytes for deletion, and returns their ids. */
   purgeExpired(now: number): Promise<string[]>;
   /** Upload sessions past their time become abandoned; returns how many. */
@@ -184,6 +189,10 @@ export class SqliteFileStore implements FileStore {
         .run(a.id, a.conversation_id, a.uploader_user_id, a.size, a.created_at, a.expires_at);
       return true;
     })();
+  }
+
+  async keepAllForever(now: number): Promise<number> {
+    return this.db.prepare("UPDATE attachments SET expires_at = ? WHERE expires_at > ? AND expires_at < ?").run(KEPT_FOREVER, now, KEPT_FOREVER).changes;
   }
 
   async purgeExpired(now: number): Promise<string[]> {

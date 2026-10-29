@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { runCleanup } from "../src/modules/administration/jobs.js";
+import { KEPT_FOREVER } from "../src/modules/files/store.js";
 import type { GriipClient } from "./support/griipClient.js";
 import { expectStatus, type Harness, startServer } from "./support/harness.js";
 
@@ -113,7 +114,7 @@ describe("keeping files for history", () => {
   });
 
   it("a server that keeps no files says so", async () => {
-    const s = await startServer({ ATTACHMENT_KEEP_DAYS: "0" });
+    const s = await startServer({ ATTACHMENT_KEEP_DAYS: "0", ATTACHMENT_KEEP_FOREVER: "false" });
     const x = await s.client("xavier");
     const y = await s.client("yasmin");
     const c = (await x.req("POST", "/v1/conversations/dm", { userId: y.userId })).conversation.id;
@@ -127,5 +128,29 @@ describe("keeping files for history", () => {
     const info = await alice.req("GET", "/v1/server-info");
     expect(info.features).toEqual(expect.arrayContaining(["profiles", "profile-photos", "history", "attachment-keep", "org-delete"]));
     expect(JSON.stringify(info)).not.toMatch(/s3|bucket|aws/i);
+  });
+});
+
+describe("keeping every file for good (ATTACHMENT_KEEP_FOREVER, the default since API 0.66.0)", () => {
+  it("never expires a new upload, keeps files stored before the setting, and keeps what the retention job sees", async () => {
+    const s = await startServer({});
+    try {
+      const x = await s.client("forevera");
+      const y = await s.client("foreverb");
+      const c = (await x.req("POST", "/v1/conversations/dm", { userId: y.userId })).conversation.id;
+      const up = await x.req("POST", `/v1/attachments?conversationId=${c}`, undefined, crypto.randomBytes(500));
+      expect(up.expiresAt).toBe(KEPT_FOREVER);
+      // A file from before the setting, due to expire in a minute, becomes kept for good on the next retention run.
+      const old = await x.req("POST", `/v1/attachments?conversationId=${c}`, undefined, crypto.randomBytes(300));
+      await s.ctx.files.keep(old.id, Date.now() + 60_000);
+      await runCleanup(s.ctx);
+      expect((await s.ctx.files.attachment(old.id))!.expires_at).toBe(KEPT_FOREVER);
+      // Nothing is purged, even long after the relay window would have passed.
+      expect(await s.ctx.files.purgeExpired(Date.now() + 400 * 86_400_000)).toEqual([]);
+      expect((await y.req("GET", `/v1/attachments/${up.id}`)).length).toBe(500);
+      expect(await y.req("POST", `/v1/attachments/${up.id}/keep`)).toMatchObject({ kept: true, expiresAt: KEPT_FOREVER });
+    } finally {
+      await s.close();
+    }
   });
 });

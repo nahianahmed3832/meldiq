@@ -90,6 +90,12 @@ export interface Config {
    * the uploader's own quota for kept files, not the 7-day one.
    */
   attachmentKeepDays: number;
+  /**
+   * ATTACHMENT_KEEP_FOREVER (default on, owner's decision 2026-10-30, docs/PLANS.md › Keeping everything): files are
+   * never removed automatically. New uploads never expire, files still stored are kept for good, and "keep" keeps for
+   * good. Off ("false"): the 7-day relay window and ATTACHMENT_KEEP_DAYS, as before.
+   */
+  attachmentKeepForever: boolean;
   attachmentUserKeptBytes: number;
   /**
    * Where files live: the server's disk (default) or Amazon S3 / a compatible store (docs/STORAGE_AND_DATA.md).
@@ -526,6 +532,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     // the old default (1024 MiB) was below one 1 GB file plus its encryption headroom, so such a file was always refused.
     attachmentMaxPendingBytes: Math.max(int("ATTACHMENT_MAX_PENDING_BYTES", 2 * attachmentMaxBytes), 2 * attachmentMaxBytes),
     attachmentKeepDays: Math.max(int("ATTACHMENT_KEEP_DAYS", 365), 0),
+    attachmentKeepForever: (env.ATTACHMENT_KEEP_FOREVER ?? "true").trim().toLowerCase() !== "false",
     attachmentUserKeptBytes: Math.max(int("ATTACHMENT_USER_KEPT_BYTES", 0), 0),
     storage: storageConfig(env, dataDir, int),
     directUploads: {
