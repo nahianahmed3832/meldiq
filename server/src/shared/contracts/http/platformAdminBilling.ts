@@ -51,9 +51,34 @@ export const AdminSubscriptionsQuery = z.strictObject({
   status: z.enum(BILLING_STATUS_VALUES).optional(),
   plan: zPlanKey.optional(),
   org: z.string().min(3).max(64).regex(/^[A-Za-z0-9_-]+$/).optional(),
+  /** A person's own subscriptions (their account id, API 0.66.0). */
+  account: z.string().min(3).max(64).regex(/^[A-Za-z0-9_-]+$/).optional(),
   cursor: zCursor.optional(),
   limit: zLimit,
 });
+const zSubscriptionState = z.strictObject({
+  status: z.string(),
+  priceRef: z.string().nullable(),
+  currentPeriodEnd: zTime.nullable(),
+  trialEnd: zTime.nullable(),
+  cancelAtPeriodEnd: z.boolean(),
+  quantity: zCount,
+});
+/**
+ * A subscription as Meldiq has it beside what the payment provider says now (API 0.66.0): how operators investigate a
+ * billing discrepancy. Read-only; POST …/resync applies the provider's state.
+ */
+export const AdminSubscriptionCompare = z.strictObject({
+  subscriptionId: z.string(),
+  provider: z.string(),
+  meldiq: zSubscriptionState,
+  /** null: the provider doesn't know this subscription, or can't be asked (no provider configured). */
+  atProvider: zSubscriptionState.nullable(),
+  differences: z.array(z.string()),
+  checkedAt: zTime,
+});
+export const AdminSubscriptionResync = z.strictObject({ before: zSubscriptionState, after: zSubscriptionState, changed: z.array(z.string()) });
+
 export const AdminBillingEventsQuery = z.strictObject({ status: z.enum(BILLING_EVENT_STATUS_VALUES).optional(), cursor: zCursor.optional(), limit: zLimit });
 export const AdminBillingMetricsQuery = z.strictObject({ days: z.coerce.number().int().refine((d) => [7, 30, 90].includes(d), "7, 30 or 90 days").default(30) });
 
@@ -312,6 +337,9 @@ const zPlanLimits = z.strictObject({
   uploadBytes: z.number().int().optional(),
   sparks: z.number().int().optional(),
   customItems: z.number().int().optional(),
+  bots: z.number().int().optional(),
+  /** The plan's screen-share ceiling: one preset, which covers every smaller resolution and frame rate (API 0.66.0). */
+  screen: z.enum(["720p30", "720p60", "1080p30", "1080p60", "1440p30", "1440p60"]).optional(),
 });
 const zLevelLimits = z.strictObject({
   sparks: z.number().int().optional(),
@@ -361,7 +389,17 @@ export const AdminMojoControls = z.strictObject({
   builtInPlans: z.array(zPlanPerksView),
   levels: z.array(zLevelView),
   builtInLevels: z.array(zLevelView),
-  overrides: z.strictObject({ plans: z.record(z.string(), z.record(z.string(), z.number())), levels: z.record(z.string(), z.record(z.string(), z.number())) }),
+  overrides: z.strictObject({
+    plans: z.record(z.string(), z.record(z.string(), z.union([z.number(), z.string()]))),
+    levels: z.record(z.string(), z.record(z.string(), z.number())),
+  }),
+  /** Prices (API 0.66.0): what checkouts charge now (the published versions, US cents a month; null: not on sale). */
+  prices: z.strictObject({
+    published: z.strictObject({ go: zCount.nullable(), plus: zCount.nullable(), spark: zCount.nullable() }),
+    /** Whether a change reaches the payment provider too (Stripe configured), or only the list price shown. */
+    providerSync: z.boolean(),
+    bounds: z.strictObject({ min: zCount, max: zCount }),
+  }),
   bounds: z.record(z.string(), z.strictObject({ min: z.number(), max: z.number() })),
   /** The server's own cap on any file (FILE_MAX_BYTES): a plan's larger limit can't go above it. */
   serverFileMaxBytes: zCount,
@@ -374,6 +412,14 @@ export const AdminMojoControls = z.strictObject({
     gifts: z.record(z.string(), zCount),
   }),
 });
+
+/** A price change for Mojo Go and Mojo Plus (US cents a month; docs/PLANS.md › Prices). Spark's price isn't changed here. */
+export const AdminMojoPricesBody = z.strictObject({
+  go: z.number().int(),
+  plus: z.number().int(),
+  reason: zReason,
+});
+export const AdminMojoPricesResult = AdminMojoControls.extend({ steps: z.array(z.string()) });
 
 export const AdminMojoGiftsQuery = z.strictObject({ status: z.enum(["pending", "paid", "redeemed", "refunded", "expired", "failed"]).optional(), cursor: zCursor.optional(), limit: zLimit });
 /** Gifts as metadata: who, which plan, how long, paid or started. The note people write isn't shown in the console. */

@@ -45,6 +45,9 @@ const GUARDED: Record<string, Permission> = {
   "GET /admin/v1/billing/accounts/:accountId": "billing.view",
   "GET /admin/v1/billing/mojo": "billing.view",
   "PUT /admin/v1/billing/mojo": "billing.manage",
+  "PUT /admin/v1/billing/mojo/prices": "billing.manage",
+  "GET /admin/v1/billing/subscriptions/:subscriptionId/compare": "billing.view",
+  "POST /admin/v1/billing/subscriptions/:subscriptionId/resync": "billing.manage",
   "GET /admin/v1/billing/gifts": "billing.view",
   "GET /admin/v1/billing/sparks": "billing.view",
   // API 0.61.0: the review queue for profile decorations people send in.

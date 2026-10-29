@@ -249,6 +249,61 @@ export class AdminBilling {
     };
   }
 
+  /** A subscription's state as Meldiq holds it (the fields operators compare with the provider's). */
+  private stateOf(s: SubscriptionRow) {
+    return {
+      status: s.status,
+      priceRef: this.ctx.billing.catalog.version(s.plan_version_id)?.provider_price_ref ?? null,
+      currentPeriodEnd: s.current_period_end,
+      trialEnd: s.trial_end,
+      cancelAtPeriodEnd: !!s.cancel_at_period_end,
+      quantity: s.quantity,
+    };
+  }
+
+  private static differences(a: Record<string, unknown>, b: Record<string, unknown> | null): string[] {
+    if (!b) return ["missing_at_provider"];
+    return Object.keys(a).filter((k) => a[k] !== b[k]);
+  }
+
+  /**
+   * A billing discrepancy, investigated: the subscription as Meldiq has it beside what the provider says now (one read
+   * at the provider, nothing changed). Webhooks normally keep them equal; a difference means a lost or failed event.
+   */
+  async compare(id: string) {
+    const s = this.ctx.billing.subscriptions.get(id);
+    if (!s) throw notFound("No such subscription");
+    const provider = this.ctx.billing.provider;
+    const meldiq = this.stateOf(s);
+    let atProvider: typeof meldiq | null = null;
+    if (provider?.id === s.provider && provider.fetchSubscription) {
+      let snap;
+      try {
+        snap = await provider.fetchSubscription(s.provider_subscription_ref);
+      } catch (e) {
+        this.ctx.log.warn({ err: e, subscription: id }, "admin: the billing provider couldn't be asked about a subscription");
+        throw new ApiError(503, "unavailable", "The payment provider couldn't be reached. Try again in a moment.");
+      }
+      atProvider = snap
+        ? { status: snap.status, priceRef: snap.priceRef, currentPeriodEnd: snap.currentPeriodEnd, trialEnd: snap.trialEnd, cancelAtPeriodEnd: snap.cancelAtPeriodEnd, quantity: snap.quantity ?? 1 }
+        : null;
+    }
+    return { subscriptionId: s.id, provider: s.provider, meldiq, atProvider, differences: AdminBilling.differences(meldiq, atProvider), checkedAt: now() };
+  }
+
+  /** Applies the provider's current state to the subscription (as a webhook would), audited with what changed. */
+  async resync(p: AdminPrincipal, id: string, reason: string, meta: RequestMeta) {
+    const s = this.ctx.billing.subscriptions.get(id);
+    if (!s) throw notFound("No such subscription");
+    if (this.ctx.billing.provider?.id !== s.provider) throw new ApiError(409, "billing_unavailable", "This subscription's payment provider isn't configured on this server");
+    const before = this.stateOf(s);
+    await this.ctx.billing.reconcileRefs([s.provider_subscription_ref]);
+    const after = this.stateOf(this.ctx.billing.subscriptions.get(id)!);
+    const changed = AdminBilling.differences(before, after);
+    await this.record(p, "billing.subscription_resync", "billing_subscription", id, reason, meta, { changed: changed.join(",") || "nothing", statusBefore: before.status, statusAfter: after.status });
+    return { before, after, changed };
+  }
+
   /** The organization's subscription for its console page, if one isn't over. */
   orgSubscription(orgId: string) {
     const s = this.ctx.billing.subscriptions.liveFor(orgId);

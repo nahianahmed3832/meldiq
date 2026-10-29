@@ -10,15 +10,21 @@ import { STRIPE_WEBHOOK_EVENTS } from "./providers/stripe.js";
  *   meldiq_mojo_go_monthly, meldiq_mojo_plus_monthly, meldiq_spark_monthly). One product per plan because the portal
  *   only switches between products that each have one price per billing interval. Prices an earlier version put on a
  *   single "Meldiq Mojo" product are moved (a new price takes the lookup key, the old one is archived) while nobody
- *   subscribes to them;
+ *   subscribes to them. A price whose amount changed (docs/PLANS.md › Prices) becomes a new price that takes the lookup
+ *   key; the old one is archived, and everyone subscribed to it keeps paying it (Stripe never reprices them);
  * - the webhook endpoint for the API, with the events Meldiq handles (its signing secret exists only in the answer to
  *   its creation: a second run reports it as existing and returns no secret, unless asked to replace it);
  * - a customer portal configuration: payment method, invoices, cancellation at the period's end, switching between the
- *   two prices, with Meldiq's terms and privacy links.
+ *   two prices, with Meldiq's terms and privacy links. An upgrade is invoiced at once for the rest of the period (so a
+ *   plan can't be upgraded and cancelled before the difference is ever charged); a downgrade waits for the period's
+ *   end (the plan already paid for is kept until then).
+ *
+ * [stripeSetMojoPrices] does only the prices and the portal: the console's price change (platformAdmin/mojo.ts).
  */
 export const MOJO_PRICES = [
-  { tier: "go", name: "Mojo Go", lookupKey: "meldiq_mojo_go_monthly", amountMinor: 99, product: "go" },
-  { tier: "plus", name: "Mojo Plus", lookupKey: "meldiq_mojo_plus_monthly", amountMinor: 399, product: "plus" },
+  // The owner's spec of 2026-10-30 (docs/PLANS.md): Go $1.99 and Plus $4.99 a month. The console can change them.
+  { tier: "go", name: "Mojo Go", lookupKey: "meldiq_mojo_go_monthly", amountMinor: 199, product: "go" },
+  { tier: "plus", name: "Mojo Plus", lookupKey: "meldiq_mojo_plus_monthly", amountMinor: 499, product: "plus" },
   // Meldiq Spark (docs/MOJO.md): $0.99 per Spark per month, bought by quantity, on its own product (its own invoice line).
   { tier: "spark", name: "Meldiq Spark", lookupKey: "meldiq_spark_monthly", amountMinor: 99, product: "spark" },
 ] as const;
@@ -79,6 +85,10 @@ export function stripeSetupApi(client: Stripe): StripeSetupApi {
   };
 }
 
+/** Monthly USD cents per price (the setup's defaults are MOJO_PRICES). */
+export type MojoAmounts = Record<(typeof MOJO_PRICES)[number]["tier"], number>;
+export const DEFAULT_MOJO_AMOUNTS: MojoAmounts = Object.fromEntries(MOJO_PRICES.map((p) => [p.tier, p.amountMinor])) as MojoAmounts;
+
 export interface StripeSetupOptions {
   /** The API's webhook address, e.g. https://msg.meldiq.app/v1/billing/webhooks/stripe. */
   webhookUrl: string;
@@ -86,6 +96,8 @@ export interface StripeSetupOptions {
   siteUrl: string;
   /** Delete and recreate an existing webhook endpoint (to get a new signing secret). */
   replaceWebhook?: boolean;
+  /** The prices to sell at (default MOJO_PRICES; the CLI passes the catalog's published ones, so a rerun keeps them). */
+  amounts?: MojoAmounts;
 }
 
 export interface StripeSetupResult {
@@ -98,56 +110,7 @@ export interface StripeSetupResult {
 
 export async function stripeSetup(api: StripeSetupApi, opts: StripeSetupOptions): Promise<StripeSetupResult> {
   const steps: string[] = [];
-  const products = {} as Record<keyof typeof PRODUCTS, { id: string }>;
-  for (const kind of Object.keys(PRODUCTS) as (keyof typeof PRODUCTS)[]) {
-    const found = await api.findProduct(kind);
-    if (found) {
-      products[kind] = found;
-      steps.push(`product ${PRODUCTS[kind].name}: found ${found.id}`);
-      continue;
-    }
-    products[kind] = await api.createProduct({ ...PRODUCTS[kind], metadata: { [META]: kind } });
-    steps.push(`product ${PRODUCTS[kind].name}: created ${products[kind].id}`);
-  }
-
-  const prices = {} as StripeSetupResult["prices"];
-  for (const p of MOJO_PRICES) {
-    const productId = products[p.product].id;
-    const found = await api.findPrice(p.lookupKey);
-    // A price never changes at Stripe: one with the wrong amount means someone made it by hand; don't sell it.
-    if (found && (found.unit_amount !== p.amountMinor || found.currency !== "usd")) {
-      throw new Error(`The price with lookup key ${p.lookupKey} (${found.id}) isn't ${p.amountMinor} USD cents: archive it in Stripe, then run this again`);
-    }
-    if (found && found.product === productId) {
-      prices[p.tier] = found.id;
-      steps.push(`price ${p.name}: found ${found.id}`);
-      continue;
-    }
-    // On another product (API 0.60.0 put Go and Plus on one): moving it is only safe while nobody pays it.
-    if (found && (await api.priceInUse(found.id))) {
-      throw new Error(`The price ${found.id} (${p.lookupKey}) is on another product and has subscriptions: move its subscribers in Stripe first`);
-    }
-    const created = await api.createPrice({
-      product: productId,
-      currency: "usd",
-      unit_amount: p.amountMinor,
-      recurring: { interval: "month" },
-      lookup_key: p.lookupKey,
-      transfer_lookup_key: !!found,
-      nickname: p.name,
-      metadata: { [META]: `mojo_${p.tier}` },
-    });
-    prices[p.tier] = created.id;
-    if (found) {
-      await api.archivePrice(found.id);
-      steps.push(`price ${p.name}: moved to its own product as ${created.id} (archived ${found.id})`);
-    } else steps.push(`price ${p.name}: created ${created.id} (${(p.amountMinor / 100).toFixed(2)} USD a month)`);
-  }
-  const legacy = await api.findProduct(LEGACY_PRODUCT);
-  if (legacy) {
-    await api.archiveProduct(legacy.id);
-    steps.push(`product Meldiq Mojo (both plans, API 0.60.0): archived ${legacy.id}`);
-  }
+  const { products, prices, portalConfiguration } = await setUpCatalog(api, opts.siteUrl, opts.amounts ?? DEFAULT_MOJO_AMOUNTS, steps);
 
   let webhook: StripeSetupResult["webhook"];
   const existing = await api.findWebhook(opts.webhookUrl);
@@ -170,9 +133,75 @@ export async function stripeSetup(api: StripeSetupApi, opts: StripeSetupOptions)
     steps.push(`webhook: created ${created.id} for ${opts.webhookUrl}`);
   }
 
+  return { products, prices, webhook, portalConfiguration, steps };
+}
+
+/** The products, prices at [amounts] and portal only (no webhook): how the console changes a price. */
+export async function stripeSetMojoPrices(api: StripeSetupApi, siteUrl: string, amounts: MojoAmounts): Promise<Omit<StripeSetupResult, "webhook">> {
+  const steps: string[] = [];
+  return { ...(await setUpCatalog(api, siteUrl, amounts, steps)), steps };
+}
+
+async function setUpCatalog(api: StripeSetupApi, siteUrl: string, amounts: MojoAmounts, steps: string[]) {
+  const products = {} as Record<keyof typeof PRODUCTS, { id: string }>;
+  for (const kind of Object.keys(PRODUCTS) as (keyof typeof PRODUCTS)[]) {
+    const found = await api.findProduct(kind);
+    if (found) {
+      products[kind] = found;
+      steps.push(`product ${PRODUCTS[kind].name}: found ${found.id}`);
+      continue;
+    }
+    products[kind] = await api.createProduct({ ...PRODUCTS[kind], metadata: { [META]: kind } });
+    steps.push(`product ${PRODUCTS[kind].name}: created ${products[kind].id}`);
+  }
+
+  const prices = {} as StripeSetupResult["prices"];
+  for (const p of MOJO_PRICES) {
+    const amountMinor = amounts[p.tier];
+    const productId = products[p.product].id;
+    const found = await api.findPrice(p.lookupKey);
+    const sameAmount = !!found && found.unit_amount === amountMinor && found.currency === "usd";
+    if (found && sameAmount && found.product === productId) {
+      prices[p.tier] = found.id;
+      steps.push(`price ${p.name}: found ${found.id}`);
+      continue;
+    }
+    // On another product (API 0.60.0 put Go and Plus on one): moving it is only safe while nobody pays it. A new amount
+    // is always safe: its subscribers keep the old price, which only stops being sold.
+    if (found && sameAmount && (await api.priceInUse(found.id))) {
+      throw new Error(`The price ${found.id} (${p.lookupKey}) is on another product and has subscriptions: move its subscribers in Stripe first`);
+    }
+    const created = await api.createPrice({
+      product: productId,
+      currency: "usd",
+      unit_amount: amountMinor,
+      recurring: { interval: "month" },
+      lookup_key: p.lookupKey,
+      transfer_lookup_key: !!found,
+      nickname: p.name,
+      metadata: { [META]: `mojo_${p.tier}` },
+    });
+    prices[p.tier] = created.id;
+    const usd = (amountMinor / 100).toFixed(2);
+    if (!found) steps.push(`price ${p.name}: created ${created.id} (${usd} USD a month)`);
+    else {
+      await api.archivePrice(found.id);
+      steps.push(
+        sameAmount
+          ? `price ${p.name}: moved to its own product as ${created.id} (archived ${found.id})`
+          : `price ${p.name}: now ${usd} USD a month as ${created.id} (archived ${found.id}; its subscribers keep it)`,
+      );
+    }
+  }
+  const legacy = await api.findProduct(LEGACY_PRODUCT);
+  if (legacy) {
+    await api.archiveProduct(legacy.id);
+    steps.push(`product Meldiq Mojo (both plans, API 0.60.0): archived ${legacy.id}`);
+  }
+
   const portal: Stripe.BillingPortal.ConfigurationCreateParams = {
-    business_profile: { headline: "Manage Meldiq Mojo", privacy_policy_url: `${opts.siteUrl}/legal/privacy`, terms_of_service_url: `${opts.siteUrl}/legal/terms` },
-    default_return_url: `${opts.siteUrl}/account/billing`,
+    business_profile: { headline: "Manage Meldiq Mojo", privacy_policy_url: `${siteUrl}/legal/privacy`, terms_of_service_url: `${siteUrl}/legal/terms` },
+    default_return_url: `${siteUrl}/account/billing`,
     features: {
       customer_update: { enabled: true, allowed_updates: ["email", "name", "address"] },
       invoice_history: { enabled: true },
@@ -181,7 +210,9 @@ export async function stripeSetup(api: StripeSetupApi, opts: StripeSetupOptions)
       subscription_update: {
         enabled: true,
         default_allowed_updates: ["price"],
-        proration_behavior: "create_prorations",
+        // An upgrade is charged now for the rest of the period; a downgrade waits for the period's end (docs/PLANS.md).
+        proration_behavior: "always_invoice",
+        schedule_at_period_end: { conditions: [{ type: "decreasing_item_amount" }] },
         // One entry per plan: Stripe allows only one price per billing interval for each product listed here.
         products: [
           { product: products.go.id, prices: [prices.go] },
@@ -201,8 +232,21 @@ export async function stripeSetup(api: StripeSetupApi, opts: StripeSetupOptions)
     portalConfiguration = (await api.createPortalConfiguration(portal)).id;
     steps.push(`portal: created ${portalConfiguration}`);
   }
+  return { products: { go: products.go.id, plus: products.plus.id, spark: products.spark.id }, prices, portalConfiguration };
+}
 
-  return { products: { go: products.go.id, plus: products.plus.id, spark: products.spark.id }, prices, webhook, portalConfiguration, steps };
+/**
+ * What the catalog sells at now (each plan's published version), else MOJO_PRICES: a setup rerun keeps prices the
+ * console changed instead of putting the built-in ones back.
+ */
+export function publishedMojoAmounts(catalog: PlanCatalog): MojoAmounts {
+  return Object.fromEntries(
+    MOJO_PRICES.map((p) => {
+      const plan = catalog.byKey(p.tier);
+      const v = plan ? catalog.current(plan.id) : null;
+      return [p.tier, v?.currency === "USD" ? v.amount_minor : p.amountMinor];
+    }),
+  ) as MojoAmounts;
 }
 
 /**
@@ -219,10 +263,11 @@ export async function publishMojoPlans(
   t: number,
   /** Days a plan stays on after a failed renewal payment (the console's site details; API 0.60.0). */
   graceDays = 0,
+  amounts: MojoAmounts = DEFAULT_MOJO_AMOUNTS,
 ): Promise<string[]> {
   const done: string[] = [];
   for (const p of MOJO_PRICES) {
-    const terms = { interval: "month" as const, currency: "USD", amountMinor: p.amountMinor, providerPriceRef: prices[p.tier], trialDays: 0, graceDays, limits: {}, notes: "", quotaPlanId: null };
+    const terms = { interval: "month" as const, currency: "USD", amountMinor: amounts[p.tier], providerPriceRef: prices[p.tier], trialDays: 0, graceDays, limits: {}, notes: "", quotaPlanId: null };
     let plan = catalog.byKey(p.tier);
     if (!plan) {
       plan = await catalog.create(p.tier, { name: p.name, description: "", segment: "personal", public: true, audience: "personal" }, terms, actor, t);

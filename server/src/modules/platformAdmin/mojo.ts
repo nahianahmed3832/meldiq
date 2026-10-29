@@ -4,6 +4,7 @@ import { ApiError, forbidden, notFound } from "../../shared/errors.js";
 import { now } from "../../shared/utilities/util.js";
 import type { AccountRow } from "../accounts/index.js";
 import {
+  checkOverrides,
   giftRows,
   type GrantNoteRow,
   type GrantRow,
@@ -15,6 +16,9 @@ import {
   type PlanOverrides,
   PLAN_PERKS,
   plansWith,
+  PRICE_BOUNDS,
+  publishedMojoAmounts,
+  publishMojoPlans,
   type ProgramSettings,
   type ProgramState,
   resolveEntitlements,
@@ -24,6 +28,7 @@ import {
   sparkOrgIds,
 } from "../billing/index.js";
 import { effectiveFileMaxBytes } from "../../app/config.js";
+import { readSiteDetails } from "../../app/siteDetails.js";
 import { orgNames } from "../organizations/index.js";
 import type { PlatformAudit } from "./audit.js";
 import type { AdminPrincipal } from "./auth.js";
@@ -265,6 +270,7 @@ export class AdminMojo {
       builtInLevels: SPARK_LEVELS.map((l) => ({ ...l, screen: [...l.screen] })),
       overrides: { plans: state.plans as Record<string, Record<string, number>>, levels: state.levels as Record<string, Record<string, number>> },
       bounds: LIMIT_BOUNDS as Record<string, { min: number; max: number }>,
+      prices: { published: this.publishedPrices(), providerSync: !!this.ctx.billing.provider?.setMojoPrices, bounds: PRICE_BOUNDS },
       serverFileMaxBytes: effectiveFileMaxBytes(this.ctx.config),
       catalogVersion: c.version(),
       updatedBy: this.adminRef(state.updatedBy, known),
@@ -278,7 +284,7 @@ export class AdminMojo {
    * limit is read through Mojo on each request, and clients read the catalog again when its version changes.
    */
   async setControls(p: AdminPrincipal, b: { enforce: "on" | "off" | "auto" | null; plans: PlanOverrides; levels: LevelOverrides; reason: string }, meta: RequestMeta) {
-    const strip = <T extends Record<string, Record<string, number | undefined> | undefined>>(o: T) =>
+    const strip = <T extends Record<string, Record<string, number | string | undefined> | undefined>>(o: T) =>
       Object.fromEntries(
         Object.entries(o)
           .map(([k, v]) => [k, Object.fromEntries(Object.entries(v ?? {}).filter(([, n]) => n !== undefined))])
@@ -286,7 +292,13 @@ export class AdminMojo {
       );
     const before = this.ctx.billing.mojoControls.state();
     const enforcedBefore = this.ctx.mojo.enforced();
-    await this.ctx.billing.mojoControls.save({ enforce: b.enforce, plans: strip(b.plans) as PlanOverrides, levels: strip(b.levels) as LevelOverrides }, p.account.id, now());
+    // Prices aren't limits: they change only with setPrices (Stripe and the catalog together), so they're kept here.
+    const plans = strip(b.plans) as PlanOverrides;
+    for (const key of ["go", "plus"] as const) {
+      const price = before.plans[key]?.listPriceMinor;
+      if (price !== undefined) plans[key] = { ...plans[key], listPriceMinor: price };
+    }
+    await this.ctx.billing.mojoControls.save({ enforce: b.enforce, plans, levels: strip(b.levels) as LevelOverrides }, p.account.id, now());
     const after = this.ctx.billing.mojoControls.state();
     this.record(p, "mojo.controls_update", "mojo_controls", "mojo", b.reason, meta, {
       enforceBefore: before.enforce ?? "environment",
@@ -299,6 +311,56 @@ export class AdminMojo {
       levelsAfter: after.levels,
     });
     return this.controls();
+  }
+
+  /** What checkouts charge now: each plan's published version (null: nothing published). */
+  private publishedPrices() {
+    const of = (key: string) => {
+      const plan = this.ctx.billing.catalog.byKey(key);
+      return (plan && this.ctx.billing.catalog.current(plan.id)?.amount_minor) ?? null;
+    };
+    return { go: of("go"), plus: of("plus"), spark: of("spark") };
+  }
+
+  /**
+   * Changes what Mojo Go and Mojo Plus cost from now on (docs/PLANS.md › Prices), checked first (bounds, Plus above Go).
+   * With a provider that sells them (Stripe): new provider prices, the portal switched to them and new published
+   * catalog versions, so checkouts charge the new price; everyone subscribed keeps the price they pay. The list price
+   * clients show changes with it. Without a provider only the list price changes. Audited with before and after.
+   */
+  async setPrices(p: AdminPrincipal, b: { go: number; plus: number; reason: string }, meta: RequestMeta) {
+    const controls = this.ctx.billing.mojoControls;
+    const before = controls.state();
+    const listBefore = plansWith(before.plans);
+    const plans: PlanOverrides = { ...before.plans, go: { ...before.plans.go, listPriceMinor: b.go }, plus: { ...before.plans.plus, listPriceMinor: b.plus } };
+    checkOverrides(plans, before.levels);
+    const provider = this.ctx.billing.provider;
+    const steps: string[] = [];
+    if (provider?.setMojoPrices) {
+      const t = now();
+      const amounts = { ...publishedMojoAmounts(this.ctx.billing.catalog), go: b.go, plus: b.plus };
+      let prices: { go: string; plus: string; spark: string };
+      try {
+        const result = await provider.setMojoPrices(this.ctx.config.billing.siteUrl, amounts);
+        prices = result.prices;
+        steps.push(...result.steps);
+      } catch (e) {
+        this.ctx.log.error({ err: e }, "admin: changing Mojo prices at the provider failed");
+        throw new ApiError(503, "unavailable", "The payment provider couldn't change the prices. Nothing in Meldiq changed; try again.");
+      }
+      const grace = readSiteDetails(this.ctx.platform).policies.failedPaymentGraceDays ?? 0;
+      steps.push(...(await publishMojoPlans(this.ctx.billing.catalog, provider.id, prices, p.account.id, t, grace, amounts)));
+    } else steps.push("no payment provider: only the list price changed");
+    await controls.save({ enforce: before.enforce, plans, levels: before.levels }, p.account.id, now());
+    this.record(p, "mojo.prices_update", "mojo_controls", "prices", b.reason, meta, {
+      goBefore: listBefore.go.listPriceMinor,
+      goAfter: b.go,
+      plusBefore: listBefore.plus.listPriceMinor,
+      plusAfter: b.plus,
+      provider: provider?.id ?? "none",
+      mode: provider?.mode ?? "none",
+    });
+    return { ...(await this.controls()), steps };
   }
 
   // ───────────── Gifts and Sparks (metadata) ─────────────

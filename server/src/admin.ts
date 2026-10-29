@@ -60,7 +60,7 @@ import { siteDetailsFromDb } from "./app/siteDetails.js";
 import Stripe from "stripe";
 import { PlanCatalog } from "./modules/billing/catalog.js";
 import { stripeKeyMode } from "./modules/billing/providers/stripe.js";
-import { publishMojoPlans, stripeSetup, stripeSetupApi } from "./modules/billing/stripeSetup.js";
+import { DEFAULT_MOJO_AMOUNTS, publishedMojoAmounts, publishMojoPlans, stripeSetup, stripeSetupApi } from "./modules/billing/stripeSetup.js";
 import { openDatabase } from "./infrastructure/database/db.js";
 import { ServerIdentity } from "./modules/federation/identity.js";
 import { Hub } from "./modules/realtime/hub.js";
@@ -433,10 +433,21 @@ switch (cmd) {
     }
     const site = (process.env.MELDIQ_SITE_URL ?? "https://meldiq.app").replace(/\/$/, "");
     const api = (process.env.PUBLIC_API_URL ?? "https://msg.meldiq.app").replace(/\/$/, "");
+    // The catalog's published prices, so a rerun keeps the console's; --list-prices sells at MOJO_PRICES (docs/PLANS.md).
+    const amounts = rest.includes("--list-prices") ? DEFAULT_MOJO_AMOUNTS : await (async () => {
+      const mongo = cfg.mongo ? await openMongo(cfg.mongo, db) : undefined;
+      const rows = await openBillingRows(db, mongo, console);
+      const found = publishedMojoAmounts(new PlanCatalog(rows));
+      await rows.close();
+      await mongo?.close();
+      return found;
+    })();
+    console.error(`prices (USD cents a month): go ${amounts.go}, plus ${amounts.plus}, spark ${amounts.spark}`);
     const result = await stripeSetup(stripeSetupApi(new Stripe(key, { maxNetworkRetries: 2, appInfo: { name: "Meldiq setup" } })), {
       webhookUrl: `${api}/v1/billing/webhooks/stripe`,
       siteUrl: site,
       replaceWebhook: rest.includes("--replace-webhook"),
+      amounts,
     });
     console.error(`Stripe (${mode} mode):\n  ${result.steps.join("\n  ")}`);
     if (rest.includes("--emit-env")) {
@@ -445,14 +456,16 @@ switch (cmd) {
       console.log(`ENV STRIPE_PORTAL_CONFIGURATION=${result.portalConfiguration}`);
       if (result.webhook.secret) console.log(`ENV STRIPE_WEBHOOK_SECRET=${result.webhook.secret}`);
       // In the order billing-mojo-plans takes them.
-      console.log(`PRICES ${result.prices.go} ${result.prices.plus} ${result.prices.spark}`);
+      // Amounts follow (API 0.66.0): billing-mojo-plans publishes the catalog at what Stripe charges.
+      console.log(`PRICES ${result.prices.go} ${result.prices.plus} ${result.prices.spark} ${amounts.go} ${amounts.plus} ${amounts.spark}`);
     } else console.log(JSON.stringify({ ...result, webhook: { ...result.webhook, secret: result.webhook.secret ? "(created; not shown)" : null } }, null, 2));
     break;
   }
   case "billing-mojo-plans": {
-    const [go, plus, spark] = rest;
-    if (!go?.startsWith("price_") || !plus?.startsWith("price_") || !spark?.startsWith("price_")) {
-      console.error("usage: billing-mojo-plans <goPriceId> <plusPriceId> <sparkPriceId>");
+    const [go, plus, spark, ...cents] = rest;
+    const amounts = cents.length === 0 ? DEFAULT_MOJO_AMOUNTS : { go: Number(cents[0]), plus: Number(cents[1]), spark: Number(cents[2]) };
+    if (!go?.startsWith("price_") || !plus?.startsWith("price_") || !spark?.startsWith("price_") || !Object.values(amounts).every((n) => Number.isSafeInteger(n) && n > 0)) {
+      console.error("usage: billing-mojo-plans <goPriceId> <plusPriceId> <sparkPriceId> [<goCents> <plusCents> <sparkCents>]");
       process.exit(1);
     }
     const provider = cfg.billing.provider;
@@ -466,7 +479,7 @@ switch (cmd) {
     // The grace period after a failed payment is set in the console (site details); 0 until it is.
     const grace = siteDetailsFromDb(db).policies.failedPaymentGraceDays ?? 0;
     console.log(`grace period after a failed payment: ${grace} days (console › site details)`);
-    for (const line of await publishMojoPlans(catalog, provider.id, { go, plus, spark }, "cli", now(), grace)) console.log(line);
+    for (const line of await publishMojoPlans(catalog, provider.id, { go, plus, spark }, "cli", now(), grace, amounts)) console.log(line);
     await rows.settled();
     await rows.close();
     await mongo?.close();

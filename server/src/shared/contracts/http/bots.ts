@@ -61,6 +61,8 @@ export const DeveloperBot = z.strictObject({
   tokenRotatedAt: zTime,
   commands: zCount,
   communities: zCount,
+  /** Beyond what your plan allows now (a downgrade): its token is refused until you upgrade or delete another bot. */
+  locked: z.boolean(),
 });
 export const BotList = z.strictObject({
   bots: z.array(DeveloperBot),

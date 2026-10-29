@@ -6,7 +6,7 @@ import { WebhookRejected } from "../src/modules/billing/providers/types.js";
 import { retryDelay } from "../src/modules/billing/webhooks.js";
 import { runCleanup } from "../src/modules/administration/jobs.js";
 import { OrgBilling } from "../src/shared/contracts/http/billing.js";
-import { AdminBillingEventsPage, AdminBillingMetrics, AdminPlan, AdminPlans, AdminSubscriptionDetail, AdminSubscriptionsPage } from "../src/shared/contracts/http/platformAdminBilling.js";
+import { AdminBillingEventsPage, AdminSubscriptionCompare, AdminSubscriptionResync, AdminBillingMetrics, AdminPlan, AdminPlans, AdminSubscriptionDetail, AdminSubscriptionsPage } from "../src/shared/contracts/http/platformAdminBilling.js";
 import { Plan } from "../src/shared/contracts/http/roles.js";
 import { MemoryMailer } from "./support/accounts.js";
 import { ADMIN_ORIGIN, type ConsoleAdmin, consoleAdmin } from "./support/adminConsole.js";
@@ -349,6 +349,33 @@ describe("with the sandbox provider", () => {
       expect(lastAudit("billing.event_replay")).toMatchObject({ target_id: failed.id, reason: REASON });
       const processed = (await as("billing_admin").expect(200, "GET", "/admin/v1/billing/events?status=processed")).events[0];
       await as("billing_admin").expect(409, "POST", `/admin/v1/billing/events/${processed.id}/replay`, { reason: REASON });
+    });
+
+    it("compares a subscription with the provider, and re-applies the provider's state with a reason", async () => {
+      const s = h.ctx.billing.rows.all<{ id: string; provider_subscription_ref: string; status: string; current_period_end: number | null }>("billing_subscriptions")[0]!;
+      const provider = h.ctx.billing.provider as { fetchSubscription?: unknown };
+      // Without the provider's answer, the console says so instead of guessing.
+      const unknown = await as("support_admin").expect(200, "GET", `/admin/v1/billing/subscriptions/${s.id}/compare`);
+      expect(AdminSubscriptionCompare.safeParse(unknown).success).toBe(true);
+      expect(unknown).toMatchObject({ atProvider: null, differences: ["missing_at_provider"] });
+      // A lost webhook: the provider has the subscription cancelling at the period's end, Meldiq doesn't.
+      const version = h.ctx.billing.catalog.version(h.ctx.billing.subscriptions.get(s.id)!.plan_version_id)!;
+      provider.fetchSubscription = async (ref: string) => ({
+        ref, customerRef: null, status: s.status, priceRef: version.provider_price_ref!, checkoutRef: null, currentPeriodStart: null,
+        currentPeriodEnd: s.current_period_end, trialEnd: null, cancelAtPeriodEnd: true, canceledAt: null, quantity: 1,
+      });
+      try {
+        const diff = await as("billing_admin").expect(200, "GET", `/admin/v1/billing/subscriptions/${s.id}/compare`);
+        expect(diff.differences).toContain("cancelAtPeriodEnd");
+        await as("support_admin").expect(403, "POST", `/admin/v1/billing/subscriptions/${s.id}/resync`, { reason: REASON });
+        await as("billing_admin").expect(400, "POST", `/admin/v1/billing/subscriptions/${s.id}/resync`, {});
+        const r = await as("billing_admin").expect(200, "POST", `/admin/v1/billing/subscriptions/${s.id}/resync`, { reason: REASON });
+        expect(AdminSubscriptionResync.safeParse(r).success).toBe(true);
+        expect(lastAudit("billing.subscription_resync")).toMatchObject({ target_id: s.id, reason: REASON });
+        expect((await as("billing_admin").expect(200, "GET", `/admin/v1/billing/subscriptions/${s.id}/compare`)).differences).not.toContain("cancelAtPeriodEnd");
+      } finally {
+        delete provider.fetchSubscription;
+      }
     });
 
     it("gives events up after the last attempt", async () => {

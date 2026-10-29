@@ -27,6 +27,11 @@ export interface BillingProvider {
   createPaymentCheckout?(input: PaymentCheckoutInput): Promise<{ sessionRef: string; url: string | null }>;
   /** Creates the provider's customer for an owner (once: the caller stores it and reuses it). */
   createCustomer?(input: { owner: OwnerRef; email: string | null; name: string | null }): Promise<string>;
+  /**
+   * Sells Mojo Go, Mojo Plus and Sparks at [amounts] (US cents a month) from now on: new provider prices and the portal
+   * switched to them; subscribers keep the prices they have (docs/PLANS.md › Prices). Answers the new price refs.
+   */
+  setMojoPrices?(siteUrl: string, amounts: { go: number; plus: number; spark: number }): Promise<{ prices: { go: string; plus: string; spark: string }; steps: string[] }>;
   /** A hosted page where the customer manages payment methods, invoices and cancellation. */
   createPortal?(input: { customerRef: string; returnUrl: string; configuration?: string | null }): Promise<string>;
   /** The provider's current state of a subscription (reconciliation); null when the provider doesn't know it. */

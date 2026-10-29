@@ -322,6 +322,7 @@ export async function buildApp(
     // Mojo on sale in Google Play counts as on sale (MOJO_ENFORCE=auto).
     storeOnSale: () => ctx.play?.onSale() ?? false,
     notifyOrg: (orgId) => ctx.hub.sendToUsers(orgMemberIds(ctx.ws, orgId), { t: "entitlements.changed", scope: "org", orgId }),
+    maxUploadBytes: effectiveFileMaxBytes(config),
   });
   ctx.gifts = new Gifts(
     ctx.billing,

@@ -3,6 +3,7 @@ import { ApiError, conflict, forbidden, notFound } from "../../shared/errors.js"
 import { newId } from "../../shared/utilities/util.js";
 import {
   isPlanKey,
+  PLAN_KEYS,
   PLAN_RANK,
   type PlanKey,
   type PlanPerks,
@@ -54,6 +55,8 @@ export interface MojoDeps {
   storeOnSale?: () => boolean;
   /** Tells a community's members its Spark level may have changed (a realtime notice; they read it again). */
   notifyOrg?: (orgId: string) => void;
+  /** The largest file this server takes (FILE_MAX_BYTES): no plan or level offers or allows more (docs/PLANS.md). */
+  maxUploadBytes?: number;
 }
 
 /** Oldest first, then by id: the order Sparks (and locked custom items) are counted in, the same on every backend. */
@@ -85,7 +88,22 @@ export class Mojo {
   }
 
   perksOf(userId: string, t = this.clock()): PlanPerks {
-    return this.billing.mojoControls.plans()[this.planOf(userId, t)];
+    return this.plans()[this.planOf(userId, t)];
+  }
+
+  /** The plans in effect: the console's numbers, never offering a larger file than this server takes. */
+  plans(): Record<PlanKey, PlanPerks> {
+    const plans = this.billing.mojoControls.plans();
+    return Object.fromEntries(PLAN_KEYS.map((k) => [k, { ...plans[k], uploadBytes: this.capUpload(plans[k].uploadBytes) }])) as Record<PlanKey, PlanPerks>;
+  }
+
+  /** The Spark levels in effect, with the same cap on files. */
+  levels(): SparkLevel[] {
+    return this.billing.mojoControls.levels().map((l) => (l.uploadBytes === null ? l : { ...l, uploadBytes: this.capUpload(l.uploadBytes) }));
+  }
+
+  private capUpload(bytes: number): number {
+    return Math.min(bytes, this.deps.maxUploadBytes ?? Number.MAX_SAFE_INTEGER);
   }
 
   // ───────────── Sparks ─────────────
@@ -118,7 +136,7 @@ export class Mojo {
   /** The server's level now and what it gives everyone in it. */
   levelOf(orgId: string | null, t = this.clock()): SparkLevel & { active: number } {
     const active = orgId ? this.activeFor(orgId, t).length : 0;
-    return { ...sparkLevelIn(this.billing.mojoControls.levels(), active), active };
+    return { ...sparkLevelIn(this.levels(), active), active };
   }
 
   /** Gives one of [userId]'s free Sparks to [orgId], where they must be a member. */

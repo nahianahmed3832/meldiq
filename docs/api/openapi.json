@@ -51524,7 +51524,8 @@
                                 "720p60",
                                 "1080p30",
                                 "1080p60",
-                                "1440p30"
+                                "1440p30",
+                                "1440p60"
                               ]
                             }
                           },
@@ -51597,7 +51598,8 @@
                               "720p60",
                               "1080p30",
                               "1080p60",
-                              "1440p30"
+                              "1440p30",
+                              "1440p60"
                             ]
                           },
                           "label": {
@@ -51697,7 +51699,8 @@
                                     "720p60",
                                     "1080p30",
                                     "1080p60",
-                                    "1440p30"
+                                    "1440p30",
+                                    "1440p60"
                                   ]
                                 }
                               }
@@ -51938,7 +51941,8 @@
                               "720p60",
                               "1080p30",
                               "1080p60",
-                              "1440p30"
+                              "1440p30",
+                              "1440p60"
                             ]
                           }
                         },
@@ -53115,7 +53119,8 @@
                               "720p60",
                               "1080p30",
                               "1080p60",
-                              "1440p30"
+                              "1440p30",
+                              "1440p60"
                             ]
                           }
                         }
@@ -53182,7 +53187,8 @@
                                 "720p60",
                                 "1080p30",
                                 "1080p60",
-                                "1440p30"
+                                "1440p30",
+                                "1440p60"
                               ]
                             }
                           }
@@ -56254,6 +56260,9 @@
                             "type": "integer",
                             "minimum": 0,
                             "maximum": 9007199254740991
+                          },
+                          "locked": {
+                            "type": "boolean"
                           }
                         },
                         "required": [
@@ -56264,7 +56273,8 @@
                           "createdAt",
                           "tokenRotatedAt",
                           "commands",
-                          "communities"
+                          "communities",
+                          "locked"
                         ],
                         "additionalProperties": false
                       }
@@ -56347,6 +56357,9 @@
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991
+                        },
+                        "locked": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -56357,7 +56370,8 @@
                         "createdAt",
                         "tokenRotatedAt",
                         "commands",
-                        "communities"
+                        "communities",
+                        "locked"
                       ],
                       "additionalProperties": false
                     },
@@ -56480,6 +56494,9 @@
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991
+                        },
+                        "locked": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -56490,7 +56507,8 @@
                         "createdAt",
                         "tokenRotatedAt",
                         "commands",
-                        "communities"
+                        "communities",
+                        "locked"
                       ],
                       "additionalProperties": false
                     }
@@ -56659,6 +56677,9 @@
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991
+                        },
+                        "locked": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -56669,7 +56690,8 @@
                         "createdAt",
                         "tokenRotatedAt",
                         "commands",
-                        "communities"
+                        "communities",
+                        "locked"
                       ],
                       "additionalProperties": false
                     },
@@ -58226,6 +58248,7 @@
                   "update_required",
                   "upload_limit",
                   "custom_items_limit",
+                  "bot_locked",
                   "bot_not_here",
                   "bot_private",
                   "bad_signature",
@@ -58615,6 +58638,12 @@
         409
       ],
       "meaning": "This account has added as many custom emoji and stickers as its plan allows."
+    },
+    "bot_locked": {
+      "status": [
+        403
+      ],
+      "meaning": "This bot is beyond its owner's plan (after a downgrade): it acts again once they upgrade or delete another bot."
     },
     "bot_not_here": {
       "status": [

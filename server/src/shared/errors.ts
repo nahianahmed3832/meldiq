@@ -77,6 +77,7 @@ export const ERROR_CODES = {
   update_required: { status: [426], meaning: "Update Meldiq to keep messaging: messages are now stored on Meldiq's servers." },
   upload_limit: { status: [413], meaning: "The file is larger than the sender's plan, or the community's Spark level, allows." },
   custom_items_limit: { status: [409], meaning: "This account has added as many custom emoji and stickers as its plan allows." },
+  bot_locked: { status: [403], meaning: "This bot is beyond its owner's plan (after a downgrade): it acts again once they upgrade or delete another bot." },
   bot_not_here: { status: [404], meaning: "That bot isn't in this community, or can't see this channel." },
   bot_private: { status: [403], meaning: "This bot is private: only its owner can add it to a community." },
   bad_signature: { status: [400, 401], meaning: "A signature doesn't verify (a message envelope against its device, or a federated request against its server)." },

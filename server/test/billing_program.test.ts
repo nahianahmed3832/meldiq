@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { SCHEMA } from "../src/infrastructure/database/schema.generated.js";
 import { publishMojoPlans } from "../src/modules/billing/stripeSetup.js";
 import { AccountEntitlements, PublicPlans } from "../src/shared/contracts/http/billing.js";
-import { AdminMojoAccount, AdminMojoControls, AdminMojoGiftsPage, AdminMojoGrantChanged, AdminMojoGrantsPage, AdminMojoSparks, AdminProgram } from "../src/shared/contracts/http/platformAdminBilling.js";
+import { AdminMojoAccount, AdminMojoControls, AdminMojoGiftsPage, AdminMojoGrantChanged, AdminMojoGrantsPage, AdminMojoPricesResult, AdminMojoSparks, AdminProgram } from "../src/shared/contracts/http/platformAdminBilling.js";
 import { AccountClient, email, MemoryMailer, PASSWORD } from "./support/accounts.js";
 import { ADMIN_ORIGIN, type ConsoleAdmin, consoleAdmin } from "./support/adminConsole.js";
 import { expectStatus, type Harness, startServer } from "./support/harness.js";
@@ -210,7 +210,8 @@ describe("the trial program in the console", () => {
     it("start from the built-in numbers, not enforced while nothing is on sale", async () => {
       const c = await controls();
       expect(c).toMatchObject({ enforced: false, enforce: { console: null, environment: "auto", effective: "auto" }, overrides: { plans: {}, levels: {} }, updatedBy: null });
-      expect(c.plans.map((p: any) => [p.key, p.messageChars])).toEqual([["free", 1000], ["go", 2000], ["plus", 5000]]);
+      expect(c.plans.map((p: any) => [p.key, p.messageChars, p.listPriceMinor])).toEqual([["free", 2000, 0], ["go", 4000, 199], ["plus", 8000, 499]]);
+      expect(c.prices).toMatchObject({ providerSync: false, bounds: { min: 50, max: 9999 } });
       expect(h.ctx.mojo.limitsOf("u_nobody")).toBeNull();
     });
 
@@ -240,9 +241,44 @@ describe("the trial program in the console", () => {
       expect((await controls()).enforce.console).toBe("on");
     });
 
+    it("edit bots and the screen-share ceiling, but never a higher plan below a lower one", async () => {
+      const r = await save({ enforce: "on", plans: { go: { bots: 5, screen: "1440p30" } } });
+      expect(r.status).toBe(200);
+      expect(r.body.plans.find((p: any) => p.key === "go")).toMatchObject({ bots: 5, screen: ["1440p30"] });
+      expect(h.ctx.mojo.limitsOf("u_nobody")).toMatchObject({ key: "free", bots: 2, screen: ["720p60"] });
+      // Go above Plus, Free above Go, a screen preset that doesn't exist, a bot count out of bounds.
+      expect((await save({ plans: { go: { bots: 11 } } })).status).toBe(400);
+      expect((await save({ plans: { free: { messageChars: 4500 } } })).status).toBe(400);
+      expect((await save({ plans: { plus: { screen: "1080p30" } } })).status).toBe(400);
+      expect((await save({ plans: { go: { screen: "4k120" } } })).status).toBe(400);
+      expect((await save({ plans: { plus: { bots: 101 } } })).status).toBe(400);
+      expect((await save({ plans: { plus: { listPriceMinor: 1 } } })).status).toBe(400);
+    });
+
+    it("change prices with no payment provider: the list price only, checked and audited", async () => {
+      const put = (body: Record<string, unknown>, role = "billing_admin") =>
+        as(role).req("PUT", "/admin/v1/billing/mojo/prices", { reason: "Owner's plan prices for launch", ...body });
+      expect((await put({ go: 299, plus: 249 })).status).toBe(400); // Plus must cost more than Go
+      expect((await put({ go: 10, plus: 499 })).status).toBe(400); // below Stripe's smallest charge
+      expect((await put({ go: 299, plus: 699 }, "support_admin")).status).toBe(403);
+      const r = await put({ go: 299, plus: 699 });
+      expect(r.status).toBe(200);
+      expect(AdminMojoPricesResult.safeParse(r.body).success).toBe(true);
+      expect(r.body.steps).toEqual(["no payment provider: only the list price changed"]);
+      expect(r.body.plans.map((p: any) => p.listPriceMinor)).toEqual([0, 299, 699]);
+      const catalog = (await h.app.inject({ method: "GET", url: "/v2/mojo/catalog" })).json();
+      expect(catalog.plans.map((p: any) => p.listPriceMinor)).toEqual([0, 299, 699]);
+      const audit = h.ctx.db.prepare("SELECT reason, detail FROM platform_audit WHERE action = 'mojo.prices_update' ORDER BY id DESC LIMIT 1").get() as any;
+      expect(audit.reason).toBe("Owner's plan prices for launch");
+      expect(JSON.parse(audit.detail)).toMatchObject({ goBefore: 199, goAfter: 299, plusBefore: 499, plusAfter: 699, provider: "none" });
+      // Saving the limits keeps the prices: they change only here.
+      expect((await save({ enforce: "on", plans: { go: { bots: 5 } } })).body.plans.find((p: any) => p.key === "go").listPriceMinor).toBe(299);
+      await put({ go: 199, plus: 499 });
+    });
+
     it("hand enforcement back to the environment, and show gifts and Sparks as metadata", async () => {
       const r = await save({});
-      expect(r.body).toMatchObject({ enforced: false, enforce: { console: null, effective: "auto" }, overrides: { plans: {}, levels: {} } });
+      expect(r.body).toMatchObject({ enforced: false, enforce: { console: null, effective: "auto" }, overrides: { levels: {} } });
       expect(h.ctx.mojo.limitsOf("u_nobody")).toBeNull();
       const gifts = await as("billing_admin").expect(200, "GET", "/admin/v1/billing/gifts");
       expect(AdminMojoGiftsPage.safeParse(gifts).success).toBe(true);

@@ -21,6 +21,7 @@ import {
   AdminBillingMetricsQuery,
   AdminMojoAccountParams,
   AdminMojoControlsBody,
+  AdminMojoPricesBody,
   AdminMojoGiftsQuery,
   AdminMojoGrantBody,
   AdminMojoGrantParams,
@@ -85,6 +86,10 @@ export default async function adminOpsRoutes(app: FastifyInstance, d: AdminDeps)
   });
   app.get("/admin/v1/billing/subscriptions", needs("billing.view"), async (req) => billing.subscriptions(parse(AdminSubscriptionsQuery, req.query)));
   app.get("/admin/v1/billing/subscriptions/:subscriptionId", needs("billing.view"), async (req) => billing.subscription(parse(AdminSubscriptionParams, req.params).subscriptionId));
+  app.get("/admin/v1/billing/subscriptions/:subscriptionId/compare", needs("billing.view"), async (req) => billing.compare(parse(AdminSubscriptionParams, req.params).subscriptionId));
+  app.post("/admin/v1/billing/subscriptions/:subscriptionId/resync", needs("billing.manage"), async (req) =>
+    billing.resync(principal(req), parse(AdminSubscriptionParams, req.params).subscriptionId, parse(AdminReasonBody, req.body).reason, metaOf(req)),
+  );
   app.get("/admin/v1/billing/events", needs("billing.view"), async (req) => billing.events(parse(AdminBillingEventsQuery, req.query)));
   app.post("/admin/v1/billing/events/:eventId/replay", needs("billing.events.replay"), async (req) => {
     const { eventId } = parse(AdminBillingEventParams, req.params);
@@ -103,6 +108,7 @@ export default async function adminOpsRoutes(app: FastifyInstance, d: AdminDeps)
   app.get("/admin/v1/billing/accounts/:accountId", needs("billing.view"), async (req) => mojo.account(principal(req), parse(AdminMojoAccountParams, req.params).accountId));
   app.get("/admin/v1/billing/mojo", needs("billing.view"), async () => mojo.controls());
   app.put("/admin/v1/billing/mojo", needs("billing.manage"), async (req) => mojo.setControls(principal(req), parse(AdminMojoControlsBody, req.body), metaOf(req)));
+  app.put("/admin/v1/billing/mojo/prices", needs("billing.manage"), async (req) => mojo.setPrices(principal(req), parse(AdminMojoPricesBody, req.body), metaOf(req)));
   app.get("/admin/v1/billing/gifts", needs("billing.view"), async (req) => mojo.gifts(principal(req), parse(AdminMojoGiftsQuery, req.query)));
   app.get("/admin/v1/billing/sparks", needs("billing.view"), async () => mojo.sparks());
 

@@ -74,6 +74,35 @@ function suite(name: string, env: Record<string, string>) {
       await expectStatus(member.req("PATCH", `/v2/developer/bots/${first.bot.id}`, { public: false }), 404);
     });
 
+    it("locks the newest bots beyond the plan after a downgrade, deleting nothing, while plan limits apply", async () => {
+      const owner = await h.client("downgrader");
+      const t = Date.now();
+      // Mojo Go for a day (4 bots), as a gift would give it.
+      await h.ctx.billing.rows.write((w) =>
+        w.insert("billing_grants", { id: `grt_bots_${t}`, account_id: `acc_bots_${t}`, user_id: owner.userId, plan_key: "go", source: "gift", reference: `gft_bots_${t}`, starts_at: t - 1000, ends_at: t + 86_400_000, created_at: t }),
+      );
+      const made = [];
+      for (const name of ["One", "Two", "Three"]) made.push(await owner.req("POST", "/v2/developer/bots", { name }));
+      await h.ctx.billing.rows.write((w) => w.update("billing_grants", { id: `grt_bots_${t}` }, { ends_at: t }));
+      // Back on Free (2 bots): nothing is locked until plan limits are enforced.
+      expect((await owner.req("GET", "/v2/developer/bots")).bots.map((b: { locked: boolean }) => b.locked)).toEqual([false, false, false]);
+      await h.ctx.billing.mojoControls.save({ enforce: "on", plans: {}, levels: {} }, "test", Date.now());
+      try {
+        const list = await owner.req("GET", "/v2/developer/bots");
+        expect(list).toMatchObject({ limit: 2, plan: "free" });
+        const locked = Object.fromEntries(list.bots.map((b: { id: string; locked: boolean }) => [b.id, b.locked]));
+        expect(made.map((m) => locked[m.bot.id])).toEqual([false, false, true]);
+        expect((await botReq(made[0].token, "GET", "/v2/bot/me")).status).toBe(200);
+        const refused = await botReq(made[2].token, "GET", "/v2/bot/me");
+        expect(refused).toMatchObject({ status: 403, body: { error: { code: "bot_locked" } } });
+        // Deleting an older bot makes room: the locked one acts again.
+        await owner.req("DELETE", `/v2/developer/bots/${made[0].bot.id}`);
+        expect((await botReq(made[2].token, "GET", "/v2/bot/me")).status).toBe(200);
+      } finally {
+        await h.ctx.billing.mojoControls.save({ enforce: null, plans: {}, levels: {} }, "test", Date.now());
+      }
+    });
+
     it("accepts a bot token only as Authorization: Bot on /v2/bot, and a rotated token at once", async () => {
       const bot = await newBot();
       expect(await botReq(bot.token, "GET", "/v2/bot/me")).toMatchObject({ status: 200, body: { bot: { id: bot.id, ownerId: bot.owner.userId } } });

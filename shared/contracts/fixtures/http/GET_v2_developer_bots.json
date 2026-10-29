@@ -8,7 +8,8 @@
       "createdAt": 1793283155395,
       "tokenRotatedAt": 1793283155395,
       "commands": 0,
-      "communities": 0
+      "communities": 0,
+      "locked": false
     },
     {
       "id": "u_OUdyI8oe49x64usv6zI1UQ",
@@ -18,7 +19,8 @@
       "createdAt": 1793283155406,
       "tokenRotatedAt": 1793283155406,
       "commands": 0,
-      "communities": 0
+      "communities": 0,
+      "locked": false
     }
   ],
   "limit": 2,

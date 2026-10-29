@@ -35,7 +35,7 @@ export class BotService {
     return new Map(namesOf(this.ctx.identity, ids).map((n) => [n.id, { username: n.username, displayName: n.displayName }]));
   }
 
-  private view(b: Bot, names: Names): z.infer<typeof DeveloperBot> {
+  private view(b: Bot, names: Names, locked: ReadonlySet<string> = new Set()): z.infer<typeof DeveloperBot> {
     const n = names.get(b.id);
     return {
       id: b.id,
@@ -46,6 +46,7 @@ export class BotService {
       tokenRotatedAt: b.tokenRotatedAt,
       commands: b.commands.length,
       communities: membershipsOf(this.ctx.ws, b.id).length,
+      locked: locked.has(b.id),
     };
   }
 
@@ -71,7 +72,20 @@ export class BotService {
   async list(ownerId: string) {
     const bots = await this.store.botsOf(ownerId);
     const names = this.names(bots.map((b) => b.id));
-    return { bots: bots.map((b) => this.view(b, names)), ...this.quota(ownerId) };
+    const locked = this.lockedAmong(ownerId, bots);
+    return { bots: bots.map((b) => this.view(b, names, locked)), ...this.quota(ownerId) };
+  }
+
+  /**
+   * [ownerId]'s bots beyond what their plan allows now, newest first locked (docs/PLANS.md › Downgrades): a downgrade
+   * deletes nothing, but those bots can't act until the owner upgrades or deletes others. Only while plan limits are
+   * enforced (MOJO_ENFORCE), as with every other plan limit.
+   */
+  private lockedAmong(ownerId: string, bots: readonly Bot[]): Set<string> {
+    const limits = this.ctx.mojo.limitsOf(ownerId);
+    if (!limits || bots.length <= limits.bots) return new Set();
+    const oldestFirst = [...bots].sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    return new Set(oldestFirst.slice(limits.bots).map((b) => b.id));
   }
 
   async create(ownerId: string, body: z.infer<typeof BotCreateBody>) {
@@ -126,7 +140,11 @@ export class BotService {
   async authenticate(token: string): Promise<Bot | null> {
     if (!token.startsWith(`${BOT_TOKEN_PREFIX}_`) || token.length > 200) return null;
     const bot = await this.store.botByToken(secretHash(token));
-    return bot && !this.ctx.accounts.identityBlocked(bot.id) ? bot : null;
+    if (!bot || this.ctx.accounts.identityBlocked(bot.id)) return null;
+    if (this.lockedAmong(bot.ownerId, await this.store.botsOf(bot.ownerId)).has(bot.id)) {
+      throw new ApiError(403, "bot_locked", "This bot is beyond its owner's plan. The owner can upgrade, or delete another bot, to unlock it.");
+    }
+    return bot;
   }
 
   /** A bot as someone about to add it sees it: public bots, or your own. */

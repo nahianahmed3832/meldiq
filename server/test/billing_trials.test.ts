@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { trialConfig } from "../src/modules/billing/config.js";
 import { Grants } from "../src/modules/billing/grants.js";
 import { StripeProvider, type StripeApi } from "../src/modules/billing/providers/stripe.js";
-import { MOJO_PRICES, publishMojoPlans, stripeSetup, type StripeSetupApi } from "../src/modules/billing/stripeSetup.js";
+import { MOJO_PRICES, publishMojoPlans, stripeSetMojoPrices, stripeSetup, type StripeSetupApi } from "../src/modules/billing/stripeSetup.js";
 import { AccountEntitlements, PublicPlans, ReferralInfo } from "../src/shared/contracts/http/billing.js";
 import { AccountClient, email, MemoryMailer, PASSWORD } from "./support/accounts.js";
 import { expectStatus, type Harness, startServer } from "./support/harness.js";
@@ -94,8 +94,8 @@ describe("with trials and invite links", () => {
     expect(plans.plans.map((p: any) => [p.key, p.name, p.amountMinor, p.currency, p.interval, p.audience])).toEqual([
       // By name: the Spark add-on, then the plans.
       ["spark", "Meldiq Spark", 99, "USD", "month", "personal"],
-      ["go", "Mojo Go", 99, "USD", "month", "personal"],
-      ["plus", "Mojo Plus", 399, "USD", "month", "personal"],
+      ["go", "Mojo Go", 199, "USD", "month", "personal"],
+      ["plus", "Mojo Plus", 499, "USD", "month", "personal"],
     ]);
     expect(plans.trial).toEqual({ planKey: "plus", days: 14, referralDays: 30, referralYearlyCapDays: 90 });
   });
@@ -197,6 +197,8 @@ class FakeStripeSetup implements StripeSetupApi {
   prices: { id: string; active: boolean; unit_amount: number; currency: string; product: string; lookup_key: string | null; interval: string }[] = [];
   webhooks: { id: string; url: string }[] = [];
   portals: { id: string; products: { product: string; prices: string[] }[] }[] = [];
+  /** Every portal configuration as it was sent. */
+  portalParams: Stripe.BillingPortal.ConfigurationCreateParams[] = [];
   /** Prices someone subscribes to. */
   subscribed = new Set<string>();
   calls: string[] = [];
@@ -264,6 +266,7 @@ class FakeStripeSetup implements StripeSetupApi {
   }
   async createPortalConfiguration(p: Stripe.BillingPortal.ConfigurationCreateParams) {
     this.calls.push("createPortal");
+    this.portalParams.push(p);
     expect(p.features.subscription_cancel).toEqual({ enabled: true, mode: "at_period_end" });
     const c = { id: `bpc_${++this.n}`, products: this.checkPortal(p.features) };
     this.portals.push(c);
@@ -296,8 +299,8 @@ describe("one-command Stripe setup", () => {
       "createPrice:meldiq_mojo_go_monthly",
       "createPrice:meldiq_mojo_plus_monthly",
       "createPrice:meldiq_spark_monthly",
-      "createWebhook",
       "createPortal",
+      "createWebhook",
     ]);
     // Every price on its own product: the portal can switch between Go and Plus (Stripe allows one price per interval
     // and product there), and Sparks are their own line on invoices.
@@ -317,8 +320,8 @@ describe("one-command Stripe setup", () => {
     const api = new FakeStripeSetup();
     api.products.push({ id: "prod_old_mojo", active: true, metadata: { meldiq: "mojo" } }, { id: "prod_old_spark", active: true, metadata: { meldiq: "spark" } });
     api.prices.push(
-      { id: "price_old_go", active: true, unit_amount: 99, currency: "usd", product: "prod_old_mojo", lookup_key: "meldiq_mojo_go_monthly", interval: "month" },
-      { id: "price_old_plus", active: true, unit_amount: 399, currency: "usd", product: "prod_old_mojo", lookup_key: "meldiq_mojo_plus_monthly", interval: "month" },
+      { id: "price_old_go", active: true, unit_amount: 199, currency: "usd", product: "prod_old_mojo", lookup_key: "meldiq_mojo_go_monthly", interval: "month" },
+      { id: "price_old_plus", active: true, unit_amount: 499, currency: "usd", product: "prod_old_mojo", lookup_key: "meldiq_mojo_plus_monthly", interval: "month" },
       { id: "price_old_spark", active: true, unit_amount: 99, currency: "usd", product: "prod_old_spark", lookup_key: "meldiq_spark_monthly", interval: "month" },
     );
     const r = await stripeSetup(api, opts);
@@ -337,16 +340,45 @@ describe("one-command Stripe setup", () => {
   it("won't move a price someone already subscribes to", async () => {
     const api = new FakeStripeSetup();
     api.products.push({ id: "prod_old_mojo", active: true, metadata: { meldiq: "mojo" } });
-    api.prices.push({ id: "price_old_go", active: true, unit_amount: 99, currency: "usd", product: "prod_old_mojo", lookup_key: "meldiq_mojo_go_monthly", interval: "month" });
+    api.prices.push({ id: "price_old_go", active: true, unit_amount: 199, currency: "usd", product: "prod_old_mojo", lookup_key: "meldiq_mojo_go_monthly", interval: "month" });
     api.subscribed.add("price_old_go");
     await expect(stripeSetup(api, opts)).rejects.toThrow(/price_old_go.*subscri/);
     expect(api.prices.find((p) => p.id === "price_old_go")!.active).toBe(true);
   });
 
-  it("refuses to sell a price someone made by hand at another amount", async () => {
+  it("sells a new amount as a new price that takes the lookup key; subscribers of the old one keep it", async () => {
+    // The live leftovers of 2026-10-29: Go and Plus at the old $0.99 and $3.99, one with a subscriber.
+    const api = new FakeStripeSetup();
+    api.products.push({ id: "prod_old_mojo", active: true, metadata: { meldiq: "mojo" } });
+    api.prices.push(
+      { id: "price_old_go", active: true, unit_amount: 99, currency: "usd", product: "prod_old_mojo", lookup_key: "meldiq_mojo_go_monthly", interval: "month" },
+      { id: "price_old_plus", active: true, unit_amount: 399, currency: "usd", product: "prod_old_mojo", lookup_key: "meldiq_mojo_plus_monthly", interval: "month" },
+    );
+    api.subscribed.add("price_old_go");
+    const r = await stripeSetup(api, opts);
+    expect(api.prices.filter((p) => p.active).map((p) => [p.lookup_key, p.unit_amount])).toEqual([
+      ["meldiq_mojo_go_monthly", 199],
+      ["meldiq_mojo_plus_monthly", 499],
+      ["meldiq_spark_monthly", 99],
+    ]);
+    // Archived, never deleted: Stripe keeps charging the subscriber the old price.
+    expect(api.prices.find((p) => p.id === "price_old_go")).toMatchObject({ active: false });
+    expect(r.steps.join("\n")).toMatch(/now 1\.99 USD a month .*archived price_old_go; its subscribers keep it/);
+    expect(api.portals[0]!.products.map((p: { prices: string[] }) => p.prices)).toEqual([[r.prices.go], [r.prices.plus]]);
+
+    // The console's price change: prices and the portal only, no webhook.
+    const before = api.calls.length;
+    const changed = await stripeSetMojoPrices(api, opts.siteUrl, { go: 299, plus: 599, spark: 99 });
+    expect(changed.prices.spark).toBe(r.prices.spark);
+    expect(api.prices.filter((p) => p.active).map((p) => p.unit_amount)).toEqual([99, 299, 599]);
+    expect(api.calls.slice(before).filter((c) => /webhook/i.test(c))).toEqual([]);
+  });
+
+  it("invoices an upgrade at once and moves a downgrade to the end of the period in the portal", async () => {
     const api = new FakeStripeSetup();
     await stripeSetup(api, opts);
-    api.prices[0]!.unit_amount = 199;
-    await expect(stripeSetup(api, opts)).rejects.toThrow(/isn't 99 USD cents/);
+    expect(api.portalParams[0]).toMatchObject({
+      features: { subscription_update: { proration_behavior: "always_invoice", schedule_at_period_end: { conditions: [{ type: "decreasing_item_amount" }] } } },
+    });
   });
 });

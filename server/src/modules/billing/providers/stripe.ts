@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { type MojoAmounts, type StripeSetupApi, stripeSetMojoPrices, stripeSetupApi } from "../stripeSetup.js";
 import { isSubscriptionStatus, type SubscriptionStatus } from "../lifecycle.js";
 import {
   type BillingProvider,
@@ -67,6 +68,8 @@ export interface StripeOptions {
   allowPromotionCodes: boolean;
   /** Stands in for Stripe's API in tests. */
   api?: StripeApi;
+  /** Stands in for Stripe's product and price API in tests (price changes, stripeSetup.ts). */
+  setupApi?: StripeSetupApi;
 }
 
 /** Test or live, from the key's own prefix (sk_test_ / rk_test_ / sk_live_ / rk_live_). */
@@ -216,6 +219,7 @@ export class StripeProvider implements BillingProvider {
   readonly id = "stripe";
   readonly mode: "test" | "live";
   private readonly api: StripeApi;
+  private readonly setupApi: StripeSetupApi;
   private readonly webhooks = Stripe.webhooks;
 
   constructor(private readonly opts: StripeOptions) {
@@ -223,7 +227,14 @@ export class StripeProvider implements BillingProvider {
     if (!mode) throw new Error("STRIPE_SECRET_KEY is not a Stripe secret or restricted key");
     this.mode = mode;
     // The SDK pins its API version (2026-09-30.endive for stripe 23.0.0); Meldiq reads only fields that version has.
-    this.api = opts.api ?? stripeApi(new Stripe(opts.secretKey, { maxNetworkRetries: 2, timeout: 20_000, appInfo: { name: "Meldiq" } }));
+    const client = new Stripe(opts.secretKey, { maxNetworkRetries: 2, timeout: 20_000, appInfo: { name: "Meldiq" } });
+    this.api = opts.api ?? stripeApi(client);
+    this.setupApi = opts.setupApi ?? stripeSetupApi(client);
+  }
+
+  async setMojoPrices(siteUrl: string, amounts: MojoAmounts) {
+    const { prices, steps } = await stripeSetMojoPrices(this.setupApi, siteUrl, amounts);
+    return { prices, steps };
   }
 
   verifyWebhook(headers: Readonly<Record<string, string | string[] | undefined>>, rawBody: string, now: number): NormalizedEvent {

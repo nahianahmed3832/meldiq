@@ -4,8 +4,10 @@
  * prices here; what a checkout charges is always the billing catalog's published version (docs/BILLING.md).
  *
  * Units are decimal, as people read them: 1 MB = 1,000,000 bytes, 1 GB = 1,000,000,000 bytes. "2K" is 2560×1440.
+ *
+ * Plan numbers: the owner's Free/Go/Plus spec of 2026-10-30 (docs/PLANS.md), replacing those of 2026-10-28.
  */
-export const CATALOG_VERSION = "2026-10-28.1";
+export const CATALOG_VERSION = "2026-10-30.1";
 
 export const PLAN_KEYS = ["free", "go", "plus"] as const;
 export type PlanKey = (typeof PLAN_KEYS)[number];
@@ -34,6 +36,7 @@ export const SCREEN_PRESETS = {
   "1080p30": { id: "1080p30", label: "1080p 30 fps", width: 1920, height: 1080, fps: 30 },
   "1080p60": { id: "1080p60", label: "1080p 60 fps", width: 1920, height: 1080, fps: 60 },
   "1440p30": { id: "1440p30", label: "2K (1440p) 30 fps", width: 2560, height: 1440, fps: 30 },
+  "1440p60": { id: "1440p60", label: "2K (1440p) 60 fps", width: 2560, height: 1440, fps: 60 },
 } as const satisfies Record<string, { id: string; label: string; width: number; height: number; fps: number }>;
 export type ScreenPresetId = keyof typeof SCREEN_PRESETS;
 
@@ -56,8 +59,8 @@ export interface PlanPerks {
   /** Custom emoji and stickers this account may have added across communities (one pool). */
   customItems: number;
   /**
-   * Bots an account may own, and how its directory submissions are queued. Meldiq has no bots yet (docs/MOJO.md ›
-   * Not built): these are the agreed numbers, kept here for when it does; clients don't list them as a benefit.
+   * Bots an account may own (API 0.65.0 built bots), and how its directory submissions are queued. Bots beyond the
+   * limit after a downgrade are locked, oldest kept (bots/service.ts).
    */
   bots: number;
   botReview: "regular" | "priority";
@@ -65,15 +68,15 @@ export interface PlanPerks {
 
 export const PLAN_PERKS: Readonly<Record<PlanKey, PlanPerks>> = {
   free: {
-    key: "free", name: "Free", listPriceMinor: 0, messageChars: 1000, uploadBytes: 50 * MB, screen: ["720p30"], sparks: 0, badge: null, check: false,
+    key: "free", name: "Free", listPriceMinor: 0, messageChars: 2000, uploadBytes: 50 * MB, screen: ["720p60"], sparks: 0, badge: null, check: false,
     customItems: 20, bots: 2, botReview: "regular",
   },
   go: {
-    key: "go", name: "Mojo Go", listPriceMinor: 99, messageChars: 2000, uploadBytes: 200 * MB, screen: ["720p60", "1080p30"], sparks: 1, badge: "go", check: false,
+    key: "go", name: "Mojo Go", listPriceMinor: 199, messageChars: 4000, uploadBytes: 500 * MB, screen: ["1080p60"], sparks: 1, badge: "go", check: false,
     customItems: 50, bots: 4, botReview: "regular",
   },
   plus: {
-    key: "plus", name: "Mojo Plus", listPriceMinor: 399, messageChars: 5000, uploadBytes: 2 * GB, screen: ["1080p60", "1440p30"], sparks: 2, badge: "plus", check: true,
+    key: "plus", name: "Mojo Plus", listPriceMinor: 499, messageChars: 8000, uploadBytes: 2 * GB, screen: ["1440p60"], sparks: 2, badge: "plus", check: true,
     customItems: 250, bots: 10, botReview: "priority",
   },
 };

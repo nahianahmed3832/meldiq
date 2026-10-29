@@ -14,8 +14,11 @@ import { type LinkedAccountsConfig, linkedAccountsConfig } from "../modules/link
 
 const SEVEN_DAYS_S = 7 * 24 * 3600;
 const MiB = 1024 * 1024;
-/** The default per-file limit (Orbit 2.0): 1 GiB of the person's file, before encryption. */
-export const DEFAULT_FILE_MAX_BYTES = 1024 * MiB;
+/**
+ * The default per-file limit: 2 GB (decimal) of the person's file, before encryption, so Mojo Plus's largest file
+ * (docs/PLANS.md) fits. Each plan's own limit applies below it (billing/mojo.ts). Was 1 GiB until API 0.66.0.
+ */
+export const DEFAULT_FILE_MAX_BYTES = 2_000_000_000;
 /** Room for encryption overhead on top of the file limit: the chunked format adds 16 bytes per 1 MiB chunk. */
 const ENCRYPTION_HEADROOM_BYTES = MiB;
 

@@ -53,7 +53,7 @@ export function mojoRoutes(app: FastifyInstance, ctx: AppContext, h: MojoRouteHe
       return o ? { currency: o.currency, amountMinor: o.amountMinor } : null;
     };
     return {
-      ...catalogView(ctx.billing.mojoControls.plans(), ctx.billing.mojoControls.levels(), ctx.billing.mojoControls.version()),
+      ...catalogView(ctx.mojo.plans(), ctx.mojo.levels(), ctx.billing.mojoControls.version()),
       enforced: ctx.mojo.enforced(),
       onSale: {
         mode: ctx.billing.provider?.mode ?? null,

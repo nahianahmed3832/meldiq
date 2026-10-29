@@ -5,9 +5,11 @@ import { type FakeS3, startFakeS3 } from "./support/fakeS3.js";
 import type { GriipClient } from "./support/griipClient.js";
 import { expectStatus, type Harness, startServer } from "./support/harness.js";
 
-// Orbit 2.0 file limit: 1 GiB of the person's file, uploaded straight to S3 in parts (docs/ORBIT_2_ARCHITECTURE §7).
+// The server's file limit: 2 GB of the person's file since API 0.66.0 (Mojo Plus's largest file, docs/PLANS.md; 1 GiB
+// before), uploaded straight to S3 in parts (docs/ORBIT_2_ARCHITECTURE §7). The test names keep "1 GiB" as before.
 const MiB = 1024 * 1024;
 const GiB = 1024 * MiB;
+const FILE_MAX = 2_000_000_000;
 const creds = { accessKeyId: "AKIDFILES1G", secretAccessKey: "files-1g-test-secret" };
 const anySha = crypto.createHash("sha256").update("x").digest("base64");
 /** Ciphertext size of a file in the chunked format: 16 bytes of tag per started 1 MiB chunk. */
@@ -16,11 +18,11 @@ const encryptedSize = (plain: number) => plain + 16 * Math.max(Math.ceil(plain /
 describe("the 1 GiB limit in configuration", () => {
   it("defaults to exactly 1,073,741,824 bytes with room for encryption on top", () => {
     const c = loadConfig({ DATA_DIR: "/tmp/orbit-config-test" } as NodeJS.ProcessEnv);
-    expect(DEFAULT_FILE_MAX_BYTES).toBe(1_073_741_824);
-    expect(c.fileMaxBytes).toBe(GiB);
-    expect(c.attachmentMaxBytes).toBe(GiB + MiB);
-    expect(encryptedSize(GiB)).toBeLessThanOrEqual(c.attachmentMaxBytes);
-    expect(effectiveFileMaxBytes(c)).toBe(GiB);
+    expect(DEFAULT_FILE_MAX_BYTES).toBe(FILE_MAX);
+    expect(c.fileMaxBytes).toBe(FILE_MAX);
+    expect(c.attachmentMaxBytes).toBe(FILE_MAX + MiB);
+    expect(encryptedSize(FILE_MAX)).toBeLessThanOrEqual(c.attachmentMaxBytes);
+    expect(effectiveFileMaxBytes(c)).toBe(FILE_MAX);
     expect(c.directUploads.sessionSeconds).toBe(24 * 3600);
   });
 
@@ -33,7 +35,7 @@ describe("the 1 GiB limit in configuration", () => {
 
   it("has no file upload limits other than 1 GiB per file (owner's decision, UI-003)", () => {
     const c = loadConfig({ DATA_DIR: "/tmp/orbit-config-test" } as NodeJS.ProcessEnv);
-    expect(c.fileMaxBytes).toBe(GiB);
+    expect(c.fileMaxBytes).toBe(FILE_MAX);
     // 0 means no limit: no daily, stored, total, kept, new-account or hourly upload quotas.
     expect([c.attachmentUserDailyBytes, c.attachmentUserStoredBytes, c.attachmentTotalBytes, c.attachmentUserKeptBytes]).toEqual([0, 0, 0, 0]);
     expect([c.abuse.newAccountDailyBytes, c.abuse.newAccountStoredBytes, c.abuse.newAccountsTotalBytes, c.abuse.uploadStartsPerHour]).toEqual([0, 0, 0, 0]);
@@ -82,15 +84,15 @@ describe("1 GiB uploads straight to S3", () => {
 
   it("advertises the limit and the feature", async () => {
     const info = await alice.req("GET", "/v1/server-info");
-    expect(info.fileMaxBytes).toBe(GiB);
-    expect(info.attachmentMaxBytes).toBe(GiB + MiB);
+    expect(info.fileMaxBytes).toBe(FILE_MAX);
+    expect(info.attachmentMaxBytes).toBe(FILE_MAX + MiB);
     expect(info.features).toEqual(expect.arrayContaining(["files-1g", "direct-upload", "accounts-v2"]));
     expect(info.api).toBe(2);
     expect(info.minClientApi).toBe(1);
   });
 
   it("starts a multipart upload for an encrypted 1 GiB file, and refuses one byte over the limit", async () => {
-    const size = encryptedSize(GiB);
+    const size = encryptedSize(FILE_MAX);
     const s = await alice.req("POST", "/v1/attachments/uploads", { conversationId: dm, size, sha256: anySha });
     expect(s.mode).toBe("multipart");
     expect(s.partCount).toBe(Math.ceil(size / s.partSize));
@@ -102,7 +104,7 @@ describe("1 GiB uploads straight to S3", () => {
     // Cancelling removes it from the store.
     await alice.req("DELETE", `/v1/attachments/uploads/${s.uploadId}`);
     await expectStatus(alice.req("GET", `/v1/attachments/uploads/${s.uploadId}/parts`), 404);
-    const tooBig = await expectStatus(alice.req("POST", "/v1/attachments/uploads", { conversationId: dm, size: GiB + MiB + 1, sha256: anySha }), 413);
+    const tooBig = await expectStatus(alice.req("POST", "/v1/attachments/uploads", { conversationId: dm, size: FILE_MAX + MiB + 1, sha256: anySha }), 413);
     expect(tooBig.error.code).toBe("too_large");
   });
 

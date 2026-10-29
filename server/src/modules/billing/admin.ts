@@ -25,10 +25,11 @@ function pageAfter<R extends { id: string }>(rows: R[], time: (r: R) => number, 
   return rest.sort((a, b) => time(b) - time(a) || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0)).slice(0, limit + 1);
 }
 
-export function subscriptionRows(rows: RowReader, q: { status?: string; plan?: string; org?: string; after?: After; limit: number }): SubscriptionRow[] {
+export function subscriptionRows(rows: RowReader, q: { status?: string; plan?: string; org?: string; account?: string; after?: After; limit: number }): SubscriptionRow[] {
   const where: Where = { ...afterWhere("created_at", q.after) };
   if (q.status) where.status = q.status;
   if (q.org) where.org_id = q.org;
+  if (q.account) where.account_id = q.account;
   if (q.plan) {
     const plan = rows.get<{ id: string }>("billing_plans", { key: q.plan });
     where.plan_version_id = { in: plan ? rows.all<{ id: string }>("billing_plan_versions", { where: { plan_id: plan.id } }).map((v) => v.id) : [] };

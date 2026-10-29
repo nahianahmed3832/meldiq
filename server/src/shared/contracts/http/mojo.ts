@@ -7,7 +7,7 @@ import { zCount, zTime } from "./primitives.js";
  * (modules/billing/perks.ts); what a person has is worked out on the server from verified billing only.
  */
 const zPlanKey = z.enum(["free", "go", "plus"]);
-const zPresetId = z.enum(["720p30", "720p60", "1080p30", "1080p60", "1440p30"]);
+const zPresetId = z.enum(["720p30", "720p60", "1080p30", "1080p60", "1440p30", "1440p60"]);
 const zId = z.string().min(1).max(64);
 
 export const zPlanPerks = z.strictObject({

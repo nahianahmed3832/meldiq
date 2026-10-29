@@ -1,6 +1,7 @@
 import Stripe from "stripe";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { addMonths } from "../src/modules/billing/gifts.js";
+import { Mojo } from "../src/modules/billing/mojo.js";
 import { ciphertextCeilingB64, MB, PLAN_PERKS, screenAllows, sparkLevel, unionPresets } from "../src/modules/billing/perks.js";
 import { STRIPE_SIGNATURE_HEADER, StripeProvider, type StripeApi } from "../src/modules/billing/providers/stripe.js";
 import { MAX_CIPHERTEXT_B64 } from "../src/shared/contracts/http/messaging.js";
@@ -116,8 +117,8 @@ describe("Meldiq Mojo", () => {
       { BILLING_PROVIDER: "stripe", STRIPE_SECRET_KEY: SK, STRIPE_WEBHOOK_SECRET: WHSEC, BILLING_RETURN_URL: RETURN, BILLING_WEB_RETURN_URL: WEB_RETURN, WORKFLOW_TICK_MS: "0" },
       { mailer, billingProvider: provider },
     );
-    await publish("go", "price_go", 99);
-    await publish("plus", "price_plus", 399);
+    await publish("go", "price_go", 199);
+    await publish("plus", "price_plus", 499);
     await publish("spark", "price_spark", 99);
     [free, go, plus, friend] = await Promise.all(["free", "goer", "pluser", "friend"].map((n) => AccountClient.ready(h.baseUrl, mailer, n)));
     orgId = (await free.req("POST", "/v1/orgs", { name: "Spark Lab" })).org.id;
@@ -136,9 +137,9 @@ describe("Meldiq Mojo", () => {
       const c = res.json();
       expect(MojoCatalog.safeParse(c).success).toBe(true);
       expect(c.plans.map((p: any) => [p.key, p.messageChars, p.uploadBytes, p.sparks, p.customItems, p.bots, p.badge, p.check])).toEqual([
-        ["free", 1000, 50 * MB, 0, 20, 2, null, false],
-        ["go", 2000, 200 * MB, 1, 50, 4, "go", false],
-        ["plus", 5000, 2_000_000_000, 2, 250, 10, "plus", true],
+        ["free", 2000, 50 * MB, 0, 20, 2, null, false],
+        ["go", 4000, 500 * MB, 1, 50, 4, "go", false],
+        ["plus", 8000, 2_000_000_000, 2, 250, 10, "plus", true],
       ]);
       expect(c.spark.levels.map((l: any) => [l.level, l.sparks, l.emojiSlots, l.uploadBytes, l.voiceKbps, l.screen])).toEqual([
         [0, 0, 50, null, 48, []],
@@ -147,7 +148,14 @@ describe("Meldiq Mojo", () => {
         [2, 5, 200, 200 * MB, 256, ["1080p60"]],
         [3, 8, 500, 2_000_000_000, 384, ["1080p60", "1440p30"]],
       ]);
-      expect(c.onSale).toEqual({ mode: "test", go: { currency: "USD", amountMinor: 99 }, plus: { currency: "USD", amountMinor: 399 }, spark: { currency: "USD", amountMinor: 99 }, gifts: true });
+      expect(c.onSale).toEqual({ mode: "test", go: { currency: "USD", amountMinor: 199 }, plus: { currency: "USD", amountMinor: 499 }, spark: { currency: "USD", amountMinor: 99 }, gifts: true });
+    });
+
+    it("never offers a larger file than the server takes (FILE_MAX_BYTES)", () => {
+      const capped = new Mojo(h.ctx.billing, h.ctx.billing.rows, { isMember: () => false, enforce: "on", maxUploadBytes: 1_073_741_824 });
+      expect(Object.values(capped.plans()).map((p) => p.uploadBytes)).toEqual([50 * MB, 500 * MB, 1_073_741_824]);
+      expect(capped.levels().map((l) => l.uploadBytes)).toEqual([null, 50 * MB, 200 * MB, 1_073_741_824]);
+      expect(capped.uploadBytes("u_nobody", null)).toBe(50 * MB);
     });
 
     it("works out limits the same way everywhere", () => {
@@ -160,6 +168,9 @@ describe("Meldiq Mojo", () => {
       expect([0, 1, 2, 4, 5, 7, 8, 20].map((n) => sparkLevel(n).level)).toEqual([0, 0, 1, 1, 2, 2, 3, 3]);
       expect(ciphertextCeilingB64(PLAN_PERKS.plus.messageChars, MAX_CIPHERTEXT_B64)).toBeLessThanOrEqual(MAX_CIPHERTEXT_B64);
       expect(ciphertextCeilingB64(1000, MAX_CIPHERTEXT_B64)).toBeLessThan(ciphertextCeilingB64(5000, MAX_CIPHERTEXT_B64));
+      // One ceiling per plan (2026-10-30) covers every smaller share: Plus's 2K 60 includes 1080p 60 and 720p 30.
+      expect(screenAllows(["1440p60"], 1920, 1080, 60)).toBe(true);
+      expect(screenAllows(["1080p60"], 2560, 1440, 30)).toBe(false);
       expect(new Date(addMonths(Date.UTC(2026, 0, 31), 1)).toISOString().slice(0, 10)).toBe("2026-02-28");
       expect(new Date(addMonths(Date.UTC(2026, 9, 28), 12)).toISOString().slice(0, 10)).toBe("2027-10-28");
     });
@@ -170,7 +181,7 @@ describe("Meldiq Mojo", () => {
       expect((await me(free)).plan).toBe("free");
       expect((await me(go)).plan).toBe("go");
       const p = await me(plus);
-      expect(p).toMatchObject({ plan: "plus", perks: { messageChars: 5000 }, badge: { kind: "plus", check: true, hidden: false } });
+      expect(p).toMatchObject({ plan: "plus", perks: { messageChars: 8000 }, badge: { kind: "plus", check: true, hidden: false } });
     });
 
     it("answers a device session too (linked before email sign-in), and asks it to sign in with email to buy", async () => {
@@ -247,8 +258,8 @@ describe("Meldiq Mojo", () => {
     it("bounds the encrypted size of messages by plan, whatever the client says", async () => {
       const dm = (await free.req("POST", "/v1/conversations/dm", { userId: plus.userId })).conversation.id;
       await free.send(dm, { type: "text", text: "hello" });
-      await expectStatus(free.send(dm, { type: "text", text: "x".repeat(40_000) }), 413);
-      await plus.send(dm, { type: "text", text: "x".repeat(40_000) });
+      await expectStatus(free.send(dm, { type: "text", text: "x".repeat(60_000) }), 413);
+      await plus.send(dm, { type: "text", text: "x".repeat(60_000) });
     });
 
     it("refuses a file larger than the plan before reading it, and a community's Sparks raise it", async () => {
@@ -269,9 +280,9 @@ describe("Meldiq Mojo", () => {
     });
 
     it("gives everyone in a boosted server its screen shares and voice, never less than their own plan", () => {
-      expect(h.ctx.mojo.screenPresets(free.userId, null)).toEqual(["720p30"]);
-      expect(h.ctx.mojo.screenPresets(free.userId, orgId)).toEqual(["720p30", "1080p60"]);
-      expect(h.ctx.mojo.screenPresets(plus.userId, null)).toEqual(["1080p60", "1440p30"]);
+      expect(h.ctx.mojo.screenPresets(free.userId, null)).toEqual(["720p60"]);
+      expect(h.ctx.mojo.screenPresets(free.userId, orgId)).toEqual(["720p60", "1080p60"]);
+      expect(h.ctx.mojo.screenPresets(plus.userId, null)).toEqual(["1440p60"]);
       expect(h.ctx.mojo.voiceKbps(null)).toBe(48);
     });
   });
@@ -345,7 +356,7 @@ describe("Meldiq Mojo", () => {
       expect(session.params).toMatchObject({
         mode: "payment",
         client_reference_id: started.giftId,
-        line_items: [{ quantity: 1, price_data: { currency: "usd", unit_amount: 399 * 3 } }],
+        line_items: [{ quantity: 1, price_data: { currency: "usd", unit_amount: 499 * 3 } }],
         success_url: `${WEB_RETURN}?gift=success`,
       });
       expect((await me(friend)).gifts.received).toEqual([]);
