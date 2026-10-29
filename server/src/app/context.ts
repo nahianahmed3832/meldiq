@@ -24,6 +24,8 @@ import type { PinService } from "../modules/accounts/pins/service.js";
 import type { PrivacyStore } from "../modules/accounts/relationships/privacyStore.js";
 import type { UsernameHolds } from "../modules/accounts/usernameHolds.js";
 import type { PointsService } from "../modules/points/index.js";
+import type { CreatorService } from "../modules/accounts/creators/service.js";
+import type { LinkedAccountsService } from "../modules/linkedAccounts/index.js";
 import type { PushService } from "../modules/notifications/service.js";
 import type { FcmService } from "../modules/notifications/fcm.js";
 import type { Metrics } from "../modules/administration/ops/metrics.js";
@@ -78,6 +80,10 @@ export interface AppContext {
   usernames: UsernameHolds;
   /** API 0.65.0: points, quests and account levels (modules/points, docs/SETTINGS_PARITY_API.md). */
   points: PointsService;
+  /** API 0.65.0 batch B: creator verification (the Creator badge) and the creator programme. */
+  creators: CreatorService;
+  /** API 0.65.0 batch B: Steam, AniList, Last.fm and Trakt on profiles (feature connections-v2). */
+  linkedAccounts: LinkedAccountsService;
   /** Calls, their participants and raised hands: SQLite, or MongoDB when MONGODB_DOMAINS includes "calls". */
   calls: CallStore;
   /**

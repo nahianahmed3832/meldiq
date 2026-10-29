@@ -89,6 +89,21 @@ The AI Control Center's routes went with AI in API 0.47.0 (`AI_REMOVAL.md`); con
 `decorations.review` is granted to super, operations and support admins. The console's page is Operations ›
 Decorations.
 
+## Creator review (API 0.65.0 batch B, `SETTINGS_PARITY_API.md`)
+
+| Route | Permission | |
+|---|---|---|
+| `GET /admin/v1/creators/verification?status=&before=&limit=` | `creators.review` | channel verification applications (pending by default), with the person, their code line, whether the channel name still matches, and the proof's type and size |
+| `GET /admin/v1/creators/verification/:id/proof` | `creators.review` | the proof screenshot, sandboxed, never cached |
+| `POST /admin/v1/creators/verification/:id/approve` | `creators.review` | approve: the person gets the Creator badge; audited as `creator.verification.approve` |
+| `POST /admin/v1/creators/verification/:id/reject` `{ reason }` | `creators.review` | turn down with a reason the applicant sees; audited |
+| `GET /admin/v1/creators/program?status=&before=&limit=` | `creators.review` | applications to the creator programme, with whether the person is still verified |
+| `POST /admin/v1/creators/program/:id/approve`, `…/reject` `{ reason }` | `creators.review` | decide one; audited as `creator.program.*` |
+| `GET /admin/v1/creators/posts?status=pending\|counted&before=&limit=` | `creators.review` | links programme members sent |
+| `POST /admin/v1/creators/posts/:id/review` `{ counted, rewardNote? }` | `creators.review` | mark a post counted (or not) and note its reward (up to 300 characters; nothing is paid by the server); audited |
+
+`creators.review` is granted to super, operations and support admins. The console has no page for it yet.
+
 ## Bootstrap (the only way to make the first admin)
 
 There is no HTTP route that creates an admin. With root on the VPS:

@@ -103,6 +103,12 @@
     },
     {
       "name": "Mojo"
+    },
+    {
+      "name": "creators"
+    },
+    {
+      "name": "linked-accounts"
     }
   ],
   "paths": {
@@ -12112,6 +12118,7 @@
                                     "mojo",
                                     "bug-hunter",
                                     "artist",
+                                    "creator",
                                     "none"
                                   ]
                                 },
@@ -12210,6 +12217,90 @@
                           "type": "integer",
                           "minimum": 1,
                           "maximum": 9007199254740991
+                        },
+                        "connections": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "provider": {
+                                "type": "string",
+                                "enum": [
+                                  "steam",
+                                  "anilist",
+                                  "lastfm",
+                                  "trakt"
+                                ]
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              },
+                              "itemsKind": {
+                                "type": "string",
+                                "enum": [
+                                  "recently-played",
+                                  "watching",
+                                  "now-playing",
+                                  "top-artists",
+                                  "recently-watched"
+                                ]
+                              },
+                              "items": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "title": {
+                                      "type": "string"
+                                    },
+                                    "subtitle": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "url": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "title",
+                                    "subtitle",
+                                    "url"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "updatedAt": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "provider",
+                              "name",
+                              "url",
+                              "itemsKind",
+                              "items",
+                              "updatedAt"
+                            ],
+                            "additionalProperties": false
+                          }
                         },
                         "privacy": {
                           "type": "object",
@@ -12610,6 +12701,7 @@
                                     "mojo",
                                     "bug-hunter",
                                     "artist",
+                                    "creator",
                                     "none"
                                   ]
                                 },
@@ -12708,6 +12800,90 @@
                           "type": "integer",
                           "minimum": 1,
                           "maximum": 9007199254740991
+                        },
+                        "connections": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "provider": {
+                                "type": "string",
+                                "enum": [
+                                  "steam",
+                                  "anilist",
+                                  "lastfm",
+                                  "trakt"
+                                ]
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              },
+                              "itemsKind": {
+                                "type": "string",
+                                "enum": [
+                                  "recently-played",
+                                  "watching",
+                                  "now-playing",
+                                  "top-artists",
+                                  "recently-watched"
+                                ]
+                              },
+                              "items": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "title": {
+                                      "type": "string"
+                                    },
+                                    "subtitle": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "url": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "title",
+                                    "subtitle",
+                                    "url"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "updatedAt": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "provider",
+                              "name",
+                              "url",
+                              "itemsKind",
+                              "items",
+                              "updatedAt"
+                            ],
+                            "additionalProperties": false
+                          }
                         },
                         "privacy": {
                           "type": "object",
@@ -13977,6 +14153,7 @@
                                 "mojo",
                                 "bug-hunter",
                                 "artist",
+                                "creator",
                                 "none"
                               ]
                             },
@@ -14146,6 +14323,7 @@
                           "mojo",
                           "bug-hunter",
                           "artist",
+                          "creator",
                           "none"
                         ]
                       },
@@ -14656,6 +14834,7 @@
                                     "mojo",
                                     "bug-hunter",
                                     "artist",
+                                    "creator",
                                     "none"
                                   ]
                                 },
@@ -14754,6 +14933,90 @@
                           "type": "integer",
                           "minimum": 1,
                           "maximum": 9007199254740991
+                        },
+                        "connections": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "provider": {
+                                "type": "string",
+                                "enum": [
+                                  "steam",
+                                  "anilist",
+                                  "lastfm",
+                                  "trakt"
+                                ]
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              },
+                              "itemsKind": {
+                                "type": "string",
+                                "enum": [
+                                  "recently-played",
+                                  "watching",
+                                  "now-playing",
+                                  "top-artists",
+                                  "recently-watched"
+                                ]
+                              },
+                              "items": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "title": {
+                                      "type": "string"
+                                    },
+                                    "subtitle": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "url": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "title",
+                                    "subtitle",
+                                    "url"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "updatedAt": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "provider",
+                              "name",
+                              "url",
+                              "itemsKind",
+                              "items",
+                              "updatedAt"
+                            ],
+                            "additionalProperties": false
+                          }
                         },
                         "privacy": {
                           "type": "object",
@@ -23655,6 +23918,7 @@
                                       "mojo",
                                       "bug-hunter",
                                       "artist",
+                                      "creator",
                                       "none"
                                     ]
                                   },
@@ -25883,6 +26147,7 @@
                                           "mojo",
                                           "bug-hunter",
                                           "artist",
+                                          "creator",
                                           "none"
                                         ]
                                       },
@@ -26787,6 +27052,7 @@
                                             "mojo",
                                             "bug-hunter",
                                             "artist",
+                                            "creator",
                                             "none"
                                           ]
                                         },
@@ -37686,6 +37952,7 @@
                                             "mojo",
                                             "bug-hunter",
                                             "artist",
+                                            "creator",
                                             "none"
                                           ]
                                         },
@@ -38568,6 +38835,7 @@
                                           "mojo",
                                           "bug-hunter",
                                           "artist",
+                                          "creator",
                                           "none"
                                         ]
                                       },
@@ -39390,6 +39658,7 @@
                                           "mojo",
                                           "bug-hunter",
                                           "artist",
+                                          "creator",
                                           "none"
                                         ]
                                       },
@@ -40154,6 +40423,7 @@
                                       "mojo",
                                       "bug-hunter",
                                       "artist",
+                                      "creator",
                                       "none"
                                     ]
                                   },
@@ -40909,6 +41179,7 @@
                                           "mojo",
                                           "bug-hunter",
                                           "artist",
+                                          "creator",
                                           "none"
                                         ]
                                       },
@@ -41911,6 +42182,7 @@
                                           "mojo",
                                           "bug-hunter",
                                           "artist",
+                                          "creator",
                                           "none"
                                         ]
                                       },
@@ -42729,6 +43001,7 @@
                                           "mojo",
                                           "bug-hunter",
                                           "artist",
+                                          "creator",
                                           "none"
                                         ]
                                       },
@@ -43815,6 +44088,7 @@
                                                     "mojo",
                                                     "bug-hunter",
                                                     "artist",
+                                                    "creator",
                                                     "none"
                                                   ]
                                                 },
@@ -44630,6 +44904,7 @@
                                                     "mojo",
                                                     "bug-hunter",
                                                     "artist",
+                                                    "creator",
                                                     "none"
                                                   ]
                                                 },
@@ -52342,6 +52617,1600 @@
           }
         }
       }
+    },
+    "/v2/creators/verification": {
+      "get": {
+        "tags": [
+          "creators"
+        ],
+        "summary": "Your code line, the rules, whether you're a verified creator, and your applications.",
+        "operationId": "getV2CreatorsVerification",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "codeLine": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "rules": {
+                      "type": "object",
+                      "properties": {
+                        "minFollowers": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "nameMatches": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "username",
+                              "displayName"
+                            ]
+                          }
+                        },
+                        "platforms": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "youtube",
+                              "tiktok",
+                              "twitch",
+                              "instagram",
+                              "x"
+                            ]
+                          }
+                        },
+                        "notesMax": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "proofMaxBytes": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "proofTypes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "minFollowers",
+                        "nameMatches",
+                        "platforms",
+                        "notesMax",
+                        "proofMaxBytes",
+                        "proofTypes"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "verified": {
+                      "type": "boolean"
+                    },
+                    "applications": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "platform": {
+                            "type": "string",
+                            "enum": [
+                              "youtube",
+                              "tiktok",
+                              "twitch",
+                              "instagram",
+                              "x"
+                            ]
+                          },
+                          "channelName": {
+                            "type": "string"
+                          },
+                          "link": {
+                            "type": "string"
+                          },
+                          "notes": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "pending",
+                              "approved",
+                              "rejected"
+                            ]
+                          },
+                          "reason": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "createdAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "reviewedAt": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "platform",
+                          "channelName",
+                          "link",
+                          "notes",
+                          "status",
+                          "reason",
+                          "createdAt",
+                          "reviewedAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "codeLine",
+                    "rules",
+                    "verified",
+                    "applications"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "creators"
+        ],
+        "summary": "Apply to verify a channel: the form as query parameters and a PNG, JPEG or WebP screenshot (up to 4 MB) of the channel with its follower count as application/octet-stream. One open application at a time.",
+        "operationId": "postV2CreatorsVerification",
+        "parameters": [
+          {
+            "name": "platform",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "youtube",
+                "tiktok",
+                "twitch",
+                "instagram",
+                "x"
+              ]
+            }
+          },
+          {
+            "name": "channelName",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "link",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 300
+            }
+          },
+          {
+            "name": "notes",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 500
+            }
+          },
+          {
+            "name": "bioLineConfirmed",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "true"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "application": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "platform": {
+                          "type": "string",
+                          "enum": [
+                            "youtube",
+                            "tiktok",
+                            "twitch",
+                            "instagram",
+                            "x"
+                          ]
+                        },
+                        "channelName": {
+                          "type": "string"
+                        },
+                        "link": {
+                          "type": "string"
+                        },
+                        "notes": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "pending",
+                            "approved",
+                            "rejected"
+                          ]
+                        },
+                        "reason": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "reviewedAt": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "platform",
+                        "channelName",
+                        "link",
+                        "notes",
+                        "status",
+                        "reason",
+                        "createdAt",
+                        "reviewedAt"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "application"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: application_open, creator_name_mismatch, too_large, storage_unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/creators/program": {
+      "get": {
+        "tags": [
+          "creators"
+        ],
+        "summary": "The creator programme's steps (verified, applied, approved), your application and your posts.",
+        "operationId": "getV2CreatorsProgram",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "steps": {
+                      "type": "object",
+                      "properties": {
+                        "verified": {
+                          "type": "boolean"
+                        },
+                        "applied": {
+                          "type": "boolean"
+                        },
+                        "approved": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "verified",
+                        "applied",
+                        "approved"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "application": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "pending",
+                                "approved",
+                                "rejected"
+                              ]
+                            },
+                            "reason": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "createdAt": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "reviewedAt": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "status",
+                            "reason",
+                            "createdAt",
+                            "reviewedAt"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "posts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string"
+                          },
+                          "platform": {
+                            "type": "string",
+                            "enum": [
+                              "youtube",
+                              "tiktok",
+                              "twitch",
+                              "instagram",
+                              "x"
+                            ]
+                          },
+                          "views": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "counted": {
+                            "type": "boolean"
+                          },
+                          "rewardNote": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "createdAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "reviewedAt": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "url",
+                          "platform",
+                          "views",
+                          "counted",
+                          "rewardNote",
+                          "createdAt",
+                          "reviewedAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "steps",
+                    "application",
+                    "posts"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/creators/program/apply": {
+      "post": {
+        "tags": [
+          "creators"
+        ],
+        "summary": "Apply to the creator programme (verified creators only; one open application at a time).",
+        "operationId": "postV2CreatorsProgramApply",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "application": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "pending",
+                            "approved",
+                            "rejected"
+                          ]
+                        },
+                        "reason": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "reviewedAt": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "status",
+                        "reason",
+                        "createdAt",
+                        "reviewedAt"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "application"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_verified_creator, application_open, conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/creators/posts": {
+      "get": {
+        "tags": [
+          "creators"
+        ],
+        "summary": "The posts you sent to the creator programme, newest first.",
+        "operationId": "getV2CreatorsPosts",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "posts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string"
+                          },
+                          "platform": {
+                            "type": "string",
+                            "enum": [
+                              "youtube",
+                              "tiktok",
+                              "twitch",
+                              "instagram",
+                              "x"
+                            ]
+                          },
+                          "views": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "counted": {
+                            "type": "boolean"
+                          },
+                          "rewardNote": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "createdAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "reviewedAt": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "url",
+                          "platform",
+                          "views",
+                          "counted",
+                          "rewardNote",
+                          "createdAt",
+                          "reviewedAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "posts"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "creators"
+        ],
+        "summary": "Send a link to something you made about Meldiq (approved programme members who are still verified).",
+        "operationId": "postV2CreatorsPosts",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "post": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string"
+                        },
+                        "platform": {
+                          "type": "string",
+                          "enum": [
+                            "youtube",
+                            "tiktok",
+                            "twitch",
+                            "instagram",
+                            "x"
+                          ]
+                        },
+                        "views": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "counted": {
+                          "type": "boolean"
+                        },
+                        "rewardNote": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "reviewedAt": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "url",
+                        "platform",
+                        "views",
+                        "counted",
+                        "rewardNote",
+                        "createdAt",
+                        "reviewedAt"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "post"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_in_creator_program, conflict, limit_reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "platform": {
+                    "type": "string",
+                    "enum": [
+                      "youtube",
+                      "tiktok",
+                      "twitch",
+                      "instagram",
+                      "x"
+                    ]
+                  },
+                  "views": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10000000000
+                  }
+                },
+                "required": [
+                  "url",
+                  "platform"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/connections": {
+      "get": {
+        "tags": [
+          "linked-accounts"
+        ],
+        "summary": "Steam, AniList, Last.fm and Trakt: which this server can connect, which you connected, and what your profile shows from each.",
+        "operationId": "getV2Connections",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "connections": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "provider": {
+                            "type": "string",
+                            "enum": [
+                              "steam",
+                              "anilist",
+                              "lastfm",
+                              "trakt"
+                            ]
+                          },
+                          "available": {
+                            "type": "boolean"
+                          },
+                          "connected": {
+                            "type": "boolean"
+                          },
+                          "visible": {
+                            "type": "boolean"
+                          },
+                          "account": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "provider": {
+                                    "type": "string",
+                                    "enum": [
+                                      "steam",
+                                      "anilist",
+                                      "lastfm",
+                                      "trakt"
+                                    ]
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "url": {
+                                    "type": "string"
+                                  },
+                                  "itemsKind": {
+                                    "type": "string",
+                                    "enum": [
+                                      "recently-played",
+                                      "watching",
+                                      "now-playing",
+                                      "top-artists",
+                                      "recently-watched"
+                                    ]
+                                  },
+                                  "items": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "title": {
+                                          "type": "string"
+                                        },
+                                        "subtitle": {
+                                          "anyOf": [
+                                            {
+                                              "type": "string"
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        },
+                                        "url": {
+                                          "anyOf": [
+                                            {
+                                              "type": "string"
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        }
+                                      },
+                                      "required": [
+                                        "title",
+                                        "subtitle",
+                                        "url"
+                                      ],
+                                      "additionalProperties": false
+                                    }
+                                  },
+                                  "updatedAt": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
+                                "required": [
+                                  "provider",
+                                  "name",
+                                  "url",
+                                  "itemsKind",
+                                  "items",
+                                  "updatedAt"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "connectedAt": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "provider",
+                          "available",
+                          "connected",
+                          "visible",
+                          "account",
+                          "connectedAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "connections"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/connections/{provider}/start": {
+      "post": {
+        "tags": [
+          "linked-accounts"
+        ],
+        "summary": "Start connecting: the provider's sign-in page to send the browser to (valid for 10 minutes, once).",
+        "operationId": "postV2ConnectionsProviderStart",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "steam",
+                "anilist",
+                "lastfm",
+                "trakt"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "url"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: connection_unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/connections/{provider}/callback": {
+      "get": {
+        "tags": [
+          "linked-accounts"
+        ],
+        "summary": "Where the provider sends the browser back. Redirects (302) to the web app's /settings/profile with ?connected=<provider>, or ?connectionError=<state|denied|failed|unavailable>&provider=<provider>.",
+        "operationId": "getV2ConnectionsProviderCallback",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "steam",
+                "anilist",
+                "lastfm",
+                "trakt"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "The bytes (or 302 to a storage URL)",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v2/connections/{provider}": {
+      "put": {
+        "tags": [
+          "linked-accounts"
+        ],
+        "summary": "Show or hide a connected account on your profile.",
+        "operationId": "putV2ConnectionsProvider",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "steam",
+                "anilist",
+                "lastfm",
+                "trakt"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "connection": {
+                      "type": "object",
+                      "properties": {
+                        "provider": {
+                          "type": "string",
+                          "enum": [
+                            "steam",
+                            "anilist",
+                            "lastfm",
+                            "trakt"
+                          ]
+                        },
+                        "available": {
+                          "type": "boolean"
+                        },
+                        "connected": {
+                          "type": "boolean"
+                        },
+                        "visible": {
+                          "type": "boolean"
+                        },
+                        "account": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "provider": {
+                                  "type": "string",
+                                  "enum": [
+                                    "steam",
+                                    "anilist",
+                                    "lastfm",
+                                    "trakt"
+                                  ]
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "url": {
+                                  "type": "string"
+                                },
+                                "itemsKind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "recently-played",
+                                    "watching",
+                                    "now-playing",
+                                    "top-artists",
+                                    "recently-watched"
+                                  ]
+                                },
+                                "items": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "title": {
+                                        "type": "string"
+                                      },
+                                      "subtitle": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "url": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "title",
+                                      "subtitle",
+                                      "url"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "updatedAt": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "provider",
+                                "name",
+                                "url",
+                                "itemsKind",
+                                "items",
+                                "updatedAt"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "connectedAt": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "provider",
+                        "available",
+                        "connected",
+                        "visible",
+                        "account",
+                        "connectedAt"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "connection"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "visible": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "visible"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "linked-accounts"
+        ],
+        "summary": "Disconnect: Meldiq forgets the account and its tokens (Trakt is also asked to revoke them).",
+        "operationId": "deleteV2ConnectionsProvider",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "steam",
+                "anilist",
+                "lastfm",
+                "trakt"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "connection": {
+                      "type": "object",
+                      "properties": {
+                        "provider": {
+                          "type": "string",
+                          "enum": [
+                            "steam",
+                            "anilist",
+                            "lastfm",
+                            "trakt"
+                          ]
+                        },
+                        "available": {
+                          "type": "boolean"
+                        },
+                        "connected": {
+                          "type": "boolean"
+                        },
+                        "visible": {
+                          "type": "boolean"
+                        },
+                        "account": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "provider": {
+                                  "type": "string",
+                                  "enum": [
+                                    "steam",
+                                    "anilist",
+                                    "lastfm",
+                                    "trakt"
+                                  ]
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "url": {
+                                  "type": "string"
+                                },
+                                "itemsKind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "recently-played",
+                                    "watching",
+                                    "now-playing",
+                                    "top-artists",
+                                    "recently-watched"
+                                  ]
+                                },
+                                "items": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "title": {
+                                        "type": "string"
+                                      },
+                                      "subtitle": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "url": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "title",
+                                      "subtitle",
+                                      "url"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "updatedAt": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "provider",
+                                "name",
+                                "url",
+                                "itemsKind",
+                                "items",
+                                "updatedAt"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "connectedAt": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "provider",
+                        "available",
+                        "connected",
+                        "visible",
+                        "account",
+                        "connectedAt"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "connection"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -52368,6 +54237,7 @@
                   "already_migrated",
                   "answer_required",
                   "application_required",
+                  "application_open",
                   "archived",
                   "bad_clock",
                   "account_limited",
@@ -52394,6 +54264,8 @@
                   "channel_not_public",
                   "confirm_mismatch",
                   "conflict",
+                  "connection_unavailable",
+                  "creator_name_mismatch",
                   "delegation_required",
                   "device_key_retired",
                   "device_mismatch",
@@ -52462,6 +54334,8 @@
                   "migration_closed",
                   "mode_not_supported",
                   "not_enough_points",
+                  "not_verified_creator",
+                  "not_in_creator_program",
                   "no_key_backup",
                   "not_archived",
                   "not_available",
@@ -52648,6 +54522,12 @@
       ],
       "meaning": "This community asks a few questions first: apply to join"
     },
+    "application_open": {
+      "status": [
+        409
+      ],
+      "meaning": "You already have an application waiting for review."
+    },
     "archived": {
       "status": [
         409
@@ -52805,6 +54685,18 @@
         409
       ],
       "meaning": "The request conflicts with the current state."
+    },
+    "connection_unavailable": {
+      "status": [
+        409
+      ],
+      "meaning": "Connecting that service isn't set up on this server yet."
+    },
+    "creator_name_mismatch": {
+      "status": [
+        400
+      ],
+      "meaning": "The channel's name has to match your username or display name."
     },
     "delegation_required": {
       "status": [
@@ -53213,6 +55105,18 @@
         409
       ],
       "meaning": "You don't have enough points for that yet."
+    },
+    "not_verified_creator": {
+      "status": [
+        403
+      ],
+      "meaning": "Verify your channel first: the creator programme is for verified creators."
+    },
+    "not_in_creator_program": {
+      "status": [
+        403
+      ],
+      "meaning": "Posts are for approved members of the creator programme who are still verified."
     },
     "no_key_backup": {
       "status": [

@@ -118,7 +118,8 @@ export default async function userRoutes(app: FastifyInstance, ctx: AppContext) 
   app.get("/v1/users/me", auth, async (req) => {
     const { userId, deviceId } = me(req);
     const u = ctx.identity.get<any>("users", { id: userId });
-    return { user: meView(u), deviceId };
+    // API 0.65.0 batch B: the linked accounts you show (refreshed in the background when stale).
+    return { user: { ...meView(u), ...(await ctx.linkedAccounts.profileField(userId, false)) }, deviceId };
   });
 
   // The person's own profile. Every field is optional; null clears it. Hidden fields stay stored (privacy decides who
@@ -316,6 +317,8 @@ export default async function userRoutes(app: FastifyInstance, ctx: AppContext) 
         ...(ctx.decorations.isArtist(u.id) ? { decorationArtist: true as const } : {}),
         // API 0.64.0: pins (Meldiq's for milestones, communities' own); someone they blocked sees none.
         ...pinsField(r.blockedByTarget ? [] : ctx.pins.profilePins(u.id, viewer)),
+        // API 0.65.0 batch B: Steam, AniList, Last.fm and Trakt, the ones they show (none for someone they blocked).
+        ...(await ctx.linkedAccounts.profileField(u.id, r.blockedByTarget)),
       },
     };
   });

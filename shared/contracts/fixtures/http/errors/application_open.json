@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "application_open",
+    "message": "You already have an application waiting for review."
+  }
+}

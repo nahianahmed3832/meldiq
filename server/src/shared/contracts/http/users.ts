@@ -2,6 +2,7 @@ import { z } from "zod/v4";
 import { ProfilePin } from "./pins.js";
 import { ActivityWire, PresenceState } from "../realtime.js";
 import { UserIdParams, zName, zUsername } from "./auth.js";
+import { ProfileConnection } from "./linkedAccounts.js";
 import { idParams, zTime } from "./primitives.js";
 import { route } from "./route.js";
 
@@ -122,9 +123,10 @@ export const NAME_EFFECTS = ["glow", "shimmer"] as const;
 const zHex = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 /**
  * API 0.65.0: badges someone can choose to show next to their name: their Mojo plan's, Bug Hunter (a confirmed bug
- * report) and Artist (an approved decoration). All are derived on read, never granted by hand.
+ * report), Artist (an approved decoration) and Creator (a verified channel, batch B). All are derived on read, never
+ * granted by hand.
  */
-export const SHOWABLE_BADGES = ["mojo", "bug-hunter", "artist"] as const;
+export const SHOWABLE_BADGES = ["mojo", "bug-hunter", "artist", "creator"] as const;
 export type ShowableBadge = (typeof SHOWABLE_BADGES)[number];
 /**
  * A decoration: a classic frame (PROFILE_DECORATIONS), or since API 0.61.0 one of Meldiq's own or an approved community
@@ -226,6 +228,8 @@ const profileFields = {
   badges: z.array(z.enum(["bug-hunter"])).optional(),
   /** API 0.65.0: the account level bought with points (1 for everyone who hasn't levelled up). */
   level: z.number().int().min(1).optional(),
+  /** API 0.65.0 batch B: Steam, AniList, Last.fm and Trakt accounts the person shows; absent when none (or they blocked you). */
+  connections: z.array(ProfileConnection).optional(),
 };
 /** Only in the person's own profile. */
 const ownFields = {

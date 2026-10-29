@@ -17,13 +17,15 @@ Meldiq's own), `server/src/modules/platformAdmin/decorations.ts` (the review que
 
 ## Meldiq's own
 
-68 decorations drawn for Meldiq in `server/scripts/decorations/` (SVG built in code, nothing traced or copied):
+116 decorations drawn for Meldiq in `server/scripts/decorations/` (SVG built in code, nothing traced or copied):
 the classics (flames, crown, halo, horns, cat ears, wings, headphones, laurel, snow, hearts, stars, lightning, glow,
 rainbow, fire, ice, gold, sparkle, galaxy, neon rings, heartbeat, toxic) and themes people like in community-made
 decorations elsewhere, drawn from scratch (starry night, smoke, lace, thorns, blossom, black cats, chains, glitter,
 clouds, blood moon, bows, a "gg" bubble, acid, star orbit, circlet, money, crows, bat wings, static, inferno, toast,
 shooting stars, moonlit orb, doodle notes, glitch, censored, look here, bubbles, autumn leaves, a gamepad,
 **Meldling's ears**, sunflower, vines, roses, ocean, bunny ears, confetti, a gamer headset, a witch hat, mint glow).
+48 more in `server/scripts/decorations/extra.mjs` add further community favourites, again drawn from scratch: HUDs,
+neon, pride bands, Halloween pumpkins, ears and tails, weather, a katana, a crate and more.
 Ones built on someone else's brand or character (an operating system's logo, a game's blocks, a meme cat) were left out.
 
 `node scripts/render-decorations.mjs` (in `server/`, needs the `sharp` dev dependency) renders each to

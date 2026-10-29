@@ -91,6 +91,9 @@ import { MemoryUsernameHoldStore } from "../modules/accounts/usernameHoldStore.j
 import { MongoUsernameHoldStore } from "../modules/accounts/mongoUsernameHoldStore.js";
 import { MemoryPointsStore, MongoPointsStore, PointsService, pointsRoutes } from "../modules/points/index.js";
 import leaveManyRoutes from "../modules/organizations/leaveMany.js";
+import creatorRoutes from "../modules/accounts/creators/routes.js";
+import { CreatorService, openCreatorStores } from "../modules/accounts/creators/service.js";
+import { LinkedAccountsService, linkedAccountRoutes } from "../modules/linkedAccounts/index.js";
 import { ActivityService } from "../modules/accounts/activity/service.js";
 import { MemoryActivityStore } from "../modules/accounts/activity/store.js";
 import { MongoActivityStore } from "../modules/accounts/activity/mongoStore.js";
@@ -276,6 +279,10 @@ export async function buildApp(
   if (pointsStore instanceof MongoPointsStore) await pointsStore.ensureIndexes();
   ctx.points = new PointsService(ctx, pointsStore);
   await ctx.points.load();
+  // API 0.65.0 batch B (docs/SETTINGS_PARITY_API.md): creators and linked accounts, new data too.
+  ctx.creators = new CreatorService(ctx, await openCreatorStores(ctx));
+  await ctx.creators.load();
+  ctx.linkedAccounts = await LinkedAccountsService.open(ctx);
   ctx.reportSealer = ReportSealer.load(process.env, config.dataDir);
   // Billing (plans, subscriptions, Meldiq Spark, gifts): rows in SQLite, or MongoDB when MONGODB_DOMAINS includes it.
   ctx.billing = new Billing(await openBillingRows(db, ctx.mongo, app.log), config.billing, app.log, Date.now, (id) => ctx.quotas.planExists(id));
@@ -503,7 +510,7 @@ export async function buildApp(
     passkeys: ctx.accounts.passkeys.available ? { webOrigins: ctx.accounts.passkeys.webOrigins } : null,
   }));
 
-  for (const r of [authRoutes, userRoutes, profileMediaRoutes, gifRoutes, bugReportRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, serverMessagesRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, activityRoutes, decorationRoutes, pinRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, expressionRoutes, discordRoutes, leaveManyRoutes, pointsRoutes, wsRoutes]) {
+  for (const r of [authRoutes, userRoutes, profileMediaRoutes, gifRoutes, bugReportRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, serverMessagesRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, activityRoutes, decorationRoutes, pinRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, expressionRoutes, discordRoutes, leaveManyRoutes, pointsRoutes, creatorRoutes, linkedAccountRoutes, wsRoutes]) {
     await app.register(async (scope) => r(scope, ctx));
   }
   await app.register(async (scope) => opsRoutes(scope, ctx, VERSION));
@@ -654,6 +661,11 @@ export function serverFeatures(config: Config, directUploads = false): string[] 
     "username-holds",
     "decoration-favorites",
     "points",
+    // API 0.65.0 batch B: creator verification with the Creator badge, the creator programme, and Steam, AniList,
+    // Last.fm and Trakt on profiles (each provider says whether it's available in GET /v2/connections).
+    "creator-verification",
+    "creator-program",
+    "connections-v2",
   ];
   if (config.accounts.legacy.migration) f.push("legacy-migration");
   if (directUploads) f.push("direct-upload");

@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "creator_name_mismatch",
+    "message": "The channel's name has to match your username or display name."
+  }
+}

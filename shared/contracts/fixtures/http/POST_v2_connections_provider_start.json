@@ -1,0 +1,3 @@
+{
+  "url": "https://steamcommunity.com/openid/login?openid.ns=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0&openid.mode=checkid_setup&openid.return_to=https%3A%2F%2Fapi.meldiq.test%2Fv2%2Fconnections%2Fsteam%2Fcallback%3Fstate%3DWyJ1X3ZRRmV3bXE3N1g0M0M1aFFLbVpPM3ciLCJzdGVhbSIsIlFiSENEV09fdUlKd2drcjhKckx6bUhwUE9RUWVXV3A3IiwxNzkzMjgyOTkxNjk3XQ.HcERNESqGyUq25hxszHE2kRqi2zzMuE70PSckjWDqDo&openid.realm=https%3A%2F%2Fapi.meldiq.test&openid.identity=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select&openid.claimed_id=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select"
+}

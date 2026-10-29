@@ -14,6 +14,8 @@ export function holdsBadge(ctx: AppContext, userId: string, badge: ShowableBadge
       return isBugHunter(ctx.safety, userId);
     case "artist":
       return !!ctx.decorations?.isArtist(userId);
+    case "creator":
+      return !!ctx.creators?.isVerified(userId);
   }
 }
 
