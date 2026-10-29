@@ -22,9 +22,9 @@ function tube(a0, a1, dist, size, fill, n = 48) {
 }
 
 /** A pair of shapes drawn for the right side, mirrored onto the left about the centre line. */
-const pair = (deg, dist, rot, k, shape) => g(place(...at(deg, dist), rot, k), shape) + g(`translate(${S} 0) scale(-1 1)`, g(place(...at(deg, dist), rot, k), shape));
+export const pair = (deg, dist, rot, k, shape) => g(place(...at(deg, dist), rot, k), shape) + g(`translate(${S} 0) scale(-1 1)`, g(place(...at(deg, dist), rot, k), shape));
 
-const pumpkin = (s, face) =>
+export const pumpkin = (s, face) =>
   `<path d="M0 ${f(-s * 0.7)} Q${f(s * 0.05)} ${f(-s * 1.05)} ${f(s * 0.32)} ${f(-s * 1.12)}" stroke="#4f6b22" stroke-width="${f(s * 0.22)}" stroke-linecap="round" fill="none"/>` +
   [-1, 1].map((d) => `<ellipse cx="${f(d * s * 0.42)}" rx="${f(s * 0.6)}" ry="${f(s * 0.76)}" fill="#e8721c" stroke="#9a420a" stroke-width="${f(s * 0.07)}"/>`).join("") +
   `<ellipse rx="${f(s * 0.46)}" ry="${f(s * 0.82)}" fill="#f78f2a" stroke="#9a420a" stroke-width="${f(s * 0.07)}"/>` +
