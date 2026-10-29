@@ -49,6 +49,8 @@ export const PERMISSIONS = [
   "billing.events.replay",
   // Profile decorations people send in (docs/PROFILE_DECORATIONS.md): the review queue.
   "decorations.review",
+  // Creator verification, the creator programme and its posts (docs/SETTINGS_PARITY_API.md, batch B).
+  "creators.review",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -113,6 +115,7 @@ const GRANTS: Readonly<Record<PlatformRole, ReadonlySet<Permission>>> = {
     "alerts.manage",
     "exports.create",
     "decorations.review",
+    "creators.review",
   ]),
   support_admin: new Set<Permission>([
     "overview.view",
@@ -135,6 +138,7 @@ const GRANTS: Readonly<Record<PlatformRole, ReadonlySet<Permission>>> = {
     "quotas.view",
     "billing.view",
     "decorations.review",
+    "creators.review",
   ]),
   billing_admin: new Set<Permission>([
     "overview.view",

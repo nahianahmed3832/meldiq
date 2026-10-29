@@ -121,9 +121,10 @@ export const NAME_EFFECTS = ["glow", "shimmer"] as const;
 const zHex = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 /**
  * API 0.65.0: badges someone can choose to show next to their name: their Mojo plan's, Bug Hunter (a confirmed bug
- * report) and Artist (an approved decoration). All are derived on read, never granted by hand.
+ * report), Artist (an approved decoration) and Creator (a verified channel, batch B). All are derived on read, never
+ * granted by hand.
  */
-export const SHOWABLE_BADGES = ["mojo", "bug-hunter", "artist"] as const;
+export const SHOWABLE_BADGES = ["mojo", "bug-hunter", "artist", "creator"] as const;
 export type ShowableBadge = (typeof SHOWABLE_BADGES)[number];
 /**
  * A decoration: a classic frame (PROFILE_DECORATIONS), or since API 0.61.0 one of Meldiq's own or an approved community

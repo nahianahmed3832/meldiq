@@ -15,6 +15,7 @@ import { historyRoutes } from "./history.js";
 import { messagingRoutes } from "./messaging.js";
 import { serverMessagesRoutes } from "./serverMessages.js";
 import { systemRoutes } from "./system.js";
+import { creatorRoutes } from "./creators.js";
 import type { RouteContract } from "./route.js";
 
 export type { RouteContract } from "./route.js";
@@ -45,4 +46,5 @@ export const ROUTE_CONTRACTS: readonly RouteContract[] = [
   ...conversationsRoutes,
   ...billingRoutes,
   ...mojoRoutes,
+  ...creatorRoutes,
 ];
