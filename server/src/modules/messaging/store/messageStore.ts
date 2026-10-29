@@ -71,10 +71,23 @@ export interface MessageStore {
   search(conversationIds: readonly string[], query: string, limit: number): Promise<MessageEvent[]>;
   /** For each conversation: its newest message, this person's read position, and unread messages and mentions since. */
   summaries(conversationIds: readonly string[], userId: string, cap: number): Promise<ConversationSummary[]>;
+  /**
+   * Community parity A1: the changes of one [type] that point at [targetId] (everyone's, oldest first): which emoji a
+   * message's reactions hold.
+   */
+  changesTo(conversationId: string, targetId: string, type: string): Promise<MessageEvent[]>;
+  /** Community parity A1: whether a message after [since] replies in the thread of [rootId] (the thread exists). */
+  threadHasReplies(conversationId: string, rootId: string, since: number): Promise<boolean>;
   /** Every event of a deleted conversation. */
   deleteConversation(conversationId: string): Promise<number>;
   /** Counts for the operator (no content). */
   stats(): Promise<{ messages: number; changes: number }>;
+}
+
+/** The thread a stored message replies in, or null. */
+export function threadRootOf(e: { payload: string }): string | null {
+  const root = (JSON.parse(e.payload) as { threadRoot?: unknown }).threadRoot;
+  return typeof root === "string" ? root : null;
 }
 
 /** Whether a stored message mentions [userId] or everyone. */
@@ -202,6 +215,18 @@ export class SqliteMessageStore implements MessageStore {
       const rows = newer.all(id, userId, up, cap) as { payload: string; mention_all: number }[];
       return { conversation_id: id, last: (last.get(id) as MessageEvent | undefined) ?? null, read_up_to: up, unread: rows.length, mentions: rows.filter((r) => mentionsOf(r, userId)).length };
     });
+  }
+
+  async changesTo(conversationId: string, targetId: string, type: string): Promise<MessageEvent[]> {
+    return this.db
+      .prepare(`SELECT ${COLUMNS} FROM message_events WHERE conversation_id = ? AND cls = 'control' AND target = ? AND type = ? AND audience = 'all' ORDER BY server_ts, id`)
+      .all(conversationId, targetId, type) as MessageEvent[];
+  }
+
+  async threadHasReplies(conversationId: string, rootId: string, since: number): Promise<boolean> {
+    return !!this.db
+      .prepare("SELECT 1 FROM message_events WHERE conversation_id = ? AND cls = 'message' AND server_ts >= ? AND json_extract(payload, '$.threadRoot') = ? LIMIT 1")
+      .get(conversationId, since, rootId);
   }
 
   async deleteConversation(conversationId: string): Promise<number> {

@@ -177,6 +177,12 @@ export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
   discord_imports: "workspace",
   discord_import_items: "workspace",
   onboarding_answers: "workspace",
+  // Community parity A1 (migration 069): @everyone defaults, nicknames, role extras, channel options, stage speakers.
+  community_member_defaults: "workspace",
+  org_nicknames: "workspace",
+  org_role_extras: "workspace",
+  channel_options: "workspace",
+  stage_speakers: "workspace",
   // Batch B6: connections, message requests and who may message you.
   connections: "relationships",
   dm_requests: "relationships",

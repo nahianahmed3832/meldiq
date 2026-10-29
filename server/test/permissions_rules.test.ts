@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { OrgRole } from "../src/modules/organizations/authz.js";
-import { BASE_ROLE_PERMISSIONS, type Permission, PERMISSION_KEYS, PERMISSIONS, ROLE_TEMPLATES, permissionDef } from "../src/modules/organizations/permissions/catalog.js";
+import { BASE_ROLE_PERMISSIONS, EVERYDAY_POWERS, type Permission, PERMISSION_KEYS, PERMISSIONS, ROLE_TEMPLATES, permissionDef } from "../src/modules/organizations/permissions/catalog.js";
 import { type Actor, canActOn, effectivePermissions, type RoleGrant, roleAssignmentRefusal, roleDefinitionRefusal, roleRemovalRefusal } from "../src/modules/organizations/permissions/rules.js";
 import { orgRoleChangeRefusal, removalAllowed, titleChangeAllowed } from "../src/modules/organizations/roleRules.js";
 
@@ -11,6 +11,9 @@ import { orgRoleChangeRefusal, removalAllowed, titleChangeAllowed } from "../src
 const actor = (base: OrgRole, extra: Permission[] = [], denies: Permission[] = []): Actor => ({ base, perms: effectivePermissions(base, [{ permissions: extra, denies }]) });
 const grant = (permissions: Permission[], denies: Permission[] = []): RoleGrant => ({ permissions, denies });
 const member = { base: "MEMBER" as OrgRole, perms: BASE_ROLE_PERMISSIONS.MEMBER, self: false };
+
+/** What a guest holds: posting, files and voice, and the everyday message powers (community parity A1). */
+const GUEST_SET = ["messages.attach", "messages.post", "voice.connect", "voice.speak", ...EVERYDAY_POWERS].sort();
 
 describe("permission catalog", () => {
   it("has a definition for every key and nothing platform-wide", () => {
@@ -32,7 +35,8 @@ describe("permission catalog", () => {
   it("gives members and guests no administrative power by default", () => {
     for (const p of BASE_ROLE_PERMISSIONS.MEMBER) expect([p, permissionDef(p).admin]).toEqual([p, false]);
     // Guests may also join and talk in the voice channels a manager added them to (2026-10-21).
-    expect([...BASE_ROLE_PERMISSIONS.GUEST].sort()).toEqual(["messages.attach", "messages.post", "voice.connect", "voice.speak"]);
+    // Community parity A1: the everyday powers everyone had before they were permissions are in both base sets.
+    expect([...BASE_ROLE_PERMISSIONS.GUEST].sort()).toEqual(GUEST_SET);
   });
 
   it("only uses catalog keys in the starter templates", () => {
@@ -63,7 +67,7 @@ describe("effective permissions", () => {
 
   it("gives guests only what a guest may hold", () => {
     const p = effectivePermissions("GUEST", [grant(["messages.attach", "messages.announce", "channels.manage", "members.remove", "channels.view"])]);
-    expect([...p].sort()).toEqual(["messages.attach", "messages.post", "voice.connect", "voice.speak"]);
+    expect([...p].sort()).toEqual(GUEST_SET);
   });
 
   it("can't restrict an owner, and restricts only restrictable permissions", () => {

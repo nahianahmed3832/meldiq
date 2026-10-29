@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Meldiq API",
-    "version": "0.65.0",
+    "version": "0.66.1",
     "description": "The canonical contract of the Meldiq server (docs/architecture/ARCHITECTURE_1_0_PLAN.md §4), generated from src/shared/contracts. Fields are only ever added within a version; clients ignore unknown fields. Routes not listed here exist but aren't documented yet."
   },
   "servers": [
@@ -61,6 +61,9 @@
     },
     {
       "name": "roles"
+    },
+    {
+      "name": "community-permissions"
     },
     {
       "name": "discord-import"
@@ -24307,6 +24310,9 @@
                                   "type": "integer",
                                   "minimum": -9007199254740991,
                                   "maximum": 9007199254740991
+                                },
+                                "color2": {
+                                  "type": "string"
                                 }
                               },
                               "required": [
@@ -24316,6 +24322,16 @@
                               ],
                               "additionalProperties": false
                             }
+                          },
+                          "nickname": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           }
                         },
                         "required": [
@@ -25955,7 +25971,7 @@
         "tags": [
           "communities"
         ],
-        "summary": "Create a text, forum or voice channel, optionally in a category.",
+        "summary": "Create a text, forum or voice channel, optionally in a category, with its slowmode and options.",
         "operationId": "postV1OrgsOrgIdChannels",
         "parameters": [
           {
@@ -26625,6 +26641,43 @@
                         "canSpeak": {
                           "type": "boolean"
                         },
+                        "options": {
+                          "type": "object",
+                          "properties": {
+                            "textOnly": {
+                              "type": "boolean"
+                            },
+                            "noGifs": {
+                              "type": "boolean"
+                            },
+                            "stage": {
+                              "type": "boolean"
+                            },
+                            "readOnly": {
+                              "type": "boolean"
+                            },
+                            "posterRoleIds": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "speakerIds": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": [
+                            "textOnly",
+                            "noGifs",
+                            "stage",
+                            "readOnly",
+                            "posterRoleIds"
+                          ],
+                          "additionalProperties": false
+                        },
                         "federation": {
                           "anyOf": [
                             {
@@ -26726,7 +26779,7 @@
             }
           },
           "default": {
-            "description": "Error. Codes: not_found, forbidden, conflict",
+            "description": "Error. Codes: not_found, forbidden, conflict, bad_request, feature_disabled",
             "content": {
               "application/json": {
                 "schema": {
@@ -26827,6 +26880,32 @@
                       "text",
                       "forum"
                     ]
+                  },
+                  "slowmodeSec": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "textOnly": {
+                    "type": "boolean"
+                  },
+                  "noGifs": {
+                    "type": "boolean"
+                  },
+                  "stage": {
+                    "type": "boolean"
+                  },
+                  "readOnly": {
+                    "type": "boolean"
+                  },
+                  "posterRoleIds": {
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    }
                   }
                 },
                 "required": [
@@ -27534,6 +27613,43 @@
                           "canSpeak": {
                             "type": "boolean"
                           },
+                          "options": {
+                            "type": "object",
+                            "properties": {
+                              "textOnly": {
+                                "type": "boolean"
+                              },
+                              "noGifs": {
+                                "type": "boolean"
+                              },
+                              "stage": {
+                                "type": "boolean"
+                              },
+                              "readOnly": {
+                                "type": "boolean"
+                              },
+                              "posterRoleIds": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "speakerIds": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "required": [
+                              "textOnly",
+                              "noGifs",
+                              "stage",
+                              "readOnly",
+                              "posterRoleIds"
+                            ],
+                            "additionalProperties": false
+                          },
                           "federation": {
                             "anyOf": [
                               {
@@ -27836,6 +27952,8 @@
                               "members.ban",
                               "members.timeout",
                               "members.approve",
+                              "members.nickname",
+                              "members.nicknames",
                               "roles.view",
                               "roles.manage",
                               "roles.assign",
@@ -27848,6 +27966,18 @@
                               "messages.attach",
                               "messages.announce",
                               "messages.bypass_slowmode",
+                              "messages.react",
+                              "messages.embed",
+                              "messages.voice",
+                              "messages.external_emoji",
+                              "messages.polls",
+                              "messages.big_text",
+                              "messages.mention_all",
+                              "messages.manage",
+                              "messages.history",
+                              "threads.create",
+                              "threads.post",
+                              "threads.manage",
                               "expressions.manage",
                               "voice.connect",
                               "voice.speak",
@@ -27949,6 +28079,8 @@
                                 "members.ban",
                                 "members.timeout",
                                 "members.approve",
+                                "members.nickname",
+                                "members.nicknames",
                                 "roles.view",
                                 "roles.manage",
                                 "roles.assign",
@@ -27961,6 +28093,18 @@
                                 "messages.attach",
                                 "messages.announce",
                                 "messages.bypass_slowmode",
+                                "messages.react",
+                                "messages.embed",
+                                "messages.voice",
+                                "messages.external_emoji",
+                                "messages.polls",
+                                "messages.big_text",
+                                "messages.mention_all",
+                                "messages.manage",
+                                "messages.history",
+                                "threads.create",
+                                "threads.post",
+                                "threads.manage",
                                 "expressions.manage",
                                 "voice.connect",
                                 "voice.speak",
@@ -27987,6 +28131,8 @@
                                 "members.ban",
                                 "members.timeout",
                                 "members.approve",
+                                "members.nickname",
+                                "members.nicknames",
                                 "roles.view",
                                 "roles.manage",
                                 "roles.assign",
@@ -27999,6 +28145,18 @@
                                 "messages.attach",
                                 "messages.announce",
                                 "messages.bypass_slowmode",
+                                "messages.react",
+                                "messages.embed",
+                                "messages.voice",
+                                "messages.external_emoji",
+                                "messages.polls",
+                                "messages.big_text",
+                                "messages.mention_all",
+                                "messages.manage",
+                                "messages.history",
+                                "threads.create",
+                                "threads.post",
+                                "threads.manage",
                                 "expressions.manage",
                                 "voice.connect",
                                 "voice.speak",
@@ -28073,6 +28231,8 @@
                                 "members.ban",
                                 "members.timeout",
                                 "members.approve",
+                                "members.nickname",
+                                "members.nicknames",
                                 "roles.view",
                                 "roles.manage",
                                 "roles.assign",
@@ -28085,6 +28245,18 @@
                                 "messages.attach",
                                 "messages.announce",
                                 "messages.bypass_slowmode",
+                                "messages.react",
+                                "messages.embed",
+                                "messages.voice",
+                                "messages.external_emoji",
+                                "messages.polls",
+                                "messages.big_text",
+                                "messages.mention_all",
+                                "messages.manage",
+                                "messages.history",
+                                "threads.create",
+                                "threads.post",
+                                "threads.manage",
                                 "expressions.manage",
                                 "voice.connect",
                                 "voice.speak",
@@ -28172,6 +28344,8 @@
                                 "members.ban",
                                 "members.timeout",
                                 "members.approve",
+                                "members.nickname",
+                                "members.nicknames",
                                 "roles.view",
                                 "roles.manage",
                                 "roles.assign",
@@ -28184,6 +28358,18 @@
                                 "messages.attach",
                                 "messages.announce",
                                 "messages.bypass_slowmode",
+                                "messages.react",
+                                "messages.embed",
+                                "messages.voice",
+                                "messages.external_emoji",
+                                "messages.polls",
+                                "messages.big_text",
+                                "messages.mention_all",
+                                "messages.manage",
+                                "messages.history",
+                                "threads.create",
+                                "threads.post",
+                                "threads.manage",
                                 "expressions.manage",
                                 "voice.connect",
                                 "voice.speak",
@@ -28210,6 +28396,8 @@
                                 "members.ban",
                                 "members.timeout",
                                 "members.approve",
+                                "members.nickname",
+                                "members.nicknames",
                                 "roles.view",
                                 "roles.manage",
                                 "roles.assign",
@@ -28222,6 +28410,18 @@
                                 "messages.attach",
                                 "messages.announce",
                                 "messages.bypass_slowmode",
+                                "messages.react",
+                                "messages.embed",
+                                "messages.voice",
+                                "messages.external_emoji",
+                                "messages.polls",
+                                "messages.big_text",
+                                "messages.mention_all",
+                                "messages.manage",
+                                "messages.history",
+                                "threads.create",
+                                "threads.post",
+                                "threads.manage",
                                 "expressions.manage",
                                 "voice.connect",
                                 "voice.speak",
@@ -28291,6 +28491,60 @@
                           },
                           "canAssign": {
                             "type": "boolean"
+                          },
+                          "extras": {
+                            "type": "object",
+                            "properties": {
+                              "color2": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "mentionable": {
+                                "type": "boolean"
+                              },
+                              "autoAssign": {
+                                "type": "object",
+                                "properties": {
+                                  "mode": {
+                                    "type": "string",
+                                    "enum": [
+                                      "none",
+                                      "everyone",
+                                      "joined_before"
+                                    ]
+                                  },
+                                  "before": {
+                                    "anyOf": [
+                                      {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 9007199254740991
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "mode",
+                                  "before"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "required": [
+                              "color2",
+                              "mentionable",
+                              "autoAssign"
+                            ],
+                            "additionalProperties": false
                           }
                         },
                         "required": [
@@ -28379,6 +28633,8 @@
                               "members.ban",
                               "members.timeout",
                               "members.approve",
+                              "members.nickname",
+                              "members.nicknames",
                               "roles.view",
                               "roles.manage",
                               "roles.assign",
@@ -28391,6 +28647,18 @@
                               "messages.attach",
                               "messages.announce",
                               "messages.bypass_slowmode",
+                              "messages.react",
+                              "messages.embed",
+                              "messages.voice",
+                              "messages.external_emoji",
+                              "messages.polls",
+                              "messages.big_text",
+                              "messages.mention_all",
+                              "messages.manage",
+                              "messages.history",
+                              "threads.create",
+                              "threads.post",
+                              "threads.manage",
                               "expressions.manage",
                               "voice.connect",
                               "voice.speak",
@@ -28415,6 +28683,190 @@
                         "canManage",
                         "canAssign",
                         "canDelegate"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "everyone": {
+                      "type": "object",
+                      "properties": {
+                        "permissions": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "workspace.edit",
+                              "workspace.usage.view",
+                              "workspace.delete",
+                              "workspace.transfer",
+                              "members.view",
+                              "members.invite",
+                              "members.invites.manage",
+                              "members.roles",
+                              "members.titles",
+                              "members.remove",
+                              "members.ban",
+                              "members.timeout",
+                              "members.approve",
+                              "members.nickname",
+                              "members.nicknames",
+                              "roles.view",
+                              "roles.manage",
+                              "roles.assign",
+                              "roles.delegate",
+                              "channels.view",
+                              "channels.create",
+                              "channels.manage",
+                              "channels.visibility",
+                              "messages.post",
+                              "messages.attach",
+                              "messages.announce",
+                              "messages.bypass_slowmode",
+                              "messages.react",
+                              "messages.embed",
+                              "messages.voice",
+                              "messages.external_emoji",
+                              "messages.polls",
+                              "messages.big_text",
+                              "messages.mention_all",
+                              "messages.manage",
+                              "messages.history",
+                              "threads.create",
+                              "threads.post",
+                              "threads.manage",
+                              "expressions.manage",
+                              "voice.connect",
+                              "voice.speak",
+                              "audit.view",
+                              "reports.view"
+                            ]
+                          }
+                        },
+                        "standard": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "workspace.edit",
+                              "workspace.usage.view",
+                              "workspace.delete",
+                              "workspace.transfer",
+                              "members.view",
+                              "members.invite",
+                              "members.invites.manage",
+                              "members.roles",
+                              "members.titles",
+                              "members.remove",
+                              "members.ban",
+                              "members.timeout",
+                              "members.approve",
+                              "members.nickname",
+                              "members.nicknames",
+                              "roles.view",
+                              "roles.manage",
+                              "roles.assign",
+                              "roles.delegate",
+                              "channels.view",
+                              "channels.create",
+                              "channels.manage",
+                              "channels.visibility",
+                              "messages.post",
+                              "messages.attach",
+                              "messages.announce",
+                              "messages.bypass_slowmode",
+                              "messages.react",
+                              "messages.embed",
+                              "messages.voice",
+                              "messages.external_emoji",
+                              "messages.polls",
+                              "messages.big_text",
+                              "messages.mention_all",
+                              "messages.manage",
+                              "messages.history",
+                              "threads.create",
+                              "threads.post",
+                              "threads.manage",
+                              "expressions.manage",
+                              "voice.connect",
+                              "voice.speak",
+                              "audit.view",
+                              "reports.view"
+                            ]
+                          }
+                        },
+                        "allowed": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "workspace.edit",
+                              "workspace.usage.view",
+                              "workspace.delete",
+                              "workspace.transfer",
+                              "members.view",
+                              "members.invite",
+                              "members.invites.manage",
+                              "members.roles",
+                              "members.titles",
+                              "members.remove",
+                              "members.ban",
+                              "members.timeout",
+                              "members.approve",
+                              "members.nickname",
+                              "members.nicknames",
+                              "roles.view",
+                              "roles.manage",
+                              "roles.assign",
+                              "roles.delegate",
+                              "channels.view",
+                              "channels.create",
+                              "channels.manage",
+                              "channels.visibility",
+                              "messages.post",
+                              "messages.attach",
+                              "messages.announce",
+                              "messages.bypass_slowmode",
+                              "messages.react",
+                              "messages.embed",
+                              "messages.voice",
+                              "messages.external_emoji",
+                              "messages.polls",
+                              "messages.big_text",
+                              "messages.mention_all",
+                              "messages.manage",
+                              "messages.history",
+                              "threads.create",
+                              "threads.post",
+                              "threads.manage",
+                              "expressions.manage",
+                              "voice.connect",
+                              "voice.speak",
+                              "audit.view",
+                              "reports.view"
+                            ]
+                          }
+                        },
+                        "customized": {
+                          "type": "boolean"
+                        },
+                        "updatedAt": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "permissions",
+                        "standard",
+                        "allowed",
+                        "customized",
+                        "updatedAt"
                       ],
                       "additionalProperties": false
                     }
@@ -28532,6 +28984,8 @@
                               "members.ban",
                               "members.timeout",
                               "members.approve",
+                              "members.nickname",
+                              "members.nicknames",
                               "roles.view",
                               "roles.manage",
                               "roles.assign",
@@ -28544,6 +28998,18 @@
                               "messages.attach",
                               "messages.announce",
                               "messages.bypass_slowmode",
+                              "messages.react",
+                              "messages.embed",
+                              "messages.voice",
+                              "messages.external_emoji",
+                              "messages.polls",
+                              "messages.big_text",
+                              "messages.mention_all",
+                              "messages.manage",
+                              "messages.history",
+                              "threads.create",
+                              "threads.post",
+                              "threads.manage",
                               "expressions.manage",
                               "voice.connect",
                               "voice.speak",
@@ -28570,6 +29036,8 @@
                               "members.ban",
                               "members.timeout",
                               "members.approve",
+                              "members.nickname",
+                              "members.nicknames",
                               "roles.view",
                               "roles.manage",
                               "roles.assign",
@@ -28582,6 +29050,18 @@
                               "messages.attach",
                               "messages.announce",
                               "messages.bypass_slowmode",
+                              "messages.react",
+                              "messages.embed",
+                              "messages.voice",
+                              "messages.external_emoji",
+                              "messages.polls",
+                              "messages.big_text",
+                              "messages.mention_all",
+                              "messages.manage",
+                              "messages.history",
+                              "threads.create",
+                              "threads.post",
+                              "threads.manage",
                               "expressions.manage",
                               "voice.connect",
                               "voice.speak",
@@ -28651,6 +29131,60 @@
                         },
                         "canAssign": {
                           "type": "boolean"
+                        },
+                        "extras": {
+                          "type": "object",
+                          "properties": {
+                            "color2": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "mentionable": {
+                              "type": "boolean"
+                            },
+                            "autoAssign": {
+                              "type": "object",
+                              "properties": {
+                                "mode": {
+                                  "type": "string",
+                                  "enum": [
+                                    "none",
+                                    "everyone",
+                                    "joined_before"
+                                  ]
+                                },
+                                "before": {
+                                  "anyOf": [
+                                    {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 9007199254740991
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "mode",
+                                "before"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "color2",
+                            "mentionable",
+                            "autoAssign"
+                          ],
+                          "additionalProperties": false
                         }
                       },
                       "required": [
@@ -28872,6 +29406,8 @@
                               "members.ban",
                               "members.timeout",
                               "members.approve",
+                              "members.nickname",
+                              "members.nicknames",
                               "roles.view",
                               "roles.manage",
                               "roles.assign",
@@ -28884,6 +29420,18 @@
                               "messages.attach",
                               "messages.announce",
                               "messages.bypass_slowmode",
+                              "messages.react",
+                              "messages.embed",
+                              "messages.voice",
+                              "messages.external_emoji",
+                              "messages.polls",
+                              "messages.big_text",
+                              "messages.mention_all",
+                              "messages.manage",
+                              "messages.history",
+                              "threads.create",
+                              "threads.post",
+                              "threads.manage",
                               "expressions.manage",
                               "voice.connect",
                               "voice.speak",
@@ -28910,6 +29458,8 @@
                               "members.ban",
                               "members.timeout",
                               "members.approve",
+                              "members.nickname",
+                              "members.nicknames",
                               "roles.view",
                               "roles.manage",
                               "roles.assign",
@@ -28922,6 +29472,18 @@
                               "messages.attach",
                               "messages.announce",
                               "messages.bypass_slowmode",
+                              "messages.react",
+                              "messages.embed",
+                              "messages.voice",
+                              "messages.external_emoji",
+                              "messages.polls",
+                              "messages.big_text",
+                              "messages.mention_all",
+                              "messages.manage",
+                              "messages.history",
+                              "threads.create",
+                              "threads.post",
+                              "threads.manage",
                               "expressions.manage",
                               "voice.connect",
                               "voice.speak",
@@ -28991,6 +29553,60 @@
                         },
                         "canAssign": {
                           "type": "boolean"
+                        },
+                        "extras": {
+                          "type": "object",
+                          "properties": {
+                            "color2": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "mentionable": {
+                              "type": "boolean"
+                            },
+                            "autoAssign": {
+                              "type": "object",
+                              "properties": {
+                                "mode": {
+                                  "type": "string",
+                                  "enum": [
+                                    "none",
+                                    "everyone",
+                                    "joined_before"
+                                  ]
+                                },
+                                "before": {
+                                  "anyOf": [
+                                    {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 9007199254740991
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "mode",
+                                "before"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "color2",
+                            "mentionable",
+                            "autoAssign"
+                          ],
+                          "additionalProperties": false
                         }
                       },
                       "required": [
@@ -29340,6 +29956,8 @@
                           "members.ban",
                           "members.timeout",
                           "members.approve",
+                          "members.nickname",
+                          "members.nicknames",
                           "roles.view",
                           "roles.manage",
                           "roles.assign",
@@ -29352,6 +29970,18 @@
                           "messages.attach",
                           "messages.announce",
                           "messages.bypass_slowmode",
+                          "messages.react",
+                          "messages.embed",
+                          "messages.voice",
+                          "messages.external_emoji",
+                          "messages.polls",
+                          "messages.big_text",
+                          "messages.mention_all",
+                          "messages.manage",
+                          "messages.history",
+                          "threads.create",
+                          "threads.post",
+                          "threads.manage",
                           "expressions.manage",
                           "voice.connect",
                           "voice.speak",
@@ -29443,6 +30073,8 @@
                           "members.ban",
                           "members.timeout",
                           "members.approve",
+                          "members.nickname",
+                          "members.nicknames",
                           "roles.view",
                           "roles.manage",
                           "roles.assign",
@@ -29455,6 +30087,18 @@
                           "messages.attach",
                           "messages.announce",
                           "messages.bypass_slowmode",
+                          "messages.react",
+                          "messages.embed",
+                          "messages.voice",
+                          "messages.external_emoji",
+                          "messages.polls",
+                          "messages.big_text",
+                          "messages.mention_all",
+                          "messages.manage",
+                          "messages.history",
+                          "threads.create",
+                          "threads.post",
+                          "threads.manage",
                           "expressions.manage",
                           "voice.connect",
                           "voice.speak",
@@ -29583,6 +30227,8 @@
                           "members.ban",
                           "members.timeout",
                           "members.approve",
+                          "members.nickname",
+                          "members.nicknames",
                           "roles.view",
                           "roles.manage",
                           "roles.assign",
@@ -29595,6 +30241,18 @@
                           "messages.attach",
                           "messages.announce",
                           "messages.bypass_slowmode",
+                          "messages.react",
+                          "messages.embed",
+                          "messages.voice",
+                          "messages.external_emoji",
+                          "messages.polls",
+                          "messages.big_text",
+                          "messages.mention_all",
+                          "messages.manage",
+                          "messages.history",
+                          "threads.create",
+                          "threads.post",
+                          "threads.manage",
                           "expressions.manage",
                           "voice.connect",
                           "voice.speak",
@@ -29633,6 +30291,8 @@
                           "members.ban",
                           "members.timeout",
                           "members.approve",
+                          "members.nickname",
+                          "members.nicknames",
                           "roles.view",
                           "roles.manage",
                           "roles.assign",
@@ -29645,6 +30305,18 @@
                           "messages.attach",
                           "messages.announce",
                           "messages.bypass_slowmode",
+                          "messages.react",
+                          "messages.embed",
+                          "messages.voice",
+                          "messages.external_emoji",
+                          "messages.polls",
+                          "messages.big_text",
+                          "messages.mention_all",
+                          "messages.manage",
+                          "messages.history",
+                          "threads.create",
+                          "threads.post",
+                          "threads.manage",
                           "expressions.manage",
                           "voice.connect",
                           "voice.speak",
@@ -30356,6 +31028,788 @@
           },
           "default": {
             "description": "Error. Codes: not_found, forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/orgs/{orgId}/roles/everyone": {
+      "put": {
+        "tags": [
+          "community-permissions"
+        ],
+        "summary": "Change what plain members may do by default (everyday permissions you hold yourself; needs roles.manage).",
+        "operationId": "putV1OrgsOrgIdRolesEveryone",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "everyone": {
+                      "type": "object",
+                      "properties": {
+                        "permissions": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "workspace.edit",
+                              "workspace.usage.view",
+                              "workspace.delete",
+                              "workspace.transfer",
+                              "members.view",
+                              "members.invite",
+                              "members.invites.manage",
+                              "members.roles",
+                              "members.titles",
+                              "members.remove",
+                              "members.ban",
+                              "members.timeout",
+                              "members.approve",
+                              "members.nickname",
+                              "members.nicknames",
+                              "roles.view",
+                              "roles.manage",
+                              "roles.assign",
+                              "roles.delegate",
+                              "channels.view",
+                              "channels.create",
+                              "channels.manage",
+                              "channels.visibility",
+                              "messages.post",
+                              "messages.attach",
+                              "messages.announce",
+                              "messages.bypass_slowmode",
+                              "messages.react",
+                              "messages.embed",
+                              "messages.voice",
+                              "messages.external_emoji",
+                              "messages.polls",
+                              "messages.big_text",
+                              "messages.mention_all",
+                              "messages.manage",
+                              "messages.history",
+                              "threads.create",
+                              "threads.post",
+                              "threads.manage",
+                              "expressions.manage",
+                              "voice.connect",
+                              "voice.speak",
+                              "audit.view",
+                              "reports.view"
+                            ]
+                          }
+                        },
+                        "standard": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "workspace.edit",
+                              "workspace.usage.view",
+                              "workspace.delete",
+                              "workspace.transfer",
+                              "members.view",
+                              "members.invite",
+                              "members.invites.manage",
+                              "members.roles",
+                              "members.titles",
+                              "members.remove",
+                              "members.ban",
+                              "members.timeout",
+                              "members.approve",
+                              "members.nickname",
+                              "members.nicknames",
+                              "roles.view",
+                              "roles.manage",
+                              "roles.assign",
+                              "roles.delegate",
+                              "channels.view",
+                              "channels.create",
+                              "channels.manage",
+                              "channels.visibility",
+                              "messages.post",
+                              "messages.attach",
+                              "messages.announce",
+                              "messages.bypass_slowmode",
+                              "messages.react",
+                              "messages.embed",
+                              "messages.voice",
+                              "messages.external_emoji",
+                              "messages.polls",
+                              "messages.big_text",
+                              "messages.mention_all",
+                              "messages.manage",
+                              "messages.history",
+                              "threads.create",
+                              "threads.post",
+                              "threads.manage",
+                              "expressions.manage",
+                              "voice.connect",
+                              "voice.speak",
+                              "audit.view",
+                              "reports.view"
+                            ]
+                          }
+                        },
+                        "allowed": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "workspace.edit",
+                              "workspace.usage.view",
+                              "workspace.delete",
+                              "workspace.transfer",
+                              "members.view",
+                              "members.invite",
+                              "members.invites.manage",
+                              "members.roles",
+                              "members.titles",
+                              "members.remove",
+                              "members.ban",
+                              "members.timeout",
+                              "members.approve",
+                              "members.nickname",
+                              "members.nicknames",
+                              "roles.view",
+                              "roles.manage",
+                              "roles.assign",
+                              "roles.delegate",
+                              "channels.view",
+                              "channels.create",
+                              "channels.manage",
+                              "channels.visibility",
+                              "messages.post",
+                              "messages.attach",
+                              "messages.announce",
+                              "messages.bypass_slowmode",
+                              "messages.react",
+                              "messages.embed",
+                              "messages.voice",
+                              "messages.external_emoji",
+                              "messages.polls",
+                              "messages.big_text",
+                              "messages.mention_all",
+                              "messages.manage",
+                              "messages.history",
+                              "threads.create",
+                              "threads.post",
+                              "threads.manage",
+                              "expressions.manage",
+                              "voice.connect",
+                              "voice.speak",
+                              "audit.view",
+                              "reports.view"
+                            ]
+                          }
+                        },
+                        "customized": {
+                          "type": "boolean"
+                        },
+                        "updatedAt": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "permissions",
+                        "standard",
+                        "allowed",
+                        "customized",
+                        "updatedAt"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "everyone"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, beyond_your_powers, not_member_safe, feature_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "permissions": {
+                    "maxItems": 64,
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "permissions"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/orgs/{orgId}/members/{userId}/nickname": {
+      "put": {
+        "tags": [
+          "community-permissions"
+        ],
+        "summary": "Set or clear a nickname in this community (your own with members.nickname, others' with members.nicknames).",
+        "operationId": "putV1OrgsOrgIdMembersUserIdNickname",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "userId": {
+                      "type": "string"
+                    },
+                    "nickname": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "userId",
+                    "nickname"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, bad_request, nickname_not_allowed, nicknames_not_allowed, feature_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "nickname": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "nickname"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/roles/{roleId}/extras": {
+      "put": {
+        "tags": [
+          "community-permissions"
+        ],
+        "summary": "Set a role's second colour, whether anyone may mention it, and who gets it automatically.",
+        "operationId": "putV1RolesRoleIdExtras",
+        "parameters": [
+          {
+            "name": "roleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "roleId": {
+                      "type": "string"
+                    },
+                    "extras": {
+                      "type": "object",
+                      "properties": {
+                        "color2": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "mentionable": {
+                          "type": "boolean"
+                        },
+                        "autoAssign": {
+                          "type": "object",
+                          "properties": {
+                            "mode": {
+                              "type": "string",
+                              "enum": [
+                                "none",
+                                "everyone",
+                                "joined_before"
+                              ]
+                            },
+                            "before": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "mode",
+                            "before"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "color2",
+                        "mentionable",
+                        "autoAssign"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "memberCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "roleId",
+                    "extras",
+                    "memberCount"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, beyond_your_powers, delegation_required, auto_role_has_powers, archived, feature_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "color2": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^#[0-9A-Fa-f]{6}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "mentionable": {
+                    "type": "boolean"
+                  },
+                  "autoAssign": {
+                    "type": "object",
+                    "properties": {
+                      "mode": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "everyone",
+                          "joined_before"
+                        ]
+                      },
+                      "before": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "mode"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/orgs/{orgId}/roles/order": {
+      "put": {
+        "tags": [
+          "community-permissions"
+        ],
+        "summary": "Reorder roles (highest first); only roles below your own highest move unless you're an owner or admin.",
+        "operationId": "putV1OrgsOrgIdRolesOrder",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "order": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "position": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "position"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "order"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, bad_request, beyond_your_powers, feature_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "roleIds": {
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    }
+                  }
+                },
+                "required": [
+                  "roleIds"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/conversations/{id}/stage/speakers/{userId}": {
+      "put": {
+        "tags": [
+          "community-permissions"
+        ],
+        "summary": "Let someone speak on a stage (its moderators).",
+        "operationId": "putV1ConversationsIdStageSpeakersUserId",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "conversationId": {
+                      "type": "string"
+                    },
+                    "speakerIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "conversationId",
+                    "speakerIds"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, bad_request, feature_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "community-permissions"
+        ],
+        "summary": "Send a speaker back to the audience (its moderators, or the speaker themself).",
+        "operationId": "deleteV1ConversationsIdStageSpeakersUserId",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "conversationId": {
+                      "type": "string"
+                    },
+                    "speakerIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "conversationId",
+                    "speakerIds"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, bad_request, feature_disabled",
             "content": {
               "application/json": {
                 "schema": {
@@ -32118,7 +33572,19 @@
                                 "channels.manage",
                                 "channels.create",
                                 "voice.connect",
-                                "voice.speak"
+                                "voice.speak",
+                                "messages.react",
+                                "messages.embed",
+                                "messages.voice",
+                                "messages.external_emoji",
+                                "messages.polls",
+                                "messages.big_text",
+                                "messages.mention_all",
+                                "messages.manage",
+                                "messages.history",
+                                "threads.create",
+                                "threads.post",
+                                "threads.manage"
                               ]
                             }
                           },
@@ -32134,7 +33600,19 @@
                                 "channels.manage",
                                 "channels.create",
                                 "voice.connect",
-                                "voice.speak"
+                                "voice.speak",
+                                "messages.react",
+                                "messages.embed",
+                                "messages.voice",
+                                "messages.external_emoji",
+                                "messages.polls",
+                                "messages.big_text",
+                                "messages.mention_all",
+                                "messages.manage",
+                                "messages.history",
+                                "threads.create",
+                                "threads.post",
+                                "threads.manage"
                               ]
                             }
                           }
@@ -32165,7 +33643,19 @@
                               "channels.manage",
                               "channels.create",
                               "voice.connect",
-                              "voice.speak"
+                              "voice.speak",
+                              "messages.react",
+                              "messages.embed",
+                              "messages.voice",
+                              "messages.external_emoji",
+                              "messages.polls",
+                              "messages.big_text",
+                              "messages.mention_all",
+                              "messages.manage",
+                              "messages.history",
+                              "threads.create",
+                              "threads.post",
+                              "threads.manage"
                             ]
                           },
                           "label": {
@@ -32311,7 +33801,19 @@
                                 "channels.manage",
                                 "channels.create",
                                 "voice.connect",
-                                "voice.speak"
+                                "voice.speak",
+                                "messages.react",
+                                "messages.embed",
+                                "messages.voice",
+                                "messages.external_emoji",
+                                "messages.polls",
+                                "messages.big_text",
+                                "messages.mention_all",
+                                "messages.manage",
+                                "messages.history",
+                                "threads.create",
+                                "threads.post",
+                                "threads.manage"
                               ]
                             }
                           },
@@ -32327,7 +33829,19 @@
                                 "channels.manage",
                                 "channels.create",
                                 "voice.connect",
-                                "voice.speak"
+                                "voice.speak",
+                                "messages.react",
+                                "messages.embed",
+                                "messages.voice",
+                                "messages.external_emoji",
+                                "messages.polls",
+                                "messages.big_text",
+                                "messages.mention_all",
+                                "messages.manage",
+                                "messages.history",
+                                "threads.create",
+                                "threads.post",
+                                "threads.manage"
                               ]
                             }
                           }
@@ -32358,7 +33872,19 @@
                               "channels.manage",
                               "channels.create",
                               "voice.connect",
-                              "voice.speak"
+                              "voice.speak",
+                              "messages.react",
+                              "messages.embed",
+                              "messages.voice",
+                              "messages.external_emoji",
+                              "messages.polls",
+                              "messages.big_text",
+                              "messages.mention_all",
+                              "messages.manage",
+                              "messages.history",
+                              "threads.create",
+                              "threads.post",
+                              "threads.manage"
                             ]
                           },
                           "label": {
@@ -32457,7 +33983,7 @@
                   },
                   "allow": {
                     "default": [],
-                    "maxItems": 8,
+                    "maxItems": 20,
                     "type": "array",
                     "items": {
                       "type": "string",
@@ -32469,13 +33995,25 @@
                         "channels.manage",
                         "channels.create",
                         "voice.connect",
-                        "voice.speak"
+                        "voice.speak",
+                        "messages.react",
+                        "messages.embed",
+                        "messages.voice",
+                        "messages.external_emoji",
+                        "messages.polls",
+                        "messages.big_text",
+                        "messages.mention_all",
+                        "messages.manage",
+                        "messages.history",
+                        "threads.create",
+                        "threads.post",
+                        "threads.manage"
                       ]
                     }
                   },
                   "deny": {
                     "default": [],
-                    "maxItems": 8,
+                    "maxItems": 20,
                     "type": "array",
                     "items": {
                       "type": "string",
@@ -32487,7 +34025,19 @@
                         "channels.manage",
                         "channels.create",
                         "voice.connect",
-                        "voice.speak"
+                        "voice.speak",
+                        "messages.react",
+                        "messages.embed",
+                        "messages.voice",
+                        "messages.external_emoji",
+                        "messages.polls",
+                        "messages.big_text",
+                        "messages.mention_all",
+                        "messages.manage",
+                        "messages.history",
+                        "threads.create",
+                        "threads.post",
+                        "threads.manage"
                       ]
                     }
                   }
@@ -32568,7 +34118,19 @@
                                 "channels.manage",
                                 "channels.create",
                                 "voice.connect",
-                                "voice.speak"
+                                "voice.speak",
+                                "messages.react",
+                                "messages.embed",
+                                "messages.voice",
+                                "messages.external_emoji",
+                                "messages.polls",
+                                "messages.big_text",
+                                "messages.mention_all",
+                                "messages.manage",
+                                "messages.history",
+                                "threads.create",
+                                "threads.post",
+                                "threads.manage"
                               ]
                             }
                           },
@@ -32584,7 +34146,19 @@
                                 "channels.manage",
                                 "channels.create",
                                 "voice.connect",
-                                "voice.speak"
+                                "voice.speak",
+                                "messages.react",
+                                "messages.embed",
+                                "messages.voice",
+                                "messages.external_emoji",
+                                "messages.polls",
+                                "messages.big_text",
+                                "messages.mention_all",
+                                "messages.manage",
+                                "messages.history",
+                                "threads.create",
+                                "threads.post",
+                                "threads.manage"
                               ]
                             }
                           }
@@ -32615,7 +34189,19 @@
                               "channels.manage",
                               "channels.create",
                               "voice.connect",
-                              "voice.speak"
+                              "voice.speak",
+                              "messages.react",
+                              "messages.embed",
+                              "messages.voice",
+                              "messages.external_emoji",
+                              "messages.polls",
+                              "messages.big_text",
+                              "messages.mention_all",
+                              "messages.manage",
+                              "messages.history",
+                              "threads.create",
+                              "threads.post",
+                              "threads.manage"
                             ]
                           },
                           "label": {
@@ -32761,7 +34347,19 @@
                                 "channels.manage",
                                 "channels.create",
                                 "voice.connect",
-                                "voice.speak"
+                                "voice.speak",
+                                "messages.react",
+                                "messages.embed",
+                                "messages.voice",
+                                "messages.external_emoji",
+                                "messages.polls",
+                                "messages.big_text",
+                                "messages.mention_all",
+                                "messages.manage",
+                                "messages.history",
+                                "threads.create",
+                                "threads.post",
+                                "threads.manage"
                               ]
                             }
                           },
@@ -32777,7 +34375,19 @@
                                 "channels.manage",
                                 "channels.create",
                                 "voice.connect",
-                                "voice.speak"
+                                "voice.speak",
+                                "messages.react",
+                                "messages.embed",
+                                "messages.voice",
+                                "messages.external_emoji",
+                                "messages.polls",
+                                "messages.big_text",
+                                "messages.mention_all",
+                                "messages.manage",
+                                "messages.history",
+                                "threads.create",
+                                "threads.post",
+                                "threads.manage"
                               ]
                             }
                           }
@@ -32808,7 +34418,19 @@
                               "channels.manage",
                               "channels.create",
                               "voice.connect",
-                              "voice.speak"
+                              "voice.speak",
+                              "messages.react",
+                              "messages.embed",
+                              "messages.voice",
+                              "messages.external_emoji",
+                              "messages.polls",
+                              "messages.big_text",
+                              "messages.mention_all",
+                              "messages.manage",
+                              "messages.history",
+                              "threads.create",
+                              "threads.post",
+                              "threads.manage"
                             ]
                           },
                           "label": {
@@ -32907,7 +34529,7 @@
                   },
                   "allow": {
                     "default": [],
-                    "maxItems": 8,
+                    "maxItems": 20,
                     "type": "array",
                     "items": {
                       "type": "string",
@@ -32919,13 +34541,25 @@
                         "channels.manage",
                         "channels.create",
                         "voice.connect",
-                        "voice.speak"
+                        "voice.speak",
+                        "messages.react",
+                        "messages.embed",
+                        "messages.voice",
+                        "messages.external_emoji",
+                        "messages.polls",
+                        "messages.big_text",
+                        "messages.mention_all",
+                        "messages.manage",
+                        "messages.history",
+                        "threads.create",
+                        "threads.post",
+                        "threads.manage"
                       ]
                     }
                   },
                   "deny": {
                     "default": [],
-                    "maxItems": 8,
+                    "maxItems": 20,
                     "type": "array",
                     "items": {
                       "type": "string",
@@ -32937,7 +34571,19 @@
                         "channels.manage",
                         "channels.create",
                         "voice.connect",
-                        "voice.speak"
+                        "voice.speak",
+                        "messages.react",
+                        "messages.embed",
+                        "messages.voice",
+                        "messages.external_emoji",
+                        "messages.polls",
+                        "messages.big_text",
+                        "messages.mention_all",
+                        "messages.manage",
+                        "messages.history",
+                        "threads.create",
+                        "threads.post",
+                        "threads.manage"
                       ]
                     }
                   }
@@ -38980,6 +40626,43 @@
                           "canSpeak": {
                             "type": "boolean"
                           },
+                          "options": {
+                            "type": "object",
+                            "properties": {
+                              "textOnly": {
+                                "type": "boolean"
+                              },
+                              "noGifs": {
+                                "type": "boolean"
+                              },
+                              "stage": {
+                                "type": "boolean"
+                              },
+                              "readOnly": {
+                                "type": "boolean"
+                              },
+                              "posterRoleIds": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "speakerIds": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "required": [
+                              "textOnly",
+                              "noGifs",
+                              "stage",
+                              "readOnly",
+                              "posterRoleIds"
+                            ],
+                            "additionalProperties": false
+                          },
                           "federation": {
                             "anyOf": [
                               {
@@ -39867,6 +41550,43 @@
                         "canSpeak": {
                           "type": "boolean"
                         },
+                        "options": {
+                          "type": "object",
+                          "properties": {
+                            "textOnly": {
+                              "type": "boolean"
+                            },
+                            "noGifs": {
+                              "type": "boolean"
+                            },
+                            "stage": {
+                              "type": "boolean"
+                            },
+                            "readOnly": {
+                              "type": "boolean"
+                            },
+                            "posterRoleIds": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "speakerIds": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": [
+                            "textOnly",
+                            "noGifs",
+                            "stage",
+                            "readOnly",
+                            "posterRoleIds"
+                          ],
+                          "additionalProperties": false
+                        },
                         "federation": {
                           "anyOf": [
                             {
@@ -40024,7 +41744,7 @@
         "tags": [
           "conversations"
         ],
-        "summary": "Change a conversation: name, topic, archived, access mode, forum format, tags and guidelines, slowmode.",
+        "summary": "Change a conversation: name, topic, archived, access mode, forum format, tags and guidelines, slowmode, channel options.",
         "operationId": "patchV1ConversationsId",
         "parameters": [
           {
@@ -40694,6 +42414,43 @@
                         "canSpeak": {
                           "type": "boolean"
                         },
+                        "options": {
+                          "type": "object",
+                          "properties": {
+                            "textOnly": {
+                              "type": "boolean"
+                            },
+                            "noGifs": {
+                              "type": "boolean"
+                            },
+                            "stage": {
+                              "type": "boolean"
+                            },
+                            "readOnly": {
+                              "type": "boolean"
+                            },
+                            "posterRoleIds": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "speakerIds": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": [
+                            "textOnly",
+                            "noGifs",
+                            "stage",
+                            "readOnly",
+                            "posterRoleIds"
+                          ],
+                          "additionalProperties": false
+                        },
                         "federation": {
                           "anyOf": [
                             {
@@ -40795,7 +42552,7 @@
             }
           },
           "default": {
-            "description": "Error. Codes: not_found, forbidden, conflict",
+            "description": "Error. Codes: not_found, forbidden, conflict, bad_request, feature_disabled",
             "content": {
               "application/json": {
                 "schema": {
@@ -40886,6 +42643,27 @@
                     "type": "integer",
                     "minimum": -9007199254740991,
                     "maximum": 9007199254740991
+                  },
+                  "textOnly": {
+                    "type": "boolean"
+                  },
+                  "noGifs": {
+                    "type": "boolean"
+                  },
+                  "stage": {
+                    "type": "boolean"
+                  },
+                  "readOnly": {
+                    "type": "boolean"
+                  },
+                  "posterRoleIds": {
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    }
                   }
                 }
               }
@@ -42223,6 +44001,43 @@
                         "canSpeak": {
                           "type": "boolean"
                         },
+                        "options": {
+                          "type": "object",
+                          "properties": {
+                            "textOnly": {
+                              "type": "boolean"
+                            },
+                            "noGifs": {
+                              "type": "boolean"
+                            },
+                            "stage": {
+                              "type": "boolean"
+                            },
+                            "readOnly": {
+                              "type": "boolean"
+                            },
+                            "posterRoleIds": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "speakerIds": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": [
+                            "textOnly",
+                            "noGifs",
+                            "stage",
+                            "readOnly",
+                            "posterRoleIds"
+                          ],
+                          "additionalProperties": false
+                        },
                         "federation": {
                           "anyOf": [
                             {
@@ -43230,6 +45045,43 @@
                         "canSpeak": {
                           "type": "boolean"
                         },
+                        "options": {
+                          "type": "object",
+                          "properties": {
+                            "textOnly": {
+                              "type": "boolean"
+                            },
+                            "noGifs": {
+                              "type": "boolean"
+                            },
+                            "stage": {
+                              "type": "boolean"
+                            },
+                            "readOnly": {
+                              "type": "boolean"
+                            },
+                            "posterRoleIds": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "speakerIds": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": [
+                            "textOnly",
+                            "noGifs",
+                            "stage",
+                            "readOnly",
+                            "posterRoleIds"
+                          ],
+                          "additionalProperties": false
+                        },
                         "federation": {
                           "anyOf": [
                             {
@@ -44052,6 +45904,43 @@
                         },
                         "canSpeak": {
                           "type": "boolean"
+                        },
+                        "options": {
+                          "type": "object",
+                          "properties": {
+                            "textOnly": {
+                              "type": "boolean"
+                            },
+                            "noGifs": {
+                              "type": "boolean"
+                            },
+                            "stage": {
+                              "type": "boolean"
+                            },
+                            "readOnly": {
+                              "type": "boolean"
+                            },
+                            "posterRoleIds": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "speakerIds": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": [
+                            "textOnly",
+                            "noGifs",
+                            "stage",
+                            "readOnly",
+                            "posterRoleIds"
+                          ],
+                          "additionalProperties": false
                         },
                         "federation": {
                           "anyOf": [
@@ -45148,6 +47037,43 @@
                                   "canSpeak": {
                                     "type": "boolean"
                                   },
+                                  "options": {
+                                    "type": "object",
+                                    "properties": {
+                                      "textOnly": {
+                                        "type": "boolean"
+                                      },
+                                      "noGifs": {
+                                        "type": "boolean"
+                                      },
+                                      "stage": {
+                                        "type": "boolean"
+                                      },
+                                      "readOnly": {
+                                        "type": "boolean"
+                                      },
+                                      "posterRoleIds": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "speakerIds": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      }
+                                    },
+                                    "required": [
+                                      "textOnly",
+                                      "noGifs",
+                                      "stage",
+                                      "readOnly",
+                                      "posterRoleIds"
+                                    ],
+                                    "additionalProperties": false
+                                  },
                                   "federation": {
                                     "anyOf": [
                                       {
@@ -45967,6 +47893,43 @@
                                   },
                                   "canSpeak": {
                                     "type": "boolean"
+                                  },
+                                  "options": {
+                                    "type": "object",
+                                    "properties": {
+                                      "textOnly": {
+                                        "type": "boolean"
+                                      },
+                                      "noGifs": {
+                                        "type": "boolean"
+                                      },
+                                      "stage": {
+                                        "type": "boolean"
+                                      },
+                                      "readOnly": {
+                                        "type": "boolean"
+                                      },
+                                      "posterRoleIds": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "speakerIds": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      }
+                                    },
+                                    "required": [
+                                      "textOnly",
+                                      "noGifs",
+                                      "stage",
+                                      "readOnly",
+                                      "posterRoleIds"
+                                    ],
+                                    "additionalProperties": false
                                   },
                                   "federation": {
                                     "anyOf": [
@@ -58420,6 +60383,23 @@
                   "voice_channel",
                   "weak_password",
                   "workspace_not_found",
+                  "auto_role_has_powers",
+                  "external_emoji_not_allowed",
+                  "gifs_not_allowed",
+                  "headings_not_allowed",
+                  "links_not_allowed",
+                  "manage_messages_required",
+                  "nickname_not_allowed",
+                  "nicknames_not_allowed",
+                  "not_member_safe",
+                  "polls_not_allowed",
+                  "reactions_not_allowed",
+                  "read_only_channel",
+                  "role_mention_not_allowed",
+                  "text_only_channel",
+                  "thread_replies_not_allowed",
+                  "threads_not_allowed",
+                  "voice_messages_not_allowed",
                   "bad_address",
                   "bad_body_hash",
                   "bad_call",
@@ -59673,6 +61653,108 @@
         404
       ],
       "meaning": "Workspace not found"
+    },
+    "auto_role_has_powers": {
+      "status": [
+        400
+      ],
+      "meaning": "Roles given automatically are for show: they can't grant or restrict any permission."
+    },
+    "external_emoji_not_allowed": {
+      "status": [
+        403
+      ],
+      "meaning": "You can't use emoji or stickers from other communities here."
+    },
+    "gifs_not_allowed": {
+      "status": [
+        403
+      ],
+      "meaning": "This channel doesn't take GIFs."
+    },
+    "headings_not_allowed": {
+      "status": [
+        403
+      ],
+      "meaning": "You can't write headings (lines starting with #) here."
+    },
+    "links_not_allowed": {
+      "status": [
+        403
+      ],
+      "meaning": "You can't post links here."
+    },
+    "manage_messages_required": {
+      "status": [
+        403
+      ],
+      "meaning": "Only people who manage messages here can delete or pin other people's messages."
+    },
+    "nickname_not_allowed": {
+      "status": [
+        403
+      ],
+      "meaning": "You can't change your nickname in this community."
+    },
+    "nicknames_not_allowed": {
+      "status": [
+        403
+      ],
+      "meaning": "You can't change this person's nickname."
+    },
+    "not_member_safe": {
+      "status": [
+        400
+      ],
+      "meaning": "Administrative permissions come from roles; they can't be given to every member."
+    },
+    "polls_not_allowed": {
+      "status": [
+        403
+      ],
+      "meaning": "You can't create polls here."
+    },
+    "reactions_not_allowed": {
+      "status": [
+        403
+      ],
+      "meaning": "You can't add new reactions here. You can still join a reaction that's already there."
+    },
+    "read_only_channel": {
+      "status": [
+        403
+      ],
+      "meaning": "This channel is read-only. You can still read and react."
+    },
+    "role_mention_not_allowed": {
+      "status": [
+        403
+      ],
+      "meaning": "That role isn't open to mentions."
+    },
+    "text_only_channel": {
+      "status": [
+        403
+      ],
+      "meaning": "This channel is for text only: no files, GIFs or stickers."
+    },
+    "thread_replies_not_allowed": {
+      "status": [
+        403
+      ],
+      "meaning": "You can't reply in threads here."
+    },
+    "threads_not_allowed": {
+      "status": [
+        403
+      ],
+      "meaning": "You can't start threads here."
+    },
+    "voice_messages_not_allowed": {
+      "status": [
+        403
+      ],
+      "meaning": "You can't send voice messages here."
     },
     "bad_address": {
       "status": [

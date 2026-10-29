@@ -41,6 +41,7 @@ export async function addMembers(ctx: AppContext, orgId: string, actor: string, 
       if (w.get("org_members", { org_id: orgId, user_id: userId })) return false;
       ctx.entitlements.check("members", w.count("org_members", { org_id: orgId }), orgId);
       w.insert("org_members", { org_id: orgId, user_id: userId, role: "MEMBER", joined_at: t, expires_at: null });
+      ctx.communityPermissions.assignAutoRoles(w, orgId, userId, t);
       authz.autoJoinScope(w, orgId, userId, t);
       ctx.audit({ actorId: actor, orgId, action: "member.add", target: userId, detail: "MEMBER" });
       return true;

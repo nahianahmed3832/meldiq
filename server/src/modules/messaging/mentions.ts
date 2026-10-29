@@ -21,6 +21,8 @@ export function mentionAllPermission(ctx: AppContext, conv: ConversationRow, use
   if (conv.type === "DM") return "mention_all_not_in_dm";
   if (!ctx.authz.canPost(conv, userId)) return "mention_all_not_allowed";
   if (ctx.authz.canManageConversation(conv, userId)) return null;
+  // Community parity A1: holders of `messages.mention_all` in a channel may, however large it is.
+  if (conv.type === "CHANNEL" && ctx.authz.channelPermissions(conv, userId).has("messages.mention_all")) return null;
   const members = ctx.ws.count("conversation_members", { conversation_id: conv.id });
   return members <= ctx.config.mentionAllMemberLimit ? null : "mention_all_not_allowed";
 }

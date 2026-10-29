@@ -97,7 +97,9 @@ export function categoryViews(ctx: AppContext, orgId: string, userId: string) {
 function visibleToEveryone(ctx: AppContext, conv: ConversationRow): boolean {
   if (conv.kind === "PRIVATE" || conv.archived_at) return false;
   const levels = [conv.category_id ? ctx.authz.overwrites("category", conv.category_id) : [], ctx.authz.overwrites("channel", conv.id)];
-  const perms = channelPermissions({ base: "MEMBER", userId: "", perms: BASE_ROLE_PERMISSIONS.MEMBER, roleIds: [], restricted: new Set() }, levels);
+  // Community parity A1: a plain member holds the community's "@everyone" defaults.
+  const base = conv.org_id ? ctx.authz.basePermissions(conv.org_id, "MEMBER") : BASE_ROLE_PERMISSIONS.MEMBER;
+  const perms = channelPermissions({ base: "MEMBER", userId: "", perms: base, roleIds: [], restricted: new Set() }, levels);
   return perms.has("channels.view");
 }
 
@@ -409,6 +411,7 @@ export default async function communityRoutes(app: FastifyInstance, ctx: AppCont
     await ws.write((w) => {
       ctx.entitlements.check("members", w.count("org_members", { org_id: id }), id);
       w.insert("org_members", { org_id: id, user_id: userId, role: "MEMBER", joined_at: t }, { orIgnore: true });
+      ctx.communityPermissions.assignAutoRoles(w, id, userId, t);
       authz.autoJoinScope(w, id, userId, t);
     });
     ctx.audit({ actorId: userId, orgId: id, action: "community.join", target: userId });

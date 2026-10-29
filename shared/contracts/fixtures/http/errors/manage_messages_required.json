@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "manage_messages_required",
+    "message": "Only people who manage messages here can pin them"
+  }
+}

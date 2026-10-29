@@ -125,6 +125,8 @@ export function conversationView(ctx: AppContext, c: ConversationRow, userId: st
       : {}),
     // Voice channels: whether this person may join the call, and talk in it (listen-only otherwise).
     ...(c.voice ? { canConnect: authz.canConnectVoice(c, userId), canSpeak: authz.canSpeakInVoice(c, userId) } : {}),
+    // Community parity A1: the channel's options (text only, no GIFs, stage, read-only).
+    ...ctx.communityPermissions.channelView(c, userId),
     federation: federationInfo(ctx, c.id),
   };
 }
@@ -421,6 +423,9 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     // people its permissions let see it, as a new channel would. Making a channel private removes nobody.
     const autoJoin = !kindChange ? c.auto_join : body.kind === "PRIVATE" ? 0 : body.kind === "ANNOUNCEMENT" ? 1 : c.kind === "PRIVATE" ? 1 : c.auto_join;
     const slowmodeChange = body.slowmodeSec !== undefined && body.slowmodeSec !== (c.slowmode_sec ?? 0);
+    // Community parity A1: the channel's options, checked (and stored) before the rest of the change.
+    const options = { textOnly: body.textOnly, noGifs: body.noGifs, stage: body.stage, readOnly: body.readOnly, posterRoleIds: body.posterRoleIds };
+    await ctx.communityPermissions.updateChannel(c, userId, options);
     // Only what this request changes, so a concurrent edit of other fields isn't overwritten; tags from the stored row.
     await ws.write((w) => {
       const current = w.get<ConversationRow>("conversations", { id });

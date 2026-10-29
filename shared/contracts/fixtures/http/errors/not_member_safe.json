@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "not_member_safe",
+    "message": "\"Manage messages\" comes from roles; it can't be given to every member"
+  }
+}

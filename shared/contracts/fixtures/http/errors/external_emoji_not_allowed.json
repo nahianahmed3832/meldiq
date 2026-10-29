@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "external_emoji_not_allowed",
+    "message": "You can't use emoji or stickers from other communities here"
+  }
+}

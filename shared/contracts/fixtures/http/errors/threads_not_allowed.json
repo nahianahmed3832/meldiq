@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "threads_not_allowed",
+    "message": "You can't start threads here"
+  }
+}

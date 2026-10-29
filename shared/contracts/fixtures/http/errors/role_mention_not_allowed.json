@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "role_mention_not_allowed",
+    "message": "That role isn't open to mentions"
+  }
+}

@@ -1,7 +1,7 @@
 import { z } from "zod/v4";
 import { ActivityWire, PresenceState } from "../realtime.js";
 import { zCount, zTime } from "./primitives.js";
-import { ConversationView } from "./conversations.js";
+import { channelOptionFields, ConversationView, SLOWMODE_STEPS } from "./conversations.js";
 import { route } from "./route.js";
 import { listMediaFields } from "./users.js";
 
@@ -143,8 +143,10 @@ export const CommunityMember = z.strictObject({
   timeoutUntil: zTime.nullable(),
   branches: zRetired,
   teams: zRetired,
-  /** Hoisted roles (batch B12) carry hoist and their position. */
-  customRoles: z.array(RoleBadge.extend({ hoist: z.literal(true).optional(), position: z.number().int().optional() })),
+  /** Hoisted roles (batch B12) carry hoist and their position; a gradient's second colour (community parity A1). */
+  customRoles: z.array(RoleBadge.extend({ hoist: z.literal(true).optional(), position: z.number().int().optional(), color2: z.string().optional() })),
+  /** Community parity A1: their nickname in this community, null without one (absent while the feature is off). */
+  nickname: z.string().nullable().optional(),
 });
 
 /** One of the first members of a conversation, as conversation views list them. */
@@ -329,6 +331,13 @@ export const ChannelCreateBody = z.object({
   /** The category it goes into (null: none), and text or forum. */
   categoryId: z.string().max(64).nullable().optional(),
   format: z.enum(["text", "forum"]).default("text"),
+  /** Community parity A1: slowmode from the start, and the channel's options. */
+  slowmodeSec: z
+    .number()
+    .int()
+    .refine((n) => (SLOWMODE_STEPS as readonly number[]).includes(n), { message: "Pick one of the offered intervals" })
+    .optional(),
+  ...channelOptionFields,
 });
 
 export const ChannelListQuery = z.object({ q: z.string().trim().max(40).optional(), includeArchived: z.enum(["true", "false"]).optional() });
@@ -601,11 +610,11 @@ export const orgRoutes = [
   community({
     method: "POST",
     url: "/v1/orgs/:orgId/channels",
-    summary: "Create a text, forum or voice channel, optionally in a category.",
+    summary: "Create a text, forum or voice channel, optionally in a category, with its slowmode and options.",
     params: OrgParams,
     body: ChannelCreateBody,
     response: z.strictObject({ channel: ChannelView }),
-    errors: ["not_found", "forbidden", "conflict"],
+    errors: ["not_found", "forbidden", "conflict", "bad_request", "feature_disabled"],
   }),
   community({
     method: "GET",

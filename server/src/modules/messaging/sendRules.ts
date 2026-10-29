@@ -32,6 +32,8 @@ export function admitConversation(ctx: AppContext, userId: string, conversationI
     const timedOut = conv.org_id ? authz.timeoutUntil(conv.org_id, userId) : null;
     if (timedOut) throw new ApiError(403, "timed_out", `You're timed out in this community until ${new Date(timedOut).toISOString()}`, { until: timedOut });
     if (!conv.archived_at && authz.isRulesChannel(conv)) throw new ApiError(403, "rules_channel", "Only people who can edit the community post in its rules channel. You can still read and react.");
+    // Community parity A1: a read-only channel (only its poster roles and moderators post).
+    if (!conv.archived_at && authz.readOnlyFor(conv, userId)) throw new ApiError(403, "read_only_channel", "This channel is read-only. You can still read and react.");
     throw forbidden(conv.archived_at ? "This channel is archived" : conv.kind === "ANNOUNCEMENT" ? "Only managers can post in announcement channels" : "You can't post in this channel");
   }
   // API 0.65.0: a community that asks members to agree to its rules first (bots are added by people who can edit it).

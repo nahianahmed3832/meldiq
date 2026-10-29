@@ -19,7 +19,6 @@ import {
   RoleUpdateBody,
 } from "../../shared/contracts/http/roles.js";
 import {
-  BASE_ROLE_PERMISSIONS,
   type Permission,
   type PermissionCategory,
   PERMISSIONS,
@@ -34,6 +33,8 @@ import { notifyOrg } from "./orgsRoutes.js";
 import { mapByIds } from "../../infrastructure/database/byIds.js";
 import type { RowReader } from "../../infrastructure/database/rows/index.js";
 import { compareText, foldAscii } from "../../shared/utilities/sqlText.js";
+import { everyoneView } from "./communityPermissions/everyone.js";
+import { isAutoRole } from "./communityPermissions/roleExtras.js";
 
 /**
  * Custom workspace roles (docs/WORKSPACE_ROLES.md): a workspace's own roles on top of the protected base roles, each
@@ -142,6 +143,8 @@ export default async function roleRoutes(app: FastifyInstance, ctx: AppContext) 
       // What the caller may do with it (the server checks again on every call).
       canEdit: roleDefinitionRefusal(actor, grant, grant) === null,
       canAssign: actor.perms.has("roles.assign") && !roleAssignmentRefusal(actor, { base: "MEMBER", perms: new Set(), self: false }, grant),
+      // Community parity A1: second colour, mentions and automatic assignment (absent while the feature is off).
+      ...((x) => (x ? { extras: x } : {}))(ctx.communityPermissions.roleExtras(r.id)),
     };
   };
 
@@ -180,7 +183,7 @@ export default async function roleRoutes(app: FastifyInstance, ctx: AppContext) 
       baseRoles: (Object.keys(BASE_NAMES) as OrgRole[]).map((key) => ({
         key,
         name: BASE_NAMES[key],
-        permissions: [...BASE_ROLE_PERMISSIONS[key]],
+        permissions: [...authz.basePermissions(orgId, key)],
         memberCount: baseCounts.get(key) ?? 0,
         protected: true,
       })),
@@ -193,6 +196,8 @@ export default async function roleRoutes(app: FastifyInstance, ctx: AppContext) 
         canAssign: actor.perms.has("roles.assign"),
         canDelegate: actor.perms.has("roles.delegate"),
       },
+      // Community parity A1: what plain members hold by default, and what may go there.
+      ...(ctx.communityPermissions.enabled ? { everyone: everyoneView(ctx, orgId) } : {}),
     };
   });
 
@@ -266,6 +271,10 @@ export default async function roleRoutes(app: FastifyInstance, ctx: AppContext) 
     // Editing anything (archiving too) needs the right to define this role, before and after the change.
     const refusal = roleDefinitionRefusal(actor, after, before);
     if (refusal) throwRefusal(refusal);
+    // Community parity A1: a role given automatically stays for show.
+    if ((after.permissions.length || after.denies.length) && ctx.communityPermissions.enabled && isAutoRole(ws, roleId)) {
+      throw new ApiError(400, "auto_role_has_powers", "This role is given automatically, so it can't grant or restrict permissions. Turn that off first.");
+    }
     const archiveFlip = body.archived !== undefined && body.archived !== (role.archived_at !== null);
     if (archiveFlip || !sameKeys(after.permissions, before.permissions) || !sameKeys(after.denies, before.denies)) requireReachOverHolders(role, actor, userId);
     const t = now();
@@ -406,7 +415,7 @@ export default async function roleRoutes(app: FastifyInstance, ctx: AppContext) 
     const roles = authz.assignedRoles(p.orgId, p.userId);
     const sources: Record<string, string[]> = {};
     for (const perm of target.perms) {
-      const from = BASE_ROLE_PERMISSIONS[target.base].has(perm) ? ["base"] : [];
+      const from = authz.basePermissions(p.orgId, target.base).has(perm) ? ["base"] : [];
       for (const r of roles) if (r.permissions.includes(perm)) from.push(r.id);
       sources[perm] = from;
     }

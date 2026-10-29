@@ -1,6 +1,6 @@
 import type { Collection } from "mongodb";
 import type { MeldiqMongo } from "../../../infrastructure/database/mongo/client.js";
-import { type ConversationSummary, type HistoryPage, type MessageEvent, type MessageStore, mentionsOf, PAGE_READERS, pageChanges } from "./messageStore.js";
+import { type ConversationSummary, type HistoryPage, type MessageEvent, type MessageStore, mentionsOf, PAGE_READERS, pageChanges, threadRootOf } from "./messageStore.js";
 
 /** message_events: the SQLite row itself (same field names, docs/MONGODB.md §3), keyed by its id. */
 type EventDoc = MessageEvent & { _id: string };
@@ -144,6 +144,26 @@ export class MongoMessageStore implements MessageStore {
         };
       }),
     );
+  }
+
+  async changesTo(conversationId: string, targetId: string, type: string): Promise<MessageEvent[]> {
+    const docs = await this.col
+      .find({ conversation_id: conversationId, cls: "control", target: targetId, type, audience: "all" }, { session: this.mongo.session() })
+      .sort({ server_ts: 1, _id: 1 })
+      .toArray();
+    return docs.map(toEvent);
+  }
+
+  async threadHasReplies(conversationId: string, rootId: string, since: number): Promise<boolean> {
+    // The payload is stored as JSON text: the regex finds candidates, the parsed payload decides.
+    const docs = await this.col
+      .find(
+        { conversation_id: conversationId, cls: "message", server_ts: { $gte: since }, payload: { $regex: literal(`"threadRoot":${JSON.stringify(rootId)}`) } },
+        { session: this.mongo.session(), projection: { payload: 1 } },
+      )
+      .limit(20)
+      .toArray();
+    return docs.some((d) => threadRootOf(d) === rootId);
   }
 
   async deleteConversation(conversationId: string): Promise<number> {

@@ -26,6 +26,8 @@ export const PERMISSION_KEYS = [
   "members.ban",
   "members.timeout",
   "members.approve",
+  "members.nickname",
+  "members.nicknames",
   "roles.view",
   "roles.manage",
   "roles.assign",
@@ -38,6 +40,18 @@ export const PERMISSION_KEYS = [
   "messages.attach",
   "messages.announce",
   "messages.bypass_slowmode",
+  "messages.react",
+  "messages.embed",
+  "messages.voice",
+  "messages.external_emoji",
+  "messages.polls",
+  "messages.big_text",
+  "messages.mention_all",
+  "messages.manage",
+  "messages.history",
+  "threads.create",
+  "threads.post",
+  "threads.manage",
   "expressions.manage",
   "voice.connect",
   "voice.speak",
@@ -114,6 +128,35 @@ export const AuditQuery = z.object({
 
 // ───────────── Views ─────────────
 
+/** Community parity A1: how a role is handed out automatically (roles given this way carry no permissions). */
+export const AutoAssignMode = z.enum(["none", "everyone", "joined_before"]);
+export const AutoAssign = z.strictObject({
+  mode: AutoAssignMode,
+  /** joined_before: members who joined before this time get the role; null otherwise. */
+  before: zTime.nullable(),
+});
+/** Community parity A1: what a role carries beyond its name, colour and powers. */
+export const RoleExtras = z.strictObject({
+  /** A second colour: the role's colour fades into it. Null: one colour. */
+  color2: z.string().nullable(),
+  /** Anyone may mention the role (holders of messages.mention_all always may). */
+  mentionable: z.boolean(),
+  autoAssign: AutoAssign,
+});
+
+/** Community parity A1: what plain members hold by default in a community ("@everyone"). */
+export const EveryoneDefaults = z.strictObject({
+  /** The permissions every Member holds before custom roles. */
+  permissions: z.array(Permission),
+  /** Meldiq's standard set, for "Reset". */
+  standard: z.array(Permission),
+  /** The permissions a community may put here: everyday ones only (administrative powers come from roles). */
+  allowed: z.array(Permission),
+  /** Whether the community changed them from the standard set. */
+  customized: z.boolean(),
+  updatedAt: zTime.nullable(),
+});
+
 /** A custom role, with what the caller may do with it (the server checks again on every call). */
 export const RoleView = z.strictObject({
   id: z.string(),
@@ -137,6 +180,8 @@ export const RoleView = z.strictObject({
   updatedAt: zTime,
   canEdit: z.boolean(),
   canAssign: z.boolean(),
+  /** Community parity A1 (feature "community-permissions"): absent while it's off. */
+  extras: RoleExtras.optional(),
 });
 export const RoleOnly = z.strictObject({ role: RoleView });
 
@@ -170,6 +215,8 @@ export const RolesOverview = z.strictObject({
   roles: z.array(RoleView),
   limits: z.strictObject({ activeRoles: zCount, rolesPerMember: zCount, nameMax: zCount, descriptionMax: zCount }),
   me: z.strictObject({ base: OrgRole, permissions: z.array(Permission), canManage: z.boolean(), canAssign: z.boolean(), canDelegate: z.boolean() }),
+  /** Community parity A1 (feature "community-permissions"): the "@everyone" defaults; absent while it's off. */
+  everyone: EveryoneDefaults.optional(),
 });
 
 /** After assigning or removing a role: the person's effective permissions. */

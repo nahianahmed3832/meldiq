@@ -29,6 +29,7 @@ import { memberView } from "../accounts/profile.js";
 import { ApiError, badRequest, conflict, forbidden, notFound } from "../../shared/errors.js";
 import { humanCode, newId, now, sha256Hex } from "../../shared/utilities/util.js";
 import { activityAlert, noteJoin } from "./activityAlerts.js";
+import { checkChannelOptions } from "./communityPermissions/channelSettings.js";
 import { joinQuestions } from "./applicationsRoutes.js";
 import { guideOf } from "./guideRoutes.js";
 import { onboardingOn } from "./onboardingRoutes.js";
@@ -533,6 +534,9 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
         return r ? [{ user_id: m.user_id, id: r.id, name: r.name, color: r.color, hoist: r.hoist, position: r.position }] : [];
       })
       .sort((a, b) => a.position - b.position || compareText(a.name, b.name));
+    // Community parity A1: nicknames, and roles' second colours (absent while the feature is off).
+    const nicknames = ctx.communityPermissions.nicknamesOf(orgId);
+    const color2 = new Map([...roles.keys()].map((id) => [id, ctx.communityPermissions.roleExtras(id)?.color2 ?? null]));
     return {
       members: rows.map((u) =>
         memberView(ctx, userId, u, {
@@ -549,7 +553,14 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
           // Batch B12: [hoist] roles head their own group in the member list, in role order ([position]).
           customRoles: roleRows
             .filter((r) => r.user_id === u.id)
-            .map((r) => ({ id: r.id, name: r.name, color: r.color, ...(r.hoist === 1 ? { hoist: true, position: r.position } : {}) })),
+            .map((r) => ({
+              id: r.id,
+              name: r.name,
+              color: r.color,
+              ...(r.hoist === 1 ? { hoist: true, position: r.position } : {}),
+              ...(color2.get(r.id) ? { color2: color2.get(r.id)! } : {}),
+            })),
+          ...(ctx.communityPermissions.enabled ? { nickname: nicknames.get(u.id) ?? null } : {}),
         }),
       ),
     };
@@ -832,6 +843,12 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     if (body.scope !== "ORG") throw badRequest("Branches and teams are now roles and categories: create the channel in a category");
     if (body.voice && body.kind === "ANNOUNCEMENT") throw badRequest("A voice channel can be public or private, not an announcement channel");
     if (body.voice && body.format === "forum") throw badRequest("A voice channel can't be a forum");
+    // Community parity A1: options are checked before anything is created.
+    const options = { textOnly: body.textOnly, noGifs: body.noGifs, stage: body.stage, readOnly: body.readOnly, posterRoleIds: body.posterRoleIds };
+    if (Object.values(options).some((v) => v !== undefined)) {
+      ctx.communityPermissions.requireEnabled();
+      checkChannelOptions(ctx, orgId, body.voice, options);
+    }
     const categoryId = body.categoryId ?? null;
     if (categoryId) {
       if (!ws.get("channel_categories", { id: categoryId, org_id: orgId })) throw badRequest("Unknown category");
@@ -870,6 +887,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
         category_id: categoryId,
         position,
         format: body.format,
+        slowmode_sec: body.slowmodeSec ?? 0,
       });
       w.insert("conversation_members", { conversation_id: id, user_id: actor, role: "ADMIN", joined_at: t });
       const conv = authz.conversation(id)!;
@@ -892,6 +910,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
       }
     });
     ctx.audit({ actorId: actor, orgId, action: body.voice ? "voice_room.create" : "channel.create", target: id, detail: `${body.kind} ${body.name}` });
+    await ctx.communityPermissions.updateChannel(authz.conversation(id)!, actor, options, true);
     notifyConversation(ctx, id);
     notifyOrg(ctx, orgId);
     const channel = authz.conversation(id)!;

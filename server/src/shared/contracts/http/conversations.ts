@@ -64,6 +64,36 @@ export const ConversationFederation = z.strictObject({
   calls: z.boolean(),
 });
 
+/** Community parity A1: at most this many roles may post in a read-only channel (the server's POSTER_ROLES_MAX). */
+export const POSTER_ROLES_LIMIT = 20;
+
+/** Community parity A1 (feature "community-permissions"): a channel's options as channel views carry them. */
+export const ChannelOptionsView = z.strictObject({
+  /** No files, GIFs or stickers, except from people who moderate the channel. */
+  textOnly: z.boolean(),
+  /** No GIFs or GIF links (pictures are fine), except from people who moderate the channel. */
+  noGifs: z.boolean(),
+  /** Voice channels: listeners can't talk until a moderator lets them. */
+  stage: z.boolean(),
+  /** Everyone reads and reacts; only these roles and the channel's moderators post. */
+  readOnly: z.boolean(),
+  posterRoleIds: z.array(z.string()),
+  /** Stages, for their moderators: who they let speak. Everyone else reads `canSpeak`. */
+  speakerIds: z.array(z.string()).optional(),
+});
+
+/**
+ * Community parity A1: channel options when creating a channel (POST /v1/orgs/:orgId/channels) or changing one
+ * (PATCH /v1/conversations/:id). Absent fields stay as they are.
+ */
+export const channelOptionFields = {
+  textOnly: z.boolean().optional(),
+  noGifs: z.boolean().optional(),
+  stage: z.boolean().optional(),
+  readOnly: z.boolean().optional(),
+  posterRoleIds: z.array(z.string().min(1).max(64)).max(POSTER_ROLES_LIMIT).optional(),
+};
+
 /** A conversation as one person sees it. */
 export const ConversationView = z.strictObject({
   id: z.string(),
@@ -113,6 +143,8 @@ export const ConversationView = z.strictObject({
   /** Voice channels only: whether this person may join the call, and talk in it. */
   canConnect: z.boolean().optional(),
   canSpeak: z.boolean().optional(),
+  /** Community parity A1: community channels' options (absent elsewhere and while the feature is off). */
+  options: ChannelOptionsView.optional(),
   federation: ConversationFederation.nullable(),
 });
 
@@ -171,6 +203,7 @@ export const ConversationPatchBody = z.object({
     .int()
     .refine((n) => (SLOWMODE_STEPS as readonly number[]).includes(n), { message: "Pick one of the offered intervals" })
     .optional(),
+  ...channelOptionFields,
 });
 export const ConversationDeleteBody = z.object({ confirmName: z.string().max(200) });
 export const MemberPutBody = z.object({ role: z.enum(["ADMIN", "MEMBER"]).default("MEMBER") });
@@ -262,11 +295,11 @@ export const conversationRoutes = [
   conv({
     method: "PATCH",
     url: "/v1/conversations/:id",
-    summary: "Change a conversation: name, topic, archived, access mode, forum format, tags and guidelines, slowmode.",
+    summary: "Change a conversation: name, topic, archived, access mode, forum format, tags and guidelines, slowmode, channel options.",
     params: idParams,
     body: ConversationPatchBody,
     response: ConversationOnly,
-    errors: ["not_found", "forbidden", "conflict"],
+    errors: ["not_found", "forbidden", "conflict", "bad_request", "feature_disabled"],
   }),
   conv({
     method: "DELETE",

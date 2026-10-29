@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "gifs_not_allowed",
+    "message": "This channel doesn't take GIFs"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "nicknames_not_allowed",
+    "message": "You can't change this person's nickname"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "auto_role_has_powers",
+    "message": "This role is given automatically, so it can't grant or restrict permissions. Turn that off first."
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "headings_not_allowed",
+    "message": "You can't write headings (lines starting with #) here"
+  }
+}

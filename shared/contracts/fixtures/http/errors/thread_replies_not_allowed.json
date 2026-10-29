@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "thread_replies_not_allowed",
+    "message": "You can't reply in threads here"
+  }
+}

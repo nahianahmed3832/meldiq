@@ -7,6 +7,7 @@ import { ApiError } from "../../shared/errors.js";
 import { now } from "../../shared/utilities/util.js";
 import type { MessageEvent } from "./store/messageStore.js";
 import { eventToWire, sendServerMessage } from "./serverSend.js";
+import { pageSince } from "./historyLimit.js";
 
 export { countChars, eventToWire } from "./serverSend.js";
 
@@ -19,6 +20,18 @@ const UNREAD_CAP = 99;
  * plan's character limit and who may change a message. Every member's devices then get the message through their
  * delivery queue, and any member can page the conversation's history.
  */
+/** Where each conversation's history starts for [userId] (community parity A1), read once per conversation. */
+function historySinceOf(ctx: AppContext, userId: string): (conversationId: string) => number | null {
+  const seen = new Map<string, number | null>();
+  return (id) => {
+    if (!seen.has(id)) {
+      const conv = ctx.authz.conversation(id);
+      seen.set(id, conv ? ctx.authz.historySince(conv, userId) : null);
+    }
+    return seen.get(id)!;
+  };
+}
+
 export default async function serverMessagesRoutes(app: FastifyInstance, ctx: AppContext) {
   const auth = { preHandler: requireAuth(ctx) };
 
@@ -34,7 +47,9 @@ export default async function serverMessagesRoutes(app: FastifyInstance, ctx: Ap
     const conv = ctx.authz.requireMember(req.params.id, userId);
     const page = q.around ? await ctx.messages.around(conv.id, userId, q.around, Math.ceil(q.limit / 2)) : await ctx.messages.page(conv.id, userId, q.before ?? null, q.limit);
     if (!page) throw new ApiError(404, "not_found", "That message isn't in this conversation");
-    return { messages: page.messages.map(eventToWire), changes: page.changes.map(eventToWire), more: page.more };
+    // Community parity A1: without `messages.history`, a channel's history starts when the person joined it.
+    const shown = pageSince(page, ctx.authz.historySince(conv, userId));
+    return { messages: shown.messages.map(eventToWire), changes: shown.changes.map(eventToWire), more: shown.more };
   });
 
   // A device's history from before the server kept messages, uploaded once when its app updates: what's already stored
@@ -77,8 +92,15 @@ export default async function serverMessagesRoutes(app: FastifyInstance, ctx: Ap
     const { userId } = me(req);
     const mine = ctx.ws.all<{ conversation_id: string }>("conversation_members", { where: { user_id: userId } }).map((r) => r.conversation_id);
     const list = await ctx.messages.summaries(mine, userId, UNREAD_CAP);
+    const since = historySinceOf(ctx, userId);
     return {
-      conversations: list.map((c) => ({ conversationId: c.conversation_id, last: c.last ? eventToWire(c.last) : null, readUpTo: c.read_up_to, unread: c.unread, mentions: c.mentions })),
+      conversations: list.map((c) => ({
+        conversationId: c.conversation_id,
+        last: c.last && c.last.server_ts >= (since(c.conversation_id) ?? 0) ? eventToWire(c.last) : null,
+        readUpTo: c.read_up_to,
+        unread: c.unread,
+        mentions: c.mentions,
+      })),
     };
   });
 
@@ -89,6 +111,7 @@ export default async function serverMessagesRoutes(app: FastifyInstance, ctx: Ap
       ? [ctx.authz.requireMember(q.conversationId, userId).id]
       : ctx.ws.all<{ conversation_id: string }>("conversation_members", { where: { user_id: userId } }).map((r) => r.conversation_id);
     const hits = await ctx.messages.search(mine, q.q, q.limit);
-    return { messages: hits.map(eventToWire) };
+    const since = historySinceOf(ctx, userId);
+    return { messages: hits.filter((e) => e.server_ts >= (since(e.conversation_id) ?? 0)).map(eventToWire) };
   });
 }

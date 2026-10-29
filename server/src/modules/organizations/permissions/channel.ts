@@ -26,6 +26,19 @@ export const CHANNEL_CAPABILITIES = [
   "channels.create",
   "voice.connect",
   "voice.speak",
+  // Community parity A1 (feature "community-permissions"): message powers that can differ per channel.
+  "messages.react",
+  "messages.embed",
+  "messages.voice",
+  "messages.external_emoji",
+  "messages.polls",
+  "messages.big_text",
+  "messages.mention_all",
+  "messages.manage",
+  "messages.history",
+  "threads.create",
+  "threads.post",
+  "threads.manage",
 ] as const;
 export type ChannelCapability = (typeof CHANNEL_CAPABILITIES)[number];
 

@@ -8,6 +8,7 @@ import { DuplicateSubmission, type QueueInsert } from "./relay/store.js";
 import type { MessageEvent } from "./store/messageStore.js";
 import { memberUsers } from "./memberUsers.js";
 import { admitClock, admitConversation, admitPost, recordPost } from "./sendRules.js";
+import { admitChannelContent, moderatesMessage } from "./contentRules.js";
 
 /** Changes only a message's own sender may make. */
 const AUTHOR_ONLY = new Set(["edit", "delete", "poll_close"]);
@@ -75,13 +76,18 @@ export async function sendServerMessage(ctx: AppContext, sender: Sender, m: Send
   if (earlier) return earlier;
 
   // A change to a message: only to one in this conversation, and edits, deletions and closing a poll only by its sender.
+  // Community parity A1: a channel's moderators also delete other people's messages.
   const target = typeof m.payload.target === "string" ? m.payload.target : null;
   if (m.cls === "control" && target && AUTHOR_ONLY.has(type)) {
     const t = await ctx.messages.get(target);
     if (!t || t.conversation_id !== conv.id) throw new ApiError(404, "not_found", "That message isn't in this conversation");
-    if (t.sender_user_id !== userId) throw new ApiError(403, "not_yours", "Only the person who sent a message can change it");
+    if (t.sender_user_id !== userId && !(type === "delete" && moderatesMessage(ctx, conv, userId, t))) {
+      throw new ApiError(403, "not_yours", "Only the person who sent a message can change it");
+    }
   }
   if (m.cls === "message" && target) throw badRequest("A message can't target another one");
+  // Community parity A1: what a message may carry in this channel (links, polls, threads, new reactions, pins...).
+  await admitChannelContent(ctx, conv, userId, m);
 
   const { request, quietFor, dropFor, mentionAll } = await admitPost(ctx, conv, userId, m.cls, m.mentionAll === true);
   const selfOnly = m.audience === "self";

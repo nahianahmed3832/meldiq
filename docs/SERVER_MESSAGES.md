@@ -87,3 +87,10 @@ and MongoDB).
 
 Delivered ticks (`receipt` queue items, never stored) still don't survive a reload: unread messages show a single tick
 until the other person reads them.
+
+## Community parity A1: what a message may carry
+
+In community channels `POST /v2/messages` also checks the channel permissions for links, voice messages, other
+communities' emoji, polls, headings, new reactions, threads and role mentions, the channel's options (text only, no
+GIFs, read-only), and lets message moderators delete and pin anyone's messages. Without `messages.history` a channel's
+history starts when the person joined it. docs/COMMUNITY_PERMISSIONS.md.

@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "reactions_not_allowed",
+    "message": "You can't add new reactions here. You can still join one that's already there."
+  }
+}

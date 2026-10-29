@@ -21,10 +21,11 @@ export interface RoleGrant {
  *    may not hold;
  * 3. minus every assigned role's restrictions (deny wins over any grant), limited to restrictable permissions.
  * Owners always hold everything: a role can't restrict an owner, so there is always someone able to fix a mistake.
+ * [memberBase]: the community's own "@everyone" defaults (community parity A1), in place of the Member base set.
  */
-export function effectivePermissions(base: OrgRole, roles: readonly RoleGrant[]): Set<Permission> {
+export function effectivePermissions(base: OrgRole, roles: readonly RoleGrant[], memberBase?: ReadonlySet<Permission> | null): Set<Permission> {
   if (base === "OWNER") return new Set(BASE_ROLE_PERMISSIONS.OWNER);
-  const out = new Set(BASE_ROLE_PERMISSIONS[base]);
+  const out = new Set(base === "MEMBER" && memberBase ? memberBase : BASE_ROLE_PERMISSIONS[base]);
   for (const r of roles) {
     for (const p of r.permissions) {
       const d = permissionDef(p);

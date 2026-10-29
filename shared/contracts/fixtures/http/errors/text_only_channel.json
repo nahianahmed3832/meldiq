@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "text_only_channel",
+    "message": "This channel is for text only: no files, GIFs or stickers"
+  }
+}

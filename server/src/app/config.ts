@@ -116,6 +116,13 @@ export interface Config {
    * enforcing it; what communities set is kept for when it's back on.
    */
   communityRules: boolean;
+  /**
+   * Community parity A1 (docs/COMMUNITY_PERMISSIONS.md, feature "community-permissions"): editable @everyone defaults,
+   * nicknames, role extras and order, channel options and stages, and the new message permissions enforced. On unless
+   * COMMUNITY_PERMISSIONS=off, which hides the feature, answers its routes with 503 and stops enforcing what communities
+   * set (kept for when it's back on).
+   */
+  communityPermissions: boolean;
   history: { enabled: boolean; maxItemsPerUser: number; maxBytesPerUser: number; maxItemBytes: number; tombstoneDays: number; maxTotalBytes: number };
   /**
    * Direct uploads from the app to S3 (2026-10-17). How long an upload URL may be started with, how long an upload may
@@ -542,6 +549,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     },
     messages: { acceptEncrypted: env.MESSAGES_ACCEPT_ENCRYPTED === "true" },
     communityRules: (env.COMMUNITY_RULES ?? "on").trim().toLowerCase() !== "off",
+    communityPermissions: (env.COMMUNITY_PERMISSIONS ?? "on").trim().toLowerCase() !== "off",
     history: {
       enabled: env.HISTORY_ENABLED !== "false",
       maxItemsPerUser: Math.max(int("HISTORY_MAX_ITEMS_PER_USER", 500_000), 0),

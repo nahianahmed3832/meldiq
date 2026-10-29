@@ -1578,6 +1578,28 @@ export const SCHEMA: readonly TableShape[] = [
     autoincrement: false,
   },
   {
+    name: "channel_options",
+    columns: [
+      {"name":"conversation_id","type":"TEXT","notNull":true},
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"text_only","type":"INTEGER","notNull":true,"default":0},
+      {"name":"no_gifs","type":"INTEGER","notNull":true,"default":0},
+      {"name":"stage","type":"INTEGER","notNull":true,"default":0},
+      {"name":"read_only","type":"INTEGER","notNull":true,"default":0},
+      {"name":"poster_role_ids","type":"TEXT","notNull":true,"default":"[]"},
+      {"name":"updated_by","type":"TEXT","notNull":true},
+      {"name":"updated_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["conversation_id"],
+    indexes: [
+      {"name":"channel_options_org","columns":["org_id"],"unique":false,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [
+      {"columns":["conversation_id"],"table":"conversations","references":["id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
     name: "channel_overwrites",
     columns: [
       {"name":"target_type","type":"TEXT","notNull":true},
@@ -1616,6 +1638,22 @@ export const SCHEMA: readonly TableShape[] = [
     indexes: [
       {"name":"community_expressions_org","columns":["org_id","kind","name"],"unique":false,"nocase":false,"partialNotNull":null},
     ],
+    foreignKeys: [
+      {"columns":["org_id"],"table":"orgs","references":["id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
+    name: "community_member_defaults",
+    columns: [
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"added","type":"TEXT","notNull":true},
+      {"name":"removed","type":"TEXT","notNull":true},
+      {"name":"updated_by","type":"TEXT","notNull":true},
+      {"name":"updated_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["org_id"],
+    indexes: [],
     foreignKeys: [
       {"columns":["org_id"],"table":"orgs","references":["id"],"onDelete":"CASCADE"},
     ],
@@ -2924,6 +2962,43 @@ export const SCHEMA: readonly TableShape[] = [
     autoincrement: false,
   },
   {
+    name: "org_nicknames",
+    columns: [
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"user_id","type":"TEXT","notNull":true},
+      {"name":"nickname","type":"TEXT","notNull":true},
+      {"name":"updated_by","type":"TEXT","notNull":true},
+      {"name":"updated_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["org_id","user_id"],
+    indexes: [],
+    foreignKeys: [
+      {"columns":["org_id","user_id"],"table":"org_members","references":["org_id","user_id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
+    name: "org_role_extras",
+    columns: [
+      {"name":"role_id","type":"TEXT","notNull":true},
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"color2","type":"TEXT","notNull":false},
+      {"name":"mentionable","type":"INTEGER","notNull":true,"default":0},
+      {"name":"auto_assign","type":"TEXT","notNull":true,"default":"none"},
+      {"name":"auto_before","type":"INTEGER","notNull":false},
+      {"name":"updated_by","type":"TEXT","notNull":true},
+      {"name":"updated_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["role_id"],
+    indexes: [
+      {"name":"org_role_extras_org","columns":["org_id"],"unique":false,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [
+      {"columns":["role_id"],"table":"org_roles","references":["id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
     name: "org_role_members",
     columns: [
       {"name":"role_id","type":"TEXT","notNull":true},
@@ -3616,6 +3691,21 @@ export const SCHEMA: readonly TableShape[] = [
       {"name":"idx_spark_assignments_user","columns":["user_id","assigned_at"],"unique":false,"nocase":false,"partialNotNull":null},
     ],
     foreignKeys: [],
+    autoincrement: false,
+  },
+  {
+    name: "stage_speakers",
+    columns: [
+      {"name":"conversation_id","type":"TEXT","notNull":true},
+      {"name":"user_id","type":"TEXT","notNull":true},
+      {"name":"granted_by","type":"TEXT","notNull":true},
+      {"name":"granted_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["conversation_id","user_id"],
+    indexes: [],
+    foreignKeys: [
+      {"columns":["conversation_id","user_id"],"table":"conversation_members","references":["conversation_id","user_id"],"onDelete":"CASCADE"},
+    ],
     autoincrement: false,
   },
   {

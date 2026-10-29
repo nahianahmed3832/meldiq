@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "polls_not_allowed",
+    "message": "You can't create polls here"
+  }
+}

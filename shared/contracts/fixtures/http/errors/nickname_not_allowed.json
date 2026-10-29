@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "nickname_not_allowed",
+    "message": "Your role doesn't include changing your nickname here"
+  }
+}

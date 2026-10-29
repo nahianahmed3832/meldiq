@@ -23,6 +23,9 @@ export const PERMISSION_KEYS = [
   "members.ban",
   "members.timeout",
   "members.approve",
+  // Community parity A1 (feature "community-permissions"): nicknames.
+  "members.nickname",
+  "members.nicknames",
   // Roles
   "roles.view",
   "roles.manage",
@@ -38,6 +41,19 @@ export const PERMISSION_KEYS = [
   "messages.attach",
   "messages.announce",
   "messages.bypass_slowmode",
+  // Community parity A1 (feature "community-permissions"): what a message may carry, moderation and threads.
+  "messages.react",
+  "messages.embed",
+  "messages.voice",
+  "messages.external_emoji",
+  "messages.polls",
+  "messages.big_text",
+  "messages.mention_all",
+  "messages.manage",
+  "messages.history",
+  "threads.create",
+  "threads.post",
+  "threads.manage",
   // Expressions (batch B9)
   "expressions.manage",
   // Voice channels
@@ -86,6 +102,8 @@ const DEFS: Record<Permission, Def> = {
   "members.ban": { category: "members", label: "Ban people", description: "Remove people and keep them out until the ban is lifted, and see the ban list.", admin: true },
   "members.approve": { category: "members", label: "Approve applications", description: "Approve or deny people who applied to join.", admin: true },
   "members.timeout": { category: "members", label: "Time out people", description: "Stop someone posting, sharing files and joining voice channels for up to 28 days.", admin: true },
+  "members.nickname": { category: "members", label: "Change your nickname", description: "Pick the name you go by in this community.", restrictable: true, guestAllowed: true },
+  "members.nicknames": { category: "members", label: "Manage nicknames", description: "Change or clear other people's nicknames in this community.", admin: true },
   "roles.view": { category: "roles", label: "View roles", description: "See the community's roles and what each one allows." },
   "roles.manage": { category: "roles", label: "Create and edit roles", description: "Create, edit, clone and archive custom roles (only with powers you hold).", admin: true },
   "roles.assign": { category: "roles", label: "Assign roles", description: "Give custom roles to people and take them away (only roles within your own powers).", admin: true },
@@ -98,6 +116,18 @@ const DEFS: Record<Permission, Def> = {
   "messages.attach": { category: "messaging", label: "Share files", description: "Send photos, videos, voice messages and files in channels.", restrictable: true, guestAllowed: true },
   "messages.announce": { category: "messaging", label: "Post announcements", description: "Post in announcement channels, where only managers can post." },
   "messages.bypass_slowmode": { category: "messaging", label: "Skip slowmode", description: "Post without waiting in channels with slowmode on." },
+  "messages.react": { category: "messaging", label: "Add reactions", description: "React with a new emoji. Without it, people can still join reactions already on a message.", restrictable: true, guestAllowed: true },
+  "messages.embed": { category: "messaging", label: "Post links", description: "Send messages with web links and link previews.", restrictable: true, guestAllowed: true },
+  "messages.voice": { category: "messaging", label: "Send voice messages", description: "Record and send voice messages in channels.", restrictable: true, guestAllowed: true },
+  "messages.external_emoji": { category: "messaging", label: "Use emoji from other communities", description: "Use emoji and stickers that belong to other communities.", restrictable: true, guestAllowed: true },
+  "messages.polls": { category: "messaging", label: "Create polls", description: "Ask a question with answers people vote on.", restrictable: true, guestAllowed: true },
+  "messages.big_text": { category: "messaging", label: "Write headings", description: "Start a line with #, ## or ### to make it a big heading.", restrictable: true, guestAllowed: true },
+  "messages.mention_all": { category: "messaging", label: "Mention everyone", description: "Notify a whole channel with @everyone, and mention any role, even one that isn't open to mentions.", restrictable: true },
+  "messages.manage": { category: "messaging", label: "Manage messages", description: "Delete and pin anyone's messages in channels, and post without waiting in slowmode.", admin: true },
+  "messages.history": { category: "messaging", label: "Read earlier messages", description: "See what was said in a channel before you joined it. Without it, only messages from after joining show.", restrictable: true, guestAllowed: true },
+  "threads.create": { category: "messaging", label: "Start threads", description: "Begin a thread from a message in a channel.", restrictable: true, guestAllowed: true },
+  "threads.post": { category: "messaging", label: "Reply in threads", description: "Send messages in threads that already exist, and in forum posts.", restrictable: true, guestAllowed: true },
+  "threads.manage": { category: "messaging", label: "Manage threads", description: "Delete and pin anyone's messages inside threads.", admin: true },
   "expressions.manage": { category: "messaging", label: "Manage emoji and stickers", description: "Upload, rename and remove the community's own emoji and stickers." },
   "voice.connect": { category: "voice", label: "Join voice channels", description: "Join the calls in voice channels.", restrictable: true, guestAllowed: true },
   "voice.speak": { category: "voice", label: "Speak in voice channels", description: "Talk, share video and share the screen in voice channels. Without it, people listen only.", restrictable: true, guestAllowed: true },
@@ -132,8 +162,24 @@ export function isPermission(key: string): key is Permission {
 }
 
 /** What the protected base roles hold. Owners hold everything; admins everything but owner-only powers and delegation. */
-const MEMBER_BASE: readonly Permission[] = ["members.view", "roles.view", "channels.view", "messages.post", "messages.attach", "voice.connect", "voice.speak"];
-const GUEST_BASE: readonly Permission[] = ["messages.post", "messages.attach", "voice.connect", "voice.speak"];
+/**
+ * Everyday powers everyone had before they became permissions (community parity A1): in both base sets, so
+ * nothing changes for anyone until a community or a role takes them away.
+ */
+export const EVERYDAY_POWERS: readonly Permission[] = [
+  "messages.react",
+  "messages.embed",
+  "messages.voice",
+  "messages.external_emoji",
+  "messages.polls",
+  "messages.big_text",
+  "messages.history",
+  "threads.create",
+  "threads.post",
+  "members.nickname",
+];
+const MEMBER_BASE: readonly Permission[] = ["members.view", "roles.view", "channels.view", "messages.post", "messages.attach", "voice.connect", "voice.speak", ...EVERYDAY_POWERS];
+const GUEST_BASE: readonly Permission[] = ["messages.post", "messages.attach", "voice.connect", "voice.speak", ...EVERYDAY_POWERS];
 
 export const BASE_ROLE_PERMISSIONS: Readonly<Record<OrgRole, ReadonlySet<Permission>>> = {
   OWNER: new Set(PERMISSION_KEYS),
@@ -141,6 +187,15 @@ export const BASE_ROLE_PERMISSIONS: Readonly<Record<OrgRole, ReadonlySet<Permiss
   MEMBER: new Set(MEMBER_BASE),
   GUEST: new Set(GUEST_BASE),
 };
+
+/**
+ * What a community may put into its "@everyone" defaults (community parity A1): everyday powers only. Administrative and
+ * owner-only powers always come from a role.
+ */
+export function memberDefaultAllowed(key: Permission): boolean {
+  const d = permissionDef(key);
+  return !d.admin && !d.ownerOnly;
+}
 
 /** Base roles, highest first: used to decide who may act on whom. */
 export const BASE_ROLE_RANK: Readonly<Record<OrgRole, number>> = { OWNER: 3, ADMIN: 2, MEMBER: 1, GUEST: 0 };
@@ -169,7 +224,20 @@ export const ROLE_TEMPLATES: readonly RoleTemplate[] = [
     description: "Keeps conversations healthy: manages channels and their access, posts announcements, times out, removes and bans people.",
     color: "#E39B7B",
     icon: "shield",
-    permissions: ["channels.manage", "channels.visibility", "messages.announce", "messages.bypass_slowmode", "members.remove", "members.ban", "members.timeout", "members.approve", "reports.view"],
+    permissions: [
+      "channels.manage",
+      "channels.visibility",
+      "messages.announce",
+      "messages.bypass_slowmode",
+      "messages.manage",
+      "threads.manage",
+      "members.remove",
+      "members.ban",
+      "members.timeout",
+      "members.approve",
+      "members.nicknames",
+      "reports.view",
+    ],
     denies: [],
   },
   {

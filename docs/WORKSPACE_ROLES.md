@@ -69,3 +69,10 @@ copied and verified by the MongoDB tools like every workspace table (docs/MONGOD
 `GET /v1/orgs/:id/members/:userId/permissions` (with sources), `POST /v1/orgs/:id/ownership`, `GET /v1/orgs/:id/usage`,
 `GET /v1/orgs/:id/audit?before=&limit=&action=`, `GET /v1/orgs/:id/plan`. `GET /v1/orgs/:id` adds the caller's
 `permissions.effective` and flags (`canViewRoles`, `canManageApps`, …); member lists add `customRoles`.
+
+## 6. Community parity A1 (2026-10-30)
+
+Fourteen more keys (`messages.react`, `.embed`, `.voice`, `.external_emoji`, `.polls`, `.big_text`, `.history`,
+`.mention_all`, `.manage`, `threads.create`, `.post`, `.manage`, `members.nickname`, `.nicknames`), the community's
+editable "@everyone" defaults (the Member base set per community), role extras (second colour, mentionable,
+automatic assignment) and role order: docs/COMMUNITY_PERMISSIONS.md.

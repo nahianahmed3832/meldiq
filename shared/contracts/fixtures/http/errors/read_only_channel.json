@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "read_only_channel",
+    "message": "This channel is read-only. You can still read and react."
+  }
+}

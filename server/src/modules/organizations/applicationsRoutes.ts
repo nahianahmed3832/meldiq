@@ -145,6 +145,7 @@ export default async function applicationRoutes(app: FastifyInstance, ctx: AppCo
         if (!claim(w, "approved")) throw conflict("This application was already answered");
         ctx.entitlements.check("members", w.count("org_members", { org_id: r.org_id }), r.org_id);
         w.insert("org_members", { org_id: r.org_id, user_id: r.user_id, role: "MEMBER", joined_at: t }, { orIgnore: true });
+        ctx.communityPermissions.assignAutoRoles(w, r.org_id, r.user_id, t);
         authz.autoJoinScope(w, r.org_id, r.user_id, t);
       });
       await noteJoin(ctx, r.org_id, t);

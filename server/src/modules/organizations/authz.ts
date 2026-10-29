@@ -1,6 +1,7 @@
 import type { Rows, RowWriter } from "../../infrastructure/database/rows/index.js";
-import { isPermission, type Permission, permissionDef } from "./permissions/catalog.js";
+import { BASE_ROLE_PERMISSIONS, isPermission, type Permission, permissionDef } from "./permissions/catalog.js";
 import { type ChannelActor, channelPermissions, type Overwrite, parseCapabilities } from "./permissions/channel.js";
+import { type ChannelOptions, NO_CHANNEL_OPTIONS, readOnlyStops } from "./permissions/channelOptions.js";
 import { type Actor, effectivePermissions, type RoleGrant } from "./permissions/rules.js";
 import { forbidden, notFound } from "../../shared/errors.js";
 
@@ -43,6 +44,18 @@ export interface ConversationRow {
   forum_tags?: string | null;
 }
 
+/**
+ * Community parity A1 (feature "community-permissions"): what authorisation reads from the community's own settings.
+ * Null while the feature is off, so everything works as it did before it.
+ */
+export interface AuthzExtras {
+  /** The community's "@everyone" defaults, or null for the catalog's Member base set. */
+  memberDefaults(orgId: string): ReadonlySet<Permission> | null;
+  channelOptions(conversationId: string): ChannelOptions;
+  /** Whether a stage's moderators let [userId] speak. */
+  isStageSpeaker(conversationId: string, userId: string): boolean;
+}
+
 /** A custom role as assigned to someone (src/permissions, docs/WORKSPACE_ROLES.md). */
 export interface AssignedRole extends RoleGrant {
   id: string;
@@ -71,6 +84,8 @@ export class Authz {
   rulesChannelId: (orgId: string) => string | null = () => null;
   /** API 0.65.0: whether [userId] must agree to [orgId]'s rules before posting or reacting. Set by CommunityRules. */
   mustAgreeRules: (orgId: string, userId: string) => boolean = () => false;
+  /** Community parity A1: the community's own defaults and channel options. Set by CommunityPermissions while it's on. */
+  extras: AuthzExtras | null = null;
 
   /** Set only while [reconcileCommunity] runs: overwrites and channel actors read once per target and person. */
   private overwriteCache: Map<string, Overwrite[]> | null = null;
@@ -105,7 +120,7 @@ export class Authz {
   /** The member's base role and effective permissions, or null for someone outside the workspace. */
   actor(orgId: string, userId: string): (Actor & { perms: Set<Permission> }) | null {
     const base = this.orgRole(orgId, userId);
-    return base ? { base, perms: effectivePermissions(base, this.assignedRoles(orgId, userId)) } : null;
+    return base ? { base, perms: effectivePermissions(base, this.assignedRoles(orgId, userId), this.memberDefaults(orgId)) } : null;
   }
 
   /**
@@ -113,7 +128,22 @@ export class Authz {
    * guest-safe parts count, so promoting them back brings the rest back: whoever promotes must reach that too.
    */
   permissionsAs(orgId: string, userId: string, base: OrgRole): Set<Permission> {
-    return effectivePermissions(base, this.assignedRoles(orgId, userId));
+    return effectivePermissions(base, this.assignedRoles(orgId, userId), this.memberDefaults(orgId));
+  }
+
+  /** The community's "@everyone" defaults (community parity A1), or null for the catalog's Member base set. */
+  memberDefaults(orgId: string): ReadonlySet<Permission> | null {
+    return this.extras?.memberDefaults(orgId) ?? null;
+  }
+
+  /** What a base role holds in [orgId] before custom roles: Member follows the community's "@everyone" defaults. */
+  basePermissions(orgId: string, base: OrgRole): ReadonlySet<Permission> {
+    return (base === "MEMBER" ? this.memberDefaults(orgId) : null) ?? BASE_ROLE_PERMISSIONS[base];
+  }
+
+  /** A channel's options (community parity A1); all off outside channels and while the feature is off. */
+  channelOptions(conv: ConversationRow): ChannelOptions {
+    return conv.type === "CHANNEL" && this.extras ? this.extras.channelOptions(conv.id) : NO_CHANNEL_OPTIONS;
   }
 
   /** An active custom role's grants and restrictions, or undefined when it's archived, deleted or elsewhere. */
@@ -204,7 +234,7 @@ export class Authz {
     const roles = this.assignedRoles(orgId, userId);
     const restricted = new Set<Permission>();
     if (base !== "OWNER") for (const r of roles) for (const d of r.denies) if (permissionDef(d).restrictable) restricted.add(d);
-    const perms = new Set(effectivePermissions(base, roles));
+    const perms = new Set(effectivePermissions(base, roles, this.memberDefaults(orgId)));
     // A timeout takes posting, files and voice away everywhere in the community; like a role's restriction, no channel
     // overwrite gives them back (docs/product/MELDIQ_FEATURE_GAP_MATRIX.md MOD-06).
     if (base !== "OWNER" && this.timeoutUntil(orgId, userId) !== null) {
@@ -292,6 +322,7 @@ export class Authz {
     if (!perms.has("messages.post")) return false;
     // API 0.65.0: only people who can edit the community post in its rules channel (whatever its kind).
     if (this.isRulesChannel(conv)) return this.can(conv.org_id, userId, "workspace.edit");
+    if (this.readOnlyFor(conv, userId)) return false;
     if (conv.kind === "ANNOUNCEMENT") return perms.has("messages.announce") || this.canManageConversation(conv, userId);
     return true;
   }
@@ -306,8 +337,38 @@ export class Authz {
    * out does them; everywhere else they follow posting.
    */
   canReact(conv: ConversationRow, userId: string): boolean {
-    if (!this.isRulesChannel(conv)) return this.canPost(conv, userId);
+    if (!this.isRulesChannel(conv) && !this.readOnlyFor(conv, userId)) return this.canPost(conv, userId);
     return !conv.archived_at && this.isMember(conv.id, userId) && (this.timeoutUntil(conv.org_id!, userId) === null || this.orgRole(conv.org_id!, userId) === "OWNER");
+  }
+
+  /**
+   * Community parity A1: whether a read-only channel stops [userId] posting (everyone still reads and reacts there).
+   * Its poster roles, its managers and people who manage its messages post.
+   */
+  readOnlyFor(conv: ConversationRow, userId: string): boolean {
+    const o = this.channelOptions(conv);
+    if (!o.readOnly || !conv.org_id) return false;
+    const roleIds = this.channelActor(conv.org_id, userId)?.roleIds ?? [];
+    return readOnlyStops(o, roleIds, this.moderatesMessages(conv, userId));
+  }
+
+  /**
+   * Community parity A1: whether [userId] moderates the messages of channel [conv]: its managers, and holders of
+   * `messages.manage` there. They delete and pin anyone's messages, skip slowmode and the channel's content options.
+   */
+  moderatesMessages(conv: ConversationRow, userId: string): boolean {
+    if (conv.type !== "CHANNEL" || !conv.org_id) return false;
+    return this.canManageConversation(conv, userId) || this.channelPermissions(conv, userId).has("messages.manage");
+  }
+
+  /**
+   * Community parity A1: without `messages.history` in a channel, its history starts when the person joined it. The
+   * time it starts from, or null when they read all of it.
+   */
+  historySince(conv: ConversationRow, userId: string): number | null {
+    if (!this.extras || conv.type !== "CHANNEL" || !conv.org_id) return null;
+    if (this.channelPermissions(conv, userId).has("messages.history")) return null;
+    return this.rows.get<{ joined_at: number }>("conversation_members", { conversation_id: conv.id, user_id: userId })?.joined_at ?? null;
   }
 
   /**
@@ -335,7 +396,7 @@ export class Authz {
    */
   slowmodeExempt(conv: ConversationRow, userId: string): boolean {
     if (conv.type !== "CHANNEL" || !conv.org_id) return true;
-    return this.canManageConversation(conv, userId) || this.can(conv.org_id, userId, "messages.bypass_slowmode");
+    return this.moderatesMessages(conv, userId) || this.can(conv.org_id, userId, "messages.bypass_slowmode");
   }
 
   /** When [userId] may post their next message in [conv] under slowmode; null when they may post now or it's off. */
@@ -351,6 +412,8 @@ export class Authz {
   canAttach(conv: ConversationRow, userId: string): boolean {
     if (!this.canPost(conv, userId)) return false;
     if (conv.type !== "CHANNEL" || !conv.org_id) return true;
+    // Community parity A1: a text-only channel takes files only from its moderators.
+    if (this.channelOptions(conv).textOnly && !this.moderatesMessages(conv, userId)) return false;
     return this.channelPermissions(conv, userId).has("messages.attach");
   }
 
@@ -365,7 +428,16 @@ export class Authz {
   canSpeakInVoice(conv: ConversationRow, userId: string): boolean {
     if (!this.canConnectVoice(conv, userId)) return false;
     if (conv.type !== "CHANNEL" || !conv.org_id) return true;
-    return this.channelPermissions(conv, userId).has("voice.speak");
+    if (!this.channelPermissions(conv, userId).has("voice.speak")) return false;
+    // Community parity A1: on a stage, people listen until a moderator lets them speak.
+    return !this.channelOptions(conv).stage || this.moderatesStage(conv, userId) || !!this.extras?.isStageSpeaker(conv.id, userId);
+  }
+
+  /**
+   * Who runs a stage (community parity A1): its managers. (The voice moderation powers of the next batch join them.)
+   */
+  moderatesStage(conv: ConversationRow, userId: string): boolean {
+    return this.canManageConversation(conv, userId);
   }
 
   /**

@@ -85,6 +85,19 @@ export class LiveKitService {
     }
   }
 
+  /**
+   * Lets a connected participant publish or not (community parity A1: a stage's moderators letting someone speak, or
+   * sending them back to the audience). Their next token says the same.
+   */
+  async setCanPublish(room: string, identity: string, canPublish: boolean): Promise<"updated" | "absent" | "error"> {
+    try {
+      await withTimeout(this.rooms.updateParticipant(room, identity, undefined, { canPublish, canSubscribe: true, canPublishData: true }));
+      return "updated";
+    } catch (e) {
+      return isNotFound(e) ? "absent" : "error";
+    }
+  }
+
   /** Mutes one published track (a screen share above the person's plan, docs/MOJO.md). */
   async muteTrack(room: string, identity: string, trackSid: string): Promise<"muted" | "absent" | "error"> {
     try {

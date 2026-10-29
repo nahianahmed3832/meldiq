@@ -50,7 +50,21 @@ describe("catalog and visibility", () => {
 describe("creating, cloning and editing", () => {
   it("creates from a template and refuses duplicate or base-role names", async () => {
     const mod = await createRole(owner, { template: "moderator" });
-    expect(mod).toMatchObject({ name: "Moderator", permissions: ["channels.manage", "channels.visibility", "messages.announce", "messages.bypass_slowmode", "members.remove", "members.ban", "members.timeout", "members.approve", "reports.view"], rev: 1, memberCount: 0 });
+    expect(mod).toMatchObject({ name: "Moderator", permissions: [
+        "channels.manage",
+        "channels.visibility",
+        "messages.announce",
+        "messages.bypass_slowmode",
+        "messages.manage",
+        "threads.manage",
+        "members.remove",
+        "members.ban",
+        "members.timeout",
+        "members.approve",
+        "members.nicknames",
+        "reports.view",
+      ],
+      rev: 1, memberCount: 0 });
     expect((await expectStatus(createRole(owner, { name: "moderator" }), 409)).error.code).toBe("role_name_taken");
     expect((await expectStatus(createRole(owner, { name: "Admin" }), 409)).error.code).toBe("role_name_taken");
   });

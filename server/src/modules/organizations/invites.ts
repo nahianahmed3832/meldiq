@@ -160,6 +160,8 @@ export function joinOrgByInvite(ctx: AppContext, w: RowWriter, inv: OrgInviteRow
     // A guest invitation can carry an end date for the membership (round 7, docs/WORKSPACE_C5.md).
     const guestDays = inv.role === "GUEST" ? (inv as { guest_days?: number | null }).guest_days ?? null : null;
     w.insert("org_members", { org_id: inv.org_id, user_id: userId, role: inv.role, joined_at: t, expires_at: guestDays ? t + guestDays * 86_400_000 : null });
+    // Community parity A1: the roles the community hands out automatically.
+    ctx.communityPermissions.assignAutoRoles(w, inv.org_id, userId, t);
   } else if (rank[inv.role] > rank[existing]) {
     w.update("org_members", { org_id: inv.org_id, user_id: userId }, { role: inv.role });
   }

@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "voice_messages_not_allowed",
+    "message": "You can't send voice messages here"
+  }
+}
