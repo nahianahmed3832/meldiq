@@ -1,4 +1,5 @@
 import { activityRoutes } from "../activity.js";
+import { decorationRoutes } from "../decorations.js";
 import { authRoutes } from "../auth.js";
 import { notificationRoutes } from "../notifications.js";
 import { preferenceRoutes } from "../preferences.js";
@@ -12,6 +13,7 @@ export const identityRoutes: readonly RouteContract[] = [
   ...authRoutes,
   ...userRoutes,
   ...activityRoutes,
+  ...decorationRoutes,
   ...notificationRoutes,
   ...connectionRoutes,
   ...preferenceRoutes,

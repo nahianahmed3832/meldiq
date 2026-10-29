@@ -92,6 +92,32 @@ export function webpInfo(b: Buffer): ImageInfo | null {
   return { width, height, frames: frames || (still ? 1 : 0) };
 }
 
+/**
+ * A PNG's size and frame count (an animated PNG's acTL, else 1), walked chunk by chunk from IHDR to IEND; null when the
+ * chunks don't add up (API 0.60.0, profile decorations).
+ */
+export function pngInfo(b: Buffer): ImageInfo | null {
+  if (sniff(b) !== "png") return null;
+  let p = 8;
+  let width = 0;
+  let height = 0;
+  let frames = 1;
+  while (p + 12 <= b.length) {
+    const size = b.readUInt32BE(p);
+    const id = b.toString("latin1", p + 4, p + 8);
+    const body = p + 8;
+    if (body + size + 4 > b.length) return null;
+    if (p === 8 && id !== "IHDR") return null;
+    if (id === "IHDR" && size >= 8) {
+      width = b.readUInt32BE(body);
+      height = b.readUInt32BE(body + 4);
+    } else if (id === "acTL" && size >= 8) frames = b.readUInt32BE(body);
+    else if (id === "IEND") return width > 0 && height > 0 && frames > 0 ? { width, height, frames } : null;
+    p = body + size + 4;
+  }
+  return null;
+}
+
 /** A JPEG's size from its first start-of-frame marker; null when there's none. */
 export function jpegInfo(b: Buffer): ImageInfo | null {
   if (sniff(b) !== "jpeg") return null;

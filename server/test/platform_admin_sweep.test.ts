@@ -45,6 +45,10 @@ const GUARDED: Record<string, Permission> = {
   "PUT /admin/v1/billing/mojo": "billing.manage",
   "GET /admin/v1/billing/gifts": "billing.view",
   "GET /admin/v1/billing/sparks": "billing.view",
+  // API 0.60.0: the review queue for profile decorations people send in.
+  "GET /admin/v1/decorations": "decorations.review",
+  "GET /admin/v1/decorations/:id/image": "decorations.review",
+  "POST /admin/v1/decorations/:id/decision": "decorations.review",
   "GET /admin/v1/infrastructure": "health.view",
   "POST /admin/v1/connectors/:id/check": "connectors.check",
   "GET /admin/v1/incidents": "incidents.view",

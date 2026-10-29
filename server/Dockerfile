@@ -21,6 +21,8 @@ RUN apk add --no-cache tini wget ffmpeg font-dejavu && mkdir -p /data && chown n
 COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/dist ./dist
 COPY --chown=node:node migrations ./migrations
+# Meldiq's own profile decorations and the template (scripts/render-decorations.mjs, docs/PROFILE_DECORATIONS.md).
+COPY --chown=node:node assets ./assets
 COPY --chown=node:node package.json ./
 USER node
 EXPOSE 8080

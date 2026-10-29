@@ -44,7 +44,8 @@ export class AdminBrowser {
       if (/Max-Age=0/.test(c) || value === "") this.cookies.delete(name);
       else this.cookies.set(name, value);
     }
-    return { status: res.statusCode, body: res.body ? res.json() : null, setCookies, headers: res.headers as Record<string, unknown> };
+    const json = String(res.headers["content-type"] ?? "").includes("application/json");
+    return { status: res.statusCode, body: res.body ? (json ? res.json() : res.rawPayload) : null, setCookies, headers: res.headers as Record<string, unknown> };
   }
 
   /** Throws unless the answer has [status]; returns its body. */

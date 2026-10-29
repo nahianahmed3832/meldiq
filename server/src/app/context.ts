@@ -19,6 +19,7 @@ import type { Rows } from "../infrastructure/database/rows/index.js";
 import type { ReportStore } from "../modules/organizations/reports/store.js";
 import type { PreferenceStore } from "../modules/accounts/preferences/store.js";
 import type { ActivityService } from "../modules/accounts/activity/service.js";
+import type { DecorationService } from "../modules/accounts/decorations/service.js";
 import type { PushService } from "../modules/notifications/service.js";
 import type { FcmService } from "../modules/notifications/fcm.js";
 import type { Metrics } from "../modules/administration/ops/metrics.js";
@@ -63,6 +64,8 @@ export interface AppContext {
   relationships: RelationshipStore;
   /** What people are playing (API 0.56.0, docs/ACTIVITY_STATUS.md): MongoDB when the server has one, memory otherwise. */
   activity: ActivityService;
+  /** Profile decorations: Meldiq's own and reviewed community ones (API 0.60.0, docs/PROFILE_DECORATIONS.md). */
+  decorations: DecorationService;
   /** Calls, their participants and raised hands: SQLite, or MongoDB when MONGODB_DOMAINS includes "calls". */
   calls: CallStore;
   /**

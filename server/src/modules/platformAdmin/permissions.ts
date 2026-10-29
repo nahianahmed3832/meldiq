@@ -45,6 +45,8 @@ export const PERMISSIONS = [
   "billing.view",
   "billing.manage",
   "billing.events.replay",
+  // Profile decorations people send in (docs/PROFILE_DECORATIONS.md): the review queue.
+  "decorations.review",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -106,6 +108,7 @@ const GRANTS: Readonly<Record<PlatformRole, ReadonlySet<Permission>>> = {
     "controls.edit",
     "alerts.manage",
     "exports.create",
+    "decorations.review",
   ]),
   support_admin: new Set<Permission>([
     "overview.view",
@@ -127,6 +130,7 @@ const GRANTS: Readonly<Record<PlatformRole, ReadonlySet<Permission>>> = {
     "users.recovery",
     "quotas.view",
     "billing.view",
+    "decorations.review",
   ]),
   billing_admin: new Set<Permission>([
     "overview.view",

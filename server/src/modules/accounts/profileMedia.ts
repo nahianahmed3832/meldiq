@@ -1,4 +1,5 @@
 import type { AppContext } from "../../app/context.js";
+import { DECORATION_ID } from "../../shared/contracts/http/decorations.js";
 import { NAME_EFFECTS, NAME_FONTS, PROFILE_DECORATIONS, PROFILE_EFFECTS } from "../../shared/contracts/http/users.js";
 
 /** Profile media and style as stored on a user row (API 0.45.0, docs/PROFILE_MEDIA.md); routes in profileMediaRoutes.ts. */
@@ -35,7 +36,8 @@ export const bannerOf = (u: { profile_banner?: string | null }) => parseJson<Ban
 export function styleOf(u: { profile_style?: string | null }): Style {
   const s = parseJson<Partial<Style>>(u.profile_style) ?? {};
   return {
-    decoration: PROFILE_DECORATIONS.includes(s.decoration as never) ? (s.decoration as string) : null,
+    // A classic frame, or (API 0.60.0) one of Meldiq's own or a community one; one taken down is cleared from its wearers.
+    decoration: typeof s.decoration === "string" && (PROFILE_DECORATIONS.includes(s.decoration as never) || DECORATION_ID.test(s.decoration)) ? s.decoration : null,
     effect: PROFILE_EFFECTS.includes(s.effect as never) ? (s.effect as string) : null,
     accent: typeof s.accent === "string" && HEX.test(s.accent) ? s.accent : null,
     nameFont: NAME_FONTS.includes(s.nameFont as never) ? (s.nameFont as string) : null,

@@ -30,6 +30,7 @@ const EXPECTED: Record<string, string[]> = {
     "controls.edit",
     "alerts.manage",
     "exports.create",
+    "decorations.review",
   ],
   support_admin: [
     "overview.view",
@@ -51,6 +52,7 @@ const EXPECTED: Record<string, string[]> = {
     "users.recovery",
     "quotas.view",
     "billing.view",
+    "decorations.review",
   ],
   billing_admin: [
     "overview.view",

@@ -371,3 +371,38 @@ export const AdminSessionsList = z.strictObject({
 });
 /** Who an incident can be assigned to: active admins whose role may manage incidents (names only). */
 export const AdminAssignees = z.strictObject({ assignees: z.array(zPerson) });
+
+/** Profile decorations waiting for review, and decided ones (API 0.60.0, docs/PROFILE_DECORATIONS.md). */
+export const AdminDecorationsQuery = z.strictObject({
+  status: z.enum(["pending", "approved", "rejected", "removed"]).default("pending"),
+  /** The `next` of the previous page. */
+  before: z.coerce.number().int().nonnegative().optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(30),
+});
+export const AdminDecorationParams = z.strictObject({ id: z.string().regex(/^c_[a-z0-9]{16}$/) });
+/** Approving needs no reason; turning one down or taking it down does (the creator sees it). */
+export const AdminDecorationDecision = z.discriminatedUnion("decision", [
+  z.strictObject({ decision: z.literal("approve") }),
+  z.strictObject({ decision: z.enum(["reject", "remove"]), reason: zReason }),
+]);
+/** A submission as its maker sees it (the apps' DecorationSubmission). */
+export const AdminDecorationView = z.strictObject({
+  id: z.string(),
+  name: z.string(),
+  status: z.enum(["pending", "approved", "rejected", "removed"]),
+  reason: z.string().nullable(),
+  animated: z.boolean(),
+  imageUrl: z.string(),
+  wearers: zCount,
+  createdAt: zTime,
+  reviewedAt: zTime.nullable(),
+});
+/** One row of the review queue: the submission, its file, and who made it (whether they're already an artist). */
+export const AdminDecorationEntry = AdminDecorationView.extend({
+  format: z.enum(["png", "webp", "gif"]),
+  size: zCount,
+  creator: z.strictObject({ userId: z.string(), displayName: z.string().nullable(), artist: z.boolean() }),
+  reviewedBy: z.string().nullable(),
+});
+export const AdminDecorationsPage = z.strictObject({ decorations: z.array(AdminDecorationEntry), next: zTime.nullable() });
+export const AdminDecorationDecided = z.strictObject({ decoration: AdminDecorationView });

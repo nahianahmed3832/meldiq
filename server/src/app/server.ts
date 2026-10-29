@@ -73,6 +73,10 @@ import communityRoutes from "../modules/organizations/communityRoutes.js";
 import { runCommunityMigration } from "../modules/organizations/communityMigration.js";
 import preferenceRoutes from "../modules/accounts/preferences/routes.js";
 import activityRoutes from "../modules/accounts/activity/routes.js";
+import decorationRoutes from "../modules/accounts/decorations/routes.js";
+import { DecorationService } from "../modules/accounts/decorations/service.js";
+import { MemoryDecorationStore } from "../modules/accounts/decorations/store.js";
+import { MongoDecorationStore } from "../modules/accounts/decorations/mongoStore.js";
 import { ActivityService } from "../modules/accounts/activity/service.js";
 import { MemoryActivityStore } from "../modules/accounts/activity/store.js";
 import { MongoActivityStore } from "../modules/accounts/activity/mongoStore.js";
@@ -93,7 +97,7 @@ import { now } from "../shared/utilities/util.js";
 import wsRoutes from "../modules/realtime/ws.js";
 import { Billing, billingRoutes } from "../modules/billing/index.js";
 
-export const VERSION = "0.59.0";
+export const VERSION = "0.60.0";
 /**
  * The client API this server speaks and the oldest client API it accepts. Clients refuse a server whose
  * minClientApi is newer than theirs; servers from before these fields existed count as API 1.
@@ -236,6 +240,11 @@ export async function buildApp(
   ctx.activity.onChange = (userId) => announceActivity(ctx, userId);
   await ctx.activity.start();
   app.addHook("onClose", async () => ctx.activity.stop());
+  // API 0.60.0: profile decorations people send in (docs/PROFILE_DECORATIONS.md), new data, so MongoDB whenever there is one.
+  const decorationStore = ctx.mongo ? new MongoDecorationStore(ctx.mongo) : new MemoryDecorationStore();
+  if (decorationStore instanceof MongoDecorationStore) await decorationStore.ensureIndexes();
+  ctx.decorations = new DecorationService(ctx, decorationStore);
+  await ctx.decorations.load();
   ctx.reportSealer = ReportSealer.load(process.env, config.dataDir);
   // Billing (plans, subscriptions, Meldiq Spark, gifts): rows in SQLite, or MongoDB when MONGODB_DOMAINS includes it.
   ctx.billing = new Billing(await openBillingRows(db, ctx.mongo, app.log), config.billing, app.log, Date.now, (id) => ctx.quotas.planExists(id));
@@ -457,7 +466,7 @@ export async function buildApp(
     passkeys: ctx.accounts.passkeys.available ? { webOrigins: ctx.accounts.passkeys.webOrigins } : null,
   }));
 
-  for (const r of [authRoutes, userRoutes, profileMediaRoutes, gifRoutes, bugReportRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, serverMessagesRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, activityRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, expressionRoutes, discordRoutes, wsRoutes]) {
+  for (const r of [authRoutes, userRoutes, profileMediaRoutes, gifRoutes, bugReportRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, serverMessagesRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, activityRoutes, decorationRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, expressionRoutes, discordRoutes, wsRoutes]) {
     await app.register(async (scope) => r(scope, ctx));
   }
   await app.register(async (scope) => opsRoutes(scope, ctx, VERSION));
@@ -592,6 +601,8 @@ export function serverFeatures(config: Config, directUploads = false): string[] 
     "mojo",
     // API 0.57.0 (docs/SERVER_MESSAGES.md): messages stored and served by the server (/v2/messages).
     "server-messages",
+    // API 0.60.0 (docs/PROFILE_DECORATIONS.md): Meldiq's own decorations and reviewed community ones (/v2/decorations).
+    "profile-decorations",
   ];
   if (config.accounts.legacy.migration) f.push("legacy-migration");
   if (directUploads) f.push("direct-upload");

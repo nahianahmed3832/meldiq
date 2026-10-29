@@ -49,7 +49,7 @@ export const PROFILE_MEDIA_LIMITS = {
 const MIME = { gif: "image/gif", webp: "image/webp", jpeg: "image/jpeg", video: "video/mp4" } as const;
 
 /** Reads an octet-stream body of at most [max] bytes, stopping as soon as it's larger. */
-async function readBody(req: FastifyRequest, max: number, what: string): Promise<Buffer> {
+export async function readBody(req: FastifyRequest, max: number, what: string): Promise<Buffer> {
   const body = req.body as Readable | undefined;
   if (!body || typeof body.pipe !== "function") throw badRequest("Expected application/octet-stream body");
   const tooLarge = () => new ApiError(413, "too_large", `${what} can be up to ${Math.round(max / (1024 * 1024))} MB`);
@@ -234,7 +234,10 @@ export default async function profileMediaRoutes(app: FastifyInstance, ctx: AppC
       nameEffect: keep(body.nameEffect, current.nameEffect),
       tagOrgId: keep(body.tagOrgId, current.tagOrgId),
     };
+    // API 0.60.0: Meldiq's own and approved community decorations too (docs/PROFILE_DECORATIONS.md).
+    if (next.decoration && next.decoration !== current.decoration && !ctx.decorations.wearable(next.decoration)) throw badRequest("That decoration isn't available");
     await setOwn(userId, { profile_style: JSON.stringify(next) });
+    await ctx.decorations.worn(current.decoration, next.decoration);
     announceProfileChange(ctx, userId);
     return { profileStyle: next };
   });

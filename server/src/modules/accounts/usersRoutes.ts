@@ -309,6 +309,8 @@ export default async function userRoutes(app: FastifyInstance, ctx: AppContext) 
         ...activityField(activityFor(ctx, viewer, u)),
         // Someone they blocked sees only the basics: neither when they joined nor where you meet.
         ...(r.blockedByTarget ? {} : { memberSince: u.created_at, mutualCommunities: mutualCommunities(ctx, viewer, u.id) }),
+        // API 0.60.0: the Artist badge.
+        ...(ctx.decorations.isArtist(u.id) ? { decorationArtist: true as const } : {}),
       },
     };
   });

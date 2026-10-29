@@ -119,8 +119,13 @@ export const PROFILE_EFFECTS = ["sparkles", "glow", "stars", "bubbles"] as const
 export const NAME_FONTS = ["pixel", "arcade", "script", "block", "tech", "mono"] as const;
 export const NAME_EFFECTS = ["glow", "shimmer"] as const;
 const zHex = z.string().regex(/^#[0-9a-fA-F]{6}$/);
+/**
+ * A decoration: a classic frame (PROFILE_DECORATIONS), or since API 0.60.0 one of Meldiq's own or an approved community
+ * one by id (docs/PROFILE_DECORATIONS.md, GET /v2/decorations). Older apps show only the classic ones.
+ */
+const zWornDecoration = z.string().regex(/^(?:[a-z0-9-]{2,32}|c_[a-z0-9]{16})$/, "Not a decoration id");
 export const ProfileStyleBody = z.object({
-  decoration: z.enum(PROFILE_DECORATIONS).nullable().optional(),
+  decoration: zWornDecoration.nullable().optional(),
   effect: z.enum(PROFILE_EFFECTS).nullable().optional(),
   accent: zHex.nullable().optional(),
   /** API 0.46.0: the display name's font, its colour (one) or gradient (two or three), and an effect. */
@@ -131,7 +136,7 @@ export const ProfileStyleBody = z.object({
   tagOrgId: z.string().max(64).nullable().optional(),
 });
 export const ProfileStyle = z.strictObject({
-  decoration: z.enum(PROFILE_DECORATIONS).nullable(),
+  decoration: zWornDecoration.nullable(),
   effect: z.enum(PROFILE_EFFECTS).nullable(),
   accent: z.string().nullable(),
   nameFont: z.enum(NAME_FONTS).nullable().optional(),
@@ -244,6 +249,8 @@ export const UserProfile = z.strictObject({
   memberSince: zTime.optional(),
   /** API 0.57.0: communities you're both in (their icon, name, and when they joined it), newest join first. */
   mutualCommunities: z.array(z.strictObject({ id: z.string(), name: z.string(), photoRev: z.number().int().nullable(), joinedAt: zTime })).optional(),
+  /** API 0.60.0: they have a profile decoration approved (the Artist badge); absent otherwise. */
+  decorationArtist: z.literal(true).optional(),
 });
 
 /** A device's public keys, to encrypt to and verify. */
