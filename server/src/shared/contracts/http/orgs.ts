@@ -102,6 +102,8 @@ const personFields = {
   photoRev: zTime.optional(),
   /** Set for people on another server: their home server's id. */
   homeServer: z.string().nullable(),
+  /** API 0.65.0: a bot account (show a BOT tag); absent for people. */
+  bot: z.literal(true).optional(),
   /** null: the viewer may not see when this person is online. */
   online: z.boolean().nullable(),
   presence: PresenceState.optional(),

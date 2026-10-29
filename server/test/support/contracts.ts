@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { fixtureName } from "../../scripts/contracts.js";
 import type { ContractObserver } from "../../src/app/contractObserver.js";
 import { ErrorEnvelope, ROUTE_CONTRACTS, type RouteContract } from "../../src/shared/contracts/http/index.js";
+import { OAuthErrorBody } from "../../src/shared/contracts/http/oauthApps.js";
 import { ServerEvent } from "../../src/shared/contracts/realtime.js";
 import { ERROR_CODES, type ErrorCode } from "../../src/shared/errors.js";
 
@@ -20,7 +21,7 @@ export const FIXTURES = path.resolve(here, "..", "..", "..", "shared", "contract
 
 const byRoute = new Map(ROUTE_CONTRACTS.map((c) => [`${c.method} ${c.url}`, c]));
 /** Fields whose values are credentials, even test ones: never written to fixtures. */
-const REDACT = new Set(["token", "accessToken", "refreshToken", "sessionToken", "codes", "recoveryCode", "secret"]);
+const REDACT = new Set(["token", "accessToken", "refreshToken", "sessionToken", "codes", "recoveryCode", "secret", "clientSecret", "access_token", "refresh_token"]);
 /** Server-to-server routes speak their own protocol (docs/FEDERATION_PROTOCOL.md). */
 const PEER_ROUTE = /^\/(fed|core)\//;
 
@@ -53,6 +54,13 @@ export function contractCheck(): ContractCheck {
       } catch {
         return note(where, "not JSON");
       }
+      const contract: RouteContract | undefined = byRoute.get(`${method} ${url}`);
+      // The OAuth token endpoint answers errors as RFC 6749 §5.2 says, not with the error envelope.
+      if (status >= 400 && contract?.errorFormat === "oauth") {
+        const r = OAuthErrorBody.safeParse(json);
+        if (!r.success) note(where, `OAuth error body: ${r.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ")}`);
+        return;
+      }
       if (status >= 400) {
         const r = ErrorEnvelope.safeParse(json);
         if (!r.success) return note(where, `error envelope: ${r.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ")}`);
@@ -61,7 +69,6 @@ export function contractCheck(): ContractCheck {
         sample(`http/errors/${code}`, json);
         return;
       }
-      const contract: RouteContract | undefined = byRoute.get(`${method} ${url}`);
       if (!contract || status !== (contract.status ?? 200)) return;
       const r = contract.response.safeParse(json);
       if (!r.success) return note(where, r.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; "));

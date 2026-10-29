@@ -149,6 +149,8 @@ export const ServerEvent = z.discriminatedUnion("t", [
   z.strictObject({ t: z.literal("reminder.due"), id, occurrenceAt: time, firedAt: time }),
   z.strictObject({ t: z.literal("meeting.updated"), ...meeting }),
   z.strictObject({ t: z.literal("meeting.soon"), ...meeting }),
+  // API 0.65.0 batch B: a bot's ephemeral answer to a slash command, sent only to the person who ran it (never stored).
+  z.strictObject({ t: z.literal("interaction.reply"), interactionId: z.string(), conversationId: id, botId: id, command: z.string(), content: z.string(), at: time }),
 ]);
 export type ServerEvent = z.infer<typeof ServerEvent>;
 export type ServerEventName = ServerEvent["t"];

@@ -1,0 +1,12 @@
+{
+  "app": {
+    "id": "app_iVbAa6MjJGxRLpONqwQuNA",
+    "name": "Lab 2",
+    "redirectUris": [
+      "http://127.0.0.1:8080/cb"
+    ],
+    "createdAt": 1793283155436,
+    "updatedAt": 1793283155463,
+    "secretRotatedAt": 1793283155436
+  }
+}

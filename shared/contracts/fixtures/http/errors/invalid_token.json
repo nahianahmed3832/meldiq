@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "invalid_token",
+    "message": "The access token is missing, expired or was revoked"
+  }
+}

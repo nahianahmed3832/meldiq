@@ -1,0 +1,13 @@
+{
+  "bot": {
+    "id": "u_IDcQGI79viNmht32ehZMkg",
+    "username": "dicebot2004",
+    "displayName": "Dice Bot",
+    "public": true,
+    "owner": {
+      "id": "u_nAr5EckXeCeT47bD2bCUfg",
+      "username": "botowner6"
+    },
+    "commands": 0
+  }
+}

@@ -166,6 +166,7 @@ export function userSummary(u: {
   home_server_id?: string | null;
   photo_rev?: number | null;
   privacy?: string | null;
+  kind?: string;
 }) {
   // Lists and search show only what the person publishes to everyone (docs/PROFILE_AND_PRIVACY.md); the profile
   // endpoint shows contacts what they may see.
@@ -180,6 +181,8 @@ export function userSummary(u: {
     ...(p.photo === "everyone" && u.photo_rev ? { photoRev: u.photo_rev } : {}),
     // Set for people on another server: their home server's id (username is then "name:domain").
     homeServer: u.home_server_id ?? null,
+    // API 0.65.0 batch B: a bot account (apps show a BOT tag).
+    ...(u.kind === "agent" ? { bot: true as const } : {}),
   };
 }
 

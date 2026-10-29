@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "oauth_invalid_scope",
+    "message": "Meldiq's scopes are identify and email"
+  }
+}

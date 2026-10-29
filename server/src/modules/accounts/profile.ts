@@ -53,6 +53,8 @@ export interface ProfileRow {
   photo_rev?: number | null;
   privacy?: string | null;
   home_server_id?: string | null;
+  /** "agent" for bot accounts (API 0.65.0). */
+  kind?: string;
   presence_mode?: string | null;
   presence_until?: number | null;
   /** Batch B12: shown with the bio, under its privacy setting. */
@@ -163,6 +165,8 @@ export function profileView(u: ProfileRow, r: Relation, ctx?: AppContext) {
     displayName: u.display_name,
     avatarColor: u.avatar_color,
     homeServer: u.home_server_id ?? null,
+    // API 0.65.0 batch B: a bot account (apps show a BOT tag).
+    ...(u.kind === "agent" ? { bot: true } : {}),
   };
   const status = activeStatus(u);
   if (show("bio") && status.text) view.statusText = status.text;

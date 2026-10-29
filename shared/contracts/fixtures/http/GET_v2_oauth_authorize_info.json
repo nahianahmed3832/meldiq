@@ -1,0 +1,19 @@
+{
+  "app": {
+    "id": "app_GdiESoYoAAqrLmBZEgE7sg",
+    "name": "Readme Club",
+    "ownerUsername": "oauthdev2307"
+  },
+  "scopes": [
+    {
+      "id": "identify",
+      "description": "Your username, display name and profile picture"
+    },
+    {
+      "id": "email",
+      "description": "Your email address"
+    }
+  ],
+  "redirectUri": "https://app.example.test/callback",
+  "alreadyAuthorized": false
+}

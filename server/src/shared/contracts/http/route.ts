@@ -16,6 +16,13 @@ export interface RouteContract {
   tag: string;
   /** false: no bearer token needed. */
   auth: boolean;
+  /**
+   * API 0.65.0 batch B: a credential other than a person's session. "bot": `Authorization: Bot <token>` (/v2/bot/…);
+   * "oauth": an app's OAuth access token as the bearer (/v2/oauth/userinfo), which no other route accepts.
+   */
+  scheme?: "bot" | "oauth";
+  /** "oauth": errors are RFC 6749 §5.2 bodies (`{ error, error_description }`), not the error envelope. */
+  errorFormat?: "oauth";
   params?: z.ZodType;
   query?: z.ZodType;
   body?: z.ZodType;

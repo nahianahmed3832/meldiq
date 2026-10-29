@@ -1,0 +1,7 @@
+{
+  "access_token": "<redacted>",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "refresh_token": "<redacted>",
+  "scope": "identify email"
+}

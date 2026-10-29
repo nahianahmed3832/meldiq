@@ -198,6 +198,8 @@ export const UserSummary = z.strictObject({
   photoRev: z.number().int().optional(),
   /** People on another server: their home server's id (username is then "name:domain"). */
   homeServer: z.string().nullable(),
+  /** API 0.65.0: a bot account (show a BOT tag); absent for people. */
+  bot: z.literal(true).optional(),
 });
 
 /** A profile as its viewer may see it: hidden and empty fields are both absent. */
@@ -207,6 +209,8 @@ const profileFields = {
   displayName: z.string(),
   avatarColor: z.number().int(),
   homeServer: z.string().nullable(),
+  /** API 0.65.0: a bot account (show a BOT tag); absent for people. */
+  bot: z.literal(true).optional(),
   statusText: z.string().optional(),
   statusEmoji: z.string().optional(),
   statusExpiresAt: zTime.optional(),

@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "bot_not_here",
+    "message": "That bot isn't in this channel"
+  }
+}

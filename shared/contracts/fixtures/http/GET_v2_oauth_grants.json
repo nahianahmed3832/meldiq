@@ -1,0 +1,91 @@
+{
+  "grants": [
+    {
+      "app": {
+        "id": "app_YQYcEmS990TTkRXQCZb9gg",
+        "name": "Revocable",
+        "ownerUsername": "oauthdev2307"
+      },
+      "scopes": [
+        "identify",
+        "email"
+      ],
+      "createdAt": 1793283155662,
+      "updatedAt": 1793283155662
+    },
+    {
+      "app": {
+        "id": "app_7VOVPJBy8S2WeG4ARai8cA",
+        "name": "Contained",
+        "ownerUsername": "oauthdev2307"
+      },
+      "scopes": [
+        "identify"
+      ],
+      "createdAt": 1793283155644,
+      "updatedAt": 1793283155644
+    },
+    {
+      "app": {
+        "id": "app_Q0wKkwB4IGWnbtaVN49xww",
+        "name": "Refresher",
+        "ownerUsername": "oauthdev2307"
+      },
+      "scopes": [
+        "identify",
+        "email"
+      ],
+      "createdAt": 1793283155623,
+      "updatedAt": 1793283155635
+    },
+    {
+      "app": {
+        "id": "app_mBXdgBfZBekQb6GEpvKJqw",
+        "name": "Picky",
+        "ownerUsername": "oauthdev2307"
+      },
+      "scopes": [
+        "identify"
+      ],
+      "createdAt": 1793283155618,
+      "updatedAt": 1793283155618
+    },
+    {
+      "app": {
+        "id": "app_nWuAPqKMfGsokrN8G6ngpw",
+        "name": "Strict",
+        "ownerUsername": "oauthdev2307"
+      },
+      "scopes": [
+        "identify"
+      ],
+      "createdAt": 1793283155587,
+      "updatedAt": 1793283155605
+    },
+    {
+      "app": {
+        "id": "app_MJ1MJbMBV0SqKMehRnezdg",
+        "name": "No email",
+        "ownerUsername": "oauthdev2307"
+      },
+      "scopes": [
+        "identify"
+      ],
+      "createdAt": 1793283155568,
+      "updatedAt": 1793283155568
+    },
+    {
+      "app": {
+        "id": "app_GdiESoYoAAqrLmBZEgE7sg",
+        "name": "Readme Club",
+        "ownerUsername": "oauthdev2307"
+      },
+      "scopes": [
+        "identify",
+        "email"
+      ],
+      "createdAt": 1793283155553,
+      "updatedAt": 1793283155553
+    }
+  ]
+}
