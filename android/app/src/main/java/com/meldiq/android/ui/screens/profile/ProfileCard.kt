@@ -3,6 +3,7 @@ package com.meldiq.android.ui.screens.profile
 import android.content.ClipData
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -231,10 +232,12 @@ fun UserProfileScreen(nav: NavHostController, userId: String, orgId: String? = n
                     FlowRow(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         u.tag?.let { t -> Chip(t.text, dot = com.meldiq.android.data.model.LookRules.argb(t.color)?.let { Color(it) }) }
                         ProfileCardRules.mojoName(u.mojo?.badge)?.let { name -> Chip(name, icon = if (u.mojo?.check == true) Icons.Outlined.Verified else null, accent = true) }
-                        if ("bug-hunter" in u.badges.orEmpty()) Chip(stringResource(R.string.wp_badge_bug_hunter), icon = Icons.Outlined.BugReport)
+                        // API 0.64.0: Bug Hunter and Artist are Meldiq pins now (below); older servers send the badges.
+                        if (u.pins == null && "bug-hunter" in u.badges.orEmpty()) Chip(stringResource(R.string.wp_badge_bug_hunter), icon = Icons.Outlined.BugReport)
                         // API 0.60.0: they made a decoration Meldiq approved.
-                        if (u.decorationArtist) Chip(stringResource(R.string.deco_badge_artist), icon = Icons.Outlined.Brush)
+                        if (u.pins == null && u.decorationArtist) Chip(stringResource(R.string.deco_badge_artist), icon = Icons.Outlined.Brush)
                     }
+                    u.pins?.takeIf { it.isNotEmpty() }?.let { ProfilePinsRow(it, Modifier.padding(top = 8.dp)) }
                     ProfileCardRules.statusLine(u)?.let { Text(it, style = Griip.type.body, color = c.textPrimary, modifier = Modifier.padding(top = 10.dp)) }
                     // API 0.56.0: what they're playing, live (docs/ACTIVITY_STATUS.md).
                     com.meldiq.android.ui.components.rememberActivity(u.id)?.let { a ->
@@ -432,3 +435,52 @@ private fun MessageBox(u: UserDto, onSend: (String) -> Unit) {
 
 /** The longest text the box takes; the server still applies the plan's limit. */
 private const val MESSAGE_MAX = 4000
+
+/** Pins shown before "+N" (tapping it shows the rest). */
+private const val PINS_SHOWN = 8
+
+/**
+ * A profile's pins (API 0.64.0, server docs/PROFILE_PINS.md, as Meldiq Web's ProfilePins): a row of small badges,
+ * Meldiq's for milestones, then the ones communities gave. Tapping one says what it is and who gave it.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ProfilePinsRow(pins: List<com.meldiq.android.data.api.ProfilePinDto>, modifier: Modifier = Modifier) {
+    val c = Griip.colors
+    var all by remember { mutableStateOf(false) }
+    var open by remember { mutableStateOf<String?>(null) }
+    val shown = if (all) pins else pins.take(PINS_SHOWN)
+    Column(modifier) {
+        FlowRow(
+            Modifier.clip(Shapes.small).background(c.surfaceVariant).padding(horizontal = 6.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            shown.forEach { p ->
+                Box(
+                    Modifier.size(32.dp).clip(Shapes.small).background(if (open == p.id) c.surface else Color.Transparent)
+                        .clickable(onClickLabel = p.name) { open = if (open == p.id) null else p.id },
+                    contentAlignment = Alignment.Center,
+                ) { com.meldiq.android.ui.components.PinImage(p.id, 24.dp, p.name) }
+            }
+            if (!all && pins.size > PINS_SHOWN) {
+                Box(Modifier.height(32.dp).clip(Shapes.small).clickable { all = true }.padding(horizontal = 6.dp), contentAlignment = Alignment.Center) {
+                    Text("+${pins.size - PINS_SHOWN}", style = Griip.type.label, color = c.textSecondary)
+                }
+            }
+        }
+        pins.firstOrNull { it.id == open }?.let { p ->
+            Row(Modifier.padding(top = 8.dp).fillMaxWidth().clip(Shapes.small).background(c.surfaceVariant).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                com.meldiq.android.ui.components.PinImage(p.id, 40.dp, null)
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(p.name, style = Griip.type.label, color = c.textPrimary)
+                    p.description?.let { Text(it, style = Griip.type.bodySmall, color = c.textSecondary) }
+                    Text(
+                        p.community?.let { stringResource(R.string.pin_given_by, it.name) } ?: stringResource(R.string.pin_meldiq),
+                        style = Griip.type.caption, color = c.textTertiary,
+                    )
+                }
+            }
+        }
+    }
+}

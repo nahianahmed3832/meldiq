@@ -67,6 +67,8 @@ import com.meldiq.android.ui.theme.Griip
 import com.meldiq.android.ui.theme.Shapes
 import com.meldiq.android.ui.theme.Space
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
@@ -96,14 +98,24 @@ fun ProfileStyleScreen(nav: NavHostController) {
         value = runCatching { container.orgs.orgs() }.getOrNull() ?: value
     }
     LaunchedEffect(Unit) { runCatching { container.profiles.me() }.onFailure { error = it.friendly() } }
-    val style = me?.profileStyle ?: ProfileStyleDto()
+    // The owner, 2026-10-29: "need to click multiple time to select one". A pick shows at once and is saved in the
+    // background, one save after another so the last pick wins; nothing waits on a save, and a refused one goes back.
+    val serverStyle = me?.profileStyle ?: ProfileStyleDto()
+    var picked by remember { mutableStateOf<ProfileStyleDto?>(null) }
+    LaunchedEffect(serverStyle) { if (picked == serverStyle) picked = null }
+    val style = picked ?: serverStyle
+    val saves = remember { Mutex() }
 
-    fun save(changes: kotlinx.serialization.json.JsonObject) {
-        if (busy) return
-        busy = true
+    fun save(changes: kotlinx.serialization.json.JsonObject, next: ProfileStyleDto) {
+        picked = next
+        error = null
         scope.launch {
-            runCatching { container.profiles.setProfileStyle(changes) }.onFailure { error = it.friendly() }
-            busy = false
+            saves.withLock {
+                runCatching { container.profiles.setProfileStyle(changes) }.onFailure {
+                    error = it.friendly()
+                    if (picked == next) picked = null
+                }
+            }
         }
     }
     fun upload(block: suspend () -> Unit) {
@@ -162,53 +174,53 @@ fun ProfileStyleScreen(nav: NavHostController) {
         }
         item {
             // API 0.60.0: Meldiq's own, community and your own decorations (DecorationPicker.kt).
-            DecorationSection(u, style.decoration, busy, classicLabel = ::label) { d -> save(buildJsonObject { put("decoration", d?.let(::JsonPrimitive) ?: JsonNull) }) }
+            DecorationSection(u, style.decoration, busy = false, classicLabel = ::label) { d -> save(buildJsonObject { put("decoration", d?.let(::JsonPrimitive) ?: JsonNull) }, style.copy(decoration = d)) }
         }
         item {
             ChoiceCard(stringResource(R.string.wp_style_effect)) {
-                Choice(stringResource(R.string.wp_style_none), style.effect == null) { save(buildJsonObject { put("effect", JsonNull) }) }
-                LookRules.EFFECTS.forEach { e -> Choice(label(e), style.effect == e) { save(buildJsonObject { put("effect", JsonPrimitive(e)) }) } }
+                Choice(stringResource(R.string.wp_style_none), style.effect == null) { save(buildJsonObject { put("effect", JsonNull) }, style.copy(effect = null)) }
+                LookRules.EFFECTS.forEach { e -> Choice(label(e), style.effect == e) { save(buildJsonObject { put("effect", JsonPrimitive(e)) }, style.copy(effect = e)) } }
             }
         }
         item {
             ChoiceCard(stringResource(R.string.wp_style_color)) {
-                Choice(stringResource(R.string.wp_style_none), style.accent == null) { save(buildJsonObject { put("accent", JsonNull) }) }
-                AccentRules.PRESETS.forEach { hex -> Swatch(listOf(hex), style.accent.equals(hex, ignoreCase = true)) { save(buildJsonObject { put("accent", JsonPrimitive(hex)) }) } }
+                Choice(stringResource(R.string.wp_style_none), style.accent == null) { save(buildJsonObject { put("accent", JsonNull) }, style.copy(accent = null)) }
+                AccentRules.PRESETS.forEach { hex -> Swatch(listOf(hex), style.accent.equals(hex, ignoreCase = true)) { save(buildJsonObject { put("accent", JsonPrimitive(hex)) }, style.copy(accent = hex)) } }
             }
         }
         item {
             ChoiceCard(stringResource(R.string.wp_style_name_font)) {
-                Choice(stringResource(R.string.wp_style_none), style.nameFont == null) { save(buildJsonObject { put("nameFont", JsonNull) }) }
+                Choice(stringResource(R.string.wp_style_none), style.nameFont == null) { save(buildJsonObject { put("nameFont", JsonNull) }, style.copy(nameFont = null)) }
                 LookRules.NAME_FONTS.forEach { f ->
                     Choice(label(f), style.nameFont == f, preview = { StyledName(u.displayName.take(10), PersonLook(style = ProfileStyleDto(nameFont = f)), Griip.type.label, c.textPrimary) }) {
-                        save(buildJsonObject { put("nameFont", JsonPrimitive(f)) })
+                        save(buildJsonObject { put("nameFont", JsonPrimitive(f)) }, style.copy(nameFont = f))
                     }
                 }
             }
         }
         item {
             ChoiceCard(stringResource(R.string.wp_style_name_colors)) {
-                Choice(stringResource(R.string.wp_style_none), style.nameColors.isNullOrEmpty()) { save(buildJsonObject { put("nameColors", JsonNull) }) }
+                Choice(stringResource(R.string.wp_style_none), style.nameColors.isNullOrEmpty()) { save(buildJsonObject { put("nameColors", JsonNull) }, style.copy(nameColors = null)) }
                 LookRules.COLOR_PRESETS.forEach { (_, colors) ->
-                    Swatch(colors, style.nameColors?.map { it.lowercase() } == colors) { save(buildJsonObject { put("nameColors", JsonArray(colors.map(::JsonPrimitive))) }) }
+                    Swatch(colors, style.nameColors?.map { it.lowercase() } == colors) { save(buildJsonObject { put("nameColors", JsonArray(colors.map(::JsonPrimitive))) }, style.copy(nameColors = colors)) }
                 }
             }
         }
         item {
             ChoiceCard(stringResource(R.string.wp_style_name_effect)) {
-                Choice(stringResource(R.string.wp_style_none), style.nameEffect == null) { save(buildJsonObject { put("nameEffect", JsonNull) }) }
-                Choice(stringResource(R.string.wp_effect_glow), style.nameEffect == "glow") { save(buildJsonObject { put("nameEffect", JsonPrimitive("glow")) }) }
-                Choice(stringResource(R.string.wp_effect_shimmer), style.nameEffect == "shimmer") { save(buildJsonObject { put("nameEffect", JsonPrimitive("shimmer")) }) }
+                Choice(stringResource(R.string.wp_style_none), style.nameEffect == null) { save(buildJsonObject { put("nameEffect", JsonNull) }, style.copy(nameEffect = null)) }
+                Choice(stringResource(R.string.wp_effect_glow), style.nameEffect == "glow") { save(buildJsonObject { put("nameEffect", JsonPrimitive("glow")) }, style.copy(nameEffect = "glow")) }
+                Choice(stringResource(R.string.wp_effect_shimmer), style.nameEffect == "shimmer") { save(buildJsonObject { put("nameEffect", JsonPrimitive("shimmer")) }, style.copy(nameEffect = "shimmer")) }
             }
         }
         item(key = "about-${u.aboutMe}-${u.links}") { AboutEditor(u.aboutMe, u.links.orEmpty()) }
         val tagged = orgs.orEmpty().filter { !it.tag.isNullOrBlank() }
         if (tagged.isNotEmpty()) item {
             ChoiceCard(stringResource(R.string.wp_style_tag), stringResource(R.string.wp_style_tag_sub)) {
-                Choice(stringResource(R.string.wp_style_none), style.tagOrgId == null) { save(buildJsonObject { put("tagOrgId", JsonNull) }) }
+                Choice(stringResource(R.string.wp_style_none), style.tagOrgId == null) { save(buildJsonObject { put("tagOrgId", JsonNull) }, style.copy(tagOrgId = null)) }
                 tagged.forEach { o ->
                     Choice(o.name, style.tagOrgId == o.id, preview = { com.meldiq.android.ui.components.WornTagChip(WornTag(o.id, o.tag.orEmpty(), o.accent)) }) {
-                        save(buildJsonObject { put("tagOrgId", JsonPrimitive(o.id)) })
+                        save(buildJsonObject { put("tagOrgId", JsonPrimitive(o.id)) }, style.copy(tagOrgId = o.id))
                     }
                 }
             }

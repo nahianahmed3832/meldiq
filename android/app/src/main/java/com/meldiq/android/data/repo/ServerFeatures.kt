@@ -141,6 +141,10 @@ class ServerFeatures(private val api: ApiClient, private val clock: () -> Long =
         const val ACTIVITY_STATUS = "activity-status"
         /** Custom workspace roles and delegated permissions (2026-10-19, docs/WORKSPACE_ROLES.md). */
         const val CUSTOM_ROLES = "custom-roles"
+        /** API 0.64.0: community icons and banners may be animated GIFs or WebPs (server docs/COMMUNITY_BRANDING.md). */
+        const val ANIMATED_COMMUNITY_IMAGES = "animated-community-images"
+        /** API 0.64.0: pins on profiles (server docs/PROFILE_PINS.md). */
+        const val PROFILE_PINS = "profile-pins"
         private const val TTL_MS = 5 * 60_000L
     }
 }

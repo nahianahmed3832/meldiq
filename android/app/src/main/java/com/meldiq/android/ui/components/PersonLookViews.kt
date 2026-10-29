@@ -258,6 +258,24 @@ fun DecorationImage(id: String, size: Dp, file: java.io.File? = null) {
     }
 }
 
+/** A pin's image (API 0.64.0) at [size]: a GIF or WebP plays, still with reduced motion or before Android 9. */
+@Composable
+fun PinImage(id: String, size: Dp, name: String?) {
+    val container = LocalContainer.current
+    val still = rememberReducedMotion()
+    val loaded by produceState<java.io.File?>(null, id) { value = runCatching { container.profiles.pinImage(id) }.getOrNull() }
+    val f = loaded ?: return Box(Modifier.size(size))
+    val m = Modifier.size(size)
+    if (still || Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+        val bmp by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, f) {
+            value = withContext(Dispatchers.IO) { android.graphics.BitmapFactory.decodeFile(f.path)?.asImageBitmapSafe() }
+        }
+        bmp?.let { androidx.compose.foundation.Image(it, name, modifier = m) } ?: Box(m)
+    } else {
+        AnimatedImageIn(f, name, m, fit = true)
+    }
+}
+
 @Composable
 private fun StillImage(file: java.io.File, name: String, size: Dp, modifier: Modifier) {
     val bmp by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, file) {
@@ -276,9 +294,16 @@ private fun android.graphics.Bitmap.asImageBitmapSafe() = asImageBitmap()
 private fun AnimatedImage(file: java.io.File, name: String, size: Dp, modifier: Modifier) =
     AnimatedImageIn(file, name, modifier.size(size).clip(CircleShape))
 
+/** Whether [file] is a GIF or a WebP (community icons and banners may be either since API 0.64.0). */
+fun isAnimatableImage(file: java.io.File): Boolean = runCatching {
+    val head = ByteArray(12)
+    val n = file.inputStream().use { it.read(head) }
+    (n >= 4 && String(head, 0, 4, Charsets.ISO_8859_1) == "GIF8") || (n >= 12 && String(head, 0, 4, Charsets.ISO_8859_1) == "RIFF" && String(head, 8, 4, Charsets.ISO_8859_1) == "WEBP")
+}.getOrDefault(false)
+
 /** A GIF or WebP that plays (Android 9+), filling [modifier]'s bounds (or fitting inside them); a still picture on older Android. */
 @Composable
-private fun AnimatedImageIn(file: java.io.File, name: String?, modifier: Modifier, fit: Boolean = false) {
+internal fun AnimatedImageIn(file: java.io.File, name: String?, modifier: Modifier, fit: Boolean = false) {
     val drawable by produceState<android.graphics.drawable.Drawable?>(null, file) {
         value = withContext(Dispatchers.IO) {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) null

@@ -58,6 +58,8 @@ import kotlinx.coroutines.launch
 
 /** The server's limits on a workspace's name and description (`zName`, `zText`). */
 private const val NAME_MAX = 80
+/** API 0.64.0: an animated community icon as sent (server COMMUNITY_IMAGE_LIMITS). */
+private const val ANIMATED_ICON_MAX = 4L * 1024 * 1024
 private const val DESCRIPTION_MAX = 500
 
 /**
@@ -92,7 +94,12 @@ fun WorkspaceSettingsSheet(detail: OrgDetailRes, onDismiss: () -> Unit, onChange
         if (uri != null) scope.launch {
             photoBusy = true
             error = null
-            runCatching { container.orgs.setOrgPhoto(org.id, MediaPrep.profilePhoto(ctx, uri)) }
+            runCatching {
+                // API 0.64.0: an animated GIF or WebP icon goes as it is; anything else is made a square JPEG.
+                val type = ctx.contentResolver.getType(uri).orEmpty()
+                val animated = (type == "image/gif" || type == "image/webp") && container.features.has(ServerFeatures.ANIMATED_COMMUNITY_IMAGES) == true
+                container.orgs.setOrgPhoto(org.id, if (animated) MediaPrep.rawBytes(ctx, uri, ANIMATED_ICON_MAX) else MediaPrep.profilePhoto(ctx, uri))
+            }
                 .onSuccess { photoRev = it; onChanged() }.onFailure { error = it.friendly() }
             photoBusy = false
         }

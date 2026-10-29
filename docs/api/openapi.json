@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Meldiq API",
-    "version": "0.61.0",
+    "version": "0.64.0",
     "description": "The canonical contract of the Meldiq server (docs/architecture/ARCHITECTURE_1_0_PLAN.md §4), generated from src/shared/contracts. Fields are only ever added within a version; clients ignore unknown fields. Routes not listed here exist but aren't documented yet."
   },
   "servers": [
@@ -9900,7 +9900,7 @@
         "tags": [
           "accounts"
         ],
-        "summary": "Key backup on a new device, step 1: email a code for this session.",
+        "summary": "Key backup on a new device, step 1: email a code for this session (or say it needs a tester's fixed code, or none).",
         "operationId": "postV2AccountKeyBackupUnlockStart",
         "parameters": [],
         "responses": {
@@ -9918,11 +9918,20 @@
                       "type": "integer",
                       "minimum": 0,
                       "maximum": 9007199254740991
+                    },
+                    "delivery": {
+                      "type": "string",
+                      "enum": [
+                        "email",
+                        "fixed_code",
+                        "none"
+                      ]
                     }
                   },
                   "required": [
                     "email",
-                    "expiresAt"
+                    "expiresAt",
+                    "delivery"
                   ],
                   "additionalProperties": false
                 }
@@ -9952,7 +9961,7 @@
         "tags": [
           "accounts"
         ],
-        "summary": "Key backup on a new device, step 2: the emailed code gives back the sealed keys.",
+        "summary": "Key backup on a new device, step 2: the code (when one is needed) gives back the sealed keys.",
         "operationId": "postV2AccountKeyBackupUnlock",
         "parameters": [],
         "responses": {
@@ -10027,10 +10036,7 @@
                     "minLength": 4,
                     "maxLength": 32
                   }
-                },
-                "required": [
-                  "code"
-                ]
+                }
               }
             }
           }
@@ -14810,6 +14816,82 @@
                         "decorationArtist": {
                           "type": "boolean",
                           "const": true
+                        },
+                        "pins": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^(?:[a-z0-9-]{2,32}|p_[a-z0-9]{16})$"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "meldiq",
+                                  "community"
+                                ]
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "description": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "imageUrl": {
+                                "type": "string"
+                              },
+                              "animated": {
+                                "type": "boolean"
+                              },
+                              "community": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "name"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "since": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "kind",
+                              "name",
+                              "description",
+                              "imageUrl",
+                              "animated",
+                              "since"
+                            ],
+                            "additionalProperties": false
+                          }
                         }
                       },
                       "required": [
@@ -16137,6 +16219,660 @@
           },
           "default": {
             "description": "Error. Codes: not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/pins": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Meldiq's own pins and how each is earned.",
+        "operationId": "getV2Pins",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "pins": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^(?:[a-z0-9-]{2,32}|p_[a-z0-9]{16})$"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "imageUrl": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "description",
+                          "imageUrl"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "pins"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/pins/{id}/image": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "A pin's image (WebP, PNG or GIF): Meldiq's own, or a community's while it exists; cached for good.",
+        "operationId": "getV2PinsIdImage",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(?:[a-z0-9-]{2,32}|p_[a-z0-9]{16})$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The bytes (or 302 to a storage URL)",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/orgs/{orgId}/pins": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "A community's pins, for its members.",
+        "operationId": "getV2OrgsOrgIdPins",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "pins": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^p_[a-z0-9]{16}$"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "imageUrl": {
+                            "type": "string"
+                          },
+                          "animated": {
+                            "type": "boolean"
+                          },
+                          "holders": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "createdAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "description",
+                          "imageUrl",
+                          "animated",
+                          "holders",
+                          "createdAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "canManage": {
+                      "type": "boolean"
+                    },
+                    "limit": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "pins",
+                    "canManage",
+                    "limit"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Make a community pin (owners and admins): a square PNG, WebP or GIF (64 to 512 px, up to 512 KB), as application/octet-stream.",
+        "operationId": "postV2OrgsOrgIdPins",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 32
+            }
+          },
+          {
+            "name": "description",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "pin": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^p_[a-z0-9]{16}$"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "description": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "imageUrl": {
+                          "type": "string"
+                        },
+                        "animated": {
+                          "type": "boolean"
+                        },
+                        "holders": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "description",
+                        "imageUrl",
+                        "animated",
+                        "holders",
+                        "createdAt"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "pin"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: forbidden, not_found, too_large, limit_reached, storage_unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/orgs/{orgId}/pins/{pinId}": {
+      "delete": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Delete a community pin (owners and admins); it comes off everyone who has it.",
+        "operationId": "deleteV2OrgsOrgIdPinsPinId",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pinId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^p_[a-z0-9]{16}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: forbidden, not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/orgs/{orgId}/pins/{pinId}/holders": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Who has a community pin, newest first.",
+        "operationId": "getV2OrgsOrgIdPinsPinIdHolders",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pinId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^p_[a-z0-9]{16}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "holders": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "userId": {
+                            "type": "string"
+                          },
+                          "username": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "displayName": {
+                            "type": "string"
+                          },
+                          "awardedAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "userId",
+                          "username",
+                          "displayName",
+                          "awardedAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "holders"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/orgs/{orgId}/pins/{pinId}/holders/{userId}": {
+      "put": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Give a community pin to a member (owners and admins); giving it again changes nothing.",
+        "operationId": "putV2OrgsOrgIdPinsPinIdHoldersUserId",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pinId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^p_[a-z0-9]{16}$"
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: forbidden, not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Take a community pin back from someone (owners and admins).",
+        "operationId": "deleteV2OrgsOrgIdPinsPinIdHoldersUserId",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pinId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^p_[a-z0-9]{16}$"
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: forbidden, not_found",
             "content": {
               "application/json": {
                 "schema": {

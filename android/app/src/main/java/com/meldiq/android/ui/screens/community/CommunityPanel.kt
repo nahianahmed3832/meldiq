@@ -3,6 +3,7 @@ package com.meldiq.android.ui.screens.community
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
@@ -79,9 +80,15 @@ fun CommunityBanner(orgId: String, accent: String?, bannerRev: Long?) {
     val colors = com.meldiq.android.data.model.AccentRules.colors(accent)
     if (bannerRev == null && colors == null) return
     val container = com.meldiq.android.ui.LocalContainer.current
-    val image by androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, orgId, bannerRev) {
+    val still = com.meldiq.android.ui.theme.rememberReducedMotion()
+    // API 0.64.0: an animated banner (GIF or WebP) plays, except with reduced motion or before Android 9.
+    var moving by androidx.compose.runtime.remember(orgId, bannerRev) { androidx.compose.runtime.mutableStateOf<java.io.File?>(null) }
+    val image by androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, orgId, bannerRev, still) {
         val rev = bannerRev ?: return@produceState
         val file = runCatching { container.profiles.orgBanner(orgId, rev) }.getOrNull() ?: return@produceState
+        val animated = !still && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P &&
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.meldiq.android.ui.components.isAnimatableImage(file) }
+        if (animated) moving = file
         value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { android.graphics.BitmapFactory.decodeFile(file.path)?.asImageBitmap() }
     }
     val band = colors?.let {
@@ -89,7 +96,9 @@ fun CommunityBanner(orgId: String, accent: String?, bannerRev: Long?) {
         androidx.compose.ui.graphics.Brush.linearGradient(listOf(fill, androidx.compose.ui.graphics.Color(com.meldiq.android.data.model.AccentRules.mix(it.fill, 0xFF8B5CF6L, 0.55))))
     } ?: androidx.compose.ui.graphics.Brush.linearGradient(listOf(Griip.colors.surfaceVariant, Griip.colors.surfaceVariant))
     Box(Modifier.fillMaxWidth().height(BannerHeight).background(band)) {
-        image?.let { androidx.compose.foundation.Image(it, null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.matchParentSize()) }
+        val m = moving
+        if (m != null) com.meldiq.android.ui.components.AnimatedImageIn(m, null, Modifier.matchParentSize())
+        else image?.let { androidx.compose.foundation.Image(it, null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.matchParentSize()) }
     }
 }
 

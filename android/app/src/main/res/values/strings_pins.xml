@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Profile pins (API 0.64.0, server docs/PROFILE_PINS.md). -->
+<resources>
+    <string name="pin_given_by">Given by %1$s</string>
+    <string name="pin_meldiq">A Meldiq pin</string>
+</resources>

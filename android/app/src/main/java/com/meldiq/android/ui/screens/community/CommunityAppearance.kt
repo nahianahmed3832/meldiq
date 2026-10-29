@@ -1,5 +1,6 @@
 package com.meldiq.android.ui.screens.community
 
+import com.meldiq.android.data.repo.ServerFeatures
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -52,6 +53,9 @@ import com.meldiq.android.ui.theme.Shapes
 import com.meldiq.android.ui.theme.Space
 import kotlinx.coroutines.launch
 
+/** API 0.64.0: an animated community banner as sent (server COMMUNITY_IMAGE_LIMITS). */
+private const val ANIMATED_BANNER_MAX = 6L * 1024 * 1024
+
 /** A community tag: 2–4 letters or digits (server `orgs.tag`), stored in capitals. */
 private val TAG = Regex("^[A-Za-z0-9]{2,4}$")
 
@@ -81,7 +85,12 @@ fun CommunityAppearanceCard(org: OrgDto, onChanged: () -> Unit) {
     }
     val pickBanner = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri ?: return@rememberLauncherForActivityResult
-        run { container.orgs.setBanner(org.id, MediaPrep.bannerJpeg(ctx, uri)) }
+        run {
+            // API 0.64.0: an animated GIF or WebP goes as it is; anything else is made a 1200 × 480 JPEG under 1 MB.
+            val type = ctx.contentResolver.getType(uri).orEmpty()
+            val animated = (type == "image/gif" || type == "image/webp") && container.features.has(ServerFeatures.ANIMATED_COMMUNITY_IMAGES) == true
+            container.orgs.setBanner(org.id, if (animated) MediaPrep.rawBytes(ctx, uri, ANIMATED_BANNER_MAX) else MediaPrep.bannerJpeg(ctx, uri))
+        }
     }
     GlassCard(Modifier.fillMaxWidth().padding(horizontal = Space.gutter, vertical = 6.dp)) {
         Column(Modifier.fillMaxWidth()) {

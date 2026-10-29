@@ -164,6 +164,9 @@ class ProfileRepository(
     /** A decoration's image (WebP, PNG or GIF), kept on this phone: an id's picture never changes. */
     suspend fun decorationImage(id: String): File? = cachedPhoto("deco-$id", 1, "/v2/decorations/${android.net.Uri.encode(id)}/image", kind = "decoration", ext = "img")
 
+    /** API 0.64.0: a pin's image (anyone may load it; a pin's image never changes for its id). */
+    suspend fun pinImage(id: String): File? = cachedPhoto("pin-$id", 1, "/v2/pins/${android.net.Uri.encode(id)}/image", kind = "pin", ext = "img")
+
     /** One of your own submissions' image while it isn't public. */
     suspend fun ownDecorationImage(id: String): File? = cachedPhoto("mydeco-$id", 1, "/v2/decorations/mine/${android.net.Uri.encode(id)}/image", kind = "decoration", ext = "img")
 

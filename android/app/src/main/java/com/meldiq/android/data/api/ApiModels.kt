@@ -125,7 +125,20 @@ import kotlinx.serialization.json.JsonObject
     val activity: com.meldiq.android.activity.ActivityDto? = null,
     /** API 0.60.0: they have a profile decoration approved (the Artist badge). */
     val decorationArtist: Boolean = false,
+    /** API 0.64.0: their pins (server docs/PROFILE_PINS.md), Meldiq's for milestones, then communities'. */
+    val pins: List<ProfilePinDto>? = null,
 )
+/** A pin on a profile: "meldiq" (earned on Meldiq) or "community" (given by [community]). */
+@Serializable data class ProfilePinDto(
+    val id: String,
+    val kind: String = "community",
+    val name: String,
+    val description: String? = null,
+    val animated: Boolean = false,
+    val community: PinCommunityDto? = null,
+    val since: Long? = null,
+)
+@Serializable data class PinCommunityDto(val id: String, val name: String)
 @Serializable data class MojoMarkDto(val badge: String, val check: Boolean = false)
 @Serializable data class MutualCommunityDto(val id: String, val name: String, val photoRev: Long? = null, val joinedAt: Long = 0)
 @Serializable data class MeRes(val user: UserDto, val deviceId: String)

@@ -14,7 +14,7 @@ object SparkGoalRules {
         val nextAt: Int?,
         /** Sparks still needed for [nextLevel] (0 at the top). */
         val needs: Int,
-        /** Progress from this level's threshold to the next one, 0..1 (1 at the top). */
+        /** Active Sparks over the next level's total, 0..1 (1 at the top): "2/5" fills 40% (the owner, 2026-10-29). */
         val fraction: Float,
     )
 
@@ -25,9 +25,7 @@ object SparkGoalRules {
         val next = ladder.firstOrNull { it.sparks > sparks }
         val level = reached?.level ?: 0
         if (next == null) return Goal(level, sparks, null, null, 0, if (ladder.isEmpty()) 0f else 1f)
-        val from = reached?.sparks ?: 0
-        val span = (next.sparks - from).coerceAtLeast(1)
-        return Goal(level, sparks, next.level, next.sparks, next.sparks - sparks, ((sparks - from).toFloat() / span).coerceIn(0f, 1f))
+        return Goal(level, sparks, next.level, next.sparks, next.sparks - sparks, share(sparks, next.sparks))
     }
 
     /** The goal from the server's own answer for one community: its level and next step win over a local count. */
@@ -35,9 +33,9 @@ object SparkGoalRules {
         val local = goal(org.levels, org.active)
         val next = org.next
         if (next == null) return local.copy(level = org.level, nextLevel = null, nextAt = null, needs = 0, fraction = 1f)
-        val from = org.levels.firstOrNull { it.level == org.level }?.sparks ?: 0
         val nextAt = org.active + next.needs
-        val fraction = ((org.active - from).toFloat() / (nextAt - from).coerceAtLeast(1)).coerceIn(0f, 1f)
-        return Goal(org.level, org.active, next.level, nextAt, next.needs, fraction)
+        return Goal(org.level, org.active, next.level, nextAt, next.needs, share(org.active, nextAt))
     }
+
+    private fun share(active: Int, total: Int): Float = (active.toFloat() / total.coerceAtLeast(1)).coerceIn(0f, 1f)
 }

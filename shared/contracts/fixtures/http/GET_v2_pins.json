@@ -1,0 +1,46 @@
+{
+  "pins": [
+    {
+      "id": "early-member",
+      "name": "Early member",
+      "description": "Joined Meldiq during its beta",
+      "imageUrl": "/v2/pins/early-member/image"
+    },
+    {
+      "id": "one-year",
+      "name": "One year",
+      "description": "On Meldiq for a year",
+      "imageUrl": "/v2/pins/one-year/image"
+    },
+    {
+      "id": "explorer",
+      "name": "Explorer",
+      "description": "A member of 5 or more communities",
+      "imageUrl": "/v2/pins/explorer/image"
+    },
+    {
+      "id": "founder",
+      "name": "Community builder",
+      "description": "Owns a community of 10 or more members",
+      "imageUrl": "/v2/pins/founder/image"
+    },
+    {
+      "id": "spark-giver",
+      "name": "Spark giver",
+      "description": "Gives a Meldiq Spark to a community",
+      "imageUrl": "/v2/pins/spark-giver/image"
+    },
+    {
+      "id": "artist",
+      "name": "Artist",
+      "description": "Made a profile decoration Meldiq approved",
+      "imageUrl": "/v2/pins/artist/image"
+    },
+    {
+      "id": "bug-hunter",
+      "name": "Bug hunter",
+      "description": "Reported a bug Meldiq fixed",
+      "imageUrl": "/v2/pins/bug-hunter/image"
+    }
+  ]
+}

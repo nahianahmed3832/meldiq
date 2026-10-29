@@ -29,13 +29,15 @@ class SparkGoalRulesTest {
     }
 
     @Test
-    fun progressCountsFromTheLevelReached() {
+    fun progressIsTheCountOverTheNextTotal() {
+        // The owner, 2026-10-29: "2/5" fills 40% of the bar, not the share of the step from Level 1 to Level 2.
+        assertEquals(0.4f, SparkGoalRules.goal(current, 2).fraction, 0.001f)
         val g = SparkGoalRules.goal(current, 6)
         assertEquals(2, g.level)
         assertEquals(3, g.nextLevel)
         assertEquals(8, g.nextAt)
         assertEquals(2, g.needs)
-        assertEquals(1f / 3f, g.fraction, 0.001f)
+        assertEquals(0.75f, g.fraction, 0.001f)
     }
 
     @Test
@@ -78,7 +80,7 @@ class SparkGoalRulesTest {
         assertEquals(2, g.nextLevel)
         assertEquals(5, g.nextAt)
         assertEquals(2, g.needs)
-        assertEquals(1f / 3f, g.fraction, 0.001f)
+        assertEquals(0.6f, g.fraction, 0.001f)
         val top = SparkGoalRules.of(OrgSparks(level = 3, active = 9, next = null, levels = current))
         assertNull(top.nextLevel)
         assertEquals(1f, top.fraction, 0.001f)

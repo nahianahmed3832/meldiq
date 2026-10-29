@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Profile pins (API 0.64.0, server docs/PROFILE_PINS.md). -->
+<resources>
+    <string name="pin_given_by">由 %1$s 颁发</string>
+    <string name="pin_meldiq">Meldiq 徽章</string>
+</resources>
