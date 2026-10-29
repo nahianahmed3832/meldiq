@@ -1,6 +1,7 @@
 import type { AppContext } from "../../../app/context.js";
 import { ApiError } from "../../../shared/errors.js";
 import type { MessagingSettings } from "./store.js";
+import type { PrivacyChoices } from "./privacyStore.js";
 
 /**
  * Batch B6: who may message whom (docs/product/MELDIQ_FRIENDS_AND_DMS_SPEC.md §3). Unknown, disabled and blocked people
@@ -57,5 +58,33 @@ export const REQUEST_MESSAGE_LIMIT = 3;
 export async function requireRequestBudget(ctx: AppContext, userId: string, at: number): Promise<void> {
   if ((await ctx.relationships.countStartedSince(userId, at - 3_600_000)) >= REQUESTS_PER_HOUR) {
     throw new ApiError(429, "request_rate_limited", "You've sent a lot of requests. Try again in an hour.", { retryAfter: 3600 });
+  }
+}
+
+/** API 0.65.0: [userId]'s group-add and suggestion choices, with the defaults where they never chose. */
+export async function privacyChoicesOf(ctx: AppContext, userId: string): Promise<PrivacyChoices> {
+  return (await ctx.privacyChoices.get(userId)) ?? { groupAddPolicy: ctx.config.defaultGroupAddPolicy, suggestable: true };
+}
+
+/**
+ * API 0.65.0: those of [targets] whose group-add choice refuses [adder] (everyone / friends: connected people only /
+ * nobody). Someone blocked either way is refused too, with the same answer.
+ */
+export async function groupAddRefusals(ctx: AppContext, adder: string, targets: readonly string[]): Promise<string[]> {
+  const refused: string[] = [];
+  for (const target of targets) {
+    if (target === adder) continue;
+    const { groupAddPolicy } = await privacyChoicesOf(ctx, target);
+    const friends = groupAddPolicy === "friends" && (await ctx.relationships.connection(adder, target))?.state === "accepted";
+    if (blockedEitherWay(ctx, adder, target) || groupAddPolicy === "nobody" || (groupAddPolicy === "friends" && !friends)) refused.push(target);
+  }
+  return refused;
+}
+
+/** API 0.65.0: refuses adding [targets] to a group chat when any of them doesn't allow [adder] to. */
+export async function requireGroupAdd(ctx: AppContext, adder: string, targets: readonly string[]): Promise<void> {
+  const refused = await groupAddRefusals(ctx, adder, targets);
+  if (refused.length) {
+    throw new ApiError(403, "group_add_not_allowed", refused.length === 1 ? "This person doesn't let you add them to group chats" : "Some of these people don't let you add them to group chats", { userIds: refused });
   }
 }

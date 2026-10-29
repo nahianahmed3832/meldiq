@@ -57,6 +57,8 @@ export async function startServer(
     PRESENCE_GRACE_MS: "0",
     // The older suites send end-to-end encrypted envelopes (POST /v1/messages); server_messages.test.ts turns that off.
     MESSAGES_ACCEPT_ENCRYPTED: "true",
+    // Older suites make groups of people who aren't connected; the group-add choice has its own suite (settings_parity).
+    DEFAULT_GROUP_ADD_POLICY: "everyone",
     // MELDIQ_TEST_MONGO_DOMAINS=accounts,preferences runs every suite with those domains in MongoDB (docs/MONGODB.md).
     ...testMongoEnv(env),
     ...env,

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { requireStanding, requireSyntheticScopeForPeople } from "../accounts/index.js";
-import { availableUser, blockedEitherWay, dmDecision, notAvailable, REQUEST_MESSAGE_LIMIT, requireRequestBudget } from "../accounts/relationships/rules.js";
+import { availableUser, blockedEitherWay, dmDecision, notAvailable, REQUEST_MESSAGE_LIMIT, requireGroupAdd, requireRequestBudget } from "../accounts/relationships/rules.js";
 import type { DmRequestRow } from "../accounts/relationships/store.js";
 import { mentionAllPermission } from "./mentions.js";
 import type { ConversationRow } from "../organizations/authz.js";
@@ -384,6 +384,8 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     const found = ctx.identity.count("users", { disabled_at: null, home_server_id: null, id: { in: ids } });
     if (found !== ids.length) throw badRequest("One or more members do not exist or are on another server");
     requireSyntheticScopeForPeople(ctx.identity, userId, ids);
+    // API 0.65.0: each person's choice of who may add them to group chats.
+    await requireGroupAdd(ctx, userId, ids);
     const id = newId("c");
     const t = now();
     await ws.write((w) => {
@@ -533,6 +535,8 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     } else {
       const n = ws.count("conversation_members", { conversation_id: c.id });
       if (n >= MAX_GROUP && !authz.isMember(c.id, p.userId)) throw conflict(`Groups are limited to ${MAX_GROUP} people`);
+      // API 0.65.0: adding someone new asks their group-add choice (changing a member's role doesn't).
+      if (!authz.isMember(c.id, p.userId)) await requireGroupAdd(ctx, actor, [p.userId]);
     }
     await ws.write((w) => w.upsert("conversation_members", { conversation_id: c.id, user_id: p.userId, role, joined_at: now() }, { role }));
     if (c.org_id) ctx.audit({ actorId: actor, orgId: c.org_id, action: "channel.member.add", target: `${c.id}:${p.userId}` });

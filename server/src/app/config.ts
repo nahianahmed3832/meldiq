@@ -57,6 +57,8 @@ export interface Config {
    * message requests are common; then "communities", so strangers' DMs wait as requests.
    */
   defaultDmPolicy: "everyone" | "communities" | "connections";
+  /** API 0.65.0: who may add someone who hasn't chosen to a group chat (DEFAULT_GROUP_ADD_POLICY, default "friends"). */
+  defaultGroupAddPolicy: "everyone" | "friends" | "nobody";
   /** How often due reminders are fired (docs/REMINDERS.md); 0 turns the loop off (tests fire them by hand). */
   reminderTickMs: number;
   /** How often telemetry is written and sampled (TELEMETRY_TICK_MS, default a minute; 0: never, tests drive it). */
@@ -454,6 +456,12 @@ function dmPolicyFrom(v: string | undefined): Config["defaultDmPolicy"] {
   throw new Error(`DEFAULT_DM_POLICY must be everyone, communities or connections (got "${v}")`);
 }
 
+function groupAddPolicyFrom(v: string | undefined): Config["defaultGroupAddPolicy"] {
+  if (v === undefined || v === "") return "friends";
+  if (v === "everyone" || v === "friends" || v === "nobody") return v;
+  throw new Error(`DEFAULT_GROUP_ADD_POLICY must be everyone, friends or nobody (got "${v}")`);
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const int = (name: string, def: number) => intFrom(env, name, def);
   const dataDir = env.DATA_DIR ?? path.resolve("data");
@@ -477,6 +485,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     callMaxParticipants: Math.max(int("CALL_MAX_PARTICIPANTS", 12), 2),
     queueTtlSeconds: Math.max(queueTtl, 1),
     defaultDmPolicy: dmPolicyFrom(env.DEFAULT_DM_POLICY),
+    defaultGroupAddPolicy: groupAddPolicyFrom(env.DEFAULT_GROUP_ADD_POLICY),
     reminderTickMs: Math.min(Math.max(int("REMINDER_TICK_MS", 15_000), 0), 300_000),
     telemetryTickMs: Math.min(Math.max(int("TELEMETRY_TICK_MS", 60_000), 0), 300_000),
     platformSecretsKey: secretsKey(env),

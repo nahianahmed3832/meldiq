@@ -3,13 +3,16 @@ import { type AppContext } from "../../../app/context.js";
 import { me, requireAuth } from "../../auth/index.js";
 import { parse } from "../../../shared/validation/index.js";
 import { announceOwnSettingsChange } from "../profileEvents.js";
-import { availableUser, blockedEitherWay, notAvailable, requestAllowed, requireRequestBudget, settingsOf, sharesCommunity } from "./rules.js";
+import { availableUser, blockedEitherWay, notAvailable, privacyChoicesOf, requestAllowed, requireRequestBudget, settingsOf, sharesCommunity } from "./rules.js";
 import { type ConnectionRow, type MessagingSettings, pairOf } from "./store.js";
-import { ConnectBody, ConnectionUserParams, MessagingSettingsBody, RequestAnswerBody, RequestParams } from "../../../shared/contracts/http/relationships.js";
+import type { PrivacyChoices } from "./privacyStore.js";
+import { ConnectBody, ConnectionUserParams, MessagingSettingsBody, RequestAnswerBody, RequestParams, SUGGESTED_PEOPLE_MAX } from "../../../shared/contracts/http/relationships.js";
 import { ApiError, badRequest, notFound } from "../../../shared/errors.js";
 import { now } from "../../../shared/utilities/util.js";
 import { userSummary } from "../../auth/routes.js";
 import { notifyConversation } from "../../organizations/orgsRoutes.js";
+import { sharedCommunityCounts } from "../../organizations/index.js";
+import { compareText } from "../../../shared/utilities/sqlText.js";
 
 /**
  * Batch B6 (docs/product/MELDIQ_FRIENDS_AND_DMS_SPEC.md §4): connections (request, accept, cancel, decline, remove),
@@ -88,9 +91,12 @@ export default async function connectionRoutes(app: FastifyInstance, ctx: AppCon
     return { ok: true };
   });
 
+  // API 0.65.0: the group-add and suggestion choices answer with the messaging settings (kept in their own store).
+  const messagingView = (s: MessagingSettings, p: PrivacyChoices) => ({ dmPolicy: s.dm_policy, requestPolicy: s.request_policy, groupAddPolicy: p.groupAddPolicy, suggestable: p.suggestable });
+
   app.get("/v1/users/me/messaging", auth, async (req) => {
-    const s = await settingsOf(ctx, me(req).userId);
-    return { dmPolicy: s.dm_policy, requestPolicy: s.request_policy };
+    const userId = me(req).userId;
+    return messagingView(await settingsOf(ctx, userId), await privacyChoicesOf(ctx, userId));
   });
 
   app.put("/v1/users/me/messaging", auth, async (req) => {
@@ -98,9 +104,43 @@ export default async function connectionRoutes(app: FastifyInstance, ctx: AppCon
     const body = parse(MessagingSettingsBody, req.body);
     const current = await settingsOf(ctx, userId);
     const next = { dm_policy: body.dmPolicy ?? current.dm_policy, request_policy: body.requestPolicy ?? current.request_policy } as MessagingSettings;
-    await rel.putSettings(userId, next, now());
+    const choices = await privacyChoicesOf(ctx, userId);
+    const nextChoices: PrivacyChoices = { groupAddPolicy: body.groupAddPolicy ?? choices.groupAddPolicy, suggestable: body.suggestable ?? choices.suggestable };
+    const t = now();
+    const choicesSent = body.groupAddPolicy !== undefined || body.suggestable !== undefined;
+    // A change of only the new choices leaves the messaging settings as they are (defaults stay defaults).
+    if (!choicesSent || body.dmPolicy !== undefined || body.requestPolicy !== undefined) await rel.putSettings(userId, next, t);
+    if (choicesSent) await ctx.privacyChoices.put(userId, nextChoices, t);
     announceOwnSettingsChange(ctx, userId);
-    return { dmPolicy: next.dm_policy, requestPolicy: next.request_policy };
+    return messagingView(next, nextChoices);
+  });
+
+  /**
+   * API 0.65.0: people you might know, from the communities you share: suggestable, local and enabled, and not already
+   * connected, asked, or blocked either way. Most shared communities first, then by username.
+   */
+  app.get("/v2/people/suggested", { preHandler: requireAuth(ctx), config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (req) => {
+    const userId = me(req).userId;
+    const known = new Set((await rel.connectionsOf(userId)).map((r) => other(r, userId)));
+    const ranked = [...sharedCommunityCounts(ctx, userId)].filter(([id]) => !known.has(id)).sort((a, b) => b[1] - a[1]);
+    const picked: { user: ReturnType<typeof userSummary>; sharedCommunities: number }[] = [];
+    // In batches, most shared first, until the list is full: big communities don't load everyone's choices at once.
+    const BATCH = 100;
+    for (let i = 0; i < ranked.length && picked.length < SUGGESTED_PEOPLE_MAX; i += BATCH) {
+      const batch = ranked.slice(i, i + BATCH);
+      const ids = batch.map(([id]) => id);
+      const choices = await ctx.privacyChoices.many(ids);
+      const rows = new Map(
+        identity.all<Parameters<typeof userSummary>[0] & { kind: string }>("users", { where: { id: { in: ids }, disabled_at: null, home_server_id: null } }).map((u) => [u.id, u]),
+      );
+      const fits = batch.filter(([id]) => {
+        const u = rows.get(id);
+        return u && u.kind === "person" && (choices.get(id)?.suggestable ?? true) && !blockedEitherWay(ctx, userId, id);
+      });
+      fits.sort((a, b) => b[1] - a[1] || compareText(rows.get(a[0])!.username, rows.get(b[0])!.username));
+      for (const [id, n] of fits) if (picked.length < SUGGESTED_PEOPLE_MAX) picked.push({ user: userSummary(rows.get(id)!), sharedCommunities: n });
+    }
+    return { people: picked };
   });
 
   /**

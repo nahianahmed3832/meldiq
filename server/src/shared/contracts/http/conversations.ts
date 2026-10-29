@@ -254,9 +254,10 @@ export const conversationRoutes = [
   conv({
     method: "POST",
     url: "/v1/conversations/group",
-    summary: "Create a group with people on this server; the creator is its admin.",
+    summary: "Create a group with people on this server; the creator is its admin. Each person's group-add choice applies (API 0.65.0).",
     body: GroupBody,
     response: ConversationOnly,
+    errors: ["group_add_not_allowed"],
   }),
   conv({
     method: "PATCH",
@@ -287,11 +288,11 @@ export const conversationRoutes = [
   conv({
     method: "PUT",
     url: "/v1/conversations/:id/members/:userId",
-    summary: "Add someone to a group or channel, or change their role there. Managers only.",
+    summary: "Add someone to a group or channel, or change their role there. Managers only; adding someone to a group asks their group-add choice.",
     params: MemberParams,
     body: MemberPutBody,
     response: Ok,
-    errors: ["not_found", "forbidden", "conflict"],
+    errors: ["not_found", "forbidden", "conflict", "group_add_not_allowed"],
   }),
   conv({
     method: "DELETE",

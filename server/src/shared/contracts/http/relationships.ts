@@ -14,11 +14,22 @@ export const DmPolicy = z.enum(["everyone", "communities", "connections"]);
 /** Who may send you a connection request. */
 export const RequestPolicy = z.enum(["everyone", "communities", "nobody"]);
 
+/** API 0.65.0: who may add you to group chats ("friends": people you're connected with). */
+export const GroupAddPolicy = z.enum(["everyone", "friends", "nobody"]);
+export type GroupAddPolicy = z.infer<typeof GroupAddPolicy>;
+
 const zUserId = z.string().min(1).max(64);
 
 export const ConnectBody = z.union([z.strictObject({ userId: zUserId }), z.strictObject({ username: z.string().trim().min(1).max(64) })]);
 export const ConnectionUserParams = z.object({ userId: zUserId });
-export const MessagingSettingsBody = z.strictObject({ dmPolicy: DmPolicy.optional(), requestPolicy: RequestPolicy.optional() });
+export const MessagingSettingsBody = z.strictObject({
+  dmPolicy: DmPolicy.optional(),
+  requestPolicy: RequestPolicy.optional(),
+  /** API 0.65.0. */
+  groupAddPolicy: GroupAddPolicy.optional(),
+  /** API 0.65.0: whether you're suggested to people who share communities with you. */
+  suggestable: z.boolean().optional(),
+});
 export const RequestParams = z.object({ id: zUserId });
 export const RequestAnswerBody = z.strictObject({ action: z.enum(["accept", "decline", "block"]) });
 
@@ -31,7 +42,11 @@ export const Connections = z.strictObject({
   /** Requests you sent. */
   outgoing: z.array(ConnectionRequest),
 });
-export const MessagingSettings = z.strictObject({ dmPolicy: DmPolicy, requestPolicy: RequestPolicy });
+export const MessagingSettings = z.strictObject({ dmPolicy: DmPolicy, requestPolicy: RequestPolicy, groupAddPolicy: GroupAddPolicy, suggestable: z.boolean() });
+
+/** API 0.65.0: someone you share communities with and might know. */
+export const SuggestedPerson = z.strictObject({ user: UserSummary, sharedCommunities: z.number().int().positive() });
+export const SUGGESTED_PEOPLE_MAX = 20;
 
 export const connectionRoutes = [
   route({
@@ -75,7 +90,7 @@ export const connectionRoutes = [
     method: "GET",
     url: "/v1/users/me/messaging",
     tag: "connections",
-    summary: "Who may message you and who may send you connection requests.",
+    summary: "Who may message you, send you connection requests or add you to group chats, and whether you're suggested to others.",
     auth: true,
     response: MessagingSettings,
   }),
@@ -83,10 +98,18 @@ export const connectionRoutes = [
     method: "PUT",
     url: "/v1/users/me/messaging",
     tag: "connections",
-    summary: "Change who may message you or send you connection requests; only the fields sent change.",
+    summary: "Change who may message you, send you connection requests or add you to group chats, and whether you're suggested to others; only the fields sent change.",
     auth: true,
     body: MessagingSettingsBody,
     response: MessagingSettings,
+  }),
+  route({
+    method: "GET",
+    url: "/v2/people/suggested",
+    tag: "connections",
+    summary: "Up to 20 people who share communities with you and let themselves be suggested, most shared communities first; never friends, requests or blocked people.",
+    auth: true,
+    response: z.strictObject({ people: z.array(SuggestedPerson) }),
   }),
   route({
     method: "POST",

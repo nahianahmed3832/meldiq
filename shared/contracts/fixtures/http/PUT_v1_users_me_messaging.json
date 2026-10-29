@@ -1,4 +1,6 @@
 {
-  "dmPolicy": "connections",
-  "requestPolicy": "nobody"
+  "dmPolicy": "everyone",
+  "requestPolicy": "everyone",
+  "groupAddPolicy": "nobody",
+  "suggestable": false
 }
