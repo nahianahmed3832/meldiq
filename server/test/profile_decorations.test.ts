@@ -8,7 +8,7 @@ import { ADMIN_ORIGIN, type ConsoleAdmin, consoleAdmin } from "./support/adminCo
 import type { GriipClient } from "./support/griipClient.js";
 import { expectStatus, type Harness, startServer } from "./support/harness.js";
 
-/** API 0.60.0 (docs/PROFILE_DECORATIONS.md): Meldiq's own decorations, and ones people send in for review. */
+/** API 0.61.0 (docs/PROFILE_DECORATIONS.md): Meldiq's own decorations, and ones people send in for review. */
 
 /** A PNG's chunk structure (IHDR, an optional acTL for [frames], IDAT, IEND): what the parser reads. */
 function png(w: number, h: number, frames = 1): Buffer {

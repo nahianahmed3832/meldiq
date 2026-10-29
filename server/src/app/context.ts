@@ -64,7 +64,7 @@ export interface AppContext {
   relationships: RelationshipStore;
   /** What people are playing (API 0.56.0, docs/ACTIVITY_STATUS.md): MongoDB when the server has one, memory otherwise. */
   activity: ActivityService;
-  /** Profile decorations: Meldiq's own and reviewed community ones (API 0.60.0, docs/PROFILE_DECORATIONS.md). */
+  /** Profile decorations: Meldiq's own and reviewed community ones (API 0.61.0, docs/PROFILE_DECORATIONS.md). */
   decorations: DecorationService;
   /** Calls, their participants and raised hands: SQLite, or MongoDB when MONGODB_DOMAINS includes "calls". */
   calls: CallStore;

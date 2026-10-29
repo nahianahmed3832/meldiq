@@ -7,7 +7,7 @@ import type { AdminDeps } from "./dataRoutes.js";
 import { metaOf, principal, requirePermission } from "./guards.js";
 
 /**
- * The review queue for profile decorations people send in (API 0.60.0, docs/PROFILE_DECORATIONS.md): look at each
+ * The review queue for profile decorations people send in (API 0.61.0, docs/PROFILE_DECORATIONS.md): look at each
  * one, approve it (it joins the catalog with its maker's name) or turn it down with a reason the maker sees, and take an
  * approved one down again (it comes off everyone wearing it). Every decision is audited.
  */

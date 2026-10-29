@@ -94,7 +94,7 @@ export function webpInfo(b: Buffer): ImageInfo | null {
 
 /**
  * A PNG's size and frame count (an animated PNG's acTL, else 1), walked chunk by chunk from IHDR to IEND; null when the
- * chunks don't add up (API 0.60.0, profile decorations).
+ * chunks don't add up (API 0.61.0, profile decorations).
  */
 export function pngInfo(b: Buffer): ImageInfo | null {
   if (sniff(b) !== "png") return null;

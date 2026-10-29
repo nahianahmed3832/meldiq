@@ -36,7 +36,7 @@ export const bannerOf = (u: { profile_banner?: string | null }) => parseJson<Ban
 export function styleOf(u: { profile_style?: string | null }): Style {
   const s = parseJson<Partial<Style>>(u.profile_style) ?? {};
   return {
-    // A classic frame, or (API 0.60.0) one of Meldiq's own or a community one; one taken down is cleared from its wearers.
+    // A classic frame, or (API 0.61.0) one of Meldiq's own or a community one; one taken down is cleared from its wearers.
     decoration: typeof s.decoration === "string" && (PROFILE_DECORATIONS.includes(s.decoration as never) || DECORATION_ID.test(s.decoration)) ? s.decoration : null,
     effect: PROFILE_EFFECTS.includes(s.effect as never) ? (s.effect as string) : null,
     accent: typeof s.accent === "string" && HEX.test(s.accent) ? s.accent : null,

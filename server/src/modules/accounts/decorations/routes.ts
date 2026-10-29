@@ -20,7 +20,7 @@ function sendImage(reply: FastifyReply, image: Image | null, cache: string) {
   return reply.header("content-type", image.type).header("x-content-type-options", "nosniff").header("cache-control", image.immutable ? "public, max-age=31536000, immutable" : cache).send(image.body);
 }
 
-/** Profile decorations (API 0.60.0, docs/PROFILE_DECORATIONS.md): the catalog, images, and sending your own in. */
+/** Profile decorations (API 0.61.0, docs/PROFILE_DECORATIONS.md): the catalog, images, and sending your own in. */
 export default async function decorationRoutes(app: FastifyInstance, ctx: AppContext) {
   const auth = { preHandler: requireAuth(ctx), config: { rateLimit: { max: 60, timeWindow: "1 minute" } } };
   const deco = ctx.decorations;

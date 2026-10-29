@@ -78,6 +78,17 @@ Plans, subscriptions, invoices, provider events and their figures: `/admin/v1/bi
 `billing.manage` ★ and `billing.events.replay` ★. The full table, the lifecycle and the runbooks are in `BILLING.md`.
 The AI Control Center's routes went with AI in API 0.47.0 (`AI_REMOVAL.md`); console 0.7.0 no longer shows it.
 
+## Decoration review (API 0.61.0, `PROFILE_DECORATIONS.md`)
+
+| Route | Permission | |
+|---|---|---|
+| `GET /admin/v1/decorations?status=&before=&limit=` | `decorations.review` | submissions people sent in, by status (waiting first), newest first |
+| `GET /admin/v1/decorations/:id/image` | `decorations.review` | a submission's image, sandboxed |
+| `POST /admin/v1/decorations/:id/decision` | `decorations.review` | approve; or turn down / take down with a reason the maker sees; audited as `decoration.*` |
+
+`decorations.review` is granted to super, operations and support admins. The console's page is Operations ›
+Decorations.
+
 ## Bootstrap (the only way to make the first admin)
 
 There is no HTTP route that creates an admin. With root on the VPS:

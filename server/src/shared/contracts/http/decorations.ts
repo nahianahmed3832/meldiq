@@ -3,7 +3,7 @@ import { zTime } from "./primitives.js";
 import { route } from "./route.js";
 
 /**
- * Profile decorations (API 0.60.0, docs/PROFILE_DECORATIONS.md): Meldiq's own (images the server ships) and ones people
+ * Profile decorations (API 0.61.0, docs/PROFILE_DECORATIONS.md): Meldiq's own (images the server ships) and ones people
  * make and send in, shown to everyone once a Meldiq operator approves them. A decoration is a square image whose middle
  * circle (1/1.2 of its side) is left empty for the avatar; the apps draw it 1.2 times the avatar's size, centred on it.
  * The six frames the apps draw themselves (PROFILE_DECORATIONS in users.ts) stay as they were.

@@ -372,7 +372,7 @@ export const AdminSessionsList = z.strictObject({
 /** Who an incident can be assigned to: active admins whose role may manage incidents (names only). */
 export const AdminAssignees = z.strictObject({ assignees: z.array(zPerson) });
 
-/** Profile decorations waiting for review, and decided ones (API 0.60.0, docs/PROFILE_DECORATIONS.md). */
+/** Profile decorations waiting for review, and decided ones (API 0.61.0, docs/PROFILE_DECORATIONS.md). */
 export const AdminDecorationsQuery = z.strictObject({
   status: z.enum(["pending", "approved", "rejected", "removed"]).default("pending"),
   /** The `next` of the previous page. */

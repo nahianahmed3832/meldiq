@@ -234,7 +234,7 @@ export default async function profileMediaRoutes(app: FastifyInstance, ctx: AppC
       nameEffect: keep(body.nameEffect, current.nameEffect),
       tagOrgId: keep(body.tagOrgId, current.tagOrgId),
     };
-    // API 0.60.0: Meldiq's own and approved community decorations too (docs/PROFILE_DECORATIONS.md).
+    // API 0.61.0: Meldiq's own and approved community decorations too (docs/PROFILE_DECORATIONS.md).
     if (next.decoration && next.decoration !== current.decoration && !ctx.decorations.wearable(next.decoration)) throw badRequest("That decoration isn't available");
     await setOwn(userId, { profile_style: JSON.stringify(next) });
     await ctx.decorations.worn(current.decoration, next.decoration);

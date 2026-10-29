@@ -120,7 +120,7 @@ export const NAME_FONTS = ["pixel", "arcade", "script", "block", "tech", "mono"]
 export const NAME_EFFECTS = ["glow", "shimmer"] as const;
 const zHex = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 /**
- * A decoration: a classic frame (PROFILE_DECORATIONS), or since API 0.60.0 one of Meldiq's own or an approved community
+ * A decoration: a classic frame (PROFILE_DECORATIONS), or since API 0.61.0 one of Meldiq's own or an approved community
  * one by id (docs/PROFILE_DECORATIONS.md, GET /v2/decorations). Older apps show only the classic ones.
  */
 const zWornDecoration = z.string().regex(/^(?:[a-z0-9-]{2,32}|c_[a-z0-9]{16})$/, "Not a decoration id");
@@ -249,7 +249,7 @@ export const UserProfile = z.strictObject({
   memberSince: zTime.optional(),
   /** API 0.57.0: communities you're both in (their icon, name, and when they joined it), newest join first. */
   mutualCommunities: z.array(z.strictObject({ id: z.string(), name: z.string(), photoRev: z.number().int().nullable(), joinedAt: zTime })).optional(),
-  /** API 0.60.0: they have a profile decoration approved (the Artist badge); absent otherwise. */
+  /** API 0.61.0: they have a profile decoration approved (the Artist badge); absent otherwise. */
   decorationArtist: z.literal(true).optional(),
 });
 

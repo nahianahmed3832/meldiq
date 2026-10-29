@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Meldiq API",
-    "version": "0.60.0",
+    "version": "0.61.0",
     "description": "The canonical contract of the Meldiq server (docs/architecture/ARCHITECTURE_1_0_PLAN.md §4), generated from src/shared/contracts. Fields are only ever added within a version; clients ignore unknown fields. Routes not listed here exist but aren't documented yet."
   },
   "servers": [
@@ -422,6 +422,263 @@
                     "attachmentKeepDays",
                     "push",
                     "passkeys"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v2/site/details": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Who runs Meldiq and its policies, as set in the console (null: not decided yet). API 0.60.0.",
+        "operationId": "getV2SiteDetails",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "operator": {
+                      "type": "object",
+                      "properties": {
+                        "legalName": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 120
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "address": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 300
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "jurisdiction": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 120
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "registration": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 120
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "governingLaw": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 300
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "legalName",
+                        "address",
+                        "jurisdiction",
+                        "registration",
+                        "governingLaw"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "contacts": {
+                      "type": "object",
+                      "properties": {
+                        "supportEmail": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 254,
+                              "pattern": "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "privacyEmail": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 254,
+                              "pattern": "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "dpo": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 300
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "supportEmail",
+                        "privacyEmail",
+                        "dpo"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "policies": {
+                      "type": "object",
+                      "properties": {
+                        "minimumAge": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 13,
+                              "maximum": 21
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "refundWindowDays": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 90
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "refundRules": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 4000
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "failedPaymentGraceDays": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 30
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "legalBases": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 4000
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "billingRecordRetention": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 500
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "transferSafeguards": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 2000
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "minimumAge",
+                        "refundWindowDays",
+                        "refundRules",
+                        "failedPaymentGraceDays",
+                        "legalBases",
+                        "billingRecordRetention",
+                        "transferSafeguards"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "legalUpdatedOn": {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                    }
+                  },
+                  "required": [
+                    "operator",
+                    "contacts",
+                    "policies",
+                    "legalUpdatedOn"
                   ],
                   "additionalProperties": false
                 }

@@ -50,7 +50,7 @@ const fromDoc = (d: DecorationDoc): StoredDecoration => ({
 });
 
 /**
- * Submitted decorations in MongoDB (API 0.60.0). New data, so it never lived in SQLite and needs no domain migration;
+ * Submitted decorations in MongoDB (API 0.61.0). New data, so it never lived in SQLite and needs no domain migration;
  * every write is one single-document operation. Times are epoch milliseconds like everywhere else (docs/MONGODB.md §3).
  */
 export class MongoDecorationStore implements DecorationStore {

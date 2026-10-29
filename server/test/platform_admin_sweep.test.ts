@@ -35,6 +35,8 @@ const GUARDED: Record<string, Permission> = {
   "GET /admin/v1/billing/subscriptions/:subscriptionId": "billing.view",
   "GET /admin/v1/billing/events": "billing.view",
   "POST /admin/v1/billing/events/:eventId/replay": "billing.events.replay",
+  "GET /admin/v1/site": "settings.view",
+  "PUT /admin/v1/site": "settings.edit",
   "GET /admin/v1/billing/program": "billing.view",
   "PUT /admin/v1/billing/program": "billing.manage",
   "GET /admin/v1/billing/grants": "billing.view",
@@ -45,7 +47,7 @@ const GUARDED: Record<string, Permission> = {
   "PUT /admin/v1/billing/mojo": "billing.manage",
   "GET /admin/v1/billing/gifts": "billing.view",
   "GET /admin/v1/billing/sparks": "billing.view",
-  // API 0.60.0: the review queue for profile decorations people send in.
+  // API 0.61.0: the review queue for profile decorations people send in.
   "GET /admin/v1/decorations": "decorations.review",
   "GET /admin/v1/decorations/:id/image": "decorations.review",
   "POST /admin/v1/decorations/:id/decision": "decorations.review",

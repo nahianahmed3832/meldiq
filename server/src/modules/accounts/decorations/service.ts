@@ -60,7 +60,7 @@ function imageInfo(buf: Buffer): { format: StoredDecoration["format"]; info: Ima
 }
 
 /**
- * Profile decorations (API 0.60.0, docs/PROFILE_DECORATIONS.md): Meldiq's own, and ones people make and send in. A
+ * Profile decorations (API 0.61.0, docs/PROFILE_DECORATIONS.md): Meldiq's own, and ones people make and send in. A
  * submission waits for an operator's review in the admin console; approved ones are shown to everyone with their maker's
  * name. The request path reads this in-memory copy of the approved ones (profiles are built synchronously); every change
  * is written to the store first.

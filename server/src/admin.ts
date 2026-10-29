@@ -56,6 +56,7 @@ import { Accounts } from "./modules/accounts/index.js";
 import { Authz } from "./modules/organizations/authz.js";
 import { backupDatabase, verifyBackup } from "./modules/administration/backup.js";
 import { loadConfig } from "./app/config.js";
+import { siteDetailsFromDb } from "./app/siteDetails.js";
 import Stripe from "stripe";
 import { PlanCatalog } from "./modules/billing/catalog.js";
 import { stripeKeyMode } from "./modules/billing/providers/stripe.js";
@@ -461,7 +462,10 @@ switch (cmd) {
     const mongo = cfg.mongo ? await openMongo(cfg.mongo, db) : undefined;
     const rows = await openBillingRows(db, mongo, console);
     const catalog = new PlanCatalog(rows);
-    for (const line of await publishMojoPlans(catalog, provider.id, { go, plus, spark }, "cli", now())) console.log(line);
+    // The grace period after a failed payment is set in the console (site details); 0 until it is.
+    const grace = siteDetailsFromDb(db).policies.failedPaymentGraceDays ?? 0;
+    console.log(`grace period after a failed payment: ${grace} days (console › site details)`);
+    for (const line of await publishMojoPlans(catalog, provider.id, { go, plus, spark }, "cli", now(), grace)) console.log(line);
     await rows.settled();
     await rows.close();
     await mongo?.close();

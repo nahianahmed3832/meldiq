@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { isPlanKey, PLAN_PERKS } from "./perks.js";
 import type { Standing } from "./lifecycle.js";
 import type { BillingOwner } from "./owners.js";
 import type { Billing } from "./service.js";
@@ -44,7 +45,8 @@ function grant(billing: Billing, owner: BillingOwner, t: number, showSubscriptio
   const version = plan ? billing.catalog.current(plan.id) : null;
   return {
     ...paid,
-    plan: { key: g.plan_key, name: plan?.name ?? g.plan_key },
+    // Before the plan is in the billing catalog (nothing published yet), its name comes from the Mojo catalog.
+    plan: { key: g.plan_key, name: plan?.name ?? (isPlanKey(g.plan_key) ? PLAN_PERKS[g.plan_key].name : g.plan_key) },
     standing: "entitled" as const,
     accessUntil: g.ends_at,
     renews: false,

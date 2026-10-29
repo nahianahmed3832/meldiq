@@ -443,3 +443,62 @@ export const AdminControls = z.strictObject({
 });
 export const AdminControlParams = z.strictObject({ key: z.string().max(40).regex(/^[a-z_]+$/) });
 export const AdminControlBody = z.strictObject({ value: z.unknown(), reason: zReason });
+
+// ───────────── Site and legal details (API 0.60.0, docs/SITE_DETAILS.md) ─────────────
+
+const zDetailText = (max: number) => z.string().trim().min(1).max(max).nullable();
+const zContactEmail = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(254)
+  .regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Enter an email address like support@example.com")
+  .nullable();
+
+/**
+ * What the website and apps say about who runs Meldiq and its policies, edited in the console instead of written into
+ * code. A null field isn't decided yet: the website shows it as "to be confirmed", never an invented value.
+ */
+export const SiteDetails = z.strictObject({
+  operator: z.strictObject({
+    legalName: zDetailText(120),
+    /** The registered address, as it should be printed. */
+    address: zDetailText(300),
+    /** Where the company is organised, e.g. "Delaware, USA". */
+    jurisdiction: zDetailText(120),
+    registration: zDetailText(120),
+    governingLaw: zDetailText(300),
+  }),
+  contacts: z.strictObject({
+    supportEmail: zContactEmail,
+    privacyEmail: zContactEmail,
+    /** The data protection contact or representative, where one is required. */
+    dpo: zDetailText(300),
+  }),
+  policies: z.strictObject({
+    minimumAge: z.number().int().min(13).max(21).nullable(),
+    /** Days after a payment in which a refund can be asked for. */
+    refundWindowDays: z.number().int().min(0).max(90).nullable(),
+    /** The specific refund rules, as people read them (plain text; blank lines separate paragraphs). */
+    refundRules: zDetailText(4000),
+    /** How long Meldiq Mojo stays on after a renewal payment fails, while it's retried. */
+    failedPaymentGraceDays: z.number().int().min(0).max(30).nullable(),
+    /** The legal bases for processing, per purpose (privacy policy). */
+    legalBases: zDetailText(4000),
+    /** How long billing records are kept. */
+    billingRecordRetention: zDetailText(500),
+    /** Safeguards for international transfers of personal data. */
+    transferSafeguards: zDetailText(2000),
+  }),
+  /** The date the legal pages were last changed (YYYY-MM-DD). */
+  legalUpdatedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "A date like 2026-10-29"),
+});
+
+export const AdminSiteDetailsBody = z.strictObject({ details: SiteDetails, reason: zReason });
+export const AdminSiteDetails = z.strictObject({
+  details: SiteDetails,
+  /** Fields still to be decided (null), by their path, e.g. "operator.address". */
+  missing: z.array(z.string()),
+  updatedBy: z.strictObject({ accountId: z.string(), name: z.string().nullable() }).nullable(),
+  updatedAt: zTime.nullable(),
+});

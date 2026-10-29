@@ -130,6 +130,25 @@ Passkeys failed in the app installed from Google Play: Play signs it with its ap
 
 Rollback: copy the backup's `.env` back and recreate `api` the same way.
 
+### API 0.60.0, console 1.1.0 and meldiq.app: legal and business details edited in the console (2026-10-29, 03:08 UTC, owner's go-ahead: "all the policy, data you required can be editable from admin panel")
+
+Branch `site-details` 38ee4d2 on `platform-controls` 1150de6 (docs/SITE_DETAILS.md). No migration (stored in
+`platform_settings` under `site.details`).
+
+| Step | Result |
+|---|---|
+| Trials on first (02:51 UTC, owner: "Turn trials on now") | `.env` += `BILLING_TRIAL_STARTS_AT=2026-10-29T02:51:03Z` (backup `.env.before-trials-*`), API 0.59.0 recreated, healthy in 24 s, 0 warn/error; `/v2/billing/plans` `trial: {plus, 14, 30, 90}`; meldiq.app shows the 14-day pill. The console's Trials & invites tab can take over these settings at any time |
+| Tests | server SQLite 1159 passed (`storage_s3` timed out under load, 18/18 alone); MongoDB mode, the affected suites 58/58; new `site_details.test.ts`; console unit 27 and browser 6/6 against 0.60.0; website unit 32, browser 126/126 |
+| Pre-flight | 0.59.0 healthy; VPS `server/` byte-equal to 1150de6; 38 GB free |
+| Backup | `backups/pre-0.60.0-20261029T030541Z`: integrity ok, schema 67, 43 users, `.env`/`compose.yaml`; image `0.59.0-rollback`; sources kept as `server.pre-0.60.0` |
+| Build and rehearsal | 11 files synced (parity 0); image `0.60.0`; backup copy offline: 0.60.0 healthy, `/v2/site/details` 200; `0.59.0-rollback` healthy on the same copy |
+| Switch | 03:08:18, healthy 03:08:29; `.env` unchanged; `/healthz` 0.60.0 `mongodb: true` on both hosts; 0 warn/error; `verify.sh` 0 restarts |
+| Console | `1.1.0-20261029T030932Z` (Settings › Legal & business details), nginx site unchanged, `verify.sh` passed |
+| meldiq.app | `site-20261029T031028Z-fe1983a8af`: legal and support pages read `/v2/site/details`; undecided fields stay "to be confirmed" |
+
+Rollback: `compose.yaml` image `0.59.0-rollback` (it ignores the `site.details` row; the website then shows its built-in
+placeholders); console `bash /root/meldiq-admin-1.1.0-20261029T030932Z/rollback.sh`; site `deploy/rollback.sh`.
+
 ### API 0.59.0 and console 1.0.0: platform controls and the redesigned admin console (2026-10-28, 20:47 and 20:48 UTC, owner's go-ahead: "after you done directly deploy no need extra permission")
 
 Branch `platform-controls`: 0.58.0 (`mojo-console` 76a3682, production's sources, checked file by file) + platform
