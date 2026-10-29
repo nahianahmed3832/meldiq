@@ -1,6 +1,10 @@
 import type { FastifyInstance } from "fastify";
 import { AdminOrgParams, AdminReasonBody, AdminUserParams } from "../../shared/contracts/http/platformAdmin.js";
 import {
+  AdminAccountCreateBody,
+  AdminAccountVerificationBody,
+  AdminCreatedAccountParams,
+  AdminCreatedAccountsQuery,
   AdminControlBody,
   AdminControlParams,
   AdminAdjustBody,
@@ -33,6 +37,7 @@ import { parse } from "../../shared/validation/index.js";
 import { AlertEngine } from "./alerts.js";
 import { AdminAnalytics } from "./analyticsView.js";
 import type { AdminDeps } from "./dataRoutes.js";
+import { AdminAccounts } from "./accountsAdmin.js";
 import { AdminControls } from "./controlsAdmin.js";
 import { AdminSite } from "./siteAdmin.js";
 import { AdminDevices } from "./devicesView.js";
@@ -57,6 +62,7 @@ export default async function adminInsightsRoutes(app: FastifyInstance, d: Admin
   const alerts = new AlertEngine(d.ctx, d.store);
   const settings = new AdminSettings(d.ctx, d.audit, alerts, exclusions);
   const controls = new AdminControls(d.ctx, d.audit);
+  const createdAccounts = new AdminAccounts(d.ctx, d.audit);
   const site = new AdminSite(d.ctx, d.audit);
   const search = new AdminSearchExport(d.ctx, d.audit, exclusions);
 
@@ -164,6 +170,13 @@ export default async function adminInsightsRoutes(app: FastifyInstance, d: Admin
     const { value, reason } = parse(AdminControlBody, req.body);
     return controls.set(principal(req), parse(AdminControlParams, req.params).key, value, reason, metaOf(req));
   });
+
+  // ── Accounts made in the console (docs/ADMIN_ACCOUNTS.md) ──
+  app.get("/admin/v1/accounts", needs("users.view"), async (req) => createdAccounts.list(principal(req), parse(AdminCreatedAccountsQuery, req.query)));
+  app.post("/admin/v1/accounts", needs("accounts.create"), async (req) => createdAccounts.create(principal(req), parse(AdminAccountCreateBody, req.body), metaOf(req)));
+  app.put("/admin/v1/accounts/:accountId/verification", needs("accounts.create"), async (req) =>
+    createdAccounts.setVerification(principal(req), parse(AdminCreatedAccountParams, req.params).accountId, parse(AdminAccountVerificationBody, req.body), metaOf(req)),
+  );
   app.get("/admin/v1/alerts", needs("incidents.view"), async () => settings.alertsView());
   app.put("/admin/v1/alerts/:key", needs("alerts.manage"), async (req) => {
     const { reason, ...rule } = parse(AdminRuleBody, req.body);

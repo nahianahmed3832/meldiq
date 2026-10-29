@@ -2830,6 +2830,27 @@ export const SCHEMA: readonly TableShape[] = [
     autoincrement: false,
   },
   {
+    name: "operator_accounts",
+    columns: [
+      {"name":"account_id","type":"TEXT","notNull":true},
+      {"name":"verification","type":"TEXT","notNull":true},
+      {"name":"code_hash","type":"TEXT","notNull":false},
+      {"name":"code_expires_at","type":"INTEGER","notNull":false},
+      {"name":"tester","type":"INTEGER","notNull":true,"default":0},
+      {"name":"note","type":"TEXT","notNull":false},
+      {"name":"created_by","type":"TEXT","notNull":true},
+      {"name":"created_at","type":"INTEGER","notNull":true},
+      {"name":"updated_by","type":"TEXT","notNull":true},
+      {"name":"updated_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["account_id"],
+    indexes: [
+      {"name":"operator_accounts_created","columns":["created_at","account_id"],"unique":false,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [],
+    autoincrement: false,
+  },
+  {
     name: "org_bans",
     columns: [
       {"name":"org_id","type":"TEXT","notNull":true},

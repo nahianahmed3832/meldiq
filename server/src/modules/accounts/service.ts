@@ -9,6 +9,7 @@ import { ApiError } from "../../shared/errors.js";
 import { humanCode, newId, normalizeCode, now, sha256Hex } from "../../shared/utilities/util.js";
 import type { Mailer } from "../../infrastructure/mail/mailer.js";
 import { mailTexts } from "../../infrastructure/mail/mailer.js";
+import { operatorAccount, staticCodeMatches } from "./operatorAccounts.js";
 import { burnPasswordCheck, hashPassword, needsRehash, PASSWORD_PROBLEMS, passwordProblem, verifyPassword } from "./passwords.js";
 import type { LoginBody, RegisterBody } from "../../shared/contracts/http/accounts.js";
 import { type IssuedSession, sessionEnded, SessionService } from "./sessions.js";
@@ -232,6 +233,13 @@ export class AccountService {
       return;
     }
     if (existing) {
+      // An operator made this account (docs/ADMIN_ACCOUNTS.md): a public sign-up never replaces its password, or a known
+      // tester code would hand the account to whoever signs up with the address. Its owner may get the emailed code again.
+      const operator = operatorAccount(this.ctx.platform, existing.id);
+      if (operator) {
+        if (operator.verification === "email" && this.canSendCode(existing, "verify_email", network)) await this.sendCode(existing, "verify_email", network);
+        return;
+      }
       // Nobody has proved this address yet: the newest sign-up wins, so an unverified sign-up can't hold it hostage. Its
       // details change only together with a new code, and the code checks the password (verifyEmail), so whoever set the
       // password is whoever can verify. A legacy link keeps its details until it is verified or redone.
@@ -283,6 +291,41 @@ export class AccountService {
     }
     this.ctx.audit({ action: "account.register", target: created.id, detail: created.admitted_via });
     await this.sendCode(created, "verify_email", network);
+  }
+
+  /**
+   * An account an operator makes in the console (docs/ADMIN_ACCOUNTS.md): no sign-up controls, network limits or invite
+   * apply, and with [verified] its address counts as proven at once. Null when the address already has an account.
+   */
+  async createByOperator(input: { id: string; name: string; email: string; password: string; verified: boolean }): Promise<AccountRow | null> {
+    const weak = weakPassword(input.password, input.email);
+    if (weak) throw weak;
+    if (await this.store.accountByEmail(input.email)) return null;
+    const t = now();
+    const account: AccountRow = {
+      id: input.id,
+      email: input.email,
+      name: input.name,
+      password_hash: await hashPassword(input.password, this.cfg.scryptLogN),
+      password_changed_at: t,
+      email_verified_at: input.verified ? t : null,
+      user_id: null,
+      legacy_linked_at: null,
+      selected_workspace_id: null,
+      admitted_via: "operator",
+      created_at: t,
+      updated_at: t,
+      disabled_at: null,
+    };
+    const created = await this.store.createAccount(account, null);
+    if (created) this.ctx.audit({ action: "account.register", target: created.id, detail: "operator" });
+    return created;
+  }
+
+  /** The operator marks an account's address as proven (console: verification changed to "verified"). */
+  async markVerified(accountId: string): Promise<void> {
+    const t = now();
+    await this.store.updateAccount(accountId, { email_verified_at: t }, t);
   }
 
   private codeKey(a: AccountRow, purpose: CodePurpose) {
@@ -358,8 +401,15 @@ export class AccountService {
       throw invalidCode();
     }
     const passwordOk = await verifyPassword(password, target.password_hash);
-    const a = await this.consumeCode(target, "verify_email", code, passwordOk);
     const t = now();
+    // A tester's fixed code from the console (docs/ADMIN_ACCOUNTS.md) works like an emailed one, with the password too,
+    // and keeps working until it ends; anything else goes on to the emailed code.
+    if (passwordOk && staticCodeMatches(operatorAccount(this.ctx.platform, target.id), target.id, normalizeVerifyCode(code), t)) {
+      await this.store.updateAccount(target.id, { email_verified_at: t }, t);
+      this.ctx.audit({ actorId: target.user_id, action: "account.verify_email", target: target.id, detail: "static_code" });
+      return;
+    }
+    const a = await this.consumeCode(target, "verify_email", code, passwordOk);
     await this.store.updateAccount(a.id, { email_verified_at: t }, t);
     this.ctx.audit({ actorId: a.user_id, action: "account.verify_email", target: a.id });
   }
@@ -367,6 +417,8 @@ export class AccountService {
   async resendVerification(email: string, ip: string): Promise<void> {
     if (!this.mailer.available) throw emailUnavailable();
     const a = await this.store.accountByEmail(email);
+    // A tester's account verifies with its fixed code: its address may not even receive mail.
+    if (a && operatorAccount(this.ctx.platform, a.id)?.verification === "static_code") return;
     if (a && !a.email_verified_at && !a.disabled_at) await this.sendCode(a, "verify_email", networkKey(ip));
   }
 

@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { zEmail, zName, zPassword } from "./accounts.js";
 import { zCount, zTime } from "./primitives.js";
 import { zCursor, zDay, zLimit, zPerson, zReason, zRef } from "./platformAdmin.js";
 
@@ -501,4 +502,69 @@ export const AdminSiteDetails = z.strictObject({
   missing: z.array(z.string()),
   updatedBy: z.strictObject({ accountId: z.string(), name: z.string().nullable() }).nullable(),
   updatedAt: zTime.nullable(),
+});
+
+// ───────────── Accounts created from the console (docs/ADMIN_ACCOUNTS.md) ─────────────
+
+/**
+ * How a console-made account proves its email: verified (no code, the operator vouches), static_code (a fixed six-digit
+ * code the operator sets, for testers; works only for this account's email verification) or email (the normal emailed
+ * code, as after a public sign-up).
+ */
+export const ACCOUNT_VERIFICATION_VALUES = ["verified", "static_code", "email"] as const;
+const zStaticCode = z.string().regex(/^\d{6}$/, "Six digits");
+const zVerification = z.strictObject({
+  verification: z.enum(ACCOUNT_VERIFICATION_VALUES),
+  /** Only with static_code. */
+  staticCode: zStaticCode.optional(),
+  /** Only with static_code: after this instant the fixed code stops working (the emailed code still does). */
+  codeExpiresAt: zTime.optional(),
+});
+const fixedCodeOnly = (b: { verification: string; staticCode?: string; codeExpiresAt?: number }) =>
+  (b.verification === "static_code") === (b.staticCode !== undefined) && (b.codeExpiresAt === undefined || b.verification === "static_code");
+const FIXED_CODE_MESSAGE = "A fixed code (and its end) goes with fixed-code verification only, and that needs one";
+
+export const AdminAccountCreateBody = zVerification
+  .extend({
+    name: zName,
+    email: zEmail,
+    /** Omitted: the server makes a strong one and answers it once. */
+    password: zPassword.optional(),
+    /** Marks the account as a tester's (shown in the console; nothing else changes). */
+    tester: z.boolean().default(false),
+    note: z.string().trim().max(200).optional(),
+    /** With email verification: send the code now (it can be sent again from the app or the console). */
+    sendCode: z.boolean().default(true),
+    reason: zReason,
+  })
+  .refine(fixedCodeOnly, FIXED_CODE_MESSAGE);
+export const AdminAccountVerificationBody = zVerification.extend({ reason: zReason }).refine(fixedCodeOnly, FIXED_CODE_MESSAGE);
+export const AdminCreatedAccountParams = z.strictObject({ accountId: zRef });
+export const AdminCreatedAccountsQuery = z.strictObject({ cursor: zCursor.optional(), limit: zLimit });
+
+export const AdminCreatedAccount = z.strictObject({
+  accountId: z.string(),
+  name: z.string(),
+  /** Only with users.view_email. */
+  email: z.string().nullable(),
+  verification: z.enum(ACCOUNT_VERIFICATION_VALUES),
+  /** The address is verified (signing in works). */
+  verified: z.boolean(),
+  codeExpiresAt: zTime.nullable(),
+  tester: z.boolean(),
+  note: z.string().nullable(),
+  /** The person in the console (users), once they've set up the app. */
+  userId: z.string().nullable(),
+  /** False: the account was deleted since. */
+  exists: z.boolean(),
+  createdBy: zPerson,
+  createdAt: zTime,
+  updatedAt: zTime,
+});
+export const AdminCreatedAccountsPage = z.strictObject({ accounts: z.array(AdminCreatedAccount), nextCursor: z.string().nullable() });
+export const AdminAccountCreated = z.strictObject({
+  account: AdminCreatedAccount,
+  /** The generated password, shown once; null when the operator chose it. */
+  password: z.string().nullable(),
+  codeSent: z.boolean(),
 });

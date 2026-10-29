@@ -39,6 +39,8 @@ export const PERMISSIONS = [
   "settings.edit",
   // Platform controls (docs/PLATFORM_CONTROLS.md): maintenance, sign-ups, blocked email domains, kill switches.
   "controls.edit",
+  // Accounts made in the console (docs/ADMIN_ACCOUNTS.md): create them and choose how they verify their email.
+  "accounts.create",
   "alerts.manage",
   "exports.create",
   // Billing (docs/BILLING.md): the catalog, subscriptions, invoices and provider events.
@@ -64,6 +66,7 @@ export const SENSITIVE: ReadonlySet<Permission> = new Set([
   "quotas.edit",
   "settings.edit",
   "controls.edit",
+  "accounts.create",
   "alerts.manage",
   "billing.manage",
   "billing.events.replay",
@@ -106,6 +109,7 @@ const GRANTS: Readonly<Record<PlatformRole, ReadonlySet<Permission>>> = {
     "quotas.edit",
     "settings.view",
     "controls.edit",
+    "accounts.create",
     "alerts.manage",
     "exports.create",
     "decorations.review",

@@ -23,6 +23,15 @@ import { EmailChangeService } from "./emailChange.js";
 export { requireStanding } from "./standing.js";
 // For the Platform Admin Console (modules/platformAdmin), which signs admins in with their account password.
 export type { AccountRow } from "./store.js";
+export {
+  deleteOperatorAccount,
+  insertOperatorAccount,
+  listOperatorAccounts,
+  type OperatorAccountRow,
+  operatorAccount,
+  staticCodeHash,
+  updateOperatorVerification,
+} from "./operatorAccounts.js";
 export { burnPasswordCheck, verifyPassword } from "./passwords.js";
 export {
   accountStateCounts,

@@ -78,7 +78,7 @@ const TABLE_OWNERS: Readonly<Record<string, string>> = {
   ...owned("auth", "auth_challenges sessions pairing_requests"),
   ...owned(
     "accounts",
-    "accounts account_sessions account_codes legacy_tickets account_recovery_codes account_recovery_tickets account_passkeys account_passkey_challenges " +
+    "accounts account_sessions account_codes operator_accounts legacy_tickets account_recovery_codes account_recovery_tickets account_passkeys account_passkey_challenges " +
       "account_key_backups account_key_unlocks users devices user_blocks nav_preferences connections dm_requests " +
       "messaging_settings reminders reminder_occurrences registration_invites loadtest_registrations " +
       "account_totp account_totp_backup account_email_changes account_warnings bug_reports",
