@@ -1,0 +1,39 @@
+{
+  "promoted": [
+    {
+      "id": "o_2cRsYO4mkA_lQylIzDTpgg",
+      "name": "Console Promote Lab",
+      "description": null,
+      "tags": [],
+      "photoRev": null,
+      "bannerRev": null,
+      "accent": null,
+      "memberCount": 1,
+      "onlineCount": 0,
+      "label": "promoted",
+      "joined": true,
+      "official": false,
+      "joinPolicy": "open",
+      "applications": false
+    }
+  ],
+  "communities": [
+    {
+      "id": "o_2cRsYO4mkA_lQylIzDTpgg",
+      "name": "Console Promote Lab",
+      "description": null,
+      "tags": [],
+      "photoRev": null,
+      "bannerRev": null,
+      "accent": null,
+      "memberCount": 1,
+      "onlineCount": 0,
+      "label": "mega",
+      "joined": true,
+      "official": false,
+      "joinPolicy": "open",
+      "applications": false
+    }
+  ],
+  "nextCursor": null
+}

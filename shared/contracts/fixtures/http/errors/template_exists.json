@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "template_exists",
+    "message": "This community already has a template. Sync it or delete it to make a new one."
+  }
+}

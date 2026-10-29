@@ -1,0 +1,108 @@
+{
+  "template": {
+    "code": "38GHEZPVVXUK",
+    "name": "Raid night setup",
+    "source": {
+      "id": "o_r4MUAh7MZ0t39uggpUOMJQ",
+      "name": "Raid Planners",
+      "photoRev": null
+    },
+    "uses": 0,
+    "counts": {
+      "categories": 3,
+      "channels": 9,
+      "roles": 2
+    },
+    "updatedAt": 1793313924712,
+    "categories": [
+      {
+        "name": "Start here",
+        "channels": [
+          {
+            "name": "welcome",
+            "kind": "ANNOUNCEMENT",
+            "voice": false,
+            "format": "text",
+            "topic": "What this community is about and how it works"
+          },
+          {
+            "name": "announcements",
+            "kind": "ANNOUNCEMENT",
+            "voice": false,
+            "format": "text",
+            "topic": "News from the people who run the community"
+          }
+        ]
+      },
+      {
+        "name": "Talk",
+        "channels": [
+          {
+            "name": "general",
+            "kind": "PUBLIC",
+            "voice": false,
+            "format": "text",
+            "topic": "Everyday conversation"
+          },
+          {
+            "name": "introductions",
+            "kind": "PUBLIC",
+            "voice": false,
+            "format": "text",
+            "topic": "Say hello and tell people what brings you here"
+          },
+          {
+            "name": "lounge",
+            "kind": "PUBLIC",
+            "voice": true,
+            "format": "text",
+            "topic": "Drop in to talk"
+          }
+        ]
+      },
+      {
+        "name": "Raids",
+        "channels": [
+          {
+            "name": "raid-rules",
+            "kind": "PUBLIC",
+            "voice": false,
+            "format": "text",
+            "topic": null
+          },
+          {
+            "name": "raid-ideas",
+            "kind": "PUBLIC",
+            "voice": false,
+            "format": "forum",
+            "topic": null
+          },
+          {
+            "name": "mod-room",
+            "kind": "PRIVATE",
+            "voice": false,
+            "format": "text",
+            "topic": null
+          },
+          {
+            "name": "raid-voice",
+            "kind": "PUBLIC",
+            "voice": true,
+            "format": "text",
+            "topic": null
+          }
+        ]
+      }
+    ],
+    "roles": [
+      {
+        "name": "Mods",
+        "color": "#E39B7B"
+      },
+      {
+        "name": "Crew",
+        "color": "#22D3EE"
+      }
+    ]
+  }
+}

@@ -11,6 +11,8 @@ import { reactionRoleRoutes } from "../reactionRoles.js";
 import { reportRoutes } from "../reports.js";
 import { ticketRoutes } from "../tickets.js";
 import { webhookRoutes } from "../webhooks.js";
+import { communityTemplateRoutes } from "../communityTemplates.js";
+import { discoveryRoutes } from "../discovery.js";
 import type { RouteContract } from "../route.js";
 
 /** Route contracts of the community area (docs/architecture/ARCHITECTURE_1_0_PLAN.md §11, step C2). */
@@ -32,4 +34,7 @@ export const communityRoutes: readonly RouteContract[] = [
   ...ticketRoutes,
   // Community parity batch D: official bots.
   ...officialBotRoutes,
+  // Community parity batch E: discovery, Promote and templates from a community.
+  ...discoveryRoutes,
+  ...communityTemplateRoutes,
 ];

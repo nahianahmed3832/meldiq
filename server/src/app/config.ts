@@ -155,6 +155,15 @@ export interface Config {
    * On unless COMMUNITY_BOTS is "off": its routes then answer 503 and the bots stop acting; what communities set is kept.
    */
   communityBots: boolean;
+  /**
+   * Community parity batch E (docs/COMMUNITY_PARITY_API.md › Discovery): Discover and Discovery settings (feature
+   * "discovery-listing", DISCOVERY), templates from a community ("template-links", COMMUNITY_TEMPLATE_LINKS),
+   * the community bot directory ("bot-directory", BOT_DIRECTORY) and Promote ("discovery-promote", DISCOVERY_PROMOTE).
+   * Each is on unless its variable is "off"; what communities and bot owners set is kept. [blockedWords]: words a
+   * community's name may not contain to be listed, unless Meldiq runs it (DISCOVERY_BLOCKED_WORDS, comma-separated,
+   * added to Meldiq's own names). [prices]: Promote's weekly prices in cents.
+   */
+  discovery: { enabled: boolean; templates: boolean; botDirectory: boolean; promote: boolean; blockedWords: string[]; prices: PromotePrices };
   history: { enabled: boolean; maxItemsPerUser: number; maxBytesPerUser: number; maxItemBytes: number; tombstoneDays: number; maxTotalBytes: number };
   /**
    * Direct uploads from the app to S3 (2026-10-17). How long an upload URL may be started with, how long an upload may
@@ -507,6 +516,20 @@ export function effectiveFileMaxBytes(c: Pick<Config, "fileMaxBytes" | "attachme
   return Math.max(Math.min(c.fileMaxBytes, c.attachmentMaxBytes - overhead), 0);
 }
 
+/** Promote's weekly prices (docs/COMMUNITY_PARITY_API.md › Discovery), in the currency's smallest unit. */
+export interface PromotePrices {
+  currency: string;
+  boost: number;
+  super: number;
+  mega: number;
+  promoted: number;
+}
+
+export const PROMOTE_PRICES: PromotePrices = { currency: "usd", boost: 399, super: 799, mega: 1299, promoted: 2999 };
+
+/** Names only Meldiq's own communities may carry in Discovery (words people would read as Meldiq's staff). */
+const DISCOVERY_BLOCKED_WORDS = ["meldiq", "meldling", "official", "staff"];
+
 /** A feature switch: on unless the variable says "off". */
 function switchedOn(v: string | undefined): boolean {
   return (v ?? "on").trim().toLowerCase() !== "off";
@@ -599,6 +622,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       tickets: switchedOn(env.COMMUNITY_TICKETS),
     },
     communityBots: switchedOn(env.COMMUNITY_BOTS),
+    discovery: {
+      enabled: switchedOn(env.DISCOVERY),
+      templates: switchedOn(env.COMMUNITY_TEMPLATE_LINKS),
+      botDirectory: switchedOn(env.BOT_DIRECTORY),
+      promote: switchedOn(env.DISCOVERY_PROMOTE),
+      blockedWords: [...new Set([...DISCOVERY_BLOCKED_WORDS, ...(env.DISCOVERY_BLOCKED_WORDS ?? "").split(",").map((w) => w.trim().toLowerCase()).filter(Boolean)])],
+      prices: PROMOTE_PRICES,
+    },
     history: {
       enabled: env.HISTORY_ENABLED !== "false",
       maxItemsPerUser: Math.max(int("HISTORY_MAX_ITEMS_PER_USER", 500_000), 0),

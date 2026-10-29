@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "billing_unavailable",
+    "message": "Promote can't take payments yet. Meldiq will open it when billing is switched on."
+  }
+}

@@ -96,7 +96,9 @@ const TABLE_OWNERS: Readonly<Record<string, string>> = {
       // Community parity B (migration 072): the lobby.
       "community_lobbies community_lobby_feeds community_lobby_posts community_lobby_seen " +
       // Community parity batch C, posting tools (migration 073).
-      "channel_webhooks reaction_roles community_tickets ticket_panels tickets",
+      "channel_webhooks reaction_roles community_tickets ticket_panels tickets " +
+      // Community parity batch E, discovery (migration 075).
+      "community_discovery community_templates bot_listings discovery_boosts promoted_bookings discovery_visits discovery_clicks",
   ),
   // Community parity batch D, official bots (migration 074).
   ...owned("officialBots", "official_bots official_bots_plus bot_levels bot_afk bot_starboard"),

@@ -339,6 +339,11 @@ export const OrgCreateBody = z.object({
   rules: zRules,
   /** The starter channels (batch B2); "starter" when left out. */
   template: z.enum(COMMUNITY_TEMPLATE_IDS).optional(),
+  /**
+   * Community parity E (feature "template-links"): make it from a template link's code instead (channels,
+   * categories, roles and @everyone defaults; `template` is then ignored). 404 template_not_found for an unknown code.
+   */
+  templateCode: z.string().regex(/^[A-Za-z0-9]{8,16}$/).optional(),
 });
 
 export const OrgUpdateBody = z.object({
@@ -435,7 +440,7 @@ export const orgRoutes = [
     summary: "Create a community with its starter channels. Idempotent on requestId.",
     body: OrgCreateBody,
     response: CommunityOnly,
-    errors: ["org_name_taken"],
+    errors: ["org_name_taken", "template_not_found", "feature_disabled"],
   }),
   community({
     method: "GET",

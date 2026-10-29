@@ -126,6 +126,10 @@ export interface NewChannel {
   format: "text" | "forum";
   categoryId: string | null;
   position: number;
+  /** Community parity E (a template from a community): slowmode, a forum's tags (JSON) and its guidelines. */
+  slowmodeSec?: number;
+  forumTags?: string | null;
+  guidelines?: string | null;
 }
 
 /**
@@ -152,6 +156,9 @@ export function insertChannel(ctx: Pick<AppContext, "authz">, w: RowWriter, orgI
     category_id: ch.categoryId,
     position: ch.position,
     format: ch.format,
+    ...(ch.slowmodeSec ? { slowmode_sec: ch.slowmodeSec } : {}),
+    ...(ch.forumTags ? { forum_tags: ch.forumTags } : {}),
+    ...(ch.guidelines ? { guidelines: ch.guidelines } : {}),
   });
   w.insert("conversation_members", { conversation_id: id, user_id: actorId, role: "ADMIN", joined_at: t });
   if (autoJoin) {

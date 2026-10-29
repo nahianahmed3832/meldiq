@@ -350,6 +350,8 @@ export default async function communityRoutes(app: FastifyInstance, ctx: AppCont
     const rows = ws
       .all<any>("orgs", { where: { visibility: "public" } })
       .filter((o) => !banned.has(o.id) && (!term || likeContains(o.name, term) || likeContains(o.description ?? "", term)))
+      // Community parity E: communities turned off in Discovery, removed, locked or with a blocked name don't show.
+      .filter((o) => ctx.discovery.shownToOlderApps(o.id))
       .map((o) => ({ ...o, member_count: ws.count("org_members", { org_id: o.id }) }))
       .sort((a, b) => b.member_count - a.member_count || compareText(foldAscii(a.name), foldAscii(b.name)) || compareText(a.id, b.id))
       .slice(q.cursor, q.cursor + DISCOVER_PAGE + 1);
@@ -417,6 +419,8 @@ export default async function communityRoutes(app: FastifyInstance, ctx: AppCont
     });
     ctx.audit({ actorId: userId, orgId: id, action: "community.join", target: userId });
     await noteJoin(ctx, id, t);
+    // Community parity E: a join for the community's Promoted spot when they opened it from Discover.
+    await ctx.discovery.noteJoin(id, userId);
     notifyOrg(ctx, id);
     return { org: orgSummary(ctx, ws.get("orgs", { id }), userId), alreadyMember: false };
   });

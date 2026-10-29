@@ -352,3 +352,133 @@ carries Giveaways, Tickets, Alerts and Wordy (commands and the Free vs Plus tabl
 `!giveaway`, `!gend`, `!greroll` and `!wordy` are reserved. `dispatch.ts` hands events to bots by kind, so a new bot
 adds its settings schema (`BOT_SETTINGS`, `LIVE_BOT_KEYS`), defaults and Plus rules (`settings.ts`) and its handlers.
 The Tickets bot will tie batch C's tickets (`ctx.tickets`) to the bot's look and Plus limits.
+## Discovery (batch E)
+
+Discover with tags and the 5-member rule, templates from a community, the community bot directory, and Promote (boosts
+and the Promoted row). New tables only (migration 075, workspace domain, so new MongoDB collections when communities
+live there): `community_discovery`, `community_templates`, `bot_listings`, `discovery_boosts`, `promoted_bookings`,
+`discovery_visits`, `discovery_clicks`. A community's rows go with the community. Code:
+`server/src/modules/organizations/discovery` (in the organizations module because it reads communities, roles and
+channels, which that module owns) and `src/modules/platformAdmin/discovery.ts`; contracts in
+`src/shared/contracts/http/{discovery,communityTemplates,botDirectory}.ts`. Tests: `test/discovery.test.ts`,
+`test/community_templates.test.ts`, `test/bot_directory.test.ts` (SQLite and MongoDB), `test/discovery_admin.test.ts`.
+
+| Feature name | Switched off by | What |
+| --- | --- | --- |
+| `discovery-listing` | `DISCOVERY=off` | `GET /v1/discover`, clicks, Discovery settings (and Promote with it) |
+| `discovery-promote` | `DISCOVERY_PROMOTE=off` | The Promote page and checkouts; boosts stop counting, no Promoted row |
+| `template-links` | `COMMUNITY_TEMPLATE_LINKS=off` | Templates from a community, `templateCode` on create |
+| `bot-directory` | `BOT_DIRECTORY=off` | The bot directory and listings |
+
+Switched off, the feature name goes, its routes answer `503 feature_disabled`, and what was set is kept. The older
+`community-discovery` and `community-templates` names (the 2026-10-21 Discover and the starter templates) are unchanged.
+
+### Who is listed, and in what order
+
+A community is listed when it is public, shown (`discoverable`, on by default), not removed by staff, not locked
+(community safety's `lockedUntil`), its name doesn't contain a word that passes for Meldiq's own unless staff marked it
+official (`meldiq`, `meldling`, `official`, `staff`, plus `DISCOVERY_BLOCKED_WORDS`, comma-separated, whole words), and
+it has `DISCOVERY_MIN_MEMBERS` (5) members **or** a boost or Promoted week running. Communities that banned the viewer
+never show to them. Order: biggest running boost (mega, super, boost; only the biggest counts), then members, then
+name. A mega boost's guaranteed place (top 100, 50 from 100 members, 20 from 1,000) follows from the order.
+
+The older `GET /v1/communities/discover` keeps its shape and still lists small public communities, but now leaves out
+those turned off, removed, locked or with a blocked name (all of them show while `DISCOVERY=off`).
+
+**`GET /v1/discover?q=&tag=&cursor=`** (signed in, 60/min) →
+```
+{ promoted: [Card] (≤4: only with no q, no tag, cursor 0), communities: [Card] (30 a page), nextCursor: number|null }
+Card = { id, name, description: string|null (the card line, else the community's description), tags: [string],
+         photoRev, bannerRev, accent, memberCount, onlineCount, label: "promoted"|"mega"|"super"|"boost"|null,
+         joined, official, joinPolicy: "open"|"invite", applications }
+```
+`q` (≤60) matches name, card line, description and tags (ASCII case ignored); `tag` (any case) keeps communities with
+that tag. Each call records that the viewer opened Discover today (`discovery_visits`, kept 14 days) and adds a view
+to each Promoted card shown.
+
+**`POST /v1/discover/:orgId/click`** → `{ recorded: true }` when someone opens a card (404 for a community that isn't
+public). It counts a click for the community's running Promoted week and is remembered, so a join through
+`POST /v1/communities/:id/join` after it counts as a join for that week.
+
+### Discovery settings (`workspace.edit`)
+
+`GET /v1/orgs/:orgId/discovery`, `PUT` with any of `{ discoverable?: boolean, description?: string ≤300 | null,
+tags?: [string] ≤5 }` → `{ discoverable, description, tags, listed, reason, memberCount, minMembers: 5,
+communityDescription, official, updatedAt }`. `reason` (null when listed): `private`, `removed`, `turned_off`,
+`locked`, `name_blocked`, `too_few_members`. Tags: letters and digits with spaces or single hyphens between, ≤24
+characters; stored lower case with single spaces, repeats dropped (400 otherwise). Audit `community.discovery`.
+Members without the permission get 403, outsiders 404.
+
+### Templates from a community (`workspace.edit`)
+
+A template copies the community's custom roles (name, description, colour, icon, hoist, permissions, denies, gradient,
+mentionable, automatic for everyone), the @everyone defaults, categories and channels (name, kind, topic, voice,
+forum, category, order, slowmode, forum tags and guidelines, text-only/no-GIFs/stage/read-only and who posts) and the
+overwrites for @everyone and roles. Never messages, members, role holders, people's own overwrites, pictures, archived
+channels or ticket channels. One per community.
+
+- `GET /v1/orgs/:orgId/templates` → `{ template: Template|null }`.
+- `POST /v1/orgs/:orgId/templates` (201) `{ name?: ≤100 }` (the community's name otherwise) → `{ template }`;
+  `409 template_exists` when there's one.
+- `POST /v1/orgs/:orgId/templates/sync` → `{ template }`: copies the community again under the same code (404
+  `template_not_found` without one). `DELETE /v1/orgs/:orgId/templates` → `{ deleted }`: the code stops working.
+- `GET /v1/templates/:code` (anyone signed in, any case) → `{ template: { code, name, source: {id, name, photoRev}|null,
+  uses, counts, updatedAt, categories: [{ name: string|null, channels: [{name, kind, voice, format, topic}] }],
+  roles: [{name, color}] } }`; uncategorised channels come first with `name: null`. `404 template_not_found`.
+- `POST /v1/orgs` with `templateCode` makes the community from it instead of a starter template (checked first: `404
+  template_not_found`, `503 feature_disabled` while off). Roles beyond the new community's role limit are left out;
+  the owner joins every channel; the template's `uses` goes up.
+
+`Template` = `{ code (12 characters), name, uses, counts: {categories, channels, roles}, outOfDate, createdAt,
+updatedAt }`; `outOfDate`: the community changed since the copy. Audit `community.template` (created, synced,
+deleted) and `community.start` on the new community.
+
+### Community bot directory
+
+- `GET /v1/bot-directory?q=&category=&sort=most_used|newest|a_z&cursor=` → `{ bots: [{ id, username, displayName,
+  description, category, installCount, commands: [{name, description}], owner: {id, username}|null, listedAt }],
+  nextCursor, categories }`. Categories: `moderation fun games utility music economy social ai other`. `q` matches
+  names, the description and slash commands. Only listed bots that still exist and are public.
+- `GET`/`PUT /v2/developer/bots/:id/listing` (the bot's owner; 404 otherwise) `{ listed, category, description ≤200 }`
+  → `{ listing: { listed, category, description, listedAt, updatedAt, public } }`. Listing a private bot: `409
+  bot_private`. `listedAt` is when it was first listed (Newest). Audit `bot.listing`. Adding a bot by id is unchanged.
+
+### Promote (`workspace.edit`)
+
+Boosts: `boost` (Boosted, $3.99 a week), `super` ($7.99), `mega` ($12.99, gold label, guaranteed place). The Promoted
+row: 4 spots a week (Monday 00:00 UTC to the next), $29.99 a week, booked for the next free week within 8 weeks.
+Prices are `PROMOTE_PRICES` in `src/app/config.ts` (cents). Boosts and bookings are records with `starts_at`,
+`ends_at`, a `state` (`pending` a checkout not paid, `active`, `cancelled`) and a `source` (`grant`, `purchase`). A
+locked, removed or private community stops showing; nothing is refunded.
+
+**`GET /v1/orgs/:orgId/promote`** →
+```
+{ billing: { available, reason }, currency: "usd",
+  tiers: [{ tier, weeklyCents, guaranteedTop: number|null }],
+  boost: Boost|null (the biggest running), boosts: [Boost] (running and coming up),
+  rank: number|null (place in the list), listed, reason,
+  promoted: { weeklyCents, spotsPerWeek: 4, nextSpot: { startsAt, endsAt, spotsLeft }|null, allTaken,
+              bookings: [{ id, state, source, startsAt, endsAt, views, clicks, joins }] (also ended in the last 4 weeks) },
+  visitors: { weekly } }   // different people who opened Discover in the last 7 days
+Boost = { id, tier, state, source, startsAt, endsAt }
+```
+
+**Billing.** `POST /v1/orgs/:orgId/promote/boost` `{ tier }` and `POST /v1/orgs/:orgId/promote/promoted`
+`{ weekStart? }` answer **`503 billing_unavailable`** while billing is off (always today), after the permission check
+and, for Promoted, `409 promoted_full` (no free week; details `{ nextSpot }` for a chosen week) or 400 (a `weekStart`
+that isn't a Monday 00:00 UTC in the next 8 weeks). On success they will answer `{ url }` (the checkout page). The
+seam is `PromoteCheckout` (`discovery/checkout.ts`): the billing module sells subscriptions, so a weekly one-off
+checkout kind has to be added there, then an adapter records the boost or booking as `pending` and its webhook makes
+it `active`.
+
+**Console** (`/admin/v1`, audited with a reason): `GET /admin/v1/discovery/orgs/:orgId` (`billing.view`) →
+`{ discovery: { removedAt, removedReason, official, boosts, bookings } }`; `POST …/orgs/:orgId/boosts`
+`{ tier, weeks 1–52, reason }` and `POST …/orgs/:orgId/promoted` `{ weekStart?, reason }` (this week if a spot is free,
+else the next free one) with `billing.manage`; `POST /admin/v1/discovery/boosts/:id/cancel` and
+`/promoted/:id/cancel` `{ reason }` (`billing.manage`, 409 when cancelled already); `PUT …/orgs/:orgId`
+`{ removed?, official?, reason }` (`orgs.members.manage`): take a community out of Discovery, or mark it as run by
+Meldiq (shown `official`, allowed a name with a blocked word). Audit `discovery.boost_grant`,
+`discovery.promoted_grant`, `discovery.boost_cancel`, `discovery.promoted_cancel`, `discovery.update`.
+
+Errors: `template_exists` (409), `template_not_found` (404), `promoted_full` (409), `billing_unavailable` (now also
+503), `bot_private` (now also 409).

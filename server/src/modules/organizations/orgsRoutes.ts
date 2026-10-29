@@ -179,6 +179,8 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const { userId } = me(req);
     const body = parse(OrgCreateBody, req.body);
     requireStanding(ctx.safety, userId, "create_community");
+    // Community parity E: a template link's code is checked before anything is made (404 template_not_found).
+    const fromTemplate = body.templateCode ? ctx.communityTemplates.snapshotFor(body.templateCode) : null;
     const id = newId("o");
     const t = now();
     // Checked inside the write unit, so two simultaneous taps (or two people picking the same name) can't both pass.
@@ -218,7 +220,8 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     ctx.audit({ actorId: userId, orgId: id, action: "org.create", target: id, detail: `visibility=${body.visibility ?? "private"}` });
     // A community starts with its welcome, announcements, general, introductions and lounge channels in two
     // categories, so the first member who joins finds somewhere to go.
-    await createCommunityStart(ctx, id, userId, body.template);
+    if (fromTemplate) await ctx.communityTemplates.build(id, userId, fromTemplate.templateId, fromTemplate.snapshot);
+    else await createCommunityStart(ctx, id, userId, body.template);
     return { org: orgSummary(ctx, orgRow(id), userId) };
   });
 

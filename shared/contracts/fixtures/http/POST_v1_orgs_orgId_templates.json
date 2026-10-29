@@ -1,0 +1,15 @@
+{
+  "template": {
+    "code": "38GHEZPVVXUK",
+    "name": "Raid night setup",
+    "uses": 0,
+    "counts": {
+      "categories": 3,
+      "channels": 9,
+      "roles": 2
+    },
+    "outOfDate": false,
+    "createdAt": 1793313924712,
+    "updatedAt": 1793313924712
+  }
+}
