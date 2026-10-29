@@ -130,6 +130,23 @@ Passkeys failed in the app installed from Google Play: Play signs it with its ap
 
 Rollback: copy the backup's `.env` back and recreate `api` the same way.
 
+### Meldiq Web 0.5.0-beta-4ddec73: the landing page in the app's own design, and Meldiq on iPhone's Home Screen (2026-10-29, 20:03 and 20:06 UTC, owner's request: "it should be match with web app, internal and brand own design ! fix all and then deploy for productions"; web only, API 0.66.0 unchanged)
+
+meldiq-web `landing-plans` a809625 + 4ddec73 (docs/MELDIQ_IOS_PWA.md in meldiq-web): the landing page drawn with the app's
+tokens, frame and panels, the official Meldling mark and a picture of the app's layout (no 3D art); iOS Home Screen tags
+(`apple-mobile-web-app-capable`, `mobile-web-app-capable`, black-translucent status bar), an opaque full-bleed
+`apple-touch-icon.png` from the official logo, and the manifest served as `application/manifest+json` (nginx answered
+`application/octet-stream`). Service worker, API, messages and sign-in unchanged.
+
+| Step | Result |
+|---|---|
+| Tests | web unit 94 files (636); browser landing (incl. the iOS tags, manifest and icon URLs), accounts, languages, Mojo, launch, stage1 in chromium, webkit and phone width: all pass (the launch test's splash locator fixed) |
+| Install | a809625 at 20:03:36, then 4ddec73 (the manifest's type, nginx template) at 20:06:09; same install values as fc19c44; `nginx -t` ok; `verify.sh https://web.meldiq.app` all passed |
+| Checks after | `/manifest.webmanifest` 200 `application/manifest+json`; `/apple-touch-icon.png` and every manifest icon 200 `image/png`; the iOS tags in the page; the signed-out page shows the new design, no app console errors (Cloudflare's beacon refused by the CSP, as before) |
+
+Rollback: `bash /root/meldiq-web-0.5.0-beta-4ddec73/rollback.sh` (back to a809625), again for fc19c44. Not before the API
+is back on 0.65.0 if going further back than fc19c44.
+
 ### API 0.66.0, web fc19c44 and console 1.4.0: Free/Go/Plus, the landing page, and keeping everything (2026-10-29, 19:38–19:47 UTC, owner's go-ahead: "Deploy all three"; and "Chat history should keeps unlimited per person, 2 GB files post limit (per file) and all data will be keep in server no autmatic removal")
 
 Branch `plans-v2` (on `settings-parity` 0.65.0; 5827e75, e172c19, 6db4f96, VERSION and test bumps): the owner's
