@@ -105,6 +105,12 @@
       "name": "tickets"
     },
     {
+      "name": "discovery"
+    },
+    {
+      "name": "template-links"
+    },
+    {
       "name": "conversations"
     },
     {
@@ -145,6 +151,9 @@
     },
     {
       "name": "bot api"
+    },
+    {
+      "name": "bot-directory"
     }
   ],
   "paths": {
@@ -21831,7 +21840,7 @@
             }
           },
           "default": {
-            "description": "Error. Codes: org_name_taken",
+            "description": "Error. Codes: org_name_taken, template_not_found, feature_disabled",
             "content": {
               "application/json": {
                 "schema": {
@@ -21915,6 +21924,10 @@
                       "study",
                       "club"
                     ]
+                  },
+                  "templateCode": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9]{8,16}$"
                   }
                 },
                 "required": [
@@ -49216,6 +49229,1947 @@
         ]
       }
     },
+    "/v1/discover": {
+      "get": {
+        "tags": [
+          "discovery"
+        ],
+        "summary": "Discover: the Promoted row, then public communities (boosted first, then by members); q searches names, descriptions and tags.",
+        "operationId": "getV1Discover",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 60
+            }
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 24
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "promoted": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "tags": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "photoRev": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "bannerRev": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "accent": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "memberCount": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "onlineCount": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "label": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "promoted",
+                                  "boost",
+                                  "super",
+                                  "mega"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "joined": {
+                            "type": "boolean"
+                          },
+                          "official": {
+                            "type": "boolean"
+                          },
+                          "joinPolicy": {
+                            "type": "string",
+                            "enum": [
+                              "open",
+                              "invite"
+                            ]
+                          },
+                          "applications": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "description",
+                          "tags",
+                          "photoRev",
+                          "bannerRev",
+                          "accent",
+                          "memberCount",
+                          "onlineCount",
+                          "label",
+                          "joined",
+                          "official",
+                          "joinPolicy",
+                          "applications"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "communities": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "tags": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "photoRev": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "bannerRev": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "accent": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "memberCount": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "onlineCount": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "label": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "promoted",
+                                  "boost",
+                                  "super",
+                                  "mega"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "joined": {
+                            "type": "boolean"
+                          },
+                          "official": {
+                            "type": "boolean"
+                          },
+                          "joinPolicy": {
+                            "type": "string",
+                            "enum": [
+                              "open",
+                              "invite"
+                            ]
+                          },
+                          "applications": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "description",
+                          "tags",
+                          "photoRev",
+                          "bannerRev",
+                          "accent",
+                          "memberCount",
+                          "onlineCount",
+                          "label",
+                          "joined",
+                          "official",
+                          "joinPolicy",
+                          "applications"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "nextCursor": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "promoted",
+                    "communities",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: feature_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/discover/{orgId}/click": {
+      "post": {
+        "tags": [
+          "discovery"
+        ],
+        "summary": "Someone opened a community from Discover (counts for Promoted spots and joins).",
+        "operationId": "postV1DiscoverOrgIdClick",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "recorded": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "recorded"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: feature_disabled, not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/orgs/{orgId}/discovery": {
+      "get": {
+        "tags": [
+          "discovery"
+        ],
+        "summary": "The community's Discovery settings and whether it's listed (Edit community).",
+        "operationId": "getV1OrgsOrgIdDiscovery",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "discoverable": {
+                      "type": "boolean"
+                    },
+                    "description": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "tags": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "listed": {
+                      "type": "boolean"
+                    },
+                    "reason": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "private",
+                            "turned_off",
+                            "too_few_members",
+                            "locked",
+                            "removed",
+                            "name_blocked"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "memberCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "minMembers": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "communityDescription": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "official": {
+                      "type": "boolean"
+                    },
+                    "updatedAt": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "discoverable",
+                    "description",
+                    "tags",
+                    "listed",
+                    "reason",
+                    "memberCount",
+                    "minMembers",
+                    "communityDescription",
+                    "official",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: feature_disabled, not_found, forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "discovery"
+        ],
+        "summary": "Show or hide the community in Discovery, its card description and up to 5 tags (Edit community).",
+        "operationId": "putV1OrgsOrgIdDiscovery",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "discoverable": {
+                      "type": "boolean"
+                    },
+                    "description": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "tags": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "listed": {
+                      "type": "boolean"
+                    },
+                    "reason": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "private",
+                            "turned_off",
+                            "too_few_members",
+                            "locked",
+                            "removed",
+                            "name_blocked"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "memberCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "minMembers": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "communityDescription": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "official": {
+                      "type": "boolean"
+                    },
+                    "updatedAt": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "discoverable",
+                    "description",
+                    "tags",
+                    "listed",
+                    "reason",
+                    "memberCount",
+                    "minMembers",
+                    "communityDescription",
+                    "official",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: feature_disabled, not_found, forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "discoverable": {
+                    "type": "boolean"
+                  },
+                  "description": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 300
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "tags": {
+                    "maxItems": 5,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 24,
+                      "pattern": "^[\\p{L}\\p{N}]+(?:(?: +|-)[\\p{L}\\p{N}]+)*$"
+                    }
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/orgs/{orgId}/promote": {
+      "get": {
+        "tags": [
+          "discovery"
+        ],
+        "summary": "Promote: boost tiers and prices, the running boost, rank, the next Promoted spot and weekly visitors.",
+        "operationId": "getV1OrgsOrgIdPromote",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "billing": {
+                      "type": "object",
+                      "properties": {
+                        "available": {
+                          "type": "boolean"
+                        },
+                        "reason": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "available",
+                        "reason"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "currency": {
+                      "type": "string"
+                    },
+                    "tiers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "tier": {
+                            "type": "string",
+                            "enum": [
+                              "boost",
+                              "super",
+                              "mega"
+                            ]
+                          },
+                          "weeklyCents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "guaranteedTop": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "tier",
+                          "weeklyCents",
+                          "guaranteedTop"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "boost": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "tier": {
+                              "type": "string",
+                              "enum": [
+                                "boost",
+                                "super",
+                                "mega"
+                              ]
+                            },
+                            "state": {
+                              "type": "string",
+                              "enum": [
+                                "pending",
+                                "active",
+                                "cancelled"
+                              ]
+                            },
+                            "source": {
+                              "type": "string",
+                              "enum": [
+                                "grant",
+                                "purchase"
+                              ]
+                            },
+                            "startsAt": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "endsAt": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "tier",
+                            "state",
+                            "source",
+                            "startsAt",
+                            "endsAt"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "boosts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "tier": {
+                            "type": "string",
+                            "enum": [
+                              "boost",
+                              "super",
+                              "mega"
+                            ]
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "pending",
+                              "active",
+                              "cancelled"
+                            ]
+                          },
+                          "source": {
+                            "type": "string",
+                            "enum": [
+                              "grant",
+                              "purchase"
+                            ]
+                          },
+                          "startsAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "endsAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "tier",
+                          "state",
+                          "source",
+                          "startsAt",
+                          "endsAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "rank": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "listed": {
+                      "type": "boolean"
+                    },
+                    "reason": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "private",
+                            "turned_off",
+                            "too_few_members",
+                            "locked",
+                            "removed",
+                            "name_blocked"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "promoted": {
+                      "type": "object",
+                      "properties": {
+                        "weeklyCents": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "spotsPerWeek": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "nextSpot": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "startsAt": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "endsAt": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "spotsLeft": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "startsAt",
+                                "endsAt",
+                                "spotsLeft"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "allTaken": {
+                          "type": "boolean"
+                        },
+                        "bookings": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "state": {
+                                "type": "string",
+                                "enum": [
+                                  "pending",
+                                  "active",
+                                  "cancelled"
+                                ]
+                              },
+                              "source": {
+                                "type": "string",
+                                "enum": [
+                                  "grant",
+                                  "purchase"
+                                ]
+                              },
+                              "startsAt": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "endsAt": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "views": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "clicks": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "joins": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "state",
+                              "source",
+                              "startsAt",
+                              "endsAt",
+                              "views",
+                              "clicks",
+                              "joins"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "weeklyCents",
+                        "spotsPerWeek",
+                        "nextSpot",
+                        "allTaken",
+                        "bookings"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "visitors": {
+                      "type": "object",
+                      "properties": {
+                        "weekly": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "weekly"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "billing",
+                    "currency",
+                    "tiers",
+                    "boost",
+                    "boosts",
+                    "rank",
+                    "listed",
+                    "reason",
+                    "promoted",
+                    "visitors"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: feature_disabled, not_found, forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/orgs/{orgId}/promote/boost": {
+      "post": {
+        "tags": [
+          "discovery"
+        ],
+        "summary": "Buy a week of Boost, Super Boost or Mega Boost (503 billing_unavailable while billing is off).",
+        "operationId": "postV1OrgsOrgIdPromoteBoost",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "url"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: feature_disabled, not_found, forbidden, billing_unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tier": {
+                    "type": "string",
+                    "enum": [
+                      "boost",
+                      "super",
+                      "mega"
+                    ]
+                  }
+                },
+                "required": [
+                  "tier"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/orgs/{orgId}/promote/promoted": {
+      "post": {
+        "tags": [
+          "discovery"
+        ],
+        "summary": "Book the next free Promoted week (409 promoted_full when all taken; 503 billing_unavailable while billing is off).",
+        "operationId": "postV1OrgsOrgIdPromotePromoted",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "url"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: feature_disabled, not_found, forbidden, promoted_full, billing_unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "weekStart": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/orgs/{orgId}/templates": {
+      "get": {
+        "tags": [
+          "template-links"
+        ],
+        "summary": "The community's template, or null (Edit community).",
+        "operationId": "getV1OrgsOrgIdTemplates",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "template": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "code": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "uses": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "counts": {
+                              "type": "object",
+                              "properties": {
+                                "categories": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "channels": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "roles": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "categories",
+                                "channels",
+                                "roles"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "outOfDate": {
+                              "type": "boolean"
+                            },
+                            "createdAt": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "updatedAt": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "code",
+                            "name",
+                            "uses",
+                            "counts",
+                            "outOfDate",
+                            "createdAt",
+                            "updatedAt"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "template"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: feature_disabled, not_found, forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "template-links"
+        ],
+        "summary": "Make a template link from the community: channels, categories, roles and @everyone defaults, no messages or members (one per community).",
+        "operationId": "postV1OrgsOrgIdTemplates",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "template": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "uses": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "counts": {
+                          "type": "object",
+                          "properties": {
+                            "categories": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "channels": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "roles": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "categories",
+                            "channels",
+                            "roles"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "outOfDate": {
+                          "type": "boolean"
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "updatedAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "name",
+                        "uses",
+                        "counts",
+                        "outOfDate",
+                        "createdAt",
+                        "updatedAt"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "template"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: feature_disabled, not_found, forbidden, template_exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "template-links"
+        ],
+        "summary": "Delete the template: its code stops working.",
+        "operationId": "deleteV1OrgsOrgIdTemplates",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "deleted"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: feature_disabled, not_found, forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/orgs/{orgId}/templates/sync": {
+      "post": {
+        "tags": [
+          "template-links"
+        ],
+        "summary": "Copy the community again into its template (same code).",
+        "operationId": "postV1OrgsOrgIdTemplatesSync",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "template": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "uses": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "counts": {
+                          "type": "object",
+                          "properties": {
+                            "categories": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "channels": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "roles": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "categories",
+                            "channels",
+                            "roles"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "outOfDate": {
+                          "type": "boolean"
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "updatedAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "name",
+                        "uses",
+                        "counts",
+                        "outOfDate",
+                        "createdAt",
+                        "updatedAt"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "template"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: feature_disabled, not_found, forbidden, template_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/templates/{code}": {
+      "get": {
+        "tags": [
+          "template-links"
+        ],
+        "summary": "Preview a template by its code.",
+        "operationId": "getV1TemplatesCode",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9]{8,16}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "template": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "source": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "photoRev": {
+                                  "anyOf": [
+                                    {
+                                      "type": "integer",
+                                      "minimum": -9007199254740991,
+                                      "maximum": 9007199254740991
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "name",
+                                "photoRev"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "uses": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "counts": {
+                          "type": "object",
+                          "properties": {
+                            "categories": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "channels": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "roles": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "categories",
+                            "channels",
+                            "roles"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "updatedAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "categories": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "channels": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "name": {
+                                      "type": "string"
+                                    },
+                                    "kind": {
+                                      "type": "string",
+                                      "enum": [
+                                        "PUBLIC",
+                                        "PRIVATE",
+                                        "ANNOUNCEMENT"
+                                      ]
+                                    },
+                                    "voice": {
+                                      "type": "boolean"
+                                    },
+                                    "format": {
+                                      "type": "string",
+                                      "enum": [
+                                        "text",
+                                        "forum"
+                                      ]
+                                    },
+                                    "topic": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "name",
+                                    "kind",
+                                    "voice",
+                                    "format",
+                                    "topic"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "channels"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "roles": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "color": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "color"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "name",
+                        "source",
+                        "uses",
+                        "counts",
+                        "updatedAt",
+                        "categories",
+                        "roles"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "template"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: feature_disabled, template_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
     "/v1/conversations": {
       "get": {
         "tags": [
@@ -69430,6 +71384,499 @@
           }
         }
       }
+    },
+    "/v1/bot-directory": {
+      "get": {
+        "tags": [
+          "bot-directory"
+        ],
+        "summary": "Listed community bots: search, category, sort by most used, newest or A to Z.",
+        "operationId": "getV1BotDirectory",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 60
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "moderation",
+                "fun",
+                "games",
+                "utility",
+                "music",
+                "economy",
+                "social",
+                "ai",
+                "other"
+              ]
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "most_used",
+              "type": "string",
+              "enum": [
+                "most_used",
+                "newest",
+                "a_z"
+              ]
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "bots": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "username": {
+                            "type": "string"
+                          },
+                          "displayName": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "category": {
+                            "type": "string",
+                            "enum": [
+                              "moderation",
+                              "fun",
+                              "games",
+                              "utility",
+                              "music",
+                              "economy",
+                              "social",
+                              "ai",
+                              "other"
+                            ]
+                          },
+                          "installCount": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "commands": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string"
+                                },
+                                "description": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "name",
+                                "description"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "owner": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "username": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "username"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "listedAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "username",
+                          "displayName",
+                          "description",
+                          "category",
+                          "installCount",
+                          "commands",
+                          "owner",
+                          "listedAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "nextCursor": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "categories": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "moderation",
+                          "fun",
+                          "games",
+                          "utility",
+                          "music",
+                          "economy",
+                          "social",
+                          "ai",
+                          "other"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "bots",
+                    "nextCursor",
+                    "categories"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: feature_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/developer/bots/{id}/listing": {
+      "get": {
+        "tags": [
+          "bot-directory"
+        ],
+        "summary": "Your bot's directory listing.",
+        "operationId": "getV2DeveloperBotsIdListing",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "listing": {
+                      "type": "object",
+                      "properties": {
+                        "listed": {
+                          "type": "boolean"
+                        },
+                        "category": {
+                          "type": "string",
+                          "enum": [
+                            "moderation",
+                            "fun",
+                            "games",
+                            "utility",
+                            "music",
+                            "economy",
+                            "social",
+                            "ai",
+                            "other"
+                          ]
+                        },
+                        "description": {
+                          "type": "string"
+                        },
+                        "listedAt": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "updatedAt": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "public": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "listed",
+                        "category",
+                        "description",
+                        "listedAt",
+                        "updatedAt",
+                        "public"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "listing"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: feature_disabled, not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "bot-directory"
+        ],
+        "summary": "List your public bot in the directory (or take it out), with a category and a short description.",
+        "operationId": "putV2DeveloperBotsIdListing",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "listing": {
+                      "type": "object",
+                      "properties": {
+                        "listed": {
+                          "type": "boolean"
+                        },
+                        "category": {
+                          "type": "string",
+                          "enum": [
+                            "moderation",
+                            "fun",
+                            "games",
+                            "utility",
+                            "music",
+                            "economy",
+                            "social",
+                            "ai",
+                            "other"
+                          ]
+                        },
+                        "description": {
+                          "type": "string"
+                        },
+                        "listedAt": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "updatedAt": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "public": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "listed",
+                        "category",
+                        "description",
+                        "listedAt",
+                        "updatedAt",
+                        "public"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "listing"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: feature_disabled, not_found, bot_private",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "listed": {
+                    "type": "boolean"
+                  },
+                  "category": {
+                    "type": "string",
+                    "enum": [
+                      "moderation",
+                      "fun",
+                      "games",
+                      "utility",
+                      "music",
+                      "economy",
+                      "social",
+                      "ai",
+                      "other"
+                    ]
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "listed",
+                  "category",
+                  "description"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -69608,6 +72055,7 @@
                   "passkey_limit",
                   "passkey_unavailable",
                   "passkey_unknown",
+                  "promoted_full",
                   "push_endpoint_invalid",
                   "push_host_not_allowed",
                   "push_unavailable",
@@ -69644,6 +72092,8 @@
                   "stale_revision",
                   "storage_full",
                   "storage_unavailable",
+                  "template_exists",
+                  "template_not_found",
                   "text_channel_no_calls",
                   "ticket_channel_invalid",
                   "ticket_closed",
@@ -69876,7 +72326,8 @@
     },
     "billing_unavailable": {
       "status": [
-        409
+        409,
+        503
       ],
       "meaning": "No billing provider is configured on this server, so nothing can be bought."
     },
@@ -69954,7 +72405,8 @@
     },
     "bot_private": {
       "status": [
-        403
+        403,
+        409
       ],
       "meaning": "This bot is private: only its owner can add it to a community."
     },
@@ -70674,6 +73126,12 @@
       ],
       "meaning": "This passkey isn't registered here. Sign in with your password and add it again."
     },
+    "promoted_full": {
+      "status": [
+        409
+      ],
+      "meaning": "Every Promoted spot is taken for the next weeks. Try again later."
+    },
     "push_endpoint_invalid": {
       "status": [
         400
@@ -70889,6 +73347,18 @@
         503
       ],
       "meaning": "The server couldn't store the photo. Try again in a moment."
+    },
+    "template_exists": {
+      "status": [
+        409
+      ],
+      "meaning": "This community already has a template. Sync it or delete it to make a new one."
+    },
+    "template_not_found": {
+      "status": [
+        404
+      ],
+      "meaning": "There's no template with that code. It may have been deleted."
     },
     "text_channel_no_calls": {
       "status": [

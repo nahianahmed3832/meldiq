@@ -1436,6 +1436,24 @@ export const SCHEMA: readonly TableShape[] = [
     autoincrement: false,
   },
   {
+    name: "bot_listings",
+    columns: [
+      {"name":"bot_id","type":"TEXT","notNull":true},
+      {"name":"owner_id","type":"TEXT","notNull":true},
+      {"name":"listed","type":"INTEGER","notNull":true},
+      {"name":"category","type":"TEXT","notNull":true},
+      {"name":"description","type":"TEXT","notNull":true},
+      {"name":"listed_at","type":"INTEGER","notNull":false},
+      {"name":"updated_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["bot_id"],
+    indexes: [
+      {"name":"idx_bot_listings_listed","columns":["listed"],"unique":false,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [],
+    autoincrement: false,
+  },
+  {
     name: "branch_members",
     columns: [
       {"name":"branch_id","type":"TEXT","notNull":true},
@@ -1648,6 +1666,26 @@ export const SCHEMA: readonly TableShape[] = [
     autoincrement: false,
   },
   {
+    name: "community_discovery",
+    columns: [
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"discoverable","type":"INTEGER","notNull":true,"default":1},
+      {"name":"blurb","type":"TEXT","notNull":false},
+      {"name":"tags","type":"TEXT","notNull":true,"default":"[]"},
+      {"name":"removed_at","type":"INTEGER","notNull":false},
+      {"name":"removed_reason","type":"TEXT","notNull":false},
+      {"name":"official","type":"INTEGER","notNull":true,"default":0},
+      {"name":"updated_by","type":"TEXT","notNull":true},
+      {"name":"updated_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["org_id"],
+    indexes: [],
+    foreignKeys: [
+      {"columns":["org_id"],"table":"orgs","references":["id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
     name: "community_expressions",
     columns: [
       {"name":"id","type":"TEXT","notNull":true},
@@ -1839,6 +1877,30 @@ export const SCHEMA: readonly TableShape[] = [
     ],
     foreignKeys: [
       {"columns":["invite_id"],"table":"invitations","references":["id"],"onDelete":"CASCADE"},
+      {"columns":["org_id"],"table":"orgs","references":["id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
+    name: "community_templates",
+    columns: [
+      {"name":"id","type":"TEXT","notNull":true},
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"code","type":"TEXT","notNull":true},
+      {"name":"name","type":"TEXT","notNull":true},
+      {"name":"snapshot","type":"TEXT","notNull":true},
+      {"name":"uses","type":"INTEGER","notNull":true,"default":0},
+      {"name":"created_by","type":"TEXT","notNull":true},
+      {"name":"created_at","type":"INTEGER","notNull":true},
+      {"name":"updated_by","type":"TEXT","notNull":true},
+      {"name":"updated_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["id"],
+    indexes: [
+      {"name":"sqlite_autoindex_community_templates_3","columns":["code"],"unique":true,"nocase":false,"partialNotNull":null},
+      {"name":"sqlite_autoindex_community_templates_2","columns":["org_id"],"unique":true,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [
       {"columns":["org_id"],"table":"orgs","references":["id"],"onDelete":"CASCADE"},
     ],
     autoincrement: false,
@@ -2136,6 +2198,60 @@ export const SCHEMA: readonly TableShape[] = [
     foreignKeys: [
       {"columns":["user_id"],"table":"users","references":["id"],"onDelete":"CASCADE"},
     ],
+    autoincrement: false,
+  },
+  {
+    name: "discovery_boosts",
+    columns: [
+      {"name":"id","type":"TEXT","notNull":true},
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"tier","type":"TEXT","notNull":true},
+      {"name":"state","type":"TEXT","notNull":true},
+      {"name":"source","type":"TEXT","notNull":true},
+      {"name":"price_cents","type":"INTEGER","notNull":true},
+      {"name":"starts_at","type":"INTEGER","notNull":true},
+      {"name":"ends_at","type":"INTEGER","notNull":true},
+      {"name":"note","type":"TEXT","notNull":false},
+      {"name":"created_by","type":"TEXT","notNull":true},
+      {"name":"created_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["id"],
+    indexes: [
+      {"name":"idx_discovery_boosts_ends","columns":["ends_at"],"unique":false,"nocase":false,"partialNotNull":null},
+      {"name":"idx_discovery_boosts_org","columns":["org_id"],"unique":false,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [
+      {"columns":["org_id"],"table":"orgs","references":["id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
+    name: "discovery_clicks",
+    columns: [
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"user_id","type":"TEXT","notNull":true},
+      {"name":"at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["org_id","user_id"],
+    indexes: [
+      {"name":"idx_discovery_clicks_user","columns":["user_id"],"unique":false,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [
+      {"columns":["org_id"],"table":"orgs","references":["id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
+    name: "discovery_visits",
+    columns: [
+      {"name":"day","type":"TEXT","notNull":true},
+      {"name":"user_id","type":"TEXT","notNull":true},
+    ],
+    primaryKey: ["day","user_id"],
+    indexes: [
+      {"name":"idx_discovery_visits_user","columns":["user_id"],"unique":false,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [],
     autoincrement: false,
   },
   {
@@ -3606,6 +3722,34 @@ export const SCHEMA: readonly TableShape[] = [
     primaryKey: ["minute"],
     indexes: [],
     foreignKeys: [],
+    autoincrement: false,
+  },
+  {
+    name: "promoted_bookings",
+    columns: [
+      {"name":"id","type":"TEXT","notNull":true},
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"week_start","type":"INTEGER","notNull":true},
+      {"name":"state","type":"TEXT","notNull":true},
+      {"name":"source","type":"TEXT","notNull":true},
+      {"name":"price_cents","type":"INTEGER","notNull":true},
+      {"name":"starts_at","type":"INTEGER","notNull":true},
+      {"name":"ends_at","type":"INTEGER","notNull":true},
+      {"name":"views","type":"INTEGER","notNull":true,"default":0},
+      {"name":"clicks","type":"INTEGER","notNull":true,"default":0},
+      {"name":"joins","type":"INTEGER","notNull":true,"default":0},
+      {"name":"note","type":"TEXT","notNull":false},
+      {"name":"created_by","type":"TEXT","notNull":true},
+      {"name":"created_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["id"],
+    indexes: [
+      {"name":"idx_promoted_bookings_org","columns":["org_id"],"unique":false,"nocase":false,"partialNotNull":null},
+      {"name":"idx_promoted_bookings_week","columns":["week_start"],"unique":false,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [
+      {"columns":["org_id"],"table":"orgs","references":["id"],"onDelete":"CASCADE"},
+    ],
     autoincrement: false,
   },
   {

@@ -64,6 +64,13 @@ const GUARDED: Record<string, Permission> = {
   "POST /admin/v1/creators/program/:id/reject": "creators.review",
   "GET /admin/v1/creators/posts": "creators.review",
   "POST /admin/v1/creators/posts/:id/review": "creators.review",
+  // Community parity batch E: Discovery, boosts and Promoted weeks granted by hand while billing is off.
+  "GET /admin/v1/discovery/orgs/:orgId": "billing.view",
+  "PUT /admin/v1/discovery/orgs/:orgId": "orgs.members.manage",
+  "POST /admin/v1/discovery/orgs/:orgId/boosts": "billing.manage",
+  "POST /admin/v1/discovery/orgs/:orgId/promoted": "billing.manage",
+  "POST /admin/v1/discovery/boosts/:id/cancel": "billing.manage",
+  "POST /admin/v1/discovery/promoted/:id/cancel": "billing.manage",
   "GET /admin/v1/infrastructure": "health.view",
   "POST /admin/v1/connectors/:id/check": "connectors.check",
   "GET /admin/v1/incidents": "incidents.view",

@@ -203,6 +203,15 @@ export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
   community_tickets: "workspace",
   ticket_panels: "workspace",
   tickets: "workspace",
+  // Community parity batch E, discovery (migration 075): Discovery settings, templates from a community, the bot
+  // directory, boosts and Promoted bookings, and Discover's visit and click records.
+  community_discovery: "workspace",
+  community_templates: "workspace",
+  bot_listings: "workspace",
+  discovery_boosts: "workspace",
+  promoted_bookings: "workspace",
+  discovery_visits: "workspace",
+  discovery_clicks: "workspace",
   // Batch B6: connections, message requests and who may message you.
   connections: "relationships",
   dm_requests: "relationships",

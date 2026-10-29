@@ -1,0 +1,43 @@
+{
+  "billing": {
+    "available": false,
+    "reason": "Promote can't take payments yet. Meldiq will open it when billing is switched on."
+  },
+  "currency": "usd",
+  "tiers": [
+    {
+      "tier": "boost",
+      "weeklyCents": 399,
+      "guaranteedTop": null
+    },
+    {
+      "tier": "super",
+      "weeklyCents": 799,
+      "guaranteedTop": null
+    },
+    {
+      "tier": "mega",
+      "weeklyCents": 1299,
+      "guaranteedTop": 100
+    }
+  ],
+  "boost": null,
+  "boosts": [],
+  "rank": 2,
+  "listed": true,
+  "reason": null,
+  "promoted": {
+    "weeklyCents": 2999,
+    "spotsPerWeek": 4,
+    "nextSpot": {
+      "startsAt": 1793577600000,
+      "endsAt": 1794182400000,
+      "spotsLeft": 4
+    },
+    "allTaken": false,
+    "bookings": []
+  },
+  "visitors": {
+    "weekly": 2
+  }
+}

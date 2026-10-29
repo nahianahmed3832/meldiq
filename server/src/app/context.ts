@@ -20,6 +20,9 @@ import type { CommunitySafety } from "../modules/organizations/safety/service.js
 import type { CommunityLobby } from "../modules/organizations/lobby/service.js";
 import type { ReactionRoles } from "../modules/organizations/posting/reactionRoles.js";
 import type { Tickets } from "../modules/organizations/posting/tickets.js";
+import type { BotDirectory } from "../modules/organizations/discovery/botDirectory.js";
+import type { Discovery } from "../modules/organizations/discovery/service.js";
+import type { CommunityTemplates } from "../modules/organizations/discovery/templates.js";
 import type { Webhooks } from "../modules/organizations/posting/webhooks.js";
 import type { RelationshipStore } from "../modules/accounts/relationships/store.js";
 import type { CallStore } from "../modules/calls/store.js";
@@ -112,6 +115,10 @@ export interface AppContext {
   webhooks: Webhooks;
   reactionRoles: ReactionRoles;
   tickets: Tickets;
+  /** Community parity batch E (modules/organizations/discovery, docs/COMMUNITY_PARITY_API.md › Discovery). */
+  discovery: Discovery;
+  communityTemplates: CommunityTemplates;
+  botDirectory: BotDirectory;
   /** Calls, their participants and raised hands: SQLite, or MongoDB when MONGODB_DOMAINS includes "calls". */
   calls: CallStore;
   /**

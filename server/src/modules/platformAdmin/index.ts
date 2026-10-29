@@ -8,6 +8,7 @@ import adminOpsRoutes from "./opsRoutes.js";
 import adminInsightsRoutes from "./insightsRoutes.js";
 import adminDecorationRoutes from "./decorations.js";
 import adminCreatorRoutes from "./creators.js";
+import adminDiscoveryRoutes from "./discovery.js";
 import { gate } from "./guards.js";
 import { PlatformAdminStore } from "./store.js";
 
@@ -38,5 +39,6 @@ export async function registerPlatformAdmin(app: FastifyInstance, ctx: AppContex
     await adminInsightsRoutes(scope, deps);
     await adminDecorationRoutes(scope, deps);
     await adminCreatorRoutes(scope, deps);
+    await adminDiscoveryRoutes(scope, deps);
   });
 }

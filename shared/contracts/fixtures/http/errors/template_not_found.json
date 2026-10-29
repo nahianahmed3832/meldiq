@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "template_not_found",
+    "message": "There's no template with that code. It may have been deleted."
+  }
+}

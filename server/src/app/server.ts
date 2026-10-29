@@ -62,6 +62,12 @@ import ticketRoutes from "../modules/organizations/posting/ticketRoutes.js";
 import { Tickets } from "../modules/organizations/posting/tickets.js";
 import webhookRoutes from "../modules/organizations/posting/webhookRoutes.js";
 import { Webhooks } from "../modules/organizations/posting/webhooks.js";
+import botDirectoryRoutes from "../modules/organizations/discovery/botDirectoryRoutes.js";
+import { BotDirectory } from "../modules/organizations/discovery/botDirectory.js";
+import discoveryRoutes from "../modules/organizations/discovery/routes.js";
+import { Discovery } from "../modules/organizations/discovery/service.js";
+import communityTemplateRoutes from "../modules/organizations/discovery/templateRoutes.js";
+import { CommunityTemplates } from "../modules/organizations/discovery/templates.js";
 import expressionRoutes from "../modules/organizations/expressionsRoutes.js";
 import { MongoPreferenceStore } from "../modules/accounts/preferences/mongoStore.js";
 import { type PushDeps, PushService } from "../modules/notifications/service.js";
@@ -341,6 +347,11 @@ export async function buildApp(
   ctx.webhooks = new Webhooks(ctx, config.postingTools.webhooks);
   ctx.reactionRoles = new ReactionRoles(ctx, config.postingTools.reactionRoles);
   ctx.tickets = new Tickets(ctx, config.postingTools.tickets);
+  // Community parity batch E (docs/COMMUNITY_PARITY_API.md › Discovery): Discover, Promote, templates from a community
+  // and the bot directory, kept in workspace rows (migration 075).
+  ctx.discovery = new Discovery(ctx, config.discovery);
+  ctx.communityTemplates = new CommunityTemplates(ctx, config.discovery.templates);
+  ctx.botDirectory = new BotDirectory(ctx, config.discovery.botDirectory);
   ctx.reportSealer = ReportSealer.load(process.env, config.dataDir);
   // Billing (plans, subscriptions, Meldiq Spark, gifts): rows in SQLite, or MongoDB when MONGODB_DOMAINS includes it.
   ctx.billing = new Billing(await openBillingRows(db, ctx.mongo, app.log), config.billing, app.log, Date.now, (id) => ctx.quotas.planExists(id));
@@ -569,7 +580,7 @@ export async function buildApp(
     passkeys: ctx.accounts.passkeys.available ? { webOrigins: ctx.accounts.passkeys.webOrigins } : null,
   }));
 
-  for (const r of [authRoutes, userRoutes, profileMediaRoutes, gifRoutes, bugReportRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, serverMessagesRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, activityRoutes, decorationRoutes, pinRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, communityRulesRoutes, communityPermissionsRoutes, communitySafetyRoutes, voiceModerationRoutes, expressionRoutes, discordRoutes, leaveManyRoutes, pointsRoutes, creatorRoutes, linkedAccountRoutes, oauthRoutes, botRoutes, communityLobbyRoutes, webhookRoutes, reactionRoleRoutes, ticketRoutes, wsRoutes]) {
+  for (const r of [authRoutes, userRoutes, profileMediaRoutes, gifRoutes, bugReportRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, serverMessagesRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, activityRoutes, decorationRoutes, pinRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, communityRulesRoutes, communityPermissionsRoutes, communitySafetyRoutes, voiceModerationRoutes, expressionRoutes, discordRoutes, leaveManyRoutes, pointsRoutes, creatorRoutes, linkedAccountRoutes, oauthRoutes, botRoutes, communityLobbyRoutes, webhookRoutes, reactionRoleRoutes, ticketRoutes, discoveryRoutes, communityTemplateRoutes, botDirectoryRoutes, wsRoutes]) {
     await app.register(async (scope) => r(scope, ctx));
   }
   // Community parity A3: the community settings routes.
@@ -751,6 +762,12 @@ export function serverFeatures(config: Config, directUploads = false): string[] 
   if (config.postingTools.webhooks) f.push("channel-webhooks");
   if (config.postingTools.reactionRoles) f.push("reaction-roles");
   if (config.postingTools.tickets) f.push("community-tickets");
+  // Community parity batch E (docs/COMMUNITY_PARITY_API.md › Discovery): DISCOVERY, COMMUNITY_TEMPLATE_LINKS,
+  // BOT_DIRECTORY and DISCOVERY_PROMOTE=off switch each off (Promote also goes with Discovery).
+  if (config.discovery.enabled) f.push("discovery-listing");
+  if (config.discovery.templates) f.push("template-links");
+  if (config.discovery.botDirectory) f.push("bot-directory");
+  if (config.discovery.enabled && config.discovery.promote) f.push("discovery-promote");
   if (config.accounts.legacy.migration) f.push("legacy-migration");
   if (directUploads) f.push("direct-upload");
   if (config.history.enabled) f.push("history");

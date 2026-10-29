@@ -90,13 +90,15 @@ const TABLE_OWNERS: Readonly<Record<string, string>> = {
       "org_deletions reports branches branch_members departments teams team_members " +
       "discord_oauth_states discord_connections discord_imports discord_import_items " +
       // Community parity A1 (migration 069).
-      "community_member_defaults org_nicknames org_role_extras channel_options stage_speakers",
+      "community_member_defaults org_nicknames org_role_extras channel_options stage_speakers " +
       // Community parity A2 (migration 070).
-      "community_safety community_voice_bans community_voice_mutes",
+      "community_safety community_voice_bans community_voice_mutes " +
       // Community parity B (migration 072): the lobby.
-      "community_lobbies community_lobby_feeds community_lobby_posts community_lobby_seen",
+      "community_lobbies community_lobby_feeds community_lobby_posts community_lobby_seen " +
       // Community parity batch C, posting tools (migration 073).
-      "channel_webhooks reaction_roles community_tickets ticket_panels tickets",
+      "channel_webhooks reaction_roles community_tickets ticket_panels tickets " +
+      // Community parity batch E, discovery (migration 075).
+      "community_discovery community_templates bot_listings discovery_boosts promoted_bookings discovery_visits discovery_clicks",
   ),
   // Community parity A3 (migration 071).
   ...owned("organizations", "community_settings community_vanity_invites community_standard_invites onboarding_completions"),

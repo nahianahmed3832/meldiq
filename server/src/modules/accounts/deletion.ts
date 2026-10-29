@@ -213,6 +213,8 @@ async function eraseIdentity(ctx: AppContext, userId: string, actorId: string | 
   await ctx.communitySafety.deleteForUser(userId);
   // Community parity B: which lobbies they had seen.
   await ctx.lobby.deleteForUser(userId);
+  // Community parity E: their Discover visits and clicks, and their bots' directory listings.
+  await ctx.discovery.store.deleteForUser(userId);
   await deleteHistoryAfterCommit(ctx, userId, "account deleted");
 
   ctx.hub.disconnectUser(userId, "account deleted");
