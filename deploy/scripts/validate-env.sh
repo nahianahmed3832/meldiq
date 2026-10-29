@@ -244,6 +244,26 @@ else
   ok "Discord import off (DISCORD_CLIENT_ID empty)"
 fi
 
+# Linked accounts (API 0.65.0 batch B, docs/SETTINGS_PARITY_API.md): each provider's keys go in pairs; all need the
+# API's and the web app's public addresses. The server refuses to start with half a pair.
+linked=""
+[ -n "${STEAM_API_KEY:-}" ] && linked="$linked Steam"
+for pair in "ANILIST_CLIENT_ID ANILIST_CLIENT_SECRET AniList" "LASTFM_API_KEY LASTFM_SHARED_SECRET Last.fm" "TRAKT_CLIENT_ID TRAKT_CLIENT_SECRET Trakt"; do
+  read -r ka kb label <<< "$pair"
+  a="${!ka:-}"; b="${!kb:-}"
+  if [ -n "$a" ] && [ -n "$b" ]; then linked="$linked $label"
+  elif [ -n "$a$b" ]; then err "$ka and $kb go together (set both, or neither)"; fi
+done
+if [ -n "$linked" ]; then
+  web="${PUBLIC_WEB_URL:-${WEB_ORIGINS%%,*}}"
+  case "$web" in https://*) ok "linked accounts on:$linked (people land on $web/settings/profile)" ;;
+    '') warn "linked accounts:$linked have keys but no PUBLIC_WEB_URL or WEB_ORIGINS: they stay off" ;;
+    *) err "PUBLIC_WEB_URL must be an https URL (${web})" ;; esac
+  [ -z "${PLATFORM_SECRETS_KEY:-}" ] && warn "linked accounts work without PLATFORM_SECRETS_KEY, but their tokens aren't kept (and Trakt's can't be revoked on disconnect)"
+else
+  ok "linked accounts off (no STEAM_API_KEY, ANILIST_*, LASTFM_* or TRAKT_* keys)"
+fi
+
 # compose.yaml mounts ntfy/server.yml into the ntfy service; without it Docker would mount an empty directory instead.
 NT="$DIR/ntfy/server.yml"
 if [ ! -f "$NT" ]; then

@@ -90,6 +90,7 @@ export const ERROR_CODES = {
   channel_not_public: { status: [400], meaning: "Onboarding can only open this community's public channels" },
   confirm_mismatch: { status: [400], meaning: "Type your account's email address exactly to delete your account. Nothing was deleted." },
   conflict: { status: [409], meaning: "The request conflicts with the current state." },
+  connection_unavailable: { status: [409], meaning: "Connecting that service isn't set up on this server yet." },
   creator_name_mismatch: { status: [400], meaning: "The channel's name has to match your username or display name." },
   delegation_required: { status: [403], meaning: "You need the power to hand out roles to do that." },
   device_key_retired: { status: [409], meaning: "These device keys can't be used again. The app will make new ones." },

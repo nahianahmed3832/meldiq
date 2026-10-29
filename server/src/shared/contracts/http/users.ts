@@ -1,6 +1,7 @@
 import { z } from "zod/v4";
 import { ActivityWire, PresenceState } from "../realtime.js";
 import { UserIdParams, zName, zUsername } from "./auth.js";
+import { ProfileConnection } from "./linkedAccounts.js";
 import { idParams, zTime } from "./primitives.js";
 import { route } from "./route.js";
 
@@ -226,6 +227,8 @@ const profileFields = {
   badges: z.array(z.enum(["bug-hunter"])).optional(),
   /** API 0.65.0: the account level bought with points (1 for everyone who hasn't levelled up). */
   level: z.number().int().min(1).optional(),
+  /** API 0.65.0 batch B: Steam, AniList, Last.fm and Trakt accounts the person shows; absent when none (or they blocked you). */
+  connections: z.array(ProfileConnection).optional(),
 };
 /** Only in the person's own profile. */
 const ownFields = {

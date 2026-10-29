@@ -10,6 +10,7 @@ import { type FcmConfig, fcmConfig } from "../modules/notifications/fcm.js";
 import { type AdminConsoleConfig, adminConsoleConfig } from "../modules/platformAdmin/config.js";
 import { type BillingConfig, billingConfig } from "../modules/billing/config.js";
 import { type MojoEnforce, mojoEnforceFrom } from "../modules/billing/mojo.js";
+import { type LinkedAccountsConfig, linkedAccountsConfig } from "../modules/linkedAccounts/config.js";
 
 const SEVEN_DAYS_S = 7 * 24 * 3600;
 const MiB = 1024 * 1024;
@@ -198,6 +199,8 @@ export interface Config {
   discord: DiscordConfig | null;
   /** GIF search through this server (docs/GIFS.md). Null (off) unless GIF_PROVIDER and GIF_API_KEY are set. */
   gifs: GifConfig | null;
+  /** API 0.65.0 batch B: Steam, AniList, Last.fm and Trakt on profiles (each off until its keys are set; docs/SETTINGS_PARITY_API.md). */
+  linkedAccounts: LinkedAccountsConfig;
   logLevel: string;
   rateLimitPerMinute: number;
 }
@@ -566,6 +569,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     fcm: fcmConfig(env),
     discord: discordConfig(env),
     gifs: gifConfig(env),
+    linkedAccounts: linkedAccountsConfig(env, webOrigins(env.WEB_ORIGINS)),
     logLevel: env.LOG_LEVEL ?? "info",
     rateLimitPerMinute: int("RATE_LIMIT_PER_MINUTE", 600),
   };
