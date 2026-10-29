@@ -10,6 +10,7 @@ import path from "node:path";
 import sharp from "sharp";
 import { CLASSIC } from "./decorations/classic.mjs";
 import { MORE } from "./decorations/more.mjs";
+import { EXTRA } from "./decorations/extra.mjs";
 import { C, R, S } from "./decorations/shapes.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
@@ -24,7 +25,7 @@ const sheet = args.includes("--sheet") ? args[args.indexOf("--sheet") + 1] : nul
 /** Only the preview sheet: no files written. */
 const sheetOnly = args.includes("--sheet-only");
 
-const ALL = [...CLASSIC, ...MORE];
+const ALL = [...CLASSIC, ...MORE, ...EXTRA];
 const ids = new Set();
 for (const d of ALL) {
   if (!/^[a-z0-9-]{2,32}$/.test(d.id) || ids.has(d.id)) throw new Error(`bad or repeated id ${d.id}`);
