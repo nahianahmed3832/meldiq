@@ -130,6 +130,16 @@ Passkeys failed in the app installed from Google Play: Play signs it with its ap
 
 Rollback: copy the backup's `.env` back and recreate `api` the same way.
 
+### Meldiq Web 0.5.0-beta-e8df569: no readable source in the browser (2026-10-29, 17:08 UTC, owner's go-ahead: "Yes, install it"; web only, API 0.65.0 unchanged)
+
+| | |
+| --- | --- |
+| Why | e7bcfa4 still served `/sw.js.map` (73 sources with their text): the service worker build kept its map, and `next export` copied `npm run dev`'s `public/sw.js.map` into the release |
+| Change | meldiq-web `floating-redesign` 26de844 (worker map only in development) and e8df569 (`finish-export` removes `public/`'s dev `sw.js`, `sw.js.map` and `.DS_Store` from `dist/`) |
+| Install | tarball sha256 checked, `._*` and `.DS_Store` deleted, `install-release.sh` with the same environment as e7bcfa4; `nginx -t` ok |
+| Checks | `verify.sh https://web.meldiq.app` all passed; `sw.js` has no `sourceMappingURL`; `/sw.js.map` now answers the app page (no map in the release folder); CSP unchanged |
+| Rollback | `bash /root/meldiq-web-0.5.0-beta-e8df569/rollback.sh` (back to e7bcfa4) |
+
 ### API 0.65.0 and web e7bcfa4: settings parity, rules channels, apps and bots, and reloads that open like an app (2026-10-29, 16:53 and 16:55 UTC, owner's go-ahead: "after finished push for productions asap")
 
 Branch `settings-parity` 12d5f63 on production's `profile-pins` (0.64.0, merged in c5359ce): settings parity batches A
