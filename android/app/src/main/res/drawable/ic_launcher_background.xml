@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Adaptive icon background: Meldling's navy ground (brand/meldling, sampled by android/scripts/render_brand.py). -->
+<!-- Adaptive icon background: the Meldling logo's teal (brand/meldling, sampled by android/scripts/render_brand.py). -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
     <solid android:color="@color/brand_ground" />
 </shape>
