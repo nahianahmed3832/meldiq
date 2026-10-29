@@ -64,7 +64,10 @@ export const HistoryQuery = z.object({
 export const HistoryResponse = z.strictObject({
   /** Newest first. */
   messages: z.array(StoredEvent),
-  /** Changes to those messages (edits, reactions, deletions, votes, pins, reads), oldest first: apply them in order. */
+  /**
+   * Changes to those messages (edits, reactions, deletions, votes, pins) and each other member's newest read receipt
+   * (`{ type: "read", upTo }`, API 0.65.0), oldest first: apply them in order.
+   */
   changes: z.array(StoredEvent),
   more: z.boolean(),
 });
@@ -143,7 +146,7 @@ export const serverMessagesRoutes = [
     method: "GET",
     url: "/v2/conversations/:id/messages",
     tag: "messaging",
-    summary: "A conversation's history, newest first, with the changes to those messages.",
+    summary: "A conversation's history, newest first, with the changes to those messages and each other member's newest read receipt.",
     auth: true,
     query: HistoryQuery,
     response: HistoryResponse,

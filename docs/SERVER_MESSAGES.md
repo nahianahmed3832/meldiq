@@ -17,7 +17,7 @@ Code: `server/src/modules/messaging/serverMessagesRoutes.ts`, `store/messageStor
 | Route | |
 |---|---|
 | `POST /v2/messages` | `{ conversationId, messageId, cls, sentAt, payload, mentionAll?, audience? }`. The payload is the JSON the apps used to encrypt (`type`, `text`, `replyTo`, `attachments`, `target`, `emoji`, ...). Idempotent on `messageId`. |
-| `GET /v2/conversations/:id/messages` | `?before=<serverTs>&limit=` (newest first) or `?around=<messageId>`: `{ messages, changes, more }`. `changes` are the controls that point at those messages, oldest first: apps apply them as live ones. |
+| `GET /v2/conversations/:id/messages` | `?before=<serverTs>&limit=` (newest first) or `?around=<messageId>`: `{ messages, changes, more }`. `changes` are the controls that point at those messages, and (0.65.0) each other member's newest read receipt, oldest first: apps apply them as live ones. |
 | `GET /v2/messages/summary` | For each conversation you're in: newest message, your read position (your own `read` controls), unread messages and mentions since (up to 99). Apps build their lists from it after a page load. |
 | `GET /v2/messages/search` | `?q=&conversationId?=`: text messages containing the words, in conversations you're in. |
 | `POST /v2/messages/import` | A device's history from before 0.57.0, uploaded once when the app updates: up to 200 items, only into conversations the uploader is still in, never in the future; the first copy of each id wins, and each records `importedBy`. |
@@ -69,3 +69,21 @@ and Atlas's own storage view show the growth; move to a paid tier well before 70
 History a device uploaded (`importedBy`) never counts as unread or as a mention in `/v2/messages/summary`: the device
 that kept it had already shown it. (In 0.57.0 the owner's browser, uploading its history right after the deploy, showed
 every uploaded message as unread.)
+
+## 0.65.0: read ticks survive a reload
+
+The owner's bug (2026-10-29): in a conversation your messages showed "seen" once the other person read them, but after
+a page refresh, or opening the web app again, a single tick. A read receipt names no message (`{ type: "read", upTo }`,
+no `target`), and a history page's `changes` were chosen by target, so they never carried one; the web app keeps no
+messages between page loads and rebuilt the conversation without them. Android clears its working copy at start-up
+the same way.
+
+Every history page (newest, older, around) now also carries each other member's newest read receipt in the
+conversation (audience "all", not the viewer's own; at most 50 readers, the most recent first), merged into `changes`
+in time order. The response's shape is unchanged and the apps already apply a `read` change from history (web
+`receiver.ts`, Android `MessageReceiver`): it marks your messages up to `upTo` read. Code: `pageChanges` and
+`othersReads` in `store/messageStore.ts` and `store/mongoStore.ts`. Test: `server/test/history_reads.test.ts` (SQLite
+and MongoDB).
+
+Delivered ticks (`receipt` queue items, never stored) still don't survive a reload: unread messages show a single tick
+until the other person reads them.

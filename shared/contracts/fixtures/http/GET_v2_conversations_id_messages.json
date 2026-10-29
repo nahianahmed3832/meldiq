@@ -16,6 +16,22 @@
       "importedBy": null
     }
   ],
-  "changes": [],
+  "changes": [
+    {
+      "id": "Vb3cQ0xk2Lr8sNfA",
+      "conversationId": "c_Bj_RdWEZX8Ec35ZJZSuWDw",
+      "senderUserId": "u_Q2m9xYp4Tq7Wv1Lk-3sZdA",
+      "senderDeviceId": "d_X7kP2nV9qR4tY6uW8zA1bC",
+      "cls": "control",
+      "payload": {
+        "type": "read",
+        "upTo": 1793206738321
+      },
+      "sentAt": 1793206740112,
+      "serverTs": 1793206740118,
+      "mentionAll": false,
+      "importedBy": null
+    }
+  ],
   "more": false
 }

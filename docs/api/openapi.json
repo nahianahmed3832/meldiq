@@ -1192,7 +1192,7 @@
         "tags": [
           "messaging"
         ],
-        "summary": "A conversation's history, newest first, with the changes to those messages.",
+        "summary": "A conversation's history, newest first, with the changes to those messages and each other member's newest read receipt.",
         "operationId": "getV2ConversationsIdMessages",
         "parameters": [
           {

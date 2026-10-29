@@ -1,6 +1,6 @@
 import type { Collection } from "mongodb";
 import type { MeldiqMongo } from "../../../infrastructure/database/mongo/client.js";
-import { type ConversationSummary, type HistoryPage, type MessageEvent, type MessageStore, mentionsOf } from "./messageStore.js";
+import { type ConversationSummary, type HistoryPage, type MessageEvent, type MessageStore, mentionsOf, PAGE_READERS, pageChanges } from "./messageStore.js";
 
 /** message_events: the SQLite row itself (same field names, docs/MONGODB.md §3), keyed by its id. */
 type EventDoc = MessageEvent & { _id: string };
@@ -81,6 +81,24 @@ export class MongoMessageStore implements MessageStore {
         { session: this.mongo.session() },
       )
       .sort({ server_ts: 1, _id: 1 })
+      .toArray();
+    return pageChanges(docs.map(toEvent), await this.othersReads(conversationId, viewer));
+  }
+
+  /** Each other member's newest read receipt in [conversationId] (receipts are sent with rising upTo). */
+  private async othersReads(conversationId: string, viewer: string): Promise<MessageEvent[]> {
+    const docs = await this.col
+      .aggregate<EventDoc>(
+        [
+          { $match: { conversation_id: conversationId, cls: "control", type: "read", audience: "all", sender_user_id: { $ne: viewer } } },
+          { $sort: { server_ts: -1, _id: -1 } },
+          { $group: { _id: "$sender_user_id", doc: { $first: "$$ROOT" } } },
+          { $replaceRoot: { newRoot: "$doc" } },
+          { $sort: { server_ts: -1, _id: -1 } },
+          { $limit: PAGE_READERS },
+        ],
+        { session: this.mongo.session() },
+      )
       .toArray();
     return docs.map(toEvent);
   }

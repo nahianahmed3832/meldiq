@@ -29,7 +29,10 @@ export interface MessageEvent {
 export interface HistoryPage {
   /** Messages before the cursor, newest first. */
   messages: MessageEvent[];
-  /** Every change that points at one of [messages], oldest first (another member's edits, reactions, deletions...). */
+  /**
+   * Every change that points at one of [messages] (another member's edits, reactions, deletions...), and each other
+   * member's newest read receipt (a read names no message: `{ type: "read", upTo }`), oldest first.
+   */
   changes: MessageEvent[];
   /** Whether older messages remain. */
   more: boolean;
@@ -57,7 +60,9 @@ export interface MessageStore {
   addMany(events: MessageEvent[]): Promise<number>;
   /**
    * A page of [conversationId]'s history: messages with server_ts before [before] (or the newest), at most [limit],
-   * and the changes to them. Self-only events (a person's read markers on their own devices) are only [viewer]'s.
+   * and the changes to them, with the other members' newest read receipts (so an app rebuilding the conversation from
+   * history shows what they have read). Self-only events (a person's read markers on their own devices) are only
+   * [viewer]'s.
    */
   page(conversationId: string, viewer: string, before: number | null, limit: number): Promise<HistoryPage>;
   /** Messages around one (a link or a search hit): [limit] before it, it, and [limit] after, with their changes. */
@@ -77,6 +82,21 @@ export function mentionsOf(e: { payload: string; mention_all: number }, userId: 
   if (e.mention_all === 1) return true;
   const p = JSON.parse(e.payload) as { mentions?: unknown };
   return Array.isArray(p.mentions) && p.mentions.includes(userId);
+}
+
+/**
+ * At most this many other members' read receipts go with a page, the most recent readers first. Receipts are sent only
+ * in DMs and groups of up to 20 (the apps' sendsReadReceipts); the bound only matters for imported history.
+ */
+export const PAGE_READERS = 50;
+
+/**
+ * A page's changes: [targeted] (pointing at its messages) and [reads] (the other members' newest receipts), once each,
+ * oldest first as apps apply them.
+ */
+export function pageChanges(targeted: readonly MessageEvent[], reads: readonly MessageEvent[]): MessageEvent[] {
+  const seen = new Set(targeted.map((e) => e.id));
+  return [...targeted, ...reads.filter((e) => !seen.has(e.id))].sort((a, b) => a.server_ts - b.server_ts || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
 
 const COLUMNS = "id, conversation_id, sender_user_id, sender_device_id, cls, type, target, audience, payload, sent_at, server_ts, mention_all, imported_by";
@@ -136,12 +156,25 @@ export class SqliteMessageStore implements MessageStore {
   private changesFor(conversationId: string, viewer: string, messages: MessageEvent[]): MessageEvent[] {
     if (!messages.length) return [];
     const ids = messages.map((m) => m.id);
-    return this.db
+    const targeted = this.db
       .prepare(
         `SELECT ${COLUMNS} FROM message_events WHERE conversation_id = ? AND cls = 'control' AND target IN (${ids.map(() => "?").join(",")})
            AND (audience = 'all' OR sender_user_id = ?) ORDER BY server_ts, id`,
       )
       .all(conversationId, ...ids, viewer) as MessageEvent[];
+    return pageChanges(targeted, this.othersReads(conversationId, viewer));
+  }
+
+  /** Each other member's newest read receipt in [conversationId] (receipts are sent with rising upTo). */
+  private othersReads(conversationId: string, viewer: string): MessageEvent[] {
+    return this.db
+      .prepare(
+        `SELECT ${COLUMNS} FROM (
+           SELECT ${COLUMNS}, ROW_NUMBER() OVER (PARTITION BY sender_user_id ORDER BY server_ts DESC, id DESC) n FROM message_events
+           WHERE conversation_id = ? AND cls = 'control' AND type = 'read' AND audience = 'all' AND sender_user_id <> ?
+         ) WHERE n = 1 ORDER BY server_ts DESC, id DESC LIMIT ?`,
+      )
+      .all(conversationId, viewer, PAGE_READERS) as MessageEvent[];
   }
 
   async search(conversationIds: readonly string[], query: string, limit: number): Promise<MessageEvent[]> {
