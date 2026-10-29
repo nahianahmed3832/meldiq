@@ -1,5 +1,6 @@
 import rateLimit from "@fastify/rate-limit";
 import { MAINTENANCE_RETRY_SECONDS, maintenanceError, readControl, signupMode } from "./platformControls.js";
+import { readSiteDetails } from "./siteDetails.js";
 import { MongoRelayStore } from "../modules/messaging/relay/mongoStore.js";
 import { SqliteRelayStore } from "../modules/messaging/relay/store.js";
 import { MongoFileStore } from "../modules/files/mongoStore.js";
@@ -93,7 +94,7 @@ import { now } from "../shared/utilities/util.js";
 import wsRoutes from "../modules/realtime/ws.js";
 import { Billing, billingRoutes } from "../modules/billing/index.js";
 
-export const VERSION = "0.59.0";
+export const VERSION = "0.60.0";
 /**
  * The client API this server speaks and the oldest client API it accepts. Clients refuse a server whose
  * minClientApi is newer than theirs; servers from before these fields existed count as API 1.
@@ -413,6 +414,12 @@ export async function buildApp(
     if (mongodb === false) reply.code(503);
     // Public: says nothing about usage (the online-device count was removed, D28).
     return { ok: mongodb !== false, version: VERSION, time: now(), livekit: !!ctx.livekit, mongodb };
+  });
+
+  // Public: who runs Meldiq and its policies, as set in the console (docs/SITE_DETAILS.md). Cached briefly.
+  app.get("/v2/site/details", async (_req, reply) => {
+    reply.header("cache-control", "public, max-age=60");
+    return readSiteDetails(ctx.platform);
   });
 
   // Public, non-sensitive server info for client setup screens. Additive only: clients ignore unknown fields.

@@ -27,12 +27,14 @@ import {
   AdminSessionTarget,
   AdminSettingBody,
   AdminSettingParams,
+  AdminSiteDetailsBody,
 } from "../../shared/contracts/http/platformAdminInsights.js";
 import { parse } from "../../shared/validation/index.js";
 import { AlertEngine } from "./alerts.js";
 import { AdminAnalytics } from "./analyticsView.js";
 import type { AdminDeps } from "./dataRoutes.js";
 import { AdminControls } from "./controlsAdmin.js";
+import { AdminSite } from "./siteAdmin.js";
 import { AdminDevices } from "./devicesView.js";
 import { Exclusions } from "./exclusions.js";
 import { metaOf, principal, requirePermission } from "./guards.js";
@@ -55,6 +57,7 @@ export default async function adminInsightsRoutes(app: FastifyInstance, d: Admin
   const alerts = new AlertEngine(d.ctx, d.store);
   const settings = new AdminSettings(d.ctx, d.audit, alerts, exclusions);
   const controls = new AdminControls(d.ctx, d.audit);
+  const site = new AdminSite(d.ctx, d.audit);
   const search = new AdminSearchExport(d.ctx, d.audit, exclusions);
 
   // The console's minute job: alert rules, temporary suspensions that ended, quota reservations, exclusions for live counts.
@@ -146,6 +149,13 @@ export default async function adminInsightsRoutes(app: FastifyInstance, d: Admin
   app.put("/admin/v1/settings/:key", needs("settings.edit"), async (req) => {
     const { value, reason } = parse(AdminSettingBody, req.body);
     return settings.set(principal(req), parse(AdminSettingParams, req.params).key, value, reason, metaOf(req));
+  });
+
+  // ── Site and legal details (docs/SITE_DETAILS.md) ──
+  app.get("/admin/v1/site", needs("settings.view"), async () => site.view());
+  app.put("/admin/v1/site", needs("settings.edit"), async (req) => {
+    const { details, reason } = parse(AdminSiteDetailsBody, req.body);
+    return site.set(principal(req), details, reason, metaOf(req));
   });
 
   // ── Platform controls (docs/PLATFORM_CONTROLS.md) ──

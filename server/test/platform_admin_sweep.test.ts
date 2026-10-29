@@ -35,6 +35,8 @@ const GUARDED: Record<string, Permission> = {
   "GET /admin/v1/billing/subscriptions/:subscriptionId": "billing.view",
   "GET /admin/v1/billing/events": "billing.view",
   "POST /admin/v1/billing/events/:eventId/replay": "billing.events.replay",
+  "GET /admin/v1/site": "settings.view",
+  "PUT /admin/v1/site": "settings.edit",
   "GET /admin/v1/billing/program": "billing.view",
   "PUT /admin/v1/billing/program": "billing.manage",
   "GET /admin/v1/billing/grants": "billing.view",

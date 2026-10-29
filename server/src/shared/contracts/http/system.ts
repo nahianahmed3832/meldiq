@@ -1,5 +1,6 @@
 import { z } from "zod/v4";
 import { zCount, zTime } from "./primitives.js";
+import { SiteDetails } from "./platformAdminInsights.js";
 import { route } from "./route.js";
 
 /**
@@ -56,4 +57,12 @@ export const Health = z.strictObject({
 export const systemRoutes = [
   route({ method: "GET", url: "/healthz", tag: "system", summary: "Liveness and database reachability (503 when MongoDB is unreachable).", auth: false, response: Health }),
   route({ method: "GET", url: "/v1/server-info", tag: "system", summary: "What this server is and supports.", auth: false, response: ServerInfo }),
+  route({
+    method: "GET",
+    url: "/v2/site/details",
+    tag: "system",
+    summary: "Who runs Meldiq and its policies, as set in the console (null: not decided yet). API 0.60.0.",
+    auth: false,
+    response: SiteDetails,
+  }),
 ];

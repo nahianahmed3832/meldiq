@@ -35,7 +35,7 @@ export const MAINTENANCE_RETRY_SECONDS = 300;
 
 /** Paths that keep answering during maintenance: health checks, server info (so apps can say why), payment and media
  * webhooks (providers retry, but shouldn't have to), and the console that turns maintenance off again. */
-const MAINTENANCE_EXEMPT = [/^\/healthz(?:$|[/?])/, /^\/v1\/server-info(?:$|\?)/, /^\/admin\/v1\//, /^\/v1\/billing\/webhooks\//, /^\/v1\/livekit\/webhook/];
+const MAINTENANCE_EXEMPT = [/^\/healthz(?:$|[/?])/, /^\/v1\/server-info(?:$|\?)/, /^\/v2\/site\/details(?:$|\?)/, /^\/admin\/v1\//, /^\/v1\/billing\/webhooks\//, /^\/v1\/livekit\/webhook/];
 
 export function maintenanceExempt(url: string): boolean {
   return MAINTENANCE_EXEMPT.some((r) => r.test(url));

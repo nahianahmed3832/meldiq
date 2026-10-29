@@ -177,10 +177,12 @@ export async function publishMojoPlans(
   prices: StripeSetupResult["prices"],
   actor: string,
   t: number,
+  /** Days a plan stays on after a failed renewal payment (the console's site details; API 0.60.0). */
+  graceDays = 0,
 ): Promise<string[]> {
   const done: string[] = [];
   for (const p of MOJO_PRICES) {
-    const terms = { interval: "month" as const, currency: "USD", amountMinor: p.amountMinor, providerPriceRef: prices[p.tier], trialDays: 0, graceDays: 0, limits: {}, notes: "", quotaPlanId: null };
+    const terms = { interval: "month" as const, currency: "USD", amountMinor: p.amountMinor, providerPriceRef: prices[p.tier], trialDays: 0, graceDays, limits: {}, notes: "", quotaPlanId: null };
     let plan = catalog.byKey(p.tier);
     if (!plan) {
       plan = await catalog.create(p.tier, { name: p.name, description: "", segment: "personal", public: true, audience: "personal" }, terms, actor, t);
