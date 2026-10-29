@@ -130,6 +130,27 @@ Passkeys failed in the app installed from Google Play: Play signs it with its ap
 
 Rollback: copy the backup's `.env` back and recreate `api` the same way.
 
+### API 0.61.0, web ce60cee and console 1.2.0: profile decorations (2026-10-29, 03:45 UTC, owner's go-ahead: "Yes, ship it")
+
+Branch `profile-decorations` aaabc85: production's `site-details` 66507d8 (0.60.0) + profile decorations
+(docs/PROFILE_DECORATIONS.md): 68 of Meldiq's own decorations in `server/assets/decorations` (copied by the Dockerfile),
+community submissions in MongoDB `profile_decorations` (new collection, indexes created at start), the review queue
+`/admin/v1/decorations` (permission `decorations.review`). No migration; `.env` unchanged.
+
+| Step | Result |
+|---|---|
+| Tests | server 1177 passed (`mongo_capacity` and `mongo_migration` time out under full load, pass alone); `profile_decorations.test.ts` 19/19 on memory and MongoDB; web unit 550, browser decorations/avatars/live profile 3/3; Android unit 803; console unit 27, browser 7/7 (new: review, approve, turn down) |
+| Pre-flight | 0.60.0 healthy; VPS `server/` byte-equal to `site-details` (tests aside); 37 GB free |
+| Backup | `backups/pre-0.61.0-20261029T034226Z`: integrity ok, schema 67, 43 users, `.env`/`compose.yaml`; image `0.60.0-rollback`; sources kept as `server.pre-0.61.0` |
+| Build and rehearsal | 94 files synced; image `0.61.0` with 69 asset files; backup copy offline: 0.61.0 healthy, `/v2/decorations/crown/image` and the template served, 0 error lines; `0.60.0-rollback` healthy on the same copy; copy removed |
+| Switch | 03:45:30, healthy 03:45:38; `/healthz` 0.61.0 `mongodb: true` on both hosts; `verify.sh` 0 restarts; 0 warn/error; feature `profile-decorations` |
+| Web | `0.5.0-beta-ce60cee` installed (previous 2a39f0c), `verify.sh` all passed |
+| Console | `1.2.0-20261029T034913Z` (Operations › Decorations), nginx site unchanged, `verify.sh` passed |
+
+Rollback: `compose.yaml` image `0.60.0-rollback` and `up -d --no-deps --no-build --force-recreate api` (0.60.0 ignores
+`profile_decorations`; people wearing a new decoration then show none on web, and Android ignores unknown ids); web
+`bash /root/meldiq-web-0.5.0-beta-ce60cee/rollback.sh`; console `bash /root/meldiq-admin-1.2.0-20261029T034913Z/rollback.sh`.
+
 ### API 0.60.0, console 1.1.0 and meldiq.app: legal and business details edited in the console (2026-10-29, 03:08 UTC, owner's go-ahead: "all the policy, data you required can be editable from admin panel")
 
 Branch `site-details` 38ee4d2 on `platform-controls` 1150de6 (docs/SITE_DETAILS.md). No migration (stored in
