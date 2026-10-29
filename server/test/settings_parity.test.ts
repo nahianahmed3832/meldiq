@@ -36,7 +36,7 @@ describe("settings parity on the default (memory) stores", () => {
 
   it("is advertised in the server's features", async () => {
     const { features, version } = await (await h.client("features")).req("GET", "/v1/server-info");
-    expect(version).toBe("0.66.0");
+    expect(version).toBe("0.66.1");
     expect(features).toEqual(
       expect.arrayContaining(["profile-theme", "shown-badge", "leave-many", "group-add-policy", "suggested-people", "username-holds", "decoration-favorites", "points"]),
     );
