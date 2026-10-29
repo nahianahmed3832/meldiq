@@ -130,6 +130,22 @@ Passkeys failed in the app installed from Google Play: Play signs it with its ap
 
 Rollback: copy the backup's `.env` back and recreate `api` the same way.
 
+### Meldiq Web 0.5.0-beta-3fe5aba: a simple homepage and Mojo banners in the app's design (2026-10-29, 20:18 UTC, owner's go-ahead: "Deploy it"; web only, API 0.66.0 unchanged)
+
+meldiq-web `landing-plans` 3fe5aba. The owner: "don't show plans in homepage, just keep simple and login options",
+"logo, photo of inside app that already have and login system that's all", and for Settings' Plus and Spark posters
+"remove these logo and keep something goes with ui design". Homepage: the logo, the picture of the app's layout and
+the sign-in card only (headline kept for screen readers and search). Settings › Meldiq Mojo and Meldiq Spark: the
+posters replaced by an app-style banner and icon tile.
+
+| Step | Result |
+|---|---|
+| Tests | web unit 94 files (636); browser landing, accounts, languages, launch, Mojo in chromium, webkit and phone width: all pass |
+| Install | 20:18:09 (previous 4ddec73), same install values; `nginx -t` ok; `verify.sh https://web.meldiq.app` all passed; manifest still `application/manifest+json` |
+| Checks after | the live signed-out page shows the logo, the app picture and sign-in; no plans or feature list |
+
+Rollback: `bash /root/meldiq-web-0.5.0-beta-3fe5aba/rollback.sh` (back to 4ddec73).
+
 ### Meldiq Web 0.5.0-beta-4ddec73: the landing page in the app's own design, and Meldiq on iPhone's Home Screen (2026-10-29, 20:03 and 20:06 UTC, owner's request: "it should be match with web app, internal and brand own design ! fix all and then deploy for productions"; web only, API 0.66.0 unchanged)
 
 meldiq-web `landing-plans` a809625 + 4ddec73 (docs/MELDIQ_IOS_PWA.md in meldiq-web): the landing page drawn with the app's
