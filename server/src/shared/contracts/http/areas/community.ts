@@ -3,7 +3,10 @@ import { communityDiscoveryRoutes, communityModerationRoutes, communityStructure
 import { expressionRoutes } from "../expressions.js";
 import { onboardingRoutes } from "../onboarding.js";
 import { communityRulesRoutes } from "../communityRules.js";
+import { reactionRoleRoutes } from "../reactionRoles.js";
 import { reportRoutes } from "../reports.js";
+import { ticketRoutes } from "../tickets.js";
+import { webhookRoutes } from "../webhooks.js";
 import type { RouteContract } from "../route.js";
 
 /** Route contracts of the community area (docs/architecture/ARCHITECTURE_1_0_PLAN.md §11, step C2). */
@@ -16,4 +19,8 @@ export const communityRoutes: readonly RouteContract[] = [
   ...onboardingRoutes,
   ...communityRulesRoutes,
   ...reportRoutes,
+  // Community parity batch C: posting tools.
+  ...webhookRoutes,
+  ...reactionRoleRoutes,
+  ...ticketRoutes,
 ];

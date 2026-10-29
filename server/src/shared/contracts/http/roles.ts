@@ -34,6 +34,7 @@ export const PERMISSION_KEYS = [
   "channels.create",
   "channels.manage",
   "channels.visibility",
+  "webhooks.manage",
   "messages.post",
   "messages.attach",
   "messages.announce",

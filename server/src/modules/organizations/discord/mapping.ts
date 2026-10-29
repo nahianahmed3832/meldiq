@@ -58,6 +58,7 @@ export const BIT = {
   VIEW_AUDIT_LOG: 1n << 7n,
   VIEW_CHANNEL: 1n << 10n,
   MANAGE_ROLES: 1n << 28n,
+  MANAGE_WEBHOOKS: 1n << 29n,
   MANAGE_GUILD_EXPRESSIONS: 1n << 30n,
   MODERATE_MEMBERS: 1n << 40n,
 } as const;
@@ -74,6 +75,7 @@ const PERMISSION_MAP: readonly (readonly [bigint, readonly PermissionKey[], stri
   [BIT.MODERATE_MEMBERS, ["members.timeout"], "Timeout Members"],
   [BIT.MANAGE_CHANNELS, ["channels.create", "channels.manage"], "Manage Channels"],
   [BIT.MANAGE_ROLES, ["roles.manage", "roles.assign"], "Manage Roles"],
+  [BIT.MANAGE_WEBHOOKS, ["webhooks.manage"], "Manage Webhooks"],
   [BIT.MANAGE_GUILD_EXPRESSIONS, ["expressions.manage"], "Manage Expressions"],
   [BIT.VIEW_AUDIT_LOG, ["audit.view"], "View Audit Log"],
 ];

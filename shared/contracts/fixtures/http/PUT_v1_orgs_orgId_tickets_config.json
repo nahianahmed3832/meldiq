@@ -1,0 +1,23 @@
+{
+  "enabled": true,
+  "maxOpenPerPerson": 2,
+  "panels": [
+    {
+      "id": "tp_Mm_kikME45bXrTeZOmkN3g",
+      "name": "Support",
+      "postChannelId": "c_fAw5ZcPLZ9H4_gXt1KetVA",
+      "categoryId": "cat_fLLoZQcHWkURrdDGJ3fZvg",
+      "logChannelId": "c_jjo_cZhv2mhkMrHl7dassQ",
+      "postedMessageId": null
+    },
+    {
+      "id": "tp_7uuNovTudQn4JBeL40QU1g",
+      "name": "Appeals",
+      "postChannelId": "c_fAw5ZcPLZ9H4_gXt1KetVA",
+      "categoryId": "cat_fLLoZQcHWkURrdDGJ3fZvg",
+      "logChannelId": null,
+      "postedMessageId": null
+    }
+  ],
+  "panelLimit": 2
+}

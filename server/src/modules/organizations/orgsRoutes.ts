@@ -109,6 +109,8 @@ export function orgSummary(ctx: AppContext, org: any, userId: string) {
     activityAlert: activityAlert(ctx, org, userId, Date.now()),
     // API 0.65.0: the rules channel (members only; absent without a rules channel or rules).
     ...(role ? ctx.communityRules.summary(org.id, userId) : {}),
+    // Community parity batch C: tickets are on, so the menu shows "Open a Ticket" (members only).
+    ...(role ? ctx.tickets.summary(org.id, userId) : {}),
   };
 }
 

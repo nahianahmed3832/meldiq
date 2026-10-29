@@ -3,6 +3,7 @@ import { ActivityWire, PresenceState } from "../realtime.js";
 import { zCount, zTime } from "./primitives.js";
 import { ConversationView } from "./conversations.js";
 import { route } from "./route.js";
+import { TicketsSummary } from "./tickets.js";
 import { listMediaFields } from "./users.js";
 
 /**
@@ -103,6 +104,8 @@ export const CommunityView = z.strictObject({
   activityAlert: z.strictObject({ kind: z.literal("joins"), count: zCount, at: zTime }).nullable(),
   /** API 0.65.0: the rules channel and whether the viewer has to agree to the rules (absent without either). */
   rulesChannel: RulesSummary.optional(),
+  /** Community parity batch C: tickets are on (the menu shows "Open a Ticket"); absent while they're off. */
+  tickets: TicketsSummary.optional(),
 });
 export const CommunityOnly = z.strictObject({ org: CommunityView });
 

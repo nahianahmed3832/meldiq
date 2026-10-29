@@ -1,0 +1,9 @@
+{
+  "error": {
+    "code": "webhook_limit",
+    "message": "A channel can have up to 10 webhooks. Delete one to make another.",
+    "details": {
+      "limit": 10
+    }
+  }
+}

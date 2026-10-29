@@ -14,6 +14,9 @@ import type { HistoryStore } from "../modules/messaging/history/store.js";
 import type { MessageStore } from "../modules/messaging/store/messageStore.js";
 import type { ReportSealer } from "../modules/organizations/reports/seal.js";
 import type { CommunityRules } from "../modules/organizations/rules/service.js";
+import type { ReactionRoles } from "../modules/organizations/posting/reactionRoles.js";
+import type { Tickets } from "../modules/organizations/posting/tickets.js";
+import type { Webhooks } from "../modules/organizations/posting/webhooks.js";
 import type { RelationshipStore } from "../modules/accounts/relationships/store.js";
 import type { CallStore } from "../modules/calls/store.js";
 import type { Rows } from "../infrastructure/database/rows/index.js";
@@ -93,6 +96,10 @@ export interface AppContext {
   bots: BotService;
   /** API 0.65.0: rules channels, the communities' rules and who agreed (feature rules-channel, docs/SETTINGS_PARITY_API.md). */
   communityRules: CommunityRules;
+  /** Community parity batch C, posting tools (modules/organizations/posting, docs/COMMUNITY_PARITY_API.md). */
+  webhooks: Webhooks;
+  reactionRoles: ReactionRoles;
+  tickets: Tickets;
   /** Calls, their participants and raised hands: SQLite, or MongoDB when MONGODB_DOMAINS includes "calls". */
   calls: CallStore;
   /**

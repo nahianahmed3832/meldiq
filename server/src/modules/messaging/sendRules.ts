@@ -1,7 +1,7 @@
 import { requireStanding } from "../accounts/index.js";
 import { REQUEST_MESSAGE_LIMIT } from "../accounts/relationships/rules.js";
 import type { AppContext } from "../../app/context.js";
-import { ApiError, forbidden } from "../../shared/errors.js";
+import { ApiError, badRequest, forbidden, notFound } from "../../shared/errors.js";
 import { now } from "../../shared/utilities/util.js";
 import { MENTION_ALL_MESSAGES, mentionAllPermission, mentionAllRateLimited } from "./mentions.js";
 
@@ -41,6 +41,29 @@ export function admitConversation(ctx: AppContext, userId: string, conversationI
   }
   // Batch B14: a voice channel is for talking. Its calls' controls (keys) still pass; messages don't.
   if (conv.voice === 1 && cls === "message") throw new ApiError(403, "voice_channel", "Voice channels don't take messages");
+  return conv;
+}
+
+/** Payload fields only posting tools write (community parity batch C): what people's apps send never carries them. */
+const POSTING_TOOL_FIELDS = ["embeds", "buttons", "webhook"] as const;
+
+/** Refuses a payload from a person or a bot that carries embeds, buttons or webhook details. */
+export function refusePostingTools(payload: Record<string, unknown>): void {
+  const field = POSTING_TOOL_FIELDS.find((f) => payload[f] !== undefined);
+  if (field) throw badRequest(`Only webhooks and the community's own posts can carry "${field}"`);
+}
+
+/**
+ * A webhook's or the Tickets account's message (community parity batch C): the sender isn't a member, so only the
+ * channel it was granted is checked. It must be a live community channel that takes messages; changes (edits,
+ * reactions) never come this way.
+ */
+export function admitGranted(ctx: AppContext, conversationId: string, grant: string, cls: Cls) {
+  const conv = ctx.authz.conversation(conversationId);
+  if (!conv || conv.id !== grant || conv.type !== "CHANNEL" || !conv.org_id) throw notFound("Conversation not found");
+  if (cls !== "message") throw badRequest("Webhooks only post messages");
+  if (conv.archived_at) throw forbidden("This channel is archived");
+  if (conv.voice === 1) throw new ApiError(403, "voice_channel", "Voice channels don't take messages");
   return conv;
 }
 

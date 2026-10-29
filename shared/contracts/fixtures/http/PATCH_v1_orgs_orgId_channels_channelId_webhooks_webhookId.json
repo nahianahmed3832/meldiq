@@ -1,0 +1,15 @@
+{
+  "webhook": {
+    "id": "wh__fdBG-iFQ9wEOdv_LnRYww",
+    "channelId": "c_dg4QAsb5jEtaDvB9C5zm1g",
+    "name": "Deploys",
+    "avatarUrl": null,
+    "createdBy": {
+      "id": "u_-cM2YvDoqa_RdQzqid--tw",
+      "displayName": "whmod"
+    },
+    "createdAt": 1793310718958,
+    "tokenRotatedAt": 1793310718990,
+    "lastUsedAt": 1793310719025
+  }
+}

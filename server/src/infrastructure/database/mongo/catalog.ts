@@ -177,6 +177,12 @@ export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
   discord_imports: "workspace",
   discord_import_items: "workspace",
   onboarding_answers: "workspace",
+  // Community parity batch C, posting tools (migration 073): webhooks, reaction roles and tickets.
+  channel_webhooks: "workspace",
+  reaction_roles: "workspace",
+  community_tickets: "workspace",
+  ticket_panels: "workspace",
+  tickets: "workspace",
   // Batch B6: connections, message requests and who may message you.
   connections: "relationships",
   dm_requests: "relationships",

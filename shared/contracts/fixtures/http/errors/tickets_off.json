@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "tickets_off",
+    "message": "This community doesn't take tickets"
+  }
+}

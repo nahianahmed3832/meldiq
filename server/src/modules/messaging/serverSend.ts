@@ -7,7 +7,7 @@ import { rowsByIds } from "../../infrastructure/database/byIds.js";
 import { DuplicateSubmission, type QueueInsert } from "./relay/store.js";
 import type { MessageEvent } from "./store/messageStore.js";
 import { memberUsers } from "./memberUsers.js";
-import { admitClock, admitConversation, admitPost, recordPost } from "./sendRules.js";
+import { admitClock, admitConversation, admitGranted, admitPost, recordPost, refusePostingTools } from "./sendRules.js";
 
 /** Changes only a message's own sender may make. */
 const AUTHOR_ONLY = new Set(["edit", "delete", "poll_close"]);
@@ -41,6 +41,13 @@ export function eventToWire(e: MessageEvent): StoredEvent {
 export interface Sender {
   userId: string;
   deviceId: string | null;
+  /**
+   * Posting tools (community parity batch C): a webhook or a community's "Tickets" account, which is a member nowhere.
+   * The caller has checked that it may post in this one channel (a webhook's token, a manager's request), so
+   * membership, posting rights and slowmode don't apply; an archived or voice channel still refuses. Only such senders
+   * may put embeds, buttons and webhook details in a payload.
+   */
+  channelGrant?: string;
 }
 
 /**
@@ -55,10 +62,13 @@ export async function sendServerMessage(ctx: AppContext, sender: Sender, m: Send
   const relayDevice = deviceId ?? `bot-${userId}`;
   const payload = JSON.stringify(m.payload);
   if (Buffer.byteLength(payload) > MAX_PAYLOAD_BYTES) throw new ApiError(413, "message_too_long", "That message is too large");
-  const conv = admitConversation(ctx, userId, m.conversationId, m.cls, { type: m.payload.type, bot: deviceId === null });
+  const granted = sender.channelGrant !== undefined;
+  if (!granted) refusePostingTools(m.payload);
+  const conv = granted ? admitGranted(ctx, m.conversationId, sender.channelGrant!, m.cls) : admitConversation(ctx, userId, m.conversationId, m.cls, { type: m.payload.type, bot: deviceId === null });
   const type = m.payload.type;
-  // Meldiq Mojo: the plan's characters per message and per edit, counted as people count them.
-  const limits = ctx.mojo.limitsOf(userId);
+  // Meldiq Mojo: the plan's characters per message and per edit, counted as people count them (posting tools set
+  // their own limits).
+  const limits = granted ? null : ctx.mojo.limitsOf(userId);
   const text = typeof m.payload.text === "string" ? m.payload.text : "";
   if (limits && COUNTED.has(type) && text && countChars(text) > limits.messageChars) {
     throw new ApiError(413, "message_too_long", `Messages can be up to ${limits.messageChars.toLocaleString("en-US")} characters on your plan`, { maxChars: limits.messageChars });
@@ -150,6 +160,11 @@ export async function sendServerMessage(ctx: AppContext, sender: Sender, m: Send
   // Controls (reactions, read markers, call keys) don't wake a sleeping phone; messages do, unless it's a request's.
   for (const row of queued) ctx.hub.pushQueued(row.recipient_device_id, [row], { wake: m.cls === "message" && !quietFor.has(ownerOf.get(row.recipient_device_id) ?? "") });
   if (request?.state === "pending" && m.cls === "message") await ctx.relationships.countSent(conv.id);
+  // Posting tools: a reaction may give or take a reaction role, a deleted message takes its reaction roles with it.
+  // Like points, this never fails a message that was accepted.
+  if (m.cls === "control" && conv.org_id) {
+    await ctx.reactionRoles.noteChange({ orgId: conv.org_id, conversationId: conv.id, userId, payload: m.payload }).catch((err: unknown) => log.warn({ err }, "reaction roles: change not applied"));
+  }
   // API 0.65.0: chat minutes and the daily quests. Points never hold up or fail a message: a failure is only logged.
   if (!selfOnly) {
     await ctx.points
