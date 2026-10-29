@@ -26,7 +26,7 @@ a card with a heading, short paragraphs and, for codes, the code in large monosp
 "never ask you for a code" line and an automated-message footer. Graphite light colours, Graphite dark where the client
 honours `prefers-color-scheme`.
 
-- **Logo:** a 128×128 PNG embedded in the message (`cid:logo@meldiq.app`, rendered from `brand/meldiq-logo.webp` by
+- **Logo:** a 128×128 PNG embedded in the message (`cid:logo@meldiq.app`, rendered from `brand/meldling.png`, the app's Meldling face, by
   `server/scripts/render-mail-logo.py` into `mailLogo.ts`). Nothing is loaded from the web, so it shows without "load
   images" and can't track the reader.
 - **No links**, nothing a user typed; every value is HTML-escaped (`test/mail_template.test.ts`).
