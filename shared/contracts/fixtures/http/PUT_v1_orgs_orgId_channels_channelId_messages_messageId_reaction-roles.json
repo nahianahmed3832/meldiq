@@ -1,0 +1,20 @@
+{
+  "messageId": "m_rr_1_1793310718857",
+  "channelId": "c_2bDXePJjzSbc5uilHZdkMw",
+  "reactionRoles": [
+    {
+      "emoji": "🎮",
+      "roleId": "rl_VSTQ_MHrH28EJSHhiBZW9g",
+      "roleName": "Gamer",
+      "roleColor": null
+    },
+    {
+      "emoji": "🎨",
+      "roleId": "rl_NcfqYQUKV2VGv24kHmRdEw",
+      "roleName": "Artist",
+      "roleColor": null
+    }
+  ],
+  "setBy": "u_LU-sdnDe2gt0fzrO3RI-mQ",
+  "setAt": 1793310718903
+}

@@ -3,6 +3,7 @@ import { ActivityWire, PresenceState } from "../realtime.js";
 import { zCount, zTime } from "./primitives.js";
 import { channelOptionFields, ConversationView, SLOWMODE_STEPS } from "./conversations.js";
 import { route } from "./route.js";
+import { TicketsSummary } from "./tickets.js";
 import { listMediaFields } from "./users.js";
 
 /**
@@ -159,6 +160,8 @@ export const CommunityView = z.strictObject({
    * opened it; apps open the lobby first while it's on and unseen. Members only; absent while the feature is off.
    */
   lobby: z.strictObject({ enabled: z.boolean(), seen: z.boolean() }).optional(),
+  /** Community parity batch C: tickets are on (the menu shows "Open a Ticket"); absent while they're off. */
+  tickets: TicketsSummary.optional(),
 });
 export const CommunityOnly = z.strictObject({ org: CommunityView });
 

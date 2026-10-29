@@ -1621,6 +1621,33 @@ export const SCHEMA: readonly TableShape[] = [
     autoincrement: false,
   },
   {
+    name: "channel_webhooks",
+    columns: [
+      {"name":"id","type":"TEXT","notNull":true},
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"channel_id","type":"TEXT","notNull":true},
+      {"name":"user_id","type":"TEXT","notNull":true},
+      {"name":"name","type":"TEXT","notNull":true},
+      {"name":"avatar_rev","type":"INTEGER","notNull":false},
+      {"name":"token_hash","type":"TEXT","notNull":true},
+      {"name":"token_rotated_at","type":"INTEGER","notNull":true},
+      {"name":"created_by","type":"TEXT","notNull":true},
+      {"name":"created_at","type":"INTEGER","notNull":true},
+      {"name":"last_used_at","type":"INTEGER","notNull":false},
+    ],
+    primaryKey: ["id"],
+    indexes: [
+      {"name":"idx_channel_webhooks_org","columns":["org_id"],"unique":false,"nocase":false,"partialNotNull":null},
+      {"name":"idx_channel_webhooks_channel","columns":["channel_id"],"unique":false,"nocase":false,"partialNotNull":null},
+      {"name":"sqlite_autoindex_channel_webhooks_2","columns":["token_hash"],"unique":true,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [
+      {"columns":["channel_id"],"table":"conversations","references":["id"],"onDelete":"CASCADE"},
+      {"columns":["org_id"],"table":"orgs","references":["id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
     name: "community_expressions",
     columns: [
       {"name":"id","type":"TEXT","notNull":true},
@@ -1812,6 +1839,24 @@ export const SCHEMA: readonly TableShape[] = [
     ],
     foreignKeys: [
       {"columns":["invite_id"],"table":"invitations","references":["id"],"onDelete":"CASCADE"},
+      {"columns":["org_id"],"table":"orgs","references":["id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
+    name: "community_tickets",
+    columns: [
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"enabled","type":"INTEGER","notNull":true},
+      {"name":"max_open","type":"INTEGER","notNull":true},
+      {"name":"next_number","type":"INTEGER","notNull":true,"default":1},
+      {"name":"poster_id","type":"TEXT","notNull":false},
+      {"name":"updated_by","type":"TEXT","notNull":true},
+      {"name":"updated_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["org_id"],
+    indexes: [],
+    foreignKeys: [
       {"columns":["org_id"],"table":"orgs","references":["id"],"onDelete":"CASCADE"},
     ],
     autoincrement: false,
@@ -3707,6 +3752,30 @@ export const SCHEMA: readonly TableShape[] = [
     autoincrement: false,
   },
   {
+    name: "reaction_roles",
+    columns: [
+      {"name":"message_id","type":"TEXT","notNull":true},
+      {"name":"emoji","type":"TEXT","notNull":true},
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"channel_id","type":"TEXT","notNull":true},
+      {"name":"role_id","type":"TEXT","notNull":true},
+      {"name":"position","type":"INTEGER","notNull":true},
+      {"name":"set_by","type":"TEXT","notNull":true},
+      {"name":"set_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["message_id","emoji"],
+    indexes: [
+      {"name":"idx_reaction_roles_role","columns":["role_id"],"unique":false,"nocase":false,"partialNotNull":null},
+      {"name":"idx_reaction_roles_org","columns":["org_id"],"unique":false,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [
+      {"columns":["role_id"],"table":"org_roles","references":["id"],"onDelete":"CASCADE"},
+      {"columns":["channel_id"],"table":"conversations","references":["id"],"onDelete":"CASCADE"},
+      {"columns":["org_id"],"table":"orgs","references":["id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
     name: "registration_invites",
     columns: [
       {"name":"id","type":"TEXT","notNull":true},
@@ -3969,6 +4038,57 @@ export const SCHEMA: readonly TableShape[] = [
     primaryKey: ["kind"],
     indexes: [],
     foreignKeys: [],
+    autoincrement: false,
+  },
+  {
+    name: "ticket_panels",
+    columns: [
+      {"name":"id","type":"TEXT","notNull":true},
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"name","type":"TEXT","notNull":true},
+      {"name":"position","type":"INTEGER","notNull":true},
+      {"name":"post_channel_id","type":"TEXT","notNull":false},
+      {"name":"category_id","type":"TEXT","notNull":false},
+      {"name":"log_channel_id","type":"TEXT","notNull":false},
+      {"name":"posted_message_id","type":"TEXT","notNull":false},
+      {"name":"created_by","type":"TEXT","notNull":true},
+      {"name":"created_at","type":"INTEGER","notNull":true},
+      {"name":"updated_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["id"],
+    indexes: [
+      {"name":"idx_ticket_panels_org","columns":["org_id"],"unique":false,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [
+      {"columns":["log_channel_id"],"table":"conversations","references":["id"],"onDelete":"SET NULL"},
+      {"columns":["category_id"],"table":"channel_categories","references":["id"],"onDelete":"SET NULL"},
+      {"columns":["post_channel_id"],"table":"conversations","references":["id"],"onDelete":"SET NULL"},
+      {"columns":["org_id"],"table":"orgs","references":["id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
+    name: "tickets",
+    columns: [
+      {"name":"channel_id","type":"TEXT","notNull":true},
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"panel_id","type":"TEXT","notNull":false},
+      {"name":"number","type":"INTEGER","notNull":true},
+      {"name":"opener_id","type":"TEXT","notNull":true},
+      {"name":"about","type":"TEXT","notNull":true},
+      {"name":"opened_at","type":"INTEGER","notNull":true},
+      {"name":"closed_at","type":"INTEGER","notNull":false},
+      {"name":"closed_by","type":"TEXT","notNull":false},
+    ],
+    primaryKey: ["channel_id"],
+    indexes: [
+      {"name":"idx_tickets_opener","columns":["org_id","opener_id"],"unique":false,"nocase":false,"partialNotNull":null},
+      {"name":"idx_tickets_org","columns":["org_id","closed_at"],"unique":false,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [
+      {"columns":["org_id"],"table":"orgs","references":["id"],"onDelete":"CASCADE"},
+      {"columns":["channel_id"],"table":"conversations","references":["id"],"onDelete":"CASCADE"},
+    ],
     autoincrement: false,
   },
   {

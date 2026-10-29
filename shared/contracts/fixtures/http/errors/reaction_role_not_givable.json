@@ -1,0 +1,9 @@
+{
+  "error": {
+    "code": "reaction_role_not_givable",
+    "message": "Reaction roles can only give roles you could assign yourself, without administrative powers",
+    "details": {
+      "roleId": "rl_408PsygH-ALvDnKpJu-Afg"
+    }
+  }
+}

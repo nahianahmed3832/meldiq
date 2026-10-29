@@ -1,0 +1,9 @@
+{
+  "error": {
+    "code": "ticket_limit",
+    "message": "You can have 2 open tickets here. Close one to open another.",
+    "details": {
+      "max": 2
+    }
+  }
+}

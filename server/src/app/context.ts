@@ -18,6 +18,9 @@ import type { CommunityPermissions } from "../modules/organizations/communityPer
 import type { CommunitySettings } from "../modules/organizations/settings/service.js";
 import type { CommunitySafety } from "../modules/organizations/safety/service.js";
 import type { CommunityLobby } from "../modules/organizations/lobby/service.js";
+import type { ReactionRoles } from "../modules/organizations/posting/reactionRoles.js";
+import type { Tickets } from "../modules/organizations/posting/tickets.js";
+import type { Webhooks } from "../modules/organizations/posting/webhooks.js";
 import type { RelationshipStore } from "../modules/accounts/relationships/store.js";
 import type { CallStore } from "../modules/calls/store.js";
 import type { Rows } from "../infrastructure/database/rows/index.js";
@@ -105,6 +108,10 @@ export interface AppContext {
   communitySafety: CommunitySafety;
   /** Community parity B: the community lobby, its feed URL and who has seen it (feature community-lobby, docs/COMMUNITY_PARITY_API.md). */
   lobby: CommunityLobby;
+  /** Community parity batch C, posting tools (modules/organizations/posting, docs/COMMUNITY_PARITY_API.md). */
+  webhooks: Webhooks;
+  reactionRoles: ReactionRoles;
+  tickets: Tickets;
   /** Calls, their participants and raised hands: SQLite, or MongoDB when MONGODB_DOMAINS includes "calls". */
   calls: CallStore;
   /**

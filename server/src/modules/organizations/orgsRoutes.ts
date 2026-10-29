@@ -116,6 +116,8 @@ export function orgSummary(ctx: AppContext, org: any, userId: string) {
     ...ctx.communitySafety.summary(org.id, userId),
     // Community parity B: whether the lobby is on and the member has seen it (members only; absent while switched off).
     ...(role ? ctx.lobby.summary(org.id, userId) : {}),
+    // Community parity batch C: tickets are on, so the menu shows "Open a Ticket" (members only).
+    ...(role ? ctx.tickets.summary(org.id, userId) : {}),
   };
 }
 

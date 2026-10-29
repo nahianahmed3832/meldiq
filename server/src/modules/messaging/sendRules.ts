@@ -1,7 +1,7 @@
 import { requireStanding } from "../accounts/index.js";
 import { REQUEST_MESSAGE_LIMIT } from "../accounts/relationships/rules.js";
 import type { AppContext } from "../../app/context.js";
-import { ApiError, forbidden } from "../../shared/errors.js";
+import { ApiError, badRequest, forbidden, notFound } from "../../shared/errors.js";
 import { now } from "../../shared/utilities/util.js";
 import { MENTION_ALL_MESSAGES, mentionAllPermission, mentionAllRateLimited } from "./mentions.js";
 
@@ -63,6 +63,29 @@ const REACTIONS = new Set(["reaction", "vote"]);
 export async function admitCommunity(ctx: AppContext, conv: ReturnType<typeof admitConversation>, userId: string, cls: Cls, opts: AdmitOptions = {}): Promise<void> {
   const kind = cls === "message" || (!!opts.type && POSTING.has(opts.type)) ? "post" : !!opts.type && REACTIONS.has(opts.type) ? "react" : null;
   if (kind) await ctx.communitySafety.admitPost(conv, userId, kind, !!opts.bot);
+}
+
+/** Payload fields only posting tools write (community parity batch C): what people's apps send never carries them. */
+const POSTING_TOOL_FIELDS = ["embeds", "buttons", "webhook"] as const;
+
+/** Refuses a payload from a person or a bot that carries embeds, buttons or webhook details. */
+export function refusePostingTools(payload: Record<string, unknown>): void {
+  const field = POSTING_TOOL_FIELDS.find((f) => payload[f] !== undefined);
+  if (field) throw badRequest(`Only webhooks and the community's own posts can carry "${field}"`);
+}
+
+/**
+ * A webhook's or the Tickets account's message (community parity batch C): the sender isn't a member, so only the
+ * channel it was granted is checked. It must be a live community channel that takes messages; changes (edits,
+ * reactions) never come this way.
+ */
+export function admitGranted(ctx: AppContext, conversationId: string, grant: string, cls: Cls) {
+  const conv = ctx.authz.conversation(conversationId);
+  if (!conv || conv.id !== grant || conv.type !== "CHANNEL" || !conv.org_id) throw notFound("Conversation not found");
+  if (cls !== "message") throw badRequest("Webhooks only post messages");
+  if (conv.archived_at) throw forbidden("This channel is archived");
+  if (conv.voice === 1) throw new ApiError(403, "voice_channel", "Voice channels don't take messages");
+  return conv;
 }
 
 /** Clock sanity: sentAt comes from the client; wildly wrong clocks (±1 day) are refused. */

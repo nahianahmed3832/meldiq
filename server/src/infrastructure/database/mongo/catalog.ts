@@ -197,6 +197,12 @@ export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
   community_lobby_feeds: "workspace",
   community_lobby_posts: "workspace",
   community_lobby_seen: "workspace",
+  // Community parity batch C, posting tools (migration 073): webhooks, reaction roles and tickets.
+  channel_webhooks: "workspace",
+  reaction_roles: "workspace",
+  community_tickets: "workspace",
+  ticket_panels: "workspace",
+  tickets: "workspace",
   // Batch B6: connections, message requests and who may message you.
   connections: "relationships",
   dm_requests: "relationships",

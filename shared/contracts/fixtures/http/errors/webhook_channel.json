@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "webhook_channel",
+    "message": "Webhooks post in text, announcement and forum channels"
+  }
+}

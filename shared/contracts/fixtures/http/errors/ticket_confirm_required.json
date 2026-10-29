@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "ticket_confirm_required",
+    "message": "Tick that this isn't a bug report, feedback or a suggestion to open a ticket"
+  }
+}

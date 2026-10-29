@@ -143,6 +143,13 @@ export interface Config {
    * comma-separated; a host covers its subdomains).
    */
   communityLobby: { enabled: boolean; feedImageHosts: string[] };
+  /**
+   * Community parity batch C (docs/COMMUNITY_PARITY_API.md › Posting tools): channel webhooks (feature
+   * "channel-webhooks"), reaction roles ("reaction-roles") and tickets ("community-tickets"). Each is on unless its
+   * variable is "off" (CHANNEL_WEBHOOKS, REACTION_ROLES, COMMUNITY_TICKETS): its routes then answer 503, webhooks stop
+   * posting and reactions stop giving roles; what communities set up is kept for when it's back on.
+   */
+  postingTools: { webhooks: boolean; reactionRoles: boolean; tickets: boolean };
   history: { enabled: boolean; maxItemsPerUser: number; maxBytesPerUser: number; maxItemBytes: number; tombstoneDays: number; maxTotalBytes: number };
   /**
    * Direct uploads from the app to S3 (2026-10-17). How long an upload URL may be started with, how long an upload may
@@ -495,6 +502,11 @@ export function effectiveFileMaxBytes(c: Pick<Config, "fileMaxBytes" | "attachme
   return Math.max(Math.min(c.fileMaxBytes, c.attachmentMaxBytes - overhead), 0);
 }
 
+/** A feature switch: on unless the variable says "off". */
+function switchedOn(v: string | undefined): boolean {
+  return (v ?? "on").trim().toLowerCase() !== "off";
+}
+
 function dmPolicyFrom(v: string | undefined): Config["defaultDmPolicy"] {
   if (v === undefined || v === "") return "everyone";
   if (v === "everyone" || v === "communities" || v === "connections") return v;
@@ -575,6 +587,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     communityLobby: {
       enabled: (env.COMMUNITY_LOBBY ?? "on").trim().toLowerCase() !== "off",
       feedImageHosts: [...new Set((env.LOBBY_FEED_IMAGE_HOSTS ?? "").split(",").map((h) => h.trim().toLowerCase().replace(/^\*\./, "")).filter(Boolean))],
+    },
+    postingTools: {
+      webhooks: switchedOn(env.CHANNEL_WEBHOOKS),
+      reactionRoles: switchedOn(env.REACTION_ROLES),
+      tickets: switchedOn(env.COMMUNITY_TICKETS),
     },
     history: {
       enabled: env.HISTORY_ENABLED !== "false",

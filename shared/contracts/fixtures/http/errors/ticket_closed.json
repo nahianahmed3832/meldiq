@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "ticket_closed",
+    "message": "This ticket is closed already"
+  }
+}

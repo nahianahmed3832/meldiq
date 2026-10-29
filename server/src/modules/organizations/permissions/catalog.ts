@@ -36,6 +36,8 @@ export const PERMISSION_KEYS = [
   "channels.create",
   "channels.manage",
   "channels.visibility",
+  // Community parity batch C: channels' webhooks
+  "webhooks.manage",
   // Messaging
   "messages.post",
   "messages.attach",
@@ -114,6 +116,12 @@ const DEFS: Record<Permission, Def> = {
   "channels.create": { category: "channels", label: "Create channels and categories", description: "Create channels, voice channels, forums and categories.", admin: true },
   "channels.manage": { category: "channels", label: "Manage channels", description: "Rename, reorder, move, archive and manage the members and permissions of channels and categories.", admin: true },
   "channels.visibility": { category: "channels", label: "Change channel access", description: "Make any channel public, private or announcement-only.", admin: true },
+  "webhooks.manage": {
+    category: "channels",
+    label: "Manage webhooks",
+    description: "Make, rename and delete channels' webhooks, give them new addresses and post through them.",
+    admin: true,
+  },
   "messages.post": { category: "messaging", label: "Post in channels", description: "Send messages in the community's channels.", restrictable: true, guestAllowed: true },
   "messages.attach": { category: "messaging", label: "Share files", description: "Send photos, videos, voice messages and files in channels.", restrictable: true, guestAllowed: true },
   "messages.announce": { category: "messaging", label: "Post announcements", description: "Post in announcement channels, where only managers can post." },
@@ -232,6 +240,7 @@ export const ROLE_TEMPLATES: readonly RoleTemplate[] = [
     permissions: [
       "channels.manage",
       "channels.visibility",
+      "webhooks.manage",
       "messages.announce",
       "messages.bypass_slowmode",
       "messages.manage",

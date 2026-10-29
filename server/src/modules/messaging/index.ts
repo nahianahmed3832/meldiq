@@ -7,3 +7,5 @@ export { memberIds, memberUsers, type MemberRow } from "./memberUsers.js";
 export { channelCounts } from "./platformQueries.js";
 /** API 0.65.0 batch B: the server's one message path, which bots (modules/bots) send through like people. */
 export { eventToWire, type Sender, sendServerMessage } from "./serverSend.js";
+/** Community parity batch C: ticket channels, made and archived by the organizations module's tickets. */
+export { addChannelMember, archiveChannel, channelsInCategory, channelsInCommunity, insertChannel, type NewChannel } from "./channelRows.js";

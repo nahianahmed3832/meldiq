@@ -1,0 +1,10 @@
+{
+  "error": {
+    "code": "ticket_channel_invalid",
+    "message": "Post the panel in a public or announcement text channel of this community",
+    "details": {
+      "panel": 0,
+      "field": "postChannelId"
+    }
+  }
+}
