@@ -120,6 +120,12 @@ export const NAME_FONTS = ["pixel", "arcade", "script", "block", "tech", "mono"]
 export const NAME_EFFECTS = ["glow", "shimmer"] as const;
 const zHex = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 /**
+ * API 0.65.0: badges someone can choose to show next to their name: their Mojo plan's, Bug Hunter (a confirmed bug
+ * report) and Artist (an approved decoration). All are derived on read, never granted by hand.
+ */
+export const SHOWABLE_BADGES = ["mojo", "bug-hunter", "artist"] as const;
+export type ShowableBadge = (typeof SHOWABLE_BADGES)[number];
+/**
  * A decoration: a classic frame (PROFILE_DECORATIONS), or since API 0.61.0 one of Meldiq's own or an approved community
  * one by id (docs/PROFILE_DECORATIONS.md, GET /v2/decorations). Older apps show only the classic ones.
  */
@@ -134,6 +140,13 @@ export const ProfileStyleBody = z.object({
   nameEffect: z.enum(NAME_EFFECTS).nullable().optional(),
   /** API 0.46.0: wear this community's tag by your name (you must be a member and it must have a tag); null: none. */
   tagOrgId: z.string().max(64).nullable().optional(),
+  /**
+   * API 0.65.0: the profile theme, one colour or two for a gradient. Sending it also sets [accent] to its first colour
+   * (older apps keep showing one colour); sending only [accent] clears it, so an older app's change still shows.
+   */
+  themeColors: z.array(zHex).min(1).max(2).nullable().optional(),
+  /** API 0.65.0: the badge shown next to your name: one you hold, "none" to show none, null for the apps' default. */
+  shownBadge: z.enum([...SHOWABLE_BADGES, "none"]).nullable().optional(),
 });
 export const ProfileStyle = z.strictObject({
   decoration: zWornDecoration.nullable(),
@@ -143,6 +156,9 @@ export const ProfileStyle = z.strictObject({
   nameColors: z.array(z.string()).nullable().optional(),
   nameEffect: z.enum(NAME_EFFECTS).nullable().optional(),
   tagOrgId: z.string().nullable().optional(),
+  themeColors: z.array(z.string()).nullable().optional(),
+  /** A badge no longer held reads as null (the default). */
+  shownBadge: z.enum([...SHOWABLE_BADGES, "none"]).nullable().optional(),
 });
 /** The community tag someone wears (API 0.46.0): its letters, colour (the community's accent) and community. */
 export const WornTag = z.strictObject({ orgId: z.string(), text: z.string(), color: z.string().nullable() });
@@ -207,6 +223,8 @@ const profileFields = {
   aboutMe: z.string().optional(),
   links: z.array(z.strictObject({ label: z.string(), url: z.string() })).optional(),
   badges: z.array(z.enum(["bug-hunter"])).optional(),
+  /** API 0.65.0: the account level bought with points (1 for everyone who hasn't levelled up). */
+  level: z.number().int().min(1).optional(),
 };
 /** Only in the person's own profile. */
 const ownFields = {
@@ -356,7 +374,7 @@ export const userRoutes = [
   }),
   user("/v1/users/me/profile-style", {
     method: "PUT",
-    summary: "Your profile's decoration, effect and accent colour (fields sent change; null removes).",
+    summary: "Your profile's decoration, effect, accent or two-colour theme, name style, worn tag and shown badge (fields sent change; null removes).",
     body: ProfileStyleBody,
     response: z.strictObject({ profileStyle: ProfileStyle }),
     errors: ["bad_request"],

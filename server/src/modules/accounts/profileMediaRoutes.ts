@@ -9,6 +9,8 @@ import { me, requireAuth } from "../auth/index.js";
 import { parse } from "../../shared/validation/index.js";
 import { idParams } from "../../shared/contracts/http/primitives.js";
 import { ProfileStyleBody } from "../../shared/contracts/http/users.js";
+import type { z } from "zod/v4";
+import { holdsBadge } from "./badges.js";
 import { ApiError, badRequest, notFound } from "../../shared/errors.js";
 import { now } from "../../shared/utilities/util.js";
 import { deleteBlobNow } from "../files/index.js";
@@ -133,6 +135,18 @@ async function transcodeClip(ctx: AppContext, input: Buffer): Promise<{ mp4: Buf
   }
 }
 
+/**
+ * The accent and theme colours after a profile-style change (API 0.65.0). A theme sent sets the accent to its first
+ * colour, so apps that know only the accent still show it; an accent sent alone (an older app) clears the theme, so
+ * that app's change is what everyone sees.
+ */
+export function themeOf(body: z.infer<typeof ProfileStyleBody>, current: Style): Pick<Style, "accent" | "themeColors"> {
+  const accent = body.accent === undefined ? current.accent : (body.accent?.toLowerCase() ?? null);
+  if (body.themeColors === undefined) return { accent, themeColors: body.accent === undefined ? current.themeColors : null };
+  const themeColors = body.themeColors?.map((c) => c.toLowerCase()) ?? null;
+  return { accent: themeColors ? themeColors[0] : accent, themeColors };
+}
+
 function checkImage(info: ImageInfo | null, maxW: number, maxH: number, maxFrames: number, what: string): void {
   if (!info) throw badRequest(`That ${what} file is damaged or not a supported image.`);
   if (info.width > maxW || info.height > maxH) throw badRequest(`That ${what} is ${info.width} × ${info.height}; the most is ${maxW} × ${maxH}.`);
@@ -224,15 +238,20 @@ export default async function profileMediaRoutes(app: FastifyInstance, ctx: AppC
     const current = styleOf(row(userId) ?? {});
     // API 0.46.0: a community's tag can only be worn by its members (whether it has one now is checked when shown).
     if (body.tagOrgId && !ctx.authz.orgRole(body.tagOrgId, userId)) throw badRequest("You can only wear the tag of a community you're in");
+    // API 0.65.0: only a badge the person holds now can be shown ("none" hides them all).
+    if (body.shownBadge && body.shownBadge !== "none" && !holdsBadge(ctx, userId, body.shownBadge)) throw badRequest("You can only show a badge you have");
     const keep = <T,>(sent: T | undefined, was: T) => (sent === undefined ? was : sent);
+    const theme = themeOf(body, current);
     const next: Style = {
       decoration: keep(body.decoration, current.decoration),
       effect: keep(body.effect, current.effect),
-      accent: body.accent === undefined ? current.accent : (body.accent?.toLowerCase() ?? null),
+      accent: theme.accent,
       nameFont: keep(body.nameFont, current.nameFont),
       nameColors: body.nameColors === undefined ? current.nameColors : (body.nameColors?.map((c) => c.toLowerCase()) ?? null),
       nameEffect: keep(body.nameEffect, current.nameEffect),
       tagOrgId: keep(body.tagOrgId, current.tagOrgId),
+      themeColors: theme.themeColors,
+      shownBadge: keep(body.shownBadge, current.shownBadge),
     };
     // API 0.61.0: Meldiq's own and approved community decorations too (docs/PROFILE_DECORATIONS.md).
     if (next.decoration && next.decoration !== current.decoration && !ctx.decorations.wearable(next.decoration)) throw badRequest("That decoration isn't available");

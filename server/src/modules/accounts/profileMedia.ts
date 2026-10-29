@@ -1,6 +1,6 @@
 import type { AppContext } from "../../app/context.js";
 import { DECORATION_ID } from "../../shared/contracts/http/decorations.js";
-import { NAME_EFFECTS, NAME_FONTS, PROFILE_DECORATIONS, PROFILE_EFFECTS } from "../../shared/contracts/http/users.js";
+import { NAME_EFFECTS, NAME_FONTS, PROFILE_DECORATIONS, PROFILE_EFFECTS, SHOWABLE_BADGES, type ShowableBadge } from "../../shared/contracts/http/users.js";
 
 /** Profile media and style as stored on a user row (API 0.45.0, docs/PROFILE_MEDIA.md); routes in profileMediaRoutes.ts. */
 export type AvatarMedia = { kind: "gif" | "webp" | "video"; rev: number };
@@ -14,6 +14,9 @@ export type Style = {
   nameColors: string[] | null;
   nameEffect: string | null;
   tagOrgId: string | null;
+  /** API 0.65.0: a two-colour profile theme (one colour is allowed too), and the badge shown next to the name. */
+  themeColors: string[] | null;
+  shownBadge: ShowableBadge | "none" | null;
 };
 const HEX = /^#[0-9a-f]{6}$/;
 
@@ -44,6 +47,8 @@ export function styleOf(u: { profile_style?: string | null }): Style {
     nameColors: Array.isArray(s.nameColors) && s.nameColors.length >= 1 && s.nameColors.length <= 3 && s.nameColors.every((c) => typeof c === "string" && HEX.test(c)) ? s.nameColors : null,
     nameEffect: NAME_EFFECTS.includes(s.nameEffect as never) ? (s.nameEffect as string) : null,
     tagOrgId: typeof s.tagOrgId === "string" && s.tagOrgId ? s.tagOrgId : null,
+    themeColors: Array.isArray(s.themeColors) && s.themeColors.length >= 1 && s.themeColors.length <= 2 && s.themeColors.every((c) => typeof c === "string" && HEX.test(c)) ? s.themeColors : null,
+    shownBadge: s.shownBadge === "none" || SHOWABLE_BADGES.includes(s.shownBadge as never) ? (s.shownBadge as Style["shownBadge"]) : null,
   };
 }
 
@@ -57,14 +62,23 @@ export function wornTag(ctx: AppContext, u: { id: string; profile_style?: string
   return orgId && tag ? { orgId, ...tag } : null;
 }
 
-/** The profile fields this adds, for a viewer who may see the photo (the style is shown to everyone). */
-export function profileMediaView(u: { avatar_media?: string | null; profile_banner?: string | null; profile_style?: string | null }, photoAllowed: boolean) {
+/**
+ * The profile fields this adds, for a viewer who may see the photo (the style is shown to everyone). [holds] says
+ * whether the person still has a badge: a shown badge they lost reads as null (API 0.65.0).
+ */
+export function profileMediaView(
+  u: { avatar_media?: string | null; profile_banner?: string | null; profile_style?: string | null },
+  photoAllowed: boolean,
+  holds?: (badge: ShowableBadge) => boolean,
+) {
   const out: Record<string, unknown> = {};
   const a = avatarMediaOf(u);
   const b = bannerOf(u);
   if (photoAllowed && a) out.avatarMedia = a;
   if (photoAllowed && b) out.profileBanner = b;
-  const s = styleOf(u);
+  const stored = styleOf(u);
+  const lost = stored.shownBadge !== null && stored.shownBadge !== "none" && holds !== undefined && !holds(stored.shownBadge);
+  const s = lost ? { ...stored, shownBadge: null } : stored;
   if (styled(s)) out.profileStyle = s;
   return out;
 }
