@@ -1,0 +1,23 @@
+{
+  "bot": {
+    "key": "welcomer",
+    "name": "Welcomer",
+    "available": true,
+    "enabled": true,
+    "userId": "u_YQS80ywiIWi4PUzQ2yIXkA",
+    "look": {
+      "name": "Doorbell",
+      "displayName": "Doorbell",
+      "photoRev": 1793313949136
+    },
+    "settings": {
+      "channelId": null,
+      "messages": [
+        "Hi {user}! {name} makes {count} of us in {server}."
+      ],
+      "goodbye": null
+    },
+    "plusPaused": [],
+    "updatedAt": 1793313949131
+  }
+}

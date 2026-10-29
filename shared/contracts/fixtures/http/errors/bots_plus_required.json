@@ -1,0 +1,12 @@
+{
+  "error": {
+    "code": "bots_plus_required",
+    "message": "That's a Bots+ extra. This community needs Bots+ to use it.",
+    "details": {
+      "bot": "helper",
+      "settings": [
+        "commands"
+      ]
+    }
+  }
+}

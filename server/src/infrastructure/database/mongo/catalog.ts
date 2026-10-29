@@ -203,6 +203,12 @@ export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
   community_tickets: "workspace",
   ticket_panels: "workspace",
   tickets: "workspace",
+  // Community parity batch D, official bots (migration 074): bots, Bots+, levels, away notes and the starboard.
+  official_bots: "workspace",
+  official_bots_plus: "workspace",
+  bot_levels: "workspace",
+  bot_afk: "workspace",
+  bot_starboard: "workspace",
   // Batch B6: connections, message requests and who may message you.
   connections: "relationships",
   dm_requests: "relationships",

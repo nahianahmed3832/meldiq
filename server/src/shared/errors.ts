@@ -289,6 +289,12 @@ export const ERROR_CODES = {
   thread_replies_not_allowed: { status: [403], meaning: "You can't reply in threads here." },
   threads_not_allowed: { status: [403], meaning: "You can't start threads here." },
   voice_messages_not_allowed: { status: [403], meaning: "You can't send voice messages here." },
+  // Community parity batch D, official bots (feature "community-bots", docs/COMMUNITY_PARITY_API.md › Official bots).
+  bots_plus_required: { status: [403], meaning: "That's a Bots+ extra. This community needs Bots+ to use it." },
+  bot_role_not_givable: { status: [403], meaning: "Bots can only give roles that are just for show, or that you could assign yourself without administrative powers." },
+  official_bot_channel_invalid: { status: [400], meaning: "Pick a text channel of this community that you can see." },
+  official_bot_off: { status: [409], meaning: "Turn this bot on first." },
+  official_bot_unavailable: { status: [409], meaning: "This bot isn't ready yet. It's coming soon." },
   ...FEDERATION_ERROR_CODES,
 } as const satisfies Record<string, ErrorSpec>;
 

@@ -65,7 +65,7 @@ export async function sendServerMessage(ctx: AppContext, sender: Sender, m: Send
   if (Buffer.byteLength(payload) > MAX_PAYLOAD_BYTES) throw new ApiError(413, "message_too_long", "That message is too large");
   const granted = sender.channelGrant !== undefined;
   if (!granted) refusePostingTools(m.payload);
-  const conv = granted ? admitGranted(ctx, m.conversationId, sender.channelGrant!, m.cls) : admitConversation(ctx, userId, m.conversationId, m.cls, { type: m.payload.type, bot: deviceId === null });
+  const conv = granted ? admitGranted(ctx, m.conversationId, sender.channelGrant!, m.cls, m.payload.type) : admitConversation(ctx, userId, m.conversationId, m.cls, { type: m.payload.type, bot: deviceId === null });
   // A webhook isn't a member: the community's lock and verification level are for people (community parity A2).
   if (!granted) await admitCommunity(ctx, conv, userId, m.cls, { type: m.payload.type, bot: deviceId === null });
   const type = m.payload.type;
@@ -174,6 +174,9 @@ export async function sendServerMessage(ctx: AppContext, sender: Sender, m: Send
   if (m.cls === "control" && conv.org_id) {
     await ctx.reactionRoles.noteChange({ orgId: conv.org_id, conversationId: conv.id, userId, payload: m.payload }).catch((err: unknown) => log.warn({ err }, "reaction roles: change not applied"));
   }
+  // Community parity batch D: official bots see what happens in community channels (commands, XP, logs, stars). This
+  // only queues it: the bots act after the message was accepted and can never fail it.
+  if (conv.org_id && !selfOnly) ctx.officialBots.noteMessage({ orgId: conv.org_id, conversationId: conv.id, userId, messageId: m.messageId, cls: m.cls, payload: m.payload, at: t });
   // API 0.65.0: chat minutes and the daily quests. Points never hold up or fail a message: a failure is only logged.
   if (!selfOnly) {
     await ctx.points

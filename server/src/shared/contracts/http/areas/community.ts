@@ -6,6 +6,7 @@ import { communityRulesRoutes } from "../communityRules.js";
 import { communitySettingsRoutes } from "../communitySettings.js";
 import { communitySafetyRoutes } from "../communitySafety.js";
 import { communityLobbyRoutes } from "../communityLobbyRoutes.js";
+import { officialBotRoutes } from "../officialBots.js";
 import { reactionRoleRoutes } from "../reactionRoles.js";
 import { reportRoutes } from "../reports.js";
 import { ticketRoutes } from "../tickets.js";
@@ -29,4 +30,6 @@ export const communityRoutes: readonly RouteContract[] = [
   ...webhookRoutes,
   ...reactionRoleRoutes,
   ...ticketRoutes,
+  // Community parity batch D: official bots.
+  ...officialBotRoutes,
 ];

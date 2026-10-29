@@ -90,8 +90,8 @@ and buttons stay; 3–4 starter questions are added only when the FAQ is empty. 
   `messages_week`: messages sent in the last 7 days in channels the viewer can see (counted once per community and set
   of visible channels, reused for 5 minutes). `invites`: the sum of uses of the invitations each member made (Meldiq
   doesn't record which invitation a member joined with, so people who joined and left since still count). `levels`:
-  always empty until the Levels bot (batch D).
-- `giveaways`: always empty until the Giveaways bot (batch D); entries will be `{ id, title, endsAt, entrants }`.
+  the Levels bot's XP (`count` is XP) while that bot is on (see Official bots below), empty otherwise.
+- `giveaways`: always empty until the Giveaways bot (batch D part 2); entries will be `{ id, title, endsAt, entrants }`.
 - `feed`: the newest 20 feed posts, newest first: `{ id, title, text, url, image, postedAt }`.
 
 People (`user`, `participants`) are `{ id, username, displayName, avatarColor, photoRev }`, with the photo only when the
@@ -246,3 +246,109 @@ Audit: `ticket.open`, `ticket.join`, `ticket.close`, `channel.archive`, `tickets
 
 Limits: a category holds 50 channels (409 when the tickets category is full of open tickets); closed tickets still
 count toward a community's 500 channels.
+
+## Official bots (batch D, part 1)
+
+Meldiq's own bots a community turns on from Settings › Bots: Welcomer, Helper, Levels, Logger and Starboard now;
+Giveaways, Tickets, Alerts and Wordy are listed (`available: false`) and refuse to turn on (`409
+official_bot_unavailable`) until part 2. New tables only (migration 074, workspace domain): `official_bots`,
+`official_bots_plus`, `bot_levels`, `bot_afk`, `bot_starboard`. Code: `server/src/modules/officialBots` (runtime,
+events, dispatch, commands, catalog, settings, store, manage, routes, one file per bot) and
+`modules/platformAdmin/botsPlus.ts`; contracts in `src/shared/contracts/http/officialBots.ts`. Tests:
+`test/official_bots.test.ts`, `test/official_bots_activity.test.ts` (communities in SQLite and in MongoDB).
+
+| Feature name | Switched off by | What |
+| --- | --- | --- |
+| `community-bots` | `COMMUNITY_BOTS=off` | Official bots, their routes and their hooks |
+
+Switched off, every route answers `503 feature_disabled`, the bots stop acting (their members stay), and what
+communities set is kept.
+
+**How a bot is in a community.** Turning one on makes (once) a hidden bot account for that bot in that community
+(`users.kind` `agent`, never signs in) and adds it as a member, like a developer bot: the member list shows it among the
+bots (`bot: true`), with the community's name for it (`look.name`, ≤32, else the bot's name) and picture
+(`GET /v1/users/:userId/photo`). Turning it off removes the member and keeps its settings and account. A manager who
+removes or bans the bot from the member list turns it off too (audit `official_bot.off`). Bots post through the one
+message path: answers in the chat where someone ran a command follow the rules every bot follows there (it must be a
+member that may post, otherwise it stays quiet), and posts in a channel a manager picked (welcome, log, starboard,
+level-ups) go with a grant for that channel, so a private log channel works. Starboard edits its own post's count line
+(a granted `edit`, the only change a grant allows).
+
+**Hooks.** Two cheap hooks only queue events; one queue handles them after the write that caused them, so a bot never
+slows or fails anyone's request (a failing bot is logged and the others go on):
+
+- the message path (`messaging/serverSend.ts`, after acceptance, community conversations): messages and the `edit`,
+  `delete` and `reaction` changes;
+- the audit trail (`ctx.audit` in `app/server.ts`): joins (`community.join`, `invite.accept`, `member.add`,
+  `application.approved`), `member.leave`/`remove`/`expire`/`ban`/`unban`/`timeout`/`timeout_end` (with who did it),
+  and `role.assign`/`role.unassign`.
+
+Bots' messages (official or not) never run commands or earn XP. Messages starting with `!` are commands for the bots
+that are on; `!help` lists the commands of every bot on (answered by Helper, else Levels).
+
+**Routes.** "Editors" hold `workspace.edit`; members may read.
+
+| Route | Answer |
+| --- | --- |
+| `GET /v1/official-bots` | `{ bots: [CatalogBot], botsPlus: { name, description, perks: [string] } }` |
+| `GET /v1/orgs/:orgId/official-bots` (members; outsiders 404) | `{ botsPlus, botsPlusUntil, canEdit, bots: [OfficialBot] }`, all nine in catalog order |
+| `GET /v1/orgs/:orgId/official-bots/:key` | `{ bot: OfficialBot }` |
+| `PUT /v1/orgs/:orgId/official-bots/:key` (editors) `{ enabled?, settings?, look?: { name } }` | `{ bot }` |
+| `PUT /v1/orgs/:orgId/official-bots/:key/avatar` (editors, JPEG ≤512 KB) / `DELETE` | `{ bot }` |
+| `POST /v1/orgs/:orgId/official-bots/welcomer/test` (editors) | `{ messageId, channelId }`: Welcomer greets the caller |
+
+`CatalogBot` = `{ key, name, tagline, description, color: "#rrggbb", icon: emoji, features: [string], sample: string,
+commands: [{ usage, description }], limits: [{ what, free, plus }], available }`. `OfficialBot` = `{ key, name,
+available, enabled, userId|null, look: { name|null, displayName, photoRev|null }, settings: object|null (editors only),
+plusPaused: [field], updatedAt|null }`; `plusPaused` names stored Plus settings not applied because Bots+ is gone.
+`look.name` null goes back to the bot's own name.
+
+`settings` may be partial (the rest stay) and is checked against the bot's settings below (`400 bad_request`, details
+`{ field }`). Channels must be live text channels of the community the editor can see (`400
+official_bot_channel_invalid`, details `{ field, channelId }`). Sending a Plus setting without Bots+ is `403
+bots_plus_required`, details `{ bot, settings: [field] }`; stored Plus settings stay while Bots+ is gone and the bot acts
+on the free version. Turning on can also answer `403 banned` (the bot's account is banned) or `409 limit_reached` (the
+member limit). Audit: `official_bot.on`, `official_bot.off`, `official_bot.update` (the detail names what changed).
+
+| Bot | Settings (defaults) | Plus only |
+| --- | --- | --- |
+| `welcomer` | `channelId` null (#general, else the first public text channel), `messages` [Meldiq's line] (1–10, ≤300 each; `{user}` mention, `{name}`, `{server}`, `{count}` people), `goodbye` null (≤300) | more than one message (one picked at random), `goodbye` (on leaving; `{user}` is their name) |
+| `helper` | `commands` [] | `commands`: ≤25 `{ name (a–z 0–9 _ -, ≤32, not a built-in), response ≤500 ({user} mention) }` |
+| `levels` | `announce` true, `announceChannelId` null (where they chat), `boost` 1, `roleRewards` [], `levelUpMessage` null | `boost` 1.5 or 2; `roleRewards` ≤20 `{ level 1–500, roleId }`, each role once (`403 bot_role_not_givable`, details `{roleId}`, unless just for show or assignable by the editor without admin powers); `levelUpMessage` (`{user}`, `{level}`) |
+| `logger` | `channelId` null (quiet), `memberChannelId` null, `excludeChannelIds` [] | `memberChannelId`, `excludeChannelIds` ≤25 |
+| `starboard` | `channelId` null (quiet), `threshold` 5 (1, 2, 3, 4, 5, 7, 10, 15, 20 or 30), `emoji` null, `selfStar` false, `excludeChannelIds` [] | `emoji` (instead of ⭐ and 🌟), `selfStar`, `excludeChannelIds` ≤25 |
+
+What each does:
+
+- **Welcomer** greets each person who joins (not bots) once, mentioning them; with Bots+ it says goodbye when someone
+  leaves. The test answers `409 official_bot_off` while it's off.
+- **Helper**: `!8ball question`, `!roll` / `!roll 20` / `!roll 2d6` (1–20 dice, 2–1000 sides), `!flip`,
+  `!choose a | b | c` (2–20 choices), `!afk reason` (≤200). Someone mentioning an away person is told the reason once
+  per away note; the away person's next message ends it.
+- **Levels**: 15–25 XP (times the boost) for a message of 2+ characters that isn't a command, at most once a minute per
+  member and community; level = floor(√(XP/100)). Level-ups are announced (when on) and give the role rewards of the
+  levels passed (`org_role_members.assigned_by` `bot:levels`, audit `role.assign` by the bot; checked again then:
+  active, no admin powers, guest rules, never to bots). `!rank`: level, XP, place and XP to the next level. `!top`: the
+  ten with most XP. Feeds the lobby's Levels board.
+- **Logger** writes one line per event, never pinging (mentions written as names, no `mentions`): edits (text before →
+  after, from the message store), deletions (the last text, and who deleted it), joins (accounts younger than 7 days
+  flagged), leaves, kicks, bans, unbans, timeouts (until when, reason) and role changes, with who did it. Member and
+  role events go to `memberChannelId` with Bots+. Its own channels and excluded ones are never logged.
+- **Starboard**: when a message in a public text channel (not private, not hidden from @everyone, not the starboard or
+  an excluded channel) has `threshold` people (not its author unless `selfStar`, not bots) with a star reaction on,
+  it's copied once (`bot_starboard` keeps it from going twice): text `⭐ N · Author in #channel` then the message, its
+  first image attachment (or a box's image), `starboard: { channelId, messageId }` in the payload, and a "Jump to
+  message" link button (`<first WEB_ORIGINS>/m/:channelId/:messageId`) when the server knows its web app. Later stars
+  edit the count line; the post is never removed.
+
+**Bots+.** Per community, granted in the Platform Admin Console while billing for it is off (no Stripe product):
+`GET /admin/v1/orgs/:orgId/bots-plus` (`entitlements.view`) and `PUT` (`entitlements.edit`, passkey check and reason)
+`{ enabled, expiresAt?: ms|null, reason }` → `{ botsPlus: { enabled, grantedAt, expiresAt, grantedBy, reason } }`.
+Granting needs an end date within 366 days (no end: super admins only). Platform audit `org.bots_plus_grant` /
+`org.bots_plus_revoke`. Communities see `botsPlus` and `botsPlusUntil` in their bots view.
+
+**Part 2 seams.** `OfficialBots.giveaways(orgId)` feeds the lobby's `giveaways` (empty now). The catalog already
+carries Giveaways, Tickets, Alerts and Wordy (commands and the Free vs Plus table) with `available: false`, and
+`!giveaway`, `!gend`, `!greroll` and `!wordy` are reserved. `dispatch.ts` hands events to bots by kind, so a new bot
+adds its settings schema (`BOT_SETTINGS`, `LIVE_BOT_KEYS`), defaults and Plus rules (`settings.ts`) and its handlers.
+The Tickets bot will tie batch C's tickets (`ctx.tickets`) to the bot's look and Plus limits.

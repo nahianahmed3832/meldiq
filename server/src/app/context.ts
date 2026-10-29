@@ -21,6 +21,7 @@ import type { CommunityLobby } from "../modules/organizations/lobby/service.js";
 import type { ReactionRoles } from "../modules/organizations/posting/reactionRoles.js";
 import type { Tickets } from "../modules/organizations/posting/tickets.js";
 import type { Webhooks } from "../modules/organizations/posting/webhooks.js";
+import type { OfficialBots } from "../modules/officialBots/index.js";
 import type { RelationshipStore } from "../modules/accounts/relationships/store.js";
 import type { CallStore } from "../modules/calls/store.js";
 import type { Rows } from "../infrastructure/database/rows/index.js";
@@ -112,6 +113,8 @@ export interface AppContext {
   webhooks: Webhooks;
   reactionRoles: ReactionRoles;
   tickets: Tickets;
+  /** Community parity batch D: official bots, their hooks and Bots+ (modules/officialBots, feature community-bots). */
+  officialBots: OfficialBots;
   /** Calls, their participants and raised hands: SQLite, or MongoDB when MONGODB_DOMAINS includes "calls". */
   calls: CallStore;
   /**

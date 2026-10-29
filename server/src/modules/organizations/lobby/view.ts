@@ -93,8 +93,8 @@ export async function lobbyView({ ctx, store, activity }: ViewDeps, orgId: strin
     links: communityLinks(ctx, orgId),
     pickRoles: pickRoles(ctx, orgId, viewerId),
     leaderboards: leaderboards(ctx, orgId, settings.leaderboards, week),
-    // Seam for the Giveaways bot (community parity D): running giveaways come from here once it exists.
-    giveaways: [],
+    // The Giveaways bot (community parity D, part 2) fills this through the official bots' runtime.
+    giveaways: ctx.officialBots.giveaways(orgId),
     feed: store.posts(orgId, LOBBY_LIMITS.feedPosts).map((p) => ({ id: p.id, title: p.title, text: p.text, url: p.url, image: p.image, postedAt: p.posted_at })),
   };
 }

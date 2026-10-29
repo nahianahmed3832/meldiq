@@ -1,0 +1,19 @@
+{
+  "bot": {
+    "key": "helper",
+    "name": "Helper",
+    "available": true,
+    "enabled": false,
+    "userId": "u_Ah-FxldYpXPl27p8jGL6lw",
+    "look": {
+      "name": null,
+      "displayName": "Helper",
+      "photoRev": null
+    },
+    "settings": {
+      "commands": []
+    },
+    "plusPaused": [],
+    "updatedAt": 1793313949164
+  }
+}

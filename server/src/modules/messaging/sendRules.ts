@@ -76,13 +76,15 @@ export function refusePostingTools(payload: Record<string, unknown>): void {
 
 /**
  * A webhook's or the Tickets account's message (community parity batch C): the sender isn't a member, so only the
- * channel it was granted is checked. It must be a live community channel that takes messages; changes (edits,
- * reactions) never come this way.
+ * channel it was granted is checked. It must be a live community channel that takes messages; changes (reactions,
+ * deletions) never come this way, edits only from official bots (community parity batch D).
  */
-export function admitGranted(ctx: AppContext, conversationId: string, grant: string, cls: Cls) {
+export function admitGranted(ctx: AppContext, conversationId: string, grant: string, cls: Cls, type?: string) {
   const conv = ctx.authz.conversation(conversationId);
   if (!conv || conv.id !== grant || conv.type !== "CHANNEL" || !conv.org_id) throw notFound("Conversation not found");
-  if (cls !== "message") throw badRequest("Webhooks only post messages");
+  // Community parity batch D: an official bot edits its own post there (Starboard's star count); who may change a
+  // message is checked as for anyone.
+  if (cls !== "message" && type !== "edit") throw badRequest("Webhooks only post messages");
   if (conv.archived_at) throw forbidden("This channel is archived");
   if (conv.voice === 1) throw new ApiError(403, "voice_channel", "Voice channels don't take messages");
   return conv;

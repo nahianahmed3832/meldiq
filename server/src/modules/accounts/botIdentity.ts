@@ -4,6 +4,7 @@ import { zUsername } from "../../shared/contracts/http/auth.js";
 import { rowsByIds } from "../../infrastructure/database/byIds.js";
 import { ApiError } from "../../shared/errors.js";
 import { newId, now } from "../../shared/utilities/util.js";
+import { photoBlobId, storePhoto } from "./photos.js";
 import { announceProfileChange } from "./profileEvents.js";
 import { usernameCandidate } from "./identity.js";
 
@@ -81,4 +82,18 @@ export async function createBotIdentity(ctx: AppContext, displayName: string, wa
 export async function renameBotIdentity(ctx: AppContext, userId: string, displayName: string): Promise<void> {
   await ctx.identity.write((w) => w.update("users", { id: userId, kind: BOT_KIND }, { display_name: displayName, updated_at: now() }));
   announceProfileChange(ctx, userId);
+}
+
+/**
+ * A bot account's picture (community parity batch D: an official bot's picture in one community), a JPEG, or null for
+ * the standard one. Served like anyone's at GET /v1/users/:id/photo. Returns the new photo revision.
+ */
+export async function setBotPhoto(ctx: AppContext, userId: string, jpeg: Buffer | null): Promise<number | null> {
+  const previous = ctx.identity.get<{ photo_rev: number | null }>("users", { id: userId, kind: BOT_KIND })?.photo_rev ?? null;
+  const rev = jpeg ? Math.max(now(), (previous ?? 0) + 1) : null;
+  if (jpeg && rev) await storePhoto(ctx, photoBlobId(userId, rev), jpeg);
+  await ctx.identity.write((w) => w.update("users", { id: userId, kind: BOT_KIND }, { photo_rev: rev, updated_at: now() }));
+  if (previous) ctx.files.queueBlobDelete("profile-photos", photoBlobId(userId, previous));
+  announceProfileChange(ctx, userId);
+  return rev;
 }

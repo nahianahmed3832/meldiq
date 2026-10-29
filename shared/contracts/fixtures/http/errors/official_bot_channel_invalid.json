@@ -1,0 +1,10 @@
+{
+  "error": {
+    "code": "official_bot_channel_invalid",
+    "message": "Pick a text channel of this community that you can see.",
+    "details": {
+      "field": "channelId",
+      "channelId": "c_I0HhzNcY7peA9nLQk-ouKg"
+    }
+  }
+}
