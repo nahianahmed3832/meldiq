@@ -270,9 +270,15 @@ class FakeAccountApi : AccountApi {
     }
 }
 
-/** The server's key backup (docs/KEY_BACKUP.md) for [FakeAccountApi]'s signed-in account; the emailed code is [UNLOCK_CODE]. */
+/**
+ * The server's key backup (docs/KEY_BACKUP.md) for [FakeAccountApi]'s signed-in account; the emailed code is
+ * [UNLOCK_CODE]. With [delivery] set the account is console-made (API 0.63.0): [FIXED_CODE] works, or no code is needed.
+ */
 class FakeKeyBackupApi(private val accounts: FakeAccountApi) : KeyBackupApi {
     private var pending: String? = null
+    var delivery = UnlockDelivery.Email
+    /** Codes sent to the inbox, as the server's mailer would. */
+    var emailed = 0
 
     private fun usable(a: FakeAccountApi.Account): KeyBackupDto? =
         a.keyBackup?.takeIf { a.keyBackupPassword == a.password && it.identityKey == a.identityKey }
@@ -294,17 +300,20 @@ class FakeKeyBackupApi(private val accounts: FakeAccountApi) : KeyBackupApi {
 
     override suspend fun startUnlock(): KeyUnlockStarted {
         usable(accounts.signedInAccount()) ?: throw ApiException(404, "no_key_backup", "None")
-        pending = UNLOCK_CODE
-        return KeyUnlockStarted("a***e@example.com", 0)
+        pending = UNLOCK_CODE.takeIf { delivery == UnlockDelivery.Email } ?: FIXED_CODE.takeIf { delivery == UnlockDelivery.FixedCode } ?: ""
+        if (delivery == UnlockDelivery.Email) emailed++
+        return KeyUnlockStarted("a***e@example.com", 0, delivery)
     }
 
-    override suspend fun unlock(code: String): KeyBackupDto {
-        if (code != pending) throw ApiException(400, "invalid_code", "No")
+    override suspend fun unlock(code: String?): KeyBackupDto {
+        val wanted = pending ?: throw ApiException(400, "invalid_code", "No")
+        if (delivery != UnlockDelivery.None && code != wanted) throw ApiException(400, "invalid_code", "No")
         pending = null
         return usable(accounts.signedInAccount()) ?: throw ApiException(404, "no_key_backup", "None")
     }
 
     companion object {
         const val UNLOCK_CODE = "654321"
+        const val FIXED_CODE = "246810"
     }
 }

@@ -7,6 +7,7 @@ import com.meldiq.android.data.account.AccountRepository
 import com.meldiq.android.data.account.AccountRules
 import com.meldiq.android.data.account.LegacyMigration
 import com.meldiq.android.data.account.LegacyTicket
+import com.meldiq.android.data.account.UnlockDelivery
 import com.meldiq.android.data.api.ApiException
 import com.meldiq.android.ui.screens.onboarding.AuthError
 import com.meldiq.android.ui.screens.onboarding.AuthErrors
@@ -78,8 +79,9 @@ data class AccountFormState(
     val keyBackup: Boolean? = null,
     /** Device setup: the server is being asked about the key backup (null [keyBackup] after it: couldn't say). */
     val keyBackupChecking: Boolean = false,
-    /** Where the unlock code went (masked), and whether the unlock step needs the password typed again. */
+    /** Where the unlock code went (masked), how it reaches the person, and whether the step needs the password again. */
     val unlockSentTo: String? = null,
+    val unlockDelivery: UnlockDelivery = UnlockDelivery.Email,
     val unlockNeedsPassword: Boolean = false,
     /** Two-step sign-in: the code typed on the [AccountStep.TwoStep] step. */
     val twoStepCode: String = "",
@@ -95,7 +97,8 @@ data class AccountFormState(
     val canReset get() = !submitting && AccountRules.isResetCode(code) && newPassword.isNotEmpty() && newPasswordIssue == null
     val canRestore get() = !submitting && recoveryKey.length >= MIN_RECOVERY_KEY
     val canStartFresh get() = !submitting && password.isNotEmpty()
-    val canUnlock get() = !submitting && AccountRules.isVerifyCode(code) && (!unlockNeedsPassword || password.isNotEmpty())
+    val unlockNeedsCode get() = unlockDelivery != UnlockDelivery.None
+    val canUnlock get() = !submitting && (!unlockNeedsCode || AccountRules.isVerifyCode(code)) && (!unlockNeedsPassword || password.isNotEmpty())
     val canLegacyVerify get() = !submitting && legacyUsername.length >= MIN_USERNAME && recoveryKey.length >= MIN_RECOVERY_KEY
     val canLegacyComplete get() = canSignUp
     val newEmailValid: Boolean get() = AccountRules.isEmail(newEmail) && AccountRules.normalizeEmail(newEmail) != AccountRules.normalizeEmail(email)
@@ -147,7 +150,7 @@ class AccountFlowViewModel(
             }
             is AccountPhase.SignedOut -> {
                 unlockCodeRequested = false
-                _form.update { it.copy(step = AccountStep.LogIn, email = phase.email, signedOutReason = phase.reason, keyBackup = null, unlockSentTo = null) }
+                _form.update { it.copy(step = AccountStep.LogIn, email = phase.email, signedOutReason = phase.reason, keyBackup = null, unlockSentTo = null, unlockDelivery = UnlockDelivery.Email) }
             }
             AccountPhase.None, is AccountPhase.Ready -> Unit
         }
@@ -340,24 +343,30 @@ class AccountFlowViewModel(
         }
     }
 
-    /** Emails a code for unlocking the key backup on this phone (also "send a new one"). */
+    /**
+     * Emails a code for unlocking the key backup on this phone (also "send a new one"). An account made in the admin
+     * console (API 0.63.0) may need its tester code instead, with nothing emailed, or no code: then the password the app
+     * still has unlocks at once.
+     */
     fun startEmailUnlock() = run {
         val sent = accounts.devices.startEmailUnlock()
         val again = _form.value.step == AccountStep.EmailUnlock
+        val needsPassword = !accounts.devices.hasPassword
         _form.update {
             it.copy(
-                step = AccountStep.EmailUnlock, unlockSentTo = sent.email, unlockNeedsPassword = !accounts.devices.hasPassword,
-                code = if (again) it.code else "", notice = if (again) AccountNotice.CodeResent else null,
+                step = AccountStep.EmailUnlock, unlockSentTo = sent.email, unlockDelivery = sent.delivery, unlockNeedsPassword = needsPassword,
+                code = if (again) it.code else "", notice = if (again && sent.delivery == UnlockDelivery.Email) AccountNotice.CodeResent else null,
             )
         }
+        if (sent.delivery == UnlockDelivery.None && !needsPassword) accounts.devices.withEmailCode(null, null)
     }
 
-    /** The emailed code and the password open the key backup; this phone is then set up with the keys. */
+    /** The code (when one is needed) and the password open the key backup; this phone is then set up with the keys. */
     fun unlockWithEmail() {
         val s = _form.value
         if (!s.canUnlock) return
         run {
-            accounts.devices.withEmailCode(s.code, s.password.takeIf { s.unlockNeedsPassword })
+            accounts.devices.withEmailCode(s.code.takeIf { s.unlockNeedsCode }, s.password.takeIf { s.unlockNeedsPassword })
             _form.update { it.copy(code = "", password = "") }
         }
     }

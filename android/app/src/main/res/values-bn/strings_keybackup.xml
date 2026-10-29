@@ -10,6 +10,10 @@
     <string name="kb_unlock_title">আপনার ইমেইল দেখুন</string>
     <string name="kb_unlock_subtitle">আমরা %1$s-এ একটি কোড পাঠিয়েছি। এই ফোনে বার্তা আনলক করতে কোডটি দিন।</string>
     <string name="kb_unlock_submit">আনলক করুন</string>
+    <string name="kb_unlock_fixed_title">টেস্টার কোড দিন</string>
+    <string name="kb_unlock_fixed_subtitle">এই ফোনে বার্তা আনলক করতে আপনাকে দেওয়া ৬ সংখ্যার টেস্টার কোডটি দিন। এই অ্যাকাউন্টে কোনো ইমেইল পাঠানো হয় না।</string>
+    <string name="kb_unlock_none_title">আপনার বার্তা আনলক করুন</string>
+    <string name="kb_unlock_none_subtitle">এই অ্যাকাউন্টে কোনো কোড লাগে না: আপনার পাসওয়ার্ডই এই ফোনে বার্তা আনলক করে।</string>
     <string name="kb_unlock_password_help">আপনার পাসওয়ার্ড এই ফোনে ব্যাকআপটি খোলে।</string>
     <string name="kb_settings_title">কী ব্যাকআপ</string>
     <string name="kb_settings_on">চালু: নতুন ফোনে আপনার পাসওয়ার্ড ও ইমেইলে পাঠানো কোড লাগবে</string>

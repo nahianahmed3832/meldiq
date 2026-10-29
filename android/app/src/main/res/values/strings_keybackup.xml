@@ -10,6 +10,10 @@
     <string name="kb_unlock_title">Check your email</string>
     <string name="kb_unlock_subtitle">We sent a code to %1$s. Enter it to unlock your messages on this phone.</string>
     <string name="kb_unlock_submit">Unlock</string>
+    <string name="kb_unlock_fixed_title">Enter your tester code</string>
+    <string name="kb_unlock_fixed_subtitle">Enter the 6-digit tester code you were given to unlock your messages on this phone. No email is sent for this account.</string>
+    <string name="kb_unlock_none_title">Unlock your messages</string>
+    <string name="kb_unlock_none_subtitle">This account needs no code: your password unlocks your messages on this phone.</string>
     <string name="kb_unlock_password_help">Your password opens the backup on this phone.</string>
     <string name="kb_settings_title">Key backup</string>
     <string name="kb_settings_on">On: a new phone needs your password and a code sent to your email</string>

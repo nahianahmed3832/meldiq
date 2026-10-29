@@ -10,6 +10,10 @@
     <string name="kb_unlock_title">查看你的邮箱</string>
     <string name="kb_unlock_subtitle">我们已向 %1$s 发送验证码。输入它即可在这台手机上解锁消息。</string>
     <string name="kb_unlock_submit">解锁</string>
+    <string name="kb_unlock_fixed_title">输入测试验证码</string>
+    <string name="kb_unlock_fixed_subtitle">输入你收到的 6 位测试验证码，即可在这台手机上解锁消息。此账户不会发送邮件。</string>
+    <string name="kb_unlock_none_title">解锁你的消息</string>
+    <string name="kb_unlock_none_subtitle">此账户无需验证码：你的密码即可在这台手机上解锁消息。</string>
     <string name="kb_unlock_password_help">你的密码会在这台手机上打开备份。</string>
     <string name="kb_settings_title">密钥备份</string>
     <string name="kb_settings_on">已开启：新手机需要你的密码和发到邮箱的验证码</string>

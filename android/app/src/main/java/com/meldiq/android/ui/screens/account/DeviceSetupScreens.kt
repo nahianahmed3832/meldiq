@@ -34,6 +34,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import com.meldiq.android.R
 import com.meldiq.android.data.account.AccountRules
 import com.meldiq.android.data.account.AccountRepository
+import com.meldiq.android.data.account.UnlockDelivery
 import com.meldiq.android.data.api.UsernameAvailableRes
 import com.meldiq.android.data.repo.PendingPairing
 import com.meldiq.android.data.repo.SessionRepository
@@ -119,22 +120,28 @@ private fun CheckingBackup() {
 
 /**
  * The code emailed for unlocking the key backup (sent without asking), and the password again if the app forgot it since
- * sign-in. "Having trouble?" offers another phone, the recovery key or starting fresh; Back signs out.
+ * sign-in. "Having trouble?" offers another phone, the recovery key or starting fresh; Back signs out. An account made in
+ * the admin console (API 0.63.0) asks for its tester code instead, or for no code at all.
  */
 @Composable
 internal fun EmailUnlockScreen(vm: AccountFlowViewModel, state: AccountFormState, onBack: () -> Unit) {
     val focus = LocalFocusManager.current
     var help by rememberSaveable { mutableStateOf(false) }
+    val (title, subtitle) = when (state.unlockDelivery) {
+        UnlockDelivery.Email -> stringResource(R.string.kb_unlock_title) to stringResource(R.string.kb_unlock_subtitle, state.unlockSentTo.orEmpty())
+        UnlockDelivery.FixedCode -> stringResource(R.string.kb_unlock_fixed_title) to stringResource(R.string.kb_unlock_fixed_subtitle)
+        UnlockDelivery.None -> stringResource(R.string.kb_unlock_none_title) to stringResource(R.string.kb_unlock_none_subtitle)
+    }
     AuthScaffold(
-        title = stringResource(R.string.kb_unlock_title), subtitle = stringResource(R.string.kb_unlock_subtitle, state.unlockSentTo.orEmpty()),
+        title = title, subtitle = subtitle,
         onBack = onBack, backEnabled = !state.submitting,
         bottomBar = {
             StepButton(stringResource(R.string.kb_unlock_submit), stringResource(R.string.acct_working), state, state.canUnlock) { focus.clearFocus(); vm.unlockWithEmail() }
-            AuthSwitchLink(stringResource(R.string.acct_no_code), stringResource(R.string.acct_resend), vm::startEmailUnlock)
+            if (state.unlockDelivery == UnlockDelivery.Email) AuthSwitchLink(stringResource(R.string.acct_no_code), stringResource(R.string.acct_resend), vm::startEmailUnlock)
             AuthHelpLink(stringResource(R.string.kb_unlock_trouble), { help = true })
         },
     ) {
-        GriipTextField(
+        if (state.unlockNeedsCode) GriipTextField(
             state.code, { v -> vm.edit { it.copy(code = AccountRules.cleanVerifyCode(v)) } }, stringResource(R.string.acct_code),
             placeholder = "123456", leadingIcon = Icons.Rounded.Pin, shape = Shapes.field, enabled = !state.submitting,
             textStyle = Griip.type.title.copy(fontFamily = FontFamily.Monospace),
@@ -142,7 +149,7 @@ internal fun EmailUnlockScreen(vm: AccountFlowViewModel, state: AccountFormState
             keyboardActions = KeyboardActions(onDone = { if (state.canUnlock) vm.unlockWithEmail() }),
         )
         if (state.unlockNeedsPassword) {
-            Spacer(Modifier.height(Space.lg))
+            if (state.unlockNeedsCode) Spacer(Modifier.height(Space.lg))
             PasswordField(
                 state.password, { v -> vm.edit { it.copy(password = v) } }, stringResource(R.string.acct_password), !state.submitting,
                 helper = stringResource(R.string.kb_unlock_password_help), onDone = { if (state.canUnlock) vm.unlockWithEmail() },

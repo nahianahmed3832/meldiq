@@ -50,17 +50,18 @@ class DeviceSetup internal constructor(
         }
     }
 
-    /** Emails a code for unlocking the backup on this phone. */
+    /** Emails a code for unlocking the backup on this phone; says how the code reaches the person. */
     suspend fun startEmailUnlock(): KeyUnlockStarted = requireBackups().startUnlock()
 
     /**
-     * The emailed code gets the sealed keys back; the password ([password], or the one typed to sign in) opens them, and
-     * this phone is added with them like with a recovery key.
+     * The emailed code (a tester's fixed code; null when the unlock step said it needs none) gets the sealed keys back; the
+     * password ([password], or the one typed to sign in) opens them, and this phone is added with them like with a
+     * recovery key.
      */
-    suspend fun withEmailCode(code: String, password: String?) {
+    suspend fun withEmailCode(code: String?, password: String?) {
         val pw = password?.takeIf { it.isNotEmpty() } ?: signInPassword ?: throw ApiException(400, "password_required", "Enter your password.")
         val accountId = requireRecord().account?.id ?: throw ApiException(401, "session_expired", "Your session has ended. Sign in again.")
-        val backup = requireBackups().unlock(AccountRules.cleanVerifyCode(code))
+        val backup = requireBackups().unlock(code?.let { AccountRules.cleanVerifyCode(it) })
         val seed = withContext(Dispatchers.Default) {
             try {
                 KeyBackupCrypto.open(pw, accountId, backup)

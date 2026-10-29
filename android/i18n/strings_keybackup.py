@@ -10,6 +10,11 @@ S = {
 "kb_unlock_title": ("Check your email", "查看你的邮箱", "আপনার ইমেইল দেখুন"),
 "kb_unlock_subtitle": ("We sent a code to %1$s. Enter it to unlock your messages on this phone.", "我们已向 %1$s 发送验证码。输入它即可在这台手机上解锁消息。", "আমরা %1$s-এ একটি কোড পাঠিয়েছি। এই ফোনে বার্তা আনলক করতে কোডটি দিন।"),
 "kb_unlock_submit": ("Unlock", "解锁", "আনলক করুন"),
+# Accounts made in the admin console (API 0.63.0, server docs/ADMIN_ACCOUNTS.md): a tester's fixed code, or no code.
+"kb_unlock_fixed_title": ("Enter your tester code", "输入测试验证码", "টেস্টার কোড দিন"),
+"kb_unlock_fixed_subtitle": ("Enter the 6-digit tester code you were given to unlock your messages on this phone. No email is sent for this account.", "输入你收到的 6 位测试验证码，即可在这台手机上解锁消息。此账户不会发送邮件。", "এই ফোনে বার্তা আনলক করতে আপনাকে দেওয়া ৬ সংখ্যার টেস্টার কোডটি দিন। এই অ্যাকাউন্টে কোনো ইমেইল পাঠানো হয় না।"),
+"kb_unlock_none_title": ("Unlock your messages", "解锁你的消息", "আপনার বার্তা আনলক করুন"),
+"kb_unlock_none_subtitle": ("This account needs no code: your password unlocks your messages on this phone.", "此账户无需验证码：你的密码即可在这台手机上解锁消息。", "এই অ্যাকাউন্টে কোনো কোড লাগে না: আপনার পাসওয়ার্ডই এই ফোনে বার্তা আনলক করে।"),
 "kb_unlock_password_help": ("Your password opens the backup on this phone.", "你的密码会在这台手机上打开备份。", "আপনার পাসওয়ার্ড এই ফোনে ব্যাকআপটি খোলে।"),
 "kb_settings_title": ("Key backup", "密钥备份", "কী ব্যাকআপ"),
 "kb_settings_on": ("On: a new phone needs your password and a code sent to your email", "已开启：新手机需要你的密码和发到邮箱的验证码", "চালু: নতুন ফোনে আপনার পাসওয়ার্ড ও ইমেইলে পাঠানো কোড লাগবে"),

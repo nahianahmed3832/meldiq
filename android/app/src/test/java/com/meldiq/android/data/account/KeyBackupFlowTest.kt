@@ -6,7 +6,9 @@ import com.meldiq.android.crypto.b64
 import com.meldiq.android.crypto.unb64
 import com.meldiq.android.data.account.FakeAccountApi.Companion.PASSWORD
 import com.meldiq.android.data.account.FakeAccountApi.Companion.URL
+import com.meldiq.android.data.account.FakeKeyBackupApi.Companion.FIXED_CODE
 import com.meldiq.android.data.account.FakeKeyBackupApi.Companion.UNLOCK_CODE
+import com.meldiq.android.data.api.GriipJson
 import com.meldiq.android.data.api.ApiException
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertArrayEquals
@@ -70,6 +72,46 @@ class KeyBackupFlowTest {
         assertTrue(p.phase.value is AccountPhase.Ready)
         assertEquals(firstVault.localKeys!!.identityPublic.b64(), vault.localKeys!!.identityPublic.b64())
         assertNull("no new recovery key: it's the same identity", p.newRecoveryKey.value)
+    }
+
+    @Test
+    fun `a console-made tester's new phone unlocks with the fixed code, and nothing is emailed`() = runBlocking {
+        val firstVault = MemoryVault()
+        firstPhone(firstVault)
+        backups.delivery = UnlockDelivery.FixedCode
+        val vault = MemoryVault()
+        val p = phone(vault)
+        p.login(URL, email, PASSWORD)
+        assertEquals(UnlockDelivery.FixedCode, p.devices.startEmailUnlock().delivery)
+        expectCode("invalid_code") { p.devices.withEmailCode("000000", null) }
+        p.devices.startEmailUnlock()
+        p.devices.withEmailCode("246 810", null)
+        assertTrue(p.phase.value is AccountPhase.Ready)
+        assertEquals(firstVault.localKeys!!.identityPublic.b64(), vault.localKeys!!.identityPublic.b64())
+        assertEquals(0, backups.emailed)
+    }
+
+    @Test
+    fun `a console-made account with no code unlocks with the password alone`() = runBlocking {
+        firstPhone()
+        backups.delivery = UnlockDelivery.None
+        val p = phone()
+        p.login(URL, email, PASSWORD)
+        assertEquals(UnlockDelivery.None, p.devices.startEmailUnlock().delivery)
+        p.devices.withEmailCode(null, null)
+        assertTrue(p.phase.value is AccountPhase.Ready)
+        assertEquals(0, backups.emailed)
+    }
+
+    @Test
+    fun `the unlock start and request read and write the server's JSON`() {
+        val older = GriipJson.decodeFromString(KeyUnlockStarted.serializer(), """{"email":"a***e@example.com","expiresAt":1}""")
+        assertEquals("an older server says nothing: emailed", UnlockDelivery.Email, older.delivery)
+        assertEquals(UnlockDelivery.None, GriipJson.decodeFromString(KeyUnlockStarted.serializer(), """{"email":"x","expiresAt":1,"delivery":"none"}""").delivery)
+        assertEquals(UnlockDelivery.FixedCode, GriipJson.decodeFromString(KeyUnlockStarted.serializer(), """{"email":"x","expiresAt":1,"delivery":"fixed_code"}""").delivery)
+        assertEquals("an unknown way reads as emailed", UnlockDelivery.Email, GriipJson.decodeFromString(KeyUnlockStarted.serializer(), """{"email":"x","expiresAt":1,"delivery":"carrier_pigeon"}""").delivery)
+        assertEquals("{}", GriipJson.encodeToString(KeyUnlockReq.serializer(), KeyUnlockReq(null)))
+        assertEquals("""{"code":"246810"}""", GriipJson.encodeToString(KeyUnlockReq.serializer(), KeyUnlockReq(FIXED_CODE)))
     }
 
     @Test

@@ -7,11 +7,15 @@ import com.meldiq.android.data.account.FakeAccountApi.Companion.CODE
 import com.meldiq.android.data.account.FakeAccountApi.Companion.PASSWORD
 import com.meldiq.android.data.account.FakeAccountApi.Companion.RESET_CODE
 import com.meldiq.android.data.account.FakeAccountApi.Companion.URL
+import com.meldiq.android.data.account.FakeKeyBackupApi
+import com.meldiq.android.data.account.FakeKeyBackupApi.Companion.FIXED_CODE
 import com.meldiq.android.data.account.FakeMessagingSession
 import com.meldiq.android.data.account.LegacyMigration
 import com.meldiq.android.data.account.MemoryVault
+import com.meldiq.android.data.account.UnlockDelivery
 import com.meldiq.android.ui.screens.onboarding.AuthError
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -178,5 +182,43 @@ class AccountFlowViewModelTest {
         assertEquals(AccountStep.LogIn, vm.form.value.step)
         assertEquals("ended@example.com", vm.form.value.email)
         assertEquals("You were signed out on this device.", vm.form.value.signedOutReason)
+    }
+
+    /**
+     * A second phone of an account made in the admin console (API 0.63.0): signed in on a first phone that backed its keys
+     * up, then signed in here through the screens, which open the unlock step on their own.
+     */
+    private suspend fun secondPhoneOfConsoleAccount(delivery: UnlockDelivery): Pair<AccountFlowViewModel, AccountRepository> {
+        val backups = FakeKeyBackupApi(api)
+        api.verifiedAccount("tester@example.com")
+        AccountRepository(api, MemoryVault(), FakeMessagingSession(), deviceName = { "First" }, keyBackups = backups).login(URL, "tester@example.com", PASSWORD)
+        backups.delivery = delivery
+        val phone = AccountRepository(api, MemoryVault(), FakeMessagingSession(), deviceName = { "Phone" }, keyBackups = backups)
+        val flow = AccountFlowViewModel(phone, LegacyMigration(api, MemoryVault(), FakeMessagingSession(), phone), { URL })
+        flow.goTo(AccountStep.LogIn)
+        flow.edit { it.copy(email = "tester@example.com", password = PASSWORD) }
+        flow.logIn()
+        // Signing in makes keys off the main thread: wait for the sign-in, not just for the call.
+        flow.form.first { !it.submitting && it.step != AccountStep.LogIn }
+        return flow to phone
+    }
+
+    @Test
+    fun `a tester's second phone asks for the fixed code and unlocks with it`() = runTest(dispatcher) {
+        val (flow, phone) = secondPhoneOfConsoleAccount(UnlockDelivery.FixedCode)
+        flow.form.first { it.step == AccountStep.EmailUnlock && !it.submitting }
+        assertEquals(UnlockDelivery.FixedCode, flow.form.value.unlockDelivery)
+        assertFalse("the code is still needed", flow.form.value.canUnlock)
+        flow.edit { it.copy(code = FIXED_CODE) }
+        flow.unlockWithEmail()
+        phone.phase.first { it is AccountPhase.Ready }
+        assertEquals(null, flow.form.value.error)
+    }
+
+    @Test
+    fun `a no-code account's second phone unlocks on its own after sign-in`() = runTest(dispatcher) {
+        val (flow, phone) = secondPhoneOfConsoleAccount(UnlockDelivery.None)
+        phone.phase.first { it is AccountPhase.Ready }
+        assertEquals(null, flow.form.value.error)
     }
 }
