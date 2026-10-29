@@ -130,6 +130,12 @@ export interface Config {
    * back; what communities set is kept for when it's back on.
    */
   communitySettings: boolean;
+  /**
+   * Community parity A2 (docs/COMMUNITY_SAFETY_API.md): locking a community, raid protection, verification levels, the
+   * account-age gate, voice bans and server mutes (feature "community-safety"). On unless COMMUNITY_SAFETY=off, which
+   * hides the feature, answers its routes with 503 and stops enforcing it; what communities set is kept.
+   */
+  communitySafety: boolean;
   history: { enabled: boolean; maxItemsPerUser: number; maxBytesPerUser: number; maxItemBytes: number; tombstoneDays: number; maxTotalBytes: number };
   /**
    * Direct uploads from the app to S3 (2026-10-17). How long an upload URL may be started with, how long an upload may
@@ -558,6 +564,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     communityRules: (env.COMMUNITY_RULES ?? "on").trim().toLowerCase() !== "off",
     communityPermissions: (env.COMMUNITY_PERMISSIONS ?? "on").trim().toLowerCase() !== "off",
     communitySettings: (env.COMMUNITY_SETTINGS ?? "on").trim().toLowerCase() !== "off",
+    communitySafety: (env.COMMUNITY_SAFETY ?? "on").trim().toLowerCase() !== "off",
     history: {
       enabled: env.HISTORY_ENABLED !== "false",
       maxItemsPerUser: Math.max(int("HISTORY_MAX_ITEMS_PER_USER", 500_000), 0),

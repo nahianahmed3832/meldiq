@@ -154,6 +154,12 @@ export const ERROR_CODES = {
   invite_unavailable: { status: [404], meaning: "Whoever created the invite can no longer invite people there." },
   invite_used_up: { status: [404], meaning: "The invite has been used as many times as it allows." },
   invites_paused: { status: [403], meaning: "This community has paused new members for now. Try again later." },
+  // Community parity A2 (feature "community-safety", docs/COMMUNITY_SAFETY_API.md).
+  account_too_new: { status: [403], meaning: "This community doesn't take accounts this new yet. Try again later." },
+  community_locked: { status: [403], meaning: "This community is locked for now: nobody new can join. Try again later." },
+  community_locked_posting: { status: [403], meaning: "This community is locked for now: only moderators can post. You can still read and react." },
+  verification_required: { status: [403], meaning: "This community asks for a verified email, or a few minutes' wait, before posting or reacting." },
+  voice_banned: { status: [403], meaning: "You've been kept out of this community's voice channels." },
   loadtest_disabled: { status: [403], meaning: "Load-test provisioning isn't enabled on this server." },
   loadtest_network: { status: [403], meaning: "Load-test provisioning isn't allowed from this network." },
   loadtest_quota: { status: [429], meaning: "The load-test provisioning quota is used up for now; details.retryAfter says when one more account fits." },

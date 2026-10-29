@@ -16,6 +16,7 @@ import type { ReportSealer } from "../modules/organizations/reports/seal.js";
 import type { CommunityRules } from "../modules/organizations/rules/service.js";
 import type { CommunityPermissions } from "../modules/organizations/communityPermissions/service.js";
 import type { CommunitySettings } from "../modules/organizations/settings/service.js";
+import type { CommunitySafety } from "../modules/organizations/safety/service.js";
 import type { RelationshipStore } from "../modules/accounts/relationships/store.js";
 import type { CallStore } from "../modules/calls/store.js";
 import type { Rows } from "../infrastructure/database/rows/index.js";
@@ -99,6 +100,8 @@ export interface AppContext {
   communityPermissions: CommunityPermissions;
   /** Community parity A3: invite links, links, background tint and the onboarding gate (feature community-settings). */
   communitySettings: CommunitySettings;
+  /** Community parity A2: locks, raid protection, verification levels, the account-age gate, voice bans and mutes (feature community-safety). */
+  communitySafety: CommunitySafety;
   /** Calls, their participants and raised hands: SQLite, or MongoDB when MONGODB_DOMAINS includes "calls". */
   calls: CallStore;
   /**

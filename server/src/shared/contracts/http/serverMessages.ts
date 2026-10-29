@@ -130,6 +130,8 @@ export const serverMessagesRoutes = [
       "rules_channel",
       "onboarding_not_finished",
       "rules_not_agreed",
+      "community_locked_posting",
+      "verification_required",
       "voice_channel",
       "bad_clock",
       "conflict",

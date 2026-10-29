@@ -51,6 +51,9 @@ import { MemoryRulesStore } from "../modules/organizations/rules/store.js";
 import { MongoRulesStore } from "../modules/organizations/rules/mongoStore.js";
 import communitySettingsRoutes from "../modules/organizations/settings/routes.js";
 import { CommunitySettings } from "../modules/organizations/settings/service.js";
+import { CommunitySafety } from "../modules/organizations/safety/service.js";
+import communitySafetyRoutes from "../modules/organizations/safety/routes.js";
+import voiceModerationRoutes from "../modules/organizations/safety/voiceRoutes.js";
 import expressionRoutes from "../modules/organizations/expressionsRoutes.js";
 import { MongoPreferenceStore } from "../modules/accounts/preferences/mongoStore.js";
 import { type PushDeps, PushService } from "../modules/notifications/service.js";
@@ -316,6 +319,11 @@ export async function buildApp(
   ctx.communitySettings = new CommunitySettings(ctx, config.communitySettings);
   ctx.authz.mustFinishOnboarding = (orgId, userId) => ctx.communitySettings.mustFinish(orgId, userId);
   ctx.authz.inviteSlugsOn = () => ctx.communitySettings.enabled;
+  // Community parity A2 (docs/COMMUNITY_SAFETY_API.md): community_safety and the voice tables are workspace rows.
+  ctx.communitySafety = new CommunitySafety(ctx, config.communitySafety);
+  ctx.authz.voiceBanned = (orgId, userId) => ctx.communitySafety.voice.banned(orgId, userId);
+  ctx.authz.voiceMuted = (orgId, userId) => ctx.communitySafety.voice.muted(orgId, userId);
+  ctx.authz.autoSlowmodeSec = (conversationId) => ctx.communitySafety.autoSlowmodeSec(conversationId);
   ctx.reportSealer = ReportSealer.load(process.env, config.dataDir);
   // Billing (plans, subscriptions, Meldiq Spark, gifts): rows in SQLite, or MongoDB when MONGODB_DOMAINS includes it.
   ctx.billing = new Billing(await openBillingRows(db, ctx.mongo, app.log), config.billing, app.log, Date.now, (id) => ctx.quotas.planExists(id));
@@ -544,7 +552,7 @@ export async function buildApp(
     passkeys: ctx.accounts.passkeys.available ? { webOrigins: ctx.accounts.passkeys.webOrigins } : null,
   }));
 
-  for (const r of [authRoutes, userRoutes, profileMediaRoutes, gifRoutes, bugReportRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, serverMessagesRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, activityRoutes, decorationRoutes, pinRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, communityRulesRoutes, communityPermissionsRoutes, expressionRoutes, discordRoutes, leaveManyRoutes, pointsRoutes, creatorRoutes, linkedAccountRoutes, oauthRoutes, botRoutes, wsRoutes]) {
+  for (const r of [authRoutes, userRoutes, profileMediaRoutes, gifRoutes, bugReportRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, serverMessagesRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, activityRoutes, decorationRoutes, pinRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, communityRulesRoutes, communityPermissionsRoutes, communitySafetyRoutes, voiceModerationRoutes, expressionRoutes, discordRoutes, leaveManyRoutes, pointsRoutes, creatorRoutes, linkedAccountRoutes, oauthRoutes, botRoutes, wsRoutes]) {
     await app.register(async (scope) => r(scope, ctx));
   }
   // Community parity A3: the community settings routes.
@@ -716,6 +724,9 @@ export function serverFeatures(config: Config, directUploads = false): string[] 
   // Community parity A3 (docs/COMMUNITY_SETTINGS_API.md): never-expiring and custom invite links, community links, the
   // background tint and onboarding's "must finish" (COMMUNITY_SETTINGS=off switches it off).
   if (config.communitySettings) f.push("community-settings");
+  // Community parity A2 (docs/COMMUNITY_SAFETY_API.md): locking, raid protection, verification levels, the account-age
+  // gate, voice bans and server mutes (COMMUNITY_SAFETY=off switches it off).
+  if (config.communitySafety) f.push("community-safety");
   if (config.accounts.legacy.migration) f.push("legacy-migration");
   if (directUploads) f.push("direct-upload");
   if (config.history.enabled) f.push("history");

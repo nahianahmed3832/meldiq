@@ -59,6 +59,8 @@ export const PERMISSION_KEYS = [
   // Voice channels
   "voice.connect",
   "voice.speak",
+  "voice.mute_members",
+  "voice.move_members",
   // Security and administration
   "audit.view",
   "reports.view",
@@ -131,6 +133,9 @@ const DEFS: Record<Permission, Def> = {
   "expressions.manage": { category: "messaging", label: "Manage emoji and stickers", description: "Upload, rename and remove the community's own emoji and stickers." },
   "voice.connect": { category: "voice", label: "Join voice channels", description: "Join the calls in voice channels.", restrictable: true, guestAllowed: true },
   "voice.speak": { category: "voice", label: "Speak in voice channels", description: "Talk, share video and share the screen in voice channels. Without it, people listen only.", restrictable: true, guestAllowed: true },
+  // Community parity A2: a server mute lasts until a moderator lifts it; disconnecting takes someone out of the call.
+  "voice.mute_members": { category: "voice", label: "Mute people in voice", description: "Mute someone in voice channels until you unmute them: they can listen but not talk or share.", admin: true },
+  "voice.move_members": { category: "voice", label: "Disconnect people from voice", description: "Take someone out of a voice channel's call.", admin: true },
   "audit.view": { category: "security", label: "View the audit log", description: "See every administrative change in the community.", admin: true },
   "reports.view": { category: "security", label: "Handle reports", description: "See what members reported to the moderators, and close reports.", admin: true },
 };
@@ -237,6 +242,8 @@ export const ROLE_TEMPLATES: readonly RoleTemplate[] = [
       "members.approve",
       "members.nicknames",
       "reports.view",
+      "voice.mute_members",
+      "voice.move_members",
     ],
     denies: [],
   },

@@ -91,6 +91,25 @@ const communitySettingsFields = {
   /** Whether the viewer must finish onboarding before posting now. */
   mustFinishOnboarding: z.boolean().optional(),
 };
+/** Community parity A2 (feature "community-safety"): who may post and react in channels (docs/COMMUNITY_SAFETY_API.md). */
+export const VERIFICATION_LEVELS = ["none", "low", "medium", "high"] as const;
+/** Accounts younger than this can't join; "off" lets any account in. */
+export const ACCOUNT_AGE_GATES = ["off", "10m", "1h", "1d", "7d"] as const;
+export const VerificationLevel = z.enum(VERIFICATION_LEVELS);
+export const AccountAgeGate = z.enum(ACCOUNT_AGE_GATES);
+/** Why a community is locked: a moderator did it, or raid protection did after a join flood. */
+export const LockReason = z.enum(["manual", "raid"]);
+
+/** A community's safety settings (community parity A2), as people who can edit it see them. */
+export const SafetySettings = z.strictObject({
+  verificationLevel: VerificationLevel,
+  newAccountGate: AccountAgeGate,
+  /** Lock on a join flood, and slow a channel down on a message flood. On by default. */
+  raidProtection: z.boolean(),
+  /** While in the future, nobody new joins and only moderators post; null when not locked. */
+  lockedUntil: zTime.nullable(),
+  lockReason: LockReason.nullable(),
+});
 
 /** A community as one of its members sees it (orgSummary). */
 export const CommunityView = z.strictObject({
@@ -131,6 +150,10 @@ export const CommunityView = z.strictObject({
   /** API 0.65.0: the rules channel and whether the viewer has to agree to the rules (absent without either). */
   rulesChannel: RulesSummary.optional(),
   ...communitySettingsFields,
+  /** Community parity A2: until when the community is locked (nobody new joins, only moderators post), null when not. */
+  lockedUntil: zTime.nullable().optional(),
+  /** Community parity A2: the safety settings, for people who can edit the community or ban members. */
+  safety: SafetySettings.optional(),
 });
 export const CommunityOnly = z.strictObject({ org: CommunityView });
 
@@ -645,7 +668,7 @@ export const orgRoutes = [
     summary: "Join a community with an invitation code. A repeat after joining succeeds without using it again.",
     body: InviteCodeBody,
     response: z.strictObject({ org: CommunityView, alreadyMember: z.boolean() }),
-    errors: [...INVITE_PROBLEM_CODES, "banned", "invites_paused", "limit_reached"],
+    errors: [...INVITE_PROBLEM_CODES, "banned", "invites_paused", "community_locked", "account_too_new", "limit_reached"],
   }),
   community({
     method: "POST",

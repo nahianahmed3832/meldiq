@@ -1,0 +1,9 @@
+{
+  "error": {
+    "code": "community_locked",
+    "message": "This community is locked for now: nobody new can join. Try again later.",
+    "details": {
+      "until": 1793310066755
+    }
+  }
+}

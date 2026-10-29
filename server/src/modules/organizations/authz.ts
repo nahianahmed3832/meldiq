@@ -90,6 +90,10 @@ export class Authz {
   mustFinishOnboarding: (orgId: string, userId: string) => boolean = () => false;
   /** Community parity A3: whether custom invite links resolve (feature "community-settings"). Set by CommunitySettings. */
   inviteSlugsOn: () => boolean = () => false;
+  /** Community parity A2 (feature "community-safety"): voice bans, server mutes and raid protection's slowmode. Set by CommunitySafety. */
+  voiceBanned: (orgId: string, userId: string) => boolean = () => false;
+  voiceMuted: (orgId: string, userId: string) => boolean = () => false;
+  autoSlowmodeSec: (conversationId: string) => number = () => 0;
 
   /** Set only while [reconcileCommunity] runs: overwrites and channel actors read once per target and person. */
   private overwriteCache: Map<string, Overwrite[]> | null = null;
@@ -405,7 +409,8 @@ export class Authz {
 
   /** When [userId] may post their next message in [conv] under slowmode; null when they may post now or it's off. */
   nextPostAt(conv: ConversationRow, userId: string, at: number): number | null {
-    const sec = conv.slowmode_sec ?? 0;
+    // Raid protection may slow a channel down for a while beyond its own slowmode (community parity A2).
+    const sec = Math.max(conv.slowmode_sec ?? 0, this.autoSlowmodeSec(conv.id));
     if (sec <= 0 || this.slowmodeExempt(conv, userId)) return null;
     const row = this.rows.get<{ last_post_at: number | null }>("conversation_members", { conversation_id: conv.id, user_id: userId });
     const next = (row?.last_post_at ?? 0) + sec * 1000;
@@ -425,6 +430,7 @@ export class Authz {
   canConnectVoice(conv: ConversationRow, userId: string): boolean {
     if (!this.isMember(conv.id, userId)) return false;
     if (conv.type !== "CHANNEL" || !conv.org_id) return true;
+    if (this.voiceBanned(conv.org_id, userId)) return false;
     return this.channelPermissions(conv, userId).has("voice.connect");
   }
 
@@ -432,16 +438,16 @@ export class Authz {
   canSpeakInVoice(conv: ConversationRow, userId: string): boolean {
     if (!this.canConnectVoice(conv, userId)) return false;
     if (conv.type !== "CHANNEL" || !conv.org_id) return true;
+    // Community parity A2: a server mute holds until a moderator lifts it.
+    if (this.voiceMuted(conv.org_id, userId)) return false;
     if (!this.channelPermissions(conv, userId).has("voice.speak")) return false;
     // Community parity A1: on a stage, people listen until a moderator lets them speak.
     return !this.channelOptions(conv).stage || this.moderatesStage(conv, userId) || !!this.extras?.isStageSpeaker(conv.id, userId);
   }
 
-  /**
-   * Who runs a stage (community parity A1): its managers. (The voice moderation powers of the next batch join them.)
-   */
+  /** Who runs a stage (community parity A1, A2): its managers and holders of `voice.mute_members` there. */
   moderatesStage(conv: ConversationRow, userId: string): boolean {
-    return this.canManageConversation(conv, userId);
+    return this.canManageConversation(conv, userId) || this.channelPermissions(conv, userId).has("voice.mute_members");
   }
 
   /**

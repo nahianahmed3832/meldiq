@@ -7,8 +7,8 @@ import { rowsByIds } from "../../infrastructure/database/byIds.js";
 import { DuplicateSubmission, type QueueInsert } from "./relay/store.js";
 import type { MessageEvent } from "./store/messageStore.js";
 import { memberUsers } from "./memberUsers.js";
-import { admitClock, admitConversation, admitPost, recordPost } from "./sendRules.js";
 import { admitChannelContent, moderatesMessage } from "./contentRules.js";
+import { admitClock, admitCommunity, admitConversation, admitPost, recordPost } from "./sendRules.js";
 
 /** Changes only a message's own sender may make. */
 const AUTHOR_ONLY = new Set(["edit", "delete", "poll_close"]);
@@ -57,6 +57,7 @@ export async function sendServerMessage(ctx: AppContext, sender: Sender, m: Send
   const payload = JSON.stringify(m.payload);
   if (Buffer.byteLength(payload) > MAX_PAYLOAD_BYTES) throw new ApiError(413, "message_too_long", "That message is too large");
   const conv = admitConversation(ctx, userId, m.conversationId, m.cls, { type: m.payload.type, bot: deviceId === null });
+  await admitCommunity(ctx, conv, userId, m.cls, { type: m.payload.type, bot: deviceId === null });
   const type = m.payload.type;
   // Meldiq Mojo: the plan's characters per message and per edit, counted as people count them.
   const limits = ctx.mojo.limitsOf(userId);

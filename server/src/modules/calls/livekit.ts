@@ -86,12 +86,13 @@ export class LiveKitService {
   }
 
   /**
-   * Lets a connected participant publish or not (community parity A1: a stage's moderators letting someone speak, or
-   * sending them back to the audience). Their next token says the same.
+   * Lets [identity] publish, or stops it (community parity A2: a server mute). LiveKit unpublishes its tracks at once when
+   * publishing is taken away; the other grants stay as the token gave them. "absent" when they aren't in the room.
    */
   async setCanPublish(room: string, identity: string, canPublish: boolean): Promise<"updated" | "absent" | "error"> {
     try {
-      await withTimeout(this.rooms.updateParticipant(room, identity, undefined, { canPublish, canSubscribe: true, canPublishData: true }));
+      const permission = { canPublish, canSubscribe: true, canPublishData: true, canUpdateMetadata: false };
+      await withTimeout(this.rooms.updateParticipant(room, identity, { permission }));
       return "updated";
     } catch (e) {
       return isNotFound(e) ? "absent" : "error";

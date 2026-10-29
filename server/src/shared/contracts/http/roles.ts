@@ -55,6 +55,8 @@ export const PERMISSION_KEYS = [
   "expressions.manage",
   "voice.connect",
   "voice.speak",
+  "voice.mute_members",
+  "voice.move_members",
   "audit.view",
   "reports.view",
 ] as const;

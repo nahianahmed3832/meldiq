@@ -176,6 +176,8 @@ export function joinOrgByInvite(ctx: AppContext, w: RowWriter, inv: OrgInviteRow
   if (!existing) {
     // Batch B4: a community can pause joining for a while (Security actions).
     if (authz.pausedUntil(inv.org_id, "invites", t)) throw new ApiError(403, "invites_paused", "This community has paused new members for now. Try again later.");
+    // Community parity A2: a locked community, or an account younger than the community's gate.
+    ctx.communitySafety.admitJoinNow(inv.org_id, userId);
     // Round 7: the workspace's member limit, if one applies (docs/USAGE_AND_PLANS.md).
     ctx.entitlements.check("members", w.count("org_members", { org_id: inv.org_id }), inv.org_id);
     // A guest invitation can carry an end date for the membership (round 7, docs/WORKSPACE_C5.md).

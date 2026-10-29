@@ -408,6 +408,7 @@ export default async function communityRoutes(app: FastifyInstance, ctx: AppCont
     if (authz.isBanned(id, userId)) throw new ApiError(403, "banned", "You've been banned from this community");
     const t = now();
     if (authz.pausedUntil(id, "invites", t)) throw new ApiError(403, "invites_paused", "This community has paused new members for now. Try again later.");
+    await ctx.communitySafety.admitJoin(id, userId);
     await ws.write((w) => {
       ctx.entitlements.check("members", w.count("org_members", { org_id: id }), id);
       w.insert("org_members", { org_id: id, user_id: userId, role: "MEMBER", joined_at: t }, { orIgnore: true });
@@ -435,6 +436,8 @@ export default async function communityRoutes(app: FastifyInstance, ctx: AppCont
       .slice(0, 500);
     return {
       bans: rows.map((r) => ({ userId: r.user_id, displayName: r.display_name, username: r.username, reason: r.reason, bannedAt: r.banned_at, bannedBy: r.banned_by, bannedByName: r.by_name })),
+      // Community parity A2: voice bans, a list of their own.
+      ...(ctx.communitySafety.enabled ? { voiceBans: ctx.communitySafety.voice.bans(orgId) } : {}),
     };
   });
 

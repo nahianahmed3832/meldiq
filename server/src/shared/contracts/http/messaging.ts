@@ -79,6 +79,8 @@ export const messagingRoutes = [
       "not_found",
       "forbidden",
       "timed_out",
+      "community_locked_posting",
+      "verification_required",
       "voice_channel",
       "bad_clock",
       "conflict",

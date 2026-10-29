@@ -13,6 +13,7 @@ import { forgetSharing, isScreenShare, setSharing, sharingDevices } from "./scre
 import { SCREEN_PRESETS, screenAllows } from "../billing/index.js";
 import type { CallRow } from "./store.js";
 import { memberUsers } from "../messaging/index.js";
+import { requireVoiceConnect } from "./voiceModeration.js";
 
 export type { CallRow } from "./store.js";
 
@@ -294,7 +295,7 @@ export function callActions(ctx: AppContext) {
     if (!ctx.livekit) throw new ApiError(503, "media_unavailable", "Calling is not configured on this server");
     const conv = authz.conversation(c.conversation_id);
     const room = !!conv?.voice;
-    if (room && conv && !authz.canConnectVoice(conv, userId)) throw forbidden("You can't join this voice channel");
+    if (room && conv) requireVoiceConnect(ctx, conv, userId);
     const canSpeak = !room || !conv || authz.canSpeakInVoice(conv, userId);
     const u = ctx.identity.get<{ display_name: string }>("users", { id: userId })!;
     const token = await ctx.livekit.token({
@@ -440,7 +441,7 @@ export default async function callRoutes(app: FastifyInstance, ctx: AppContext) 
     if (conv.type === "CHANNEL" && !conv.voice) {
       throw new ApiError(409, "text_channel_no_calls", "Calls happen in voice rooms, not in text channels");
     }
-    if (conv.voice && !authz.canConnectVoice(conv, userId)) throw forbidden("You can't join this voice channel");
+    if (conv.voice) requireVoiceConnect(ctx, conv, userId);
     const id = newId("call");
     const room = `griip-${crypto.randomBytes(12).toString("hex")}`;
     const base = { id, conversation_id: conv.id, room_name: room, created_by: userId, video: body.video ? 1 : 0, ended_at: null, end_reason: null, alerted_at: null, host_server_id: null };
@@ -529,7 +530,10 @@ export default async function callRoutes(app: FastifyInstance, ctx: AppContext) 
     const c = await memberCall(id, userId);
     const conv = authz.conversation(c.conversation_id)!;
     if (!c.room) throw badRequest("Moderation is for voice rooms");
-    if (!authz.canManageConversation(conv, userId)) throw forbidden("Only this room's managers can do that");
+    // Community parity A2: holders of voice.mute_members mute and of voice.move_members remove, besides the managers.
+    const voiceKey = body.action === "mute" ? "voice.mute_members" : body.action === "remove" ? "voice.move_members" : null;
+    const allowed = authz.canManageConversation(conv, userId) || (!!voiceKey && authz.channelPermissions(conv, userId).has(voiceKey));
+    if (!allowed) throw forbidden("Only this room's managers can do that");
     if (c.state === "ENDED") throw new ApiError(410, "call_ended", "This call has ended");
     const devices = (await ctx.calls.present(c.id)).filter((p) => p.user_id === body.userId).map((p) => p.device_id);
     if (body.action === "lower_hand") await ctx.calls.lowerHand(c.id, body.userId);

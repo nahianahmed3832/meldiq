@@ -16,6 +16,7 @@ import { type Permission, permissionDef } from "./catalog.js";
 /**
  * What an overwrite can change. `channels.create` matters on categories: creating channels inside that category.
  * `voice.connect` and `voice.speak` matter on voice channels: joining their call, and talking in it (listen-only without).
+ * `voice.mute_members` and `voice.move_members` (community parity A2): muting and disconnecting people in that call.
  */
 export const CHANNEL_CAPABILITIES = [
   "channels.view",
@@ -39,6 +40,8 @@ export const CHANNEL_CAPABILITIES = [
   "threads.create",
   "threads.post",
   "threads.manage",
+  "voice.mute_members",
+  "voice.move_members",
 ] as const;
 export type ChannelCapability = (typeof CHANNEL_CAPABILITIES)[number];
 

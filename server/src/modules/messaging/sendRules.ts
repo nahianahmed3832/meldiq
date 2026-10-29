@@ -51,6 +51,20 @@ export function admitConversation(ctx: AppContext, userId: string, conversationI
   return conv;
 }
 
+/** Community parity A2: changes that say something (held back while a community is locked) and reactions. */
+const POSTING = new Set(["edit", "pin"]);
+const REACTIONS = new Set(["reaction", "vote"]);
+
+/**
+ * A community's lock and verification level (community parity A2, docs/COMMUNITY_SAFETY_API.md): messages, edits and
+ * pins wait for both, reactions and votes for the verification level only; read markers and anything the server can't
+ * read (an encrypted change) pass. Call after [admitConversation].
+ */
+export async function admitCommunity(ctx: AppContext, conv: ReturnType<typeof admitConversation>, userId: string, cls: Cls, opts: AdmitOptions = {}): Promise<void> {
+  const kind = cls === "message" || (!!opts.type && POSTING.has(opts.type)) ? "post" : !!opts.type && REACTIONS.has(opts.type) ? "react" : null;
+  if (kind) await ctx.communitySafety.admitPost(conv, userId, kind, !!opts.bot);
+}
+
 /** Clock sanity: sentAt comes from the client; wildly wrong clocks (±1 day) are refused. */
 export function admitClock(sentAt: number): void {
   if (Math.abs(sentAt - now()) > 24 * 3600_000) throw new ApiError(400, "bad_clock", "Device clock is too far off");
@@ -103,6 +117,8 @@ export async function admitPost(ctx: AppContext, conv: ReturnType<typeof admitCo
 /** What an accepted message changes about its conversation: its activity time, the sender's last post, @everyone. */
 export async function recordPost(ctx: AppContext, conversationId: string, userId: string, messageId: string, cls: Cls, mentionAll: boolean, at: number): Promise<void> {
   if (!mentionAll && cls !== "message") return;
+  // Community parity A2: raid protection counts messages per channel.
+  if (cls === "message") ctx.communitySafety.noteMessage(conversationId, userId);
   await ctx.ws.write((w) => {
     if (mentionAll) w.insert("mention_all_events", { conversation_id: conversationId, user_id: userId, message_id: messageId, at });
     if (cls !== "message") return;

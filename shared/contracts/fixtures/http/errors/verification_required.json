@@ -1,0 +1,11 @@
+{
+  "error": {
+    "code": "verification_required",
+    "message": "Verify your email address to post and react in this community.",
+    "details": {
+      "level": "low",
+      "reason": "email",
+      "allowedAt": null
+    }
+  }
+}

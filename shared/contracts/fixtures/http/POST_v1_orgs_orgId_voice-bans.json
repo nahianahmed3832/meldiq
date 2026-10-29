@@ -1,0 +1,13 @@
+{
+  "voiceBans": [
+    {
+      "userId": "u_GS5RwAKnC3IR2Bi8MGv97A",
+      "displayName": "member0",
+      "username": "member04",
+      "reason": "Mic spam",
+      "bannedAt": 1793309167040,
+      "bannedBy": "u_3Tj9nAhr5WeMAgfKpvmrnQ",
+      "bannedByName": "mod0"
+    }
+  ]
+}
