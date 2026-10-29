@@ -1,0 +1,27 @@
+{
+  "commands": [
+    {
+      "name": "roll",
+      "description": "Roll a die",
+      "options": [
+        {
+          "name": "sides",
+          "description": "How many sides",
+          "type": "number",
+          "required": true
+        },
+        {
+          "name": "loud",
+          "description": "Shout it",
+          "type": "boolean",
+          "required": false
+        }
+      ]
+    },
+    {
+      "name": "ping",
+      "description": "Pong",
+      "options": []
+    }
+  ]
+}

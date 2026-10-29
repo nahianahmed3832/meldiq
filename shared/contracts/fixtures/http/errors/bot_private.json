@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "bot_private",
+    "message": "This bot is private: only its owner can add it to a community"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "oauth_invalid_client",
+    "message": "No app has that client_id"
+  }
+}

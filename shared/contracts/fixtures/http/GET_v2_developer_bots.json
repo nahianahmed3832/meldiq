@@ -1,0 +1,26 @@
+{
+  "bots": [
+    {
+      "id": "u_swzjfa2sw39HMP8LTVRFHQ",
+      "username": "helper55390",
+      "displayName": "Helper",
+      "public": false,
+      "createdAt": 1793283155395,
+      "tokenRotatedAt": 1793283155395,
+      "commands": 0,
+      "communities": 0
+    },
+    {
+      "id": "u_OUdyI8oe49x64usv6zI1UQ",
+      "username": "helper2bot9203",
+      "displayName": "Helper 2",
+      "public": false,
+      "createdAt": 1793283155406,
+      "tokenRotatedAt": 1793283155406,
+      "commands": 0,
+      "communities": 0
+    }
+  ],
+  "limit": 2,
+  "plan": "free"
+}

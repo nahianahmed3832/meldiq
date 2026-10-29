@@ -1,0 +1,13 @@
+{
+  "bot": {
+    "id": "u_Gok0Ws-Lyk-318ec3SBjSw",
+    "username": "dicebot1855",
+    "displayName": "Dice Bot",
+    "public": true,
+    "createdAt": 1793283155462,
+    "tokenRotatedAt": 1793283155481,
+    "commands": 0,
+    "communities": 0
+  },
+  "token": "<redacted>"
+}

@@ -1,0 +1,15 @@
+{
+  "apps": [
+    {
+      "id": "app_iVbAa6MjJGxRLpONqwQuNA",
+      "name": "Lab",
+      "redirectUris": [
+        "https://app.example.test/callback"
+      ],
+      "createdAt": 1793283155436,
+      "updatedAt": 1793283155436,
+      "secretRotatedAt": 1793283155436
+    }
+  ],
+  "limit": 10
+}

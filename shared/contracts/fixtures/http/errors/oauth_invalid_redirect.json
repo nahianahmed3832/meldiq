@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "oauth_invalid_redirect",
+    "message": "That redirect_uri isn't registered for this app"
+  }
+}

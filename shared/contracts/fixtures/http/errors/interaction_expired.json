@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "interaction_expired",
+    "message": "This command waited more than 15 minutes and expired"
+  }
+}

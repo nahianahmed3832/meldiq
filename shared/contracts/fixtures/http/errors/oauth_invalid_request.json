@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "oauth_invalid_request",
+    "message": "Only code_challenge_method=S256 is supported"
+  }
+}

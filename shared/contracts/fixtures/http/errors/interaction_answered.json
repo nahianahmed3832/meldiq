@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "interaction_answered",
+    "message": "This command was answered already"
+  }
+}

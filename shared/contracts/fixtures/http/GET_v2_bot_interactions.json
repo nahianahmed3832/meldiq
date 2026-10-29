@@ -1,0 +1,21 @@
+{
+  "interactions": [
+    {
+      "id": "ix_bgFutmlJYaAv52A8SPvp2w",
+      "command": "roll",
+      "options": {
+        "sides": 6,
+        "loud": true
+      },
+      "user": {
+        "id": "u_kDFFI7QLS8YlcRtbeU0p8A",
+        "username": "botmember2",
+        "displayName": "botmember"
+      },
+      "channelId": "c_qKs3aieL5OTNE3O0ypIfyw",
+      "communityId": "o_z3lNq8mJeqyrBN5YkfDW8Q",
+      "createdAt": 1793283155975,
+      "expiresAt": 1793284055975
+    }
+  ]
+}
