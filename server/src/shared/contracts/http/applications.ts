@@ -57,7 +57,7 @@ export const applicationRoutes = [
     params: IdParamsNonEmpty,
     body: ApplyBody,
     response: z.strictObject({ application: ApplicationView, repeated: z.boolean() }),
-    errors: ["not_found", "conflict", "banned", "invites_paused"],
+    errors: ["not_found", "conflict", "banned", "invites_paused", "community_locked", "account_too_new"],
   }),
   route({
     method: "GET",
@@ -79,7 +79,7 @@ export const applicationRoutes = [
     params: IdParamsNonEmpty,
     body: ApplicationAnswerBody,
     response: z.strictObject({ application: ApplicationView }),
-    errors: ["not_found", "conflict", "banned", "limit_reached"],
+    errors: ["not_found", "conflict", "banned", "limit_reached", "community_locked", "account_too_new"],
   }),
   route({
     method: "GET",

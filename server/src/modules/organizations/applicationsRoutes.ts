@@ -99,6 +99,7 @@ export default async function applicationRoutes(app: FastifyInstance, ctx: AppCo
     requireSyntheticScopeForOrg(ctx, userId, id);
     if (authz.isBanned(id, userId)) throw new ApiError(403, "banned", "You've been banned from this community");
     if (authz.pausedUntil(id, "invites", now())) throw new ApiError(403, "invites_paused", "This community has paused new members for now. Try again later.");
+    await ctx.communitySafety.admitJoin(id, userId);
     if (body.answers.length !== questions.length || body.answers.some((a) => !a)) throw badRequest("Answer every question");
     const appId = newId("apl");
     // Checked and written in one unit: two taps make one application.
@@ -141,6 +142,8 @@ export default async function applicationRoutes(app: FastifyInstance, ctx: AppCo
       w.update("join_applications", { id, status: "pending" }, { status, handled_by: actor, handled_at: t, note: body.note ?? null }) > 0;
     if (body.status === "approved") {
       if (authz.isBanned(r.org_id, r.user_id)) throw new ApiError(409, "banned", "This person is banned from the community");
+      // Community parity A2: nobody joins a locked community, and the account-age gate still applies.
+      await ctx.communitySafety.admitJoin(r.org_id, r.user_id);
       await ws.write((w) => {
         if (!claim(w, "approved")) throw conflict("This application was already answered");
         ctx.entitlements.check("members", w.count("org_members", { org_id: r.org_id }), r.org_id);

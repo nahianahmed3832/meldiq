@@ -9,7 +9,7 @@ import { queueItemToWire } from "../realtime/hub.js";
 import { DuplicateSubmission, type QueueInsert, type QueueItemRow } from "./relay/store.js";
 import { ApiError, badRequest, conflict, forbidden } from "../../shared/errors.js";
 import { now } from "../../shared/utilities/util.js";
-import { admitClock, admitConversation, admitPost, recordPost } from "./sendRules.js";
+import { admitClock, admitCommunity, admitConversation, admitPost, recordPost } from "./sendRules.js";
 import { memberUsers } from "./memberUsers.js";
 import { rowsByIds } from "../../infrastructure/database/byIds.js";
 
@@ -28,6 +28,7 @@ export default async function messageRoutes(app: FastifyInstance, ctx: AppContex
     // API 0.57.0: messages are stored by the server (POST /v2/messages); an app from before that is told to update.
     if (!ctx.config.messages.acceptEncrypted) throw new ApiError(426, "update_required", "Update Meldiq to keep messaging: messages are now stored on Meldiq's servers.");
     const conv = admitConversation(ctx, userId, e.conversationId, e.cls);
+    await admitCommunity(ctx, conv, userId, e.cls);
     // Meldiq Mojo (docs/MOJO.md): messages and edits are end-to-end encrypted, so the apps count characters and the
     // server refuses ciphertext far larger than the sender's plan could need (1,000 / 2,000 / 5,000 characters).
     const limits = ctx.mojo.limitsOf(userId);

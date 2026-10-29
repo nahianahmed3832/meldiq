@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "voice_banned",
+    "message": "You've been kept out of this community's voice channels. You can still chat."
+  }
+}

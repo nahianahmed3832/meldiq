@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Meldiq API",
-    "version": "0.65.0",
+    "version": "0.66.1",
     "description": "The canonical contract of the Meldiq server (docs/architecture/ARCHITECTURE_1_0_PLAN.md §4), generated from src/shared/contracts. Fields are only ever added within a version; clients ignore unknown fields. Routes not listed here exist but aren't documented yet."
   },
   "servers": [
@@ -79,6 +79,9 @@
     },
     {
       "name": "community-rules"
+    },
+    {
+      "name": "community-safety"
     },
     {
       "name": "reports"
@@ -760,7 +763,7 @@
             }
           },
           "default": {
-            "description": "Error. Codes: not_found, forbidden, timed_out, voice_channel, bad_clock, conflict, bad_signature, slowmode, request_pending, request_limit, mention_all_not_in_dm, mention_all_not_allowed, mention_all_rate_limited, device_mismatch, federation_disabled",
+            "description": "Error. Codes: not_found, forbidden, timed_out, community_locked_posting, verification_required, voice_channel, bad_clock, conflict, bad_signature, slowmode, request_pending, request_limit, mention_all_not_in_dm, mention_all_not_allowed, mention_all_rate_limited, device_mismatch, federation_disabled",
             "content": {
               "application/json": {
                 "schema": {
@@ -1099,7 +1102,7 @@
             }
           },
           "default": {
-            "description": "Error. Codes: not_found, forbidden, timed_out, rules_channel, rules_not_agreed, voice_channel, bad_clock, conflict, slowmode, request_pending, request_limit, message_too_long, not_yours, mention_all_not_in_dm, mention_all_not_allowed, mention_all_rate_limited",
+            "description": "Error. Codes: not_found, forbidden, timed_out, rules_channel, rules_not_agreed, community_locked_posting, verification_required, voice_channel, bad_clock, conflict, slowmode, request_pending, request_limit, message_too_long, not_yours, mention_all_not_in_dm, mention_all_not_allowed, mention_all_rate_limited",
             "content": {
               "application/json": {
                 "schema": {
@@ -3967,7 +3970,7 @@
             }
           },
           "default": {
-            "description": "Error. Codes: not_found, conflict, request_pending, media_unavailable, text_channel_no_calls, call_full, forbidden",
+            "description": "Error. Codes: not_found, conflict, request_pending, media_unavailable, text_channel_no_calls, call_full, forbidden, voice_banned",
             "content": {
               "application/json": {
                 "schema": {
@@ -5053,7 +5056,7 @@
             }
           },
           "default": {
-            "description": "Error. Codes: not_found, call_ended, call_full, media_unavailable, forbidden",
+            "description": "Error. Codes: not_found, call_ended, call_full, media_unavailable, forbidden, voice_banned",
             "content": {
               "application/json": {
                 "schema": {
@@ -21574,6 +21577,79 @@
                             "mustAgree"
                           ],
                           "additionalProperties": false
+                        },
+                        "lockedUntil": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "safety": {
+                          "type": "object",
+                          "properties": {
+                            "verificationLevel": {
+                              "type": "string",
+                              "enum": [
+                                "none",
+                                "low",
+                                "medium",
+                                "high"
+                              ]
+                            },
+                            "newAccountGate": {
+                              "type": "string",
+                              "enum": [
+                                "off",
+                                "10m",
+                                "1h",
+                                "1d",
+                                "7d"
+                              ]
+                            },
+                            "raidProtection": {
+                              "type": "boolean"
+                            },
+                            "lockedUntil": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "lockReason": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "manual",
+                                    "raid"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "verificationLevel",
+                            "newAccountGate",
+                            "raidProtection",
+                            "lockedUntil",
+                            "lockReason"
+                          ],
+                          "additionalProperties": false
                         }
                       },
                       "required": [
@@ -22052,6 +22128,79 @@
                               "count",
                               "agreedAt",
                               "mustAgree"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "lockedUntil": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "safety": {
+                            "type": "object",
+                            "properties": {
+                              "verificationLevel": {
+                                "type": "string",
+                                "enum": [
+                                  "none",
+                                  "low",
+                                  "medium",
+                                  "high"
+                                ]
+                              },
+                              "newAccountGate": {
+                                "type": "string",
+                                "enum": [
+                                  "off",
+                                  "10m",
+                                  "1h",
+                                  "1d",
+                                  "7d"
+                                ]
+                              },
+                              "raidProtection": {
+                                "type": "boolean"
+                              },
+                              "lockedUntil": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "lockReason": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "manual",
+                                      "raid"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "verificationLevel",
+                              "newAccountGate",
+                              "raidProtection",
+                              "lockedUntil",
+                              "lockReason"
                             ],
                             "additionalProperties": false
                           }
@@ -22568,6 +22717,79 @@
                             "count",
                             "agreedAt",
                             "mustAgree"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "lockedUntil": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "safety": {
+                          "type": "object",
+                          "properties": {
+                            "verificationLevel": {
+                              "type": "string",
+                              "enum": [
+                                "none",
+                                "low",
+                                "medium",
+                                "high"
+                              ]
+                            },
+                            "newAccountGate": {
+                              "type": "string",
+                              "enum": [
+                                "off",
+                                "10m",
+                                "1h",
+                                "1d",
+                                "7d"
+                              ]
+                            },
+                            "raidProtection": {
+                              "type": "boolean"
+                            },
+                            "lockedUntil": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "lockReason": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "manual",
+                                    "raid"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "verificationLevel",
+                            "newAccountGate",
+                            "raidProtection",
+                            "lockedUntil",
+                            "lockReason"
                           ],
                           "additionalProperties": false
                         }
@@ -23217,6 +23439,79 @@
                             "count",
                             "agreedAt",
                             "mustAgree"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "lockedUntil": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "safety": {
+                          "type": "object",
+                          "properties": {
+                            "verificationLevel": {
+                              "type": "string",
+                              "enum": [
+                                "none",
+                                "low",
+                                "medium",
+                                "high"
+                              ]
+                            },
+                            "newAccountGate": {
+                              "type": "string",
+                              "enum": [
+                                "off",
+                                "10m",
+                                "1h",
+                                "1d",
+                                "7d"
+                              ]
+                            },
+                            "raidProtection": {
+                              "type": "boolean"
+                            },
+                            "lockedUntil": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "lockReason": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "manual",
+                                    "raid"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "verificationLevel",
+                            "newAccountGate",
+                            "raidProtection",
+                            "lockedUntil",
+                            "lockReason"
                           ],
                           "additionalProperties": false
                         }
@@ -25869,6 +26164,79 @@
                             "mustAgree"
                           ],
                           "additionalProperties": false
+                        },
+                        "lockedUntil": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "safety": {
+                          "type": "object",
+                          "properties": {
+                            "verificationLevel": {
+                              "type": "string",
+                              "enum": [
+                                "none",
+                                "low",
+                                "medium",
+                                "high"
+                              ]
+                            },
+                            "newAccountGate": {
+                              "type": "string",
+                              "enum": [
+                                "off",
+                                "10m",
+                                "1h",
+                                "1d",
+                                "7d"
+                              ]
+                            },
+                            "raidProtection": {
+                              "type": "boolean"
+                            },
+                            "lockedUntil": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "lockReason": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "manual",
+                                    "raid"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "verificationLevel",
+                            "newAccountGate",
+                            "raidProtection",
+                            "lockedUntil",
+                            "lockReason"
+                          ],
+                          "additionalProperties": false
                         }
                       },
                       "required": [
@@ -25913,7 +26281,7 @@
             }
           },
           "default": {
-            "description": "Error. Codes: invite_not_found, invite_revoked, invite_expired, invite_used_up, invite_unavailable, banned, invites_paused, limit_reached",
+            "description": "Error. Codes: invite_not_found, invite_revoked, invite_expired, invite_used_up, invite_unavailable, banned, invites_paused, community_locked, account_too_new, limit_reached",
             "content": {
               "application/json": {
                 "schema": {
@@ -27851,6 +28219,8 @@
                               "expressions.manage",
                               "voice.connect",
                               "voice.speak",
+                              "voice.mute_members",
+                              "voice.move_members",
                               "audit.view",
                               "reports.view"
                             ]
@@ -27964,6 +28334,8 @@
                                 "expressions.manage",
                                 "voice.connect",
                                 "voice.speak",
+                                "voice.mute_members",
+                                "voice.move_members",
                                 "audit.view",
                                 "reports.view"
                               ]
@@ -28002,6 +28374,8 @@
                                 "expressions.manage",
                                 "voice.connect",
                                 "voice.speak",
+                                "voice.mute_members",
+                                "voice.move_members",
                                 "audit.view",
                                 "reports.view"
                               ]
@@ -28088,6 +28462,8 @@
                                 "expressions.manage",
                                 "voice.connect",
                                 "voice.speak",
+                                "voice.mute_members",
+                                "voice.move_members",
                                 "audit.view",
                                 "reports.view"
                               ]
@@ -28187,6 +28563,8 @@
                                 "expressions.manage",
                                 "voice.connect",
                                 "voice.speak",
+                                "voice.mute_members",
+                                "voice.move_members",
                                 "audit.view",
                                 "reports.view"
                               ]
@@ -28225,6 +28603,8 @@
                                 "expressions.manage",
                                 "voice.connect",
                                 "voice.speak",
+                                "voice.mute_members",
+                                "voice.move_members",
                                 "audit.view",
                                 "reports.view"
                               ]
@@ -28394,6 +28774,8 @@
                               "expressions.manage",
                               "voice.connect",
                               "voice.speak",
+                              "voice.mute_members",
+                              "voice.move_members",
                               "audit.view",
                               "reports.view"
                             ]
@@ -28547,6 +28929,8 @@
                               "expressions.manage",
                               "voice.connect",
                               "voice.speak",
+                              "voice.mute_members",
+                              "voice.move_members",
                               "audit.view",
                               "reports.view"
                             ]
@@ -28585,6 +28969,8 @@
                               "expressions.manage",
                               "voice.connect",
                               "voice.speak",
+                              "voice.mute_members",
+                              "voice.move_members",
                               "audit.view",
                               "reports.view"
                             ]
@@ -28887,6 +29273,8 @@
                               "expressions.manage",
                               "voice.connect",
                               "voice.speak",
+                              "voice.mute_members",
+                              "voice.move_members",
                               "audit.view",
                               "reports.view"
                             ]
@@ -28925,6 +29313,8 @@
                               "expressions.manage",
                               "voice.connect",
                               "voice.speak",
+                              "voice.mute_members",
+                              "voice.move_members",
                               "audit.view",
                               "reports.view"
                             ]
@@ -29355,6 +29745,8 @@
                           "expressions.manage",
                           "voice.connect",
                           "voice.speak",
+                          "voice.mute_members",
+                          "voice.move_members",
                           "audit.view",
                           "reports.view"
                         ]
@@ -29458,6 +29850,8 @@
                           "expressions.manage",
                           "voice.connect",
                           "voice.speak",
+                          "voice.mute_members",
+                          "voice.move_members",
                           "audit.view",
                           "reports.view"
                         ]
@@ -29598,6 +29992,8 @@
                           "expressions.manage",
                           "voice.connect",
                           "voice.speak",
+                          "voice.mute_members",
+                          "voice.move_members",
                           "audit.view",
                           "reports.view"
                         ]
@@ -29648,6 +30044,8 @@
                           "expressions.manage",
                           "voice.connect",
                           "voice.speak",
+                          "voice.mute_members",
+                          "voice.move_members",
                           "audit.view",
                           "reports.view"
                         ]
@@ -32118,7 +32516,9 @@
                                 "channels.manage",
                                 "channels.create",
                                 "voice.connect",
-                                "voice.speak"
+                                "voice.speak",
+                                "voice.mute_members",
+                                "voice.move_members"
                               ]
                             }
                           },
@@ -32134,7 +32534,9 @@
                                 "channels.manage",
                                 "channels.create",
                                 "voice.connect",
-                                "voice.speak"
+                                "voice.speak",
+                                "voice.mute_members",
+                                "voice.move_members"
                               ]
                             }
                           }
@@ -32165,7 +32567,9 @@
                               "channels.manage",
                               "channels.create",
                               "voice.connect",
-                              "voice.speak"
+                              "voice.speak",
+                              "voice.mute_members",
+                              "voice.move_members"
                             ]
                           },
                           "label": {
@@ -32311,7 +32715,9 @@
                                 "channels.manage",
                                 "channels.create",
                                 "voice.connect",
-                                "voice.speak"
+                                "voice.speak",
+                                "voice.mute_members",
+                                "voice.move_members"
                               ]
                             }
                           },
@@ -32327,7 +32733,9 @@
                                 "channels.manage",
                                 "channels.create",
                                 "voice.connect",
-                                "voice.speak"
+                                "voice.speak",
+                                "voice.mute_members",
+                                "voice.move_members"
                               ]
                             }
                           }
@@ -32358,7 +32766,9 @@
                               "channels.manage",
                               "channels.create",
                               "voice.connect",
-                              "voice.speak"
+                              "voice.speak",
+                              "voice.mute_members",
+                              "voice.move_members"
                             ]
                           },
                           "label": {
@@ -32457,7 +32867,7 @@
                   },
                   "allow": {
                     "default": [],
-                    "maxItems": 8,
+                    "maxItems": 10,
                     "type": "array",
                     "items": {
                       "type": "string",
@@ -32469,13 +32879,15 @@
                         "channels.manage",
                         "channels.create",
                         "voice.connect",
-                        "voice.speak"
+                        "voice.speak",
+                        "voice.mute_members",
+                        "voice.move_members"
                       ]
                     }
                   },
                   "deny": {
                     "default": [],
-                    "maxItems": 8,
+                    "maxItems": 10,
                     "type": "array",
                     "items": {
                       "type": "string",
@@ -32487,7 +32899,9 @@
                         "channels.manage",
                         "channels.create",
                         "voice.connect",
-                        "voice.speak"
+                        "voice.speak",
+                        "voice.mute_members",
+                        "voice.move_members"
                       ]
                     }
                   }
@@ -32568,7 +32982,9 @@
                                 "channels.manage",
                                 "channels.create",
                                 "voice.connect",
-                                "voice.speak"
+                                "voice.speak",
+                                "voice.mute_members",
+                                "voice.move_members"
                               ]
                             }
                           },
@@ -32584,7 +33000,9 @@
                                 "channels.manage",
                                 "channels.create",
                                 "voice.connect",
-                                "voice.speak"
+                                "voice.speak",
+                                "voice.mute_members",
+                                "voice.move_members"
                               ]
                             }
                           }
@@ -32615,7 +33033,9 @@
                               "channels.manage",
                               "channels.create",
                               "voice.connect",
-                              "voice.speak"
+                              "voice.speak",
+                              "voice.mute_members",
+                              "voice.move_members"
                             ]
                           },
                           "label": {
@@ -32761,7 +33181,9 @@
                                 "channels.manage",
                                 "channels.create",
                                 "voice.connect",
-                                "voice.speak"
+                                "voice.speak",
+                                "voice.mute_members",
+                                "voice.move_members"
                               ]
                             }
                           },
@@ -32777,7 +33199,9 @@
                                 "channels.manage",
                                 "channels.create",
                                 "voice.connect",
-                                "voice.speak"
+                                "voice.speak",
+                                "voice.mute_members",
+                                "voice.move_members"
                               ]
                             }
                           }
@@ -32808,7 +33232,9 @@
                               "channels.manage",
                               "channels.create",
                               "voice.connect",
-                              "voice.speak"
+                              "voice.speak",
+                              "voice.mute_members",
+                              "voice.move_members"
                             ]
                           },
                           "label": {
@@ -32907,7 +33333,7 @@
                   },
                   "allow": {
                     "default": [],
-                    "maxItems": 8,
+                    "maxItems": 10,
                     "type": "array",
                     "items": {
                       "type": "string",
@@ -32919,13 +33345,15 @@
                         "channels.manage",
                         "channels.create",
                         "voice.connect",
-                        "voice.speak"
+                        "voice.speak",
+                        "voice.mute_members",
+                        "voice.move_members"
                       ]
                     }
                   },
                   "deny": {
                     "default": [],
-                    "maxItems": 8,
+                    "maxItems": 10,
                     "type": "array",
                     "items": {
                       "type": "string",
@@ -32937,7 +33365,9 @@
                         "channels.manage",
                         "channels.create",
                         "voice.connect",
-                        "voice.speak"
+                        "voice.speak",
+                        "voice.mute_members",
+                        "voice.move_members"
                       ]
                     }
                   }
@@ -33465,6 +33895,79 @@
                             "mustAgree"
                           ],
                           "additionalProperties": false
+                        },
+                        "lockedUntil": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "safety": {
+                          "type": "object",
+                          "properties": {
+                            "verificationLevel": {
+                              "type": "string",
+                              "enum": [
+                                "none",
+                                "low",
+                                "medium",
+                                "high"
+                              ]
+                            },
+                            "newAccountGate": {
+                              "type": "string",
+                              "enum": [
+                                "off",
+                                "10m",
+                                "1h",
+                                "1d",
+                                "7d"
+                              ]
+                            },
+                            "raidProtection": {
+                              "type": "boolean"
+                            },
+                            "lockedUntil": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "lockReason": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "manual",
+                                    "raid"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "verificationLevel",
+                            "newAccountGate",
+                            "raidProtection",
+                            "lockedUntil",
+                            "lockReason"
+                          ],
+                          "additionalProperties": false
                         }
                       },
                       "required": [
@@ -33987,6 +34490,79 @@
                             "mustAgree"
                           ],
                           "additionalProperties": false
+                        },
+                        "lockedUntil": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "safety": {
+                          "type": "object",
+                          "properties": {
+                            "verificationLevel": {
+                              "type": "string",
+                              "enum": [
+                                "none",
+                                "low",
+                                "medium",
+                                "high"
+                              ]
+                            },
+                            "newAccountGate": {
+                              "type": "string",
+                              "enum": [
+                                "off",
+                                "10m",
+                                "1h",
+                                "1d",
+                                "7d"
+                              ]
+                            },
+                            "raidProtection": {
+                              "type": "boolean"
+                            },
+                            "lockedUntil": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "lockReason": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "manual",
+                                    "raid"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "verificationLevel",
+                            "newAccountGate",
+                            "raidProtection",
+                            "lockedUntil",
+                            "lockReason"
+                          ],
+                          "additionalProperties": false
                         }
                       },
                       "required": [
@@ -34031,7 +34607,7 @@
             }
           },
           "default": {
-            "description": "Error. Codes: not_found, forbidden, application_required, banned, invites_paused, limit_reached",
+            "description": "Error. Codes: not_found, forbidden, application_required, banned, invites_paused, community_locked, account_too_new, limit_reached",
             "content": {
               "application/json": {
                 "schema": {
@@ -34053,7 +34629,7 @@
         "tags": [
           "community"
         ],
-        "summary": "The community's bans, newest first (at most 500).",
+        "summary": "The community's bans, newest first (at most 500), and its voice bans while community safety is on.",
         "operationId": "getV1OrgsOrgIdBans",
         "parameters": [
           {
@@ -34075,6 +34651,61 @@
                   "type": "object",
                   "properties": {
                     "bans": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "userId": {
+                            "type": "string"
+                          },
+                          "displayName": {
+                            "type": "string"
+                          },
+                          "username": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "bannedAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "bannedBy": {
+                            "type": "string"
+                          },
+                          "bannedByName": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "userId",
+                          "displayName",
+                          "username",
+                          "reason",
+                          "bannedAt",
+                          "bannedBy",
+                          "bannedByName"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "voiceBans": {
                       "type": "array",
                       "items": {
                         "type": "object",
@@ -35003,7 +35634,7 @@
             }
           },
           "default": {
-            "description": "Error. Codes: not_found, conflict, banned, invites_paused",
+            "description": "Error. Codes: not_found, conflict, banned, invites_paused, community_locked, account_too_new",
             "content": {
               "application/json": {
                 "schema": {
@@ -35389,7 +36020,7 @@
             }
           },
           "default": {
-            "description": "Error. Codes: not_found, conflict, banned, limit_reached",
+            "description": "Error. Codes: not_found, conflict, banned, limit_reached, community_locked, account_too_new",
             "content": {
               "application/json": {
                 "schema": {
@@ -37247,6 +37878,918 @@
           },
           "default": {
             "description": "Error. Codes: not_found, forbidden, feature_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/orgs/{orgId}/safety": {
+      "get": {
+        "tags": [
+          "community-safety"
+        ],
+        "summary": "The community's safety settings and lock (people who can edit the community or ban members).",
+        "operationId": "getV1OrgsOrgIdSafety",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "verificationLevel": {
+                      "type": "string",
+                      "enum": [
+                        "none",
+                        "low",
+                        "medium",
+                        "high"
+                      ]
+                    },
+                    "newAccountGate": {
+                      "type": "string",
+                      "enum": [
+                        "off",
+                        "10m",
+                        "1h",
+                        "1d",
+                        "7d"
+                      ]
+                    },
+                    "raidProtection": {
+                      "type": "boolean"
+                    },
+                    "lockedUntil": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "lockReason": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "manual",
+                            "raid"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "verificationLevel",
+                    "newAccountGate",
+                    "raidProtection",
+                    "lockedUntil",
+                    "lockReason"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, feature_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "community-safety"
+        ],
+        "summary": "Change the verification level, the account-age gate or raid protection (people who can edit the community).",
+        "operationId": "putV1OrgsOrgIdSafety",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "verificationLevel": {
+                      "type": "string",
+                      "enum": [
+                        "none",
+                        "low",
+                        "medium",
+                        "high"
+                      ]
+                    },
+                    "newAccountGate": {
+                      "type": "string",
+                      "enum": [
+                        "off",
+                        "10m",
+                        "1h",
+                        "1d",
+                        "7d"
+                      ]
+                    },
+                    "raidProtection": {
+                      "type": "boolean"
+                    },
+                    "lockedUntil": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "lockReason": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "manual",
+                            "raid"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "verificationLevel",
+                    "newAccountGate",
+                    "raidProtection",
+                    "lockedUntil",
+                    "lockReason"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, feature_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "verificationLevel": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "low",
+                      "medium",
+                      "high"
+                    ]
+                  },
+                  "newAccountGate": {
+                    "type": "string",
+                    "enum": [
+                      "off",
+                      "10m",
+                      "1h",
+                      "1d",
+                      "7d"
+                    ]
+                  },
+                  "raidProtection": {
+                    "type": "boolean"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/orgs/{orgId}/lock": {
+      "put": {
+        "tags": [
+          "community-safety"
+        ],
+        "summary": "Lock the community for 15 minutes, 1 hour, 8 hours or a day (nobody new joins, only moderators post), or unlock it.",
+        "operationId": "putV1OrgsOrgIdLock",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "lockedUntil": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "lockReason": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "manual",
+                            "raid"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "lockedBy": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "lockedUntil",
+                    "lockReason",
+                    "lockedBy"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, feature_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "duration": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "15m",
+                          "1h",
+                          "8h",
+                          "1d"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "duration"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/orgs/{orgId}/voice-bans": {
+      "get": {
+        "tags": [
+          "community-safety"
+        ],
+        "summary": "The community's voice bans, newest first (people who can ban).",
+        "operationId": "getV1OrgsOrgIdVoiceBans",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "voiceBans": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "userId": {
+                            "type": "string"
+                          },
+                          "displayName": {
+                            "type": "string"
+                          },
+                          "username": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "bannedAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "bannedBy": {
+                            "type": "string"
+                          },
+                          "bannedByName": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "userId",
+                          "displayName",
+                          "username",
+                          "reason",
+                          "bannedAt",
+                          "bannedBy",
+                          "bannedByName"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "voiceBans"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, feature_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "community-safety"
+        ],
+        "summary": "Keep someone out of the community's voice channels (they're taken out of a call they're in); they can still chat.",
+        "operationId": "postV1OrgsOrgIdVoiceBans",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "voiceBans": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "userId": {
+                            "type": "string"
+                          },
+                          "displayName": {
+                            "type": "string"
+                          },
+                          "username": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "bannedAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "bannedBy": {
+                            "type": "string"
+                          },
+                          "bannedByName": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "userId",
+                          "displayName",
+                          "username",
+                          "reason",
+                          "bannedAt",
+                          "bannedBy",
+                          "bannedByName"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "voiceBans"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, bad_request, feature_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "userId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "reason": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 300
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "userId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/orgs/{orgId}/voice-bans/{userId}": {
+      "delete": {
+        "tags": [
+          "community-safety"
+        ],
+        "summary": "Lift a voice ban.",
+        "operationId": "deleteV1OrgsOrgIdVoiceBansUserId",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "voiceBans": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "userId": {
+                            "type": "string"
+                          },
+                          "displayName": {
+                            "type": "string"
+                          },
+                          "username": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "bannedAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "bannedBy": {
+                            "type": "string"
+                          },
+                          "bannedByName": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "userId",
+                          "displayName",
+                          "username",
+                          "reason",
+                          "bannedAt",
+                          "bannedBy",
+                          "bannedByName"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "voiceBans"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, feature_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/orgs/{orgId}/voice/members/{userId}/mute": {
+      "put": {
+        "tags": [
+          "community-safety"
+        ],
+        "summary": "Mute someone in the community's voice channels until unmuted, or unmute them (`voice.mute_members`).",
+        "operationId": "putV1OrgsOrgIdVoiceMembersUserIdMute",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "userId": {
+                      "type": "string"
+                    },
+                    "muted": {
+                      "type": "boolean"
+                    },
+                    "mutedAt": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "devices": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "userId",
+                    "muted",
+                    "mutedAt",
+                    "devices"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, bad_request, feature_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "muted": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "muted"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/orgs/{orgId}/voice/members/{userId}/disconnect": {
+      "post": {
+        "tags": [
+          "community-safety"
+        ],
+        "summary": "Take someone out of the voice channel call they're in (`voice.move_members`); they may join again.",
+        "operationId": "postV1OrgsOrgIdVoiceMembersUserIdDisconnect",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "userId": {
+                      "type": "string"
+                    },
+                    "disconnected": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "userId",
+                    "disconnected"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, bad_request, feature_disabled",
             "content": {
               "application/json": {
                 "schema": {
@@ -58320,6 +59863,11 @@
                   "invite_unavailable",
                   "invite_used_up",
                   "invites_paused",
+                  "account_too_new",
+                  "community_locked",
+                  "community_locked_posting",
+                  "verification_required",
+                  "voice_banned",
                   "loadtest_disabled",
                   "loadtest_network",
                   "loadtest_quota",
@@ -59072,6 +60620,36 @@
         403
       ],
       "meaning": "This community has paused new members for now. Try again later."
+    },
+    "account_too_new": {
+      "status": [
+        403
+      ],
+      "meaning": "This community doesn't take accounts this new yet. Try again later."
+    },
+    "community_locked": {
+      "status": [
+        403
+      ],
+      "meaning": "This community is locked for now: nobody new can join. Try again later."
+    },
+    "community_locked_posting": {
+      "status": [
+        403
+      ],
+      "meaning": "This community is locked for now: only moderators can post. You can still read and react."
+    },
+    "verification_required": {
+      "status": [
+        403
+      ],
+      "meaning": "This community asks for a verified email, or a few minutes' wait, before posting or reacting."
+    },
+    "voice_banned": {
+      "status": [
+        403
+      ],
+      "meaning": "You've been kept out of this community's voice channels."
     },
     "loadtest_disabled": {
       "status": [

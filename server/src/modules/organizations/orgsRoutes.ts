@@ -109,6 +109,8 @@ export function orgSummary(ctx: AppContext, org: any, userId: string) {
     activityAlert: activityAlert(ctx, org, userId, Date.now()),
     // API 0.65.0: the rules channel (members only; absent without a rules channel or rules).
     ...(role ? ctx.communityRules.summary(org.id, userId) : {}),
+    // Community parity A2: the lock for members, the safety settings for people who edit the community or ban.
+    ...ctx.communitySafety.summary(org.id, userId),
   };
 }
 
@@ -131,6 +133,7 @@ export async function removeFromWorkspace(ctx: AppContext, orgId: string, userId
   // Their arrangement of this community (starred, sections) goes with them, and so does agreeing to its rules.
   await ctx.prefs.deleteForMember(userId, orgId);
   await ctx.communityRules.forgetMember(orgId, userId);
+  await ctx.communitySafety.forgetMember(orgId, userId);
   const action = { left: "member.leave", removed: "member.remove", expired: "member.expire", banned: "member.ban" }[reason];
   ctx.audit({ actorId, orgId, action, target: userId });
   notifyOrg(ctx, orgId);
@@ -474,6 +477,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     await ctx.prefs.deleteForWorkspace(orgId);
     await ctx.reports.deleteForOrg(orgId);
     await ctx.communityRules.removeOrg(orgId);
+    await ctx.communitySafety.removeOrg(orgId);
 
     ctx.audit({
       actorId: actor,
@@ -803,6 +807,8 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const userId = me(req).userId;
     const { code } = parse(InviteCodeBody, req.body);
     requireStanding(ctx.safety, userId, "join_community");
+    // Community parity A2: whether a young account is platform staff (the account-age gate never holds staff back).
+    await ctx.communitySafety.prepareJoin(userId);
     const t = now();
     // One transaction: two taps (or two people racing for the last use) can't both pass the checks and over-use it.
     const result = await ws.write((w) => {

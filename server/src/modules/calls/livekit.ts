@@ -85,6 +85,20 @@ export class LiveKitService {
     }
   }
 
+  /**
+   * Lets [identity] publish, or stops it (community parity A2: a server mute). LiveKit unpublishes its tracks at once when
+   * publishing is taken away; the other grants stay as the token gave them. "absent" when they aren't in the room.
+   */
+  async setCanPublish(room: string, identity: string, canPublish: boolean): Promise<"updated" | "absent" | "error"> {
+    try {
+      const permission = { canPublish, canSubscribe: true, canPublishData: true, canUpdateMetadata: false };
+      await withTimeout(this.rooms.updateParticipant(room, identity, { permission }));
+      return "updated";
+    } catch (e) {
+      return isNotFound(e) ? "absent" : "error";
+    }
+  }
+
   /** Mutes one published track (a screen share above the person's plan, docs/MOJO.md). */
   async muteTrack(room: string, identity: string, trackSid: string): Promise<"muted" | "absent" | "error"> {
     try {

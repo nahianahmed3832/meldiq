@@ -1654,6 +1654,55 @@ export const SCHEMA: readonly TableShape[] = [
     autoincrement: false,
   },
   {
+    name: "community_safety",
+    columns: [
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"verification_level","type":"TEXT","notNull":true,"default":"none"},
+      {"name":"new_account_gate","type":"TEXT","notNull":true,"default":"off"},
+      {"name":"raid_protection","type":"INTEGER","notNull":true,"default":1},
+      {"name":"locked_until","type":"INTEGER","notNull":false},
+      {"name":"lock_reason","type":"TEXT","notNull":false},
+      {"name":"locked_by","type":"TEXT","notNull":false},
+      {"name":"updated_at","type":"INTEGER","notNull":true},
+      {"name":"updated_by","type":"TEXT","notNull":false},
+    ],
+    primaryKey: ["org_id"],
+    indexes: [],
+    foreignKeys: [],
+    autoincrement: false,
+  },
+  {
+    name: "community_voice_bans",
+    columns: [
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"user_id","type":"TEXT","notNull":true},
+      {"name":"reason","type":"TEXT","notNull":false},
+      {"name":"banned_by","type":"TEXT","notNull":true},
+      {"name":"banned_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["org_id","user_id"],
+    indexes: [
+      {"name":"idx_community_voice_bans_user","columns":["user_id"],"unique":false,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [],
+    autoincrement: false,
+  },
+  {
+    name: "community_voice_mutes",
+    columns: [
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"user_id","type":"TEXT","notNull":true},
+      {"name":"muted_by","type":"TEXT","notNull":true},
+      {"name":"muted_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["org_id","user_id"],
+    indexes: [
+      {"name":"idx_community_voice_mutes_user","columns":["user_id"],"unique":false,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [],
+    autoincrement: false,
+  },
+  {
     name: "connections",
     columns: [
       {"name":"pair","type":"TEXT","notNull":true},

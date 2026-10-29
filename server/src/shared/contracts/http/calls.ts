@@ -50,7 +50,7 @@ export const callRoutes = [
     auth: true,
     body: CallCreateBody,
     response: CallWithMedia.extend({ joinedExisting: z.boolean() }),
-    errors: ["not_found", "conflict", "request_pending", "media_unavailable", "text_channel_no_calls", "call_full", "forbidden"],
+    errors: ["not_found", "conflict", "request_pending", "media_unavailable", "text_channel_no_calls", "call_full", "forbidden", "voice_banned"],
   }),
   route({ method: "GET", url: "/v1/calls/active", tag: "calls", summary: "Live calls in this person's conversations (to recover missed rings).", auth: true, response: CallList }),
   route({
@@ -65,7 +65,7 @@ export const callRoutes = [
     errors: ["not_found"],
   }),
   route({ method: "GET", url: "/v1/calls/:id", tag: "calls", summary: "One call.", auth: true, params: idParams, response: CallOnly, errors: ["not_found"] }),
-  callAction("/v1/calls/:id/join", "Join a live call: the media grant for this device.", CallWithMedia, { errors: ["not_found", "call_ended", "call_full", "media_unavailable", "forbidden"] }),
+  callAction("/v1/calls/:id/join", "Join a live call: the media grant for this device.", CallWithMedia, { errors: ["not_found", "call_ended", "call_full", "media_unavailable", "forbidden", "voice_banned"] }),
   callAction("/v1/calls/:id/hand", "Voice rooms: raise or lower your hand.", CallOnly, { body: HandBody }),
   callAction("/v1/calls/:id/moderate", "Voice rooms: a moderator mutes someone, lowers their hand or removes them from the call.", CallOnly, {
     body: ModerateBody,

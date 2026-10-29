@@ -129,6 +129,8 @@ export const serverMessagesRoutes = [
       "timed_out",
       "rules_channel",
       "rules_not_agreed",
+      "community_locked_posting",
+      "verification_required",
       "voice_channel",
       "bad_clock",
       "conflict",

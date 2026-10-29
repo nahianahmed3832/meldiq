@@ -172,6 +172,10 @@ export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
   community_onboarding: "workspace",
   // Batch B9: a community's own emoji and stickers (their images are profile-photos blobs).
   community_expressions: "workspace",
+  // Community parity A2 (migration 070): safety settings and the lock, voice bans and server mutes.
+  community_safety: "workspace",
+  community_voice_bans: "workspace",
+  community_voice_mutes: "workspace",
   // Discord import (migration 056).
   discord_connections: "workspace",
   discord_imports: "workspace",

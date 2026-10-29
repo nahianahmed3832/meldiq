@@ -16,9 +16,12 @@ export function safetyModerators(ctx: AppContext, orgId: string): string[] {
 
 /**
  * After someone joined [orgId] at [t]: when joins spike, records an alert (audited, shown to moderators for a day) and
- * tells the moderators' apps. Nothing is paused automatically: moderators decide (Security actions).
+ * tells the moderators' apps. The alert pauses nothing (moderators decide, Security actions); raid protection, on its own
+ * thresholds, may lock the community (community parity A2).
  */
 export async function noteJoin(ctx: AppContext, orgId: string, t: number): Promise<void> {
+  // Community parity A2: raid protection locks the community on a join flood (on its own, unlike these alerts).
+  await ctx.communitySafety.noteJoin(orgId);
   const o = ctx.ws.get<{ activity_alerts: number; raid_alert_at: number | null }>("orgs", { id: orgId });
   if (!o || !o.activity_alerts) return;
   if (o.raid_alert_at && o.raid_alert_at > t - ALERT_QUIET_MS) return;

@@ -1,0 +1,10 @@
+{
+  "error": {
+    "code": "account_too_new",
+    "message": "This community doesn't take accounts this new yet. Try again later.",
+    "details": {
+      "minAccountAge": "1h",
+      "allowedAt": 1793312767011
+    }
+  }
+}

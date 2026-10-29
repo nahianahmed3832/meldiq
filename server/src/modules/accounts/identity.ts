@@ -154,6 +154,8 @@ export class IdentityService {
       if (!this.ctx.authz.canIssueInvite(inv.org_id, inv.created_by, inv.role)) return;
       // A ban placed while the account was being set up keeps them out.
       if (this.ctx.authz.isBanned(inv.org_id, userId)) return;
+      // Community parity A2: a locked community, or one that doesn't take accounts this new, is joined later instead.
+      if (this.ctx.communitySafety.joinRefusal(inv.org_id, userId)) return;
       const joined = joinOrgByInvite(this.ctx, w, inv, userId, t, false);
       this.ctx.audit({ actorId: userId, orgId: joined.orgId, action: "invite.accept", target: joined.inviteId, detail: joined.role });
     });

@@ -19,7 +19,8 @@ export const IdParamsNonEmpty = z.object({ id: z.string().min(1).max(64) });
 
 /**
  * What a permission overwrite can change (the server's CHANNEL_CAPABILITIES, kept equal at compile time).
- * `channels.create` matters on categories; `voice.connect` and `voice.speak` on voice channels.
+ * `channels.create` matters on categories; `voice.connect`, `voice.speak`, `voice.mute_members` and `voice.move_members` on
+ * voice channels.
  */
 export const CHANNEL_CAPABILITY_KEYS = [
   "channels.view",
@@ -30,6 +31,8 @@ export const CHANNEL_CAPABILITY_KEYS = [
   "channels.create",
   "voice.connect",
   "voice.speak",
+  "voice.mute_members",
+  "voice.move_members",
 ] as const;
 export const ChannelCapabilityKey = z.enum(CHANNEL_CAPABILITY_KEYS);
 
@@ -163,6 +166,8 @@ export const BanView = z.strictObject({
   bannedByName: z.string().nullable(),
 });
 export const BanBody = z.object({ userId: z.string().max(64), reason: z.string().trim().max(300).nullish() });
+/** Community parity A2: a voice ban (kept out of the community's voice channels, still chatting), shaped like a ban. */
+export const VoiceBanView = BanView;
 
 export const GuestPolicyBody = z.object({ guestsAllowed: z.boolean(), guestMaxDays: z.number().int().min(1).max(365).nullable() });
 export const GuestPolicy = z.strictObject({ guestsAllowed: z.boolean(), guestMaxDays: z.number().int().nullable() });
@@ -305,7 +310,7 @@ export const communityDiscoveryRoutes = [
     auth: true,
     params: IdParams,
     response: JoinResult,
-    errors: ["not_found", "forbidden", "application_required", "banned", "invites_paused", "limit_reached"],
+    errors: ["not_found", "forbidden", "application_required", "banned", "invites_paused", "community_locked", "account_too_new", "limit_reached"],
   }),
 ];
 
@@ -314,10 +319,10 @@ export const communityModerationRoutes = [
     method: "GET",
     url: "/v1/orgs/:orgId/bans",
     tag,
-    summary: "The community's bans, newest first (at most 500).",
+    summary: "The community's bans, newest first (at most 500), and its voice bans while community safety is on.",
     auth: true,
     params: OrgParams,
-    response: z.strictObject({ bans: z.array(BanView) }),
+    response: z.strictObject({ bans: z.array(BanView), voiceBans: z.array(VoiceBanView).optional() }),
     errors: ["not_found", "forbidden"],
   }),
   route({

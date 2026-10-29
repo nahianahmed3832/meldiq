@@ -88,7 +88,9 @@ const TABLE_OWNERS: Readonly<Record<string, string>> = {
     "orgs org_members org_roles org_role_members channel_categories channel_overwrites org_bans invitations audit_log " +
       "join_applications community_expressions community_onboarding onboarding_answers community_migration_runs " +
       "org_deletions reports branches branch_members departments teams team_members " +
-      "discord_oauth_states discord_connections discord_imports discord_import_items",
+      "discord_oauth_states discord_connections discord_imports discord_import_items " +
+      // Community parity A2 (migration 070).
+      "community_safety community_voice_bans community_voice_mutes",
   ),
   ...owned(
     "messaging",
