@@ -1,0 +1,38 @@
+{
+  "codeLine": "meldiq: adamemory1",
+  "rules": {
+    "minFollowers": 1000,
+    "nameMatches": [
+      "username",
+      "displayName"
+    ],
+    "platforms": [
+      "youtube",
+      "tiktok",
+      "twitch",
+      "instagram",
+      "x"
+    ],
+    "notesMax": 500,
+    "proofMaxBytes": 4194304,
+    "proofTypes": [
+      "image/png",
+      "image/jpeg",
+      "image/webp"
+    ]
+  },
+  "verified": false,
+  "applications": [
+    {
+      "id": "crv_qPu-fH-74-SsUHf2gMhUzw",
+      "platform": "youtube",
+      "channelName": "@ADAMEMORY1",
+      "link": "https://youtube.com/@channel",
+      "notes": "Gaming videos, 12k followers",
+      "status": "pending",
+      "reason": null,
+      "createdAt": 1793282392672,
+      "reviewedAt": null
+    }
+  ]
+}

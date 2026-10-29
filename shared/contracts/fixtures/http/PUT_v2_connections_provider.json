@@ -1,0 +1,43 @@
+{
+  "connection": {
+    "provider": "steam",
+    "available": true,
+    "connected": true,
+    "visible": false,
+    "account": {
+      "provider": "steam",
+      "name": "Ada on Steam",
+      "url": "https://steamcommunity.com/profiles/76561198000000001",
+      "itemsKind": "recently-played",
+      "items": [
+        {
+          "title": "Game 0",
+          "subtitle": null,
+          "url": "https://store.steampowered.com/app/100"
+        },
+        {
+          "title": "Game 1",
+          "subtitle": null,
+          "url": "https://store.steampowered.com/app/101"
+        },
+        {
+          "title": "Game 2",
+          "subtitle": null,
+          "url": "https://store.steampowered.com/app/102"
+        },
+        {
+          "title": "Game 3",
+          "subtitle": null,
+          "url": "https://store.steampowered.com/app/103"
+        },
+        {
+          "title": "Game 4",
+          "subtitle": null,
+          "url": "https://store.steampowered.com/app/104"
+        }
+      ],
+      "updatedAt": 1793282391835
+    },
+    "connectedAt": 1793282391780
+  }
+}

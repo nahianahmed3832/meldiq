@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "connection_unavailable",
+    "message": "Connecting that service isn't set up on this server yet."
+  }
+}

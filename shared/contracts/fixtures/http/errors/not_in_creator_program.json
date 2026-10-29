@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "not_in_creator_program",
+    "message": "Posts are for approved members of the creator programme who are still verified."
+  }
+}

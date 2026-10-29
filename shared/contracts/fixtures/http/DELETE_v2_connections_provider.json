@@ -1,0 +1,10 @@
+{
+  "connection": {
+    "provider": "trakt",
+    "available": true,
+    "connected": false,
+    "visible": false,
+    "account": null,
+    "connectedAt": null
+  }
+}
