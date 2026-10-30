@@ -130,6 +130,31 @@ Passkeys failed in the app installed from Google Play: Play signs it with its ap
 
 Rollback: copy the backup's `.env` back and recreate `api` the same way.
 
+### API 0.67.0 and web 9ded695: community management parity, batches A to E (2026-10-30, 02:43 and 02:47 UTC, owner's go-ahead: "finish all batches one by one and no need additional permission, after successfully done directly push to productions")
+
+Branch `community-parity` 6c8b665 (on `plans-v2` 0.66.1): the reference app's community management
+(web `docs/MELDIQ_COMMUNITY_PARITY.md`; API in `docs/COMMUNITY_PARITY_API.md`, `COMMUNITY_PERMISSIONS.md`,
+`COMMUNITY_SAFETY_API.md`, `COMMUNITY_SETTINGS_API.md`). Migrations 069–076, new tables only (workspace domain, SQLite
+here). New features: `community-permissions`, `community-safety`, `community-settings`, `community-lobby`,
+`channel-webhooks`, `reaction-roles`, `community-tickets`, `community-bots`, `discovery-listing`, `template-links`,
+`bot-directory`, `discovery-promote`. No `.env` change: Promote checkout answers 503 while billing is off, Bots+ and
+boosts are granted from the console, Alerts waits for `YOUTUBE_API_KEY`. Web `floating-redesign` 9ded695 (includes
+`landing-plans` 3fe5aba).
+
+| Step | Result |
+|---|---|
+| Tests | server typecheck clean; `vitest --maxWorkers=3` 1671 passed, the 4 files that timed out under load pass alone (82/82); web typecheck/eslint clean, unit 101 files (779), community e2e 17/18 in one chromium run (stage1's rail test passes alone, also on production's 3fe5aba) |
+| Pre-flight | 0.66.1 healthy; VPS `server/` byte-equal to `plans-v2`; 32 GB free |
+| Backup | `backups/pre-0.67.0-20261030T023806Z` (verified, `.env`/`compose.yaml` copies); image `0.66.1-rollback`; sources kept as `server.pre-0.67.0` |
+| Build | 168 server files synced; `docker build --network host` |
+| Rehearsal | volume copy, `--network none`, MongoDB/FCM settings out: 0.67.0 healthy with all 12 new features, 47 users, 12 orgs, 180 conversations, 0 warn/error lines; `0.66.1-rollback` healthy on the migrated copy, 0 warn/error lines; copy removed |
+| Switch | `compose.yaml` image 0.67.0, `up -d --no-deps --no-build --force-recreate api` at 02:43:56, healthy 02:44:06; LiveKit and ntfy untouched |
+| Checks after | `/healthz` 0.67.0 `mongodb: true` on msg.meldiq.app and msg.griipbuddy.cloud; 106 features incl. all 12; `verify.sh` 0 restarts; 0 warn/error log lines; `validate-env.sh` only the known `MONGODB_DOMAINS needs MONGODB_URI` |
+| Web | `0.5.0-beta-9ded695` installed 02:47 (previous 3fe5aba) with the same install values; nginx site byte-equal to before; `verify.sh https://web.meldiq.app` all passed (API through the origin 0.67.0); signed-out page shows the homepage, only Cloudflare's beacon refused by the CSP as before |
+
+Rollback: web first, `bash /root/meldiq-web-0.5.0-beta-9ded695/rollback.sh` (back to 3fe5aba); then API `compose.yaml`
+image `0.66.1-rollback` and `up -d --no-deps --no-build --force-recreate api` (0.66.1 ignores the new tables).
+
 ### API 0.66.1: the Meldling face in account emails (2026-10-29, 20:27 UTC, owner's go-ahead: "Deploy it"; API only, web and console unchanged)
 
 Branch `plans-v2` (4cf14a1, 090a6d7, f529dc4): `render-mail-logo.py` draws from `brand/meldling.png` and writes to
