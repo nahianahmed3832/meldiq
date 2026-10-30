@@ -9,5 +9,5 @@ export { communityCount, orgMates, presenceWatchers, sharedCommunityCounts } fro
 // API 0.65.0 batch B: bots joining and leaving communities (modules/bots decides who may add which bot).
 export { addBotMember, type BotChannelView, botChannels, removeBotMember, requireBotManager } from "./botMembers.js";
 // Community parity batch D: what official bots (modules/officialBots) need from communities.
-export { botRoleGivableBy, communityFacts, giveRoleAsBot, officialBotAssigner, publicTextChannel } from "./botMembers.js";
+export { activeRoleName, botRoleGivableBy, communityFacts, giveRoleAsBot, holdsRole, officialBotAssigner, publicTextChannel } from "./botMembers.js";
 export type { ConversationRow } from "./authz.js";

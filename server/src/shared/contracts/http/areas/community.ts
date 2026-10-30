@@ -7,6 +7,7 @@ import { communitySettingsRoutes } from "../communitySettings.js";
 import { communitySafetyRoutes } from "../communitySafety.js";
 import { communityLobbyRoutes } from "../communityLobbyRoutes.js";
 import { officialBotRoutes } from "../officialBots.js";
+import { officialBotToolRoutes } from "../officialBotTools.js";
 import { reactionRoleRoutes } from "../reactionRoles.js";
 import { reportRoutes } from "../reports.js";
 import { ticketRoutes } from "../tickets.js";
@@ -34,6 +35,8 @@ export const communityRoutes: readonly RouteContract[] = [
   ...ticketRoutes,
   // Community parity batch D: official bots.
   ...officialBotRoutes,
+  // Community parity batch D part 2: Alerts watches and the private Wordy game.
+  ...officialBotToolRoutes,
   // Community parity batch E: discovery, Promote and templates from a community.
   ...discoveryRoutes,
   ...communityTemplateRoutes,

@@ -82,6 +82,23 @@ export class Tickets {
     return this.enabled && this.settings(orgId)?.enabled === 1;
   }
 
+  /** Whether [orgId] has the Tickets bot's Bots+ limits and extras (community parity batch D part 2). */
+  plus(orgId: string): boolean {
+    return this.ctx.officialBots?.tickets.plus(orgId) ?? false;
+  }
+
+  /** Open tickets per person that apply now: as set, but at most 3 without Bots+. */
+  maxOpen(orgId: string): number {
+    const set = this.settings(orgId)?.max_open ?? TICKET_LIMITS.defaultMaxOpen;
+    return this.plus(orgId) ? set : Math.min(set, TICKET_LIMITS.maxOpen);
+  }
+
+  /** The panels tickets open from now: all of them, or the first 2 without Bots+ (the others are kept). */
+  usablePanels(orgId: string): PanelRow[] {
+    const all = this.panels(orgId);
+    return this.plus(orgId) ? all : all.slice(0, TICKET_LIMITS.panels);
+  }
+
   /** Owners, admins and holders of a moderation power. */
   isStaff(orgId: string, userId: string): boolean {
     if (this.ctx.authz.isOrgAdmin(orgId, userId)) return true;
@@ -107,7 +124,7 @@ export class Tickets {
       enabled: s?.enabled === 1,
       maxOpenPerPerson: s?.max_open ?? TICKET_LIMITS.defaultMaxOpen,
       panels: this.panels(orgId).map((p) => ({ id: p.id, name: p.name, postChannelId: p.post_channel_id, categoryId: p.category_id, logChannelId: p.log_channel_id, postedMessageId: p.posted_message_id })),
-      panelLimit: TICKET_LIMITS.panels,
+      panelLimit: this.plus(orgId) ? TICKET_LIMITS.plusPanels : TICKET_LIMITS.panels,
     };
   }
 
@@ -122,8 +139,8 @@ export class Tickets {
     if (!this.takesTickets(orgId)) return {};
     return {
       tickets: {
-        panels: this.panels(orgId).map((p) => ({ id: p.id, name: p.name })),
-        maxOpenPerPerson: this.settings(orgId)!.max_open,
+        panels: this.usablePanels(orgId).map((p) => ({ id: p.id, name: p.name })),
+        maxOpenPerPerson: this.maxOpen(orgId),
         openByMe: this.ctx.ws.count("tickets", { org_id: orgId, opener_id: userId, closed_at: null }),
       },
     };
@@ -150,7 +167,11 @@ export class Tickets {
 
   async setConfig(orgId: string, userId: string, body: z.infer<typeof TicketsConfigBody>) {
     this.config(orgId, userId);
+    // Community parity batch D part 2: beyond 2 panels or 3 open per person is the Tickets bot's Bots+.
+    const plusOnly = [...(body.maxOpenPerPerson > TICKET_LIMITS.maxOpen ? ["maxOpenPerPerson"] : []), ...(body.panels.length > TICKET_LIMITS.panels ? ["panels"] : [])];
+    if (plusOnly.length && !this.plus(orgId)) throw new ApiError(403, "bots_plus_required", "More panels and open tickets per person come with Bots+.", { bot: "tickets", settings: plusOnly });
     body.panels.forEach((p, i) => this.checkPanel(orgId, p, i));
+    const wasOn = this.settings(orgId)?.enabled === 1;
     const known = new Set(this.panels(orgId).map((p) => p.id));
     const t = now();
     await this.ctx.ws.write((w) => {
@@ -169,12 +190,43 @@ export class Tickets {
       });
     });
     this.ctx.audit({ actorId: userId, orgId, action: "tickets.config", target: orgId, detail: `${body.enabled ? "on" : "off"}, ${body.panels.length} panels, ${body.maxOpenPerPerson} per person` });
+    // The Tickets bot is the same switch: it joins or leaves with it.
+    if (body.enabled !== wasOn) await this.ctx.officialBots?.tickets.switched(orgId, body.enabled, userId);
     notifyOrg(this.ctx, orgId);
     return this.configView(orgId);
   }
 
-  /** The community's "Tickets" sender account (senders.ts), made the first time it posts. */
+  /** The switch alone (the Tickets bot turned on or off): settings made with defaults when there are none. */
+  async setSwitch(orgId: string, on: boolean, userId: string): Promise<void> {
+    this.requireEnabled();
+    const t = now();
+    await this.ctx.ws.write((w) => {
+      if (w.get("community_tickets", { org_id: orgId })) w.update("community_tickets", { org_id: orgId }, { enabled: on ? 1 : 0, updated_by: userId, updated_at: t });
+      else w.insert("community_tickets", { org_id: orgId, enabled: on ? 1 : 0, max_open: TICKET_LIMITS.defaultMaxOpen, next_number: 1, poster_id: null, updated_by: userId, updated_at: t });
+    });
+    this.ctx.audit({ actorId: userId, orgId, action: "tickets.config", target: orgId, detail: `${on ? "on" : "off"} (Tickets bot)` });
+    notifyOrg(this.ctx, orgId);
+  }
+
+  /** Open tickets per person alone (the Tickets bot's settings; Bots+ was checked there). */
+  async setMaxOpen(orgId: string, userId: string, max: number): Promise<void> {
+    this.config(orgId, userId);
+    const t = now();
+    await this.ctx.ws.write((w) => {
+      if (w.get("community_tickets", { org_id: orgId })) w.update("community_tickets", { org_id: orgId }, { max_open: max, updated_by: userId, updated_at: t });
+      else w.insert("community_tickets", { org_id: orgId, enabled: 0, max_open: max, next_number: 1, poster_id: null, updated_by: userId, updated_at: t });
+    });
+    this.ctx.audit({ actorId: userId, orgId, action: "tickets.config", target: orgId, detail: `${max} per person` });
+    notifyOrg(this.ctx, orgId);
+  }
+
+  /**
+   * Who posts for tickets: the Tickets bot's account once it has one (community parity batch D part 2), else the
+   * community's "Tickets" sender account (senders.ts), made the first time it posts.
+   */
   async poster(orgId: string): Promise<string> {
+    const bot = this.ctx.officialBots?.tickets.poster(orgId);
+    if (bot) return bot;
     const known = this.settings(orgId)?.poster_id;
     if (known) return known;
     const made = await createSenderAccount(this.ctx, POSTER_NAME);
@@ -187,7 +239,7 @@ export class Tickets {
   async postPanel(orgId: string, panelId: string, userId: string, log: FastifyBaseLogger) {
     this.config(orgId, userId);
     if (!this.takesTickets(orgId)) throw new ApiError(409, "tickets_off", "Turn tickets on before posting a panel");
-    const panel = this.panels(orgId).find((p) => p.id === panelId);
+    const panel = this.usablePanels(orgId).find((p) => p.id === panelId);
     if (!panel) throw notFound("No such panel");
     if (!panel.post_channel_id || !postable(this.ctx.authz.conversation(panel.post_channel_id), orgId)) throw invalid("Pick a public or announcement text channel for this panel first", { panelId, field: "postChannelId" });
     const description = "Need the moderators' help in private? Open a ticket and only they will see it.\nNot for bug reports, feedback or suggestions.";

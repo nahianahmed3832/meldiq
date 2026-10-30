@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "alerts_unconfigured",
+    "message": "Alerts needs a YouTube API key on this server."
+  }
+}

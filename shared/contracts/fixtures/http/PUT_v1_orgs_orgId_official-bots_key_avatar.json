@@ -3,12 +3,13 @@
     "key": "welcomer",
     "name": "Welcomer",
     "available": true,
+    "unavailableReason": null,
     "enabled": true,
-    "userId": "u_YQS80ywiIWi4PUzQ2yIXkA",
+    "userId": "u_w3PVE31No8yKmFLIQAB6-Q",
     "look": {
       "name": "Doorbell",
       "displayName": "Doorbell",
-      "photoRev": 1793313949136
+      "photoRev": 1793325654440
     },
     "settings": {
       "channelId": null,
@@ -18,6 +19,6 @@
       "goodbye": null
     },
     "plusPaused": [],
-    "updatedAt": 1793313949131
+    "updatedAt": 1793325654433
   }
 }

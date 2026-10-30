@@ -4,7 +4,7 @@ import type { TicketOpenBody } from "../../../shared/contracts/http/tickets.js";
 import { ApiError, conflict, forbidden, notFound } from "../../../shared/errors.js";
 import { newId, now } from "../../../shared/utilities/util.js";
 import type { RowWriter } from "../../../infrastructure/database/rows/index.js";
-import { namesOf } from "../../accounts/index.js";
+import { botsAmong, namesOf } from "../../accounts/index.js";
 import { addChannelMember, archiveChannel, channelsInCategory, channelsInCommunity, insertChannel } from "../../messaging/index.js";
 import { CHANNEL_LIMITS, notifyConversation, notifyOrg } from "../orgsRoutes.js";
 import { EVERYONE, USER_PREFIX } from "../permissions/channel.js";
@@ -51,11 +51,19 @@ export class TicketDesk {
   }
 
   private panelFor(orgId: string, panelId: string | undefined): PanelRow | null {
-    const panels = this.t.panels(orgId);
+    const panels = this.t.usablePanels(orgId);
     if (!panelId) return panels[0] ?? null;
     const p = panels.find((x) => x.id === panelId);
     if (!p) throw notFound("No such panel");
     return p;
+  }
+
+  /** The members (not bots) of [roleId]: a panel's support role (Bots+) joins its tickets. */
+  private roleMembers(orgId: string, roleId: string | null): string[] {
+    if (!roleId) return [];
+    const ids = this.ctx.ws.all<{ user_id: string }>("org_role_members", { where: { role_id: roleId, org_id: orgId } }).map((r) => r.user_id);
+    const bots = new Set(botsAmong(this.ctx, ids));
+    return ids.filter((id) => !bots.has(id));
   }
 
   async open(orgId: string, userId: string, body: z.infer<typeof TicketOpenBody>, log: FastifyBaseLogger) {
@@ -65,14 +73,18 @@ export class TicketDesk {
     if (!this.t.takesTickets(orgId)) throw new ApiError(409, "tickets_off", "This community doesn't take tickets");
     const panel = this.panelFor(orgId, body.panelId);
     const me = namesOf(this.ctx.identity, [userId])[0];
-    const staff = this.t.staffIds(orgId).filter((id) => id !== userId);
-    const staffRoles = this.t.staffRoleIds(orgId);
+    // Community parity batch D part 2: with Bots+, the panel's support role sees its tickets and is pinged.
+    const extras = this.ctx.officialBots?.tickets.extras(orgId, panel?.id ?? null) ?? null;
+    const supportRole = extras?.supportRoleId ?? null;
+    const staff = [...new Set([...this.t.staffIds(orgId), ...this.roleMembers(orgId, supportRole)])].filter((id) => id !== userId);
+    const staffRoles = [...new Set([...this.t.staffRoleIds(orgId), ...(supportRole ? [supportRole] : [])])];
+    const maxOpen = this.t.maxOpen(orgId);
     const channelId = newId("c");
     const at = now();
     const ticket = await this.ctx.ws.write((w) => {
       const s = w.get<SettingsRow>("community_tickets", { org_id: orgId })!;
       const open = w.count("tickets", { org_id: orgId, opener_id: userId, closed_at: null });
-      if (open >= s.max_open) throw new ApiError(409, "ticket_limit", `You can have ${s.max_open} open tickets here. Close one to open another.`, { max: s.max_open });
+      if (open >= maxOpen) throw new ApiError(409, "ticket_limit", `You can have ${maxOpen} open tickets here. Close one to open another.`, { max: maxOpen });
       const categoryId = panel?.category_id ?? this.t.ticketsCategory(w, orgId, userId);
       if (panel && !panel.category_id) w.update("ticket_panels", { id: panel.id }, { category_id: categoryId });
       if (channelsInCategory(w, categoryId) >= CHANNEL_LIMITS.perCategory) throw conflict(`The tickets category holds ${CHANNEL_LIMITS.perCategory} channels already. Close some tickets or pick another category.`);
@@ -90,13 +102,19 @@ export class TicketDesk {
     this.ctx.audit({ actorId: userId, orgId, action: "ticket.open", target: channelId, detail: `#${ticket.number}${panel ? ` ${panel.name}` : ""}` });
     const who = me?.displayName ?? "Someone";
     const heading = `Ticket #${ticket.number}${panel ? ` · ${panel.name}` : ""}`;
+    const roleName = supportRole ? this.ctx.ws.get<{ name: string }>("org_roles", { id: supportRole })?.name : undefined;
     await this.say(orgId, channelId, {
       type: "text",
-      text: `${heading}\n${body.about}`,
+      text: `${roleName ? `@${roleName} ` : ""}${heading}\n${body.about}`,
       textFromEmbeds: true,
       embeds: [{ title: heading, description: body.about, author: { name: who } }],
       buttons: [{ kind: "action", action: "close_ticket", label: "Close ticket", emoji: "🔒" }],
+      ...(roleName ? { roleMentions: [supportRole] } : {}),
     }, log);
+    if (extras?.welcomeMessage && me) {
+      const text = extras.welcomeMessage.replaceAll("{user}", `@${me.username}`).replaceAll("{panel}", panel?.name ?? "Tickets");
+      await this.say(orgId, channelId, { type: "text", text, mentions: [userId] }, log);
+    }
     await this.say(orgId, panel?.log_channel_id ?? null, { type: "text", text: `🎫 ${heading} opened by ${who} (#${ticketChannelName(ticket.number, me?.username ?? "member")})` }, log);
     notifyConversation(this.ctx, channelId);
     notifyOrg(this.ctx, orgId);
@@ -141,7 +159,17 @@ export class TicketDesk {
     this.ctx.audit({ actorId: userId, orgId, action: "ticket.close", target: channelId, detail: `#${ticket.number}` });
     this.ctx.audit({ actorId: userId, orgId, action: "channel.archive", target: channelId });
     const panel = ticket.panel_id ? this.t.panels(orgId).find((p) => p.id === ticket.panel_id) : undefined;
-    await this.say(orgId, panel?.log_channel_id ?? null, { type: "text", text: `🔒 Ticket #${ticket.number}${panel ? ` · ${panel.name}` : ""} closed by ${who}` }, log);
+    const heading = `Ticket #${ticket.number}${panel ? ` · ${panel.name}` : ""}`;
+    await this.say(orgId, panel?.log_channel_id ?? null, { type: "text", text: `🔒 ${heading} closed by ${who}` }, log);
+    // Community parity batch D part 2: with Bots+ and transcripts on, the ticket's messages go to the log too.
+    const tickets = this.ctx.officialBots?.tickets;
+    if (panel?.log_channel_id && tickets?.extras(orgId, panel.id)?.transcripts) {
+      const posts = await tickets.transcript(channelId).catch((err: unknown) => {
+        log.warn({ err, orgId, channelId }, "tickets: transcript not made");
+        return [] as string[];
+      });
+      for (const [i, text] of posts.entries()) await this.say(orgId, panel.log_channel_id, { type: "text", text: i === 0 ? `📄 Transcript of ${heading}\n${text}` : text }, log);
+    }
     notifyConversation(this.ctx, channelId);
     notifyOrg(this.ctx, orgId);
     return { ticket: this.t.views([this.t.ticket(orgId, channelId)], userId)[0]! };

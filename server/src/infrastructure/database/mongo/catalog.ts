@@ -209,6 +209,12 @@ export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
   bot_levels: "workspace",
   bot_afk: "workspace",
   bot_starboard: "workspace",
+  // Community parity batch D part 2 (migration 076): giveaways, YouTube alerts and Wordy.
+  bot_giveaways: "workspace",
+  bot_alert_watches: "workspace",
+  bot_wordy_games: "workspace",
+  bot_wordy_stats: "workspace",
+  bot_wordy_recaps: "workspace",
   // Community parity batch E, discovery (migration 075): Discovery settings, templates from a community, the bot
   // directory, boosts and Promoted bookings, and Discover's visit and click records.
   community_discovery: "workspace",

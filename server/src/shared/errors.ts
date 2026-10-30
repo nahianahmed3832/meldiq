@@ -297,7 +297,12 @@ export const ERROR_CODES = {
   bot_role_not_givable: { status: [403], meaning: "Bots can only give roles that are just for show, or that you could assign yourself without administrative powers." },
   official_bot_channel_invalid: { status: [400], meaning: "Pick a text channel of this community that you can see." },
   official_bot_off: { status: [409], meaning: "Turn this bot on first." },
-  official_bot_unavailable: { status: [409], meaning: "This bot isn't ready yet. It's coming soon." },
+  official_bot_unavailable: { status: [409], meaning: "This bot can't be turned on on this server." },
+  // Community parity batch D part 2: Alerts and Wordy.
+  alerts_unconfigured: { status: [503], meaning: "Alerts needs a YouTube API key on this server." },
+  alerts_source_unknown: { status: [400], meaning: "YouTube doesn't know that channel. Paste its link or @handle." },
+  wordy_not_a_word: { status: [400], meaning: "That isn't a five-letter word Wordy knows." },
+  wordy_finished: { status: [409], meaning: "You've played today's word. A new one comes at 00:00 UTC." },
   ...FEDERATION_ERROR_CODES,
 } as const satisfies Record<string, ErrorSpec>;
 

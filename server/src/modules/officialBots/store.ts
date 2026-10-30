@@ -49,6 +49,24 @@ export interface StarRow {
   created_at: number;
 }
 
+/** A giveaway (bot_giveaways, migration 076). */
+export interface GiveawayRow {
+  id: string;
+  org_id: string;
+  channel_id: string;
+  message_id: string | null;
+  prize: string;
+  winners: number;
+  host_id: string;
+  required_role_id: string | null;
+  entrants: number;
+  ends_at: number;
+  ended_at: number | null;
+  /** JSON ids: the winners drawn, rerolled ones appended. */
+  winner_ids: string;
+  created_at: number;
+}
+
 /** Reads and writes of the official bots' tables (workspace rows: SQLite or MongoDB). */
 export class BotRows {
   constructor(private readonly ctx: Pick<AppContext, "ws">) {}
@@ -98,12 +116,12 @@ export class BotRows {
     });
   }
 
-  /** Account deletion: their XP and away notes everywhere. */
+  /** Account deletion: their XP, away notes and Wordy games and record everywhere. */
   async forgetUser(userId: string): Promise<void> {
-    if (this.ctx.ws.count("bot_levels", { user_id: userId }) + this.ctx.ws.count("bot_afk", { user_id: userId }) === 0) return;
+    const tables = ["bot_levels", "bot_afk", "bot_wordy_games", "bot_wordy_stats"];
+    if (tables.every((t) => this.ctx.ws.count(t, { user_id: userId }) === 0)) return;
     await this.ctx.ws.write((w) => {
-      w.delete("bot_levels", { user_id: userId });
-      w.delete("bot_afk", { user_id: userId });
+      for (const t of tables) w.delete(t, { user_id: userId });
     });
   }
 }

@@ -1,0 +1,14 @@
+{
+  "watch": {
+    "id": "aw_TbHu0Z_aOj6Et1y3I19ozA",
+    "source": "https://www.youtube.com/@speedy",
+    "youtubeChannelId": "UC_speedy",
+    "creator": "speedy TV",
+    "channelId": "c_VlXOPu1NIKrGH3tbAil8lQ",
+    "roleId": "rl_6KX-EwfmtcdEvZK-PBDJPQ",
+    "message": "{role} {creator} is live with {title}: {url}",
+    "checkedAt": null,
+    "createdAt": 1793325654505,
+    "active": true
+  }
+}

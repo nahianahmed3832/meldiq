@@ -58,8 +58,10 @@ describe.each([
     for (const bad of [{ postChannelId: voice }, { postChannelId: logs }, { postChannelId: "c_nowhere" }, { logChannelId: voice }, { categoryId: "cat_nowhere" }]) {
       expect(code(await expectStatus(owner.req("PUT", `/v1/orgs/${orgId}/tickets/config`, config([{ ...panel, ...bad }])), 400))).toBe("ticket_channel_invalid");
     }
-    expect(code(await expectStatus(owner.req("PUT", `/v1/orgs/${orgId}/tickets/config`, config([panel, panel, panel])), 400))).toBe("bad_request");
-    expect(code(await expectStatus(owner.req("PUT", `/v1/orgs/${orgId}/tickets/config`, config([panel], true, 4)), 400))).toBe("bad_request");
+    // Beyond 2 panels and 3 per person is Bots+ (the Tickets bot, community parity batch D part 2); 10 at most.
+    expect(code(await expectStatus(owner.req("PUT", `/v1/orgs/${orgId}/tickets/config`, config([panel, panel, panel])), 403))).toBe("bots_plus_required");
+    expect(code(await expectStatus(owner.req("PUT", `/v1/orgs/${orgId}/tickets/config`, config([panel], true, 4)), 403))).toBe("bots_plus_required");
+    expect(code(await expectStatus(owner.req("PUT", `/v1/orgs/${orgId}/tickets/config`, config([panel], true, 11)), 400))).toBe("bad_request");
   });
 
   it("turns on with panels in an automatic Tickets category, keeping panel ids", async () => {
@@ -84,7 +86,8 @@ describe.each([
     const msg = (await history(member, support)).find((m: { id: string }) => m.id === posted.messageId);
     expect(msg.payload.buttons).toEqual([{ kind: "action", action: "open_ticket", panelId: panels[0]!.id, label: "Open a ticket", emoji: "🎫" }]);
     expect(msg.payload.embeds[0].title).toBe("Support");
-    const poster = h.ctx.ws.get<{ poster_id: string }>("community_tickets", { org_id: orgId })!.poster_id;
+    // Turning tickets on brought the Tickets bot in: its account posts for tickets.
+    const poster = h.ctx.ws.get<{ user_id: string }>("official_bots", { org_id: orgId, bot_key: "tickets" })!.user_id;
     expect(msg.senderUserId).toBe(poster);
     expect((await owner.req("GET", `/v1/orgs/${orgId}/tickets/config`)).panels[0].postedMessageId).toBe(posted.messageId);
   });

@@ -11,13 +11,14 @@ import {
   type OfficialBotView,
 } from "../../shared/contracts/http/officialBots.js";
 import { ApiError, badRequest } from "../../shared/errors.js";
-import { createBotIdentity, personCards, readJpegBody, renameBotIdentity, setBotPhoto } from "../accounts/index.js";
+import { personCards, readJpegBody, renameBotIdentity, setBotPhoto } from "../accounts/index.js";
 import { addBotMember, botRoleGivableBy, removeBotMember } from "../organizations/index.js";
 import { catalogEntry } from "./catalog.js";
 import { RESERVED_COMMANDS } from "./commands.js";
 import type { OfficialBots } from "./runtime.js";
-import { DEFAULT_SETTINGS, isLiveBot, plusFeatures, storedSettings } from "./settings.js";
+import { isLiveBot, plusFeatures, storedSettings } from "./settings.js";
 import type { BotRow } from "./store.js";
+import { saveTicketsSettings, ticketsPlusPaused, ticketsSettingsView } from "./ticketsBot.js";
 import { welcome, welcomeChannel } from "./welcomer.js";
 
 type View = z.infer<typeof OfficialBotView>;
@@ -26,7 +27,7 @@ type Body = z.infer<typeof OfficialBotBody>;
 /** Settings fields that name channels: each must be a text channel of the community its editor can see. */
 const CHANNEL_FIELDS = ["channelId", "memberChannelId", "announceChannelId", "excludeChannelIds"] as const;
 
-const unavailable = () => new ApiError(409, "official_bot_unavailable", "This bot isn't ready yet. It's coming soon.");
+const unavailable = (reason: string) => new ApiError(409, "official_bot_unavailable", `This bot can't be turned on here: ${reason.toLowerCase()}.`);
 
 /**
  * The Bots page and each bot's detail window (community parity batch D): what's on in a community, turning bots on and
@@ -42,18 +43,22 @@ export class BotManager {
 
   private view(orgId: string, key: OfficialBotKey, editor: boolean, plus: boolean): View {
     const row = this.rt.rows.bot(orgId, key);
-    const live = isLiveBot(key);
+    const reason = this.rt.unavailableReason(key);
+    const live = isLiveBot(key) && reason === null;
     const card = row?.user_id ? personCards(this.ctx, [row.user_id]).get(row.user_id) : undefined;
     const settings = live ? storedSettings(key, row?.settings) : null;
+    const tickets = key === "tickets" && live;
     return {
       key,
       name: catalogEntry(key).name,
       available: live,
-      enabled: live && row?.enabled === 1,
+      unavailableReason: reason,
+      // The Tickets bot is the community's tickets switch.
+      enabled: live && (tickets ? this.ctx.tickets.settings(orgId)?.enabled === 1 : row?.enabled === 1),
       userId: row?.user_id ?? null,
       look: { name: row?.look_name ?? null, displayName: card?.displayName ?? row?.look_name ?? catalogEntry(key).name, photoRev: card?.photoRev ?? null },
-      settings: editor && settings ? (settings as Record<string, unknown>) : null,
-      plusPaused: live && settings && !plus ? plusFeatures(key, settings) : [],
+      settings: editor && settings ? (tickets ? ticketsSettingsView(this.rt, orgId) : (settings as Record<string, unknown>)) : null,
+      plusPaused: live && settings && !plus ? (tickets ? ticketsPlusPaused(this.rt, orgId) : plusFeatures(key, settings)) : [],
       updatedAt: row?.updated_at ?? null,
     };
   }
@@ -79,15 +84,12 @@ export class BotManager {
   private requireEditor(orgId: string, userId: string, key: OfficialBotKey): asserts key is LiveBotKey {
     this.rt.requireEnabled();
     this.ctx.authz.requirePermission(orgId, userId, "workspace.edit", "Your role doesn't include changing the community's bots");
-    if (!isLiveBot(key)) throw unavailable();
+    const reason = this.rt.unavailableReason(key);
+    if (!isLiveBot(key) || reason) throw unavailable(reason ?? "coming soon");
   }
 
-  /** The bot's account in [orgId], made the first time it's needed (named as the community wants it). */
-  private async account(orgId: string, key: LiveBotKey, actorId: string, lookName: string | null): Promise<string> {
-    const known = this.rt.rows.bot(orgId, key)?.user_id;
-    if (known) return known;
-    const made = await createBotIdentity(this.ctx, lookName ?? catalogEntry(key).name);
-    return this.rt.rows.claimAccount(orgId, key, made.userId, actorId, this.rt.clock(), JSON.stringify(DEFAULT_SETTINGS[key]));
+  private account(orgId: string, key: LiveBotKey, actorId: string, lookName: string | null): Promise<string> {
+    return this.rt.ensureAccount(orgId, key, actorId, lookName);
   }
 
   /** Checks the settings sent (merged over the stored ones): their shape, Plus extras, channels and roles. */
@@ -113,6 +115,10 @@ export class BotManager {
         }
       }
     }
+    if (key === "giveaways" && "requiredRoleId" in sent) {
+      const roleId = (next as BotSettings<"giveaways">).requiredRoleId;
+      if (roleId && !this.ctx.authz.roleGrant(roleId, orgId)) throw badRequest("Pick a role of this community", { field: "requiredRoleId" });
+    }
     if (key === "levels" && "roleRewards" in sent) {
       const rewards = (next as BotSettings<"levels">).roleRewards;
       if (new Set(rewards.map((r) => r.roleId)).size !== rewards.length) throw badRequest("Each role can be a reward for one level", { field: "roleRewards" });
@@ -132,9 +138,11 @@ export class BotManager {
     this.requireEditor(orgId, userId, key);
     const row = this.rt.rows.bot(orgId, key);
     const before = storedSettings(key, row?.settings);
-    const settings = body.settings ? this.mergeSettings(orgId, key, userId, before, body.settings) : before;
+    const tickets = key === "tickets";
+    const settings = !body.settings ? before : tickets ? await saveTicketsSettings(this.rt, orgId, userId, body.settings) : this.mergeSettings(orgId, key, userId, before, body.settings);
     const lookName = body.look ? body.look.name : (row?.look_name ?? null);
-    const wasOn = row?.enabled === 1;
+    // The Tickets bot is on while the community takes tickets (Settings › Tickets is the same switch).
+    const wasOn = row?.enabled === 1 || (tickets && this.ctx.tickets.settings(orgId)?.enabled === 1);
     const on = body.enabled ?? wasOn;
     const needsAccount = on || body.look !== undefined || !!row?.user_id;
     const accountId = needsAccount ? await this.account(orgId, key, userId, lookName) : null;
@@ -144,6 +152,7 @@ export class BotManager {
     const current = this.rt.rows.bot(orgId, key);
     const next: BotRow = { org_id: orgId, bot_key: key, enabled: on ? 1 : 0, settings: JSON.stringify(settings), look_name: lookName, user_id: current?.user_id ?? accountId, updated_by: userId, updated_at: this.rt.clock() };
     await this.rt.rows.save(next);
+    if (tickets && on !== wasOn) await this.ctx.tickets.setSwitch(orgId, on, userId);
     if (!on && wasOn && accountId) await removeBotMember(this.ctx, orgId, accountId, userId);
     const changed = [
       ...(on !== wasOn ? [on ? "on" : "off"] : []),

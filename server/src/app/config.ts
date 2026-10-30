@@ -156,6 +156,11 @@ export interface Config {
    */
   communityBots: boolean;
   /**
+   * Community parity batch D part 2: the YouTube Data API v3 key the Alerts bot checks channels with (YOUTUBE_API_KEY).
+   * Without one, Alerts is listed as unavailable and its routes answer 503 alerts_unconfigured.
+   */
+  youtubeApiKey: string | null;
+  /**
    * Community parity batch E (docs/COMMUNITY_PARITY_API.md › Discovery): Discover and Discovery settings (feature
    * "discovery-listing", DISCOVERY), templates from a community ("template-links", COMMUNITY_TEMPLATE_LINKS),
    * the community bot directory ("bot-directory", BOT_DIRECTORY) and Promote ("discovery-promote", DISCOVERY_PROMOTE).
@@ -622,6 +627,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       tickets: switchedOn(env.COMMUNITY_TICKETS),
     },
     communityBots: switchedOn(env.COMMUNITY_BOTS),
+    youtubeApiKey: env.YOUTUBE_API_KEY?.trim() || null,
     discovery: {
       enabled: switchedOn(env.DISCOVERY),
       templates: switchedOn(env.COMMUNITY_TEMPLATE_LINKS),

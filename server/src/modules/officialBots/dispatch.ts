@@ -5,7 +5,9 @@ import { noteAway } from "./helper.js";
 import { gainXp } from "./levels.js";
 import { logMember, logMessageChange, logRole } from "./logger.js";
 import type { ActiveBots, OfficialBots } from "./runtime.js";
+import { countEntries } from "./giveaways.js";
 import { countStars } from "./starboard.js";
+import { maybeGuess } from "./wordy.js";
 import { sayGoodbye, welcome } from "./welcomer.js";
 
 /** Changes that take a member out: if it was one of the community's official bots, that bot is off from now on. */
@@ -36,6 +38,10 @@ async function onMessage(rt: OfficialBots, bots: ActiveBots, ev: MessagePosted):
     await runCommand(rt, bots, ev, command);
     return;
   }
+  // A bare five-letter word in Wordy's channel is a guess while its sender has a game running (no XP for it).
+  let guessed = false;
+  if (bots.wordy) await rt.safely("wordy", ev, async () => (guessed = await maybeGuess(rt, bots.wordy!, ev, text)));
+  if (guessed) return;
   if (bots.levels) await rt.safely("levels", ev, () => gainXp(rt, bots.levels!, ev, text));
 }
 
@@ -60,6 +66,7 @@ export async function handle(rt: OfficialBots, ev: BotEvent): Promise<void> {
       return;
     case "reaction":
       if (bots.starboard) await rt.safely("starboard", ev, () => countStars(rt, bots.starboard!, ev));
+      if (bots.giveaways) await rt.safely("giveaways", ev, () => countEntries(rt, ev));
       return;
     case "member":
       return onMember(rt, bots, ev);

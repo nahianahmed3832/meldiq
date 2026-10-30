@@ -27,7 +27,8 @@
           "plus": "Yes"
         }
       ],
-      "available": true
+      "available": true,
+      "unavailableReason": null
     },
     {
       "key": "helper",
@@ -77,7 +78,8 @@
           "plus": "Up to 25"
         }
       ],
-      "available": true
+      "available": true,
+      "unavailableReason": null
     },
     {
       "key": "levels",
@@ -120,7 +122,8 @@
           "plus": "Yes"
         }
       ],
-      "available": true
+      "available": true,
+      "unavailableReason": null
     },
     {
       "key": "logger",
@@ -150,7 +153,8 @@
           "plus": "Up to 25"
         }
       ],
-      "available": true
+      "available": true,
+      "unavailableReason": null
     },
     {
       "key": "starboard",
@@ -184,64 +188,66 @@
           "plus": "Up to 25"
         }
       ],
-      "available": true
+      "available": true,
+      "unavailableReason": null
     },
     {
       "key": "giveaways",
       "name": "Giveaways",
       "tagline": "Prize draws with one command",
-      "description": "Giveaways runs a prize draw from a single message: people react 🎉 to enter, and when time's up it picks the winners from people still in the community. Bots never win.",
+      "description": "Giveaways runs a prize draw from a single message. Anyone who manages messages in a channel can start one there: people react 🎉 to enter, and when time's up the bot draws the winners from people still in the community and calls them out. Bots never win, and running draws show on your lobby.",
       "color": "#ec4899",
       "icon": "🎉",
       "features": [
         "React to enter",
         "Several winners",
-        "Reroll",
+        "End early or reroll",
         "Shows on your lobby"
       ],
-      "sample": "🎉 Giveaway: a game key\nReact with 🎉 to enter · 1 winner · ends tomorrow · run by Ana",
+      "sample": "🎉 Giveaway: a game key\nReact with 🎉 to enter · 1 winner · ends in 1 day · hosted by Ana",
       "commands": [
         {
           "usage": "!giveaway 1d Prize",
-          "description": "Start one (s, m, h, d or w)"
+          "description": "Start a draw here (s, m, h, d or w)"
         },
         {
           "usage": "!giveaway 2h 3w Prize",
-          "description": "Three winners in two hours"
+          "description": "Three winners, drawn in two hours"
         },
         {
           "usage": "!gend",
-          "description": "End it now"
+          "description": "Draw this channel's giveaway now"
         },
         {
           "usage": "!greroll",
-          "description": "Pick another winner"
+          "description": "Draw someone else for the last one"
         }
       ],
       "limits": [
         {
-          "what": "Winners",
+          "what": "Winners per draw",
           "free": "Up to 3",
           "plus": "Up to 20"
         },
         {
-          "what": "Longest giveaway",
+          "what": "Longest draw",
           "free": "7 days",
           "plus": "30 days"
         },
         {
-          "what": "Only some roles may enter",
+          "what": "Only members with a role can win",
           "free": "—",
           "plus": "Yes"
         }
       ],
-      "available": false
+      "available": true,
+      "unavailableReason": null
     },
     {
       "key": "tickets",
       "name": "Tickets",
       "tagline": "Private help desks for your members",
-      "description": "Tickets posts a panel with an \"Open a ticket\" button. Each ticket is a private channel between the person who opened it and your moderators, closed by either side when it's sorted.",
+      "description": "Tickets posts a panel with an \"Open a ticket\" button. Each ticket is a private channel between the person who opened it and your moderators, and either side closes it once it's sorted. Turning Tickets on here is the same switch as Settings › Tickets.",
       "color": "#8b5cf6",
       "icon": "🎫",
       "features": [
@@ -264,14 +270,14 @@
           "plus": "Up to 10"
         },
         {
-          "what": "Ping a support role",
+          "what": "A support role that sees tickets and is pinged",
           "free": "—",
-          "plus": "Yes"
+          "plus": "Per panel"
         },
         {
-          "what": "Welcome message per panel",
+          "what": "Welcome line in each new ticket",
           "free": "—",
-          "plus": "Yes"
+          "plus": "Per panel"
         },
         {
           "what": "Transcript in the log when closed",
@@ -279,62 +285,66 @@
           "plus": "Yes"
         }
       ],
-      "available": false
+      "available": true,
+      "unavailableReason": null
     },
     {
       "key": "alerts",
       "name": "Alerts",
       "tagline": "New videos, posted for you",
-      "description": "Alerts watches the video channels you follow and posts each new upload in the channel you choose, with a ping for a role if you like.",
+      "description": "Alerts follows the YouTube channels you add and posts each new upload in the channel you pick, with a ping for a role if you like. It looks every ten minutes and only ever posts videos that came out after you added the channel.",
       "color": "#ef4444",
       "icon": "📣",
       "features": [
         "New uploads only",
         "Your channel",
         "Optional role ping",
-        "Your own message"
+        "Your own line"
       ],
-      "sample": "📣 Ana posted a new video: Speedrun night recap",
+      "sample": "📣 Ana just posted a new video: Speedrun night recap\nhttps://youtu.be/…",
       "commands": [],
       "limits": [
         {
-          "what": "Video channels followed",
+          "what": "YouTube channels followed",
           "free": "3",
           "plus": "25"
         }
       ],
-      "available": false
+      "available": false,
+      "unavailableReason": "Needs a YouTube API key on this server"
     },
     {
       "key": "wordy",
       "name": "Wordy",
       "tagline": "One five-letter word a day",
-      "description": "Wordy picks the same five-letter word for everyone each day. You get six tries, the board shows colours but never letters, and streaks and the best solvers are kept.",
+      "description": "Wordy picks the same five-letter word for everyone here each day (new at 00:00 UTC). You get six tries, the board shows colours but never letters, and Wordy keeps streaks, the best solvers and a recap of yesterday in its channel.",
       "color": "#14b8a6",
       "icon": "🔤",
       "features": [
         "Daily word",
         "Six tries",
         "No spoilers",
-        "Streaks"
+        "Streaks",
+        "Daily recap"
       ],
-      "sample": "🔤 Ana solved today's word in 3: 🟨⬛⬛🟩⬛ 🟩🟩⬛🟩🟨 🟩🟩🟩🟩🟩",
+      "sample": "🔤 Ana solved Wordy #304 in 3/6\n🟨⬛⬛🟩⬛\n🟩🟩⬛🟩🟨\n🟩🟩🟩🟩🟩",
       "commands": [
         {
-          "usage": "!wordy",
-          "description": "Today's board"
+          "usage": "!wordy or /wordy",
+          "description": "Start or show your game of the day"
         },
         {
-          "usage": "!wordy guess",
-          "description": "Try a word"
+          "usage": "!wordy word",
+          "description": "Guess (or just type a five-letter word in Wordy's channel)"
         },
         {
           "usage": "!wordy stats",
-          "description": "Your streak and the best solvers"
+          "description": "Your streak and the best solvers here"
         }
       ],
       "limits": [],
-      "available": false
+      "available": true,
+      "unavailableReason": null
     }
   ],
   "botsPlus": {
@@ -346,7 +356,9 @@
       "XP boosts and level roles",
       "A separate member log",
       "Any star emoji",
-      "Bigger giveaways and more ticket panels"
+      "Bigger, longer giveaways for a role",
+      "10 ticket panels with support roles and transcripts",
+      "Follow up to 25 YouTube channels"
     ]
   }
 }

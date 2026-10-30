@@ -67,12 +67,13 @@ describe.each([
   }, STARTUP_MS);
   afterAll(async () => h?.close());
 
-  it("is advertised with a catalog of nine bots, five of which can be turned on", async () => {
+  it("is advertised with a catalog of nine bots, all but Alerts available without a YouTube API key", async () => {
     expect((await member.req("GET", "/v1/server-info")).features).toContain("community-bots");
     const c = await member.req("GET", "/v1/official-bots");
     expect(OfficialBotsCatalog.safeParse(c).success).toBe(true);
     expect(c.bots.map((b: { key: string }) => b.key)).toEqual(["welcomer", "helper", "levels", "logger", "starboard", "giveaways", "tickets", "alerts", "wordy"]);
-    expect(c.bots.filter((b: { available: boolean }) => b.available).map((b: { key: string }) => b.key)).toEqual(["welcomer", "helper", "levels", "logger", "starboard"]);
+    expect(c.bots.filter((b: { available: boolean }) => b.available).map((b: { key: string }) => b.key)).toEqual(["welcomer", "helper", "levels", "logger", "starboard", "giveaways", "tickets", "wordy"]);
+    expect(c.bots.find((b: { key: string }) => b.key === "alerts")).toMatchObject({ available: false, unavailableReason: "Needs a YouTube API key on this server" });
     expect(c.bots.find((b: { key: string }) => b.key === "helper").commands.map((x: { usage: string }) => x.usage)).toContain("!afk reason");
   });
 
@@ -84,13 +85,14 @@ describe.each([
     const mine = await owner.req("GET", base());
     expect(mine.canEdit).toBe(true);
     expect(mine.bots.find((b: { key: string }) => b.key === "starboard").settings).toEqual({ channelId: null, threshold: 5, emoji: null, selfStar: false, excludeChannelIds: [] });
-    expect(mine.bots.find((b: { key: string }) => b.key === "wordy")).toMatchObject({ available: false, settings: null });
+    expect(mine.bots.find((b: { key: string }) => b.key === "wordy")).toMatchObject({ available: true, settings: { channelId: null } });
+    expect(mine.bots.find((b: { key: string }) => b.key === "alerts")).toMatchObject({ available: false, settings: null });
     expect(code(await expectStatus(outsider.req("GET", base()), 404))).toBe("not_found");
   });
 
-  it("is changed only by people who can edit the community, and part 2's bots can't be turned on yet", async () => {
+  it("is changed only by people who can edit the community, and Alerts can't be turned on without a YouTube API key", async () => {
     expect(code(await expectStatus(put(member, "welcomer", { enabled: true }), 403))).toBe("forbidden");
-    expect(code(await expectStatus(put(owner, "giveaways", { enabled: true }), 409))).toBe("official_bot_unavailable");
+    expect(code(await expectStatus(put(owner, "alerts", { enabled: true }), 409))).toBe("official_bot_unavailable");
     expect(code(await expectStatus(put(owner, "welcomer", { look: { name: "x".repeat(33) } }), 400))).toBe("bad_request");
     expect(code(await expectStatus(put(owner, "starboard", { settings: { threshold: 6 } }), 400))).toBe("bad_request");
     expect(code(await expectStatus(put(owner, "welcomer", { settings: { nonsense: true } }), 400))).toBe("bad_request");

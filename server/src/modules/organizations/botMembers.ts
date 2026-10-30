@@ -129,3 +129,13 @@ export function communityFacts(ctx: AppContext, orgId: string): { name: string; 
   const bots = new Set(botsAmong(ctx, ids));
   return { name: ctx.ws.get<{ name: string }>("orgs", { id: orgId })?.name ?? "this community", people: ids.filter((id) => !bots.has(id)).length };
 }
+
+/** Community parity batch D part 2: an active role's name in [orgId] (giveaway cards, Alerts' role pings), or null. */
+export function activeRoleName(ctx: AppContext, orgId: string, roleId: string): string | null {
+  return ctx.ws.get<{ name: string }>("org_roles", { id: roleId, org_id: orgId, archived_at: null })?.name ?? null;
+}
+
+/** Community parity batch D part 2: whether [userId] holds [roleId] in [orgId] (a giveaway's required role). */
+export function holdsRole(ctx: AppContext, orgId: string, roleId: string, userId: string): boolean {
+  return !!ctx.ws.get("org_role_members", { role_id: roleId, org_id: orgId, user_id: userId });
+}

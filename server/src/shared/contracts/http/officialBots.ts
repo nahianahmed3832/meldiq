@@ -11,8 +11,8 @@ import { route } from "./route.js";
 /** Every official bot, in the order the Bots page lists them. */
 export const OFFICIAL_BOT_KEYS = ["welcomer", "helper", "levels", "logger", "starboard", "giveaways", "tickets", "alerts", "wordy"] as const;
 export type OfficialBotKey = (typeof OFFICIAL_BOT_KEYS)[number];
-/** The bots that run now (part 1); the others are listed with `available: false` until part 2. */
-export const LIVE_BOT_KEYS = ["welcomer", "helper", "levels", "logger", "starboard"] as const satisfies readonly OfficialBotKey[];
+/** The bots that run (all nine since part 2; Alerts is still unavailable on a server without a YouTube API key). */
+export const LIVE_BOT_KEYS = OFFICIAL_BOT_KEYS;
 export type LiveBotKey = (typeof LIVE_BOT_KEYS)[number];
 
 export const BOT_LIMITS = {
@@ -28,6 +28,14 @@ export const BOT_LIMITS = {
   starThresholds: [1, 2, 3, 4, 5, 7, 10, 15, 20, 30],
   defaultStarThreshold: 5,
   xpBoosts: [1, 1.5, 2],
+  giveawayWinners: { free: 3, plus: 20 },
+  giveawayDays: { free: 7, plus: 30 },
+  giveawayPrize: 200,
+  ticketPanels: { free: 2, plus: 10 },
+  ticketsOpenPerPerson: { free: 3, plus: 10 },
+  ticketWelcome: 500,
+  alertWatches: { free: 3, plus: 25 },
+  alertMessage: 300,
 } as const;
 
 const zChannelId = z.string().min(1).max(64);
@@ -84,8 +92,62 @@ export const StarboardSettings = z.strictObject({
   excludeChannelIds: z.array(zChannelId).max(BOT_LIMITS.excludedChannels),
 });
 
-export const BOT_SETTINGS = { welcomer: WelcomerSettings, helper: HelperSettings, levels: LevelsSettings, logger: LoggerSettings, starboard: StarboardSettings } as const;
+const zRoleId = z.string().min(1).max(64);
+
+/** Giveaways: the limits follow Bots+ (winners, length). Plus: only members holding `requiredRoleId` may win. */
+export const GiveawaysSettings = z.strictObject({ requiredRoleId: zRoleId.nullable() });
+
+/**
+ * What the Tickets bot keeps itself: the Bots+ extras of each panel (by panel id) and transcripts. The rest of its
+ * settings is batch C's tickets config (`TicketsBotSettings` is what editors see and send).
+ */
+export const TicketsBotStored = z.strictObject({
+  panels: z.record(z.string(), z.strictObject({ supportRoleId: zRoleId.nullable(), welcomeMessage: z.string().nullable() })),
+  transcripts: z.boolean(),
+});
+
+/** Alerts: its YouTube channels are managed under /official-bots/alerts/watches; nothing else to set. */
+export const AlertsSettings = z.strictObject({});
+
+/** Wordy: quiet until `channelId` (where the game is played and the daily recap goes) is set. */
+export const WordySettings = z.strictObject({ channelId: zChannelId.nullable() });
+
+export const BOT_SETTINGS = {
+  welcomer: WelcomerSettings,
+  helper: HelperSettings,
+  levels: LevelsSettings,
+  logger: LoggerSettings,
+  starboard: StarboardSettings,
+  giveaways: GiveawaysSettings,
+  tickets: TicketsBotStored,
+  alerts: AlertsSettings,
+  wordy: WordySettings,
+} as const;
 export type BotSettings<K extends LiveBotKey> = z.infer<(typeof BOT_SETTINGS)[K]>;
+
+/** A Tickets panel as the Tickets bot shows and takes it: batch C's panel, with its Bots+ extras. */
+const TicketsBotPanel = z.strictObject({
+  /** Kept when it's one of this community's panels; a new id otherwise. */
+  id: z.string().max(64).optional(),
+  name: z.string().trim().min(1).max(40),
+  postChannelId: zChannelId,
+  categoryId: zChannelId.nullable(),
+  logChannelId: zChannelId.nullable(),
+  /** Plus: can see this panel's tickets and is pinged when one opens. */
+  supportRoleId: zRoleId.nullable().default(null),
+  /** Plus: said in each new ticket of this panel; {user} mentions the opener, {panel} is the panel's name. */
+  welcomeMessage: z.string().trim().min(1).max(BOT_LIMITS.ticketWelcome).nullable().default(null),
+  /** Shown in views (the panel's last posted message); ignored when sent. */
+  postedMessageId: z.string().nullable().optional(),
+});
+
+/** The Tickets bot's settings: the tickets config itself (per person, panels) and the Bots+ extras. */
+export const TicketsBotSettings = z.strictObject({
+  maxOpenPerPerson: z.number().int().min(1).max(BOT_LIMITS.ticketsOpenPerPerson.plus),
+  panels: z.array(TicketsBotPanel).max(BOT_LIMITS.ticketPanels.plus),
+  /** Plus: a text log of the ticket's messages in the panel's log channel when it closes. */
+  transcripts: z.boolean(),
+});
 
 export const CatalogBot = z.strictObject({
   key: z.enum(OFFICIAL_BOT_KEYS),
@@ -103,8 +165,10 @@ export const CatalogBot = z.strictObject({
   commands: z.array(z.strictObject({ usage: z.string(), description: z.string() })),
   /** The Free vs Plus table. */
   limits: z.array(z.strictObject({ what: z.string(), free: z.string(), plus: z.string() })),
-  /** false: listed, but it can't be turned on yet. */
+  /** false: listed, but it can't be turned on here. */
   available: z.boolean(),
+  /** Why it can't (e.g. "Needs a YouTube API key"), null when it can. */
+  unavailableReason: z.string().nullable(),
 });
 
 export const OfficialBotsCatalog = z.strictObject({
@@ -116,6 +180,7 @@ export const OfficialBotView = z.strictObject({
   key: z.enum(OFFICIAL_BOT_KEYS),
   name: z.string(),
   available: z.boolean(),
+  unavailableReason: z.string().nullable(),
   enabled: z.boolean(),
   /** The bot's account in this community (null before it was first turned on or given a look). */
   userId: z.string().nullable(),

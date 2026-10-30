@@ -9,7 +9,8 @@ import { route } from "./route.js";
  * open in and where they're logged.
  */
 
-export const TICKET_LIMITS = { panels: 2, panelName: 40, about: 300, defaultMaxOpen: 2 } as const;
+/** Free limits, and with Bots+ (community parity batch D part 2, the Tickets bot): 10 panels and 10 open per person. */
+export const TICKET_LIMITS = { panels: 2, plusPanels: 10, panelName: 40, about: 300, defaultMaxOpen: 2, maxOpen: 3, plusMaxOpen: 10 } as const;
 
 export const TicketPanelInput = z.strictObject({
   /** Kept when it's one of this community's panels; a new id otherwise. */
@@ -23,8 +24,10 @@ export const TicketPanelInput = z.strictObject({
 
 export const TicketsConfigBody = z.strictObject({
   enabled: z.boolean(),
-  maxOpenPerPerson: z.number().int().min(1).max(3),
-  panels: z.array(TicketPanelInput).max(TICKET_LIMITS.panels),
+  /** 1–3; up to 10 with Bots+. */
+  maxOpenPerPerson: z.number().int().min(1).max(TICKET_LIMITS.plusMaxOpen),
+  /** Up to 2; up to 10 with Bots+. */
+  panels: z.array(TicketPanelInput).max(TICKET_LIMITS.plusPanels),
 });
 
 export const TicketPanel = z.strictObject({
@@ -42,7 +45,7 @@ export const TicketsConfig = z.strictObject({
   enabled: z.boolean(),
   maxOpenPerPerson: z.number().int(),
   panels: z.array(TicketPanel),
-  /** Panels a community may have (2 for now). */
+  /** Panels a community may have (2, or 10 with Bots+). */
   panelLimit: z.number().int(),
 });
 
@@ -97,7 +100,7 @@ export const ticketRoutes = [
     params: OrgOnly,
     body: TicketsConfigBody,
     response: TicketsConfig,
-    errors: [...off, "forbidden", "ticket_channel_invalid", "conflict"],
+    errors: [...off, "forbidden", "ticket_channel_invalid", "bots_plus_required", "conflict"],
   }),
   route({
     method: "POST",

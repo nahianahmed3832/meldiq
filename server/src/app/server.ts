@@ -353,7 +353,12 @@ export async function buildApp(
   // Community parity batch D (docs/COMMUNITY_PARITY_API.md › Official bots): official bots, kept in workspace rows
   // (migration 074). Registered after the stores' own onClose hooks, so queued bot work finishes before they close.
   ctx.officialBots = new OfficialBots(ctx, config.communityBots);
-  app.addHook("onClose", async () => ctx.officialBots.settled());
+  // Part 2: giveaways ending, Wordy recaps and Alerts' checks run on timers (stopped before the queue drains).
+  ctx.officialBots.scheduler.start();
+  app.addHook("onClose", async () => {
+    await ctx.officialBots.scheduler.stop();
+    await ctx.officialBots.settled();
+  });
   // Community parity batch E (docs/COMMUNITY_PARITY_API.md › Discovery): Discover, Promote, templates from a community
   // and the bot directory, kept in workspace rows (migration 075).
   ctx.discovery = new Discovery(ctx, config.discovery);

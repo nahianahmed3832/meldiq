@@ -1,14 +1,18 @@
 import type { AppContext } from "../../app/context.js";
-import type { BotSettings, LiveBotKey } from "../../shared/contracts/http/officialBots.js";
+import type { BotSettings, LiveBotKey, OfficialBotKey } from "../../shared/contracts/http/officialBots.js";
 import { ApiError } from "../../shared/errors.js";
 import { newId } from "../../shared/utilities/util.js";
-import { namesOf } from "../accounts/index.js";
+import { createBotIdentity, namesOf } from "../accounts/index.js";
 import { sendServerMessage } from "../messaging/index.js";
 import { catalogEntry } from "./catalog.js";
 import { handle } from "./dispatch.js";
 import { type BotEvent, fromAudit, fromMessage, type NotedAudit, type NotedMessage } from "./events.js";
-import { effectiveSettings, isLiveBot, storedSettings } from "./settings.js";
+import { runningGiveaways } from "./giveaways.js";
+import { BotScheduler } from "./scheduler.js";
+import { DEFAULT_SETTINGS, effectiveSettings, isLiveBot, storedSettings } from "./settings.js";
 import { BotRows, type LevelRow } from "./store.js";
+import { TicketsSeam } from "./ticketsBot.js";
+import { type VideoSource, youtubeSource } from "./youtube.js";
 
 /** An official bot that is on in a community, with the settings it acts on now. */
 export interface ActiveBot<K extends LiveBotKey = LiveBotKey> {
@@ -33,6 +37,11 @@ type Payload = Record<string, unknown> & { type: string };
  */
 export class OfficialBots {
   readonly rows: BotRows;
+  readonly scheduler: BotScheduler;
+  /** Batch C's tickets as the Tickets bot extends them (ctx.tickets asks through here). */
+  readonly tickets: TicketsSeam;
+  /** Where Alerts reads YouTube (YOUTUBE_API_KEY); null: Alerts is unavailable. Tests put a fake here. */
+  videoSource: VideoSource | null;
   private tail: Promise<void> = Promise.resolve();
 
   constructor(
@@ -41,10 +50,20 @@ export class OfficialBots {
     readonly clock: () => number = Date.now,
   ) {
     this.rows = new BotRows(ctx);
+    this.scheduler = new BotScheduler(this);
+    this.tickets = new TicketsSeam(this);
+    this.videoSource = ctx.config.youtubeApiKey ? youtubeSource(ctx.config.youtubeApiKey) : null;
   }
 
   requireEnabled(): void {
     if (!this.enabled) throw new ApiError(503, "feature_disabled", "Official bots are switched off for now. Try again later.");
+  }
+
+  /** Why [key] can't be turned on on this server, or null when it can. */
+  unavailableReason(key: OfficialBotKey): string | null {
+    if (key === "alerts" && !this.videoSource) return "Needs a YouTube API key on this server";
+    if (key === "tickets" && !this.ctx.tickets.enabled) return "Tickets are switched off on this server";
+    return null;
   }
 
   /** Whether [orgId] has Bots+ now. */
@@ -65,6 +84,25 @@ export class OfficialBots {
    */
   async setPlus(orgId: string, grant: { by: string; expiresAt: number | null; reason: string } | null): Promise<void> {
     await this.rows.setPlus(grant ? { org_id: orgId, granted_by: grant.by, granted_at: this.clock(), expires_at: grant.expiresAt, reason: grant.reason } : null, orgId);
+  }
+
+  /** [key]'s account in [orgId], made the first time it's needed (named as the community wants it). */
+  async ensureAccount(orgId: string, key: LiveBotKey, actorId: string, lookName: string | null): Promise<string> {
+    const known = this.rows.bot(orgId, key)?.user_id;
+    if (known) return known;
+    const made = await createBotIdentity(this.ctx, lookName ?? catalogEntry(key).name);
+    return this.rows.claimAccount(orgId, key, made.userId, actorId, this.clock(), JSON.stringify(DEFAULT_SETTINGS[key]));
+  }
+
+  /**
+   * [key]'s account in [orgId] with the settings it acts on, whether it's on or not (null before it had an account):
+   * the scheduler finishes what a bot started (a giveaway) even after it was turned off.
+   */
+  account<K extends LiveBotKey>(orgId: string, key: K): ActiveBot<K> | null {
+    const r = this.rows.bot(orgId, key);
+    if (!r?.user_id) return null;
+    const plus = this.hasPlus(orgId);
+    return { key, orgId, userId: r.user_id, name: this.nameOf(r.user_id), settings: effectiveSettings(key, storedSettings(key, r.settings), plus), plus };
   }
 
   /** The bots on in [orgId] whose account is still a member there. */
@@ -100,6 +138,20 @@ export class OfficialBots {
 
   private enqueue(ev: BotEvent): void {
     this.tail = this.tail.then(() => this.run(ev));
+  }
+
+  /** Scheduled work (scheduler.ts) runs on the same queue as events, so the two never interleave. */
+  later(what: string, fn: () => Promise<void>): Promise<void> {
+    const run = this.tail.then(async () => {
+      try {
+        await this.ctx.ws.settled();
+        await fn();
+      } catch (err) {
+        this.ctx.log.warn({ err, what }, "official bots: scheduled work failed");
+      }
+    });
+    this.tail = run;
+    return run;
   }
 
   private async run(ev: BotEvent): Promise<void> {
@@ -167,10 +219,10 @@ export class OfficialBots {
     return { messageId: sent.messageId, channelId: id };
   }
 
-  /** Changes the text of [bot]'s own post in a channel it was given. */
-  async editPost(bot: ActiveBot, channelId: string, messageId: string, text: string): Promise<void> {
+  /** Changes the text (and with [extra], the boxes) of [bot]'s own post in a channel it was given. */
+  async editPost(bot: ActiveBot, channelId: string, messageId: string, text: string, extra: Record<string, unknown> = {}): Promise<void> {
     if (!this.textChannel(bot.orgId, channelId)) return;
-    const payload: Payload = { type: "edit", target: messageId, text };
+    const payload: Payload = { ...extra, type: "edit", target: messageId, text };
     await sendServerMessage(this.ctx, { userId: bot.userId, deviceId: null, channelGrant: channelId }, { conversationId: channelId, messageId: newId("m"), cls: "control", sentAt: this.clock(), payload }, this.ctx.log);
   }
 
@@ -182,12 +234,23 @@ export class OfficialBots {
     return this.ctx.ws.all<LevelRow>("bot_levels", { where: { org_id: orgId }, orderBy: [["xp", "desc"], ["user_id", "asc"]], limit }).map((r) => ({ userId: r.user_id, count: r.xp }));
   }
 
-  /** The lobby's running giveaways (organizations/lobby/view.ts): the Giveaways bot (part 2) fills this. */
-  giveaways(_orgId: string): { id: string; title: string; endsAt: number; entrants: number }[] {
-    return [];
+  /**
+   * Reacts with [emoji] as [bot] on a message, when it is in that channel and may react there like anyone (otherwise
+   * nothing: the reaction is a nicety).
+   */
+  async react(bot: ActiveBot, conversationId: string, target: string, emoji: string): Promise<void> {
+    const conv = this.ctx.authz.conversation(conversationId);
+    if (!conv || !this.ctx.authz.isMember(conv.id, bot.userId) || !this.ctx.authz.canReact(conv, bot.userId)) return;
+    const payload: Payload = { type: "reaction", target, emoji, add: true };
+    await sendServerMessage(this.ctx, { userId: bot.userId, deviceId: null }, { conversationId, messageId: newId("m"), cls: "control", sentAt: this.clock(), payload }, this.ctx.log).catch(() => undefined);
   }
 
-  /** Account deletion: their XP and away notes. */
+  /** The lobby's running giveaways (organizations/lobby/view.ts) in channels [viewerId] can see, ending first first. */
+  giveaways(orgId: string, viewerId: string): { id: string; title: string; endsAt: number; entrants: number }[] {
+    return this.enabled ? runningGiveaways(this, orgId, viewerId) : [];
+  }
+
+  /** Account deletion: their XP, away notes and Wordy games. */
   async deleteForUser(userId: string): Promise<void> {
     await this.rows.forgetUser(userId);
   }

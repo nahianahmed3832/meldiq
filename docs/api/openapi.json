@@ -48289,7 +48289,7 @@
             }
           },
           "default": {
-            "description": "Error. Codes: not_found, feature_disabled, forbidden, ticket_channel_invalid, conflict",
+            "description": "Error. Codes: not_found, feature_disabled, forbidden, ticket_channel_invalid, bots_plus_required, conflict",
             "content": {
               "application/json": {
                 "schema": {
@@ -48317,10 +48317,10 @@
                   "maxOpenPerPerson": {
                     "type": "integer",
                     "minimum": 1,
-                    "maximum": 3
+                    "maximum": 10
                   },
                   "panels": {
-                    "maxItems": 2,
+                    "maxItems": 10,
                     "type": "array",
                     "items": {
                       "type": "object",
@@ -49335,6 +49335,16 @@
                           },
                           "available": {
                             "type": "boolean"
+                          },
+                          "unavailableReason": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           }
                         },
                         "required": [
@@ -49348,7 +49358,8 @@
                           "sample",
                           "commands",
                           "limits",
-                          "available"
+                          "available",
+                          "unavailableReason"
                         ],
                         "additionalProperties": false
                       }
@@ -49474,6 +49485,16 @@
                           "available": {
                             "type": "boolean"
                           },
+                          "unavailableReason": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
                           "enabled": {
                             "type": "boolean"
                           },
@@ -49560,6 +49581,7 @@
                           "key",
                           "name",
                           "available",
+                          "unavailableReason",
                           "enabled",
                           "userId",
                           "look",
@@ -49669,6 +49691,16 @@
                         "available": {
                           "type": "boolean"
                         },
+                        "unavailableReason": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "enabled": {
                           "type": "boolean"
                         },
@@ -49755,6 +49787,7 @@
                         "key",
                         "name",
                         "available",
+                        "unavailableReason",
                         "enabled",
                         "userId",
                         "look",
@@ -49858,6 +49891,16 @@
                         "available": {
                           "type": "boolean"
                         },
+                        "unavailableReason": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "enabled": {
                           "type": "boolean"
                         },
@@ -49944,6 +49987,7 @@
                         "key",
                         "name",
                         "available",
+                        "unavailableReason",
                         "enabled",
                         "userId",
                         "look",
@@ -50093,6 +50137,16 @@
                         "available": {
                           "type": "boolean"
                         },
+                        "unavailableReason": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "enabled": {
                           "type": "boolean"
                         },
@@ -50179,6 +50233,7 @@
                         "key",
                         "name",
                         "available",
+                        "unavailableReason",
                         "enabled",
                         "userId",
                         "look",
@@ -50293,6 +50348,16 @@
                         "available": {
                           "type": "boolean"
                         },
+                        "unavailableReason": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "enabled": {
                           "type": "boolean"
                         },
@@ -50379,6 +50444,7 @@
                         "key",
                         "name",
                         "available",
+                        "unavailableReason",
                         "enabled",
                         "userId",
                         "look",
@@ -50474,6 +50540,885 @@
             "bearer": []
           }
         ]
+      }
+    },
+    "/v1/orgs/{orgId}/official-bots/alerts/watches": {
+      "get": {
+        "tags": [
+          "official-bots"
+        ],
+        "summary": "The YouTube channels Alerts follows here (people who can edit the community).",
+        "operationId": "getV1OrgsOrgIdOfficialBotsAlertsWatches",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "watches": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "source": {
+                            "type": "string"
+                          },
+                          "youtubeChannelId": {
+                            "type": "string"
+                          },
+                          "creator": {
+                            "type": "string"
+                          },
+                          "channelId": {
+                            "type": "string"
+                          },
+                          "roleId": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "message": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "checkedAt": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "createdAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "active": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "source",
+                          "youtubeChannelId",
+                          "creator",
+                          "channelId",
+                          "roleId",
+                          "message",
+                          "checkedAt",
+                          "createdAt",
+                          "active"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "limit": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "defaultMessage": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "watches",
+                    "limit",
+                    "defaultMessage"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, feature_disabled, forbidden, alerts_unconfigured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "official-bots"
+        ],
+        "summary": "Follow a YouTube channel: its new uploads are posted in the channel picked.",
+        "operationId": "postV1OrgsOrgIdOfficialBotsAlertsWatches",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "watch": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "source": {
+                          "type": "string"
+                        },
+                        "youtubeChannelId": {
+                          "type": "string"
+                        },
+                        "creator": {
+                          "type": "string"
+                        },
+                        "channelId": {
+                          "type": "string"
+                        },
+                        "roleId": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "message": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "checkedAt": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "active": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "source",
+                        "youtubeChannelId",
+                        "creator",
+                        "channelId",
+                        "roleId",
+                        "message",
+                        "checkedAt",
+                        "createdAt",
+                        "active"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "watch"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, feature_disabled, forbidden, alerts_unconfigured, alerts_source_unknown, official_bot_channel_invalid, bots_plus_required, limit_reached, conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 300
+                  },
+                  "channelId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "roleId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "message": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 300
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "source",
+                  "channelId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/orgs/{orgId}/official-bots/alerts/watches/{watchId}": {
+      "patch": {
+        "tags": [
+          "official-bots"
+        ],
+        "summary": "Change where a followed channel's uploads go, the role pinged or the line.",
+        "operationId": "patchV1OrgsOrgIdOfficialBotsAlertsWatchesWatchId",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "watchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "watch": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "source": {
+                          "type": "string"
+                        },
+                        "youtubeChannelId": {
+                          "type": "string"
+                        },
+                        "creator": {
+                          "type": "string"
+                        },
+                        "channelId": {
+                          "type": "string"
+                        },
+                        "roleId": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "message": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "checkedAt": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "active": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "source",
+                        "youtubeChannelId",
+                        "creator",
+                        "channelId",
+                        "roleId",
+                        "message",
+                        "checkedAt",
+                        "createdAt",
+                        "active"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "watch"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, feature_disabled, forbidden, alerts_unconfigured, official_bot_channel_invalid, conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "channelId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "roleId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "message": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 300
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "official-bots"
+        ],
+        "summary": "Stop following a YouTube channel.",
+        "operationId": "deleteV1OrgsOrgIdOfficialBotsAlertsWatchesWatchId",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "watchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "deleted"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, feature_disabled, forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/orgs/{orgId}/official-bots/wordy/game": {
+      "get": {
+        "tags": [
+          "official-bots"
+        ],
+        "summary": "Your Wordy game of the day (started when you first guess) and your record here.",
+        "operationId": "getV1OrgsOrgIdOfficialBotsWordyGame",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "day": {
+                      "type": "string"
+                    },
+                    "number": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "guess": {
+                            "type": "string"
+                          },
+                          "marks": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "guess",
+                          "marks"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "maxTries": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "finished": {
+                      "type": "boolean"
+                    },
+                    "solved": {
+                      "type": "boolean"
+                    },
+                    "channelId": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "stats": {
+                      "type": "object",
+                      "properties": {
+                        "played": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "won": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "streak": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "bestStreak": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "distribution": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        }
+                      },
+                      "required": [
+                        "played",
+                        "won",
+                        "streak",
+                        "bestStreak",
+                        "distribution"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "day",
+                    "number",
+                    "rows",
+                    "maxTries",
+                    "finished",
+                    "solved",
+                    "channelId",
+                    "stats"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, feature_disabled, official_bot_off",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "official-bots"
+        ],
+        "summary": "Guess today's word privately; the result (without letters) is posted in the Wordy channel when you finish.",
+        "operationId": "postV1OrgsOrgIdOfficialBotsWordyGame",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "day": {
+                      "type": "string"
+                    },
+                    "number": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "guess": {
+                            "type": "string"
+                          },
+                          "marks": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "guess",
+                          "marks"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "maxTries": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "finished": {
+                      "type": "boolean"
+                    },
+                    "solved": {
+                      "type": "boolean"
+                    },
+                    "channelId": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "stats": {
+                      "type": "object",
+                      "properties": {
+                        "played": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "won": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "streak": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "bestStreak": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "distribution": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        }
+                      },
+                      "required": [
+                        "played",
+                        "won",
+                        "streak",
+                        "bestStreak",
+                        "distribution"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "day",
+                    "number",
+                    "rows",
+                    "maxTries",
+                    "finished",
+                    "solved",
+                    "channelId",
+                    "stats"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, feature_disabled, official_bot_off, wordy_not_a_word, wordy_finished",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "guess": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20
+                  }
+                },
+                "required": [
+                  "guess"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
       }
     },
     "/v1/discover": {
@@ -73393,6 +74338,10 @@
                   "official_bot_channel_invalid",
                   "official_bot_off",
                   "official_bot_unavailable",
+                  "alerts_unconfigured",
+                  "alerts_source_unknown",
+                  "wordy_not_a_word",
+                  "wordy_finished",
                   "bad_address",
                   "bad_body_hash",
                   "bad_call",
@@ -74923,7 +75872,31 @@
       "status": [
         409
       ],
-      "meaning": "This bot isn't ready yet. It's coming soon."
+      "meaning": "This bot can't be turned on on this server."
+    },
+    "alerts_unconfigured": {
+      "status": [
+        503
+      ],
+      "meaning": "Alerts needs a YouTube API key on this server."
+    },
+    "alerts_source_unknown": {
+      "status": [
+        400
+      ],
+      "meaning": "YouTube doesn't know that channel. Paste its link or @handle."
+    },
+    "wordy_not_a_word": {
+      "status": [
+        400
+      ],
+      "meaning": "That isn't a five-letter word Wordy knows."
+    },
+    "wordy_finished": {
+      "status": [
+        409
+      ],
+      "meaning": "You've played today's word. A new one comes at 00:00 UTC."
     },
     "bad_address": {
       "status": [

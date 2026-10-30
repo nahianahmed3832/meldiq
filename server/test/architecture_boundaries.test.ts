@@ -100,8 +100,8 @@ const TABLE_OWNERS: Readonly<Record<string, string>> = {
       // Community parity batch E, discovery (migration 075).
       "community_discovery community_templates bot_listings discovery_boosts promoted_bookings discovery_visits discovery_clicks",
   ),
-  // Community parity batch D, official bots (migration 074).
-  ...owned("officialBots", "official_bots official_bots_plus bot_levels bot_afk bot_starboard"),
+  // Community parity batch D, official bots (migration 074, then 076 for giveaways, alerts and Wordy).
+  ...owned("officialBots", "official_bots official_bots_plus bot_levels bot_afk bot_starboard bot_giveaways bot_alert_watches bot_wordy_games bot_wordy_stats bot_wordy_recaps"),
   // Community parity A3 (migration 071).
   ...owned("organizations", "community_settings community_vanity_invites community_standard_invites onboarding_completions"),
   ...owned(

@@ -1,6 +1,6 @@
 {
   "error": {
     "code": "official_bot_unavailable",
-    "message": "This bot isn't ready yet. It's coming soon."
+    "message": "This bot can't be turned on here: needs a youtube api key on this server."
   }
 }

@@ -1,0 +1,28 @@
+{
+  "day": "2026-10-30",
+  "number": 303,
+  "rows": [
+    {
+      "guess": "about",
+      "marks": "🟨🟨⬛⬛⬛"
+    }
+  ],
+  "maxTries": 6,
+  "finished": false,
+  "solved": false,
+  "channelId": "c_RjFV2evm0s96NgH0BSqz4w",
+  "stats": {
+    "played": 0,
+    "won": 0,
+    "streak": 0,
+    "bestStreak": 0,
+    "distribution": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  }
+}

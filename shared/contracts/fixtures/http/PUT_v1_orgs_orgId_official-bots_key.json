@@ -1,23 +1,22 @@
 {
   "bot": {
-    "key": "welcomer",
-    "name": "Welcomer",
+    "key": "tickets",
+    "name": "Tickets",
     "available": true,
+    "unavailableReason": null,
     "enabled": true,
-    "userId": "u_YQS80ywiIWi4PUzQ2yIXkA",
+    "userId": "u_YZxzQSADrQBAtQmB7NphjQ",
     "look": {
-      "name": "Doorbell",
-      "displayName": "Doorbell",
+      "name": "Desk",
+      "displayName": "Desk",
       "photoRev": null
     },
     "settings": {
-      "channelId": null,
-      "messages": [
-        "Hi {user}! {name} makes {count} of us in {server}."
-      ],
-      "goodbye": null
+      "maxOpenPerPerson": 2,
+      "panels": [],
+      "transcripts": false
     },
     "plusPaused": [],
-    "updatedAt": 1793313949131
+    "updatedAt": 1793325654403
   }
 }

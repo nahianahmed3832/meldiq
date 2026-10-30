@@ -91,7 +91,8 @@ and buttons stay; 3–4 starter questions are added only when the FAQ is empty. 
   of visible channels, reused for 5 minutes). `invites`: the sum of uses of the invitations each member made (Meldiq
   doesn't record which invitation a member joined with, so people who joined and left since still count). `levels`:
   the Levels bot's XP (`count` is XP) while that bot is on (see Official bots below), empty otherwise.
-- `giveaways`: always empty until the Giveaways bot (batch D part 2); entries will be `{ id, title, endsAt, entrants }`.
+- `giveaways`: running giveaways of the Giveaways bot in channels the viewer can see, ending first: `{ id, title (the
+  prize), endsAt, entrants }` (see Official bots).
 - `feed`: the newest 20 feed posts, newest first: `{ id, title, text, url, image, postedAt }`.
 
 People (`user`, `participants`) are `{ id, username, displayName, avatarColor, photoRev }`, with the photo only when the
@@ -218,8 +219,10 @@ its pairs; deleting the role or channel too.
 ### Tickets
 
 Settings (people with `workspace.edit`): `GET`/`PUT /v1/orgs/:orgId/tickets/config`,
-`{ enabled, maxOpenPerPerson: 1–3 (default 2), panels: [{ id?, name ≤40, postChannelId, categoryId|null, logChannelId|null }] ≤2 }`
-→ `{ enabled, maxOpenPerPerson, panels: [{ id, name, postChannelId, categoryId, logChannelId, postedMessageId }], panelLimit: 2 }`.
+`{ enabled, maxOpenPerPerson: 1–3 (default 2; up to 10 with Bots+), panels: [{ id?, name ≤40, postChannelId, categoryId|null, logChannelId|null }] ≤2 (≤10 with Bots+) }`
+→ `{ enabled, maxOpenPerPerson, panels: [{ id, name, postChannelId, categoryId, logChannelId, postedMessageId }], panelLimit: 2|10 }`.
+Since batch D part 2 this is also the Tickets bot's switch and settings (see Official bots); beyond the free limits
+without Bots+ is `403 bots_plus_required`.
 Panel ids are kept when sent back. `postChannelId`: a public or announcement text channel; `logChannelId`: any text
 channel (a private one is best); `categoryId` null: a "Tickets" category, made when there isn't one
 (`400 ticket_channel_invalid`, details `{panel, field}`). Audit `tickets.config`.
@@ -247,15 +250,20 @@ Audit: `ticket.open`, `ticket.join`, `ticket.close`, `channel.archive`, `tickets
 Limits: a category holds 50 channels (409 when the tickets category is full of open tickets); closed tickets still
 count toward a community's 500 channels.
 
-## Official bots (batch D, part 1)
+## Official bots (batch D, parts 1 and 2)
 
-Meldiq's own bots a community turns on from Settings › Bots: Welcomer, Helper, Levels, Logger and Starboard now;
-Giveaways, Tickets, Alerts and Wordy are listed (`available: false`) and refuse to turn on (`409
-official_bot_unavailable`) until part 2. New tables only (migration 074, workspace domain): `official_bots`,
-`official_bots_plus`, `bot_levels`, `bot_afk`, `bot_starboard`. Code: `server/src/modules/officialBots` (runtime,
+Meldiq's own bots a community turns on from Settings › Bots: Welcomer, Helper, Levels, Logger and Starboard (part 1),
+Giveaways, Tickets, Alerts and Wordy (part 2). A bot this server can't run is listed with `available: false` and an
+`unavailableReason` and refuses to turn on (`409 official_bot_unavailable`): Alerts without `YOUTUBE_API_KEY` ("Needs a
+YouTube API key on this server"), Tickets with `COMMUNITY_TICKETS=off`. New tables only (migration 074, workspace
+domain): `official_bots`, `official_bots_plus`, `bot_levels`, `bot_afk`, `bot_starboard`; part 2 (migration 076):
+`bot_giveaways`, `bot_alert_watches`, `bot_wordy_games`, `bot_wordy_stats`, `bot_wordy_recaps`. Code: `server/src/modules/officialBots` (runtime,
 events, dispatch, commands, catalog, settings, store, manage, routes, one file per bot) and
-`modules/platformAdmin/botsPlus.ts`; contracts in `src/shared/contracts/http/officialBots.ts`. Tests:
-`test/official_bots.test.ts`, `test/official_bots_activity.test.ts` (communities in SQLite and in MongoDB).
+`modules/platformAdmin/botsPlus.ts`; part 2 adds giveaways (+ giveawayParse), ticketsBot, alerts (+ youtube), wordy
+(+ wordyGame, word lists in `server/assets/wordy`, or `WORDY_DIR`) and scheduler. Contracts in
+`src/shared/contracts/http/officialBots.ts` and `officialBotTools.ts`. Tests: `test/official_bots.test.ts`,
+`test/official_bots_activity.test.ts`, `test/official_bots_games.test.ts`, `test/official_bots_desk.test.ts`
+(communities in SQLite and in MongoDB; a fake YouTube, never the real API).
 
 | Feature name | Switched off by | What |
 | --- | --- | --- |
@@ -291,6 +299,12 @@ that are on; `!help` lists the commands of every bot on (answered by Helper, els
 | Route | Answer |
 | --- | --- |
 | `GET /v1/official-bots` | `{ bots: [CatalogBot], botsPlus: { name, description, perks: [string] } }` |
+| `GET /v1/orgs/:orgId/official-bots/alerts/watches` (editors) | `{ watches: [AlertWatch], limit: 3\|25, defaultMessage }` |
+| `POST …/alerts/watches` (editors, 201) `{ source, channelId, roleId?, message? }` | `{ watch: AlertWatch }` |
+| `PATCH …/alerts/watches/:watchId` (editors) `{ channelId?, roleId?, message? }` | `{ watch: AlertWatch }` |
+| `DELETE …/alerts/watches/:watchId` (editors) | `{ deleted: boolean }` |
+| `GET /v1/orgs/:orgId/official-bots/wordy/game` (members) | `WordyGame` |
+| `POST …/wordy/game` (members, 30 a minute) `{ guess }` | `WordyGame` |
 | `GET /v1/orgs/:orgId/official-bots` (members; outsiders 404) | `{ botsPlus, botsPlusUntil, canEdit, bots: [OfficialBot] }`, all nine in catalog order |
 | `GET /v1/orgs/:orgId/official-bots/:key` | `{ bot: OfficialBot }` |
 | `PUT /v1/orgs/:orgId/official-bots/:key` (editors) `{ enabled?, settings?, look?: { name } }` | `{ bot }` |
@@ -298,8 +312,8 @@ that are on; `!help` lists the commands of every bot on (answered by Helper, els
 | `POST /v1/orgs/:orgId/official-bots/welcomer/test` (editors) | `{ messageId, channelId }`: Welcomer greets the caller |
 
 `CatalogBot` = `{ key, name, tagline, description, color: "#rrggbb", icon: emoji, features: [string], sample: string,
-commands: [{ usage, description }], limits: [{ what, free, plus }], available }`. `OfficialBot` = `{ key, name,
-available, enabled, userId|null, look: { name|null, displayName, photoRev|null }, settings: object|null (editors only),
+commands: [{ usage, description }], limits: [{ what, free, plus }], available, unavailableReason }`. `OfficialBot` = `{
+key, name, available, unavailableReason, enabled, userId|null, look: { name|null, displayName, photoRev|null }, settings: object|null (editors only),
 plusPaused: [field], updatedAt|null }`; `plusPaused` names stored Plus settings not applied because Bots+ is gone.
 `look.name` null goes back to the bot's own name.
 
@@ -317,6 +331,10 @@ member limit). Audit: `official_bot.on`, `official_bot.off`, `official_bot.updat
 | `levels` | `announce` true, `announceChannelId` null (where they chat), `boost` 1, `roleRewards` [], `levelUpMessage` null | `boost` 1.5 or 2; `roleRewards` ≤20 `{ level 1–500, roleId }`, each role once (`403 bot_role_not_givable`, details `{roleId}`, unless just for show or assignable by the editor without admin powers); `levelUpMessage` (`{user}`, `{level}`) |
 | `logger` | `channelId` null (quiet), `memberChannelId` null, `excludeChannelIds` [] | `memberChannelId`, `excludeChannelIds` ≤25 |
 | `starboard` | `channelId` null (quiet), `threshold` 5 (1, 2, 3, 4, 5, 7, 10, 15, 20 or 30), `emoji` null, `selfStar` false, `excludeChannelIds` [] | `emoji` (instead of ⭐ and 🌟), `selfStar`, `excludeChannelIds` ≤25 |
+| `giveaways` | `requiredRoleId` null | `requiredRoleId` (an active role of the community, else `400 bad_request`); 20 winners and 30 days instead of 3 and 7 |
+| `tickets` | the tickets config: `maxOpenPerPerson` (1–3), `panels` [`{ id?, name, postChannelId, categoryId, logChannelId, supportRoleId: null, welcomeMessage: null }`] (≤2; views add `postedMessageId`), `transcripts` false | `maxOpenPerPerson` 4–10, up to 10 `panels`, a panel's `supportRoleId` and `welcomeMessage` (≤500; `{user}` mention, `{panel}`), `transcripts` |
+| `alerts` | `{}` (its YouTube channels are managed under `/alerts/watches`) | 25 channels instead of 3 |
+| `wordy` | `channelId` null (quiet) | — |
 
 What each does:
 
@@ -341,17 +359,74 @@ What each does:
   message" link button (`<first WEB_ORIGINS>/m/:channelId/:messageId`) when the server knows its web app. Later stars
   edit the count line; the post is never removed.
 
+- **Giveaways**: `!giveaway <duration> [Nw] <prize>` (duration: one or more of `Ns`, `Nm`, `Nh`, `Nd`, `Nw`, e.g. `1d12h`;
+  10 seconds at least; then optionally `3w` winners; the prize ≤200), `!gend` (the channel's running one, now) and
+  `!greroll [n]` (n more winners, 1 by default, for the channel's last ended one, never someone who won it already),
+  for people who moderate messages in that channel (`messages.manage` there, or its managers); others and mistakes get
+  a line saying how. Free: ≤7 days and ≤3 winners; Bots+: ≤30 days, ≤20 winners and the required role (taken when it
+  starts). At most 25 running per community. The bot posts the card in that channel (granted): text `🎉 Giveaway:
+  <prize>` + `React with 🎉 to enter · N winners · ends in … (31 Oct, 14:00 UTC) · hosted by X`, an embed with the
+  same, and `giveaway: { id, endsAt, winners, ended }` in the payload; it reacts 🎉 itself when it's in the channel and
+  may react. Entries are people whose latest 🎉 on the card is on: never bots, still members at the end, holding the
+  required role when there is one. At the end the card is edited (a granted `edit` carrying the new `text`, `embeds`
+  and `giveaway: { …, ended: true, winnerIds }`; apps replace the boxes too) and the bot posts `🎉 Congratulations
+  @a, @b! You won <prize>.` with `mentions` (or that nobody entered). Ending is claimed in the row, so it happens once.
+  The lobby's `giveaways` lists running ones in channels the viewer can see, ending first, with `entrants` kept up to
+  date from 🎉 reactions.
+- **Tickets** is batch C's tickets with a face: turning it on or off is the community's tickets switch (either way
+  round: `PUT /tickets/config` with another `enabled` brings the bot in or takes it out, never failing the switch), its
+  settings are the tickets config (saved through `ctx.tickets`, audited `tickets.config`), and its account posts
+  panels, opening boxes and log lines (communities whose tickets were on before keep batch C's sender until the bot is
+  switched once). Batch C's own `PUT /tickets/config` takes up to 10 panels and 10 per person, but beyond 2 and 3 is
+  `403 bots_plus_required` (`details { bot: "tickets", settings }`); `panelLimit` is 10 with Bots+. Without Bots+, stored
+  extras pause: at most 3 open per person, only the first 2 panels open tickets (others 404 and aren't in community
+  views), no support role, welcome line or transcript. With Bots+: a panel's support role gets the ticket channel
+  overwrite and its members are added, and the opening box says `@Role` with `roleMentions`; the welcome line follows
+  the box (mentioning the opener); on close, the transcript (`[YYYY-MM-DD HH:MM] Name: text`, edits applied, deletions
+  left out, up to 1,000 messages, posts of ≤3,500 characters, at most 10) goes to the panel's log channel after the
+  close line, headed `📄 Transcript of Ticket #n · Panel`.
+- **Alerts** follows YouTube channels: `source` is a link (`youtube.com/@handle`, `/channel/UC…`, `/user/name`) or an
+  `@handle`, resolved once to the channel id, name (`creator`) and uploads playlist (`400 alerts_source_unknown` when
+  YouTube doesn't know it); the same YouTube channel once per post channel (`409 conflict`). 3 per community, 25 with
+  Bots+ (`403 bots_plus_required`, details `{ bot: "alerts", settings: ["watches"] }`, then `409 limit_reached`); without
+  Bots+ only the first 3 (oldest) are checked (`active: false` on the others). `AlertWatch` = `{ id, source,
+  youtubeChannelId, creator, channelId, roleId, message, checkedAt, createdAt, active }`. Every 10 minutes the newest 10
+  uploads of each are read; videos published after the watch was added and not seen before (the newest 50 ids are kept,
+  claimed before posting) are posted oldest first in the watch's channel: the line (`message` or Meldiq's `{role} 📣
+  {creator} just posted a new video: {title}\n{url}`; `{role}` is `@Role`, put first when the line has none) with the
+  plain `https://www.youtube.com/watch?v=…` link (apps show the preview) and `roleMentions` when a role is set. Without
+  `YOUTUBE_API_KEY` its routes answer `503 alerts_unconfigured` (deleting still works). Quota: one unit per channel per
+  check (144 a day each).
+- **Wordy**: one word per community per UTC day (from 569 answers; guesses may be any of ~13,000 words), the same for
+  everyone there, walking the list in a per-community order so no word repeats until all had their day; Wordy #1 was
+  2026-01-01. In its channel (elsewhere it says where it's played; quiet until `channelId` is set): `!wordy` or
+  `/wordy` starts or shows your game, `!wordy <word>` guesses, and so does a bare five-letter word from someone with a
+  game running; `!wordy stats` shows your games, wins, streak (kept while the last win was today or yesterday) and best
+  streak, and the top 5 solvers who are still members. Six tries, one game a day; words that aren't five letters or
+  aren't in the list don't use a try. The bot answers with the board as 🟩🟨⬛ rows (scored like the original: greens
+  first, each letter of the word matched once), never letters; guesses typed in chat are visible as typed, so apps
+  should use the private route: `POST …/wordy/game { guess }` → `WordyGame` = `{ day, number, rows: [{ guess, marks }],
+  maxTries: 6, finished, solved, channelId, stats: { played, won, streak, bestStreak, distribution: [6] } }` (`400
+  wordy_not_a_word`, `409 wordy_finished`, `409 official_bot_off`); finishing posts the result line (squares only) in
+  the channel. Just after 00:00 UTC each community posts yesterday's recap there: the word, how many of those who
+  finished solved it, and the 1–6/X distribution as bars (once: claimed in `bot_wordy_recaps`; nothing when nobody
+  played). Games are kept 7 days; account deletion removes a person's games and record.
+
+**Scheduler.** Nothing a restart would lose lives in memory. A minute tick (and one at startup) ends giveaways whose
+stored `ends_at` passed and posts the due Wordy recaps; it runs on the bots' event queue, so it never interleaves with a
+bot handling a message. A giveaway ending before the next tick gets a timer of its own. Alerts checks every 10 minutes,
+off the queue (it waits on YouTube), one check at a time. Timers stop when the server closes.
+
 **Bots+.** Per community, granted in the Platform Admin Console while billing for it is off (no Stripe product):
 `GET /admin/v1/orgs/:orgId/bots-plus` (`entitlements.view`) and `PUT` (`entitlements.edit`, passkey check and reason)
 `{ enabled, expiresAt?: ms|null, reason }` → `{ botsPlus: { enabled, grantedAt, expiresAt, grantedBy, reason } }`.
 Granting needs an end date within 366 days (no end: super admins only). Platform audit `org.bots_plus_grant` /
 `org.bots_plus_revoke`. Communities see `botsPlus` and `botsPlusUntil` in their bots view.
 
-**Part 2 seams.** `OfficialBots.giveaways(orgId)` feeds the lobby's `giveaways` (empty now). The catalog already
-carries Giveaways, Tickets, Alerts and Wordy (commands and the Free vs Plus table) with `available: false`, and
-`!giveaway`, `!gend`, `!greroll` and `!wordy` are reserved. `dispatch.ts` hands events to bots by kind, so a new bot
-adds its settings schema (`BOT_SETTINGS`, `LIVE_BOT_KEYS`), defaults and Plus rules (`settings.ts`) and its handlers.
-The Tickets bot will tie batch C's tickets (`ctx.tickets`) to the bot's look and Plus limits.
+**Seams.** `OfficialBots.giveaways(orgId, viewerId)` feeds the lobby's `giveaways`; `OfficialBots.tickets` is what
+batch C's tickets ask (Bots+, the poster, a panel's extras, the switch, transcripts). `!giveaway`, `!gend`, `!greroll`
+and `!wordy` are reserved for community commands; `!help` lists the commands of Helper, Levels, Giveaways and Wordy when
+on. Env: `YOUTUBE_API_KEY` (Alerts), `WORDY_DIR` (word lists elsewhere).
 ## Discovery (batch E)
 
 Discover with tags and the 5-member rule, templates from a community, the community bot directory, and Promote (boosts

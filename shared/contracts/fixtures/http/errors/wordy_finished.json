@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "wordy_finished",
+    "message": "You've played today's word. A new one comes at 00:00 UTC."
+  }
+}

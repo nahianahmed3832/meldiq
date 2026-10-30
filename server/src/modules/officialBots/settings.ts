@@ -14,6 +14,10 @@ export const DEFAULT_SETTINGS: AnySettings = {
   levels: { announce: true, announceChannelId: null, boost: 1, roleRewards: [], levelUpMessage: null },
   logger: { channelId: null, memberChannelId: null, excludeChannelIds: [] },
   starboard: { channelId: null, threshold: BOT_LIMITS.defaultStarThreshold, emoji: null, selfStar: false, excludeChannelIds: [] },
+  giveaways: { requiredRoleId: null },
+  tickets: { panels: {}, transcripts: false },
+  alerts: {},
+  wordy: { channelId: null },
 };
 
 export const isLiveBot = (key: string): key is LiveBotKey => (LIVE_BOT_KEYS as readonly string[]).includes(key);
@@ -52,6 +56,16 @@ export function plusFeatures(key: LiveBotKey, s: BotSettings<LiveBotKey>): strin
         const b = s as BotSettings<"starboard">;
         return [["emoji", b.emoji !== null], ["selfStar", b.selfStar], ["excludeChannelIds", b.excludeChannelIds.length > 0]];
       }
+      case "giveaways":
+        return [["requiredRoleId", (s as BotSettings<"giveaways">).requiredRoleId !== null]];
+      case "tickets": {
+        // Batch C's own limits (panels, per person) are checked by the tickets config itself.
+        const t = s as BotSettings<"tickets">;
+        return [["panels", Object.values(t.panels).some((p) => p.supportRoleId !== null || p.welcomeMessage !== null)], ["transcripts", t.transcripts]];
+      }
+      case "alerts":
+      case "wordy":
+        return [];
     }
   })();
   return on.filter(([, used]) => used).map(([name]) => name);
@@ -79,6 +93,10 @@ export function effectiveSettings<K extends LiveBotKey>(key: K, s: BotSettings<K
       return { ...s, memberChannelId: null, excludeChannelIds: [] } as BotSettings<K>;
     case "starboard":
       return { ...s, emoji: null, selfStar: false, excludeChannelIds: [] } as BotSettings<K>;
+    case "giveaways":
+      return { ...s, requiredRoleId: null } as BotSettings<K>;
+    case "tickets":
+      return { ...s, panels: {}, transcripts: false } as BotSettings<K>;
   }
   return s;
 }

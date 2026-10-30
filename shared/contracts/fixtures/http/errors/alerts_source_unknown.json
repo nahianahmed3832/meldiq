@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "alerts_source_unknown",
+    "message": "YouTube doesn't know that channel. Paste its link or @handle."
+  }
+}

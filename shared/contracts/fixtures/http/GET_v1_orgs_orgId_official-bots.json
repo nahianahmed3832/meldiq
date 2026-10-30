@@ -7,6 +7,7 @@
       "key": "welcomer",
       "name": "Welcomer",
       "available": true,
+      "unavailableReason": null,
       "enabled": false,
       "userId": null,
       "look": {
@@ -22,6 +23,7 @@
       "key": "helper",
       "name": "Helper",
       "available": true,
+      "unavailableReason": null,
       "enabled": false,
       "userId": null,
       "look": {
@@ -37,6 +39,7 @@
       "key": "levels",
       "name": "Levels",
       "available": true,
+      "unavailableReason": null,
       "enabled": false,
       "userId": null,
       "look": {
@@ -52,6 +55,7 @@
       "key": "logger",
       "name": "Logger",
       "available": true,
+      "unavailableReason": null,
       "enabled": false,
       "userId": null,
       "look": {
@@ -67,6 +71,7 @@
       "key": "starboard",
       "name": "Starboard",
       "available": true,
+      "unavailableReason": null,
       "enabled": false,
       "userId": null,
       "look": {
@@ -81,7 +86,8 @@
     {
       "key": "giveaways",
       "name": "Giveaways",
-      "available": false,
+      "available": true,
+      "unavailableReason": null,
       "enabled": false,
       "userId": null,
       "look": {
@@ -96,7 +102,8 @@
     {
       "key": "tickets",
       "name": "Tickets",
-      "available": false,
+      "available": true,
+      "unavailableReason": null,
       "enabled": false,
       "userId": null,
       "look": {
@@ -112,6 +119,7 @@
       "key": "alerts",
       "name": "Alerts",
       "available": false,
+      "unavailableReason": "Needs a YouTube API key on this server",
       "enabled": false,
       "userId": null,
       "look": {
@@ -126,7 +134,8 @@
     {
       "key": "wordy",
       "name": "Wordy",
-      "available": false,
+      "available": true,
+      "unavailableReason": null,
       "enabled": false,
       "userId": null,
       "look": {

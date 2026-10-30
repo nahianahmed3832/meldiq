@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "wordy_not_a_word",
+    "message": "That's not in Wordy's word list."
+  }
+}

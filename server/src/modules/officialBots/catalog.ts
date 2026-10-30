@@ -1,13 +1,11 @@
 import type { z } from "zod/v4";
 import type { CatalogBot, OfficialBotKey, OfficialBotsCatalog } from "../../shared/contracts/http/officialBots.js";
-import { isLiveBot } from "./settings.js";
 
-type Entry = Omit<z.infer<typeof CatalogBot>, "key" | "available">;
+type Entry = Omit<z.infer<typeof CatalogBot>, "key" | "available" | "unavailableReason">;
 
 /**
  * The official bots as the Bots page and each bot's detail window show them (community parity batch D). Meldiq's own
- * names for what each does, its own words and its own sample lines. Giveaways, Tickets, Alerts and Wordy are listed but
- * can't be turned on until part 2.
+ * names for what each does, its own words and its own sample lines (all nine run since part 2).
  */
 const ENTRIES: Record<OfficialBotKey, Entry> = {
   welcomer: {
@@ -98,28 +96,28 @@ const ENTRIES: Record<OfficialBotKey, Entry> = {
     name: "Giveaways",
     tagline: "Prize draws with one command",
     description:
-      "Giveaways runs a prize draw from a single message: people react 🎉 to enter, and when time's up it picks the winners from people still in the community. Bots never win.",
+      "Giveaways runs a prize draw from a single message. Anyone who manages messages in a channel can start one there: people react 🎉 to enter, and when time's up the bot draws the winners from people still in the community and calls them out. Bots never win, and running draws show on your lobby.",
     color: "#ec4899",
     icon: "🎉",
-    features: ["React to enter", "Several winners", "Reroll", "Shows on your lobby"],
-    sample: "🎉 Giveaway: a game key\nReact with 🎉 to enter · 1 winner · ends tomorrow · run by Ana",
+    features: ["React to enter", "Several winners", "End early or reroll", "Shows on your lobby"],
+    sample: "🎉 Giveaway: a game key\nReact with 🎉 to enter · 1 winner · ends in 1 day · hosted by Ana",
     commands: [
-      { usage: "!giveaway 1d Prize", description: "Start one (s, m, h, d or w)" },
-      { usage: "!giveaway 2h 3w Prize", description: "Three winners in two hours" },
-      { usage: "!gend", description: "End it now" },
-      { usage: "!greroll", description: "Pick another winner" },
+      { usage: "!giveaway 1d Prize", description: "Start a draw here (s, m, h, d or w)" },
+      { usage: "!giveaway 2h 3w Prize", description: "Three winners, drawn in two hours" },
+      { usage: "!gend", description: "Draw this channel's giveaway now" },
+      { usage: "!greroll", description: "Draw someone else for the last one" },
     ],
     limits: [
-      { what: "Winners", free: "Up to 3", plus: "Up to 20" },
-      { what: "Longest giveaway", free: "7 days", plus: "30 days" },
-      { what: "Only some roles may enter", free: "—", plus: "Yes" },
+      { what: "Winners per draw", free: "Up to 3", plus: "Up to 20" },
+      { what: "Longest draw", free: "7 days", plus: "30 days" },
+      { what: "Only members with a role can win", free: "—", plus: "Yes" },
     ],
   },
   tickets: {
     name: "Tickets",
     tagline: "Private help desks for your members",
     description:
-      "Tickets posts a panel with an \"Open a ticket\" button. Each ticket is a private channel between the person who opened it and your moderators, closed by either side when it's sorted.",
+      "Tickets posts a panel with an \"Open a ticket\" button. Each ticket is a private channel between the person who opened it and your moderators, and either side closes it once it's sorted. Turning Tickets on here is the same switch as Settings › Tickets.",
     color: "#8b5cf6",
     icon: "🎫",
     features: ["Panels with a button", "Private channels", "Close from either side", "Logged"],
@@ -128,34 +126,36 @@ const ENTRIES: Record<OfficialBotKey, Entry> = {
     limits: [
       { what: "Panels", free: "2", plus: "10" },
       { what: "Open tickets per person", free: "Up to 3", plus: "Up to 10" },
-      { what: "Ping a support role", free: "—", plus: "Yes" },
-      { what: "Welcome message per panel", free: "—", plus: "Yes" },
+      { what: "A support role that sees tickets and is pinged", free: "—", plus: "Per panel" },
+      { what: "Welcome line in each new ticket", free: "—", plus: "Per panel" },
       { what: "Transcript in the log when closed", free: "—", plus: "Yes" },
     ],
   },
   alerts: {
     name: "Alerts",
     tagline: "New videos, posted for you",
-    description: "Alerts watches the video channels you follow and posts each new upload in the channel you choose, with a ping for a role if you like.",
+    description:
+      "Alerts follows the YouTube channels you add and posts each new upload in the channel you pick, with a ping for a role if you like. It looks every ten minutes and only ever posts videos that came out after you added the channel.",
     color: "#ef4444",
     icon: "📣",
-    features: ["New uploads only", "Your channel", "Optional role ping", "Your own message"],
-    sample: "📣 Ana posted a new video: Speedrun night recap",
+    features: ["New uploads only", "Your channel", "Optional role ping", "Your own line"],
+    sample: "📣 Ana just posted a new video: Speedrun night recap\nhttps://youtu.be/…",
     commands: [],
-    limits: [{ what: "Video channels followed", free: "3", plus: "25" }],
+    limits: [{ what: "YouTube channels followed", free: "3", plus: "25" }],
   },
   wordy: {
     name: "Wordy",
     tagline: "One five-letter word a day",
-    description: "Wordy picks the same five-letter word for everyone each day. You get six tries, the board shows colours but never letters, and streaks and the best solvers are kept.",
+    description:
+      "Wordy picks the same five-letter word for everyone here each day (new at 00:00 UTC). You get six tries, the board shows colours but never letters, and Wordy keeps streaks, the best solvers and a recap of yesterday in its channel.",
     color: "#14b8a6",
     icon: "🔤",
-    features: ["Daily word", "Six tries", "No spoilers", "Streaks"],
-    sample: "🔤 Ana solved today's word in 3: 🟨⬛⬛🟩⬛ 🟩🟩⬛🟩🟨 🟩🟩🟩🟩🟩",
+    features: ["Daily word", "Six tries", "No spoilers", "Streaks", "Daily recap"],
+    sample: "🔤 Ana solved Wordy #304 in 3/6\n🟨⬛⬛🟩⬛\n🟩🟩⬛🟩🟨\n🟩🟩🟩🟩🟩",
     commands: [
-      { usage: "!wordy", description: "Today's board" },
-      { usage: "!wordy guess", description: "Try a word" },
-      { usage: "!wordy stats", description: "Your streak and the best solvers" },
+      { usage: "!wordy or /wordy", description: "Start or show your game of the day" },
+      { usage: "!wordy word", description: "Guess (or just type a five-letter word in Wordy's channel)" },
+      { usage: "!wordy stats", description: "Your streak and the best solvers here" },
     ],
     limits: [],
   },
@@ -164,15 +164,28 @@ const ENTRIES: Record<OfficialBotKey, Entry> = {
 export const BOTS_PLUS = {
   name: "Bots+",
   description: "Every official bot's Plus extras, for this whole community.",
-  perks: ["Up to 10 greetings and a goodbye", "Your own Helper commands", "XP boosts and level roles", "A separate member log", "Any star emoji", "Bigger giveaways and more ticket panels"],
+  perks: [
+    "Up to 10 greetings and a goodbye",
+    "Your own Helper commands",
+    "XP boosts and level roles",
+    "A separate member log",
+    "Any star emoji",
+    "Bigger, longer giveaways for a role",
+    "10 ticket panels with support roles and transcripts",
+    "Follow up to 25 YouTube channels",
+  ],
 };
 
-export function catalogEntry(key: OfficialBotKey): z.infer<typeof CatalogBot> {
-  return { key, ...ENTRIES[key], available: isLiveBot(key) };
+/** Why a bot can't be turned on on this server (null: it can). */
+export type Unavailable = (key: OfficialBotKey) => string | null;
+
+export function catalogEntry(key: OfficialBotKey, unavailable: Unavailable = () => null): z.infer<typeof CatalogBot> {
+  const reason = unavailable(key);
+  return { key, ...ENTRIES[key], available: reason === null, unavailableReason: reason };
 }
 
-export function catalog(): z.infer<typeof OfficialBotsCatalog> {
-  return { bots: (Object.keys(ENTRIES) as OfficialBotKey[]).map(catalogEntry), botsPlus: { ...BOTS_PLUS, perks: [...BOTS_PLUS.perks] } };
+export function catalog(unavailable: Unavailable): z.infer<typeof OfficialBotsCatalog> {
+  return { bots: (Object.keys(ENTRIES) as OfficialBotKey[]).map((k) => catalogEntry(k, unavailable)), botsPlus: { ...BOTS_PLUS, perks: [...BOTS_PLUS.perks] } };
 }
 
 /** "!roll or !roll 2d6 · !flip · …": the commands of [keys], in catalog order, for !help. */

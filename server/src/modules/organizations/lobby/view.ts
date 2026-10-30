@@ -94,7 +94,7 @@ export async function lobbyView({ ctx, store, activity }: ViewDeps, orgId: strin
     pickRoles: pickRoles(ctx, orgId, viewerId),
     leaderboards: leaderboards(ctx, orgId, settings.leaderboards, week),
     // The Giveaways bot (community parity D, part 2) fills this through the official bots' runtime.
-    giveaways: ctx.officialBots.giveaways(orgId),
+    giveaways: ctx.officialBots.giveaways(orgId, viewerId),
     feed: store.posts(orgId, LOBBY_LIMITS.feedPosts).map((p) => ({ id: p.id, title: p.title, text: p.text, url: p.url, image: p.image, postedAt: p.posted_at })),
   };
 }

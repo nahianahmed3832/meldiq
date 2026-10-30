@@ -1,19 +1,22 @@
 {
   "bot": {
-    "key": "helper",
-    "name": "Helper",
+    "key": "tickets",
+    "name": "Tickets",
     "available": true,
+    "unavailableReason": null,
     "enabled": false,
-    "userId": "u_Ah-FxldYpXPl27p8jGL6lw",
+    "userId": "u_YZxzQSADrQBAtQmB7NphjQ",
     "look": {
-      "name": null,
-      "displayName": "Helper",
+      "name": "Desk",
+      "displayName": "Desk",
       "photoRev": null
     },
     "settings": {
-      "commands": []
+      "maxOpenPerPerson": 2,
+      "panels": [],
+      "transcripts": false
     },
     "plusPaused": [],
-    "updatedAt": 1793313949164
+    "updatedAt": 1793325654415
   }
 }
