@@ -140,6 +140,16 @@ describe.each([
       expect((await member.req("GET", `/v1/orgs/${orgId}`)).org.tickets.panels).toHaveLength(2);
       expect((await owner.req("GET", `${base()}/tickets`)).bot.plusPaused.sort()).toEqual(["maxOpenPerPerson", "panels", "transcripts"]);
     });
+
+    it("keeps a panel's paused extras when the panels are saved without them, and clears them on null", async () => {
+      const [first, second] = (await owner.req("GET", `${base()}/tickets`)).bot.settings.panels as { id: string }[];
+      const kept = await put("tickets", { settings: { panels: [panel("Help desk", { id: first!.id }), panel("Reports", { id: second!.id })] } });
+      expect(kept.bot.settings.panels[0]).toMatchObject({ name: "Help desk", supportRoleId: helpers, welcomeMessage: "Hi {user}, {panel} will be right with you." });
+      await plus(true);
+      const cleared = await put("tickets", { settings: { panels: [panel("Help desk", { id: first!.id, supportRoleId: null, welcomeMessage: null }), panel("Reports", { id: second!.id })] } });
+      expect(cleared.bot.settings.panels[0]).toMatchObject({ supportRoleId: null, welcomeMessage: null });
+      await plus(false);
+    });
   });
 
   describe("Alerts", () => {

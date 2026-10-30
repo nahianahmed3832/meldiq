@@ -158,7 +158,17 @@ export async function saveTicketsSettings(rt: OfficialBots, orgId: string, userI
       maxOpenPerPerson: want.maxOpenPerPerson ?? cfg.maxOpenPerPerson,
       panels: want.panels.map((p) => ({ id: p.id, name: p.name, postChannelId: p.postChannelId, categoryId: p.categoryId, logChannelId: p.logChannelId })),
     });
-    panels = Object.fromEntries(saved.panels.map((p, i) => [p.id, { supportRoleId: want.panels![i]!.supportRoleId, welcomeMessage: want.panels![i]!.welcomeMessage }]));
+    // An extra left out keeps what's stored (an app without Bots+ can't send it, and paused extras must survive a save
+    // of the panels); null clears it.
+    panels = Object.fromEntries(
+      saved.panels.map((p, i) => {
+        const sentPanel = want.panels![i]!;
+        const kept = before.panels[p.id];
+        const supportRoleId = sentPanel.supportRoleId !== undefined ? sentPanel.supportRoleId : (kept?.supportRoleId ?? null);
+        const welcomeMessage = sentPanel.welcomeMessage !== undefined ? sentPanel.welcomeMessage : (kept?.welcomeMessage ?? null);
+        return [p.id, { supportRoleId, welcomeMessage }];
+      }),
+    );
   } else if (want.maxOpenPerPerson !== undefined) {
     await rt.ctx.tickets.setMaxOpen(orgId, userId, want.maxOpenPerPerson);
   }

@@ -167,8 +167,13 @@ export class Tickets {
 
   async setConfig(orgId: string, userId: string, body: z.infer<typeof TicketsConfigBody>) {
     this.config(orgId, userId);
-    // Community parity batch D part 2: beyond 2 panels or 3 open per person is the Tickets bot's Bots+.
-    const plusOnly = [...(body.maxOpenPerPerson > TICKET_LIMITS.maxOpen ? ["maxOpenPerPerson"] : []), ...(body.panels.length > TICKET_LIMITS.panels ? ["panels"] : [])];
+    // Community parity batch D part 2: beyond 2 panels or 3 open per person is the Tickets bot's Bots+. What's already
+    // stored stays allowed while Bots+ is gone (it's paused, not lost); only going higher needs Bots+.
+    const storedMax = this.settings(orgId)?.max_open ?? TICKET_LIMITS.maxOpen;
+    const storedPanels = this.panels(orgId).length;
+    const moreOpen = body.maxOpenPerPerson > TICKET_LIMITS.maxOpen && body.maxOpenPerPerson > storedMax;
+    const morePanels = body.panels.length > TICKET_LIMITS.panels && body.panels.length > storedPanels;
+    const plusOnly = [...(moreOpen ? ["maxOpenPerPerson"] : []), ...(morePanels ? ["panels"] : [])];
     if (plusOnly.length && !this.plus(orgId)) throw new ApiError(403, "bots_plus_required", "More panels and open tickets per person come with Bots+.", { bot: "tickets", settings: plusOnly });
     body.panels.forEach((p, i) => this.checkPanel(orgId, p, i));
     const wasOn = this.settings(orgId)?.enabled === 1;

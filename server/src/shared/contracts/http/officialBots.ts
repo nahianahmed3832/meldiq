@@ -133,10 +133,11 @@ const TicketsBotPanel = z.strictObject({
   postChannelId: zChannelId,
   categoryId: zChannelId.nullable(),
   logChannelId: zChannelId.nullable(),
-  /** Plus: can see this panel's tickets and is pinged when one opens. */
-  supportRoleId: zRoleId.nullable().default(null),
-  /** Plus: said in each new ticket of this panel; {user} mentions the opener, {panel} is the panel's name. */
-  welcomeMessage: z.string().trim().min(1).max(BOT_LIMITS.ticketWelcome).nullable().default(null),
+  /** Plus: can see this panel's tickets and is pinged when one opens. Left out when saving: the stored one is kept. */
+  supportRoleId: zRoleId.nullable().optional(),
+  /** Plus: said in each new ticket of this panel; {user} mentions the opener, {panel} is the panel's name. Left out when
+   * saving: the stored one is kept. */
+  welcomeMessage: z.string().trim().min(1).max(BOT_LIMITS.ticketWelcome).nullable().optional(),
   /** Shown in views (the panel's last posted message); ignored when sent. */
   postedMessageId: z.string().nullable().optional(),
 });
