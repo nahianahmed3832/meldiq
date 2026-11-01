@@ -1,6 +1,6 @@
 {
   "name": "meldiq-server",
-  "version": "0.71.4",
+  "version": "0.72.1",
   "private": true,
   "description": "Meldiq relay/API server (internal beta)",
   "type": "module",

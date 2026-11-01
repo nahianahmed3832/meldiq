@@ -78,6 +78,7 @@ import authRoutes from "../modules/auth/routes.js";
 import callRoutes from "../modules/calls/routes.js";
 import conversationRoutes from "../modules/messaging/conversationsRoutes.js";
 import historyRoutes from "../modules/messaging/history/routes.js";
+import messageCollections from "../modules/messaging/messageCollections.js";
 import serverMessagesRoutes from "../modules/messaging/serverMessagesRoutes.js";
 import { MongoMessageStore } from "../modules/messaging/store/mongoStore.js";
 import { SqliteMessageStore } from "../modules/messaging/store/messageStore.js";
@@ -142,7 +143,7 @@ import { now } from "../shared/utilities/util.js";
 import wsRoutes from "../modules/realtime/ws.js";
 import { Billing, billingRoutes } from "../modules/billing/index.js";
 
-export const VERSION = "0.71.4";
+export const VERSION = "0.72.1";
 /**
  * The client API this server speaks and the oldest client API it accepts. Clients refuse a server whose
  * minClientApi is newer than theirs; servers from before these fields existed count as API 1.
@@ -676,6 +677,7 @@ export async function buildApp(
     conversationRoutes,
     messageRoutes,
     serverMessagesRoutes,
+    messageCollections,
     callRoutes,
     attachmentRoutes,
     historyRoutes,
@@ -853,6 +855,7 @@ export function serverFeatures(config: Config, directUploads = false): string[] 
     "mojo",
     // API 0.57.0 (docs/SERVER_MESSAGES.md): messages stored and served by the server (/v2/messages).
     "server-messages",
+    "message-collections",
     // API 0.61.0 (docs/PROFILE_DECORATIONS.md): Meldiq's own decorations and reviewed community ones (/v2/decorations).
     "profile-decorations",
     // API 0.64.0 (docs/PROFILE_PINS.md): pins on profiles, Meldiq's for milestones and communities' own; animated community icons and banners.

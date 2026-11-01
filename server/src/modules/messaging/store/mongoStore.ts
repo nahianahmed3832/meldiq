@@ -1,12 +1,13 @@
+import { retrievalMeta, type RetrievalMeta } from "./retrievalMeta.js";
 import type { Collection } from "mongodb";
 import type { MeldiqMongo } from "../../../infrastructure/database/mongo/client.js";
 import { type ConversationSummary, type HistoryPage, type MessageActivity, type MessageEvent, type MessageStore, mentionsOf, PAGE_READERS, pageChanges, threadRootOf } from "./messageStore.js";
 
 /** message_events: the SQLite row itself (same field names, docs/MONGODB.md §3), keyed by its id. */
-type EventDoc = MessageEvent & { _id: string };
+type EventDoc = MessageEvent & { _id: string; _retrieval?: RetrievalMeta };
 
-const toEvent = ({ _id, ...rest }: EventDoc): MessageEvent => rest;
-const toDoc = (e: MessageEvent): EventDoc => ({ _id: e.id, ...e });
+const toEvent = ({ _id, _retrieval, ...rest }: EventDoc): MessageEvent => rest;
+const toDoc = (e: MessageEvent): EventDoc => ({ _id: e.id, ...e, _retrieval: retrievalMeta(e) });
 /** Regex metacharacters escaped, so a search is for the text itself. */
 const literal = (q: string) => q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 

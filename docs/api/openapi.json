@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Meldiq API",
-    "version": "0.71.4",
+    "version": "0.72.1",
     "description": "The canonical contract of the Meldiq server (docs/architecture/ARCHITECTURE_1_0_PLAN.md §4), generated from src/shared/contracts. Fields are only ever added within a version; clients ignore unknown fields. Routes not listed here exist but aren't documented yet."
   },
   "servers": [
@@ -3520,6 +3520,430 @@
           },
           "default": {
             "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/conversations/{id}/message-collections": {
+      "get": {
+        "tags": [
+          "messaging"
+        ],
+        "summary": "Authoritative paged pins, media, files, thread index or a thread's replies. Membership and history visibility apply; never marks messages read.",
+        "operationId": "getV2ConversationsIdMessageCollections",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "main",
+                "pins",
+                "media",
+                "files",
+                "threads",
+                "thread"
+              ]
+            }
+          },
+          {
+            "name": "root",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "beforeId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          },
+          {
+            "name": "around",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "historySince": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "messages": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "conversationId": {
+                            "type": "string"
+                          },
+                          "senderUserId": {
+                            "type": "string"
+                          },
+                          "senderDeviceId": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "cls": {
+                            "type": "string",
+                            "enum": [
+                              "message",
+                              "control"
+                            ]
+                          },
+                          "payload": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          },
+                          "sentAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "serverTs": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "mentionAll": {
+                            "type": "boolean"
+                          },
+                          "importedBy": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "conversationId",
+                          "senderUserId",
+                          "senderDeviceId",
+                          "cls",
+                          "payload",
+                          "sentAt",
+                          "serverTs",
+                          "mentionAll",
+                          "importedBy"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "context": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "conversationId": {
+                            "type": "string"
+                          },
+                          "senderUserId": {
+                            "type": "string"
+                          },
+                          "senderDeviceId": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "cls": {
+                            "type": "string",
+                            "enum": [
+                              "message",
+                              "control"
+                            ]
+                          },
+                          "payload": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          },
+                          "sentAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "serverTs": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "mentionAll": {
+                            "type": "boolean"
+                          },
+                          "importedBy": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "conversationId",
+                          "senderUserId",
+                          "senderDeviceId",
+                          "cls",
+                          "payload",
+                          "sentAt",
+                          "serverTs",
+                          "mentionAll",
+                          "importedBy"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "changes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "conversationId": {
+                            "type": "string"
+                          },
+                          "senderUserId": {
+                            "type": "string"
+                          },
+                          "senderDeviceId": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "cls": {
+                            "type": "string",
+                            "enum": [
+                              "message",
+                              "control"
+                            ]
+                          },
+                          "payload": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          },
+                          "sentAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "serverTs": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "mentionAll": {
+                            "type": "boolean"
+                          },
+                          "importedBy": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "conversationId",
+                          "senderUserId",
+                          "senderDeviceId",
+                          "cls",
+                          "payload",
+                          "sentAt",
+                          "serverTs",
+                          "mentionAll",
+                          "importedBy"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "threads": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "rootId": {
+                            "type": "string",
+                            "minLength": 8,
+                            "maxLength": 64,
+                            "pattern": "^[A-Za-z0-9_-]+$"
+                          },
+                          "replyCount": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "lastReplyTs": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "rootId",
+                          "replyCount",
+                          "lastReplyTs"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "more": {
+                      "type": "boolean"
+                    },
+                    "nextCursor": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "serverTs": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "id": {
+                              "type": "string",
+                              "minLength": 8,
+                              "maxLength": 64,
+                              "pattern": "^[A-Za-z0-9_-]+$"
+                            }
+                          },
+                          "required": [
+                            "serverTs",
+                            "id"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "historySince",
+                    "messages",
+                    "context",
+                    "changes",
+                    "threads",
+                    "more",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
           }
         },
         "security": [
