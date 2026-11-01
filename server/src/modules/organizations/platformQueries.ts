@@ -192,3 +192,8 @@ export function orgPlatformRestriction(rows: RowReader, orgId: string) {
 export async function setOrgPlatformRestriction(rows: Rows, orgId: string, at: number | null, until: number | null) {
   await rows.write((w) => w.update("orgs", { id: orgId }, { platform_suspended_at: at, platform_suspended_until: until }));
 }
+
+/** All community IDs a person belongs to; callers still apply channel visibility. */
+export function memberOrgIds(rows: RowReader, userId: string): string[] {
+  return rows.all<{org_id: string}>("org_members", {where: {user_id: userId}}).map(x => x.org_id);
+}

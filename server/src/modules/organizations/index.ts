@@ -34,3 +34,6 @@ export type { ReportRow, AdminReportQuery } from "./reports/store.js";
 export { orgPlatformRestriction, setOrgPlatformRestriction } from "./platformQueries.js";
 
 export { REPORT_RETENTION_MS } from "./reports/routes.js";
+
+export { memberOrgIds } from "./platformQueries.js";
+export { visibleChannels } from "./lobby/view.js";

@@ -690,7 +690,6 @@ export async function buildApp(
     activityRoutes,
     decorationRoutes,
     collectionRoutes,
-    socialRoutes,
     pinRoutes,
     reminderRoutes,
     reportRoutes,

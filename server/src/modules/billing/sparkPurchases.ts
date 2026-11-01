@@ -35,6 +35,9 @@ export class SparkPurchases implements PaymentEvents {
     return !!provider?.createPaymentCheckout && (provider.id !== "paypal" || provider.supportsSparkPurchases === true);
   }
   get(id: string): SparkPurchaseRow | null { return this.rows.get<SparkPurchaseRow>("spark_purchases", { id }) ?? null; }
+  async anonymizeAccount(accountId: string): Promise<void> {
+    await this.rows.write(w => w.update("spark_purchases", {buyer_account_id: accountId}, {buyer_account_id: null, buyer_user_id: null}));
+  }
   userIdsOf(accountId: string): string[] {
     return [...new Set(this.rows.all<SparkPurchaseRow>("spark_purchases", { where: { buyer_account_id: accountId } }).flatMap((purchase) => purchase.buyer_user_id ? [purchase.buyer_user_id] : []))];
   }

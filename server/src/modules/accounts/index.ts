@@ -176,3 +176,11 @@ function sqliteIdentity(identity: AppContext["identity"]): SqliteRows {
 }
 
 export { profileAudience } from "./profileAudience.js";
+
+// Profile collection operator surface: account-owned metadata and approved artwork only.
+export { CollectionService } from "./collectibles/service.js";
+export { ASSET_MAX, processAsset, serveAsset } from "./collectibles/assets.js";
+export { createCollectibleUpload, completeCollectibleUpload } from "./collectibles/uploads.js";
+export { readBody as readProfileMediaBody } from "./profileMediaRoutes.js";
+
+export { leaderboardPeople } from "./leaderboardCards.js";

@@ -21,3 +21,5 @@ export type { SparkAssignmentRow } from "./mojo.js";
 export { isAddonPlanKey } from "./perks.js";
 
 export { PayPalCheckout } from "./paypalCheckout.js";
+
+export { giftLeaderboard } from "./gifts.js";

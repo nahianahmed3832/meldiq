@@ -53,6 +53,7 @@ export const PERMISSIONS = [
   "billing.events.replay",
   // Profile decorations people send in (docs/PROFILE_DECORATIONS.md): the review queue.
   "decorations.review",
+  "collectibles.manage",
   // Creator verification, the creator programme and its posts (docs/SETTINGS_PARITY_API.md, batch B).
   "creators.review",
 ] as const;

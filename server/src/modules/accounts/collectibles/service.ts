@@ -100,6 +100,7 @@ export class CollectionService {
   }
   async acquire(userId: string, id: string, source = "free", operator = false) {
     await this.ctx.identity.write((w) => {
+      if (!w.get("users", { id: userId })) throw notFound("User not found");
       const item = this.item(id);
       if (!available(item))
         throw new ApiError(

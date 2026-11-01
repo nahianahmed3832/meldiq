@@ -273,3 +273,13 @@ export class Gifts implements PaymentEvents {
     return this.rows.write((w) => w.update("mojo_gifts", due, { status: "expired", updated_at: this.clock() }));
   }
 }
+
+/** Successful, unrefunded gift counts for the public leaderboard, without buyer billing details. */
+export function giftLeaderboard(rows: Rows) {
+  const counts = new Map<string,number>();
+  for (const g of rows.all<GiftRow>("mojo_gifts", {where: {status: {in: ["paid", "redeemed"]}}})) {
+    if (!g.buyer_user_id || (g.refund_status && g.refund_status !== "none") || g.dispute_status) continue;
+    counts.set(g.buyer_user_id, (counts.get(g.buyer_user_id) ?? 0) + 1);
+  }
+  return [...counts].map(([userId,count]) => ({userId,count}));
+}

@@ -3,7 +3,7 @@ import type { AppContext } from "../../../app/context.js";
 import { processAsset } from "./assets.js";
 import { CATALOG, INVENTORY } from "./service.js";
 import { COLLECTION } from "./builtins.js";
-import { PlatformAudit } from "../../platformAdmin/audit.js";
+import { PlatformAudit } from "../../platformAdmin/index.js";
 /** Launch-only seed: never replaces operator overrides or changes a design anybody already owns. */
 export async function seedCollectionArtwork(
   ctx: Pick<AppContext, "identity" | "platform" | "blobs">,

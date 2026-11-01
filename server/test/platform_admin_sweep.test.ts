@@ -13,6 +13,14 @@ import { type Harness, startServer } from "./support/harness.js";
 const PUBLIC = ["POST /admin/v1/auth/password", "POST /admin/v1/auth/passkey", "POST /admin/v1/auth/enrol/options", "POST /admin/v1/auth/enrol"];
 const SESSION_ONLY = ["GET /admin/v1/me", "POST /admin/v1/auth/logout", "POST /admin/v1/auth/reauth/options", "POST /admin/v1/auth/reauth"];
 const GUARDED: Record<string, Permission> = {
+  "GET /admin/v1/profile-collectibles": "collectibles.manage",
+  "PUT /admin/v1/profile-collectibles/:id": "collectibles.manage",
+  "DELETE /admin/v1/profile-collectibles/:id": "collectibles.manage",
+  "POST /admin/v1/profile-collectibles/:id/grant": "collectibles.manage",
+  "POST /admin/v1/profile-collectibles/assets": "collectibles.manage",
+  "GET /admin/v1/profile-collectibles/assets/:id/:variant": "collectibles.manage",
+  "POST /admin/v1/profile-collectibles/uploads": "collectibles.manage",
+  "POST /admin/v1/profile-collectibles/uploads/:id/complete": "collectibles.manage",
   "DELETE /admin/v1/orgs/:orgId": "orgs.delete",
   "GET /admin/v1/billing/paypal/transactions": "billing.view",
   "POST /admin/v1/billing/paypal/transactions/:id/refund": "billing.manage",

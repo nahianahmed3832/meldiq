@@ -39,7 +39,6 @@ export const ErrorEnvelope = z.strictObject({
 /** The documented routes. Routes not listed yet are still checked for the error envelope by the test suite. */
 export const ROUTE_CONTRACTS: readonly RouteContract[] = [
   ...collectibleRoutes,
-  ...socialAuthRoutes,
   ...adminOperationsRoutes,
   ...systemRoutes,
   ...messagingRoutes,

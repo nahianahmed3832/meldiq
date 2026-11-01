@@ -1,14 +1,8 @@
 import type { AppContext } from "../../app/context.js";
-import type { CallParticipantRow } from "../calls/store.js";
-import type { GiftRow } from "../billing/gifts.js";
-import {
-  blockedEitherWay,
-  sharesCommunity,
-} from "../accounts/relationships/rules.js";
-import { privacyOf } from "../accounts/profile.js";
-import { avatarMediaOf, styleOf } from "../accounts/profileMedia.js";
-import { personCards } from "../accounts/peopleCards.js";
-import { visibleChannels } from "../organizations/lobby/view.js";
+import type { CallParticipantRow } from "../calls/index.js";
+import { giftLeaderboard } from "../billing/index.js";
+import { leaderboardPeople } from "../accounts/index.js";
+import { visibleChannels, memberOrgIds } from "../organizations/index.js";
 import type {
   LeaderboardMetric,
   LeaderboardView,
@@ -60,12 +54,8 @@ export async function leaderboard(
   let totals: { userId: string; count: number }[];
   const weekly = metric === "messages" || metric === "voice";
   if (weekly) {
-    const orgs = ctx.ws.all<{ org_id: string }>("org_members", {
-      where: { user_id: viewer },
-    });
-    const channels = orgs.flatMap((o) =>
-      visibleChannels(ctx, o.org_id, viewer),
-    );
+    const orgs = memberOrgIds(ctx.ws, viewer);
+    const channels = orgs.flatMap((o) => visibleChannels(ctx, o, viewer));
     if (metric === "messages")
       totals = (
         await ctx.messages.activitySince(
@@ -84,70 +74,14 @@ export async function leaderboard(
         now,
       );
   } else if (metric === "gifts") {
-    const counts = new Map<string, number>();
-    for (const g of ctx.billing.rows.all<GiftRow>("mojo_gifts", {
-      where: { status: { in: ["paid", "redeemed"] } },
-    })) {
-      if (
-        !g.buyer_user_id ||
-        (g.refund_status && g.refund_status !== "none") ||
-        g.dispute_status
-      )
-        continue;
-      counts.set(g.buyer_user_id, (counts.get(g.buyer_user_id) ?? 0) + 1);
-    }
-    totals = [...counts].map(([userId, count]) => ({ userId, count }));
+    totals = giftLeaderboard(ctx.billing.rows);
   } else totals = await ctx.points.store.leaderboard(metric);
-  const cards = personCards(
+  const people = leaderboardPeople(
     ctx,
-    totals.map((t) => t.userId),
+    viewer,
+    totals,
+    metric === "level" ? 1 : 0,
   );
-  const people = totals
-    .flatMap((t) => {
-      if (
-        !Number.isSafeInteger(t.count) ||
-        t.count <= (metric === "level" ? 1 : 0)
-      )
-        return [];
-      const card = cards.get(t.userId);
-      const user = ctx.identity.get<{
-        kind: string;
-        synthetic: number;
-        disabled_at: number | null;
-        home_server_id: string | null;
-        privacy: string | null;
-        avatar_media: string | null;
-        profile_style: string | null;
-      }>("users", { id: t.userId });
-      if (
-        !card ||
-        !user ||
-        user.kind !== "person" ||
-        user.synthetic ||
-        user.disabled_at ||
-        user.home_server_id ||
-        blockedEitherWay(ctx, viewer, t.userId)
-      )
-        return [];
-      if (
-        t.userId !== viewer &&
-        privacyOf(user).findByUsername !== "everyone" &&
-        !sharesCommunity(ctx, viewer, t.userId)
-      )
-        return [];
-      return [
-        {
-          user: {
-            ...card,
-            avatarMedia:
-              privacyOf(user).photo === "everyone" ? avatarMediaOf(user) : null,
-            decoration: styleOf(user).decoration,
-          },
-          value: t.count,
-        },
-      ];
-    })
-    .sort((a, b) => b.value - a.value || a.user.id.localeCompare(b.user.id));
   let rank = 0,
     previous = -1;
   const entries = people.map((p, index) => {

@@ -1,21 +1,20 @@
-import { createHash, randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod/v4";
 import {
   CatalogItem,
   ItemId,
 } from "../../shared/contracts/http/collectibles.js";
-import { ApiError, forbidden, notFound } from "../../shared/errors.js";
+import { ApiError, forbidden } from "../../shared/errors.js";
 import { parse } from "../../shared/validation/index.js";
-import { readBody } from "../accounts/profileMediaRoutes.js";
 import {
+  CollectionService,
   ASSET_MAX,
   processAsset,
   serveAsset,
-  boundedBlob,
-  cleanupStaging,
-} from "../accounts/collectibles/assets.js";
-import { CollectionService } from "../accounts/collectibles/service.js";
+  readProfileMediaBody,
+  createCollectibleUpload,
+  completeCollectibleUpload,
+} from "../accounts/index.js";
 import { principal, requirePermission } from "./guards.js";
 import type { AdminDeps } from "./dataRoutes.js";
 export default async function collectibleAdminRoutes(
@@ -27,7 +26,7 @@ export default async function collectibleAdminRoutes(
     preHandler: async (
       req: Parameters<ReturnType<typeof requirePermission>>[0],
     ) => {
-      await requirePermission(d.auth, d.audit, "decorations.review")(req);
+      await requirePermission(d.auth, d.audit, "collectibles.manage")(req);
       if (principal(req).grant.role !== "super_admin") {
         const p = principal(req);
         await d.audit.record({
@@ -89,8 +88,6 @@ export default async function collectibleAdminRoutes(
       }),
       req.body,
     );
-    if (!d.ctx.identity.get("users", { id: userId }))
-      throw notFound("User not found");
     await service.acquire(
       userId,
       id,
@@ -106,7 +103,7 @@ export default async function collectibleAdminRoutes(
     async (req) => {
       const asset = await processAsset(
         d.ctx,
-        await readBody(req, ASSET_MAX, "Decoration assets"),
+        await readProfileMediaBody(req, ASSET_MAX, "Decoration assets"),
       );
       await audit(req, "collectible.asset", asset.id);
       return { asset };
@@ -118,7 +115,6 @@ export default async function collectibleAdminRoutes(
     async (req, reply) => serveAsset(d.ctx, req, reply, true),
   );
   app.post("/admin/v1/profile-collectibles/uploads", needs, async (req) => {
-    await cleanupStaging(d.ctx);
     const body = parse(
       z.strictObject({
         size: z.number().int().min(1).max(ASSET_MAX),
@@ -126,32 +122,7 @@ export default async function collectibleAdminRoutes(
       }),
       req.body,
     );
-    const direct = d.ctx.blobs.direct;
-    if (!direct)
-      throw new ApiError(
-        409,
-        "direct_unavailable",
-        "Use the server upload on this storage backend",
-      );
-    const id = `col-upload-${randomUUID()}`;
-    const expires = Date.now() + 300000;
-    const upload = await direct.presignPut(
-      "profile-photos",
-      id,
-      body.size,
-      Buffer.from(body.sha256, "hex").toString("base64"),
-      300,
-    );
-    await d.ctx.identity.write((w) =>
-      w.insert("profile_collectible_uploads", {
-        id,
-        actor_id: principal(req).account.id,
-        size: body.size,
-        sha256: body.sha256,
-        expires_at: expires,
-      }),
-    );
-    return { id, upload };
+    return createCollectibleUpload(d.ctx, principal(req).account.id, body);
   });
   app.post(
     "/admin/v1/profile-collectibles/uploads/:id/complete",
@@ -161,28 +132,10 @@ export default async function collectibleAdminRoutes(
         z.object({ id: z.string().regex(/^col-upload-[a-f0-9-]{36}$/) }),
         req.params,
       );
-      const row = d.ctx.identity.get<{
-        actor_id: string;
-        size: number;
-        sha256: string;
-        expires_at: number;
-      }>("profile_collectible_uploads", { id });
-      if (
-        !row ||
-        row.actor_id !== principal(req).account.id ||
-        row.expires_at < Date.now()
-      )
-        throw notFound("Upload expired or not found");
-      const bytes = await boundedBlob(d.ctx, id, row.size);
-      if (
-        bytes.length !== row.size ||
-        createHash("sha256").update(bytes).digest("hex") !== row.sha256
-      )
-        throw new ApiError(400, "bad_upload", "Size or checksum mismatch");
-      const asset = await processAsset(d.ctx, bytes);
-      await d.ctx.blobs.delete("profile-photos", id);
-      await d.ctx.identity.write((w) =>
-        w.delete("profile_collectible_uploads", { id }),
+      const asset = await completeCollectibleUpload(
+        d.ctx,
+        principal(req).account.id,
+        id,
       );
       await audit(req, "collectible.asset", asset.id);
       return { asset };
