@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Meldiq API",
-    "version": "0.74.0",
+    "version": "0.75.0",
     "description": "The canonical contract of the Meldiq server (docs/architecture/ARCHITECTURE_1_0_PLAN.md §4), generated from src/shared/contracts. Fields are only ever added within a version; clients ignore unknown fields. Routes not listed here exist but aren't documented yet."
   },
   "servers": [
@@ -1627,9 +1627,56 @@
         "tags": [
           "Profile collection admin"
         ],
-        "summary": "Super administrator catalog including inactive entries.",
+        "summary": "Super administrator catalog including inactive entries, with search and ID pagination.",
         "operationId": "getAdminV1ProfileCollectibles",
         "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 80
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "avatar-frame",
+                "avatar-effect",
+                "background",
+                "banner",
+                "profile-theme",
+                "name-effect",
+                "badge",
+                "particles"
+              ]
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{2,63}$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 48,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 48
+            }
+          },
           {
             "name": "X-Meldiq-Admin",
             "in": "header",
@@ -1835,10 +1882,22 @@
                         ],
                         "additionalProperties": false
                       }
+                    },
+                    "next": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9-]{2,63}$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
-                    "items"
+                    "items",
+                    "next"
                   ],
                   "additionalProperties": false
                 }
@@ -1867,7 +1926,7 @@
         "tags": [
           "Profile collection admin"
         ],
-        "summary": "Create/update catalog metadata and refresh equipped recipes. Super administrator only.",
+        "summary": "Revision-checked catalog save and recipe refresh. Audited reason envelope or legacy flat item.",
         "operationId": "putAdminV1ProfileCollectiblesId",
         "parameters": [
           {
@@ -2111,189 +2170,393 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "pattern": "^[a-z][a-z0-9-]{2,63}$"
-                  },
-                  "name": {
-                    "type": "string",
-                    "maxLength": 80
-                  },
-                  "category": {
-                    "type": "string",
-                    "enum": [
-                      "avatar-frame",
-                      "avatar-effect",
-                      "background",
-                      "banner",
-                      "profile-theme",
-                      "name-effect",
-                      "badge",
-                      "particles"
-                    ]
-                  },
-                  "version": {
-                    "type": "integer",
-                    "exclusiveMinimum": 0,
-                    "maximum": 9007199254740991
-                  },
-                  "recipe": {
+                "anyOf": [
+                  {
                     "type": "object",
                     "properties": {
-                      "colors": {
-                        "minItems": 2,
-                        "maxItems": 2,
-                        "type": "array",
-                        "items": {
-                          "type": "string",
-                          "pattern": "^#[0-9a-fA-F]{6}$"
-                        }
+                      "item": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^[a-z][a-z0-9-]{2,63}$"
+                          },
+                          "name": {
+                            "type": "string",
+                            "maxLength": 80
+                          },
+                          "category": {
+                            "type": "string",
+                            "enum": [
+                              "avatar-frame",
+                              "avatar-effect",
+                              "background",
+                              "banner",
+                              "profile-theme",
+                              "name-effect",
+                              "badge",
+                              "particles"
+                            ]
+                          },
+                          "version": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "recipe": {
+                            "type": "object",
+                            "properties": {
+                              "colors": {
+                                "minItems": 2,
+                                "maxItems": 2,
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "pattern": "^#[0-9a-fA-F]{6}$"
+                                }
+                              },
+                              "pattern": {
+                                "type": "string",
+                                "enum": [
+                                  "solid",
+                                  "orbit",
+                                  "grid",
+                                  "prism"
+                                ]
+                              },
+                              "frame": {
+                                "type": "string",
+                                "enum": [
+                                  "aurora",
+                                  "ember",
+                                  "frost",
+                                  "neon",
+                                  "sakura",
+                                  "pixel"
+                                ]
+                              },
+                              "effect": {
+                                "type": "string",
+                                "enum": [
+                                  "sparkles",
+                                  "glow",
+                                  "stars",
+                                  "bubbles"
+                                ]
+                              },
+                              "nameEffect": {
+                                "type": "string",
+                                "enum": [
+                                  "glow",
+                                  "shimmer"
+                                ]
+                              },
+                              "assetId": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{64}$"
+                              }
+                            },
+                            "required": [
+                              "colors",
+                              "pattern"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "description": {
+                            "type": "string",
+                            "maxLength": 500
+                          },
+                          "rarity": {
+                            "type": "string",
+                            "enum": [
+                              "common",
+                              "rare",
+                              "epic",
+                              "legendary"
+                            ]
+                          },
+                          "acquisitionType": {
+                            "type": "string",
+                            "enum": [
+                              "free",
+                              "premium",
+                              "event",
+                              "purchase"
+                            ]
+                          },
+                          "price": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "currency": {
+                            "type": "string",
+                            "enum": [
+                              "USD",
+                              "EMBERS"
+                            ]
+                          },
+                          "isActive": {
+                            "type": "boolean"
+                          },
+                          "isFeatured": {
+                            "type": "boolean"
+                          },
+                          "availableFrom": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "availableUntil": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "supportedPlatforms": {
+                            "minItems": 1,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "web",
+                                "android",
+                                "windows",
+                                "macos"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "category",
+                          "version",
+                          "recipe",
+                          "description",
+                          "rarity",
+                          "acquisitionType",
+                          "price",
+                          "currency",
+                          "isActive",
+                          "isFeatured",
+                          "availableFrom",
+                          "availableUntil",
+                          "supportedPlatforms"
+                        ],
+                        "additionalProperties": false
                       },
-                      "pattern": {
+                      "reason": {
                         "type": "string",
-                        "enum": [
-                          "solid",
-                          "orbit",
-                          "grid",
-                          "prism"
-                        ]
-                      },
-                      "frame": {
-                        "type": "string",
-                        "enum": [
-                          "aurora",
-                          "ember",
-                          "frost",
-                          "neon",
-                          "sakura",
-                          "pixel"
-                        ]
-                      },
-                      "effect": {
-                        "type": "string",
-                        "enum": [
-                          "sparkles",
-                          "glow",
-                          "stars",
-                          "bubbles"
-                        ]
-                      },
-                      "nameEffect": {
-                        "type": "string",
-                        "enum": [
-                          "glow",
-                          "shimmer"
-                        ]
-                      },
-                      "assetId": {
-                        "type": "string",
-                        "pattern": "^[a-f0-9]{64}$"
+                        "minLength": 8,
+                        "maxLength": 500
                       }
                     },
                     "required": [
-                      "colors",
-                      "pattern"
+                      "item",
+                      "reason"
                     ],
                     "additionalProperties": false
                   },
-                  "description": {
-                    "type": "string",
-                    "maxLength": 500
-                  },
-                  "rarity": {
-                    "type": "string",
-                    "enum": [
-                      "common",
-                      "rare",
-                      "epic",
-                      "legendary"
-                    ]
-                  },
-                  "acquisitionType": {
-                    "type": "string",
-                    "enum": [
-                      "free",
-                      "premium",
-                      "event",
-                      "purchase"
-                    ]
-                  },
-                  "price": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 100000000
-                  },
-                  "currency": {
-                    "type": "string",
-                    "enum": [
-                      "USD",
-                      "EMBERS"
-                    ]
-                  },
-                  "isActive": {
-                    "type": "boolean"
-                  },
-                  "isFeatured": {
-                    "type": "boolean"
-                  },
-                  "availableFrom": {
-                    "anyOf": [
-                      {
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9-]{2,63}$"
+                      },
+                      "name": {
+                        "type": "string",
+                        "maxLength": 80
+                      },
+                      "category": {
+                        "type": "string",
+                        "enum": [
+                          "avatar-frame",
+                          "avatar-effect",
+                          "background",
+                          "banner",
+                          "profile-theme",
+                          "name-effect",
+                          "badge",
+                          "particles"
+                        ]
+                      },
+                      "version": {
                         "type": "integer",
-                        "minimum": -9007199254740991,
+                        "exclusiveMinimum": 0,
                         "maximum": 9007199254740991
                       },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "availableUntil": {
-                    "anyOf": [
-                      {
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991
+                      "recipe": {
+                        "type": "object",
+                        "properties": {
+                          "colors": {
+                            "minItems": 2,
+                            "maxItems": 2,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$"
+                            }
+                          },
+                          "pattern": {
+                            "type": "string",
+                            "enum": [
+                              "solid",
+                              "orbit",
+                              "grid",
+                              "prism"
+                            ]
+                          },
+                          "frame": {
+                            "type": "string",
+                            "enum": [
+                              "aurora",
+                              "ember",
+                              "frost",
+                              "neon",
+                              "sakura",
+                              "pixel"
+                            ]
+                          },
+                          "effect": {
+                            "type": "string",
+                            "enum": [
+                              "sparkles",
+                              "glow",
+                              "stars",
+                              "bubbles"
+                            ]
+                          },
+                          "nameEffect": {
+                            "type": "string",
+                            "enum": [
+                              "glow",
+                              "shimmer"
+                            ]
+                          },
+                          "assetId": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$"
+                          }
+                        },
+                        "required": [
+                          "colors",
+                          "pattern"
+                        ],
+                        "additionalProperties": false
                       },
-                      {
-                        "type": "null"
+                      "description": {
+                        "type": "string",
+                        "maxLength": 500
+                      },
+                      "rarity": {
+                        "type": "string",
+                        "enum": [
+                          "common",
+                          "rare",
+                          "epic",
+                          "legendary"
+                        ]
+                      },
+                      "acquisitionType": {
+                        "type": "string",
+                        "enum": [
+                          "free",
+                          "premium",
+                          "event",
+                          "purchase"
+                        ]
+                      },
+                      "price": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100000000
+                      },
+                      "currency": {
+                        "type": "string",
+                        "enum": [
+                          "USD",
+                          "EMBERS"
+                        ]
+                      },
+                      "isActive": {
+                        "type": "boolean"
+                      },
+                      "isFeatured": {
+                        "type": "boolean"
+                      },
+                      "availableFrom": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "availableUntil": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "supportedPlatforms": {
+                        "minItems": 1,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": [
+                            "web",
+                            "android",
+                            "windows",
+                            "macos"
+                          ]
+                        }
                       }
-                    ]
-                  },
-                  "supportedPlatforms": {
-                    "minItems": 1,
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "enum": [
-                        "web",
-                        "android",
-                        "windows",
-                        "macos"
-                      ]
-                    }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "category",
+                      "version",
+                      "recipe",
+                      "description",
+                      "rarity",
+                      "acquisitionType",
+                      "price",
+                      "currency",
+                      "isActive",
+                      "isFeatured",
+                      "availableFrom",
+                      "availableUntil",
+                      "supportedPlatforms"
+                    ],
+                    "additionalProperties": false
                   }
-                },
-                "required": [
-                  "id",
-                  "name",
-                  "category",
-                  "version",
-                  "recipe",
-                  "description",
-                  "rarity",
-                  "acquisitionType",
-                  "price",
-                  "currency",
-                  "isActive",
-                  "isFeatured",
-                  "availableFrom",
-                  "availableUntil",
-                  "supportedPlatforms"
-                ],
-                "additionalProperties": false
+                ]
               }
             }
           }

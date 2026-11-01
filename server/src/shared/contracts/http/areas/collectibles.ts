@@ -2,6 +2,7 @@ import { z } from "zod/v4";
 import { CATEGORIES, CatalogItem, CatalogQuery, Category, EquipBody, ItemId, InventoryResponse, AssetId } from "../collectibles.js";
 import { ProfileStyle } from "../users.js";
 import { route, type RouteContract } from "../route.js";
+import { zReason } from "../platformAdmin.js";
 const state = z.strictObject({
   profileStyle: ProfileStyle,
   styleRevision: z.string().regex(/^[a-f0-9]{64}$/),
@@ -97,15 +98,16 @@ export const collectibleRoutes: RouteContract[] = [
   admin({
     method: "GET",
     url: "/admin/v1/profile-collectibles",
-    summary: "Super administrator catalog including inactive entries.",
-    response: z.object({ items: z.array(CatalogItem) }),
+    summary: "Super administrator catalog including inactive entries, with search and ID pagination.",
+    query: z.object({ q: z.string().trim().max(80).optional(), category: Category.optional(), after: ItemId.optional(), limit: z.coerce.number().int().min(1).max(48).default(48) }),
+    response: z.object({ items: z.array(CatalogItem), next: ItemId.nullable() }),
   }),
   admin({
     method: "PUT",
     url: "/admin/v1/profile-collectibles/:id",
-    summary: "Create/update catalog metadata and refresh equipped recipes. Super administrator only.",
+    summary: "Revision-checked catalog save and recipe refresh. Audited reason envelope or legacy flat item.",
     params,
-    body: CatalogItem,
+    body: z.union([z.strictObject({ item: CatalogItem, reason: zReason }), CatalogItem]),
     response: z.object({ item: CatalogItem }),
   }),
   admin({

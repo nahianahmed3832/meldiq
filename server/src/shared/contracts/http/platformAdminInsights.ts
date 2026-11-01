@@ -1,4 +1,6 @@
 import { z } from "zod/v4";
+import { BotsPlusGrant } from "./officialBots.js";
+import { BoostRecord, PromotedBooking } from "./discovery.js";
 import { zEmail, zName, zPassword } from "./accounts.js";
 import { zCount, zTime } from "./primitives.js";
 import { zCursor, zDay, zLimit, zPerson, zReason, zRef } from "./platformAdmin.js";
@@ -569,3 +571,10 @@ export const AdminAccountCreated = z.strictObject({
   password: z.string().nullable(),
   codeSent: z.boolean(),
 });
+
+/** Existing community operations, exposed by the platform console without acquiring community ownership. */
+export const AdminBotsPlusView = z.strictObject({ botsPlus: BotsPlusGrant });
+export const AdminDiscoveryView = z.strictObject({ discovery: z.strictObject({
+  removedAt: zTime.nullable(), removedReason: z.string().nullable(), official: z.boolean(),
+  boosts: z.array(BoostRecord), bookings: z.array(PromotedBooking),
+}) });

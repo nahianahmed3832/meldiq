@@ -21,7 +21,7 @@ function checks(h: HealthReport, atlasOnly = false): { id: string; label: string
       ? { id: "mongodb", label: "MongoDB", status: mongodb.ok ? "ok" : "failing", detail: null }
       : { id: "mongodb", label: "MongoDB", status: "off", detail: mongodb.reason },
     livekit.available
-      ? { id: "livekit", label: "Calls (LiveKit)", status: livekit.configured ? "ok" : "off", detail: livekit.configured ? "Configured" : "Not configured" }
+      ? { id: "livekit", label: "Calls (LiveKit)", status: livekit.configured ? "not_measured" : "off", detail: livekit.configured ? "Configured; call connectivity has not been measured" : "Not configured" }
       : { id: "livekit", label: "Calls (LiveKit)", status: "not_measured", detail: livekit.reason },
     storage.available
       ? { id: "storage", label: "File storage", status: storage.reachable ? "ok" : "failing", detail: `${storage.backend}${storage.errorKind ? ` · ${storage.errorKind}` : ""}` }

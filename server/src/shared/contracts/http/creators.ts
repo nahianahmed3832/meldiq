@@ -153,6 +153,7 @@ export const AdminCreatorPostsQuery = z.strictObject({
 export const AdminCreatorParams = z.strictObject({ id: z.string().regex(/^cr[a-z]?_[A-Za-z0-9_-]{8,40}$/) });
 export const AdminCreatorReject = z.strictObject({ reason: zReason });
 export const AdminCreatorPostReview = z.strictObject({
+  reason: zReason.optional(),
   counted: z.boolean(),
   rewardNote: z.string().trim().max(300).refine(oneLine, "One line of plain text").nullable().optional(),
 });

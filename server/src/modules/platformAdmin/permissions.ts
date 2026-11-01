@@ -61,6 +61,8 @@ export type Permission = (typeof PERMISSIONS)[number];
 
 /** Actions that need a passkey check in the last few minutes and a written reason (ADMIN_REAUTH_MINUTES). */
 export const SENSITIVE: ReadonlySet<Permission> = new Set([
+  "collectibles.manage",
+  "creators.review",
   "orgs.delete",
   "reports.manage",
   "orgs.restrict",

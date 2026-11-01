@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 import {
   CatalogItem,
   ItemId,
+  Category,
 } from "../../shared/contracts/http/collectibles.js";
 import { ApiError, forbidden } from "../../shared/errors.js";
 import { parse } from "../../shared/validation/index.js";
@@ -15,6 +16,9 @@ import {
   createCollectibleUpload,
   completeCollectibleUpload,
 } from "../accounts/index.js";
+import { networkKey } from "../../app/middleware/abuse.js";
+import { zReason } from "../../shared/contracts/http/platformAdmin.js";
+import { sha256Hex } from "../../shared/utilities/util.js";
 import { principal, requirePermission } from "./guards.js";
 import type { AdminDeps } from "./dataRoutes.js";
 export default async function collectibleAdminRoutes(
@@ -48,6 +52,7 @@ export default async function collectibleAdminRoutes(
     action: string,
     id: string,
     reason = "Catalog management",
+    detail?: Record<string, string | number | boolean | null>,
   ) => {
     const p = principal(req);
     await d.audit.record({
@@ -59,19 +64,34 @@ export default async function collectibleAdminRoutes(
       targetId: id,
       reason,
       requestId: String(req.id),
+      network: networkKey(req.ip),
+      detail,
     });
   };
   const params = z.object({ id: ItemId });
-  app.get("/admin/v1/profile-collectibles", needs, async () => ({
-    items: service.catalog(),
-  }));
+  app.get("/admin/v1/profile-collectibles", needs, async (req) => {
+    const q = parse(z.object({ q: z.string().trim().max(80).optional(), category: Category.optional(), after: ItemId.optional(), limit: z.coerce.number().int().min(1).max(48).default(48) }), req.query);
+    const rows = service.catalog().filter((item) => (!q.after || item.id > q.after) && (!q.category || item.category === q.category) && (!q.q || `${item.name} ${item.id}`.toLowerCase().includes(q.q.toLowerCase()))).slice(0, q.limit + 1);
+    return { items: rows.slice(0, q.limit), next: rows.length > q.limit ? rows[q.limit - 1].id : null };
+  });
   app.put("/admin/v1/profile-collectibles/:id", needs, async (req) => {
     const { id } = parse(params, req.params);
-    const item = parse(CatalogItem, req.body);
+    const body = parse(z.union([z.strictObject({ item: CatalogItem, reason: zReason }), CatalogItem]), req.body);
+    const item = "item" in body ? body.item : body;
+    const reason = "item" in body ? body.reason : "Catalog management (legacy client)";
+    const before = service.catalog().find((x) => x.id === id);
     if (item.id !== id)
       throw new ApiError(400, "bad_request", "IDs must match");
-    await service.save(item);
-    await audit(req, "collectible.save", id);
+    await service.save(item, item.version);
+    const after = service.item(id);
+    await audit(req, "collectible.save", id, reason, {
+      beforeHash: before ? sha256Hex(JSON.stringify(before)) : null, afterHash: sha256Hex(JSON.stringify(after)),
+      activeBefore: before?.isActive ?? null, activeAfter: after.isActive,
+      priceBefore: before?.price ?? null, priceAfter: after.price,
+      fromBefore: before?.availableFrom ?? null, fromAfter: after.availableFrom,
+      untilBefore: before?.availableUntil ?? null, untilAfter: after.availableUntil,
+      versionBefore: before?.version ?? null, versionAfter: after.version,
+    });
     return { item: service.item(id) };
   });
   app.delete("/admin/v1/profile-collectibles/:id", needs, async (req) => {

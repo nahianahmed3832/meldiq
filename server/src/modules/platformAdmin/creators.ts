@@ -69,7 +69,7 @@ export default async function adminCreatorRoutes(app: FastifyInstance, d: AdminD
 
   const decideVerification = (decision: "approve" | "reject") => async (req: FastifyRequest) => {
     const { id } = parse(AdminCreatorParams, req.params);
-    const reason = decision === "reject" ? parse(AdminCreatorReject, req.body).reason : null;
+    const reason = req.body === undefined && decision === "approve" ? null : parse(AdminCreatorReject, req.body).reason;
     const decided = await creators.decideVerification(id, decision, principal(req).account.id, reason);
     if (!decided) throw new ApiError(409, "conflict", "This application has already been reviewed, or doesn't exist.");
     await record(req, `creator.verification.${decision}`, "creator_verification", id, reason ?? "approved", { userId: decided.userId, platform: decided.platform, channelName: decided.channelName });
@@ -91,7 +91,7 @@ export default async function adminCreatorRoutes(app: FastifyInstance, d: AdminD
 
   const decideProgram = (decision: "approve" | "reject") => async (req: FastifyRequest) => {
     const { id } = parse(AdminCreatorParams, req.params);
-    const reason = decision === "reject" ? parse(AdminCreatorReject, req.body).reason : null;
+    const reason = req.body === undefined && decision === "approve" ? null : parse(AdminCreatorReject, req.body).reason;
     const decided = await creators.decideProgram(id, decision, principal(req).account.id, reason);
     if (!decided) throw new ApiError(409, "conflict", "This application has already been reviewed, or doesn't exist.");
     await record(req, `creator.program.${decision}`, "creator_program", id, reason ?? "approved", { userId: decided.userId });
@@ -113,7 +113,7 @@ export default async function adminCreatorRoutes(app: FastifyInstance, d: AdminD
     const body = parse(AdminCreatorPostReview, req.body);
     const reviewed = await creators.reviewPost(id, principal(req).account.id, body.counted, body.rewardNote);
     if (!reviewed) throw notFound("Post not found");
-    await record(req, "creator.post.review", "creator_post", id, body.counted ? "counted" : "not counted", { userId: reviewed.userId, rewardNote: reviewed.rewardNote });
+    await record(req, "creator.post.review", "creator_post", id, body.reason ?? (body.counted ? "counted" : "not counted"), { userId: reviewed.userId, rewardNote: reviewed.rewardNote });
     return { post: creators.postView(reviewed) };
   });
 }

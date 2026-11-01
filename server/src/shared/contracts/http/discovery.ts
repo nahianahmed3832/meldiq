@@ -95,7 +95,7 @@ export const DiscoverySettingsBody = z
 
 // ───────────── Promote ─────────────
 
-const BoostRecord = z.strictObject({
+export const BoostRecord = z.strictObject({
   id: z.string(),
   tier: BoostTier,
   state: z.enum(["pending", "active", "cancelled"]),
@@ -104,7 +104,7 @@ const BoostRecord = z.strictObject({
   endsAt: zTime,
 });
 
-const PromotedBooking = z.strictObject({
+export const PromotedBooking = z.strictObject({
   id: z.string(),
   state: z.enum(["pending", "active", "cancelled"]),
   source: z.enum(["grant", "purchase"]),

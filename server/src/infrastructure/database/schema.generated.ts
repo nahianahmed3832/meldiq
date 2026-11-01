@@ -3436,6 +3436,8 @@ export const SCHEMA: readonly TableShape[] = [
     ],
     primaryKey: ["id"],
     indexes: [
+      {"name":"idx_mojo_gifts_admin_status_time","columns":["status","created_at","id"],"unique":false,"nocase":false,"partialNotNull":null},
+      {"name":"idx_mojo_gifts_admin_time","columns":["created_at","id"],"unique":false,"nocase":false,"partialNotNull":null},
       {"name":"idx_mojo_gift_request","columns":["provider","buyer_account_id","request_key"],"unique":true,"nocase":false,"partialNotNull":["request_key"]},
       {"name":"idx_mojo_gifts_payment","columns":["provider","provider_payment_ref"],"unique":false,"nocase":false,"partialNotNull":["provider_payment_ref"]},
       {"name":"idx_mojo_gifts_buyer","columns":["buyer_account_id","created_at"],"unique":false,"nocase":false,"partialNotNull":null},

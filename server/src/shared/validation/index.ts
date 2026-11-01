@@ -2,8 +2,8 @@ import { z } from "zod";
 import { badRequest } from "../errors.js";
 
 /**
- * Anything with zod's safeParse: the routes' own zod 3 schemas and the zod 4 schemas of src/shared/contracts (both
- * produce the same 400 here).
+ * Anything with Zod's safeParse: routes and shared contracts use the patched Zod 4 runtime and produce the same
+ * bounded 400 response here.
  */
 export interface Schema<T> {
   safeParse(data: unknown):

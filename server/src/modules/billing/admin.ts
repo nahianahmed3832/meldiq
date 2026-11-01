@@ -128,10 +128,10 @@ export function mojoFigures(billing: Billing, levelOf: (orgId: string, t: number
 /** Gifts newest first, keyset-paged by (created_at, id); one row more than [limit] says another page follows. */
 export function giftRows(billing: Billing, q: { status?: string; after: { createdAt: number; id: string } | null; limit: number }): GiftRow[] {
   const after = q.after;
-  return billing.rows
-    .all<GiftRow>("mojo_gifts", { where: q.status ? { status: q.status } : {}, orderBy: [["created_at", "desc"], ["id", "desc"]] })
-    .filter((g) => !after || g.created_at < after.createdAt || (g.created_at === after.createdAt && g.id < after.id))
-    .slice(0, q.limit + 1);
+  return billing.rows.all<GiftRow>("mojo_gifts", {
+    where: { ...(q.status ? { status: q.status } : {}), ...(after ? { $or: [{ created_at: { lt: after.createdAt } }, { created_at: after.createdAt, id: { lt: after.id } }] } : {}) },
+    orderBy: [["created_at", "desc"], ["id", "desc"]], limit: q.limit + 1,
+  });
 }
 
 /** Communities with at least one Spark given to them (active or paused). */

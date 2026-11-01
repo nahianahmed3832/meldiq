@@ -76,7 +76,9 @@ export function requirePermission(auth: AdminAuthService, audit: PlatformAudit, 
       });
       throw forbidden("Your console role doesn't allow that.");
     }
-    if (SENSITIVE.has(permission) && !auth.recentlyVerified(p)) {
+    const reviewRead = (req.method === "GET" || req.method === "HEAD") &&
+      (permission === "collectibles.manage" || permission === "creators.review");
+    if (!reviewRead && SENSITIVE.has(permission) && !auth.recentlyVerified(p)) {
       throw new ApiError(403, "reauth_required", "Confirm with your passkey again to do that.");
     }
   };

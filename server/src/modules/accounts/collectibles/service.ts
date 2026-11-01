@@ -255,7 +255,7 @@ export class CollectionService {
     });
     for (const id of changed) announceProfileChange(this.ctx, id);
   }
-  async save(item: CatalogItem) {
+  async save(item: CatalogItem, expectedVersion?: number) {
     if (
       item.recipe.assetId &&
       !this.ctx.identity.get("profile_collectible_assets", {
@@ -273,6 +273,8 @@ export class CollectionService {
       const old = previous
         ? (JSON.parse(previous.metadata) as CatalogItem)
         : builtin;
+      if (old && expectedVersion !== undefined && expectedVersion !== old.version)
+        throw new ApiError(409, "conflict", "This catalog item changed. Reload it before saving again");
       if (old && old.category !== item.category)
         throw new ApiError(
           409,
