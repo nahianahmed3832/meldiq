@@ -12405,6 +12405,9 @@
                         "profileRevision": {
                           "type": "string"
                         },
+                        "styleRevision": {
+                          "type": "string"
+                        },
                         "privacy": {
                           "type": "object",
                           "properties": {
@@ -12993,6 +12996,9 @@
                           }
                         },
                         "profileRevision": {
+                          "type": "string"
+                        },
+                        "styleRevision": {
                           "type": "string"
                         },
                         "privacy": {
@@ -14294,7 +14300,7 @@
             }
           },
           "default": {
-            "description": "Error. Codes: bad_request",
+            "description": "Error. Codes: bad_request, conflict",
             "content": {
               "application/json": {
                 "schema": {
@@ -14316,6 +14322,10 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "baseStyleRevision": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
                   "decoration": {
                     "anyOf": [
                       {

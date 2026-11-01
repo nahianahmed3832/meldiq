@@ -18,7 +18,7 @@ import { storePhoto } from "./photos.js";
 import { allows, type ProfileRow, privacyOf, relation } from "./profile.js";
 import { announceProfileChange } from "./profileEvents.js";
 import { gifInfo, type ImageInfo, jpegInfo, sniff, webpInfo } from "./mediaFormats.js";
-import { type AvatarMedia, avatarBlob, avatarMediaOf, type Banner, bannerBlob, bannerOf, posterBlob, type Style, styleOf } from "./profileMedia.js";
+import { type AvatarMedia, avatarBlob, avatarMediaOf, type Banner, bannerBlob, bannerOf, posterBlob, type Style, styleOf, styleRevision } from "./profileMedia.js";
 
 /**
  * Richer profiles (API 0.45.0, docs/PROFILE_MEDIA.md): an animated avatar (GIF, animated WebP, or a short video clip
@@ -119,12 +119,35 @@ async function transcodeClip(ctx: AppContext, input: Buffer): Promise<{ mp4: Buf
     const video = info?.streams?.find((s) => s.codec_type === "video");
     const duration = Number(info?.format?.duration ?? Number.NaN);
     if (probe.code !== 0 || !video || !Number.isFinite(duration)) throw badRequest("That file isn't a video this server can read.");
-    if (duration > PROFILE_MEDIA_LIMITS.clipMaxSeconds) throw badRequest(`Video clips can be up to ${PROFILE_MEDIA_LIMITS.clipMaxSeconds} seconds; they're shown as ${PROFILE_MEDIA_LIMITS.clipSeconds} second loops.`);
+    if (duration > PROFILE_MEDIA_LIMITS.clipMaxSeconds)
+      throw badRequest(`Video clips can be up to ${PROFILE_MEDIA_LIMITS.clipMaxSeconds} seconds; they're shown as ${PROFILE_MEDIA_LIMITS.clipSeconds} second loops.`);
     const side = PROFILE_MEDIA_LIMITS.clipSide;
     const crop = `crop='min(iw,ih)':'min(iw,ih)',scale=${side}:${side},fps=30`;
     const enc = await runTool(ffmpegBin(), [
-      "-hide_banner", "-loglevel", "error", "-y", "-i", src, "-t", String(PROFILE_MEDIA_LIMITS.clipSeconds), "-an", "-vf", crop,
-      "-c:v", "libx264", "-pix_fmt", "yuv420p", "-profile:v", "main", "-crf", "28", "-movflags", "+faststart", "-map_metadata", "-1", outMp4,
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-y",
+      "-i",
+      src,
+      "-t",
+      String(PROFILE_MEDIA_LIMITS.clipSeconds),
+      "-an",
+      "-vf",
+      crop,
+      "-c:v",
+      "libx264",
+      "-pix_fmt",
+      "yuv420p",
+      "-profile:v",
+      "main",
+      "-crf",
+      "28",
+      "-movflags",
+      "+faststart",
+      "-map_metadata",
+      "-1",
+      outMp4,
     ]);
     if (enc.code !== 0) throw badRequest("That video couldn't be converted. Try another clip.");
     const pos = await runTool(ffmpegBin(), ["-hide_banner", "-loglevel", "error", "-y", "-i", outMp4, "-frames:v", "1", "-q:v", "4", outJpg]);
@@ -240,7 +263,7 @@ export default async function profileMediaRoutes(app: FastifyInstance, ctx: AppC
     if (body.tagOrgId && !ctx.authz.orgRole(body.tagOrgId, userId)) throw badRequest("You can only wear the tag of a community you're in");
     // API 0.65.0: only a badge the person holds now can be shown ("none" hides them all).
     if (body.shownBadge && body.shownBadge !== "none" && !holdsBadge(ctx, userId, body.shownBadge)) throw badRequest("You can only show a badge you have");
-    const keep = <T,>(sent: T | undefined, was: T) => (sent === undefined ? was : sent);
+    const keep = <T>(sent: T | undefined, was: T) => (sent === undefined ? was : sent);
     const theme = themeOf(body, current);
     const next: Style = {
       decoration: keep(body.decoration, current.decoration),
@@ -255,7 +278,11 @@ export default async function profileMediaRoutes(app: FastifyInstance, ctx: AppC
     };
     // API 0.61.0: Meldiq's own and approved community decorations too (docs/PROFILE_DECORATIONS.md).
     if (next.decoration && next.decoration !== current.decoration && !ctx.decorations.wearable(next.decoration)) throw badRequest("That decoration isn't available");
-    await setOwn(userId, { profile_style: JSON.stringify(next) });
+    await ctx.identity.write((w) => {
+      if (body.baseStyleRevision && styleRevision(row(userId) ?? {}) !== body.baseStyleRevision)
+        throw new ApiError(409, "conflict", "Your look changed on another device. Reset your draft before applying it.");
+      w.update("users", { id: userId }, { profile_style: JSON.stringify(next), updated_at: now() });
+    });
     await ctx.decorations.worn(current.decoration, next.decoration);
     announceProfileChange(ctx, userId);
     return { profileStyle: next };
@@ -291,4 +318,3 @@ export default async function profileMediaRoutes(app: FastifyInstance, ctx: AppC
     }),
   );
 }
-

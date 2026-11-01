@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { AppContext } from "../../app/context.js";
 import { DECORATION_ID } from "../../shared/contracts/http/decorations.js";
 import { NAME_EFFECTS, NAME_FONTS, PROFILE_DECORATIONS, PROFILE_EFFECTS, SHOWABLE_BADGES, type ShowableBadge } from "../../shared/contracts/http/users.js";
@@ -66,11 +67,7 @@ export function wornTag(ctx: AppContext, u: { id: string; profile_style?: string
  * The profile fields this adds, for a viewer who may see the photo (the style is shown to everyone). [holds] says
  * whether the person still has a badge: a shown badge they lost reads as null (API 0.65.0).
  */
-export function profileMediaView(
-  u: { avatar_media?: string | null; profile_banner?: string | null; profile_style?: string | null },
-  photoAllowed: boolean,
-  holds?: (badge: ShowableBadge) => boolean,
-) {
+export function profileMediaView(u: { avatar_media?: string | null; profile_banner?: string | null; profile_style?: string | null }, photoAllowed: boolean, holds?: (badge: ShowableBadge) => boolean) {
   const out: Record<string, unknown> = {};
   const a = avatarMediaOf(u);
   const b = bannerOf(u);
@@ -92,3 +89,9 @@ export function profileMediaBlobs(u: { id: string; avatar_media?: string | null;
   if (b) out.push(bannerBlob(u.id, b.rev));
   return out;
 }
+
+/** Revision for an atomic, optional style precondition; old clients may omit it. */
+export const styleRevision = (u: { profile_style?: string | null }) =>
+  createHash("sha256")
+    .update(JSON.stringify(styleOf(u)))
+    .digest("hex");

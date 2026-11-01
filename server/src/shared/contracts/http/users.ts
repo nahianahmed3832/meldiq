@@ -141,6 +141,10 @@ export type ShowableBadge = (typeof SHOWABLE_BADGES)[number];
  */
 const zWornDecoration = z.string().regex(/^(?:[a-z0-9-]{2,32}|c_[a-z0-9]{16})$/, "Not a decoration id");
 export const ProfileStyleBody = z.object({
+  baseStyleRevision: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/)
+    .optional(),
   decoration: zWornDecoration.nullable().optional(),
   effect: z.enum(PROFILE_EFFECTS).nullable().optional(),
   accent: zHex.nullable().optional(),
@@ -266,6 +270,7 @@ const profileFields = {
 /** Only in the person's own profile. */
 const ownFields = {
   profileRevision: z.string().optional(),
+  styleRevision: z.string().optional(),
   privacy: Privacy,
   /** Set while notifications are paused. */
   notificationsPausedUntil: z.number().int().nullable(),
@@ -450,7 +455,7 @@ export const userRoutes = [
     summary: "Your profile's decoration, effect, accent or two-colour theme, name style, worn tag and shown badge (fields sent change; null removes).",
     body: ProfileStyleBody,
     response: z.strictObject({ profileStyle: ProfileStyle }),
-    errors: ["bad_request"],
+    errors: ["bad_request", "conflict"],
   }),
   user("/v1/users/by-phone", {
     method: "GET",

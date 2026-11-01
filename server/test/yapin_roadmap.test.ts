@@ -145,6 +145,13 @@ describe.each([
     expect((await member.req("GET", "/v1/users/me")).user.aboutMe).toBe("Latest global bio");
     await member.req("PATCH", "/v1/users/me", { statusEmoji: "🌿" }); // legacy writers remain compatible
   });
+  it("rejects stale style revisions atomically while preserving older writers", async () => {
+    const before = (await member.req("GET", "/v1/users/me")).user;
+    await member.req("PUT", "/v1/users/me/profile-style", { baseStyleRevision: before.styleRevision, themeColors: ["#123456"] });
+    await expectStatus(member.req("PUT", "/v1/users/me/profile-style", { baseStyleRevision: before.styleRevision, effect: "glow" }), 409);
+    expect((await member.req("GET", "/v1/users/me")).user.profileStyle.themeColors).toEqual(["#123456"]);
+    await member.req("PUT", "/v1/users/me/profile-style", { effect: "stars" });
+  });
   it("simulates actual member and role channel permissions without changing access", async () => {
     const role = (
       await owner.req("POST", `/v1/orgs/${org}/roles`, {

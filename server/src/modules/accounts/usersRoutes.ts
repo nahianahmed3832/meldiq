@@ -3,7 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { deleteBlobNow } from "../files/routes.js";
 import { photoBlobId, readJpegBody, storePhoto } from "./photos.js";
 import { type AppContext } from "../../app/context.js";
-import { wornTag } from "./profileMedia.js";
+import { styleRevision, wornTag } from "./profileMedia.js";
 import { isBugHunter } from "./bugReports.js";
 import type { ProfilePin } from "../../shared/contracts/http/pins.js";
 import { me, requireAuth } from "../auth/index.js";
@@ -125,6 +125,7 @@ export default async function userRoutes(app: FastifyInstance, ctx: AppContext) 
     ...profileView(u, { self: true, contact: true, blockedByTarget: false }, ctx),
     ...tagOf(u),
     profileRevision: profileRevision(u),
+    styleRevision: styleRevision(u),
     identityKey: u.identity_key,
     fingerprint: keyFingerprint(u.identity_key),
     createdAt: u.created_at,
