@@ -7,7 +7,7 @@
 | VPS | Hostinger VM 1245833, `srv1245833.hstgr.cloud`, **72.60.107.88** (Ubuntu 24.04, 2 vCPU, 8 GB) |
 | Compose project | **`griip-internal-messaging`** |
 | Directory | **`/opt/griip-internal-messaging`** (root, 0750; `.env` 0600) |
-| Services | `api` (`griip-internal-messaging-api:0.41.0` since 2026-10-24 19:30 UTC, built on the VPS; `0.40.0-rollback`, `0.39.0-rollback` and older `-rollback` tags kept), `livekit` (`livekit/livekit-server:v1.13.10`), `ntfy` (`binwiederhier/ntfy:v2.31.1`) |
+| Services | `api` (`griip-internal-messaging-api:0.68.0` since 2026-11-01, built on the VPS; `0.67.1-yapin-rollback` and earlier rollback images kept), `livekit` (`livekit/livekit-server:v1.13.10`), `ntfy` (`binwiederhier/ntfy:v2.31.1`) |
 | Volume / network | `griip-internal-messaging_api-data`, `griip-internal-messaging_default` |
 | Public URLs | **`https://msg.meldiq.app`** (API + WebSocket) and **`wss://rtc.meldiq.app`** (LiveKit signalling) since 2026-10-22; the former `msg.griipbuddy.cloud` and `rtc.griipbuddy.cloud` still serve the same backends for apps installed earlier |
 | TLS | host nginx: `meldiq-msg.conf` (certificate `meldiq-msg`, msg and rtc.meldiq.app) and `griip-message.conf` (certificate `griip-message`, the former names); both renew automatically (certbot, webroot `/var/www/griip-message-acme`). `meldiq-admin.conf` (certificate `admin.meldiq.app`, certbot `--nginx`, renews automatically) since 2026-10-23 |
@@ -16,6 +16,33 @@
 | DNS | Hostinger DNS for `meldiq.app`: A records `msg`, `rtc`, `web` and `admin` (since 2026-10-23) → 72.60.107.88. Hostinger DNS for `griipbuddy.cloud`: A records `msg` and `rtc` → 72.60.107.88 (former names) |
 
 Nothing else on the server was modified. No other Compose project, volume, nginx site or certificate was touched.
+
+### API 0.68.0 and web 0193e7c — core Yapin roadmap (2026-11-01, 14:49 Asia/Shanghai)
+
+User requested completing the remaining work and pushing to production. Backend code commits `c840c12` and `2be38ad`; web artifact code `0193e7c`. Both repositories have `codex/yapin-roadmap-completion` pushed. Later documentation/test commits do not change the deployed product code.
+
+- New server APIs: optional expression favorites/recents preserved for older clients, authenticated attachment streaming without a storage redirect, authoritative read-only role/member permission previews, privacy-filtered/revisioned community profile overrides, atomic global profile/style revisions, and community-editor bot diagnostics with bounded metadata-only history.
+- Additive migrations 078–079 create community profiles and bot execution metadata in the workspace domain. SQLite and MongoDB integration tests pass. Starboard reactions now resolve against each event's timestamp/ID rather than later queued state.
+- Web: synced expression favorites/recents, authorized community search with paged rendering/lazy images; profile/link draft and conflict handling; Apply/Undo/Reset for looks; community bio/pronoun/theme overrides and validated presets; notification inheritance/pause overview, direct-mention background parity and persisted wake-up deduplication; free density, spacing, contrast and motion controls (including still GIF/expression rendering); permission previews and bot diagnostics; clearer call/privacy copy.
+- Existing approved Free/Plus pricing, separate Spark, immediate 1,024 MB decimal cap and grants remain unchanged. Billing is not newly enabled.
+- Verification: web 804 unit tests passed, 1 skipped, typecheck/lint/build pass; API acceptance 187 passed across 11 suites plus 42 profile/style follow-up checks with overlap; browser core/history matrix 32 passed, 1 phone-layout skip; production-mode matrix 31 passed and 8 skipped, then all 4 previously skipped Chrome/phone mute/mention cases passed through actual APIs. The remaining 4 are WebKit push cases that require Chromium DevTools. Native SDK encrypted portrait/landscape and capture-disabled watching pass across Chromium, WebKit and phone-width Chromium. S3/CORS integration 6 passed.
+- Backup: `backups/pre-0.68.0-yapin`: verified SQLite/archive, source, environment, Compose, nginx and private MongoDB snapshot (72 collections, 44,902 documents). MongoDB export was parsed/counted; no MongoDB restore rehearsal. Old image retained as `0.67.1-yapin-rollback`.
+- Rehearsal: new image migrates snapshot to schema 79 with integrity OK; old runtime starts healthy against it, with the same 64 users/83 active devices/12 communities/194 conversations. Old backup verifier rejects newer schemas by design; new verifier passes.
+- Live: healthy API 0.68.0, MongoDB/LiveKit true, zero restarts, no post-switch warning/error log entries. Web `/opt/meldiq-web/releases/0.5.0-beta-0193e7c`, artifact SHA-256 `769e55aa0120f5f9a4ea8937565248f726818b4ddad3fd57cfd99b4880bafc82`. Web verification script passes. Runtime configuration, environment and nginx site/header/media snippets match the backup byte-for-byte. Only API was recreated; LiveKit and ntfy were not restarted.
+- Rollback: web `bash /root/meldiq-web-0.5.0-beta-0193e7c/rollback.sh 0.5.0-beta-98828f0`. API restore the backup's Compose file and run `docker compose -p griip-internal-messaging -f compose.yaml up -d --no-deps --no-build api`. The data schema is additive; runtime rollback does not require reverting data and discarding newer writes.
+- Limits: physical iPhone/Android testing, authenticated production two-party calls and the exact previously reported attachment were not exercised. Browsers still require a capture API to originate a screen share. R18 hosting/marketplace/advanced activities/promotional expansion remains deferred; R19 unsafe themes/forced upsells remains excluded.
+
+### API 0.67.1 and web 98828f0 — Yapin reliability and November lineup (2026-11-01, 13:49 Asia/Shanghai)
+
+User authorized implementing the research and mobile sharing fixes, then requested the new price and immediate 1024 MB cap. Backend `ef5e2a7` on `codex/yapin-reliability`; web `98828f0` on `codex/yapin-reliability-release`.
+
+- Server: ordered history cursors and migration 077; Free + Plus $3.99, Spark separate; new Go checkouts/gifts/store intents closed with legacy callbacks retained; hard 1,024 MB decimal cap with exact encrypted overhead. Production had no subscriptions, billing disabled, and 12 Plus grants; grants and other benefits retained.
+- Web: mobile capture capability detection, encrypted share reception/playback, history/unread/anchor reliability, settings search/scope/profile reset, joined-community expression selection and animation-preserving uploads; privacy copy corrected.
+- Tests: web 801 passed, 1 skipped, typecheck/eslint/build clean. API affected runs 82/82 and 37/37 (overlap); native/browser interoperability and wrong-key rejection; final anchors and unread entry across Chromium/WebKit/phone width; production-build browser checks 5 passed, 1 skipped.
+- Backup: `backups/pre-0.67.1-yapin`, verified snapshot/archive, environment, Compose, source and nginx files; image `0.67.0-yapin-rollback`. Both images read the migrated rehearsal copy with the same counts. API-only recreation; LiveKit and ntfy not restarted.
+- Live: `/healthz` 0.67.1, MongoDB true, no API restarts; web `0.5.0-beta-98828f0`, checksum and verification passed; security-header snippet byte-equal to before. Catalog returns only Free/Plus, Plus 399 cents and 1,024,000,000 bytes; server-info file maximum 1,024,000,000 and ciphertext ceiling 1,025,048,576. No API warnings/errors in post-switch log sample.
+- Rollback: web `bash /root/meldiq-web-0.5.0-beta-98828f0/rollback.sh 0.5.0-beta-9ded695`; API restore this backup's Compose/environment and recreate only api. Migration 077 is additive.
+- Limits: no physical iPhone/Android, authenticated production two-party call, or full-size production upload tested. Capture still requires the browser's display-capture API; watching is independent. The release artifact was built without test account linking; a separate test build enables it for browser-test setup.
 
 ## Operating it (always project-scoped)
 
