@@ -389,6 +389,7 @@ export class SqliteAccountStore implements AccountStore {
     return this.db.transaction(() => {
       // Revoked or expired sessions are kept a day so a late refresh still gets "session ended" instead of a generic 401.
       const grace = at - 86_400_000;
+      this.db.prepare("DELETE FROM account_session_factors WHERE expires_at <= ?").run(at);
       const sessions = this.db
         .prepare("DELETE FROM account_sessions WHERE expires_at <= ? OR refresh_expires_at <= ? OR (revoked_at IS NOT NULL AND revoked_at <= ?)")
         .run(grace, grace, grace).changes;

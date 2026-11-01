@@ -43,6 +43,7 @@ for (const backend of ["sqlite", "mongodb"] as const) {
       await h.ctx.billing.webhooks.ingest("sandbox", completed);
       await h.ctx.billing.webhooks.ingest("sandbox", event(row));
       expect(h.ctx.mojo.sparkSlots(account.userId)).toMatchObject({ purchased: 3, total: 3 });
+      expect(h.ctx.billing.sparkPurchases.userIdsOf(account.accountId)).toContain(account.userId);
       expect(h.ctx.billing.subscriptions.liveForUser(account.userId)).toHaveLength(0);
     });
     it("does not grant for a changed amount, currency or provider order", async () => {

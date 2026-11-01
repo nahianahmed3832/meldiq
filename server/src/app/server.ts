@@ -429,12 +429,13 @@ export async function buildApp(
         orgId: owner.orgId,
       });
     else {
-      const userIds = new Set([...ctx.billing.subscriptions.ownerUserIds(owner.accountId), ...ctx.billing.grants.userIdsOf(owner.accountId)]);
-      for (const userId of userIds)
-        ctx.hub.sendToUser(userId, {
-          t: "entitlements.changed",
-          scope: "account",
-        });
+      const userIds = new Set([...ctx.billing.subscriptions.ownerUserIds(owner.accountId), ...ctx.billing.grants.userIdsOf(owner.accountId), ...ctx.billing.sparkPurchases.userIdsOf(owner.accountId)]);
+      const changedOrgs = new Set<string>();
+      for (const userId of userIds) {
+        ctx.hub.sendToUser(userId, { t: "entitlements.changed", scope: "account" });
+        for (const assignment of ctx.mojo.assignmentsOf(userId)) changedOrgs.add(assignment.org_id);
+      }
+      for (const orgId of changedOrgs) ctx.mojo.notifyOrg(orgId);
     }
   };
   // A workspace's subscription adds its plan's limits between operator overrides and server-wide limits.
