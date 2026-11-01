@@ -52,7 +52,10 @@ export class PayPalCheckout {
     if (input.product === "plus" || input.product === "bots_plus") {
       const owner = input.product === "bots_plus" ? { kind: "org" as const, orgId: input.orgId } : { kind: "account" as const, accountId: starter.accountId };
       const pending = input.product === "bots_plus" ? this.billing.subscriptions.liveAddonForOwner(owner) : this.billing.subscriptions.liveForOwner(owner);
-      if (pending?.provider === "paypal" && pending.status === "incomplete" && pending.checkout_id) return this.confirm(starter.accountId, pending.checkout_id, false);
+      if (pending?.provider === "paypal" && pending.status === "incomplete" && pending.checkout_id) {
+        const resumed = await this.confirm(starter.accountId, pending.checkout_id, false);
+        if (resumed.status !== "incomplete_expired") return resumed;
+      }
       const result = await this.billing.startOwnerCheckout(owner, starter, input.product, { returnUrl: this.billing.returnTo("web"), requestKey: input.requestKey });
       id = result.checkoutId;
     } else {
@@ -131,8 +134,10 @@ export class PayPalCheckout {
           checkout: snap,
         });
     } else if (checkout?.provider_session_ref) {
+      if (this.billing.rows.get<SubscriptionRow>("billing_subscriptions", { provider: "paypal", checkout_id: checkout.id })?.status === "incomplete_expired") return { ...this.view(accountId, id), approved: false };
       await this.billing.rows.write((w) => w.update("billing_checkouts", { id: checkout.id }, { provider_subscription_ref: checkout.provider_session_ref }));
       const snapshots = await this.billing.reconcileRefs([checkout.provider_session_ref]);
+      if (!snapshots.length) throw new ApiError(503, "unavailable", "PayPal status could not be verified. Refresh billing before trying again.");
       approved = snapshots[0]?.approvalConfirmed === true;
     }
     return { ...this.view(accountId, id), approved };
@@ -146,7 +151,10 @@ export class PayPalCheckout {
       accountId,
     });
     if (!sub || sub.provider !== "paypal") throw notFound("PayPal subscription not found");
+    if (sub.status === "incomplete_expired") return { confirmed: false, accessUntil: null, status: "incomplete_expired", checkoutExpired: true };
     const snapshots = await this.billing.reconcileRefs([sub.provider_subscription_ref]);
+    if (this.billing.subscriptions.get(sub.id)?.status === "incomplete_expired") return { confirmed: false, accessUntil: null, status: "incomplete_expired", checkoutExpired: true };
+    if (!snapshots.length) throw new ApiError(503, "unavailable", "PayPal status could not be verified. Refresh billing before trying again.");
     if (snapshots[0]?.status === "incomplete" && snapshots[0].approvalConfirmed === false) {
       // PayPal rejects /cancel before buyer approval; no recurring mandate exists to cancel.
       return { confirmed: false, accessUntil: null, status: "incomplete", approvalPending: true };

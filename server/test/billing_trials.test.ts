@@ -83,7 +83,7 @@ describe("with trials and invite links", () => {
   });
   afterAll(async () => h.close());
 
-  it("publish Mojo Go and Mojo Plus once, at their prices, and say trials are on", async () => {
+  it("publishes Plus as recurring, keeps one-time Sparks out, and says trials are on", async () => {
     expect(await publishMojoPlans(h.ctx.billing.catalog, "stripe", { go: "price_go", plus: "price_plus", spark: "price_spark" }, "test", Date.now())).toEqual([
       "Mojo Plus: already published at price_plus",
       "Meldiq Spark: already published at price_spark",
@@ -91,8 +91,7 @@ describe("with trials and invite links", () => {
     const plans = (await h.app.inject({ method: "GET", url: "/v2/billing/plans" })).json();
     expect(PublicPlans.safeParse(plans).success).toBe(true);
     expect(plans.plans.map((p: any) => [p.key, p.name, p.amountMinor, p.currency, p.interval, p.audience])).toEqual([
-      // By name: the Spark add-on, then the plans.
-      ["spark", "Meldiq Spark", 99, "USD", "month", "personal"],
+      // Sparks are bought once through their own checkout, not offered as a monthly subscription.
       ["plus", "Mojo Plus", 399, "USD", "month", "personal"],
     ]);
     expect(plans.trial).toEqual({ planKey: "plus", days: 14, referralDays: 30, referralYearlyCapDays: 90 });

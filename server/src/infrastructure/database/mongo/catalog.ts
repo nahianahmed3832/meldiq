@@ -589,6 +589,12 @@ export function indexesFor(t: TableSpec): IndexDescription[] {
     }
     return d;
   });
+  // API 0.72: optional derived event metadata, maintained by MongoMessageStore and bounded legacy backfill.
+  if (t.name === "message_events") {
+    for (const [field, suffix] of [["root", "threads"], ["media", "media"], ["files", "files"]] as const) {
+      out.push({ key: { conversation_id: 1, cls: 1, [`_retrieval.${field}`]: 1, server_ts: -1, _id: -1 }, name: `message_retrieval_${suffix}_v1` });
+    }
+  }
   if (t.primaryKey.length > 1) {
     for (const c of t.primaryKey) {
       if (!out.some((d) => Object.keys(d.key)[0] === c)) out.push({ key: { [c]: 1 }, name: `pk_${t.name}_${c}` });

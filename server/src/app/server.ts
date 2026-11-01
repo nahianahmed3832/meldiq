@@ -78,6 +78,7 @@ import authRoutes from "../modules/auth/routes.js";
 import callRoutes from "../modules/calls/routes.js";
 import conversationRoutes from "../modules/messaging/conversationsRoutes.js";
 import historyRoutes from "../modules/messaging/history/routes.js";
+import messageCollections from "../modules/messaging/messageCollections.js";
 import serverMessagesRoutes from "../modules/messaging/serverMessagesRoutes.js";
 import { MongoMessageStore } from "../modules/messaging/store/mongoStore.js";
 import { SqliteMessageStore } from "../modules/messaging/store/messageStore.js";
@@ -116,6 +117,7 @@ import { MongoPrivacyStore } from "../modules/accounts/relationships/mongoPrivac
 import { UsernameHolds } from "../modules/accounts/usernameHolds.js";
 import { MemoryUsernameHoldStore } from "../modules/accounts/usernameHoldStore.js";
 import { MongoUsernameHoldStore } from "../modules/accounts/mongoUsernameHoldStore.js";
+import leaderboardRoutes from "../modules/leaderboards/routes.js";
 import { MemoryPointsStore, MongoPointsStore, PointsService, pointsRoutes } from "../modules/points/index.js";
 import leaveManyRoutes from "../modules/organizations/leaveMany.js";
 import creatorRoutes from "../modules/accounts/creators/routes.js";
@@ -143,7 +145,7 @@ import { now } from "../shared/utilities/util.js";
 import wsRoutes from "../modules/realtime/ws.js";
 import { Billing, billingRoutes } from "../modules/billing/index.js";
 
-export const VERSION = "0.71.3";
+export const VERSION = "0.73.0";
 /**
  * The client API this server speaks and the oldest client API it accepts. Clients refuse a server whose
  * minClientApi is newer than theirs; servers from before these fields existed count as API 1.
@@ -677,6 +679,7 @@ export async function buildApp(
     conversationRoutes,
     messageRoutes,
     serverMessagesRoutes,
+    messageCollections,
     callRoutes,
     attachmentRoutes,
     historyRoutes,
@@ -700,6 +703,7 @@ export async function buildApp(
     discordRoutes,
     leaveManyRoutes,
     pointsRoutes,
+    leaderboardRoutes,
     creatorRoutes,
     linkedAccountRoutes,
     oauthRoutes,
@@ -855,6 +859,7 @@ export function serverFeatures(config: Config, directUploads = false): string[] 
     "mojo",
     // API 0.57.0 (docs/SERVER_MESSAGES.md): messages stored and served by the server (/v2/messages).
     "server-messages",
+    "message-collections",
     // API 0.61.0 (docs/PROFILE_DECORATIONS.md): Meldiq's own decorations and reviewed community ones (/v2/decorations).
     "profile-decorations",
     "profile-collectibles",
@@ -872,6 +877,7 @@ export function serverFeatures(config: Config, directUploads = false): string[] 
     "username-holds",
     "decoration-favorites",
     "points",
+    "leaderboards",
     // API 0.65.0 batch B: creator verification with the Creator badge, the creator programme, and Steam, AniList,
     // Last.fm and Trakt on profiles (each provider says whether it's available in GET /v2/connections).
     "creator-verification",

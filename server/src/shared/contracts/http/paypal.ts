@@ -48,6 +48,7 @@ export const PayPalCanceled = z.strictObject({
   accessUntil: z.number().nullable(),
   status: z.string(),
   approvalPending: z.boolean().optional(),
+  checkoutExpired: z.boolean().optional(),
 });
 export const PayPalRefundBody = z.strictObject({
   confirm: z.literal(true),

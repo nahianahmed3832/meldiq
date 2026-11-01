@@ -11,6 +11,11 @@ export interface PayPalApi {
 
 export type PayPalEnvironment = "sandbox" | "live";
 
+/** Definitively missing GET resource; never a timeout, authorization failure or rejected cancellation. */
+export class PayPalResourceNotFound extends ApiError {
+  constructor() { super(503, "unavailable", "PayPal could not find this checkout. Refresh billing before trying again."); }
+}
+
 /** Fixed, separate PayPal hosts. A caller can never supply an arbitrary API origin. */
 export class HttpPayPalApi implements PayPalApi {
   private token: { value: string; until: number } | null = null;
@@ -87,10 +92,12 @@ export class HttpPayPalApi implements PayPalApi {
       if (!res.ok) {
         await res.body?.cancel();
         if (res.status === 401) this.token = null;
+        if (res.status === 404 && method === "GET") throw new PayPalResourceNotFound();
         throw unavailable();
       }
       return res.status === 204 ? {} : await res.json();
-    } catch {
+    } catch (error) {
+      if (error instanceof PayPalResourceNotFound) throw error;
       throw unavailable();
     }
   }

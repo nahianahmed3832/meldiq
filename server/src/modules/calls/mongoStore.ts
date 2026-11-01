@@ -245,6 +245,13 @@ export class MongoCallStore implements CallStore {
     return [...byDay.values()].sort((a, b) => a.day.localeCompare(b.day));
   }
 
+  async leaderboardSpans(conversationIds: readonly string[], since: number): Promise<CallParticipantRow[]> {
+    if (!conversationIds.length) return [];
+    const ids = await this.calls.distinct("_id", { conversation_id: { $in: [...conversationIds] } }, this.s);
+    if (!ids.length) return [];
+    return (await this.people.find({ call_id: { $in: ids }, $or: [{ left_at: null }, { left_at: { $gt: since } }] }, this.s).toArray()).map(participant);
+  }
+
   async participantMinutes(conversationIds: readonly string[], from: number, to: number, now: number): Promise<number> {
     if (conversationIds.length === 0) return 0;
     const ids = await this.calls.distinct("_id", { conversation_id: { $in: [...conversationIds] } }, this.s);
