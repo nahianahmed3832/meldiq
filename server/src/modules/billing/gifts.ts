@@ -35,6 +35,8 @@ export interface GiftRow {
   note: string | null;
   status: GiftStatus;
   provider: string;
+  refund_status?: string;
+  dispute_status?: string | null;
   provider_session_ref: string | null;
   provider_payment_ref: string | null;
   grant_id: string | null;
@@ -97,21 +99,33 @@ export class Gifts implements PaymentEvents {
     starter: CheckoutStarter & { accountId: string },
     input: { recipientUserId: string; planKey: string; months: number; note?: string | null },
     returnUrl: string | null,
+    requestKey?: string,
   ): Promise<{ giftId: string; url: string | null; expiresAt: number }> {
     const provider = this.billing.requireProvider();
-    if (!provider.createPaymentCheckout) throw new ApiError(409, "billing_unavailable", "Gifts can't be bought with this payment provider");
+    if (!provider.createPaymentCheckout || provider.supportsOneTimePurchases === false) throw new ApiError(409, "billing_unavailable", "Gifts can't be bought with this payment provider");
     const { planKey, note } = this.validate(starter, input);
     const price = this.price(planKey, input.months);
     if (!price) throw new ApiError(409, "billing_unavailable", "Mojo isn't on sale yet");
     const t = this.clock();
-    const id = newId("gft");
-    await this.rows.write((w) =>
+    let id = newId("gft");
+    await this.rows.write((w) => {
+      if (requestKey) {
+        const existing = w.get<GiftRow>("mojo_gifts", { provider: provider.id, buyer_account_id: starter.accountId, request_key: requestKey });
+        if (existing) {
+          if (existing.recipient_user_id !== input.recipientUserId || existing.months !== input.months || existing.plan_key !== planKey || existing.note !== (note || null)) throw conflict("This purchase request was already used for another gift");
+          id = existing.id;
+          return;
+        }
+      }
       w.insert("mojo_gifts", {
         id, buyer_account_id: starter.accountId, buyer_user_id: starter.userId, recipient_user_id: input.recipientUserId, plan_key: planKey, months: input.months,
         currency: price.currency, amount_minor: price.amountMinor, note: note || null, status: "pending", provider: provider.id, provider_session_ref: null,
-        provider_payment_ref: null, grant_id: null, created_at: t, expires_at: t + CHECKOUT_TTL_MS, paid_at: null, redeemed_at: null, updated_at: t,
-      }),
-    );
+        provider_payment_ref: null, grant_id: null, created_at: t, expires_at: t + CHECKOUT_TTL_MS, paid_at: null, redeemed_at: null, updated_at: t, ...(requestKey ? { request_key: requestKey } : {}),
+      });
+    });
+    const existing = this.get(id)!;
+    if (existing.provider_session_ref) return { giftId: id, url: null, expiresAt: existing.expires_at };
+    if (existing.status !== "pending") throw conflict("This gift checkout is no longer available");
     const owner: BillingOwner = { kind: "account", accountId: starter.accountId };
     let session: { sessionRef: string; url: string | null };
     try {
@@ -122,7 +136,7 @@ export class Gifts implements PaymentEvents {
         successUrl: `${returnUrl ?? ""}?gift=success`, cancelUrl: `${returnUrl ?? ""}?gift=canceled`,
       });
     } catch (e) {
-      await this.rows.write((w) => w.update("mojo_gifts", { id }, { status: "failed", updated_at: this.clock() }));
+      if (provider.id !== "paypal") await this.rows.write((w) => w.update("mojo_gifts", { id }, { status: "failed", updated_at: this.clock() }));
       if (e instanceof ApiError) throw e;
       this.log.error({ err: e, gift: id }, "billing provider gift checkout failed");
       throw new ApiError(503, "unavailable", "The payment provider couldn't be reached. Nothing was charged. Try again in a moment.");
@@ -173,6 +187,7 @@ export class Gifts implements PaymentEvents {
     const g = w.get<GiftRow>("mojo_gifts", { id: snap.reference, provider });
     if (!g) return { result: "stale", subscriptionId: null, owner: null };
     const owner: BillingOwner = { kind: "account", accountId: g.buyer_account_id };
+    if (provider === "paypal" && (snap.sessionRef !== g.provider_session_ref || snap.currency !== g.currency || snap.amountMinor !== g.amount_minor)) throw new Error("PayPal gift payment mismatch");
     if (snap.outcome === "completed") {
       if (snap.customerRef) this.billing.subscriptions.rememberCustomer(w, provider, owner, snap.customerRef, t);
       // A completed checkout paid by a delayed method is paid only at its async_payment_succeeded event.
@@ -187,12 +202,25 @@ export class Gifts implements PaymentEvents {
 
   /** A refund on a gift's payment (PaymentEvents): an unstarted gift can't be started any more. */
   applyPayment(w: RowWriter, provider: string, p: PaymentSnapshot, t: number): ApplyOutcome | null {
-    if (p.kind !== "refund" || !p.paymentRef) return null;
-    const g = w.get<GiftRow>("mojo_gifts", { provider, provider_payment_ref: p.paymentRef });
+    if (!p.paymentRef || (provider !== "paypal" && p.kind !== "refund")) return null;
+    const g = w.get<GiftRow>("mojo_gifts", { provider, provider_payment_ref: p.paymentRef }) ?? (provider === "paypal" && p.purchaseRef ? w.get<GiftRow>("mojo_gifts", { id: p.purchaseRef, provider }) : undefined);
     if (!g) return null;
+    if (provider === "paypal" && (p.currency !== g.currency || p.amountMinor !== g.amount_minor || p.orderRef && p.orderRef !== g.provider_session_ref)) throw new Error("PayPal gift refund mismatch");
     const owner: BillingOwner = { kind: "account", accountId: g.buyer_account_id };
-    if (g.status === "paid" && p.state === "refunded") {
-      w.update("mojo_gifts", { id: g.id }, { status: "refunded", updated_at: t });
+    if (provider === "paypal") {
+      w.update("mojo_gifts", { id: g.id }, { ...(p.kind === "dispute" ? { dispute_status: p.state } : { refund_status: p.state }), updated_at: t });
+    }
+    const reversed = provider === "paypal" && p.state === "reversed";
+    if ((g.status === "paid" || g.status === "redeemed" || provider === "paypal" && (g.status === "pending" || g.status === "refunded")) && (p.state === "refunded" || reversed)) {
+      w.update("mojo_gifts", { id: g.id }, { status: "refunded", provider_payment_ref: p.paymentRef, updated_at: t });
+      if (reversed && g.grant_id) {
+        const grant = w.get<{ starts_at: number }>("billing_grants", { id: g.grant_id });
+        if (grant) {
+          const original = w.get<{ starts_at: number; ends_at: number }>("billing_grants", { id: g.grant_id })!;
+          w.update("billing_grants", { id: g.grant_id }, { starts_at: Math.min(grant.starts_at, t - 1), ends_at: t });
+          w.upsert("billing_grant_notes", { grant_id: g.grant_id, ended_at: t, ended_by: "paypal:payment_reversed", original_starts_at: original.starts_at, original_ends_at: original.ends_at }, { ended_at: t, ended_by: "paypal:payment_reversed" });
+        }
+      }
       this.afterCommit(g.recipient_user_id);
     }
     return { result: "applied", subscriptionId: null, owner };

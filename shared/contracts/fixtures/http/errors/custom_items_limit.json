@@ -1,0 +1,9 @@
+{
+  "error": {
+    "code": "custom_items_limit",
+    "message": "You can add up to 20 custom emoji and stickers on your plan. Mojo raises it.",
+    "details": {
+      "limit": 20
+    }
+  }
+}

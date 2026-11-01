@@ -60,7 +60,7 @@ export function mojoRoutes(app: FastifyInstance, ctx: AppContext, h: MojoRouteHe
         go: price("go"),
         plus: price("plus"),
         spark: price(SPARK_PLAN_KEY),
-        gifts: !!ctx.billing.provider?.createPaymentCheckout && (price("go") !== null || price("plus") !== null),
+        gifts: ctx.billing.provider?.supportsOneTimePurchases !== false && !!ctx.billing.provider?.createPaymentCheckout && (price("go") !== null || price("plus") !== null),
       },
     };
   });

@@ -78,7 +78,7 @@ export class BillingWebhooks {
     const t = this.clock();
     let event: NormalizedEvent;
     try {
-      event = this.provider.verifyWebhook(headers, rawBody, t);
+      event = await this.provider.verifyWebhook(headers, rawBody, t);
     } catch (e) {
       if (!(e instanceof WebhookRejected)) throw e;
       await this.reject(providerId, e.reason);
@@ -114,6 +114,16 @@ export class BillingWebhooks {
   }
 
   private applyEvent(w: RowWriter, row: EventRow, event: NormalizedEvent, t: number): ApplyOutcome | null {
+    if (event.kind === "batch") {
+      let outcome: ApplyOutcome | null = null;
+      for (const item of event.events) {
+        if (item.kind === "batch") throw new Error("Nested billing batch");
+        const next = this.applyEvent(w, row, item, t);
+        // A stale invoice must not hide a subscription change committed in this batch (device notifications).
+        if (next && (!outcome || next.result === "applied")) outcome = next;
+      }
+      return outcome;
+    }
     if (event.kind === "subscription") return this.subscriptions.applySnapshot(w, row.provider, event.subscription, event.createdAt, `provider_event:${row.id}`, t);
     if (event.kind === "invoice") return this.subscriptions.applyInvoice(w, row.provider, event.invoice, event.createdAt, t);
     if (event.kind === "checkout") return this.payments?.applyCheckout(w, row.provider, event.checkout, t) ?? this.subscriptions.applyCheckout(w, row.provider, event.checkout, t);
@@ -169,7 +179,7 @@ export class BillingWebhooks {
   /** Retries failed events whose time has come (the cleanup job, every minute). Returns how many were tried. */
   async retryDue(): Promise<number> {
     const due = this.rows.all<{ id: string }>("billing_provider_events", {
-      where: { status: "failed", next_attempt_at: { lte: this.clock() } },
+      where: { $or: [{ status: "failed", next_attempt_at: { lte: this.clock() } }, { status: "received", received_at: { lte: this.clock() - RETRY_BASE_MS } }] },
       orderBy: [["provider_created_at", "asc"]],
       limit: RETRY_BATCH,
     });

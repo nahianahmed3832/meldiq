@@ -58,7 +58,7 @@ import { backupDatabase, verifyBackup } from "./modules/administration/backup.js
 import { loadConfig } from "./app/config.js";
 import { siteDetailsFromDb } from "./app/siteDetails.js";
 import Stripe from "stripe";
-import { PlanCatalog } from "./modules/billing/catalog.js";
+import { PlanCatalog, termsOf } from "./modules/billing/catalog.js";
 import { stripeKeyMode } from "./modules/billing/providers/stripe.js";
 import { DEFAULT_MOJO_AMOUNTS, publishedMojoAmounts, publishMojoPlans, stripeSetup, stripeSetupApi } from "./modules/billing/stripeSetup.js";
 import { openDatabase } from "./infrastructure/database/db.js";
@@ -86,6 +86,9 @@ import { describeTables } from "./infrastructure/database/mongo/catalog.js";
 import { type Rows, SqliteRows } from "./infrastructure/database/rows/index.js";
 import { openWorkspaceRows, WORKSPACE_DOMAINS } from "./app/workspaceRows.js";
 import { openBillingRows } from "./app/billingRows.js";
+import { openDomainRows } from "./app/domainRows.js";
+import { PlatformAudit } from "./modules/platformAdmin/audit.js";
+import { PayPalProvider } from "./modules/billing/providers/paypal.js";
 import { MongoRelayStore } from "./modules/messaging/relay/mongoStore.js";
 import { PLATFORM_ADMIN_COMMANDS, runPlatformAdminCommand } from "./modules/platformAdmin/index.js";
 import { MongoFileStore } from "./modules/files/mongoStore.js";
@@ -459,6 +462,38 @@ switch (cmd) {
       // Amounts follow (API 0.66.0): billing-mojo-plans publishes the catalog at what Stripe charges.
       console.log(`PRICES ${result.prices.go} ${result.prices.plus} ${result.prices.spark} ${amounts.go} ${amounts.plus} ${amounts.spark}`);
     } else console.log(JSON.stringify({ ...result, webhook: { ...result.webhook, secret: result.webhook.secret ? "(created; not shown)" : null } }, null, 2));
+    break;
+  }
+  case "billing-paypal-plus": {
+    const provider = cfg.billing.provider;
+    if (!(provider instanceof PayPalProvider) || !rest.includes("--publish")) throw new Error("Configured PayPal provider and --publish required");
+    await provider.verifyPlusPlan();
+    const mongo = cfg.mongo ? await openMongo(cfg.mongo, db) : undefined;
+    const rows = await openBillingRows(db, mongo, console);
+    const platform = await openDomainRows(db, "platform", mongo, console);
+    try {
+      const catalog = new PlanCatalog(rows);
+      let plan = catalog.byKey("plus");
+      const current = plan && catalog.current(plan.id);
+      if (current?.provider === "paypal" && current.provider_price_ref === provider.options.plusPlanId) {
+        console.log("Plus already published");
+        break;
+      }
+      const terms = {
+        ...(current ? termsOf(current) : { limits: {}, quotaPlanId: null, notes: "", graceDays: siteDetailsFromDb(db).policies.failedPaymentGraceDays ?? 0 }),
+        interval: "month" as const, currency: "USD", amountMinor: 399, providerPriceRef: provider.options.plusPlanId!, trialDays: 0,
+      };
+      if (!plan) plan = await catalog.create("plus", { name: "Mojo Plus", description: "", segment: "personal", public: true, audience: "personal" }, terms, "cli", now());
+      else {
+        if (!plan.public || plan.audience !== "personal" || plan.status === "archived") throw new Error("Existing Plus plan is not publicly purchasable");
+        await catalog.saveDraft(plan.id, terms, "cli", now());
+      }
+      const result = await catalog.publish(plan.id, "paypal", "cli", now());
+      await new PlatformAudit(platform).record({ action: "billing.paypal.plus.publish", outcome: "success", actorRole: "operator", targetType: "billing_plan", targetId: plan.id, reason: "Owner authorized live Plus sales", detail: { mode: provider.mode, amountMinor: 399, currency: "USD", version: result.published.version } });
+      console.log("Published Plus USD 3.99/month; existing grants and other plans preserved");
+    } finally {
+      await rows.settled(); await rows.close(); await platform.settled(); await platform.close(); await mongo?.close();
+    }
     break;
   }
   case "billing-mojo-plans": {

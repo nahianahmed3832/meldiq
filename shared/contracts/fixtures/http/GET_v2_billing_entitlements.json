@@ -1,0 +1,19 @@
+{
+  "accountId": "acc_cxW2u-IyzePcXW_9fod3DA",
+  "billing": {
+    "available": true,
+    "mode": "test"
+  },
+  "personal": {
+    "plan": null,
+    "standing": "none",
+    "accessUntil": null,
+    "renews": null,
+    "quotaPlanId": null,
+    "subscription": null,
+    "trial": null
+  },
+  "organizations": [],
+  "revision": "2886f09fac396a86",
+  "evaluatedAt": 1793518118706
+}

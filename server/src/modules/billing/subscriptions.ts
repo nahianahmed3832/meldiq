@@ -40,6 +40,8 @@ export interface SubscriptionRow {
 
 interface CheckoutRow {
   id: string;
+  provider_session_ref: string | null;
+  plan_version_id: string;
   owner_kind: "org" | "account";
   org_id: string | null;
   account_id: string | null;
@@ -123,12 +125,14 @@ export class Subscriptions {
 
   standingOf(s: SubscriptionRow, t: number): Standing {
     const v = this.catalog.version(s.plan_version_id);
+    if (s.provider === "paypal" && s.status === "active" && (s.current_period_end === null || s.current_period_end <= t)) return "not_entitled";
     return standing({ status: s.status, pastDueSince: s.past_due_since, graceDays: v?.grace_days ?? 0 }, t);
   }
 
   /** Whether [s] grants its plan (or its Sparks) at [t]: paid for, trialing, or a failing payment within its grace days. */
   grants(s: SubscriptionRow, t: number): boolean {
     const v = this.catalog.version(s.plan_version_id);
+    if (s.provider === "paypal" && s.status === "active" && (s.current_period_end === null || s.current_period_end <= t)) return false;
     return !!v && grantsPlan({ status: s.status, pastDueSince: s.past_due_since, graceDays: v.grace_days }, t);
   }
 
@@ -136,7 +140,7 @@ export class Subscriptions {
   granting(owner: BillingOwner, t: number) {
     const s = this.liveForOwner(owner);
     const v = s ? this.catalog.version(s.plan_version_id) : null;
-    if (!s || !v || !grantsPlan({ status: s.status, pastDueSince: s.past_due_since, graceDays: v.grace_days }, t)) return null;
+    if (!s || !v || !this.grants(s, t)) return null;
     return { subscription: s, version: v };
   }
 
@@ -208,6 +212,7 @@ export class Subscriptions {
     const checkout = w.get<CheckoutRow>("billing_checkouts", { id: snap.checkoutRef, provider });
     if (!checkout) throw new BillingEventError("unknown_checkout", "The provider's subscription names a checkout that doesn't exist");
     if (w.get("billing_subscriptions", { checkout_id: checkout.id })) throw new BillingEventError("checkout_mismatch", "That checkout already has a subscription");
+    if (provider === "paypal" && (checkout.provider_session_ref !== snap.ref || checkout.plan_version_id !== versionId)) throw new BillingEventError("checkout_mismatch", "PayPal subscription does not match its checkout");
     const plan = this.catalog.plan(this.catalog.version(versionId)!.plan_id)!;
     if ((plan.audience === "personal") !== (checkout.owner_kind === "account")) {
       throw new BillingEventError("audience_mismatch", "The subscription's price is for another kind of owner than the checkout's");
@@ -234,6 +239,10 @@ export class Subscriptions {
 
   private update(w: RowWriter, s: SubscriptionRow, versionId: string, snap: SubscriptionSnapshot, providerAt: number, source: string, t: number): ApplyOutcome {
     const owner = ownerOfRow(s);
+    if (s.provider === "paypal" && snap.cancelAtPeriodEnd && s.current_period_end !== null) {
+      // PayPal can omit next_billing_time once canceled. Preserve the previously verified paid cutoff.
+      snap = { ...snap, currentPeriodEnd: s.current_period_end, status: s.current_period_end > t ? "active" : "canceled" };
+    }
     if (providerAt < s.provider_updated_at) return { result: "stale", subscriptionId: s.id, owner };
     if (!canMove(s.status, snap.status)) {
       // Providers stamp events to the second: a snapshot from the same instant that would move backwards (created after
@@ -274,9 +283,19 @@ export class Subscriptions {
     const owner = ownerOfRow(sub);
     const existing = w.get<{ id: string; provider_updated_at: number; amount_refunded_minor: number }>("billing_invoices", { provider, provider_invoice_ref: inv.ref });
     if (existing && providerAt < existing.provider_updated_at) return { result: "stale", subscriptionId: sub.id, owner };
+    let refundedFromHistory = 0;
+    if (provider === "paypal") {
+      const refunds = new Map<string, { state: string; amountMinor: number; affectedMinor: number }>();
+      for (const h of w.all<{ detail: string | null }>("billing_subscription_history", { where: { subscription_id: sub.id } })) {
+        const refund = (JSON.parse(h.detail ?? "{}") as { refund?: { ref: string; paymentRef?: string; state: string; amountMinor: number; affectedMinor: number } }).refund;
+        if (refund?.paymentRef === inv.ref) refunds.set(refund.ref, refund);
+      }
+      for (const refund of refunds.values()) refundedFromHistory += refund.state === "refunded" || refund.state === "reversed" ? refund.amountMinor : refund.affectedMinor;
+      refundedFromHistory = Math.min(inv.amountPaidMinor, refundedFromHistory);
+    }
     const fields = {
       status: inv.status, currency: inv.currency, amount_due_minor: inv.amountDueMinor, amount_paid_minor: inv.amountPaidMinor,
-      amount_refunded_minor: Math.max(existing?.amount_refunded_minor ?? 0, inv.amountRefundedMinor), tax_minor: inv.taxMinor, period_start: inv.periodStart, period_end: inv.periodEnd,
+      amount_refunded_minor: Math.max(existing?.amount_refunded_minor ?? 0, inv.amountRefundedMinor, refundedFromHistory), tax_minor: inv.taxMinor, period_start: inv.periodStart, period_end: inv.periodEnd,
       paid_at: inv.paidAt, provider_updated_at: providerAt, updated_at: t,
     };
     if (existing) w.update("billing_invoices", { id: existing.id }, fields);
@@ -316,11 +335,20 @@ export class Subscriptions {
    * It changes no state: whether access ends is the provider's subscription event (a cancellation) to say.
    */
   applyPayment(w: RowWriter, provider: string, p: PaymentSnapshot, source: string, t: number): ApplyOutcome {
-    const owner = p.customerRef ? this.ownerOfCustomer(provider, p.customerRef, w) : null;
-    const s = owner ? w.get<SubscriptionRow>("billing_subscriptions", { ...ownerWhere(owner), provider }, newest) : undefined;
+    const direct = p.subscriptionRef ? w.get<SubscriptionRow>("billing_subscriptions", { provider, provider_subscription_ref: p.subscriptionRef }) : undefined;
+    const owner = direct ? ownerOfRow(direct) : p.customerRef ? this.ownerOfCustomer(provider, p.customerRef, w) : null;
+    const s = direct ?? (owner ? w.get<SubscriptionRow>("billing_subscriptions", { ...ownerWhere(owner), provider }, newest) : undefined);
     if (!owner || !s) return { result: "stale", subscriptionId: null, owner };
+    if (provider === "paypal" && p.kind === "refund" && p.paymentRef) {
+      const invoice = w.get<{ amount_refunded_minor: number }>("billing_invoices", { provider, provider_invoice_ref: p.paymentRef });
+      const seen = w.all<{ detail: string | null }>("billing_subscription_history", { where: { subscription_id: s.id } }).some((h) => {
+        try { return (JSON.parse(h.detail ?? "{}") as { refund?: { ref: string } }).refund?.ref === p.ref; } catch { return false; }
+      });
+      const total = p.state === "refunded" || p.state === "reversed" ? p.amountMinor : Math.min(p.amountMinor, (invoice?.amount_refunded_minor ?? 0) + (seen ? 0 : p.affectedMinor));
+      w.update("billing_invoices", { provider, provider_invoice_ref: p.paymentRef }, { amount_refunded_minor: Math.max(invoice?.amount_refunded_minor ?? 0, total), updated_at: t });
+    }
     this.history(w, s.id, t, s.status, s.status, s.plan_version_id, source, {
-      [p.kind]: { ref: p.ref, state: p.state, currency: p.currency, amountMinor: p.amountMinor, affectedMinor: p.affectedMinor },
+      [p.kind]: { ref: p.ref, ...(p.paymentRef ? { paymentRef: p.paymentRef } : {}), state: p.state, currency: p.currency, amountMinor: p.amountMinor, affectedMinor: p.affectedMinor },
     });
     return { result: "applied", subscriptionId: s.id, owner };
   }

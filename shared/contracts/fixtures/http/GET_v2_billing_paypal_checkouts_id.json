@@ -1,0 +1,11 @@
+{
+  "id": "gft_bA7tyLt6ksE0Aq0Yy4CdPQ",
+  "product": "gift",
+  "providerRef": "ORDER2",
+  "status": "pending",
+  "confirmed": false,
+  "currency": "USD",
+  "amountMinor": 1197,
+  "interval": "one_time",
+  "expiresAt": 1793604518709
+}

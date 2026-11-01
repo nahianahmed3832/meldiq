@@ -13,11 +13,12 @@ export interface BillingProvider {
   readonly id: string;
   /** "test": sandbox or test keys, never real money. "live": real charges. */
   readonly mode: "test" | "live";
+  readonly supportsOneTimePurchases?: boolean;
   /**
    * Checks the signature of a webhook body exactly as received and returns the provider's event, normalized.
    * Throws [WebhookRejected] when the signature or the body can't be trusted.
    */
-  verifyWebhook(headers: Readonly<Record<string, string | string[] | undefined>>, rawBody: string, now: number): NormalizedEvent;
+  verifyWebhook(headers: Readonly<Record<string, string | string[] | undefined>>, rawBody: string, now: number): NormalizedEvent | Promise<NormalizedEvent>;
   /** Starts a hosted checkout for [priceRef]; [reference] must come back in the subscription events it produces. */
   createCheckout(input: CheckoutInput): Promise<{ sessionRef: string; url: string | null }>;
   /**
@@ -82,6 +83,7 @@ export class WebhookRejected extends Error {
 
 /** A subscription's whole state as the provider reports it: applying a newer snapshot over an older one is safe. */
 export interface SubscriptionSnapshot {
+  approvalConfirmed?: boolean;
   ref: string;
   customerRef: string | null;
   status: SubscriptionStatus;
@@ -125,10 +127,15 @@ export interface CheckoutSnapshot {
   /** One-time payments: whether the money is in (a completed bank payment can still be on its way), and its reference. */
   paid?: boolean;
   paymentRef?: string | null;
+  currency?: string;
+  amountMinor?: number;
 }
 
 /** A refund or a dispute on a customer's payment: recorded with the owner's subscription, never applied on its own. */
 export interface PaymentSnapshot {
+  subscriptionRef?: string | null;
+  purchaseRef?: string | null;
+  orderRef?: string | null;
   kind: "refund" | "dispute";
   ref: string;
   customerRef: string | null;
@@ -143,6 +150,7 @@ export interface PaymentSnapshot {
 }
 
 export type NormalizedEvent =
+  | { ref: string; type: string; createdAt: number; kind: "batch"; events: NormalizedEvent[] }
   | { ref: string; type: string; createdAt: number; kind: "subscription"; subscription: SubscriptionSnapshot }
   | { ref: string; type: string; createdAt: number; kind: "invoice"; invoice: InvoiceSnapshot }
   | { ref: string; type: string; createdAt: number; kind: "checkout"; checkout: CheckoutSnapshot }

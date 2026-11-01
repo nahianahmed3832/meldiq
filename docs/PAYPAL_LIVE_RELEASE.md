@@ -1,0 +1,13 @@
+# PayPal live Plus release
+
+Owner authorized live production testing on 2026-11-01 after the Sandbox implementation. API 0.69.0 extends 592310d with explicit live mode. The merchant credentials are private operator configuration, never repository content.
+
+- Live REST/OAuth, approval links and webhook certificates use live PayPal hosts; Sandbox remains separate. APP_ENV=production and BILLING_ALLOW_LIVE=true are both required.
+- Plus is USD 3.99 each month. `billing-paypal-plus --publish` verifies the provider plan and publishes only Plus through the existing versioned catalog, retaining current limits and grace policy. Existing grants remain untouched. Go stays closed; Spark has no PayPal mapping; live gifts are disabled by default.
+- Existing free Plus periods with more than two days remaining schedule PayPal `start_time`. Approval without a verified payment keeps the subscription incomplete and does not grant paid time. The existing grant continues normally. Cancellation works before the first payment.
+- Setup: `node --env-file=/private/paypal-live.env --import tsx scripts/paypal-live-setup.ts --live --env-file=/private/paypal-live.env`. It creates/reuses the product, monthly plan and persistent webhook, discovers the merchant through an unapproved uncaptured order, verifies plan terms, and saves IDs to that private 0600 file. It does not approve or capture a payment.
+- Persistent callback: https://msg.meldiq.app/v1/billing/webhooks/paypal. Complete signed events are verified through PayPal before existing deduplication/reconciliation applies them.
+
+Validation: billing/PayPal/Stripe/Mojo/schema suites 101 passed; Mongo billing/schema 23 passed; free-period suite 14 passed; TypeScript/build and generated API contracts passed. Live OAuth, product, plan and webhook setup verified. Paid capture, renewal and refund require an actual consenting buyer; no such transaction is represented as tested.
+
+Production backups: `/opt/griip-internal-messaging/backups/paypal-live-20261101` contains the verified SQLite/attachments archive, private billing MongoDB snapshot and validators, previous API source, environment, compose and web nginx configuration. Previous API image 0.68.0 and web release 0.5.0-beta-dfd65d0 remain available. Upgrade only the API compose service with --no-deps --no-build. Rehearse migration 080 against a backup copy before switching. Immediate rollback restores the previous compose/environment and API image plus web symlink and header snippet; do not restore whole databases over new user activity.

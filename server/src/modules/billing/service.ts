@@ -5,7 +5,7 @@ import { newId } from "../../shared/utilities/util.js";
 import { type PlanAudience, PlanCatalog, type QuotaPlanCheck, parseLimits } from "./catalog.js";
 import type { BillingConfig } from "./config.js";
 import { type BillingOwner, ownerRef } from "./owners.js";
-import type { BillingProvider } from "./providers/types.js";
+import type { BillingProvider, SubscriptionSnapshot } from "./providers/types.js";
 import { ownerWhere, type SubscriptionRow, Subscriptions } from "./subscriptions.js";
 import { isAddonPlanKey, SPARK_MAX_PURCHASE, SPARK_PLAN_KEY } from "./perks.js";
 import { MojoControls } from "./controls.js";
@@ -98,6 +98,10 @@ export class Billing {
   async sweep(): Promise<number> {
     const due = { status: { in: ["open", "superseded"] }, expires_at: { lte: this.clock() } };
     const expired = this.rows.get("billing_checkouts", due) ? await this.rows.write((w) => w.update("billing_checkouts", due, { status: "expired" })) : 0;
+    if (this.provider?.id === "paypal") {
+      const rows = this.rows.all<{ provider_subscription_ref: string }>("billing_subscriptions", { where: { provider: "paypal", status: { notIn: ["canceled", "incomplete_expired"] } }, orderBy: [["updated_at", "asc"]], limit: 50 });
+      await this.reconcileRefs(rows.map((r) => r.provider_subscription_ref));
+    }
     return (await this.webhooks.retryDue()) + expired;
   }
 
@@ -156,7 +160,7 @@ export class Billing {
     owner: BillingOwner,
     starter: CheckoutStarter,
     planKey: string,
-    opts: { quantity?: number; returnUrl?: string | null } = {},
+    opts: { quantity?: number; returnUrl?: string | null; requestKey?: string } = {},
   ): Promise<{ checkoutId: string; url: string | null; expiresAt: number }> {
     if (planKey === "go") throw notFound("Mojo Go is no longer offered. Choose Mojo Plus.");
     const provider = this.requireProvider();
@@ -171,20 +175,36 @@ export class Billing {
       throw conflict(addon ? "You already buy Sparks. Change how many from the billing page instead." : "There is already a subscription here. Change it from the billing page instead.");
     }
     const t = this.clock();
-    const id = newId("chk");
+    let id = newId("chk");
+    let reused = false;
     const addonVersions = [...this.catalog.versionIdsOf(planKey)];
     // One unfinished checkout per owner and kind (plan, Sparks): an earlier one is superseded (and expired at the
     // provider below), so two open payment pages can't both become subscriptions.
     const superseded = await this.rows.write((w) => {
+      if (opts.requestKey) {
+        const existing = w.get<{ id: string; plan_version_id: string; quantity: number; status: string; expires_at: number }>("billing_checkouts", { ...ownerWhere(owner), provider: provider.id, request_key: opts.requestKey });
+        if (existing) {
+          if (existing.plan_version_id !== version.id || existing.quantity !== quantity) throw conflict("This purchase request was already used for another product");
+          id = existing.id;
+          reused = true;
+          return [] as string[];
+        }
+        if (provider.id === "paypal" && w.get("billing_checkouts", { ...ownerWhere(owner), provider: provider.id, plan_version_id: version.id, status: "open" })) throw conflict("Resume your existing PayPal checkout before starting another");
+      }
       const sameKind = { ...ownerWhere(owner), status: "open", plan_version_id: addon ? { in: addonVersions } : { notIn: [...this.catalog.versionIdsOf(SPARK_PLAN_KEY)] } };
       const open = w.all<{ provider_session_ref: string | null }>("billing_checkouts", { where: sameKind });
       w.update("billing_checkouts", sameKind, { status: "superseded" });
       w.insert("billing_checkouts", {
         id, owner_kind: owner.kind, org_id: owner.kind === "org" ? owner.orgId : null, account_id: owner.kind === "account" ? owner.accountId : null, user_id: starter.userId,
-        started_by_account_id: starter.accountId, plan_version_id: version.id, provider: provider.id, status: "open", created_at: t, expires_at: t + CHECKOUT_TTL_MS, quantity,
+        started_by_account_id: starter.accountId, plan_version_id: version.id, provider: provider.id, status: "open", created_at: t, expires_at: t + CHECKOUT_TTL_MS, quantity, ...(opts.requestKey ? { request_key: opts.requestKey } : {}),
       });
       return open.flatMap((o) => (o.provider_session_ref ? [o.provider_session_ref] : []));
     });
+    if (reused) {
+      const existing = this.rows.get<{ provider_session_ref: string | null; expires_at: number; status: string }>("billing_checkouts", { id })!;
+      if (existing.provider_session_ref) return { checkoutId: id, url: null, expiresAt: existing.expires_at };
+      if (existing.status !== "open") throw conflict("This checkout is no longer available");
+    }
     const returnUrl = opts.returnUrl ?? this.returnUrl ?? "";
     for (const ref of superseded) await this.expireAtProvider(provider, ref);
     let session: { sessionRef: string; url: string | null };
@@ -203,7 +223,7 @@ export class Billing {
         quantity,
       });
     } catch (e) {
-      await this.rows.write((w) => w.update("billing_checkouts", { id }, { status: "expired" }));
+      if (provider.id !== "paypal") await this.rows.write((w) => w.update("billing_checkouts", { id }, { status: "expired" }));
       if (e instanceof ApiError) throw e;
       this.log.error({ err: e, checkout: id }, "billing provider checkout failed");
       throw new ApiError(503, "unavailable", "The payment provider couldn't be reached. Nothing was charged. Try again in a moment.");
@@ -221,7 +241,7 @@ export class Billing {
    * When the owner's free period (a grant) ends, if it still has more than two days left: a subscription bought during
    * it starts charging then, so subscribing early never costs free days. (Providers need a trial end some time ahead.)
    */
-  private freePeriodEnd(owner: BillingOwner): number | null {
+  freePeriodEnd(owner: BillingOwner): number | null {
     if (owner.kind !== "account") return null;
     const t = this.clock();
     const g = this.grants.active(owner.accountId, t);
@@ -300,9 +320,10 @@ export class Billing {
     return { checked: refs.size };
   }
 
-  async reconcileRefs(refs: string[]): Promise<void> {
+  async reconcileRefs(refs: string[]): Promise<SubscriptionSnapshot[]> {
     const provider = this.provider;
-    if (!provider?.fetchSubscription) return;
+    if (!provider?.fetchSubscription) return [];
+    const snapshots: SubscriptionSnapshot[] = [];
     for (const ref of refs) {
       const snap = await provider.fetchSubscription(ref);
       if (!snap) continue;
@@ -311,11 +332,13 @@ export class Billing {
       const at = Math.max(existing?.provider_updated_at ?? 0, t - RECONCILE_SKEW_MS);
       try {
         const outcome = await this.rows.write((w) => this.subscriptions.applySnapshot(w, provider.id, snap, at, `reconcile:${t}`, t));
+        snapshots.push(snap);
         if (outcome.owner && outcome.result === "applied") this.changed(outcome.owner);
       } catch (e) {
         this.log.warn({ err: e, subscription: ref }, "billing reconciliation couldn't apply the provider's state");
       }
     }
+    return snapshots;
   }
 
   private subscriptionView(s: SubscriptionRow, t: number) {
@@ -379,6 +402,7 @@ export class Billing {
       available: !!this.provider,
       reason: this.unavailableReason,
       mode: this.provider?.mode ?? null,
+      provider: this.provider?.id ?? null,
       subscription: s ? this.subscriptionView(s, this.clock()) : null,
       invoices: this.invoices(owner),
       offers: this.offers(audienceOf(owner)),

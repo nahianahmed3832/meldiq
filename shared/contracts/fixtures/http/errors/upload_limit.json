@@ -1,0 +1,9 @@
+{
+  "error": {
+    "code": "upload_limit",
+    "message": "Files can be up to 50 MB on your plan here. Mojo raises it, and so do a community's Sparks.",
+    "details": {
+      "maxBytes": 50000000
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "subscription_active",
+    "message": "Your subscription still renews. Cancel it from the billing page first; nothing was deleted."
+  }
+}
