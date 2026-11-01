@@ -1,3 +1,4 @@
+import { SocialAuth } from "./social/service.js";
 import type { AppContext } from "../../app/context.js";
 import type { AuthInfo } from "../auth/index.js";
 import { now } from "../../shared/utilities/util.js";
@@ -64,6 +65,7 @@ export { availableUser, blockedEitherWay, dmDecision, sharesCommunity } from "./
  * workspaces and the legacy migration, as one module of the existing server.
  */
 export class Accounts {
+  readonly social: SocialAuth;
   readonly store: AccountStore;
   readonly mailer: Mailer;
   readonly service: AccountService;
@@ -105,6 +107,8 @@ export class Accounts {
     this.totp = new TotpService(ctx, ctx.config.platformSecretsKey);
     this.service.secondFactor = (accountId, code) => this.totp.checkSignIn(accountId, code);
     this.emailChange = new EmailChangeService(ctx, this.service);
+    if (ctx.config.socialAuth?.providers.length && ctx.config.accounts.appEnv === "production" && this.store.backend !== "mongodb") throw new Error("Production social sign-in requires the existing MongoDB accounts domain; no account database is migrated automatically");
+    this.social = new SocialAuth(ctx, ctx.config.socialAuth);
   }
 
   /**
@@ -138,7 +142,7 @@ export class Accounts {
   }
 
   async purgeExpired(): Promise<number> {
-    return (await this.store.purgeExpired(now())) + (await this.recovery.purgeExpired()) + (await this.keyBackups.purgeExpired());
+    return (await this.store.purgeExpired(now())) + (await this.recovery.purgeExpired()) + (await this.keyBackups.purgeExpired()) + (await this.social.store.purge());
   }
 }
 

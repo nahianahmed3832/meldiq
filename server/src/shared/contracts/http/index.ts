@@ -1,3 +1,4 @@
+import { socialAuthRoutes } from "./areas/socialAuth.js";
 import { leaderboardContracts } from "./leaderboards.js";
 import { messageCollectionRoutes } from "./messageCollections.js";
 import { z } from "zod/v4";
@@ -48,6 +49,7 @@ export const ROUTE_CONTRACTS: readonly RouteContract[] = [
   ...fileRoutes,
   ...callRoutes,
   ...accountsRoutes,
+  ...socialAuthRoutes,
   ...identityRoutes,
   ...organizationsRoutes,
   ...communityRoutes,

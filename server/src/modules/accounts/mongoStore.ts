@@ -160,6 +160,7 @@ export class MongoAccountStore implements AccountStore {
     await this.mongo.db.collection<FactorDoc>("account_session_factors").deleteMany({ account_id: id }, this.o);
     await this.codes.deleteMany({ account_id: id }, this.o);
     await this.tickets.deleteMany({ account_id: id }, this.o);
+    await this.mongo.db.collection("account_social_identities").deleteMany({ account_id: id }, this.o);
     return res.deletedCount === 1;
   }
 

@@ -328,6 +328,66 @@ export class AccountService {
     await this.store.updateAccount(accountId, { email_verified_at: t }, t);
   }
 
+  /** External sign-up preserves the production admission, platform and abuse policies. */
+  async registerExternal(body: {email: string; name: string; inviteCode?: string}, ip: string, reply: {header:(k:string,v:string)=>unknown}): Promise<AccountRow> {
+    requireSignupAllowed(this.ctx.platform, this.ctx.config.registrationMode, body.email);
+    const admission = this.requireAdmission(body.inviteCode);
+    const network = this.requireRegistrationAllowance(ip, reply);
+    const t = now();
+    if (this.signupMode() === "open") {
+      this.registeredFrom.hour.record(network,t);
+      this.registeredFrom.day.record(network,t);
+    }
+    const account: AccountRow = {
+      id: newId("acc"),
+      email: body.email,
+      name: body.name,
+      password_hash: "!social-only",
+      password_changed_at: t,
+      email_verified_at: t,
+      user_id: null,
+      legacy_linked_at: null,
+      selected_workspace_id: null,
+      admitted_via: null,
+      created_at: t,
+      updated_at: t,
+      disabled_at: null,
+    };
+    const code = body.inviteCode;
+    let taken: string | null = null;
+    const reserved = admission?.kind === "org-invite" && code ? await this.reserveOrgInvite(code) : null;
+    let givenBack = false;
+    const giveBack = (w: RowWriter | null, via: string) => {
+      if (givenBack) return;
+      givenBack = true;
+      this.returnAdmission(w, via);
+    };
+    const take: StoreAdmission | null =
+      admission && code
+        ? { take: (w) => (taken = reserved ?? this.consumeAdmission(w, code)), undo: (w) => void (taken && giveBack(w, taken)) }
+        : null;
+    let created: Awaited<ReturnType<typeof this.store.createAccount>>;
+    try {
+      created = await this.store.createAccount(account, take);
+    } catch (e) {
+      // The org invite's use was reserved outside the account's own transaction: give it back here.
+      if (reserved) giveBack(null, reserved);
+      throw e;
+    }
+    // A parallel sign-up for the same address won the race (this one's invite use was given back): same answer.
+    if (!created) {
+      if (reserved) giveBack(null, reserved);
+      throw new ApiError(409, "account_link_required", "Sign in to your existing Meldiq account, then connect this provider in Settings > Account.");
+    }
+    this.ctx.audit({ action: "account.register", target: created.id, detail: created.admitted_via });
+    return created;
+  }
+
+  async loginWithExternal(a: AccountRow, body: { deviceName?: string; device?: {deviceId:string;nonce:string;signature:string};totpCode?:string}, provider: "google"|"apple"|"discord"): Promise<SessionResponse> {
+    const verified = (await this.secondFactor?.(a.id,body.totpCode)) === true;
+    return this.finishLogin(a,body,provider,verified);
+  }
+
   private codeKey(a: AccountRow, purpose: CodePurpose) {
     return `${a.id}:${purpose}`;
   }
@@ -493,7 +553,7 @@ export class AccountService {
   private async finishLogin(
     a: AccountRow,
     body: { deviceName?: string; device?: { deviceId: string; nonce: string; signature: string } },
-    via: "password" | "passkey",
+    via: "password" | "passkey" | "google" | "apple" | "discord",
     secondFactorVerified = false,
   ): Promise<SessionResponse> {
     if (a.disabled_at) throw sessionEnded("account_disabled");
@@ -504,7 +564,7 @@ export class AccountService {
     }
     const deviceId = body.device ? await this.provenDevice(a, body.device) : null;
     const issued = await this.sessions.issue(a.id, body.deviceName ?? "Meldiq app", deviceId, now(), secondFactorVerified);
-    const detail = [via === "passkey" ? "passkey" : null, deviceId ? "device" : null].filter(Boolean).join(",") || null;
+    const detail = [via !== "password" ? via : null, deviceId ? "device" : null].filter(Boolean).join(",") || null;
     this.ctx.audit({ actorId: a.user_id, action: "account.login", target: issued.session.id, detail });
     // Signed-in sessions per person (docs/QUOTAS.md): observed and warned only; signing in is never refused by a quota.
     if (a.user_id && this.ctx.quotas?.hasPolicies("sessions.active")) {
