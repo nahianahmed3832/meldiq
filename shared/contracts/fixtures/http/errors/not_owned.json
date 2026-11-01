@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "not_owned",
+    "message": "You can only equip decorations you own"
+  }
+}

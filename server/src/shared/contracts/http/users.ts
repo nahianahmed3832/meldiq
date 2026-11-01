@@ -1,3 +1,4 @@
+import { CollectibleLook } from "./collectibles.js";
 import { z } from "zod/v4";
 import { ProfilePin } from "./pins.js";
 import { ActivityWire, PresenceState } from "../realtime.js";
@@ -166,6 +167,7 @@ export const ProfileStyleBody = z.object({
     .optional(),
 });
 export const ProfileStyle = z.strictObject({
+  collectibles: z.array(CollectibleLook).max(8).optional(),
   decoration: zWornDecoration.nullable(),
   effect: z.enum(PROFILE_EFFECTS).nullable(),
   accent: z.string().nullable(),

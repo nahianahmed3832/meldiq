@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "acquisition_required",
+    "message": "This decoration requires a verified grant"
+  }
+}

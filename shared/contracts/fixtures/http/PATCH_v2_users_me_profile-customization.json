@@ -1,0 +1,30 @@
+{
+  "profileStyle": {
+    "collectibles": [
+      {
+        "id": "ion-halo",
+        "name": "Ion Halo",
+        "category": "avatar-frame",
+        "version": 1,
+        "recipe": {
+          "colors": [
+            "#22d3ee",
+            "#6366f1"
+          ],
+          "pattern": "orbit",
+          "frame": "aurora"
+        }
+      }
+    ],
+    "decoration": "aurora",
+    "effect": null,
+    "accent": "#123456",
+    "nameFont": "mono",
+    "nameColors": null,
+    "nameEffect": null,
+    "tagOrgId": null,
+    "themeColors": null,
+    "shownBadge": null
+  },
+  "styleRevision": "0b8795b85b686fc8485103ad1bd04682c9c673eaccee72926224c04821616c7b"
+}

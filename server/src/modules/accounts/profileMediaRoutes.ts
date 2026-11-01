@@ -48,7 +48,12 @@ export const PROFILE_MEDIA_LIMITS = {
   toolMs: 60_000,
 } as const;
 
-const MIME = { gif: "image/gif", webp: "image/webp", jpeg: "image/jpeg", video: "video/mp4" } as const;
+const MIME = {
+  gif: "image/gif",
+  webp: "image/webp",
+  jpeg: "image/jpeg",
+  video: "video/mp4",
+} as const;
 
 /** Reads an octet-stream body of at most [max] bytes, stopping as soon as it's larger. */
 export async function readBody(req: FastifyRequest, max: number, what: string): Promise<Buffer> {
@@ -111,7 +116,10 @@ async function transcodeClip(ctx: AppContext, input: Buffer): Promise<{ mp4: Buf
     }
     const info = (() => {
       try {
-        return JSON.parse(probe.stdout) as { format?: { duration?: string }; streams?: { codec_type?: string; width?: number; height?: number }[] };
+        return JSON.parse(probe.stdout) as {
+          format?: { duration?: string };
+          streams?: { codec_type?: string; width?: number; height?: number }[];
+        };
       } catch {
         return null;
       }
@@ -152,7 +160,10 @@ async function transcodeClip(ctx: AppContext, input: Buffer): Promise<{ mp4: Buf
     if (enc.code !== 0) throw badRequest("That video couldn't be converted. Try another clip.");
     const pos = await runTool(ffmpegBin(), ["-hide_banner", "-loglevel", "error", "-y", "-i", outMp4, "-frames:v", "1", "-q:v", "4", outJpg]);
     if (pos.code !== 0) throw badRequest("That video couldn't be converted. Try another clip.");
-    return { mp4: await fs.promises.readFile(outMp4), poster: await fs.promises.readFile(outJpg) };
+    return {
+      mp4: await fs.promises.readFile(outMp4),
+      poster: await fs.promises.readFile(outJpg),
+    };
   } finally {
     await fs.promises.rm(dir, { recursive: true, force: true });
   }
@@ -165,7 +176,11 @@ async function transcodeClip(ctx: AppContext, input: Buffer): Promise<{ mp4: Buf
  */
 export function themeOf(body: z.infer<typeof ProfileStyleBody>, current: Style): Pick<Style, "accent" | "themeColors"> {
   const accent = body.accent === undefined ? current.accent : (body.accent?.toLowerCase() ?? null);
-  if (body.themeColors === undefined) return { accent, themeColors: body.accent === undefined ? current.themeColors : null };
+  if (body.themeColors === undefined)
+    return {
+      accent,
+      themeColors: body.accent === undefined ? current.themeColors : null,
+    };
   const themeColors = body.themeColors?.map((c) => c.toLowerCase()) ?? null;
   return { accent: themeColors ? themeColors[0] : accent, themeColors };
 }
@@ -177,8 +192,18 @@ function checkImage(info: ImageInfo | null, maxW: number, maxH: number, maxFrame
 }
 
 export default async function profileMediaRoutes(app: FastifyInstance, ctx: AppContext) {
-  const auth = { preHandler: requireAuth(ctx), config: { rateLimit: { max: 20, timeWindow: "1 minute" } } };
-  const row = (id: string) => ctx.identity.get<ProfileRow & { avatar_media: string | null; profile_banner: string | null; profile_style: string | null }>("users", { id, disabled_at: null });
+  const auth = {
+    preHandler: requireAuth(ctx),
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+  };
+  const row = (id: string) =>
+    ctx.identity.get<
+      ProfileRow & {
+        avatar_media: string | null;
+        profile_banner: string | null;
+        profile_style: string | null;
+      }
+    >("users", { id, disabled_at: null });
   const setOwn = (userId: string, fields: Record<string, string | null>) => ctx.identity.write((w) => w.update("users", { id: userId }, { ...fields, updated_at: now() }));
 
   app.put("/v1/users/me/avatar-media", auth, async (req) => {
@@ -205,7 +230,11 @@ export default async function profileMediaRoutes(app: FastifyInstance, ctx: AppC
       await deleteBlobNow(ctx, "profile-photos", avatarBlob(userId, previous.rev));
       if (previous.kind === "video") await deleteBlobNow(ctx, "profile-photos", posterBlob(userId, previous.rev));
     }
-    ctx.audit({ actorId: userId, action: "profile.avatar_media", detail: media.kind });
+    ctx.audit({
+      actorId: userId,
+      action: "profile.avatar_media",
+      detail: media.kind,
+    });
     announceProfileChange(ctx, userId);
     return { avatarMedia: media };
   });
@@ -258,30 +287,47 @@ export default async function profileMediaRoutes(app: FastifyInstance, ctx: AppC
   app.put("/v1/users/me/profile-style", auth, async (req) => {
     const { userId } = me(req);
     const body = parse(ProfileStyleBody, req.body);
-    const current = styleOf(row(userId) ?? {});
-    // API 0.46.0: a community's tag can only be worn by its members (whether it has one now is checked when shown).
-    if (body.tagOrgId && !ctx.authz.orgRole(body.tagOrgId, userId)) throw badRequest("You can only wear the tag of a community you're in");
-    // API 0.65.0: only a badge the person holds now can be shown ("none" hides them all).
-    if (body.shownBadge && body.shownBadge !== "none" && !holdsBadge(ctx, userId, body.shownBadge)) throw badRequest("You can only show a badge you have");
-    const keep = <T>(sent: T | undefined, was: T) => (sent === undefined ? was : sent);
-    const theme = themeOf(body, current);
-    const next: Style = {
-      decoration: keep(body.decoration, current.decoration),
-      effect: keep(body.effect, current.effect),
-      accent: theme.accent,
-      nameFont: keep(body.nameFont, current.nameFont),
-      nameColors: body.nameColors === undefined ? current.nameColors : (body.nameColors?.map((c) => c.toLowerCase()) ?? null),
-      nameEffect: keep(body.nameEffect, current.nameEffect),
-      tagOrgId: keep(body.tagOrgId, current.tagOrgId),
-      themeColors: theme.themeColors,
-      shownBadge: keep(body.shownBadge, current.shownBadge),
-    };
-    // API 0.61.0: Meldiq's own and approved community decorations too (docs/PROFILE_DECORATIONS.md).
-    if (next.decoration && next.decoration !== current.decoration && !ctx.decorations.wearable(next.decoration)) throw badRequest("That decoration isn't available");
-    await ctx.identity.write((w) => {
-      if (body.baseStyleRevision && styleRevision(row(userId) ?? {}) !== body.baseStyleRevision)
+    const { current, next } = await ctx.identity.write((w) => {
+      const latest = w.get<{ profile_style: string | null }>("users", {
+        id: userId,
+      });
+      const current = styleOf(latest ?? {});
+      // API 0.46.0: a community's tag can only be worn by its members (whether it has one now is checked when shown).
+      if (body.tagOrgId && !ctx.authz.orgRole(body.tagOrgId, userId)) throw badRequest("You can only wear the tag of a community you're in");
+      // API 0.65.0: only a badge the person holds now can be shown ("none" hides them all).
+      if (body.shownBadge && body.shownBadge !== "none" && !holdsBadge(ctx, userId, body.shownBadge)) throw badRequest("You can only show a badge you have");
+      const keep = <T>(sent: T | undefined, was: T) => (sent === undefined ? was : sent);
+      const theme = themeOf(body, current);
+      const next: Style = {
+        ...(current.collectibles
+          ? {
+              collectibles: current.collectibles.filter(
+                (x) =>
+                  !(
+                    (x.category === "avatar-frame" && body.decoration !== undefined) ||
+                    (x.category === "profile-theme" && (body.themeColors !== undefined || body.accent !== undefined)) ||
+                    (x.category === "name-effect" && (body.nameColors !== undefined || body.nameEffect !== undefined)) ||
+                    (x.category === "particles" && body.effect !== undefined)
+                  ),
+              ),
+            }
+          : {}),
+        decoration: keep(body.decoration, current.decoration),
+        effect: keep(body.effect, current.effect),
+        accent: theme.accent,
+        nameFont: keep(body.nameFont, current.nameFont),
+        nameColors: body.nameColors === undefined ? current.nameColors : (body.nameColors?.map((c) => c.toLowerCase()) ?? null),
+        nameEffect: keep(body.nameEffect, current.nameEffect),
+        tagOrgId: keep(body.tagOrgId, current.tagOrgId),
+        themeColors: theme.themeColors,
+        shownBadge: keep(body.shownBadge, current.shownBadge),
+      };
+      // API 0.61.0: Meldiq's own and approved community decorations too (docs/PROFILE_DECORATIONS.md).
+      if (next.decoration && next.decoration !== current.decoration && !ctx.decorations.wearable(next.decoration)) throw badRequest("That decoration isn't available");
+      if (body.baseStyleRevision && styleRevision(latest ?? {}) !== body.baseStyleRevision)
         throw new ApiError(409, "conflict", "Your look changed on another device. Reset your draft before applying it.");
       w.update("users", { id: userId }, { profile_style: JSON.stringify(next), updated_at: now() });
+      return { current, next };
     });
     await ctx.decorations.worn(current.decoration, next.decoration);
     announceProfileChange(ctx, userId);

@@ -95,6 +95,12 @@ export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
   integration_policies: "integrations",
   integration_hooks: "integrations",
   users: "identity",
+  profile_collectible_catalog: "identity",
+  profile_collectible_inventory: "identity",
+  profile_collectible_transactions: "identity",
+  profile_collectible_assets: "identity",
+  profile_collectible_uploads: "identity",
+
   devices: "identity",
   user_blocks: "identity",
   push_endpoints: "identity",

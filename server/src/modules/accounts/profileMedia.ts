@@ -1,3 +1,4 @@
+import { CollectibleLook } from "../../shared/contracts/http/collectibles.js";
 import { createHash } from "node:crypto";
 import type { AppContext } from "../../app/context.js";
 import { DECORATION_ID } from "../../shared/contracts/http/decorations.js";
@@ -7,6 +8,7 @@ import { NAME_EFFECTS, NAME_FONTS, PROFILE_DECORATIONS, PROFILE_EFFECTS, SHOWABL
 export type AvatarMedia = { kind: "gif" | "webp" | "video"; rev: number };
 export type Banner = { kind: "jpeg" | "gif" | "webp"; rev: number };
 export type Style = {
+  collectibles?: CollectibleLook[];
   decoration: string | null;
   effect: string | null;
   accent: string | null;
@@ -39,7 +41,9 @@ export const avatarMediaOf = (u: { avatar_media?: string | null }) => parseJson<
 export const bannerOf = (u: { profile_banner?: string | null }) => parseJson<Banner>(u.profile_banner);
 export function styleOf(u: { profile_style?: string | null }): Style {
   const s = parseJson<Partial<Style>>(u.profile_style) ?? {};
+  const looks = CollectibleLook.array().max(8).safeParse(s.collectibles);
   return {
+    ...(looks.success && looks.data.length ? { collectibles: looks.data } : {}),
     // A classic frame, or (API 0.61.0) one of Meldiq's own or a community one; one taken down is cleared from its wearers.
     decoration: typeof s.decoration === "string" && (PROFILE_DECORATIONS.includes(s.decoration as never) || DECORATION_ID.test(s.decoration)) ? s.decoration : null,
     effect: PROFILE_EFFECTS.includes(s.effect as never) ? (s.effect as string) : null,
@@ -67,7 +71,15 @@ export function wornTag(ctx: AppContext, u: { id: string; profile_style?: string
  * The profile fields this adds, for a viewer who may see the photo (the style is shown to everyone). [holds] says
  * whether the person still has a badge: a shown badge they lost reads as null (API 0.65.0).
  */
-export function profileMediaView(u: { avatar_media?: string | null; profile_banner?: string | null; profile_style?: string | null }, photoAllowed: boolean, holds?: (badge: ShowableBadge) => boolean) {
+export function profileMediaView(
+  u: {
+    avatar_media?: string | null;
+    profile_banner?: string | null;
+    profile_style?: string | null;
+  },
+  photoAllowed: boolean,
+  holds?: (badge: ShowableBadge) => boolean,
+) {
   const out: Record<string, unknown> = {};
   const a = avatarMediaOf(u);
   const b = bannerOf(u);

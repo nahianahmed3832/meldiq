@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "collectible_unavailable",
+    "message": "This decoration is not available"
+  }
+}

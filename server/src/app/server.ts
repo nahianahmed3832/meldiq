@@ -100,6 +100,7 @@ import communityRoutes from "../modules/organizations/communityRoutes.js";
 import { runCommunityMigration } from "../modules/organizations/communityMigration.js";
 import preferenceRoutes from "../modules/accounts/preferences/routes.js";
 import activityRoutes from "../modules/accounts/activity/routes.js";
+import collectionRoutes from "../modules/accounts/collectibles/routes.js";
 import decorationRoutes from "../modules/accounts/decorations/routes.js";
 import { DecorationService } from "../modules/accounts/decorations/service.js";
 import { MemoryDecorationStore } from "../modules/accounts/decorations/store.js";
@@ -683,6 +684,7 @@ export async function buildApp(
     preferenceRoutes,
     activityRoutes,
     decorationRoutes,
+    collectionRoutes,
     pinRoutes,
     reminderRoutes,
     reportRoutes,
@@ -855,6 +857,7 @@ export function serverFeatures(config: Config, directUploads = false): string[] 
     "server-messages",
     // API 0.61.0 (docs/PROFILE_DECORATIONS.md): Meldiq's own decorations and reviewed community ones (/v2/decorations).
     "profile-decorations",
+    "profile-collectibles",
     // API 0.64.0 (docs/PROFILE_PINS.md): pins on profiles, Meldiq's for milestones and communities' own; animated community icons and banners.
     "profile-pins",
     "animated-community-images",

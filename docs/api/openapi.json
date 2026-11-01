@@ -12,6 +12,12 @@
   ],
   "tags": [
     {
+      "name": "Profile collection"
+    },
+    {
+      "name": "Profile collection admin"
+    },
+    {
       "name": "Central administration"
     },
     {
@@ -163,6 +169,2683 @@
     }
   ],
   "paths": {
+    "/v2/profile-collectibles/categories": {
+      "get": {
+        "tags": [
+          "Profile collection"
+        ],
+        "summary": "Collectible slots supported by all Meldiq clients.",
+        "operationId": "getV2ProfileCollectiblesCategories",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "categories": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "avatar-frame",
+                          "avatar-effect",
+                          "background",
+                          "banner",
+                          "profile-theme",
+                          "name-effect",
+                          "badge",
+                          "particles"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "categories"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/profile-collectibles": {
+      "get": {
+        "tags": [
+          "Profile collection"
+        ],
+        "summary": "Active collectible catalog with stable ID pagination and search.",
+        "operationId": "getV2ProfileCollectibles",
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "avatar-frame",
+                "avatar-effect",
+                "background",
+                "banner",
+                "profile-theme",
+                "name-effect",
+                "badge",
+                "particles"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 80
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{2,63}$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 24,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 48
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^[a-z][a-z0-9-]{2,63}$"
+                          },
+                          "name": {
+                            "type": "string",
+                            "maxLength": 80
+                          },
+                          "category": {
+                            "type": "string",
+                            "enum": [
+                              "avatar-frame",
+                              "avatar-effect",
+                              "background",
+                              "banner",
+                              "profile-theme",
+                              "name-effect",
+                              "badge",
+                              "particles"
+                            ]
+                          },
+                          "version": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "recipe": {
+                            "type": "object",
+                            "properties": {
+                              "colors": {
+                                "minItems": 2,
+                                "maxItems": 2,
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "pattern": "^#[0-9a-fA-F]{6}$"
+                                }
+                              },
+                              "pattern": {
+                                "type": "string",
+                                "enum": [
+                                  "solid",
+                                  "orbit",
+                                  "grid",
+                                  "prism"
+                                ]
+                              },
+                              "frame": {
+                                "type": "string",
+                                "enum": [
+                                  "aurora",
+                                  "ember",
+                                  "frost",
+                                  "neon",
+                                  "sakura",
+                                  "pixel"
+                                ]
+                              },
+                              "effect": {
+                                "type": "string",
+                                "enum": [
+                                  "sparkles",
+                                  "glow",
+                                  "stars",
+                                  "bubbles"
+                                ]
+                              },
+                              "nameEffect": {
+                                "type": "string",
+                                "enum": [
+                                  "glow",
+                                  "shimmer"
+                                ]
+                              },
+                              "assetId": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{64}$"
+                              }
+                            },
+                            "required": [
+                              "colors",
+                              "pattern"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "description": {
+                            "type": "string",
+                            "maxLength": 500
+                          },
+                          "rarity": {
+                            "type": "string",
+                            "enum": [
+                              "common",
+                              "rare",
+                              "epic",
+                              "legendary"
+                            ]
+                          },
+                          "acquisitionType": {
+                            "type": "string",
+                            "enum": [
+                              "free",
+                              "premium",
+                              "event",
+                              "purchase"
+                            ]
+                          },
+                          "price": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "currency": {
+                            "type": "string",
+                            "enum": [
+                              "USD",
+                              "EMBERS"
+                            ]
+                          },
+                          "isActive": {
+                            "type": "boolean"
+                          },
+                          "isFeatured": {
+                            "type": "boolean"
+                          },
+                          "availableFrom": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "availableUntil": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "supportedPlatforms": {
+                            "minItems": 1,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "web",
+                                "android",
+                                "windows",
+                                "macos"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "category",
+                          "version",
+                          "recipe",
+                          "description",
+                          "rarity",
+                          "acquisitionType",
+                          "price",
+                          "currency",
+                          "isActive",
+                          "isFeatured",
+                          "availableFrom",
+                          "availableUntil",
+                          "supportedPlatforms"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "next": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9-]{2,63}$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/profile-collectibles/{id}": {
+      "get": {
+        "tags": [
+          "Profile collection"
+        ],
+        "summary": "Collectible details and acquisition requirements.",
+        "operationId": "getV2ProfileCollectiblesId",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{2,63}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "item": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9-]{2,63}$"
+                        },
+                        "name": {
+                          "type": "string",
+                          "maxLength": 80
+                        },
+                        "category": {
+                          "type": "string",
+                          "enum": [
+                            "avatar-frame",
+                            "avatar-effect",
+                            "background",
+                            "banner",
+                            "profile-theme",
+                            "name-effect",
+                            "badge",
+                            "particles"
+                          ]
+                        },
+                        "version": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "recipe": {
+                          "type": "object",
+                          "properties": {
+                            "colors": {
+                              "minItems": 2,
+                              "maxItems": 2,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "pattern": "^#[0-9a-fA-F]{6}$"
+                              }
+                            },
+                            "pattern": {
+                              "type": "string",
+                              "enum": [
+                                "solid",
+                                "orbit",
+                                "grid",
+                                "prism"
+                              ]
+                            },
+                            "frame": {
+                              "type": "string",
+                              "enum": [
+                                "aurora",
+                                "ember",
+                                "frost",
+                                "neon",
+                                "sakura",
+                                "pixel"
+                              ]
+                            },
+                            "effect": {
+                              "type": "string",
+                              "enum": [
+                                "sparkles",
+                                "glow",
+                                "stars",
+                                "bubbles"
+                              ]
+                            },
+                            "nameEffect": {
+                              "type": "string",
+                              "enum": [
+                                "glow",
+                                "shimmer"
+                              ]
+                            },
+                            "assetId": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{64}$"
+                            }
+                          },
+                          "required": [
+                            "colors",
+                            "pattern"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "description": {
+                          "type": "string",
+                          "maxLength": 500
+                        },
+                        "rarity": {
+                          "type": "string",
+                          "enum": [
+                            "common",
+                            "rare",
+                            "epic",
+                            "legendary"
+                          ]
+                        },
+                        "acquisitionType": {
+                          "type": "string",
+                          "enum": [
+                            "free",
+                            "premium",
+                            "event",
+                            "purchase"
+                          ]
+                        },
+                        "price": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100000000
+                        },
+                        "currency": {
+                          "type": "string",
+                          "enum": [
+                            "USD",
+                            "EMBERS"
+                          ]
+                        },
+                        "isActive": {
+                          "type": "boolean"
+                        },
+                        "isFeatured": {
+                          "type": "boolean"
+                        },
+                        "availableFrom": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "availableUntil": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "supportedPlatforms": {
+                          "minItems": 1,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "web",
+                              "android",
+                              "windows",
+                              "macos"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "category",
+                        "version",
+                        "recipe",
+                        "description",
+                        "rarity",
+                        "acquisitionType",
+                        "price",
+                        "currency",
+                        "isActive",
+                        "isFeatured",
+                        "availableFrom",
+                        "availableUntil",
+                        "supportedPlatforms"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "item"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/users/me/profile-collectibles": {
+      "get": {
+        "tags": [
+          "Profile collection"
+        ],
+        "summary": "Private owned inventory, favorites and acquisition timestamps.",
+        "operationId": "getV2UsersMeProfileCollectibles",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "inventory": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "user_id": {
+                            "type": "string"
+                          },
+                          "decoration_id": {
+                            "type": "string",
+                            "pattern": "^[a-z][a-z0-9-]{2,63}$"
+                          },
+                          "acquired_at": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "acquisition_source": {
+                            "type": "string"
+                          },
+                          "is_favorite": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "user_id",
+                          "decoration_id",
+                          "acquired_at",
+                          "acquisition_source",
+                          "is_favorite"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "inventory"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/users/me/profile-collectibles/{id}/claim": {
+      "post": {
+        "tags": [
+          "Profile collection"
+        ],
+        "summary": "Idempotently claim a free item. No client price or payment data accepted.",
+        "operationId": "postV2UsersMeProfileCollectiblesIdClaim",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{2,63}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "inventory": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "user_id": {
+                            "type": "string"
+                          },
+                          "decoration_id": {
+                            "type": "string",
+                            "pattern": "^[a-z][a-z0-9-]{2,63}$"
+                          },
+                          "acquired_at": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "acquisition_source": {
+                            "type": "string"
+                          },
+                          "is_favorite": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "user_id",
+                          "decoration_id",
+                          "acquired_at",
+                          "acquisition_source",
+                          "is_favorite"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "inventory"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/users/me/profile-collectibles/{id}/favorite": {
+      "put": {
+        "tags": [
+          "Profile collection"
+        ],
+        "summary": "Set or remove a private owned-item favorite.",
+        "operationId": "putV2UsersMeProfileCollectiblesIdFavorite",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{2,63}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Profile collection"
+        ],
+        "summary": "Set or remove a private owned-item favorite.",
+        "operationId": "deleteV2UsersMeProfileCollectiblesIdFavorite",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{2,63}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/users/me/profile-customization": {
+      "get": {
+        "tags": [
+          "Profile collection"
+        ],
+        "summary": "Canonical profile style and optimistic concurrency revision.",
+        "operationId": "getV2UsersMeProfileCustomization",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "profileStyle": {
+                      "type": "object",
+                      "properties": {
+                        "collectibles": {
+                          "maxItems": 8,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-z][a-z0-9-]{2,63}$"
+                              },
+                              "name": {
+                                "type": "string",
+                                "maxLength": 80
+                              },
+                              "category": {
+                                "type": "string",
+                                "enum": [
+                                  "avatar-frame",
+                                  "avatar-effect",
+                                  "background",
+                                  "banner",
+                                  "profile-theme",
+                                  "name-effect",
+                                  "badge",
+                                  "particles"
+                                ]
+                              },
+                              "version": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "recipe": {
+                                "type": "object",
+                                "properties": {
+                                  "colors": {
+                                    "minItems": 2,
+                                    "maxItems": 2,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "pattern": "^#[0-9a-fA-F]{6}$"
+                                    }
+                                  },
+                                  "pattern": {
+                                    "type": "string",
+                                    "enum": [
+                                      "solid",
+                                      "orbit",
+                                      "grid",
+                                      "prism"
+                                    ]
+                                  },
+                                  "frame": {
+                                    "type": "string",
+                                    "enum": [
+                                      "aurora",
+                                      "ember",
+                                      "frost",
+                                      "neon",
+                                      "sakura",
+                                      "pixel"
+                                    ]
+                                  },
+                                  "effect": {
+                                    "type": "string",
+                                    "enum": [
+                                      "sparkles",
+                                      "glow",
+                                      "stars",
+                                      "bubbles"
+                                    ]
+                                  },
+                                  "nameEffect": {
+                                    "type": "string",
+                                    "enum": [
+                                      "glow",
+                                      "shimmer"
+                                    ]
+                                  },
+                                  "assetId": {
+                                    "type": "string",
+                                    "pattern": "^[a-f0-9]{64}$"
+                                  }
+                                },
+                                "required": [
+                                  "colors",
+                                  "pattern"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name",
+                              "category",
+                              "version",
+                              "recipe"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "decoration": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^(?:[a-z0-9-]{2,32}|c_[a-z0-9]{16})$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "effect": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "sparkles",
+                                "glow",
+                                "stars",
+                                "bubbles"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "accent": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "nameFont": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "pixel",
+                                "arcade",
+                                "script",
+                                "block",
+                                "tech",
+                                "mono"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "nameColors": {
+                          "anyOf": [
+                            {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "nameEffect": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "glow",
+                                "shimmer"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "tagOrgId": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "themeColors": {
+                          "anyOf": [
+                            {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "shownBadge": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "mojo",
+                                "bug-hunter",
+                                "artist",
+                                "creator",
+                                "none"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "decoration",
+                        "effect",
+                        "accent"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "styleRevision": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "profileStyle",
+                    "styleRevision"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Profile collection"
+        ],
+        "summary": "Atomically equip or clear owned slots. Publish existing profile update event.",
+        "operationId": "patchV2UsersMeProfileCustomization",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "profileStyle": {
+                      "type": "object",
+                      "properties": {
+                        "collectibles": {
+                          "maxItems": 8,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-z][a-z0-9-]{2,63}$"
+                              },
+                              "name": {
+                                "type": "string",
+                                "maxLength": 80
+                              },
+                              "category": {
+                                "type": "string",
+                                "enum": [
+                                  "avatar-frame",
+                                  "avatar-effect",
+                                  "background",
+                                  "banner",
+                                  "profile-theme",
+                                  "name-effect",
+                                  "badge",
+                                  "particles"
+                                ]
+                              },
+                              "version": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "recipe": {
+                                "type": "object",
+                                "properties": {
+                                  "colors": {
+                                    "minItems": 2,
+                                    "maxItems": 2,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "pattern": "^#[0-9a-fA-F]{6}$"
+                                    }
+                                  },
+                                  "pattern": {
+                                    "type": "string",
+                                    "enum": [
+                                      "solid",
+                                      "orbit",
+                                      "grid",
+                                      "prism"
+                                    ]
+                                  },
+                                  "frame": {
+                                    "type": "string",
+                                    "enum": [
+                                      "aurora",
+                                      "ember",
+                                      "frost",
+                                      "neon",
+                                      "sakura",
+                                      "pixel"
+                                    ]
+                                  },
+                                  "effect": {
+                                    "type": "string",
+                                    "enum": [
+                                      "sparkles",
+                                      "glow",
+                                      "stars",
+                                      "bubbles"
+                                    ]
+                                  },
+                                  "nameEffect": {
+                                    "type": "string",
+                                    "enum": [
+                                      "glow",
+                                      "shimmer"
+                                    ]
+                                  },
+                                  "assetId": {
+                                    "type": "string",
+                                    "pattern": "^[a-f0-9]{64}$"
+                                  }
+                                },
+                                "required": [
+                                  "colors",
+                                  "pattern"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name",
+                              "category",
+                              "version",
+                              "recipe"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "decoration": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^(?:[a-z0-9-]{2,32}|c_[a-z0-9]{16})$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "effect": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "sparkles",
+                                "glow",
+                                "stars",
+                                "bubbles"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "accent": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "nameFont": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "pixel",
+                                "arcade",
+                                "script",
+                                "block",
+                                "tech",
+                                "mono"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "nameColors": {
+                          "anyOf": [
+                            {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "nameEffect": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "glow",
+                                "shimmer"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "tagOrgId": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "themeColors": {
+                          "anyOf": [
+                            {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "shownBadge": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "mojo",
+                                "bug-hunter",
+                                "artist",
+                                "creator",
+                                "none"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "decoration",
+                        "effect",
+                        "accent"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "styleRevision": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "profileStyle",
+                    "styleRevision"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_owned, wrong_category, collectible_unavailable, conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "baseStyleRevision": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "slots": {
+                    "type": "object",
+                    "propertyNames": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "avatar-frame",
+                            "avatar-effect",
+                            "background",
+                            "banner",
+                            "profile-theme",
+                            "name-effect",
+                            "badge",
+                            "particles"
+                          ]
+                        },
+                        {
+                          "not": {}
+                        }
+                      ]
+                    },
+                    "additionalProperties": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9-]{2,63}$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "baseStyleRevision",
+                  "slots"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/profile-collectibles/assets/{id}/{variant}": {
+      "get": {
+        "tags": [
+          "Profile collection"
+        ],
+        "summary": "Approved active asset variant, ETag and bounded public caching.",
+        "operationId": "getV2ProfileCollectiblesAssetsIdVariant",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The bytes (or 302 to a storage URL)",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/admin/v1/profile-collectibles": {
+      "get": {
+        "tags": [
+          "Profile collection admin"
+        ],
+        "summary": "Super administrator catalog including inactive entries.",
+        "operationId": "getAdminV1ProfileCollectibles",
+        "parameters": [
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^[a-z][a-z0-9-]{2,63}$"
+                          },
+                          "name": {
+                            "type": "string",
+                            "maxLength": 80
+                          },
+                          "category": {
+                            "type": "string",
+                            "enum": [
+                              "avatar-frame",
+                              "avatar-effect",
+                              "background",
+                              "banner",
+                              "profile-theme",
+                              "name-effect",
+                              "badge",
+                              "particles"
+                            ]
+                          },
+                          "version": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "recipe": {
+                            "type": "object",
+                            "properties": {
+                              "colors": {
+                                "minItems": 2,
+                                "maxItems": 2,
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "pattern": "^#[0-9a-fA-F]{6}$"
+                                }
+                              },
+                              "pattern": {
+                                "type": "string",
+                                "enum": [
+                                  "solid",
+                                  "orbit",
+                                  "grid",
+                                  "prism"
+                                ]
+                              },
+                              "frame": {
+                                "type": "string",
+                                "enum": [
+                                  "aurora",
+                                  "ember",
+                                  "frost",
+                                  "neon",
+                                  "sakura",
+                                  "pixel"
+                                ]
+                              },
+                              "effect": {
+                                "type": "string",
+                                "enum": [
+                                  "sparkles",
+                                  "glow",
+                                  "stars",
+                                  "bubbles"
+                                ]
+                              },
+                              "nameEffect": {
+                                "type": "string",
+                                "enum": [
+                                  "glow",
+                                  "shimmer"
+                                ]
+                              },
+                              "assetId": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{64}$"
+                              }
+                            },
+                            "required": [
+                              "colors",
+                              "pattern"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "description": {
+                            "type": "string",
+                            "maxLength": 500
+                          },
+                          "rarity": {
+                            "type": "string",
+                            "enum": [
+                              "common",
+                              "rare",
+                              "epic",
+                              "legendary"
+                            ]
+                          },
+                          "acquisitionType": {
+                            "type": "string",
+                            "enum": [
+                              "free",
+                              "premium",
+                              "event",
+                              "purchase"
+                            ]
+                          },
+                          "price": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "currency": {
+                            "type": "string",
+                            "enum": [
+                              "USD",
+                              "EMBERS"
+                            ]
+                          },
+                          "isActive": {
+                            "type": "boolean"
+                          },
+                          "isFeatured": {
+                            "type": "boolean"
+                          },
+                          "availableFrom": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "availableUntil": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "supportedPlatforms": {
+                            "minItems": 1,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "web",
+                                "android",
+                                "windows",
+                                "macos"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "category",
+                          "version",
+                          "recipe",
+                          "description",
+                          "rarity",
+                          "acquisitionType",
+                          "price",
+                          "currency",
+                          "isActive",
+                          "isFeatured",
+                          "availableFrom",
+                          "availableUntil",
+                          "supportedPlatforms"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification."
+      }
+    },
+    "/admin/v1/profile-collectibles/{id}": {
+      "put": {
+        "tags": [
+          "Profile collection admin"
+        ],
+        "summary": "Create/update catalog metadata and refresh equipped recipes. Super administrator only.",
+        "operationId": "putAdminV1ProfileCollectiblesId",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{2,63}$"
+            }
+          },
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "item": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9-]{2,63}$"
+                        },
+                        "name": {
+                          "type": "string",
+                          "maxLength": 80
+                        },
+                        "category": {
+                          "type": "string",
+                          "enum": [
+                            "avatar-frame",
+                            "avatar-effect",
+                            "background",
+                            "banner",
+                            "profile-theme",
+                            "name-effect",
+                            "badge",
+                            "particles"
+                          ]
+                        },
+                        "version": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "recipe": {
+                          "type": "object",
+                          "properties": {
+                            "colors": {
+                              "minItems": 2,
+                              "maxItems": 2,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "pattern": "^#[0-9a-fA-F]{6}$"
+                              }
+                            },
+                            "pattern": {
+                              "type": "string",
+                              "enum": [
+                                "solid",
+                                "orbit",
+                                "grid",
+                                "prism"
+                              ]
+                            },
+                            "frame": {
+                              "type": "string",
+                              "enum": [
+                                "aurora",
+                                "ember",
+                                "frost",
+                                "neon",
+                                "sakura",
+                                "pixel"
+                              ]
+                            },
+                            "effect": {
+                              "type": "string",
+                              "enum": [
+                                "sparkles",
+                                "glow",
+                                "stars",
+                                "bubbles"
+                              ]
+                            },
+                            "nameEffect": {
+                              "type": "string",
+                              "enum": [
+                                "glow",
+                                "shimmer"
+                              ]
+                            },
+                            "assetId": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{64}$"
+                            }
+                          },
+                          "required": [
+                            "colors",
+                            "pattern"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "description": {
+                          "type": "string",
+                          "maxLength": 500
+                        },
+                        "rarity": {
+                          "type": "string",
+                          "enum": [
+                            "common",
+                            "rare",
+                            "epic",
+                            "legendary"
+                          ]
+                        },
+                        "acquisitionType": {
+                          "type": "string",
+                          "enum": [
+                            "free",
+                            "premium",
+                            "event",
+                            "purchase"
+                          ]
+                        },
+                        "price": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100000000
+                        },
+                        "currency": {
+                          "type": "string",
+                          "enum": [
+                            "USD",
+                            "EMBERS"
+                          ]
+                        },
+                        "isActive": {
+                          "type": "boolean"
+                        },
+                        "isFeatured": {
+                          "type": "boolean"
+                        },
+                        "availableFrom": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "availableUntil": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "supportedPlatforms": {
+                          "minItems": 1,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "web",
+                              "android",
+                              "windows",
+                              "macos"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "category",
+                        "version",
+                        "recipe",
+                        "description",
+                        "rarity",
+                        "acquisitionType",
+                        "price",
+                        "currency",
+                        "isActive",
+                        "isFeatured",
+                        "availableFrom",
+                        "availableUntil",
+                        "supportedPlatforms"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "item"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]{2,63}$"
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "category": {
+                    "type": "string",
+                    "enum": [
+                      "avatar-frame",
+                      "avatar-effect",
+                      "background",
+                      "banner",
+                      "profile-theme",
+                      "name-effect",
+                      "badge",
+                      "particles"
+                    ]
+                  },
+                  "version": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "recipe": {
+                    "type": "object",
+                    "properties": {
+                      "colors": {
+                        "minItems": 2,
+                        "maxItems": 2,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^#[0-9a-fA-F]{6}$"
+                        }
+                      },
+                      "pattern": {
+                        "type": "string",
+                        "enum": [
+                          "solid",
+                          "orbit",
+                          "grid",
+                          "prism"
+                        ]
+                      },
+                      "frame": {
+                        "type": "string",
+                        "enum": [
+                          "aurora",
+                          "ember",
+                          "frost",
+                          "neon",
+                          "sakura",
+                          "pixel"
+                        ]
+                      },
+                      "effect": {
+                        "type": "string",
+                        "enum": [
+                          "sparkles",
+                          "glow",
+                          "stars",
+                          "bubbles"
+                        ]
+                      },
+                      "nameEffect": {
+                        "type": "string",
+                        "enum": [
+                          "glow",
+                          "shimmer"
+                        ]
+                      },
+                      "assetId": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      }
+                    },
+                    "required": [
+                      "colors",
+                      "pattern"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "rarity": {
+                    "type": "string",
+                    "enum": [
+                      "common",
+                      "rare",
+                      "epic",
+                      "legendary"
+                    ]
+                  },
+                  "acquisitionType": {
+                    "type": "string",
+                    "enum": [
+                      "free",
+                      "premium",
+                      "event",
+                      "purchase"
+                    ]
+                  },
+                  "price": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100000000
+                  },
+                  "currency": {
+                    "type": "string",
+                    "enum": [
+                      "USD",
+                      "EMBERS"
+                    ]
+                  },
+                  "isActive": {
+                    "type": "boolean"
+                  },
+                  "isFeatured": {
+                    "type": "boolean"
+                  },
+                  "availableFrom": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "availableUntil": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "supportedPlatforms": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "web",
+                        "android",
+                        "windows",
+                        "macos"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "category",
+                  "version",
+                  "recipe",
+                  "description",
+                  "rarity",
+                  "acquisitionType",
+                  "price",
+                  "currency",
+                  "isActive",
+                  "isFeatured",
+                  "availableFrom",
+                  "availableUntil",
+                  "supportedPlatforms"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Profile collection admin"
+        ],
+        "summary": "Deactivate an item and unequip it without deleting ownership history.",
+        "operationId": "deleteAdminV1ProfileCollectiblesId",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{2,63}$"
+            }
+          },
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification."
+      }
+    },
+    "/admin/v1/profile-collectibles/{id}/grant": {
+      "post": {
+        "tags": [
+          "Profile collection admin"
+        ],
+        "summary": "Audited promotional entitlement grant. No payment is simulated.",
+        "operationId": "postAdminV1ProfileCollectiblesIdGrant",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{2,63}$"
+            }
+          },
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "userId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 4,
+                    "maxLength": 300
+                  }
+                },
+                "required": [
+                  "userId",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/v1/profile-collectibles/assets": {
+      "post": {
+        "tags": [
+          "Profile collection admin"
+        ],
+        "summary": "Validate and transcode an administrator raster upload.",
+        "operationId": "postAdminV1ProfileCollectiblesAssets",
+        "parameters": [
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "asset": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "width": {
+                          "type": "number"
+                        },
+                        "height": {
+                          "type": "number"
+                        },
+                        "frames": {
+                          "type": "number"
+                        },
+                        "format": {
+                          "type": "string"
+                        },
+                        "variants": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": "object",
+                            "properties": {
+                              "blob": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string"
+                              },
+                              "bytes": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "blob",
+                              "type",
+                              "bytes"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "width",
+                        "height",
+                        "frames",
+                        "format",
+                        "variants"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "asset"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/v1/profile-collectibles/assets/{id}/{variant}": {
+      "get": {
+        "tags": [
+          "Profile collection admin"
+        ],
+        "summary": "Uncached private asset review.",
+        "operationId": "getAdminV1ProfileCollectiblesAssetsIdVariant",
+        "parameters": [
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The bytes (or 302 to a storage URL)",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification."
+      }
+    },
+    "/admin/v1/profile-collectibles/uploads": {
+      "post": {
+        "tags": [
+          "Profile collection admin"
+        ],
+        "summary": "Sign an exact-size SHA-256-bound S3 upload valid for five minutes.",
+        "operationId": "postAdminV1ProfileCollectiblesUploads",
+        "parameters": [
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "upload": {
+                      "type": "object",
+                      "properties": {
+                        "method": {
+                          "type": "string",
+                          "const": "PUT"
+                        },
+                        "url": {
+                          "type": "string"
+                        },
+                        "headers": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        },
+                        "expiresAt": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "method",
+                        "url",
+                        "headers",
+                        "expiresAt"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "upload"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "size": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 6291456
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "size",
+                  "sha256"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/v1/profile-collectibles/uploads/{id}/complete": {
+      "post": {
+        "tags": [
+          "Profile collection admin"
+        ],
+        "summary": "Verify uploader, expiry, bytes and checksum before decoding and publishing variants.",
+        "operationId": "postAdminV1ProfileCollectiblesUploadsIdComplete",
+        "parameters": [
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "asset": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "width": {
+                          "type": "number"
+                        },
+                        "height": {
+                          "type": "number"
+                        },
+                        "frames": {
+                          "type": "number"
+                        },
+                        "format": {
+                          "type": "string"
+                        },
+                        "variants": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": "object",
+                            "properties": {
+                              "blob": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string"
+                              },
+                              "bytes": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "blob",
+                              "type",
+                              "bytes"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "width",
+                        "height",
+                        "frames",
+                        "format",
+                        "variants"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "asset"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification."
+      }
+    },
     "/admin/v1/orgs/{orgId}": {
       "delete": {
         "tags": [
@@ -13712,6 +16395,108 @@
                         "profileStyle": {
                           "type": "object",
                           "properties": {
+                            "collectibles": {
+                              "maxItems": 8,
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "pattern": "^[a-z][a-z0-9-]{2,63}$"
+                                  },
+                                  "name": {
+                                    "type": "string",
+                                    "maxLength": 80
+                                  },
+                                  "category": {
+                                    "type": "string",
+                                    "enum": [
+                                      "avatar-frame",
+                                      "avatar-effect",
+                                      "background",
+                                      "banner",
+                                      "profile-theme",
+                                      "name-effect",
+                                      "badge",
+                                      "particles"
+                                    ]
+                                  },
+                                  "version": {
+                                    "type": "integer",
+                                    "exclusiveMinimum": 0,
+                                    "maximum": 9007199254740991
+                                  },
+                                  "recipe": {
+                                    "type": "object",
+                                    "properties": {
+                                      "colors": {
+                                        "minItems": 2,
+                                        "maxItems": 2,
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "pattern": "^#[0-9a-fA-F]{6}$"
+                                        }
+                                      },
+                                      "pattern": {
+                                        "type": "string",
+                                        "enum": [
+                                          "solid",
+                                          "orbit",
+                                          "grid",
+                                          "prism"
+                                        ]
+                                      },
+                                      "frame": {
+                                        "type": "string",
+                                        "enum": [
+                                          "aurora",
+                                          "ember",
+                                          "frost",
+                                          "neon",
+                                          "sakura",
+                                          "pixel"
+                                        ]
+                                      },
+                                      "effect": {
+                                        "type": "string",
+                                        "enum": [
+                                          "sparkles",
+                                          "glow",
+                                          "stars",
+                                          "bubbles"
+                                        ]
+                                      },
+                                      "nameEffect": {
+                                        "type": "string",
+                                        "enum": [
+                                          "glow",
+                                          "shimmer"
+                                        ]
+                                      },
+                                      "assetId": {
+                                        "type": "string",
+                                        "pattern": "^[a-f0-9]{64}$"
+                                      }
+                                    },
+                                    "required": [
+                                      "colors",
+                                      "pattern"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "name",
+                                  "category",
+                                  "version",
+                                  "recipe"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
                             "decoration": {
                               "anyOf": [
                                 {
@@ -14305,6 +17090,108 @@
                         "profileStyle": {
                           "type": "object",
                           "properties": {
+                            "collectibles": {
+                              "maxItems": 8,
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "pattern": "^[a-z][a-z0-9-]{2,63}$"
+                                  },
+                                  "name": {
+                                    "type": "string",
+                                    "maxLength": 80
+                                  },
+                                  "category": {
+                                    "type": "string",
+                                    "enum": [
+                                      "avatar-frame",
+                                      "avatar-effect",
+                                      "background",
+                                      "banner",
+                                      "profile-theme",
+                                      "name-effect",
+                                      "badge",
+                                      "particles"
+                                    ]
+                                  },
+                                  "version": {
+                                    "type": "integer",
+                                    "exclusiveMinimum": 0,
+                                    "maximum": 9007199254740991
+                                  },
+                                  "recipe": {
+                                    "type": "object",
+                                    "properties": {
+                                      "colors": {
+                                        "minItems": 2,
+                                        "maxItems": 2,
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "pattern": "^#[0-9a-fA-F]{6}$"
+                                        }
+                                      },
+                                      "pattern": {
+                                        "type": "string",
+                                        "enum": [
+                                          "solid",
+                                          "orbit",
+                                          "grid",
+                                          "prism"
+                                        ]
+                                      },
+                                      "frame": {
+                                        "type": "string",
+                                        "enum": [
+                                          "aurora",
+                                          "ember",
+                                          "frost",
+                                          "neon",
+                                          "sakura",
+                                          "pixel"
+                                        ]
+                                      },
+                                      "effect": {
+                                        "type": "string",
+                                        "enum": [
+                                          "sparkles",
+                                          "glow",
+                                          "stars",
+                                          "bubbles"
+                                        ]
+                                      },
+                                      "nameEffect": {
+                                        "type": "string",
+                                        "enum": [
+                                          "glow",
+                                          "shimmer"
+                                        ]
+                                      },
+                                      "assetId": {
+                                        "type": "string",
+                                        "pattern": "^[a-f0-9]{64}$"
+                                      }
+                                    },
+                                    "required": [
+                                      "colors",
+                                      "pattern"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "name",
+                                  "category",
+                                  "version",
+                                  "recipe"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
                             "decoration": {
                               "anyOf": [
                                 {
@@ -15767,6 +18654,108 @@
                     "profileStyle": {
                       "type": "object",
                       "properties": {
+                        "collectibles": {
+                          "maxItems": 8,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-z][a-z0-9-]{2,63}$"
+                              },
+                              "name": {
+                                "type": "string",
+                                "maxLength": 80
+                              },
+                              "category": {
+                                "type": "string",
+                                "enum": [
+                                  "avatar-frame",
+                                  "avatar-effect",
+                                  "background",
+                                  "banner",
+                                  "profile-theme",
+                                  "name-effect",
+                                  "badge",
+                                  "particles"
+                                ]
+                              },
+                              "version": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "recipe": {
+                                "type": "object",
+                                "properties": {
+                                  "colors": {
+                                    "minItems": 2,
+                                    "maxItems": 2,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "pattern": "^#[0-9a-fA-F]{6}$"
+                                    }
+                                  },
+                                  "pattern": {
+                                    "type": "string",
+                                    "enum": [
+                                      "solid",
+                                      "orbit",
+                                      "grid",
+                                      "prism"
+                                    ]
+                                  },
+                                  "frame": {
+                                    "type": "string",
+                                    "enum": [
+                                      "aurora",
+                                      "ember",
+                                      "frost",
+                                      "neon",
+                                      "sakura",
+                                      "pixel"
+                                    ]
+                                  },
+                                  "effect": {
+                                    "type": "string",
+                                    "enum": [
+                                      "sparkles",
+                                      "glow",
+                                      "stars",
+                                      "bubbles"
+                                    ]
+                                  },
+                                  "nameEffect": {
+                                    "type": "string",
+                                    "enum": [
+                                      "glow",
+                                      "shimmer"
+                                    ]
+                                  },
+                                  "assetId": {
+                                    "type": "string",
+                                    "pattern": "^[a-f0-9]{64}$"
+                                  }
+                                },
+                                "required": [
+                                  "colors",
+                                  "pattern"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name",
+                              "category",
+                              "version",
+                              "recipe"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
                         "decoration": {
                           "anyOf": [
                             {
@@ -16464,6 +19453,108 @@
                         "profileStyle": {
                           "type": "object",
                           "properties": {
+                            "collectibles": {
+                              "maxItems": 8,
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "pattern": "^[a-z][a-z0-9-]{2,63}$"
+                                  },
+                                  "name": {
+                                    "type": "string",
+                                    "maxLength": 80
+                                  },
+                                  "category": {
+                                    "type": "string",
+                                    "enum": [
+                                      "avatar-frame",
+                                      "avatar-effect",
+                                      "background",
+                                      "banner",
+                                      "profile-theme",
+                                      "name-effect",
+                                      "badge",
+                                      "particles"
+                                    ]
+                                  },
+                                  "version": {
+                                    "type": "integer",
+                                    "exclusiveMinimum": 0,
+                                    "maximum": 9007199254740991
+                                  },
+                                  "recipe": {
+                                    "type": "object",
+                                    "properties": {
+                                      "colors": {
+                                        "minItems": 2,
+                                        "maxItems": 2,
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "pattern": "^#[0-9a-fA-F]{6}$"
+                                        }
+                                      },
+                                      "pattern": {
+                                        "type": "string",
+                                        "enum": [
+                                          "solid",
+                                          "orbit",
+                                          "grid",
+                                          "prism"
+                                        ]
+                                      },
+                                      "frame": {
+                                        "type": "string",
+                                        "enum": [
+                                          "aurora",
+                                          "ember",
+                                          "frost",
+                                          "neon",
+                                          "sakura",
+                                          "pixel"
+                                        ]
+                                      },
+                                      "effect": {
+                                        "type": "string",
+                                        "enum": [
+                                          "sparkles",
+                                          "glow",
+                                          "stars",
+                                          "bubbles"
+                                        ]
+                                      },
+                                      "nameEffect": {
+                                        "type": "string",
+                                        "enum": [
+                                          "glow",
+                                          "shimmer"
+                                        ]
+                                      },
+                                      "assetId": {
+                                        "type": "string",
+                                        "pattern": "^[a-f0-9]{64}$"
+                                      }
+                                    },
+                                    "required": [
+                                      "colors",
+                                      "pattern"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "name",
+                                  "category",
+                                  "version",
+                                  "recipe"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
                             "decoration": {
                               "anyOf": [
                                 {
@@ -26695,6 +29786,108 @@
                           "profileStyle": {
                             "type": "object",
                             "properties": {
+                              "collectibles": {
+                                "maxItems": 8,
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string",
+                                      "pattern": "^[a-z][a-z0-9-]{2,63}$"
+                                    },
+                                    "name": {
+                                      "type": "string",
+                                      "maxLength": 80
+                                    },
+                                    "category": {
+                                      "type": "string",
+                                      "enum": [
+                                        "avatar-frame",
+                                        "avatar-effect",
+                                        "background",
+                                        "banner",
+                                        "profile-theme",
+                                        "name-effect",
+                                        "badge",
+                                        "particles"
+                                      ]
+                                    },
+                                    "version": {
+                                      "type": "integer",
+                                      "exclusiveMinimum": 0,
+                                      "maximum": 9007199254740991
+                                    },
+                                    "recipe": {
+                                      "type": "object",
+                                      "properties": {
+                                        "colors": {
+                                          "minItems": 2,
+                                          "maxItems": 2,
+                                          "type": "array",
+                                          "items": {
+                                            "type": "string",
+                                            "pattern": "^#[0-9a-fA-F]{6}$"
+                                          }
+                                        },
+                                        "pattern": {
+                                          "type": "string",
+                                          "enum": [
+                                            "solid",
+                                            "orbit",
+                                            "grid",
+                                            "prism"
+                                          ]
+                                        },
+                                        "frame": {
+                                          "type": "string",
+                                          "enum": [
+                                            "aurora",
+                                            "ember",
+                                            "frost",
+                                            "neon",
+                                            "sakura",
+                                            "pixel"
+                                          ]
+                                        },
+                                        "effect": {
+                                          "type": "string",
+                                          "enum": [
+                                            "sparkles",
+                                            "glow",
+                                            "stars",
+                                            "bubbles"
+                                          ]
+                                        },
+                                        "nameEffect": {
+                                          "type": "string",
+                                          "enum": [
+                                            "glow",
+                                            "shimmer"
+                                          ]
+                                        },
+                                        "assetId": {
+                                          "type": "string",
+                                          "pattern": "^[a-f0-9]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "colors",
+                                        "pattern"
+                                      ],
+                                      "additionalProperties": false
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "name",
+                                    "category",
+                                    "version",
+                                    "recipe"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
                               "decoration": {
                                 "anyOf": [
                                   {
@@ -29233,6 +32426,108 @@
                               "profileStyle": {
                                 "type": "object",
                                 "properties": {
+                                  "collectibles": {
+                                    "maxItems": 8,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "id": {
+                                          "type": "string",
+                                          "pattern": "^[a-z][a-z0-9-]{2,63}$"
+                                        },
+                                        "name": {
+                                          "type": "string",
+                                          "maxLength": 80
+                                        },
+                                        "category": {
+                                          "type": "string",
+                                          "enum": [
+                                            "avatar-frame",
+                                            "avatar-effect",
+                                            "background",
+                                            "banner",
+                                            "profile-theme",
+                                            "name-effect",
+                                            "badge",
+                                            "particles"
+                                          ]
+                                        },
+                                        "version": {
+                                          "type": "integer",
+                                          "exclusiveMinimum": 0,
+                                          "maximum": 9007199254740991
+                                        },
+                                        "recipe": {
+                                          "type": "object",
+                                          "properties": {
+                                            "colors": {
+                                              "minItems": 2,
+                                              "maxItems": 2,
+                                              "type": "array",
+                                              "items": {
+                                                "type": "string",
+                                                "pattern": "^#[0-9a-fA-F]{6}$"
+                                              }
+                                            },
+                                            "pattern": {
+                                              "type": "string",
+                                              "enum": [
+                                                "solid",
+                                                "orbit",
+                                                "grid",
+                                                "prism"
+                                              ]
+                                            },
+                                            "frame": {
+                                              "type": "string",
+                                              "enum": [
+                                                "aurora",
+                                                "ember",
+                                                "frost",
+                                                "neon",
+                                                "sakura",
+                                                "pixel"
+                                              ]
+                                            },
+                                            "effect": {
+                                              "type": "string",
+                                              "enum": [
+                                                "sparkles",
+                                                "glow",
+                                                "stars",
+                                                "bubbles"
+                                              ]
+                                            },
+                                            "nameEffect": {
+                                              "type": "string",
+                                              "enum": [
+                                                "glow",
+                                                "shimmer"
+                                              ]
+                                            },
+                                            "assetId": {
+                                              "type": "string",
+                                              "pattern": "^[a-f0-9]{64}$"
+                                            }
+                                          },
+                                          "required": [
+                                            "colors",
+                                            "pattern"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "required": [
+                                        "id",
+                                        "name",
+                                        "category",
+                                        "version",
+                                        "recipe"
+                                      ],
+                                      "additionalProperties": false
+                                    }
+                                  },
                                   "decoration": {
                                     "anyOf": [
                                       {
@@ -30205,6 +33500,108 @@
                                 "profileStyle": {
                                   "type": "object",
                                   "properties": {
+                                    "collectibles": {
+                                      "maxItems": 8,
+                                      "type": "array",
+                                      "items": {
+                                        "type": "object",
+                                        "properties": {
+                                          "id": {
+                                            "type": "string",
+                                            "pattern": "^[a-z][a-z0-9-]{2,63}$"
+                                          },
+                                          "name": {
+                                            "type": "string",
+                                            "maxLength": 80
+                                          },
+                                          "category": {
+                                            "type": "string",
+                                            "enum": [
+                                              "avatar-frame",
+                                              "avatar-effect",
+                                              "background",
+                                              "banner",
+                                              "profile-theme",
+                                              "name-effect",
+                                              "badge",
+                                              "particles"
+                                            ]
+                                          },
+                                          "version": {
+                                            "type": "integer",
+                                            "exclusiveMinimum": 0,
+                                            "maximum": 9007199254740991
+                                          },
+                                          "recipe": {
+                                            "type": "object",
+                                            "properties": {
+                                              "colors": {
+                                                "minItems": 2,
+                                                "maxItems": 2,
+                                                "type": "array",
+                                                "items": {
+                                                  "type": "string",
+                                                  "pattern": "^#[0-9a-fA-F]{6}$"
+                                                }
+                                              },
+                                              "pattern": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "solid",
+                                                  "orbit",
+                                                  "grid",
+                                                  "prism"
+                                                ]
+                                              },
+                                              "frame": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "aurora",
+                                                  "ember",
+                                                  "frost",
+                                                  "neon",
+                                                  "sakura",
+                                                  "pixel"
+                                                ]
+                                              },
+                                              "effect": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "sparkles",
+                                                  "glow",
+                                                  "stars",
+                                                  "bubbles"
+                                                ]
+                                              },
+                                              "nameEffect": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "glow",
+                                                  "shimmer"
+                                                ]
+                                              },
+                                              "assetId": {
+                                                "type": "string",
+                                                "pattern": "^[a-f0-9]{64}$"
+                                              }
+                                            },
+                                            "required": [
+                                              "colors",
+                                              "pattern"
+                                            ],
+                                            "additionalProperties": false
+                                          }
+                                        },
+                                        "required": [
+                                          "id",
+                                          "name",
+                                          "category",
+                                          "version",
+                                          "recipe"
+                                        ],
+                                        "additionalProperties": false
+                                      }
+                                    },
                                     "decoration": {
                                       "anyOf": [
                                         {
@@ -56327,6 +59724,108 @@
                                 "profileStyle": {
                                   "type": "object",
                                   "properties": {
+                                    "collectibles": {
+                                      "maxItems": 8,
+                                      "type": "array",
+                                      "items": {
+                                        "type": "object",
+                                        "properties": {
+                                          "id": {
+                                            "type": "string",
+                                            "pattern": "^[a-z][a-z0-9-]{2,63}$"
+                                          },
+                                          "name": {
+                                            "type": "string",
+                                            "maxLength": 80
+                                          },
+                                          "category": {
+                                            "type": "string",
+                                            "enum": [
+                                              "avatar-frame",
+                                              "avatar-effect",
+                                              "background",
+                                              "banner",
+                                              "profile-theme",
+                                              "name-effect",
+                                              "badge",
+                                              "particles"
+                                            ]
+                                          },
+                                          "version": {
+                                            "type": "integer",
+                                            "exclusiveMinimum": 0,
+                                            "maximum": 9007199254740991
+                                          },
+                                          "recipe": {
+                                            "type": "object",
+                                            "properties": {
+                                              "colors": {
+                                                "minItems": 2,
+                                                "maxItems": 2,
+                                                "type": "array",
+                                                "items": {
+                                                  "type": "string",
+                                                  "pattern": "^#[0-9a-fA-F]{6}$"
+                                                }
+                                              },
+                                              "pattern": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "solid",
+                                                  "orbit",
+                                                  "grid",
+                                                  "prism"
+                                                ]
+                                              },
+                                              "frame": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "aurora",
+                                                  "ember",
+                                                  "frost",
+                                                  "neon",
+                                                  "sakura",
+                                                  "pixel"
+                                                ]
+                                              },
+                                              "effect": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "sparkles",
+                                                  "glow",
+                                                  "stars",
+                                                  "bubbles"
+                                                ]
+                                              },
+                                              "nameEffect": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "glow",
+                                                  "shimmer"
+                                                ]
+                                              },
+                                              "assetId": {
+                                                "type": "string",
+                                                "pattern": "^[a-f0-9]{64}$"
+                                              }
+                                            },
+                                            "required": [
+                                              "colors",
+                                              "pattern"
+                                            ],
+                                            "additionalProperties": false
+                                          }
+                                        },
+                                        "required": [
+                                          "id",
+                                          "name",
+                                          "category",
+                                          "version",
+                                          "recipe"
+                                        ],
+                                        "additionalProperties": false
+                                      }
+                                    },
                                     "decoration": {
                                       "anyOf": [
                                         {
@@ -57251,6 +60750,108 @@
                               "profileStyle": {
                                 "type": "object",
                                 "properties": {
+                                  "collectibles": {
+                                    "maxItems": 8,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "id": {
+                                          "type": "string",
+                                          "pattern": "^[a-z][a-z0-9-]{2,63}$"
+                                        },
+                                        "name": {
+                                          "type": "string",
+                                          "maxLength": 80
+                                        },
+                                        "category": {
+                                          "type": "string",
+                                          "enum": [
+                                            "avatar-frame",
+                                            "avatar-effect",
+                                            "background",
+                                            "banner",
+                                            "profile-theme",
+                                            "name-effect",
+                                            "badge",
+                                            "particles"
+                                          ]
+                                        },
+                                        "version": {
+                                          "type": "integer",
+                                          "exclusiveMinimum": 0,
+                                          "maximum": 9007199254740991
+                                        },
+                                        "recipe": {
+                                          "type": "object",
+                                          "properties": {
+                                            "colors": {
+                                              "minItems": 2,
+                                              "maxItems": 2,
+                                              "type": "array",
+                                              "items": {
+                                                "type": "string",
+                                                "pattern": "^#[0-9a-fA-F]{6}$"
+                                              }
+                                            },
+                                            "pattern": {
+                                              "type": "string",
+                                              "enum": [
+                                                "solid",
+                                                "orbit",
+                                                "grid",
+                                                "prism"
+                                              ]
+                                            },
+                                            "frame": {
+                                              "type": "string",
+                                              "enum": [
+                                                "aurora",
+                                                "ember",
+                                                "frost",
+                                                "neon",
+                                                "sakura",
+                                                "pixel"
+                                              ]
+                                            },
+                                            "effect": {
+                                              "type": "string",
+                                              "enum": [
+                                                "sparkles",
+                                                "glow",
+                                                "stars",
+                                                "bubbles"
+                                              ]
+                                            },
+                                            "nameEffect": {
+                                              "type": "string",
+                                              "enum": [
+                                                "glow",
+                                                "shimmer"
+                                              ]
+                                            },
+                                            "assetId": {
+                                              "type": "string",
+                                              "pattern": "^[a-f0-9]{64}$"
+                                            }
+                                          },
+                                          "required": [
+                                            "colors",
+                                            "pattern"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "required": [
+                                        "id",
+                                        "name",
+                                        "category",
+                                        "version",
+                                        "recipe"
+                                      ],
+                                      "additionalProperties": false
+                                    }
+                                  },
                                   "decoration": {
                                     "anyOf": [
                                       {
@@ -58115,6 +61716,108 @@
                               "profileStyle": {
                                 "type": "object",
                                 "properties": {
+                                  "collectibles": {
+                                    "maxItems": 8,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "id": {
+                                          "type": "string",
+                                          "pattern": "^[a-z][a-z0-9-]{2,63}$"
+                                        },
+                                        "name": {
+                                          "type": "string",
+                                          "maxLength": 80
+                                        },
+                                        "category": {
+                                          "type": "string",
+                                          "enum": [
+                                            "avatar-frame",
+                                            "avatar-effect",
+                                            "background",
+                                            "banner",
+                                            "profile-theme",
+                                            "name-effect",
+                                            "badge",
+                                            "particles"
+                                          ]
+                                        },
+                                        "version": {
+                                          "type": "integer",
+                                          "exclusiveMinimum": 0,
+                                          "maximum": 9007199254740991
+                                        },
+                                        "recipe": {
+                                          "type": "object",
+                                          "properties": {
+                                            "colors": {
+                                              "minItems": 2,
+                                              "maxItems": 2,
+                                              "type": "array",
+                                              "items": {
+                                                "type": "string",
+                                                "pattern": "^#[0-9a-fA-F]{6}$"
+                                              }
+                                            },
+                                            "pattern": {
+                                              "type": "string",
+                                              "enum": [
+                                                "solid",
+                                                "orbit",
+                                                "grid",
+                                                "prism"
+                                              ]
+                                            },
+                                            "frame": {
+                                              "type": "string",
+                                              "enum": [
+                                                "aurora",
+                                                "ember",
+                                                "frost",
+                                                "neon",
+                                                "sakura",
+                                                "pixel"
+                                              ]
+                                            },
+                                            "effect": {
+                                              "type": "string",
+                                              "enum": [
+                                                "sparkles",
+                                                "glow",
+                                                "stars",
+                                                "bubbles"
+                                              ]
+                                            },
+                                            "nameEffect": {
+                                              "type": "string",
+                                              "enum": [
+                                                "glow",
+                                                "shimmer"
+                                              ]
+                                            },
+                                            "assetId": {
+                                              "type": "string",
+                                              "pattern": "^[a-f0-9]{64}$"
+                                            }
+                                          },
+                                          "required": [
+                                            "colors",
+                                            "pattern"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "required": [
+                                        "id",
+                                        "name",
+                                        "category",
+                                        "version",
+                                        "recipe"
+                                      ],
+                                      "additionalProperties": false
+                                    }
+                                  },
                                   "decoration": {
                                     "anyOf": [
                                       {
@@ -58942,6 +62645,108 @@
                           "profileStyle": {
                             "type": "object",
                             "properties": {
+                              "collectibles": {
+                                "maxItems": 8,
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string",
+                                      "pattern": "^[a-z][a-z0-9-]{2,63}$"
+                                    },
+                                    "name": {
+                                      "type": "string",
+                                      "maxLength": 80
+                                    },
+                                    "category": {
+                                      "type": "string",
+                                      "enum": [
+                                        "avatar-frame",
+                                        "avatar-effect",
+                                        "background",
+                                        "banner",
+                                        "profile-theme",
+                                        "name-effect",
+                                        "badge",
+                                        "particles"
+                                      ]
+                                    },
+                                    "version": {
+                                      "type": "integer",
+                                      "exclusiveMinimum": 0,
+                                      "maximum": 9007199254740991
+                                    },
+                                    "recipe": {
+                                      "type": "object",
+                                      "properties": {
+                                        "colors": {
+                                          "minItems": 2,
+                                          "maxItems": 2,
+                                          "type": "array",
+                                          "items": {
+                                            "type": "string",
+                                            "pattern": "^#[0-9a-fA-F]{6}$"
+                                          }
+                                        },
+                                        "pattern": {
+                                          "type": "string",
+                                          "enum": [
+                                            "solid",
+                                            "orbit",
+                                            "grid",
+                                            "prism"
+                                          ]
+                                        },
+                                        "frame": {
+                                          "type": "string",
+                                          "enum": [
+                                            "aurora",
+                                            "ember",
+                                            "frost",
+                                            "neon",
+                                            "sakura",
+                                            "pixel"
+                                          ]
+                                        },
+                                        "effect": {
+                                          "type": "string",
+                                          "enum": [
+                                            "sparkles",
+                                            "glow",
+                                            "stars",
+                                            "bubbles"
+                                          ]
+                                        },
+                                        "nameEffect": {
+                                          "type": "string",
+                                          "enum": [
+                                            "glow",
+                                            "shimmer"
+                                          ]
+                                        },
+                                        "assetId": {
+                                          "type": "string",
+                                          "pattern": "^[a-f0-9]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "colors",
+                                        "pattern"
+                                      ],
+                                      "additionalProperties": false
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "name",
+                                    "category",
+                                    "version",
+                                    "recipe"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
                               "decoration": {
                                 "anyOf": [
                                   {
@@ -59702,6 +63507,108 @@
                               "profileStyle": {
                                 "type": "object",
                                 "properties": {
+                                  "collectibles": {
+                                    "maxItems": 8,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "id": {
+                                          "type": "string",
+                                          "pattern": "^[a-z][a-z0-9-]{2,63}$"
+                                        },
+                                        "name": {
+                                          "type": "string",
+                                          "maxLength": 80
+                                        },
+                                        "category": {
+                                          "type": "string",
+                                          "enum": [
+                                            "avatar-frame",
+                                            "avatar-effect",
+                                            "background",
+                                            "banner",
+                                            "profile-theme",
+                                            "name-effect",
+                                            "badge",
+                                            "particles"
+                                          ]
+                                        },
+                                        "version": {
+                                          "type": "integer",
+                                          "exclusiveMinimum": 0,
+                                          "maximum": 9007199254740991
+                                        },
+                                        "recipe": {
+                                          "type": "object",
+                                          "properties": {
+                                            "colors": {
+                                              "minItems": 2,
+                                              "maxItems": 2,
+                                              "type": "array",
+                                              "items": {
+                                                "type": "string",
+                                                "pattern": "^#[0-9a-fA-F]{6}$"
+                                              }
+                                            },
+                                            "pattern": {
+                                              "type": "string",
+                                              "enum": [
+                                                "solid",
+                                                "orbit",
+                                                "grid",
+                                                "prism"
+                                              ]
+                                            },
+                                            "frame": {
+                                              "type": "string",
+                                              "enum": [
+                                                "aurora",
+                                                "ember",
+                                                "frost",
+                                                "neon",
+                                                "sakura",
+                                                "pixel"
+                                              ]
+                                            },
+                                            "effect": {
+                                              "type": "string",
+                                              "enum": [
+                                                "sparkles",
+                                                "glow",
+                                                "stars",
+                                                "bubbles"
+                                              ]
+                                            },
+                                            "nameEffect": {
+                                              "type": "string",
+                                              "enum": [
+                                                "glow",
+                                                "shimmer"
+                                              ]
+                                            },
+                                            "assetId": {
+                                              "type": "string",
+                                              "pattern": "^[a-f0-9]{64}$"
+                                            }
+                                          },
+                                          "required": [
+                                            "colors",
+                                            "pattern"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "required": [
+                                        "id",
+                                        "name",
+                                        "category",
+                                        "version",
+                                        "recipe"
+                                      ],
+                                      "additionalProperties": false
+                                    }
+                                  },
                                   "decoration": {
                                     "anyOf": [
                                       {
@@ -60746,6 +64653,108 @@
                               "profileStyle": {
                                 "type": "object",
                                 "properties": {
+                                  "collectibles": {
+                                    "maxItems": 8,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "id": {
+                                          "type": "string",
+                                          "pattern": "^[a-z][a-z0-9-]{2,63}$"
+                                        },
+                                        "name": {
+                                          "type": "string",
+                                          "maxLength": 80
+                                        },
+                                        "category": {
+                                          "type": "string",
+                                          "enum": [
+                                            "avatar-frame",
+                                            "avatar-effect",
+                                            "background",
+                                            "banner",
+                                            "profile-theme",
+                                            "name-effect",
+                                            "badge",
+                                            "particles"
+                                          ]
+                                        },
+                                        "version": {
+                                          "type": "integer",
+                                          "exclusiveMinimum": 0,
+                                          "maximum": 9007199254740991
+                                        },
+                                        "recipe": {
+                                          "type": "object",
+                                          "properties": {
+                                            "colors": {
+                                              "minItems": 2,
+                                              "maxItems": 2,
+                                              "type": "array",
+                                              "items": {
+                                                "type": "string",
+                                                "pattern": "^#[0-9a-fA-F]{6}$"
+                                              }
+                                            },
+                                            "pattern": {
+                                              "type": "string",
+                                              "enum": [
+                                                "solid",
+                                                "orbit",
+                                                "grid",
+                                                "prism"
+                                              ]
+                                            },
+                                            "frame": {
+                                              "type": "string",
+                                              "enum": [
+                                                "aurora",
+                                                "ember",
+                                                "frost",
+                                                "neon",
+                                                "sakura",
+                                                "pixel"
+                                              ]
+                                            },
+                                            "effect": {
+                                              "type": "string",
+                                              "enum": [
+                                                "sparkles",
+                                                "glow",
+                                                "stars",
+                                                "bubbles"
+                                              ]
+                                            },
+                                            "nameEffect": {
+                                              "type": "string",
+                                              "enum": [
+                                                "glow",
+                                                "shimmer"
+                                              ]
+                                            },
+                                            "assetId": {
+                                              "type": "string",
+                                              "pattern": "^[a-f0-9]{64}$"
+                                            }
+                                          },
+                                          "required": [
+                                            "colors",
+                                            "pattern"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "required": [
+                                        "id",
+                                        "name",
+                                        "category",
+                                        "version",
+                                        "recipe"
+                                      ],
+                                      "additionalProperties": false
+                                    }
+                                  },
                                   "decoration": {
                                     "anyOf": [
                                       {
@@ -61606,6 +65615,108 @@
                               "profileStyle": {
                                 "type": "object",
                                 "properties": {
+                                  "collectibles": {
+                                    "maxItems": 8,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "id": {
+                                          "type": "string",
+                                          "pattern": "^[a-z][a-z0-9-]{2,63}$"
+                                        },
+                                        "name": {
+                                          "type": "string",
+                                          "maxLength": 80
+                                        },
+                                        "category": {
+                                          "type": "string",
+                                          "enum": [
+                                            "avatar-frame",
+                                            "avatar-effect",
+                                            "background",
+                                            "banner",
+                                            "profile-theme",
+                                            "name-effect",
+                                            "badge",
+                                            "particles"
+                                          ]
+                                        },
+                                        "version": {
+                                          "type": "integer",
+                                          "exclusiveMinimum": 0,
+                                          "maximum": 9007199254740991
+                                        },
+                                        "recipe": {
+                                          "type": "object",
+                                          "properties": {
+                                            "colors": {
+                                              "minItems": 2,
+                                              "maxItems": 2,
+                                              "type": "array",
+                                              "items": {
+                                                "type": "string",
+                                                "pattern": "^#[0-9a-fA-F]{6}$"
+                                              }
+                                            },
+                                            "pattern": {
+                                              "type": "string",
+                                              "enum": [
+                                                "solid",
+                                                "orbit",
+                                                "grid",
+                                                "prism"
+                                              ]
+                                            },
+                                            "frame": {
+                                              "type": "string",
+                                              "enum": [
+                                                "aurora",
+                                                "ember",
+                                                "frost",
+                                                "neon",
+                                                "sakura",
+                                                "pixel"
+                                              ]
+                                            },
+                                            "effect": {
+                                              "type": "string",
+                                              "enum": [
+                                                "sparkles",
+                                                "glow",
+                                                "stars",
+                                                "bubbles"
+                                              ]
+                                            },
+                                            "nameEffect": {
+                                              "type": "string",
+                                              "enum": [
+                                                "glow",
+                                                "shimmer"
+                                              ]
+                                            },
+                                            "assetId": {
+                                              "type": "string",
+                                              "pattern": "^[a-f0-9]{64}$"
+                                            }
+                                          },
+                                          "required": [
+                                            "colors",
+                                            "pattern"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "required": [
+                                        "id",
+                                        "name",
+                                        "category",
+                                        "version",
+                                        "recipe"
+                                      ],
+                                      "additionalProperties": false
+                                    }
+                                  },
                                   "decoration": {
                                     "anyOf": [
                                       {
@@ -62738,6 +66849,108 @@
                                         "profileStyle": {
                                           "type": "object",
                                           "properties": {
+                                            "collectibles": {
+                                              "maxItems": 8,
+                                              "type": "array",
+                                              "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                  "id": {
+                                                    "type": "string",
+                                                    "pattern": "^[a-z][a-z0-9-]{2,63}$"
+                                                  },
+                                                  "name": {
+                                                    "type": "string",
+                                                    "maxLength": 80
+                                                  },
+                                                  "category": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                      "avatar-frame",
+                                                      "avatar-effect",
+                                                      "background",
+                                                      "banner",
+                                                      "profile-theme",
+                                                      "name-effect",
+                                                      "badge",
+                                                      "particles"
+                                                    ]
+                                                  },
+                                                  "version": {
+                                                    "type": "integer",
+                                                    "exclusiveMinimum": 0,
+                                                    "maximum": 9007199254740991
+                                                  },
+                                                  "recipe": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                      "colors": {
+                                                        "minItems": 2,
+                                                        "maxItems": 2,
+                                                        "type": "array",
+                                                        "items": {
+                                                          "type": "string",
+                                                          "pattern": "^#[0-9a-fA-F]{6}$"
+                                                        }
+                                                      },
+                                                      "pattern": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                          "solid",
+                                                          "orbit",
+                                                          "grid",
+                                                          "prism"
+                                                        ]
+                                                      },
+                                                      "frame": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                          "aurora",
+                                                          "ember",
+                                                          "frost",
+                                                          "neon",
+                                                          "sakura",
+                                                          "pixel"
+                                                        ]
+                                                      },
+                                                      "effect": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                          "sparkles",
+                                                          "glow",
+                                                          "stars",
+                                                          "bubbles"
+                                                        ]
+                                                      },
+                                                      "nameEffect": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                          "glow",
+                                                          "shimmer"
+                                                        ]
+                                                      },
+                                                      "assetId": {
+                                                        "type": "string",
+                                                        "pattern": "^[a-f0-9]{64}$"
+                                                      }
+                                                    },
+                                                    "required": [
+                                                      "colors",
+                                                      "pattern"
+                                                    ],
+                                                    "additionalProperties": false
+                                                  }
+                                                },
+                                                "required": [
+                                                  "id",
+                                                  "name",
+                                                  "category",
+                                                  "version",
+                                                  "recipe"
+                                                ],
+                                                "additionalProperties": false
+                                              }
+                                            },
                                             "decoration": {
                                               "anyOf": [
                                                 {
@@ -63595,6 +67808,108 @@
                                         "profileStyle": {
                                           "type": "object",
                                           "properties": {
+                                            "collectibles": {
+                                              "maxItems": 8,
+                                              "type": "array",
+                                              "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                  "id": {
+                                                    "type": "string",
+                                                    "pattern": "^[a-z][a-z0-9-]{2,63}$"
+                                                  },
+                                                  "name": {
+                                                    "type": "string",
+                                                    "maxLength": 80
+                                                  },
+                                                  "category": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                      "avatar-frame",
+                                                      "avatar-effect",
+                                                      "background",
+                                                      "banner",
+                                                      "profile-theme",
+                                                      "name-effect",
+                                                      "badge",
+                                                      "particles"
+                                                    ]
+                                                  },
+                                                  "version": {
+                                                    "type": "integer",
+                                                    "exclusiveMinimum": 0,
+                                                    "maximum": 9007199254740991
+                                                  },
+                                                  "recipe": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                      "colors": {
+                                                        "minItems": 2,
+                                                        "maxItems": 2,
+                                                        "type": "array",
+                                                        "items": {
+                                                          "type": "string",
+                                                          "pattern": "^#[0-9a-fA-F]{6}$"
+                                                        }
+                                                      },
+                                                      "pattern": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                          "solid",
+                                                          "orbit",
+                                                          "grid",
+                                                          "prism"
+                                                        ]
+                                                      },
+                                                      "frame": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                          "aurora",
+                                                          "ember",
+                                                          "frost",
+                                                          "neon",
+                                                          "sakura",
+                                                          "pixel"
+                                                        ]
+                                                      },
+                                                      "effect": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                          "sparkles",
+                                                          "glow",
+                                                          "stars",
+                                                          "bubbles"
+                                                        ]
+                                                      },
+                                                      "nameEffect": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                          "glow",
+                                                          "shimmer"
+                                                        ]
+                                                      },
+                                                      "assetId": {
+                                                        "type": "string",
+                                                        "pattern": "^[a-f0-9]{64}$"
+                                                      }
+                                                    },
+                                                    "required": [
+                                                      "colors",
+                                                      "pattern"
+                                                    ],
+                                                    "additionalProperties": false
+                                                  }
+                                                },
+                                                "required": [
+                                                  "id",
+                                                  "name",
+                                                  "category",
+                                                  "version",
+                                                  "recipe"
+                                                ],
+                                                "additionalProperties": false
+                                              }
+                                            },
                                             "decoration": {
                                               "anyOf": [
                                                 {
@@ -77966,6 +82281,13 @@
               "code": {
                 "type": "string",
                 "enum": [
+                  "collectible_unavailable",
+                  "acquisition_required",
+                  "not_owned",
+                  "wrong_category",
+                  "unknown_asset",
+                  "direct_unavailable",
+                  "bad_upload",
                   "account_deleted",
                   "account_disabled",
                   "invite_slug_invalid",
@@ -78301,6 +82623,48 @@
     }
   },
   "x-error-codes": {
+    "collectible_unavailable": {
+      "status": [
+        409
+      ],
+      "meaning": "Decoration is unavailable."
+    },
+    "acquisition_required": {
+      "status": [
+        403
+      ],
+      "meaning": "An authorized ownership grant is required."
+    },
+    "not_owned": {
+      "status": [
+        403
+      ],
+      "meaning": "Decoration is not owned."
+    },
+    "wrong_category": {
+      "status": [
+        400
+      ],
+      "meaning": "Decoration does not fit the slot."
+    },
+    "unknown_asset": {
+      "status": [
+        400
+      ],
+      "meaning": "Asset must be validated first."
+    },
+    "direct_unavailable": {
+      "status": [
+        409
+      ],
+      "meaning": "Use the server upload."
+    },
+    "bad_upload": {
+      "status": [
+        400
+      ],
+      "meaning": "Upload size or checksum does not match."
+    },
     "account_deleted": {
       "status": [
         401

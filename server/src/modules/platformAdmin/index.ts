@@ -6,6 +6,7 @@ import adminAuthRoutes from "./authRoutes.js";
 import adminDataRoutes from "./dataRoutes.js";
 import adminOpsRoutes from "./opsRoutes.js";
 import adminInsightsRoutes from "./insightsRoutes.js";
+import collectibleAdminRoutes from "./collectibles.js";
 import adminDecorationRoutes from "./decorations.js";
 import adminCreatorRoutes from "./creators.js";
 import adminBotsPlusRoutes from "./botsPlus.js";
@@ -41,6 +42,7 @@ export async function registerPlatformAdmin(app: FastifyInstance, ctx: AppContex
     await adminOpsRoutes(scope, deps);
     await adminInsightsRoutes(scope, deps);
     await adminDecorationRoutes(scope, deps);
+    await collectibleAdminRoutes(scope, deps);
     await adminCreatorRoutes(scope, deps);
     // Community parity batch D: Bots+ for a community, while billing for it is off.
     await adminBotsPlusRoutes(scope, deps);

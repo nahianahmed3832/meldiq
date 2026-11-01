@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "wrong_category",
+    "message": "Decoration does not fit this slot"
+  }
+}

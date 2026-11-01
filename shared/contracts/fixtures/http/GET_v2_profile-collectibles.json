@@ -1,0 +1,63 @@
+{
+  "items": [
+    {
+      "id": "glacier-ring",
+      "name": "Glacier Ring",
+      "category": "avatar-frame",
+      "version": 1,
+      "recipe": {
+        "colors": [
+          "#38bdf8",
+          "#164e63"
+        ],
+        "pattern": "grid",
+        "frame": "frost"
+      },
+      "description": "Original Meldiq avatar frame from the Nightwave collection.",
+      "rarity": "rare",
+      "acquisitionType": "free",
+      "price": 0,
+      "currency": "USD",
+      "isActive": true,
+      "isFeatured": false,
+      "availableFrom": null,
+      "availableUntil": null,
+      "supportedPlatforms": [
+        "web",
+        "android",
+        "windows",
+        "macos"
+      ]
+    },
+    {
+      "id": "ion-halo",
+      "name": "Ion Halo",
+      "category": "avatar-frame",
+      "version": 1,
+      "recipe": {
+        "colors": [
+          "#22d3ee",
+          "#6366f1"
+        ],
+        "pattern": "orbit",
+        "frame": "aurora"
+      },
+      "description": "Original Meldiq avatar frame from the Nightwave collection.",
+      "rarity": "common",
+      "acquisitionType": "free",
+      "price": 0,
+      "currency": "USD",
+      "isActive": true,
+      "isFeatured": true,
+      "availableFrom": null,
+      "availableUntil": null,
+      "supportedPlatforms": [
+        "web",
+        "android",
+        "windows",
+        "macos"
+      ]
+    }
+  ],
+  "next": "ion-halo"
+}

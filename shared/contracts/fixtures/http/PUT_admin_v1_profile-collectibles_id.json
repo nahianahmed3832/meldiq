@@ -1,0 +1,31 @@
+{
+  "item": {
+    "id": "violet-circuit",
+    "name": "Violet Circuit",
+    "category": "avatar-frame",
+    "version": 2,
+    "recipe": {
+      "colors": [
+        "#a78bfa",
+        "#ec4899"
+      ],
+      "pattern": "prism",
+      "frame": "sakura"
+    },
+    "description": "Original Meldiq avatar frame from the Nightwave collection.",
+    "rarity": "epic",
+    "acquisitionType": "premium",
+    "price": 0,
+    "currency": "USD",
+    "isActive": true,
+    "isFeatured": true,
+    "availableFrom": null,
+    "availableUntil": null,
+    "supportedPlatforms": [
+      "web",
+      "android",
+      "windows",
+      "macos"
+    ]
+  }
+}

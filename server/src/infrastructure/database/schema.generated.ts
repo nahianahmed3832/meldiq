@@ -4056,6 +4056,86 @@ export const SCHEMA: readonly TableShape[] = [
     autoincrement: false,
   },
   {
+    name: "profile_collectible_assets",
+    columns: [
+      {"name":"id","type":"TEXT","notNull":true},
+      {"name":"metadata","type":"TEXT","notNull":true},
+      {"name":"created_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["id"],
+    indexes: [],
+    foreignKeys: [],
+    autoincrement: false,
+  },
+  {
+    name: "profile_collectible_catalog",
+    columns: [
+      {"name":"id","type":"TEXT","notNull":true},
+      {"name":"metadata","type":"TEXT","notNull":true},
+      {"name":"updated_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["id"],
+    indexes: [],
+    foreignKeys: [],
+    autoincrement: false,
+  },
+  {
+    name: "profile_collectible_inventory",
+    columns: [
+      {"name":"user_id","type":"TEXT","notNull":true},
+      {"name":"decoration_id","type":"TEXT","notNull":true},
+      {"name":"acquired_at","type":"INTEGER","notNull":true},
+      {"name":"acquisition_source","type":"TEXT","notNull":true},
+      {"name":"is_favorite","type":"INTEGER","notNull":true,"default":0},
+    ],
+    primaryKey: ["user_id","decoration_id"],
+    indexes: [
+      {"name":"idx_collectible_inventory_recent","columns":["user_id","acquired_at"],"unique":false,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [
+      {"columns":["user_id"],"table":"users","references":["id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
+    name: "profile_collectible_transactions",
+    columns: [
+      {"name":"id","type":"TEXT","notNull":true},
+      {"name":"user_id","type":"TEXT","notNull":true},
+      {"name":"decoration_id","type":"TEXT","notNull":true},
+      {"name":"transaction_type","type":"TEXT","notNull":true},
+      {"name":"price","type":"INTEGER","notNull":true},
+      {"name":"currency","type":"TEXT","notNull":true},
+      {"name":"payment_reference","type":"TEXT","notNull":false},
+      {"name":"created_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["id"],
+    indexes: [
+      {"name":"idx_collectible_transactions_user","columns":["user_id","created_at"],"unique":false,"nocase":false,"partialNotNull":null},
+      {"name":"sqlite_autoindex_profile_collectible_transactions_2","columns":["user_id","decoration_id"],"unique":true,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [
+      {"columns":["user_id"],"table":"users","references":["id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
+    name: "profile_collectible_uploads",
+    columns: [
+      {"name":"id","type":"TEXT","notNull":true},
+      {"name":"actor_id","type":"TEXT","notNull":true},
+      {"name":"size","type":"INTEGER","notNull":true},
+      {"name":"sha256","type":"TEXT","notNull":true},
+      {"name":"expires_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["id"],
+    indexes: [
+      {"name":"idx_collectible_upload_expiry","columns":["expires_at"],"unique":false,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [],
+    autoincrement: false,
+  },
+  {
     name: "promoted_bookings",
     columns: [
       {"name":"id","type":"TEXT","notNull":true},

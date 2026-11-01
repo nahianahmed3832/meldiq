@@ -16,293 +16,1039 @@ export interface ErrorSpec {
  * the federation routes and federated calls. */
 const FEDERATION_ERROR_CODES = {
   bad_address: { status: [400], meaning: "Not a valid @name:server address." },
-  bad_body_hash: { status: [401], meaning: "A signed request's body doesn't match its hash." },
-  bad_call: { status: [400], meaning: "The federated call request is malformed." },
-  bad_certificate: { status: [400], meaning: "A device certificate doesn't verify." },
-  bad_descriptor: { status: [502], meaning: "The peer server's descriptor doesn't verify." },
+  bad_body_hash: {
+    status: [401],
+    meaning: "A signed request's body doesn't match its hash.",
+  },
+  bad_call: {
+    status: [400],
+    meaning: "The federated call request is malformed.",
+  },
+  bad_certificate: {
+    status: [400],
+    meaning: "A device certificate doesn't verify.",
+  },
+  bad_descriptor: {
+    status: [502],
+    meaning: "The peer server's descriptor doesn't verify.",
+  },
   bad_domain: { status: [400], meaning: "Not a valid server domain." },
   bad_entry: { status: [400], meaning: "A directory entry is malformed." },
   bad_event: { status: [400], meaning: "A federation event is malformed." },
   bad_nonce: { status: [401], meaning: "A signed request's nonce is invalid." },
-  bad_response_signature: { status: [502], meaning: "The peer server's answer isn't signed correctly." },
+  bad_response_signature: {
+    status: [502],
+    meaning: "The peer server's answer isn't signed correctly.",
+  },
   bad_server_id: { status: [400], meaning: "Not a valid server id." },
-  bad_time: { status: [401], meaning: "A signed request's time is too far off." },
-  call_conflict: { status: [409], meaning: "The federated call state conflicts." },
-  conversation_conflict: { status: [409], meaning: "The federated conversation conflicts." },
-  directory_conflict: { status: [409], meaning: "The directory entry conflicts." },
-  directory_unavailable: { status: [503], meaning: "The network's registry is unavailable." },
-  id_conflict: { status: [409], meaning: "An id is already used with different content." },
-  insecure_peer: { status: [502], meaning: "The peer server isn't reachable over a secure connection." },
-  lookup_failed: { status: [502], meaning: "The peer server couldn't be reached." },
-  lookup_mismatch: { status: [502], meaning: "The peer server's answer doesn't match the request." },
-  not_allowed: { status: [403], meaning: "The peer server isn't allowed to do that." },
+  bad_time: {
+    status: [401],
+    meaning: "A signed request's time is too far off.",
+  },
+  call_conflict: {
+    status: [409],
+    meaning: "The federated call state conflicts.",
+  },
+  conversation_conflict: {
+    status: [409],
+    meaning: "The federated conversation conflicts.",
+  },
+  directory_conflict: {
+    status: [409],
+    meaning: "The directory entry conflicts.",
+  },
+  directory_unavailable: {
+    status: [503],
+    meaning: "The network's registry is unavailable.",
+  },
+  id_conflict: {
+    status: [409],
+    meaning: "An id is already used with different content.",
+  },
+  insecure_peer: {
+    status: [502],
+    meaning: "The peer server isn't reachable over a secure connection.",
+  },
+  lookup_failed: {
+    status: [502],
+    meaning: "The peer server couldn't be reached.",
+  },
+  lookup_mismatch: {
+    status: [502],
+    meaning: "The peer server's answer doesn't match the request.",
+  },
+  not_allowed: {
+    status: [403],
+    meaning: "The peer server isn't allowed to do that.",
+  },
   not_host: { status: [403], meaning: "The server isn't the call's host." },
-  not_shared: { status: [403], meaning: "The conversation isn't shared with that server." },
-  not_your_user: { status: [403], meaning: "The user doesn't belong to the requesting server." },
-  peer_refused: { status: [403], meaning: "The other server refused the request." },
+  not_shared: {
+    status: [403],
+    meaning: "The conversation isn't shared with that server.",
+  },
+  not_your_user: {
+    status: [403],
+    meaning: "The user doesn't belong to the requesting server.",
+  },
+  peer_refused: {
+    status: [403],
+    meaning: "The other server refused the request.",
+  },
   replayed: { status: [401], meaning: "A signed request was replayed." },
   self: { status: [400], meaning: "That address is on this server." },
   server_blocked: { status: [403], meaning: "The server is blocked." },
-  server_not_active: { status: [403, 503], meaning: "The server isn't active in the network." },
-  server_retired: { status: [410], meaning: "The server has been decommissioned." },
-  server_unresolvable: { status: [502], meaning: "The registry couldn't resolve the server." },
-  unknown_domain: { status: [404], meaning: "No server answers for that domain." },
-  unknown_server: { status: [403], meaning: "The server isn't known to the network." },
+  server_not_active: {
+    status: [403, 503],
+    meaning: "The server isn't active in the network.",
+  },
+  server_retired: {
+    status: [410],
+    meaning: "The server has been decommissioned.",
+  },
+  server_unresolvable: {
+    status: [502],
+    meaning: "The registry couldn't resolve the server.",
+  },
+  unknown_domain: {
+    status: [404],
+    meaning: "No server answers for that domain.",
+  },
+  unknown_server: {
+    status: [403],
+    meaning: "The server isn't known to the network.",
+  },
   unsigned: { status: [401], meaning: "The request isn't signed by a server." },
-  wrong_destination: { status: [421], meaning: "The request was meant for another server." },
+  wrong_destination: {
+    status: [421],
+    meaning: "The request was meant for another server.",
+  },
 } as const satisfies Record<string, ErrorSpec>;
 
 export const ERROR_CODES = {
+  collectible_unavailable: {
+    status: [409],
+    meaning: "Decoration is unavailable.",
+  },
+  acquisition_required: {
+    status: [403],
+    meaning: "An authorized ownership grant is required.",
+  },
+  not_owned: { status: [403], meaning: "Decoration is not owned." },
+  wrong_category: {
+    status: [400],
+    meaning: "Decoration does not fit the slot.",
+  },
+  unknown_asset: { status: [400], meaning: "Asset must be validated first." },
+  direct_unavailable: { status: [409], meaning: "Use the server upload." },
+  bad_upload: {
+    status: [400],
+    meaning: "Upload size or checksum does not match.",
+  },
+
   account_deleted: { status: [401], meaning: "This account was deleted" },
-  account_disabled: { status: [401, 403], meaning: "This account is disabled." },
-  invite_slug_invalid: { status: [400], meaning: "Use 3 to 32 lowercase letters, digits or hyphens (not at either end) that aren't a reserved word." },
-  invite_slug_needs_members: { status: [403], meaning: "A custom invite link opens up once the community has enough members." },
-  invite_slug_taken: { status: [409], meaning: "Another community already uses that invite link." },
-  media_engine_unavailable: { status: [503], meaning: "The server's media engine (ffmpeg) isn't installed, so video and audio can't be processed." },
-  allow_and_deny: { status: [400], meaning: "An overwrite can't both allow and deny \"…\"" },
-  already_migrated: { status: [409], meaning: "This account has already moved to email sign-in. Sign in with …." },
-  answer_required: { status: [400], meaning: "Answer \"…\"" },
-  application_required: { status: [403], meaning: "This community asks a few questions first: apply to join" },
-  application_open: { status: [409], meaning: "You already have an application waiting for review." },
-  archived: { status: [409], meaning: "This role is archived. Restore it before assigning it." },
+  account_disabled: {
+    status: [401, 403],
+    meaning: "This account is disabled.",
+  },
+  invite_slug_invalid: {
+    status: [400],
+    meaning: "Use 3 to 32 lowercase letters, digits or hyphens (not at either end) that aren't a reserved word.",
+  },
+  invite_slug_needs_members: {
+    status: [403],
+    meaning: "A custom invite link opens up once the community has enough members.",
+  },
+  invite_slug_taken: {
+    status: [409],
+    meaning: "Another community already uses that invite link.",
+  },
+  media_engine_unavailable: {
+    status: [503],
+    meaning: "The server's media engine (ffmpeg) isn't installed, so video and audio can't be processed.",
+  },
+  allow_and_deny: {
+    status: [400],
+    meaning: 'An overwrite can\'t both allow and deny "…"',
+  },
+  already_migrated: {
+    status: [409],
+    meaning: "This account has already moved to email sign-in. Sign in with ….",
+  },
+  answer_required: { status: [400], meaning: 'Answer "…"' },
+  application_required: {
+    status: [403],
+    meaning: "This community asks a few questions first: apply to join",
+  },
+  application_open: {
+    status: [409],
+    meaning: "You already have an application waiting for review.",
+  },
+  archived: {
+    status: [409],
+    meaning: "This role is archived. Restore it before assigning it.",
+  },
   bad_clock: { status: [400], meaning: "Device clock is too far off" },
-  account_limited: { status: [403], meaning: "Your account is limited by warnings from Meldiq's staff (Settings › My Account › Account standing)." },
+  account_limited: {
+    status: [403],
+    meaning: "Your account is limited by warnings from Meldiq's staff (Settings › My Account › Account standing).",
+  },
   bad_request: { status: [400], meaning: "Give the role a name" },
-  billing_unavailable: { status: [409, 503], meaning: "No billing provider is configured on this server, so nothing can be bought." },
+  billing_unavailable: {
+    status: [409, 503],
+    meaning: "No billing provider is configured on this server, so nothing can be bought.",
+  },
   // Meldiq Mojo (API 0.54.0, docs/MOJO.md).
   // Google Play (API 0.55.0, docs/MOJO_ANDROID.md).
-  billed_elsewhere: { status: [409], meaning: "This plan is billed on meldiq.app: change or cancel it there, not in Google Play." },
-  no_sparks: { status: [409], meaning: "This account has no Meldiq Sparks: Mojo Go includes one, Mojo Plus two, and more can be bought." },
-  no_free_sparks: { status: [409], meaning: "Every Spark this account has is already given to a community." },
-  message_too_long: { status: [413], meaning: "The message is longer than the sender's plan allows (characters as people count them), or an older app's encrypted one far larger than it could need." },
+  billed_elsewhere: {
+    status: [409],
+    meaning: "This plan is billed on meldiq.app: change or cancel it there, not in Google Play.",
+  },
+  no_sparks: {
+    status: [409],
+    meaning: "This account has no Meldiq Sparks: Mojo Go includes one, Mojo Plus two, and more can be bought.",
+  },
+  no_free_sparks: {
+    status: [409],
+    meaning: "Every Spark this account has is already given to a community.",
+  },
+  message_too_long: {
+    status: [413],
+    meaning: "The message is longer than the sender's plan allows (characters as people count them), or an older app's encrypted one far larger than it could need.",
+  },
   // Server-stored messages (API 0.57.0, docs/SERVER_MESSAGES.md).
-  not_yours: { status: [403], meaning: "Only the person who sent a message can edit it, delete it or close its poll." },
-  onboarding_not_finished: { status: [403], meaning: "Finish this community's onboarding before you post or react." },
-  start_channel_invalid: { status: [400], meaning: "The starting channel has to be a text channel of this community that everyone can see." },
-  update_required: { status: [426], meaning: "Update Meldiq to keep messaging: messages are now stored on Meldiq's servers." },
-  upload_limit: { status: [413], meaning: "The file is larger than the sender's plan, or the community's Spark level, allows." },
-  custom_items_limit: { status: [409], meaning: "This account has added as many custom emoji and stickers as its plan allows." },
-  bot_locked: { status: [403], meaning: "This bot is beyond its owner's plan (after a downgrade): it acts again once they upgrade or delete another bot." },
-  bot_not_here: { status: [404], meaning: "That bot isn't in this community, or can't see this channel." },
-  bot_private: { status: [403, 409], meaning: "This bot is private: only its owner can add it to a community." },
-  bad_signature: { status: [400, 401], meaning: "A signature doesn't verify (a message envelope against its device, or a federated request against its server)." },
-  bad_username: { status: [400], meaning: "The username isn't valid (length or characters)." },
-  banned: { status: [403, 409], meaning: "You've been banned from this community" },
-  beyond_your_powers: { status: [403], meaning: "You can only change \"…\" if you hold it yourself" },
+  not_yours: {
+    status: [403],
+    meaning: "Only the person who sent a message can edit it, delete it or close its poll.",
+  },
+  onboarding_not_finished: {
+    status: [403],
+    meaning: "Finish this community's onboarding before you post or react.",
+  },
+  start_channel_invalid: {
+    status: [400],
+    meaning: "The starting channel has to be a text channel of this community that everyone can see.",
+  },
+  update_required: {
+    status: [426],
+    meaning: "Update Meldiq to keep messaging: messages are now stored on Meldiq's servers.",
+  },
+  upload_limit: {
+    status: [413],
+    meaning: "The file is larger than the sender's plan, or the community's Spark level, allows.",
+  },
+  custom_items_limit: {
+    status: [409],
+    meaning: "This account has added as many custom emoji and stickers as its plan allows.",
+  },
+  bot_locked: {
+    status: [403],
+    meaning: "This bot is beyond its owner's plan (after a downgrade): it acts again once they upgrade or delete another bot.",
+  },
+  bot_not_here: {
+    status: [404],
+    meaning: "That bot isn't in this community, or can't see this channel.",
+  },
+  bot_private: {
+    status: [403, 409],
+    meaning: "This bot is private: only its owner can add it to a community.",
+  },
+  bad_signature: {
+    status: [400, 401],
+    meaning: "A signature doesn't verify (a message envelope against its device, or a federated request against its server).",
+  },
+  bad_username: {
+    status: [400],
+    meaning: "The username isn't valid (length or characters).",
+  },
+  banned: {
+    status: [403, 409],
+    meaning: "You've been banned from this community",
+  },
+  beyond_your_powers: {
+    status: [403],
+    meaning: 'You can only change "…" if you hold it yourself',
+  },
   call_ended: { status: [410], meaning: "This call has ended" },
-  call_failed: { status: [502], meaning: "A federated call's host server refused the request." },
+  call_failed: {
+    status: [502],
+    meaning: "A federated call's host server refused the request.",
+  },
   call_full: { status: [409], meaning: "This call is full (… people at most)" },
-  category_has_permissions: { status: [409], meaning: "This category's permissions decide who sees its channels. Move its channels out (or delete them) first." },
-  challenge_expired: { status: [401], meaning: "The sign-in took too long. Try again." },
-  channel_not_found: { status: [400], meaning: "Pick a channel of this community" },
-  channel_not_public: { status: [400], meaning: "Onboarding can only open this community's public channels" },
-  confirm_mismatch: { status: [400], meaning: "Type your account's email address exactly to delete your account. Nothing was deleted." },
-  conflict: { status: [409], meaning: "The request conflicts with the current state." },
-  connection_unavailable: { status: [409], meaning: "Connecting that service isn't set up on this server yet." },
-  creator_name_mismatch: { status: [400], meaning: "The channel's name has to match your username or display name." },
-  delegation_required: { status: [403], meaning: "You need the power to hand out roles to do that." },
-  device_key_retired: { status: [409], meaning: "These device keys can't be used again. The app will make new ones." },
-  device_mismatch: { status: [409], meaning: "Recipient devices changed; refresh keys and retry" },
-  device_required: { status: [403], meaning: "Only a device that has this account's keys can back them up." },
-  device_revoked: { status: [401], meaning: "This phone was removed from your account. Set up encryption again." },
-  direct_upload_unavailable: { status: [409], meaning: "This server receives uploads itself: use POST /v1/attachments." },
-  discord_bot_missing: { status: [409], meaning: "Meldiq's Discord bot isn't in that server any more. Connect Discord again to add it." },
-  discord_not_allowed: { status: [403], meaning: "You need to own that Discord server or have Manage Server there to import it." },
-  discord_not_configured: { status: [409], meaning: "Importing from Discord isn't set up on this server yet." },
-  group_add_not_allowed: { status: [403], meaning: "This person doesn't let you add them to group chats." },
-  gifs_not_configured: { status: [503], meaning: "GIF search isn't set up on this server (no GIF_PROVIDER and GIF_API_KEY)." },
-  gif_provider_unavailable: { status: [502], meaning: "The GIF provider didn't answer, refused the request, or sent something that isn't a GIF." },
-  discord_unreachable: { status: [502], meaning: "Discord didn't answer. Try again in a minute." },
-  dm_not_allowed: { status: [403], meaning: "This person only accepts messages from people they're connected with" },
-  dms_paused: { status: [403], meaning: "New direct messages between members of your community are paused for now" },
-  email_domain_blocked: { status: [403], meaning: "Sign-ups with addresses at this domain aren't accepted. Use another email address." },
-  email_failed: { status: [503], meaning: "We couldn't send the email just now. Try again in a minute." },
-  email_in_use: { status: [409], meaning: "Another account uses that address. Choose a different one." },
-  email_taken: { status: [409], meaning: "That email already has a Meldiq account. Use another address, or sign in with it." },
-  email_unavailable: { status: [503], meaning: "This server can't send email right now. Use your recovery key or another signed-in device." },
-  email_unverified: { status: [403], meaning: "Verify your email first: enter the code we sent you." },
-  enrolment_required: { status: [403], meaning: "Platform Admin Console: register a console passkey with your enrolment code first." },
-  federated_calls_unavailable: { status: [409], meaning: "Calls with people on other servers aren't available yet" },
-  feature_disabled: { status: [503], meaning: "This feature is switched off for now. Try again later." },
-  federation_backlog: { status: [503], meaning: "The other person's server isn't keeping up. Try again later." },
-  federation_disabled: { status: [503], meaning: "This server no longer federates" },
+  category_has_permissions: {
+    status: [409],
+    meaning: "This category's permissions decide who sees its channels. Move its channels out (or delete them) first.",
+  },
+  challenge_expired: {
+    status: [401],
+    meaning: "The sign-in took too long. Try again.",
+  },
+  channel_not_found: {
+    status: [400],
+    meaning: "Pick a channel of this community",
+  },
+  channel_not_public: {
+    status: [400],
+    meaning: "Onboarding can only open this community's public channels",
+  },
+  confirm_mismatch: {
+    status: [400],
+    meaning: "Type your account's email address exactly to delete your account. Nothing was deleted.",
+  },
+  conflict: {
+    status: [409],
+    meaning: "The request conflicts with the current state.",
+  },
+  connection_unavailable: {
+    status: [409],
+    meaning: "Connecting that service isn't set up on this server yet.",
+  },
+  creator_name_mismatch: {
+    status: [400],
+    meaning: "The channel's name has to match your username or display name.",
+  },
+  delegation_required: {
+    status: [403],
+    meaning: "You need the power to hand out roles to do that.",
+  },
+  device_key_retired: {
+    status: [409],
+    meaning: "These device keys can't be used again. The app will make new ones.",
+  },
+  device_mismatch: {
+    status: [409],
+    meaning: "Recipient devices changed; refresh keys and retry",
+  },
+  device_required: {
+    status: [403],
+    meaning: "Only a device that has this account's keys can back them up.",
+  },
+  device_revoked: {
+    status: [401],
+    meaning: "This phone was removed from your account. Set up encryption again.",
+  },
+  direct_upload_unavailable: {
+    status: [409],
+    meaning: "This server receives uploads itself: use POST /v1/attachments.",
+  },
+  discord_bot_missing: {
+    status: [409],
+    meaning: "Meldiq's Discord bot isn't in that server any more. Connect Discord again to add it.",
+  },
+  discord_not_allowed: {
+    status: [403],
+    meaning: "You need to own that Discord server or have Manage Server there to import it.",
+  },
+  discord_not_configured: {
+    status: [409],
+    meaning: "Importing from Discord isn't set up on this server yet.",
+  },
+  group_add_not_allowed: {
+    status: [403],
+    meaning: "This person doesn't let you add them to group chats.",
+  },
+  gifs_not_configured: {
+    status: [503],
+    meaning: "GIF search isn't set up on this server (no GIF_PROVIDER and GIF_API_KEY).",
+  },
+  gif_provider_unavailable: {
+    status: [502],
+    meaning: "The GIF provider didn't answer, refused the request, or sent something that isn't a GIF.",
+  },
+  discord_unreachable: {
+    status: [502],
+    meaning: "Discord didn't answer. Try again in a minute.",
+  },
+  dm_not_allowed: {
+    status: [403],
+    meaning: "This person only accepts messages from people they're connected with",
+  },
+  dms_paused: {
+    status: [403],
+    meaning: "New direct messages between members of your community are paused for now",
+  },
+  email_domain_blocked: {
+    status: [403],
+    meaning: "Sign-ups with addresses at this domain aren't accepted. Use another email address.",
+  },
+  email_failed: {
+    status: [503],
+    meaning: "We couldn't send the email just now. Try again in a minute.",
+  },
+  email_in_use: {
+    status: [409],
+    meaning: "Another account uses that address. Choose a different one.",
+  },
+  email_taken: {
+    status: [409],
+    meaning: "That email already has a Meldiq account. Use another address, or sign in with it.",
+  },
+  email_unavailable: {
+    status: [503],
+    meaning: "This server can't send email right now. Use your recovery key or another signed-in device.",
+  },
+  email_unverified: {
+    status: [403],
+    meaning: "Verify your email first: enter the code we sent you.",
+  },
+  enrolment_required: {
+    status: [403],
+    meaning: "Platform Admin Console: register a console passkey with your enrolment code first.",
+  },
+  federated_calls_unavailable: {
+    status: [409],
+    meaning: "Calls with people on other servers aren't available yet",
+  },
+  feature_disabled: {
+    status: [503],
+    meaning: "This feature is switched off for now. Try again later.",
+  },
+  federation_backlog: {
+    status: [503],
+    meaning: "The other person's server isn't keeping up. Try again later.",
+  },
+  federation_disabled: {
+    status: [503],
+    meaning: "This server no longer federates",
+  },
   forbidden: { status: [403], meaning: "You can't post in this conversation" },
-  grant_and_deny: { status: [400], meaning: "A role can't both grant and restrict the same permission." },
-  history_full: { status: [507], meaning: "This server's message history storage is full. Try again later." },
-  history_off: { status: [403], meaning: "This server doesn't keep message history." },
-  holder_out_of_reach: { status: [403], meaning: "Someone holding this role is an admin or has powers you don't, so only an owner can change what it does" },
-  identity_exists: { status: [409], meaning: "This account already has encryption keys. Try again." },
-  identity_mismatch: { status: [409], meaning: "This account already has encryption keys. Restore them with your recovery key or from another device, or start fresh." },
-  identity_required: { status: [400], meaning: "This account has no encryption keys yet: send the new identity key" },
+  grant_and_deny: {
+    status: [400],
+    meaning: "A role can't both grant and restrict the same permission.",
+  },
+  history_full: {
+    status: [507],
+    meaning: "This server's message history storage is full. Try again later.",
+  },
+  history_off: {
+    status: [403],
+    meaning: "This server doesn't keep message history.",
+  },
+  holder_out_of_reach: {
+    status: [403],
+    meaning: "Someone holding this role is an admin or has powers you don't, so only an owner can change what it does",
+  },
+  identity_exists: {
+    status: [409],
+    meaning: "This account already has encryption keys. Try again.",
+  },
+  identity_mismatch: {
+    status: [409],
+    meaning: "This account already has encryption keys. Restore them with your recovery key or from another device, or start fresh.",
+  },
+  identity_required: {
+    status: [400],
+    meaning: "This account has no encryption keys yet: send the new identity key",
+  },
   internal: { status: [500], meaning: "Something went wrong on the server." },
-  invalid_certificate: { status: [401], meaning: "This device's certificate isn't signed by the account's identity key" },
-  invalid_code: { status: [400], meaning: "That code isn't right, or it has expired. Ask for a new one." },
-  invalid_credentials: { status: [401], meaning: "That email and password don't match an account." },
-  invalid_device_proof: { status: [401], meaning: "This phone's keys don't belong to this account. Set up encryption again." },
-  invalid_invite: { status: [403], meaning: "This invitation code is invalid, expired or already used" },
-  invalid_policy: { status: [400], meaning: "Platform Admin Console: a quota policy or setting isn't valid (the message says why)." },
+  invalid_certificate: {
+    status: [401],
+    meaning: "This device's certificate isn't signed by the account's identity key",
+  },
+  invalid_code: {
+    status: [400],
+    meaning: "That code isn't right, or it has expired. Ask for a new one.",
+  },
+  invalid_credentials: {
+    status: [401],
+    meaning: "That email and password don't match an account.",
+  },
+  invalid_device_proof: {
+    status: [401],
+    meaning: "This phone's keys don't belong to this account. Set up encryption again.",
+  },
+  invalid_invite: {
+    status: [403],
+    meaning: "This invitation code is invalid, expired or already used",
+  },
+  invalid_policy: {
+    status: [400],
+    meaning: "Platform Admin Console: a quota policy or setting isn't valid (the message says why).",
+  },
   invalid_proof: { status: [401], meaning: "Invalid proof signature" },
-  invalid_recovery: { status: [400], meaning: "That email and recovery code don't match an account, or the code was already used." },
-  interaction_answered: { status: [409], meaning: "This command was answered already." },
-  interaction_expired: { status: [410], meaning: "This command waited too long for an answer (15 minutes) and has expired." },
-  invalid_token: { status: [401], meaning: "The app's access token is missing, expired or was revoked. Sign in with Meldiq again." },
-  invalid_ticket: { status: [401], meaning: "This step took too long. Start again with your username and recovery key." },
+  invalid_recovery: {
+    status: [400],
+    meaning: "That email and recovery code don't match an account, or the code was already used.",
+  },
+  interaction_answered: {
+    status: [409],
+    meaning: "This command was answered already.",
+  },
+  interaction_expired: {
+    status: [410],
+    meaning: "This command waited too long for an answer (15 minutes) and has expired.",
+  },
+  invalid_token: {
+    status: [401],
+    meaning: "The app's access token is missing, expired or was revoked. Sign in with Meldiq again.",
+  },
+  invalid_ticket: {
+    status: [401],
+    meaning: "This step took too long. Start again with your username and recovery key.",
+  },
   invite_expired: { status: [404], meaning: "The invite has expired." },
-  invite_not_found: { status: [404], meaning: "This invite code doesn't exist." },
-  invite_required: { status: [403], meaning: "Signing up needs an invitation code" },
-  invite_revoked: { status: [404], meaning: "The invite was cancelled by whoever created it." },
-  invite_unavailable: { status: [404], meaning: "Whoever created the invite can no longer invite people there." },
-  invite_used_up: { status: [404], meaning: "The invite has been used as many times as it allows." },
-  invites_paused: { status: [403], meaning: "This community has paused new members for now. Try again later." },
+  invite_not_found: {
+    status: [404],
+    meaning: "This invite code doesn't exist.",
+  },
+  invite_required: {
+    status: [403],
+    meaning: "Signing up needs an invitation code",
+  },
+  invite_revoked: {
+    status: [404],
+    meaning: "The invite was cancelled by whoever created it.",
+  },
+  invite_unavailable: {
+    status: [404],
+    meaning: "Whoever created the invite can no longer invite people there.",
+  },
+  invite_used_up: {
+    status: [404],
+    meaning: "The invite has been used as many times as it allows.",
+  },
+  invites_paused: {
+    status: [403],
+    meaning: "This community has paused new members for now. Try again later.",
+  },
   // Community parity A2 (feature "community-safety", docs/COMMUNITY_SAFETY_API.md).
-  account_too_new: { status: [403], meaning: "This community doesn't take accounts this new yet. Try again later." },
-  community_locked: { status: [403], meaning: "This community is locked for now: nobody new can join. Try again later." },
-  community_locked_posting: { status: [403], meaning: "This community is locked for now: only moderators can post. You can still read and react." },
-  verification_required: { status: [403], meaning: "This community asks for a verified email, or a few minutes' wait, before posting or reacting." },
-  voice_banned: { status: [403], meaning: "You've been kept out of this community's voice channels." },
-  loadtest_disabled: { status: [403], meaning: "Load-test provisioning isn't enabled on this server." },
-  loadtest_network: { status: [403], meaning: "Load-test provisioning isn't allowed from this network." },
-  loadtest_quota: { status: [429], meaning: "The load-test provisioning quota is used up for now; details.retryAfter says when one more account fits." },
-  leave_community: { status: [403], meaning: "Leave the community instead of one of its channels" },
-  lobby_channel_invalid: { status: [400], meaning: "Pick channels of this community for the lobby." },
-  lobby_feed_invalid: { status: [400], meaning: "A lobby feed post needs a title, text or an https link." },
-  lobby_stale: { status: [409], meaning: "Someone else changed the lobby meanwhile. Load the latest version and try again." },
-  legacy_login_closed: { status: [410], meaning: "This version of the app can't sign in any more. Update the app and sign in with your email." },
-  legacy_registration_closed: { status: [410], meaning: "This version of the app can't create accounts any more. Update the app to sign up." },
-  legacy_verification_failed: { status: [401], meaning: "That username and recovery key don't match an account. Check both and try again." },
-  limit_reached: { status: [409], meaning: "… ……, and this workspace has reached it." },
-  login_throttled: { status: [429], meaning: "Too many wrong passwords. Wait a few minutes and try again." },
-  maintenance: { status: [503], meaning: "Meldiq is down for maintenance. Try again in a few minutes." },
-  media_unavailable: { status: [503], meaning: "Calling is not configured on this server" },
-  mention_all_not_allowed: { status: [403], meaning: "Only admins and managers can mention everyone in this conversation." },
-  mention_all_not_in_dm: { status: [403], meaning: "@everyone isn't available in direct messages." },
-  mention_all_rate_limited: { status: [429], meaning: "@everyone was used here too often in the last hour." },
-  migration_closed: { status: [410], meaning: "Moving older accounts has ended on this server." },
-  mode_not_supported: { status: [400], meaning: "Platform Admin Console: this quota can only be observed or warned about." },
-  not_enough_points: { status: [409], meaning: "You don't have enough points for that yet." },
-  not_verified_creator: { status: [403], meaning: "Verify your channel first: the creator programme is for verified creators." },
-  not_in_creator_program: { status: [403], meaning: "Posts are for approved members of the creator programme who are still verified." },
-  no_key_backup: { status: [404], meaning: "There's no key backup for this account's current password. Use your recovery key or another signed-in device." },
-  not_archived: { status: [409], meaning: "Archive the role before deleting it" },
+  account_too_new: {
+    status: [403],
+    meaning: "This community doesn't take accounts this new yet. Try again later.",
+  },
+  community_locked: {
+    status: [403],
+    meaning: "This community is locked for now: nobody new can join. Try again later.",
+  },
+  community_locked_posting: {
+    status: [403],
+    meaning: "This community is locked for now: only moderators can post. You can still read and react.",
+  },
+  verification_required: {
+    status: [403],
+    meaning: "This community asks for a verified email, or a few minutes' wait, before posting or reacting.",
+  },
+  voice_banned: {
+    status: [403],
+    meaning: "You've been kept out of this community's voice channels.",
+  },
+  loadtest_disabled: {
+    status: [403],
+    meaning: "Load-test provisioning isn't enabled on this server.",
+  },
+  loadtest_network: {
+    status: [403],
+    meaning: "Load-test provisioning isn't allowed from this network.",
+  },
+  loadtest_quota: {
+    status: [429],
+    meaning: "The load-test provisioning quota is used up for now; details.retryAfter says when one more account fits.",
+  },
+  leave_community: {
+    status: [403],
+    meaning: "Leave the community instead of one of its channels",
+  },
+  lobby_channel_invalid: {
+    status: [400],
+    meaning: "Pick channels of this community for the lobby.",
+  },
+  lobby_feed_invalid: {
+    status: [400],
+    meaning: "A lobby feed post needs a title, text or an https link.",
+  },
+  lobby_stale: {
+    status: [409],
+    meaning: "Someone else changed the lobby meanwhile. Load the latest version and try again.",
+  },
+  legacy_login_closed: {
+    status: [410],
+    meaning: "This version of the app can't sign in any more. Update the app and sign in with your email.",
+  },
+  legacy_registration_closed: {
+    status: [410],
+    meaning: "This version of the app can't create accounts any more. Update the app to sign up.",
+  },
+  legacy_verification_failed: {
+    status: [401],
+    meaning: "That username and recovery key don't match an account. Check both and try again.",
+  },
+  limit_reached: {
+    status: [409],
+    meaning: "… ……, and this workspace has reached it.",
+  },
+  login_throttled: {
+    status: [429],
+    meaning: "Too many wrong passwords. Wait a few minutes and try again.",
+  },
+  maintenance: {
+    status: [503],
+    meaning: "Meldiq is down for maintenance. Try again in a few minutes.",
+  },
+  media_unavailable: {
+    status: [503],
+    meaning: "Calling is not configured on this server",
+  },
+  mention_all_not_allowed: {
+    status: [403],
+    meaning: "Only admins and managers can mention everyone in this conversation.",
+  },
+  mention_all_not_in_dm: {
+    status: [403],
+    meaning: "@everyone isn't available in direct messages.",
+  },
+  mention_all_rate_limited: {
+    status: [429],
+    meaning: "@everyone was used here too often in the last hour.",
+  },
+  migration_closed: {
+    status: [410],
+    meaning: "Moving older accounts has ended on this server.",
+  },
+  mode_not_supported: {
+    status: [400],
+    meaning: "Platform Admin Console: this quota can only be observed or warned about.",
+  },
+  not_enough_points: {
+    status: [409],
+    meaning: "You don't have enough points for that yet.",
+  },
+  not_verified_creator: {
+    status: [403],
+    meaning: "Verify your channel first: the creator programme is for verified creators.",
+  },
+  not_in_creator_program: {
+    status: [403],
+    meaning: "Posts are for approved members of the creator programme who are still verified.",
+  },
+  no_key_backup: {
+    status: [404],
+    meaning: "There's no key backup for this account's current password. Use your recovery key or another signed-in device.",
+  },
+  not_archived: {
+    status: [409],
+    meaning: "Archive the role before deleting it",
+  },
   not_available: { status: [404], meaning: "You can't message this person" },
   not_for_guests: { status: [409], meaning: "That isn't available to guests." },
   not_found: { status: [404], meaning: "Not found, or not visible to you." },
-  not_restrictable: { status: [400], meaning: "That permission can't be restricted." },
-  not_uploaded: { status: [409], meaning: "The file hasn't reached the server's storage yet. Upload it again." },
-  onboarding_off: { status: [409], meaning: "This community doesn't ask onboarding questions" },
-  one_answer: { status: [400], meaning: "Pick one answer for \"…\"" },
-  org_name_taken: { status: [409], meaning: "You already own a community called \"…\". Open it, or choose another name." },
-  org_quota_exceeded: { status: [429], meaning: "This workspace has reached its file storage limit. Older files expire after 7 days." },
-  own_report: { status: [403], meaning: "This report is about you: another moderator handles it" },
-  oauth_invalid_client: { status: [400], meaning: "No app has that client_id. Check the link that brought you here." },
-  oauth_invalid_redirect: { status: [400], meaning: "That redirect_uri isn't one the app registered, so Meldiq won't send you there." },
-  oauth_invalid_request: { status: [400], meaning: "The sign-in request is missing something or asks for it in a way Meldiq doesn't support." },
-  oauth_invalid_scope: { status: [400], meaning: "The app asked for a permission Meldiq doesn't have (identify and email exist)." },
+  not_restrictable: {
+    status: [400],
+    meaning: "That permission can't be restricted.",
+  },
+  not_uploaded: {
+    status: [409],
+    meaning: "The file hasn't reached the server's storage yet. Upload it again.",
+  },
+  onboarding_off: {
+    status: [409],
+    meaning: "This community doesn't ask onboarding questions",
+  },
+  one_answer: { status: [400], meaning: 'Pick one answer for "…"' },
+  org_name_taken: {
+    status: [409],
+    meaning: 'You already own a community called "…". Open it, or choose another name.',
+  },
+  org_quota_exceeded: {
+    status: [429],
+    meaning: "This workspace has reached its file storage limit. Older files expire after 7 days.",
+  },
+  own_report: {
+    status: [403],
+    meaning: "This report is about you: another moderator handles it",
+  },
+  oauth_invalid_client: {
+    status: [400],
+    meaning: "No app has that client_id. Check the link that brought you here.",
+  },
+  oauth_invalid_redirect: {
+    status: [400],
+    meaning: "That redirect_uri isn't one the app registered, so Meldiq won't send you there.",
+  },
+  oauth_invalid_request: {
+    status: [400],
+    meaning: "The sign-in request is missing something or asks for it in a way Meldiq doesn't support.",
+  },
+  oauth_invalid_scope: {
+    status: [400],
+    meaning: "The app asked for a permission Meldiq doesn't have (identify and email exist).",
+  },
   owner_only: { status: [400], meaning: "Only the owner can do that." },
-  subscription_active: { status: [409], meaning: "Your subscription still renews. Cancel it from the billing page first; nothing was deleted." },
-  owns_workspaces: { status: [409], meaning: "You're the only owner of a workspace. Make someone else an owner, or delete the workspace, first. Nothing was deleted." },
-  passkey_failed: { status: [401], meaning: "That passkey couldn't be verified. Try again, or sign in with your password." },
-  passkey_limit: { status: [409], meaning: "This account already has as many passkeys as it can. Remove one first." },
-  passkey_unavailable: { status: [503], meaning: "Passkeys aren't set up on this server." },
-  passkey_unknown: { status: [401], meaning: "This passkey isn't registered here. Sign in with your password and add it again." },
-  promoted_full: { status: [409], meaning: "Every Promoted spot is taken for the next weeks. Try again later." },
-  push_endpoint_invalid: { status: [400], meaning: "The push endpoint must be an https:// address without credentials or #fragment." },
-  push_host_not_allowed: { status: [400], meaning: "This server only sends wake-ups to its own push server." },
-  push_unavailable: { status: [404], meaning: "This server doesn't send push wake-ups" },
-  quota_exceeded: { status: [429], meaning: "New accounts can upload … a day for their first … days (… left today). " },
-  reaction_role_not_givable: { status: [403], meaning: "Reaction roles can only give roles you could assign yourself, without administrative powers." },
-  range_not_satisfiable: { status: [416], meaning: "The requested byte range is outside the file." },
-  rate_limited: { status: [429], meaning: "Too many requests, slow down (the Retry-After header says when)." },
-  reauth_required: { status: [403], meaning: "Platform Admin Console: confirm with your passkey again before this action." },
-  recovery_throttled: { status: [429], meaning: "Too many wrong recovery codes. Wait a while and try again." },
-  secrets_unavailable: { status: [503], meaning: "Platform Admin Console: credentials can't be stored: PLATFORM_SECRETS_KEY isn't set on the server." },
-  synthetic_scope: { status: [403], meaning: "Load-test accounts can only join load-test communities and talk to other load-test accounts." },
-  registration_limited: { status: [429], meaning: "Too many new accounts from this network. Try again later, or ask for an invitation code." },
-  registration_closed: { status: [403], meaning: "New sign-ups are closed for now." },
-  registration_paused: { status: [429], meaning: "New sign-ups are paused for now. Try again later, or ask for an invitation code." },
+  subscription_active: {
+    status: [409],
+    meaning: "Your subscription still renews. Cancel it from the billing page first; nothing was deleted.",
+  },
+  owns_workspaces: {
+    status: [409],
+    meaning: "You're the only owner of a workspace. Make someone else an owner, or delete the workspace, first. Nothing was deleted.",
+  },
+  passkey_failed: {
+    status: [401],
+    meaning: "That passkey couldn't be verified. Try again, or sign in with your password.",
+  },
+  passkey_limit: {
+    status: [409],
+    meaning: "This account already has as many passkeys as it can. Remove one first.",
+  },
+  passkey_unavailable: {
+    status: [503],
+    meaning: "Passkeys aren't set up on this server.",
+  },
+  passkey_unknown: {
+    status: [401],
+    meaning: "This passkey isn't registered here. Sign in with your password and add it again.",
+  },
+  promoted_full: {
+    status: [409],
+    meaning: "Every Promoted spot is taken for the next weeks. Try again later.",
+  },
+  push_endpoint_invalid: {
+    status: [400],
+    meaning: "The push endpoint must be an https:// address without credentials or #fragment.",
+  },
+  push_host_not_allowed: {
+    status: [400],
+    meaning: "This server only sends wake-ups to its own push server.",
+  },
+  push_unavailable: {
+    status: [404],
+    meaning: "This server doesn't send push wake-ups",
+  },
+  quota_exceeded: {
+    status: [429],
+    meaning: "New accounts can upload … a day for their first … days (… left today). ",
+  },
+  reaction_role_not_givable: {
+    status: [403],
+    meaning: "Reaction roles can only give roles you could assign yourself, without administrative powers.",
+  },
+  range_not_satisfiable: {
+    status: [416],
+    meaning: "The requested byte range is outside the file.",
+  },
+  rate_limited: {
+    status: [429],
+    meaning: "Too many requests, slow down (the Retry-After header says when).",
+  },
+  reauth_required: {
+    status: [403],
+    meaning: "Platform Admin Console: confirm with your passkey again before this action.",
+  },
+  recovery_throttled: {
+    status: [429],
+    meaning: "Too many wrong recovery codes. Wait a while and try again.",
+  },
+  secrets_unavailable: {
+    status: [503],
+    meaning: "Platform Admin Console: credentials can't be stored: PLATFORM_SECRETS_KEY isn't set on the server.",
+  },
+  synthetic_scope: {
+    status: [403],
+    meaning: "Load-test accounts can only join load-test communities and talk to other load-test accounts.",
+  },
+  registration_limited: {
+    status: [429],
+    meaning: "Too many new accounts from this network. Try again later, or ask for an invitation code.",
+  },
+  registration_closed: {
+    status: [403],
+    meaning: "New sign-ups are closed for now.",
+  },
+  registration_paused: {
+    status: [429],
+    meaning: "New sign-ups are paused for now. Try again later, or ask for an invitation code.",
+  },
   reminder_id_taken: { status: [409], meaning: "Choose another reminder id" },
   reminder_not_found: { status: [404], meaning: "Reminder not found" },
-  report_limit: { status: [429], meaning: "You've sent a lot of reports in the last hour. Try again later." },
-  request_limit: { status: [429], meaning: "You can send more once they accept your message request" },
-  request_pending: { status: [403], meaning: "Calls start once the message request is accepted" },
-  request_rate_limited: { status: [429], meaning: "You've sent a lot of requests. Try again in an hour." },
-  requests_not_allowed: { status: [403], meaning: "This person isn't accepting connection requests" },
-  role_name_taken: { status: [409], meaning: "A role called \"…\" already exists in this workspace" },
-  role_not_givable: { status: [400], meaning: "Onboarding can only give this community's roles without administrative permissions" },
-  rules_channel: { status: [403], meaning: "Only people who can edit the community post in its rules channel. You can still read and react." },
-  rules_channel_invalid: { status: [400], meaning: "The rules channel has to be a text or announcement channel of this community that everyone can see." },
-  rules_not_agreed: { status: [403], meaning: "Agree to this community's rules before you post or react." },
-  same_email: { status: [400], meaning: "That's the address the account already uses. Sign in with it, or reset your password." },
-  session_expired: { status: [401], meaning: "Your session has ended. Sign in again." },
-  session_revoked: { status: [401], meaning: "This session was signed out. Sign in again." },
-  slowmode: { status: [429], meaning: "Slowmode is on in this channel. Wait a moment before posting again." },
-  stale: { status: [409], meaning: "Someone else changed this role. Review the latest version and try again." },
-  stale_preferences: { status: [409], meaning: "These preferences changed on another device. Apply your change to this copy and try again." },
-  stale_reminder: { status: [409], meaning: "This reminder changed on another device." },
-  stale_revision: { status: [409], meaning: "Someone changed this meeting meanwhile. Reload it and try again." },
-  storage_full: { status: [507], meaning: "File storage for new accounts is full right now. Try again later." },
-  storage_unavailable: { status: [503], meaning: "The server couldn't store the photo. Try again in a moment." },
-  template_exists: { status: [409], meaning: "This community already has a template. Sync it or delete it to make a new one." },
-  template_not_found: { status: [404], meaning: "There's no template with that code. It may have been deleted." },
-  text_channel_no_calls: { status: [409], meaning: "Calls happen in voice rooms, not in text channels" },
-  ticket_channel_invalid: { status: [400], meaning: "Pick text or announcement channels and a category of this community for the ticket panel." },
+  report_limit: {
+    status: [429],
+    meaning: "You've sent a lot of reports in the last hour. Try again later.",
+  },
+  request_limit: {
+    status: [429],
+    meaning: "You can send more once they accept your message request",
+  },
+  request_pending: {
+    status: [403],
+    meaning: "Calls start once the message request is accepted",
+  },
+  request_rate_limited: {
+    status: [429],
+    meaning: "You've sent a lot of requests. Try again in an hour.",
+  },
+  requests_not_allowed: {
+    status: [403],
+    meaning: "This person isn't accepting connection requests",
+  },
+  role_name_taken: {
+    status: [409],
+    meaning: 'A role called "…" already exists in this workspace',
+  },
+  role_not_givable: {
+    status: [400],
+    meaning: "Onboarding can only give this community's roles without administrative permissions",
+  },
+  rules_channel: {
+    status: [403],
+    meaning: "Only people who can edit the community post in its rules channel. You can still read and react.",
+  },
+  rules_channel_invalid: {
+    status: [400],
+    meaning: "The rules channel has to be a text or announcement channel of this community that everyone can see.",
+  },
+  rules_not_agreed: {
+    status: [403],
+    meaning: "Agree to this community's rules before you post or react.",
+  },
+  same_email: {
+    status: [400],
+    meaning: "That's the address the account already uses. Sign in with it, or reset your password.",
+  },
+  session_expired: {
+    status: [401],
+    meaning: "Your session has ended. Sign in again.",
+  },
+  session_revoked: {
+    status: [401],
+    meaning: "This session was signed out. Sign in again.",
+  },
+  slowmode: {
+    status: [429],
+    meaning: "Slowmode is on in this channel. Wait a moment before posting again.",
+  },
+  stale: {
+    status: [409],
+    meaning: "Someone else changed this role. Review the latest version and try again.",
+  },
+  stale_preferences: {
+    status: [409],
+    meaning: "These preferences changed on another device. Apply your change to this copy and try again.",
+  },
+  stale_reminder: {
+    status: [409],
+    meaning: "This reminder changed on another device.",
+  },
+  stale_revision: {
+    status: [409],
+    meaning: "Someone changed this meeting meanwhile. Reload it and try again.",
+  },
+  storage_full: {
+    status: [507],
+    meaning: "File storage for new accounts is full right now. Try again later.",
+  },
+  storage_unavailable: {
+    status: [503],
+    meaning: "The server couldn't store the photo. Try again in a moment.",
+  },
+  template_exists: {
+    status: [409],
+    meaning: "This community already has a template. Sync it or delete it to make a new one.",
+  },
+  template_not_found: {
+    status: [404],
+    meaning: "There's no template with that code. It may have been deleted.",
+  },
+  text_channel_no_calls: {
+    status: [409],
+    meaning: "Calls happen in voice rooms, not in text channels",
+  },
+  ticket_channel_invalid: {
+    status: [400],
+    meaning: "Pick text or announcement channels and a category of this community for the ticket panel.",
+  },
   ticket_closed: { status: [409], meaning: "This ticket is closed already." },
-  ticket_confirm_required: { status: [400], meaning: "Tick that this isn't a bug report, feedback or a suggestion to open a ticket." },
-  ticket_limit: { status: [409], meaning: "You have as many open tickets here as this community allows. Close one to open another." },
-  tickets_off: { status: [409], meaning: "This community doesn't take tickets." },
-  timed_out: { status: [403], meaning: "You're timed out in this community until …" },
+  ticket_confirm_required: {
+    status: [400],
+    meaning: "Tick that this isn't a bug report, feedback or a suggestion to open a ticket.",
+  },
+  ticket_limit: {
+    status: [409],
+    meaning: "You have as many open tickets here as this community allows. Close one to open another.",
+  },
+  tickets_off: {
+    status: [409],
+    meaning: "This community doesn't take tickets.",
+  },
+  timed_out: {
+    status: [403],
+    meaning: "You're timed out in this community until …",
+  },
   too_large: { status: [413], meaning: "… can be up to 512 KB" },
-  totp_already_on: { status: [409], meaning: "Two-step sign-in is already on. Turn it off first to use a new app." },
-  totp_invalid: { status: [400, 401], meaning: "That code isn't right. Use the newest code from your app, or a backup code." },
-  totp_locked: { status: [429], meaning: "Too many wrong codes. Try again in 15 minutes." },
-  totp_not_pending: { status: [409], meaning: "Start setting up two-step sign-in again." },
-  totp_required: { status: [401], meaning: "Enter the code from your authenticator app." },
-  too_many_attempts: { status: [429], meaning: "Too many attempts. Wait a while and try again." },
-  too_many_devices: { status: [409], meaning: "This account has as many devices as it can have. Remove one you no longer use (Settings › Devices)." },
-  too_many_reminders: { status: [409], meaning: "You can have up to … reminders waiting. Finish or delete some first." },
-  too_many_uploads: { status: [429], meaning: "You've started a lot of uploads in the last hour. Try again later." },
+  totp_already_on: {
+    status: [409],
+    meaning: "Two-step sign-in is already on. Turn it off first to use a new app.",
+  },
+  totp_invalid: {
+    status: [400, 401],
+    meaning: "That code isn't right. Use the newest code from your app, or a backup code.",
+  },
+  totp_locked: {
+    status: [429],
+    meaning: "Too many wrong codes. Try again in 15 minutes.",
+  },
+  totp_not_pending: {
+    status: [409],
+    meaning: "Start setting up two-step sign-in again.",
+  },
+  totp_required: {
+    status: [401],
+    meaning: "Enter the code from your authenticator app.",
+  },
+  too_many_attempts: {
+    status: [429],
+    meaning: "Too many attempts. Wait a while and try again.",
+  },
+  too_many_devices: {
+    status: [409],
+    meaning: "This account has as many devices as it can have. Remove one you no longer use (Settings › Devices).",
+  },
+  too_many_reminders: {
+    status: [409],
+    meaning: "You can have up to … reminders waiting. Finish or delete some first.",
+  },
+  too_many_uploads: {
+    status: [429],
+    meaning: "You've started a lot of uploads in the last hour. Try again later.",
+  },
   unauthorized: { status: [401], meaning: "Sign in again." },
-  unavailable: { status: [503], meaning: "The server can't check your session right now. Try again in a moment." },
+  unavailable: {
+    status: [503],
+    meaning: "The server can't check your session right now. Try again in a moment.",
+  },
   unknown_template: { status: [400], meaning: "Unknown role template" },
-  upload_corrupt: { status: [400], meaning: "The stored file doesn't match what was announced. Send it again." },
-  upload_expired: { status: [410], meaning: "This upload took too long. Start it again." },
-  upload_incomplete: { status: [409], meaning: "Part … isn't uploaded yet, or differs. Upload it again." },
-  username_recently_changed: { status: [429], meaning: "You can change your username once an hour" },
-  username_taken: { status: [409], meaning: "That username is already taken. Try again." },
-  voice_channel: { status: [403], meaning: "Voice channels don't take messages" },
-  webhook_channel: { status: [400], meaning: "Webhooks post in text, announcement and forum channels." },
-  webhook_limit: { status: [409], meaning: "A channel can have up to 10 webhooks. Delete one to make another." },
-  weak_password: { status: [400], meaning: "The password doesn't meet the length or strength rules." },
+  upload_corrupt: {
+    status: [400],
+    meaning: "The stored file doesn't match what was announced. Send it again.",
+  },
+  upload_expired: {
+    status: [410],
+    meaning: "This upload took too long. Start it again.",
+  },
+  upload_incomplete: {
+    status: [409],
+    meaning: "Part … isn't uploaded yet, or differs. Upload it again.",
+  },
+  username_recently_changed: {
+    status: [429],
+    meaning: "You can change your username once an hour",
+  },
+  username_taken: {
+    status: [409],
+    meaning: "That username is already taken. Try again.",
+  },
+  voice_channel: {
+    status: [403],
+    meaning: "Voice channels don't take messages",
+  },
+  webhook_channel: {
+    status: [400],
+    meaning: "Webhooks post in text, announcement and forum channels.",
+  },
+  webhook_limit: {
+    status: [409],
+    meaning: "A channel can have up to 10 webhooks. Delete one to make another.",
+  },
+  weak_password: {
+    status: [400],
+    meaning: "The password doesn't meet the length or strength rules.",
+  },
   workspace_not_found: { status: [404], meaning: "Workspace not found" },
   // Community parity A1 (feature "community-permissions", docs/COMMUNITY_PERMISSIONS.md).
-  auto_role_has_powers: { status: [400], meaning: "Roles given automatically are for show: they can't grant or restrict any permission." },
-  external_emoji_not_allowed: { status: [403], meaning: "You can't use emoji or stickers from other communities here." },
-  gifs_not_allowed: { status: [403], meaning: "This channel doesn't take GIFs." },
-  headings_not_allowed: { status: [403], meaning: "You can't write headings (lines starting with #) here." },
+  auto_role_has_powers: {
+    status: [400],
+    meaning: "Roles given automatically are for show: they can't grant or restrict any permission.",
+  },
+  external_emoji_not_allowed: {
+    status: [403],
+    meaning: "You can't use emoji or stickers from other communities here.",
+  },
+  gifs_not_allowed: {
+    status: [403],
+    meaning: "This channel doesn't take GIFs.",
+  },
+  headings_not_allowed: {
+    status: [403],
+    meaning: "You can't write headings (lines starting with #) here.",
+  },
   links_not_allowed: { status: [403], meaning: "You can't post links here." },
-  manage_messages_required: { status: [403], meaning: "Only people who manage messages here can delete or pin other people's messages." },
-  nickname_not_allowed: { status: [403], meaning: "You can't change your nickname in this community." },
-  nicknames_not_allowed: { status: [403], meaning: "You can't change this person's nickname." },
-  not_member_safe: { status: [400], meaning: "Administrative permissions come from roles; they can't be given to every member." },
+  manage_messages_required: {
+    status: [403],
+    meaning: "Only people who manage messages here can delete or pin other people's messages.",
+  },
+  nickname_not_allowed: {
+    status: [403],
+    meaning: "You can't change your nickname in this community.",
+  },
+  nicknames_not_allowed: {
+    status: [403],
+    meaning: "You can't change this person's nickname.",
+  },
+  not_member_safe: {
+    status: [400],
+    meaning: "Administrative permissions come from roles; they can't be given to every member.",
+  },
   polls_not_allowed: { status: [403], meaning: "You can't create polls here." },
-  reactions_not_allowed: { status: [403], meaning: "You can't add new reactions here. You can still join a reaction that's already there." },
-  read_only_channel: { status: [403], meaning: "This channel is read-only. You can still read and react." },
-  role_mention_not_allowed: { status: [403], meaning: "That role isn't open to mentions." },
-  text_only_channel: { status: [403], meaning: "This channel is for text only: no files, GIFs or stickers." },
-  thread_replies_not_allowed: { status: [403], meaning: "You can't reply in threads here." },
-  threads_not_allowed: { status: [403], meaning: "You can't start threads here." },
-  voice_messages_not_allowed: { status: [403], meaning: "You can't send voice messages here." },
+  reactions_not_allowed: {
+    status: [403],
+    meaning: "You can't add new reactions here. You can still join a reaction that's already there.",
+  },
+  read_only_channel: {
+    status: [403],
+    meaning: "This channel is read-only. You can still read and react.",
+  },
+  role_mention_not_allowed: {
+    status: [403],
+    meaning: "That role isn't open to mentions.",
+  },
+  text_only_channel: {
+    status: [403],
+    meaning: "This channel is for text only: no files, GIFs or stickers.",
+  },
+  thread_replies_not_allowed: {
+    status: [403],
+    meaning: "You can't reply in threads here.",
+  },
+  threads_not_allowed: {
+    status: [403],
+    meaning: "You can't start threads here.",
+  },
+  voice_messages_not_allowed: {
+    status: [403],
+    meaning: "You can't send voice messages here.",
+  },
   // Community parity batch D, official bots (feature "community-bots", docs/COMMUNITY_PARITY_API.md › Official bots).
-  bots_plus_required: { status: [403], meaning: "That's a Bots+ extra. This community needs Bots+ to use it." },
-  bot_role_not_givable: { status: [403], meaning: "Bots can only give roles that are just for show, or that you could assign yourself without administrative powers." },
-  official_bot_channel_invalid: { status: [400], meaning: "Pick a text channel of this community that you can see." },
+  bots_plus_required: {
+    status: [403],
+    meaning: "That's a Bots+ extra. This community needs Bots+ to use it.",
+  },
+  bot_role_not_givable: {
+    status: [403],
+    meaning: "Bots can only give roles that are just for show, or that you could assign yourself without administrative powers.",
+  },
+  official_bot_channel_invalid: {
+    status: [400],
+    meaning: "Pick a text channel of this community that you can see.",
+  },
   official_bot_off: { status: [409], meaning: "Turn this bot on first." },
-  official_bot_unavailable: { status: [409], meaning: "This bot can't be turned on on this server." },
+  official_bot_unavailable: {
+    status: [409],
+    meaning: "This bot can't be turned on on this server.",
+  },
   // Community parity batch D part 2: Alerts and Wordy.
-  alerts_unconfigured: { status: [503], meaning: "Alerts needs a YouTube API key on this server." },
-  alerts_source_unknown: { status: [400], meaning: "YouTube doesn't know that channel. Paste its link or @handle." },
-  wordy_not_a_word: { status: [400], meaning: "That isn't a five-letter word Wordy knows." },
-  wordy_finished: { status: [409], meaning: "You've played today's word. A new one comes at 00:00 UTC." },
+  alerts_unconfigured: {
+    status: [503],
+    meaning: "Alerts needs a YouTube API key on this server.",
+  },
+  alerts_source_unknown: {
+    status: [400],
+    meaning: "YouTube doesn't know that channel. Paste its link or @handle.",
+  },
+  wordy_not_a_word: {
+    status: [400],
+    meaning: "That isn't a five-letter word Wordy knows.",
+  },
+  wordy_finished: {
+    status: [409],
+    meaning: "You've played today's word. A new one comes at 00:00 UTC.",
+  },
   ...FEDERATION_ERROR_CODES,
 } as const satisfies Record<string, ErrorSpec>;
 
