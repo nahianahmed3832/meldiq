@@ -1,4 +1,4 @@
-import type { RowReader } from "../../infrastructure/database/rows/index.js";
+import type { Rows, RowReader } from "../../infrastructure/database/rows/index.js";
 import { compareText, foldAscii, likeContains } from "../../shared/utilities/sqlText.js";
 
 /**
@@ -182,4 +182,13 @@ export function orgsWithMembers(rows: RowReader, limit: number): { id: string; n
 /** The member ids of one organization (its activity figures). */
 export function orgMemberIds(rows: RowReader, orgId: string): string[] {
   return rows.all<{ user_id: string }>("org_members", { where: { org_id: orgId } }).map((r) => r.user_id);
+}
+
+/** Platform-only restriction metadata; ordinary org views do not serialize it. */
+export function orgPlatformRestriction(rows: RowReader, orgId: string) {
+  const r = rows.get<{ platform_suspended_at: number | null; platform_suspended_until: number | null }>("orgs", { id: orgId });
+  return { suspendedAt: r?.platform_suspended_at ?? null, until: r?.platform_suspended_until ?? null };
+}
+export async function setOrgPlatformRestriction(rows: Rows, orgId: string, at: number | null, until: number | null) {
+  await rows.write((w) => w.update("orgs", { id: orgId }, { platform_suspended_at: at, platform_suspended_until: until }));
 }

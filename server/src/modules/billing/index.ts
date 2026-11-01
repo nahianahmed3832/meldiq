@@ -19,3 +19,5 @@ export { resolveEntitlements } from "./entitlements.js";
 export type { GiftRow } from "./gifts.js";
 export type { SparkAssignmentRow } from "./mojo.js";
 export { isAddonPlanKey } from "./perks.js";
+
+export { PayPalCheckout } from "./paypalCheckout.js";

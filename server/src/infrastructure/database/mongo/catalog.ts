@@ -237,6 +237,8 @@ export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
   federation_outbox: "federation",
   federation_peers: "federation",
   // The Platform Admin Console (migration 046): grants, console passkeys, the append-only audit and incidents.
+  platform_report_cases: "platform",
+  platform_report_events: "platform",
   platform_admins: "platform",
   platform_admin_passkeys: "platform",
   platform_audit: "platform",

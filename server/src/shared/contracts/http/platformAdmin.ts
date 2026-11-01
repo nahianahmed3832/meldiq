@@ -9,7 +9,7 @@ import { zCount, zTime } from "./primitives.js";
  * unknown keys are refused, so nothing can be mass-assigned.
  */
 
-export const PLATFORM_ROLE_VALUES = ["super_admin", "operations_admin", "support_admin", "billing_admin", "auditor"] as const;
+export const PLATFORM_ROLE_VALUES = ["super_admin", "operations_admin", "platform_moderator", "support_admin", "billing_admin", "auditor"] as const;
 export const zPlatformRole = z.enum(PLATFORM_ROLE_VALUES);
 
 /** Why a sensitive action is taken: shown in the audit trail. */
@@ -80,6 +80,8 @@ export const USER_STATUSES = ["active", "suspended", "deleted"] as const;
 export const zDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "A day like 2026-10-24");
 export const AdminUsersQuery = z.strictObject({
   q: zSearch,
+  plan: z.enum(["free", "plus", "go"]).optional(),
+  orgId: z.string().regex(/^[A-Za-z0-9_-]{3,64}$/).optional(),
   status: z.enum(USER_STATUSES).optional(),
   /** active7d: qualifying activity in the last 7 days; inactive30d: none in 30 days (telemetry, since it began). */
   activity: z.enum(["active7d", "inactive30d"]).optional(),
@@ -171,8 +173,8 @@ export const AdminOrgDetail = z.strictObject({
   limits: z.array(z.strictObject({ key: z.string(), limit: zCount.nullable(), source: z.enum(["workspace", "plan", "server", "none"]) })),
   /** The subscription that isn't over, if any (docs/BILLING.md); null when there is none. */
   subscription: z.strictObject({ id: z.string(), plan: z.string(), status: z.string(), standing: z.string(), currentPeriodEnd: zTime.nullable() }).nullable(),
-  /** Org suspension is designed but not enforced yet (owner's decision 2026-10-23). */
-  suspension: z.strictObject({ supported: z.literal(false) }),
+  /** Reversible platform restriction, enforced in shared community authorization. */
+  suspension: z.strictObject({ supported: z.literal(true), active: z.boolean(), suspendedAt: zTime.nullable(), until: zTime.nullable() }),
 });
 
 // ───────────── Entitlements and billing status (phase 4) ─────────────
@@ -406,3 +408,78 @@ export const AdminDecorationEntry = AdminDecorationView.extend({
 });
 export const AdminDecorationsPage = z.strictObject({ decorations: z.array(AdminDecorationEntry), next: zTime.nullable() });
 export const AdminDecorationDecided = z.strictObject({ decoration: AdminDecorationView });
+
+// Central operations (2026-11-01): no reporter identity, sealed report content or private messages.
+export const AdminReportQuery = z.strictObject({
+  status: z.enum(["open", "actioned", "dismissed"]).optional(),
+  orgId: z.string().min(1).max(64).optional(),
+  targetUserId: z.string().min(1).max(64).optional(),
+  q: z.string().trim().max(120).optional(),
+  cursor: zCursor.optional(),
+  limit: zLimit,
+});
+export const AdminReportParams = z.strictObject({
+  reportId: z.string().regex(/^[A-Za-z0-9_-]{3,64}$/),
+});
+export const AdminReportUpdate = z
+  .strictObject({
+    version: z.number().int().nonnegative(),
+    status: z.enum(["open", "actioned", "dismissed"]).optional(),
+    assigneeAccountId: z.string().max(64).nullable().optional(),
+    priority: z.enum(["low", "normal", "high", "urgent"]).optional(),
+    appealStatus: z.enum(["none", "open", "upheld", "overturned"]).optional(),
+    note: z.string().trim().max(2000).optional(),
+    reason: zReason,
+  })
+  .refine((v) => Object.keys(v).some((k) => k !== "version" && k !== "reason"), "Choose a change");
+export const AdminReportView = z.strictObject({
+  id: z.string(),
+  orgId: z.string().nullable(),
+  targetUserId: z.string(),
+  reason: z.string(),
+  kind: z.enum(["message", "profile"]),
+  messageId: z.string().nullable(),
+  status: z.enum(["open", "actioned", "dismissed"]),
+  createdAt: zTime,
+  handledAt: zTime.nullable(),
+  assigneeAccountId: z.string().nullable(),
+  priority: z.string(),
+  appealStatus: z.string(),
+  syncStatus: z.string(),
+  intendedStatus: z.string().nullable(),
+  version: z.number().int().nonnegative(),
+});
+export const AdminReportsPage = z.strictObject({
+  reports: z.array(AdminReportView),
+  nextCursor: z.string().nullable(),
+});
+export const AdminReportDetail = z.strictObject({
+  report: AdminReportView,
+  events: z.array(
+    z.strictObject({
+      at: zTime,
+      actorAccountId: z.string(),
+      kind: z.string(),
+      body: z.string(),
+    }),
+  ),
+});
+export const AdminPermissionUpdate = z.strictObject({
+  permissions: z.array(z.string()).max(100).nullable(),
+  reason: zReason,
+});
+export const AdminPermissionView = z.strictObject({
+  role: zPlatformRole,
+  catalog: z.array(z.string()),
+  defaults: z.array(z.string()),
+  effective: z.array(z.string()),
+  custom: z.boolean(),
+});
+export const AdminOrgRestriction = z.strictObject({
+  suspended: z.boolean(),
+  until: zTime.nullable().optional(),
+  reason: zReason,
+});
+
+export const AdminOrgDeleteBody = z.strictObject({ reason: zReason, confirmName: z.string().trim().min(1).max(160), requestId: z.uuid() });
+export const AdminOrgDeleted = z.strictObject({ deleted: z.literal(true), orgId: z.string(), members: zCount, channels: zCount, files: zCount });

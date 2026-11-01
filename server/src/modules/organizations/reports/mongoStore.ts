@@ -1,5 +1,5 @@
 import type { Collection } from "mongodb";
-import type { ReportRow, ReportStatus, ReportStore } from "./store.js";
+import type { AdminReportQuery, ReportRow, ReportStatus, ReportStore } from "./store.js";
 import type { MeldiqMongo } from "../../../infrastructure/database/mongo/client.js";
 
 /** reports: the SQLite row (same field names, docs/MONGODB.md §3) keyed by the report id. */
@@ -20,6 +20,19 @@ export class MongoReportStore implements ReportStore {
     return r;
   }
 
+  async adminList(q: AdminReportQuery): Promise<ReportRow[]> {
+    const filter: import("mongodb").Filter<ReportDoc> = {};
+    if (q.status) filter.status = q.status;
+    if (q.orgId) filter.org_id = q.orgId;
+    if (q.targetUserId) filter.target_user_id = q.targetUserId;
+    const groups: import("mongodb").Filter<ReportDoc>[] = [];
+    if (q.q) groups.push({ $or: [{ id: q.q }, { target_user_id: q.q }, { reason: q.q as ReportRow["reason"] }] });
+    if (q.after) groups.push({ $or: [{ created_at: { $lt: q.after.createdAt } }, { created_at: q.after.createdAt, _id: { $lt: q.after.id } }] });
+    if (groups.length) filter.$and = groups;
+    const docs = await this.col.find(filter, { session: this.mongo.session(), sort: { created_at: -1, _id: -1 }, limit: q.limit }).toArray();
+    return docs.map((d) => this.row(d)!);
+  }
+
   async create(r: ReportRow): Promise<void> {
     await this.col.insertOne({ _id: r.id, ...r }, { session: this.mongo.session() });
   }
@@ -38,10 +51,7 @@ export class MongoReportStore implements ReportStore {
 
   async list(orgId: string | null, closed: boolean, limit: number, before = Number.MAX_SAFE_INTEGER): Promise<ReportRow[]> {
     const docs = await this.col
-      .find(
-        { org_id: orgId, status: closed ? { $ne: "open" } : "open", created_at: { $lt: before } },
-        { session: this.mongo.session(), sort: { created_at: -1, _id: -1 }, limit },
-      )
+      .find({ org_id: orgId, status: closed ? { $ne: "open" } : "open", created_at: { $lt: before } }, { session: this.mongo.session(), sort: { created_at: -1, _id: -1 }, limit })
       .toArray();
     return docs.map((d) => this.row(d)!);
   }

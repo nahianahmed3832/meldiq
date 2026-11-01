@@ -7,7 +7,7 @@
 | VPS | Hostinger VM 1245833, `srv1245833.hstgr.cloud`, **72.60.107.88** (Ubuntu 24.04, 2 vCPU, 8 GB) |
 | Compose project | **`griip-internal-messaging`** |
 | Directory | **`/opt/griip-internal-messaging`** (root, 0750; `.env` 0600) |
-| Services | `api` (`griip-internal-messaging-api:0.68.0` since 2026-11-01, built on the VPS; `0.67.1-yapin-rollback` and earlier rollback images kept), `livekit` (`livekit/livekit-server:v1.13.10`), `ntfy` (`binwiederhier/ntfy:v2.31.1`) |
+| Services | `api` (`griip-internal-messaging-api:0.70.0-admin` since 2026-11-01 10:01 UTC; `0.69.0-paypal-live-admin-rollback` retained), `livekit` (`livekit/livekit-server:v1.13.10`), `ntfy` (`binwiederhier/ntfy:v2.31.1`) |
 | Volume / network | `griip-internal-messaging_api-data`, `griip-internal-messaging_default` |
 | Public URLs | **`https://msg.meldiq.app`** (API + WebSocket) and **`wss://rtc.meldiq.app`** (LiveKit signalling) since 2026-10-22; the former `msg.griipbuddy.cloud` and `rtc.griipbuddy.cloud` still serve the same backends for apps installed earlier |
 | TLS | host nginx: `meldiq-msg.conf` (certificate `meldiq-msg`, msg and rtc.meldiq.app) and `griip-message.conf` (certificate `griip-message`, the former names); both renew automatically (certbot, webroot `/var/www/griip-message-acme`). `meldiq-admin.conf` (certificate `admin.meldiq.app`, certbot `--nginx`, renews automatically) since 2026-10-23 |
@@ -16,6 +16,22 @@
 | DNS | Hostinger DNS for `meldiq.app`: A records `msg`, `rtc`, `web` and `admin` (since 2026-10-23) → 72.60.107.88. Hostinger DNS for `griipbuddy.cloud`: A records `msg` and `rtc` → 72.60.107.88 (former names) |
 
 Nothing else on the server was modified. No other Compose project, volume, nginx site or certificate was touched.
+
+## API 0.70.0 and central admin 1.5.0 — 2026-11-01
+
+Owner instruction: “Continue implementing the remaining gaps that can be completed locally. Keep unavailable integrations clearly labeled, finish testing, and deploy to production.” Based on the owner-approved paypal-live API 0.69 checkout; the older main Android checkout remains untouched.
+
+API `griip-internal-messaging-api:0.70.0-admin` switched at 10:01:34 UTC; console `1.5.0-20261101T092631Z` at 10:01:59 UTC. Administration migration 081 preserves grants and adds moderator/permission reductions, community restrictions and canonical-report workflow metadata. Teal landing-site branding, central moderation, support and internal announcement drafts, real entitlement counts and explicit integration states are deployed. Recovery reconciles report bookkeeping without replaying moderation actions; orphan notes follow the existing 90-day report retention. No provider credentials, prices, entitlements, DNS or other application releases were changed.
+
+Preflight: production source matched the API 0.69 baseline; image `0.69.0-paypal-live` retained as `0.69.0-paypal-live-admin-rollback`. Backup `/opt/griip-internal-messaging/backups/pre-0.70.0-admin-20261101` holds verified SQLite/attachments, snapshot-transaction MongoDB export with collection metadata, all environment files, compose/nginx and source copies. Secrets and data remain private on the VPS.
+
+Rehearsal: schema 81 integrity OK on the snapshot; new and prior images read it and verify the same 181-row audit chain; new runtime healthy with networking disabled. Local console checks: 27 unit tests and 9 browser scenarios pass. Full backend: 1,761 pass, one migration timeout and one source guard corrected; isolated retry 25/25 pass, covering both failures. An additional all-16-domain MongoDB run passes 15/15. The 18 intentional backend skips remain. Exact results are in the central admin test report.
+
+Production: schema 81 integrity OK; API healthy, zero restarts/startup errors; all 112 public features unchanged; 181-row audit chain intact. Existing console nginx site/header files byte-identical. Public security/host/origin/auth/cache checks pass; deployed JS matches the release; desktop/mobile signed-out UI has no script errors or horizontal overflow. LiveKit/ntfy and Meldiq Web were not restarted or deployed.
+
+Deployment validator now accepts PayPal and all current MongoDB domains and resolves Compose-supplied MongoDB/payment environment privately. Four validation fixtures pass; the prior script is backed up.
+
+Immediate rollback: console `/root/meldiq-admin-1.5.0-20261101T092631Z/rollback.sh`; API compose image `griip-internal-messaging-api:0.69.0-paypal-live-admin-rollback`, then project-scoped `up -d --no-deps --no-build api`. Schema 81 can remain. For later rollback, review moderator grants, permission reductions and community restrictions: older APIs do not enforce them. Never restore data for a routine binary rollback. The central admin DEPLOYMENT_RUNBOOK.md contains checksums, evidence and full rollback details.
 
 ### API 0.68.0 and web 0193e7c — core Yapin roadmap (2026-11-01, 14:49 Asia/Shanghai)
 

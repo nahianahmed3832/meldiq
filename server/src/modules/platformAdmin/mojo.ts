@@ -1,4 +1,5 @@
 import type { AppContext } from "../../app/context.js";
+import { searchUsers } from "../accounts/index.js";
 import { networkKey } from "../../app/middleware/abuse.js";
 import { ApiError, forbidden, notFound } from "../../shared/errors.js";
 import { now } from "../../shared/utilities/util.js";
@@ -34,7 +35,7 @@ import type { PlatformAudit } from "./audit.js";
 import type { AdminPrincipal } from "./auth.js";
 import type { RequestMeta } from "./credentials.js";
 import { decodeCursor, page } from "./pagination.js";
-import { can } from "./permissions.js";
+import { allowed } from "./permissions.js";
 import { flatDetail } from "./quotasAdmin.js";
 
 const REFERRALS_SHOWN = 25;
@@ -56,7 +57,7 @@ export class AdminMojo {
   ) {}
 
   private record(p: AdminPrincipal, action: string, targetType: string, targetId: string, reason: string, meta: RequestMeta, detail: Record<string, unknown>) {
-    this.audit.record({
+    return this.audit.record({
       action,
       outcome: "success",
       actorAccountId: p.account.id,
@@ -82,7 +83,7 @@ export class AdminMojo {
 
   private accountRef(p: AdminPrincipal, id: string, known: Map<string, AccountRow>) {
     const a = known.get(id);
-    return { accountId: id, name: a?.name ?? null, email: a && can(p.grant.role, "users.view_email") ? a.email : null, userId: a?.user_id ?? null };
+    return { accountId: id, name: a?.name ?? null, email: a && allowed(p.grant, "users.view_email") ? a.email : null, userId: a?.user_id ?? null };
   }
 
   private adminRef(id: string | null, known: Map<string, AccountRow>) {
@@ -180,7 +181,10 @@ export class AdminMojo {
       before = await this.ctx.billing.program.save({ ...settings, startsAt }, p.account.id, t);
     }
     const after = this.ctx.billing.program.state();
-    this.record(p, "billing.program_update", "billing_program", "trials", b.reason, meta, { before: { source: before.source, ...before.settings }, after: { source: after.source, ...after.settings } });
+    await this.record(p, "billing.program_update", "billing_program", "trials", b.reason, meta, {
+      before: { source: before.source, ...before.settings },
+      after: { source: after.source, ...after.settings },
+    });
     return this.program(p);
   }
 
@@ -193,7 +197,7 @@ export class AdminMojo {
   }
 
   private async target(p: AdminPrincipal, b: { accountId?: string; email?: string }): Promise<AccountRow> {
-    if (b.email !== undefined && !can(p.grant.role, "users.view_email")) throw forbidden("Your console role can't look people up by email. Give it from their page instead.");
+    if (b.email !== undefined && !allowed(p.grant, "users.view_email")) throw forbidden("Your console role can't look people up by email. Give it from their page instead.");
     const a = b.accountId ? await this.ctx.accounts.store.accountById(b.accountId) : await this.ctx.accounts.store.accountByEmail(b.email!);
     if (!a) throw notFound("No account with that id or email");
     return a;
@@ -202,10 +206,17 @@ export class AdminMojo {
   async give(p: AdminPrincipal, b: { accountId?: string; email?: string; days: number; planKey?: string; reason: string }, meta: RequestMeta) {
     const a = await this.target(p, b);
     const planKey = b.planKey ?? this.ctx.billing.program.state().settings.planKey;
+    if (planKey === "go") throw new ApiError(400, "bad_request", "Go is retired. Choose Plus for a new free period.");
     // After any free period of the same or a higher plan (as gifts do), so days add up.
     const laterThan = planKey === "go" ? ["go", "plus"] : [planKey];
     const g = await this.ctx.billing.grants.give({ accountId: a.id, createdAt: a.created_at, userId: a.user_id }, { planKey, days: b.days, actor: p.account.id, note: b.reason, laterThan });
-    this.record(p, "billing.grant_give", "account", a.id, b.reason, meta, { grant: g.id, plan: planKey, days: b.days, from: new Date(g.starts_at).toISOString(), until: new Date(g.ends_at).toISOString() });
+    await this.record(p, "billing.grant_give", "account", a.id, b.reason, meta, {
+      grant: g.id,
+      plan: planKey,
+      days: b.days,
+      from: new Date(g.starts_at).toISOString(),
+      until: new Date(g.ends_at).toISOString(),
+    });
     this.ctx.billing.changed({ kind: "account", accountId: a.id });
     return { grant: (await this.grantViews(p, [g]))[0]!, changed: true };
   }
@@ -213,7 +224,7 @@ export class AdminMojo {
   async end(p: AdminPrincipal, grantId: string, reason: string, meta: RequestMeta) {
     const { grant, changed } = await this.ctx.billing.grants.end(grantId, p.account.id);
     if (changed) {
-      this.record(p, "billing.grant_end", "account", grant.account_id, reason, meta, { grant: grant.id, source: grant.source, wasUntil: new Date(grant.ends_at).toISOString() });
+      await this.record(p, "billing.grant_end", "account", grant.account_id, reason, meta, { grant: grant.id, source: grant.source, wasUntil: new Date(grant.ends_at).toISOString() });
       this.ctx.billing.changed({ kind: "account", accountId: grant.account_id });
     }
     return { grant: (await this.grantViews(p, [grant]))[0]!, changed };
@@ -252,7 +263,15 @@ export class AdminMojo {
   // ───────────── Enforcement and limits ─────────────
 
   private figures() {
-    return mojoFigures(this.ctx.billing, (orgId, t) => this.ctx.mojo.levelOf(orgId, t).level, now());
+    const at = now();
+    const figures = mojoFigures(this.ctx.billing, (orgId, t) => this.ctx.mojo.levelOf(orgId, t).level, at);
+    // Effective plan per non-deleted local identity, counted once. Free is measured, never defaulted to zero.
+    const accountsByPlan: Record<string, number> = { free: 0, plus: 0, go: 0 };
+    for (const u of searchUsers(this.ctx.identity, { limit: Number.MAX_SAFE_INTEGER })) {
+      if (u.deleted_at !== null) continue;
+      accountsByPlan[this.ctx.mojo.planOf(u.id, at)]++;
+    }
+    return { ...figures, accountsByPlan };
   }
 
   async controls() {
@@ -294,13 +313,15 @@ export class AdminMojo {
     const enforcedBefore = this.ctx.mojo.enforced();
     // Prices aren't limits: they change only with setPrices (Stripe and the catalog together), so they're kept here.
     const plans = strip(b.plans) as PlanOverrides;
+    // Preserve historical Go entitlement overrides; the active-product editor no longer modifies them.
+    if (before.plans.go && !b.plans.go) plans.go = before.plans.go;
     for (const key of ["go", "plus"] as const) {
       const price = before.plans[key]?.listPriceMinor;
       if (price !== undefined) plans[key] = { ...plans[key], listPriceMinor: price };
     }
     await this.ctx.billing.mojoControls.save({ enforce: b.enforce, plans, levels: strip(b.levels) as LevelOverrides }, p.account.id, now());
     const after = this.ctx.billing.mojoControls.state();
-    this.record(p, "mojo.controls_update", "mojo_controls", "mojo", b.reason, meta, {
+    await this.record(p, "mojo.controls_update", "mojo_controls", "mojo", b.reason, meta, {
       enforceBefore: before.enforce ?? "environment",
       enforceAfter: after.enforce ?? "environment",
       enforcedBefore,
@@ -352,7 +373,7 @@ export class AdminMojo {
       steps.push(...(await publishMojoPlans(this.ctx.billing.catalog, provider.id, prices, p.account.id, t, grace, amounts)));
     } else steps.push("no payment provider: only the list price changed");
     await controls.save({ enforce: before.enforce, plans, levels: before.levels }, p.account.id, now());
-    this.record(p, "mojo.prices_update", "mojo_controls", "prices", b.reason, meta, {
+    await this.record(p, "mojo.prices_update", "mojo_controls", "prices", b.reason, meta, {
       goBefore: listBefore.go.listPriceMinor,
       goAfter: b.go,
       plusBefore: listBefore.plus.listPriceMinor,

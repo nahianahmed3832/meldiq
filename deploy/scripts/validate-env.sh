@@ -25,6 +25,29 @@ esac
 # shellcheck disable=SC1090
 set -a; . "$ENVF"; set +a
 
+# With the default deployment, Compose may supply MongoDB/payment settings from additional env files or overrides.
+# Read only those setting families through Compose's own parser; never print their values or eval generated code.
+if [ "$#" -eq 0 ] && [ -f "$DIR/compose.yaml" ]; then
+  compose_env="$(mktemp)"
+  chmod 600 "$compose_env"
+  if docker compose -p griip-internal-messaging -f "$DIR/compose.yaml" config --format json > "$compose_env"; then
+    while IFS= read -r -d '' setting_name && IFS= read -r -d '' setting_value; do
+      printf -v "$setting_name" '%s' "$setting_value"
+      export "$setting_name"
+    done < <(python3 - "$compose_env" <<'PYCONFIG'
+import json,re,sys
+values=json.load(open(sys.argv[1]))['services']['api'].get('environment',{})
+for key,value in values.items():
+    if re.fullmatch(r'(?:MONGODB|PAYPAL|BILLING)_[A-Z0-9_]+',key) and value is not None:
+        sys.stdout.buffer.write(key.encode()+b'\0'+str(value).encode()+b'\0')
+PYCONFIG
+)
+  else
+    err "Unable to resolve the deployment's Compose environment"
+  fi
+  rm -f "$compose_env"
+fi
+
 url_check() { # name value scheme-secure scheme-insecure
   local name="$1" val="$2" secure="$3" insecure="$4"
   if [ -z "$val" ]; then err "$name is empty"; return; fi
@@ -62,6 +85,16 @@ case "${BILLING_PROVIDER:-none}" in
   sandbox)
     if [ "${#BILLING_SANDBOX_WEBHOOK_SECRET}" -ge 32 ]; then warn "BILLING_PROVIDER=sandbox: test mode, no real money; not for production customers"
     else err "BILLING_SANDBOX_WEBHOOK_SECRET must be at least 32 characters with BILLING_PROVIDER=sandbox"; fi ;;
+  paypal)
+    case "${PAYPAL_ENVIRONMENT:-}" in
+      live) if [ "${BILLING_ALLOW_LIVE:-}" = true ] && [ "${APP_ENV:-}" = production ]; then ok "PayPal live mode explicitly enabled"; else err "PayPal live requires BILLING_ALLOW_LIVE=true and APP_ENV=production"; fi ;;
+      sandbox) if [ "${APP_ENV:-}" = production ]; then err "PayPal sandbox cannot run in production"; else warn "PayPal sandbox: test mode, no real money"; fi ;;
+      *) err "PAYPAL_ENVIRONMENT must be sandbox or live" ;;
+    esac
+    for name in PAYPAL_CLIENT_ID PAYPAL_CLIENT_SECRET PAYPAL_WEBHOOK_ID PAYPAL_MERCHANT_ID; do
+      if [ -n "${!name:-}" ]; then ok "$name is set"; else err "$name is required with PayPal"; fi
+    done
+    case "${BILLING_RETURN_URL:-}" in https://*) ok "PayPal return URL uses HTTPS" ;; *) err "BILLING_RETURN_URL must use HTTPS" ;; esac ;;
   stripe)
     case "${STRIPE_SECRET_KEY:-}" in
       sk_test_*|rk_test_*) warn "BILLING_PROVIDER=stripe with a test key: Stripe test mode, no real money" ;;
@@ -72,7 +105,7 @@ case "${BILLING_PROVIDER:-none}" in
     esac
     case "${STRIPE_WEBHOOK_SECRET:-}" in whsec_*) ok "STRIPE_WEBHOOK_SECRET set" ;; *) err "STRIPE_WEBHOOK_SECRET must be the endpoint's signing secret (whsec_…)" ;; esac
     case "${BILLING_RETURN_URL:-}" in https://*) ok "BILLING_RETURN_URL ${BILLING_RETURN_URL}" ;; *) err "BILLING_RETURN_URL must be the website's https billing page (e.g. https://meldiq.app/account/billing)" ;; esac ;;
-  *) err "BILLING_PROVIDER must be none, sandbox or stripe (${BILLING_PROVIDER})" ;;
+  *) err "BILLING_PROVIDER must be none, sandbox, stripe or paypal (${BILLING_PROVIDER})" ;;
 esac
 
 # Google Play for the Android app (docs/MOJO_ANDROID.md): off unless GOOGLE_PLAY_PACKAGE is set.
@@ -156,7 +189,7 @@ if [ -n "${MONGODB_URI:-}" ]; then
     *) err "MONGODB_URI must start with mongodb:// or mongodb+srv://" ;;
   esac
   for d in $(echo "${MONGODB_DOMAINS:-}" | tr ',' ' '); do
-    case "$d" in accounts|preferences|history|reports|relationships|relay|files) ok "MongoDB holds: $d (migrated first with admin mongo-migrate)" ;;
+    case "$d" in accounts|preferences|history|reports|relationships|relay|files|calls|workspace|conversations|billing|safety|platform|federation|ephemeral|identity) ok "MongoDB holds: $d (migrated first with admin mongo-migrate)" ;;
       integrations) ok "MONGODB_DOMAINS: integrations is retired and ignored" ;; *) err "MONGODB_DOMAINS: unknown domain $d" ;; esac
   done
 elif [ -n "${MONGODB_DOMAINS:-}" ]; then

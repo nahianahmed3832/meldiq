@@ -19,7 +19,7 @@ import type { PlatformAudit } from "./audit.js";
 import type { AdminPrincipal } from "./auth.js";
 import type { RequestMeta } from "./credentials.js";
 import { decodeCursor, encodeCursor } from "./pagination.js";
-import { can } from "./permissions.js";
+import { allowed } from "./permissions.js";
 
 type CreateBody = z.infer<typeof AdminAccountCreateBody>;
 type VerificationBody = z.infer<typeof AdminAccountVerificationBody>;
@@ -41,7 +41,8 @@ export class AdminAccounts {
 
   async create(p: AdminPrincipal, b: CreateBody, meta: RequestMeta) {
     const accounts = this.ctx.accounts;
-    if (b.verification === "email" && b.sendCode && !accounts.mailer.available) throw new ApiError(503, "email_unavailable", "This server can't send email right now. Choose another verification, or don't send the code yet.");
+    if (b.verification === "email" && b.sendCode && !accounts.mailer.available)
+      throw new ApiError(503, "email_unavailable", "This server can't send email right now. Choose another verification, or don't send the code yet.");
     if (await accounts.store.accountByEmail(b.email)) throw new ApiError(409, "email_taken", "That email already has a Meldiq account.");
     const id = newId("acc");
     const generated = b.password === undefined ? crypto.randomBytes(GENERATED_PASSWORD_BYTES).toString("base64url") : null;
@@ -113,7 +114,12 @@ export class AdminAccounts {
     return { account: (await this.views(p, [operatorAccount(this.ctx.platform, accountId)!]))[0]! };
   }
 
-  private row(p: AdminPrincipal, id: string, b: { verification: OperatorAccountRow["verification"]; staticCode?: string; codeExpiresAt?: number; tester: boolean; note?: string }, t: number): OperatorAccountRow {
+  private row(
+    p: AdminPrincipal,
+    id: string,
+    b: { verification: OperatorAccountRow["verification"]; staticCode?: string; codeExpiresAt?: number; tester: boolean; note?: string },
+    t: number,
+  ): OperatorAccountRow {
     if (b.codeExpiresAt !== undefined && b.codeExpiresAt <= t) throw badRequest("The fixed code's end must be in the future.");
     return {
       account_id: id,
@@ -130,7 +136,7 @@ export class AdminAccounts {
   }
 
   private async views(p: AdminPrincipal, rows: OperatorAccountRow[]) {
-    const showEmail = can(p.grant.role, "users.view_email");
+    const showEmail = allowed(p.grant, "users.view_email");
     const names = new Map<string, string>();
     const out = [];
     for (const r of rows) {

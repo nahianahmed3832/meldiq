@@ -427,85 +427,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const actor = me(req).userId;
     const { orgId } = parse(OrgParams, req.params);
     const body = parse(OrgDeleteBody, req.body ?? {});
-    const previous = () =>
-      ws.get<{ deleted_by: string; request_id: string | null; members: number; channels: number; files: number }>("org_deletions", { org_id: orgId });
-    const replay = () => {
-      const d = previous();
-      if (d && body.requestId && d.request_id === body.requestId && d.deleted_by === actor) {
-        return { deleted: true, orgId, members: d.members, channels: d.channels, files: d.files };
-      }
-      throw notFound("Organization not found");
-    };
-    if (previous()) return replay();
-    const role = authz.requireOrgMember(orgId, actor);
-    if (role !== "OWNER") throw forbidden("Only an owner can delete the organization");
-    const org = orgRow(orgId) as { name: string };
-    if (body.confirmName.trim() !== org.name.trim()) throw new ApiError(400, "confirm_mismatch", "Type the organization's name exactly as it appears to delete it");
-    // The files store may not be SQLite: what the channels hold is read before the transaction (and their records go
-    // inside it, through ctx.files.forgetConversation).
-    const files = await ctx.files.attachmentIdsIn(authz.conversationIdsOf(orgId));
-    // Calls may not be in SQLite either: the live rooms to close are read before the transaction too.
-    const rooms = (await ctx.calls.liveIn(authz.conversationIdsOf(orgId))).map((c) => c.room_name);
-
-    const result = await ws.write((w) => {
-        // Checked again inside the write unit: a concurrent delete may have just finished.
-        if (!w.get("orgs", { id: orgId })) return null;
-        if (authz.orgRole(orgId, actor) !== "OWNER") return null;
-        const members = w.all<{ user_id: string }>("org_members", { where: { org_id: orgId } }).map((r) => r.user_id);
-        const channels = w.all<{ id: string }>("conversations", { where: { org_id: orgId } }).map((r) => r.id);
-        const channelMembers = new Map<string, string[]>();
-        for (const c of channels) {
-          channelMembers.set(c, w.all<{ user_id: string }>("conversation_members", { where: { conversation_id: c } }).map((r) => r.user_id));
-          // Rows without a foreign key to the conversation; its files' bytes are scheduled for deletion and its open
-          // uploads abandoned (their objects or parts are removed by the retention job).
-          ctx.relay.forgetConversation(c);
-          ctx.files.forgetConversation(c);
-          w.delete("mention_all_events", { conversation_id: c });
-        }
-        const o = w.get<{ photo_rev: number | null; banner_rev: number | null }>("orgs", { id: orgId })!;
-        if (o.photo_rev) queueBlobDelete(ctx, "profile-photos", photoBlobId(orgId, o.photo_rev));
-        if (o.banner_rev) queueBlobDelete(ctx, "profile-photos", bannerBlobId(orgId, o.banner_rev));
-        // Batch B9: the community's own emoji and stickers.
-        for (const e of w.all<{ id: string }>("community_expressions", { where: { org_id: orgId } })) queueBlobDelete(ctx, "profile-photos", e.id);
-        // Cascades to org_members, roles, categories, overwrites, bans, invitations, the old branch and team rows, and
-        // the community's conversations (members, attachment rows, calls and call participants).
-        w.delete("orgs", { id: orgId });
-        w.insert("org_deletions", {
-          org_id: orgId,
-          name_sha256: sha256Hex(org.name),
-          deleted_by: actor,
-          deleted_at: now(),
-          request_id: body.requestId ?? null,
-          members: members.length,
-          channels: channels.length,
-          files: files.length,
-        });
-        return { members, channelMembers, files, rooms };
-      });
-    if (!result) return replay();
-    // SQLite cascaded its calls with the channels; a call store elsewhere removes them itself.
-    await ctx.calls.forgetConversations([...result.channelMembers.keys()]);
-    for (const c of result.channelMembers.keys()) await ctx.messages.deleteConversation(c);
-    await ctx.prefs.deleteForWorkspace(orgId);
-    await ctx.reports.deleteForOrg(orgId);
-    await ctx.communityRules.removeOrg(orgId);
-    await ctx.communitySafety.removeOrg(orgId);
-
-    ctx.audit({
-      actorId: actor,
-      orgId,
-      action: "org.delete",
-      target: orgId,
-      detail: JSON.stringify({ members: result.members.length, channels: result.channelMembers.size, files: result.files.length }),
-    });
-    // Every device updates: apps from before this change refresh the organization list and each channel (now 404, so
-    // they show it as left); newer apps also get org.deleted.
-    for (const [c, ids] of result.channelMembers) ctx.hub.sendToUsers(new Set(ids), { t: "conv.updated", conversationId: c });
-    ctx.hub.sendToUsers(new Set(result.members), { t: "org.updated", orgId });
-    ctx.hub.sendToUsers(new Set(result.members), { t: "org.deleted", orgId });
-    for (const room of result.rooms) await ctx.livekit?.deleteRoom(room).catch(() => {});
-    await processBlobDeletes(ctx).catch(() => 0);
-    return { deleted: true, orgId, members: result.members.length, channels: result.channelMembers.size, files: result.files.length };
+    return eraseWorkspace(ctx, orgId, { kind: "owner", userId: actor }, body);
   });
 
   /** Archived branches and teams went with them (docs/COMMUNITY_REBUILD_2026-10-21.md); empty for apps that still ask. */
@@ -528,7 +450,12 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const memberships = ws.all<{ user_id: string; role: string; title: string | null; expires_at: number | null; timeout_until: number | null }>("org_members", {
       where: { org_id: orgId },
     });
-    const people = mapByIds<any>(ctx.identity, "users", "id", memberships.map((m) => m.user_id));
+    const people = mapByIds<any>(
+      ctx.identity,
+      "users",
+      "id",
+      memberships.map((m) => m.user_id),
+    );
     const rank: Record<string, number> = { OWNER: 0, ADMIN: 1, MEMBER: 2 };
     const rows = memberships
       .flatMap((m) => {
@@ -671,10 +598,14 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
       const r = ws.get<{ permissions: string; denies: string }>("org_roles", { id: grantRoleId, org_id: orgId, archived_at: null });
       if (!r) throw badRequest("Unknown role");
       // The same rule as assigning it to someone by hand.
-      const refusal = roleAssignmentRefusal(authz.actor(orgId, actor)!, { base: "MEMBER", perms: new Set(), self: false }, {
-        permissions: parsePermissionList(r.permissions),
-        denies: parsePermissionList(r.denies),
-      });
+      const refusal = roleAssignmentRefusal(
+        authz.actor(orgId, actor)!,
+        { base: "MEMBER", perms: new Set(), self: false },
+        {
+          permissions: parsePermissionList(r.permissions),
+          denies: parsePermissionList(r.denies),
+        },
+      );
       if (refusal) throw new ApiError(refusal.status, refusal.code, refusal.message);
     }
     const code = humanCode(12);
@@ -701,7 +632,20 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     );
     ctx.audit({ actorId: actor, orgId, action: "invite.create", target: id, detail: body.role });
     return {
-      invite: { id, code: `${code.slice(0, 4)}-${code.slice(4, 8)}-${code.slice(8)}`, role: body.role, branchId: null, teamId: null, roleId: grantRoleId, maxUses, uses: 0, expiresAt, neverExpires, noUseLimit, guestDays },
+      invite: {
+        id,
+        code: `${code.slice(0, 4)}-${code.slice(4, 8)}-${code.slice(8)}`,
+        role: body.role,
+        branchId: null,
+        teamId: null,
+        roleId: grantRoleId,
+        maxUses,
+        uses: 0,
+        expiresAt,
+        neverExpires,
+        noUseLimit,
+        guestDays,
+      },
     };
   });
 
@@ -711,7 +655,13 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     authz.requireOrgMember(orgId, actor);
     const isAdmin = authz.can(orgId, actor, "members.invites.manage");
     const invites = ws.all<any>("invitations", { where: { org_id: orgId }, orderBy: [["created_at", "desc"]], limit: 100 });
-    const creators = mapByIds<{ id: string; display_name: string }>(ctx.identity, "users", "id", invites.map((i) => i.created_by), "id, display_name");
+    const creators = mapByIds<{ id: string; display_name: string }>(
+      ctx.identity,
+      "users",
+      "id",
+      invites.map((i) => i.created_by),
+      "id, display_name",
+    );
     const rows = invites.map((i) => ({ ...i, creator_name: creators.get(i.created_by)?.display_name ?? null }));
     const t = now();
     return {
@@ -889,7 +839,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const id = newId("c");
     const t = now();
     // Public channels are joined by everyone who may see them unless the creator opts out (autoJoin: false).
-    const autoJoin = body.kind === "ANNOUNCEMENT" ? true : body.kind === "PRIVATE" ? false : body.autoJoin ?? true;
+    const autoJoin = body.kind === "ANNOUNCEMENT" ? true : body.kind === "PRIVATE" ? false : (body.autoJoin ?? true);
     await ws.write((w) => {
       // The limits are checked inside the unit, so two creates can't both take the last place.
       if (categoryId && w.count("conversations", { category_id: categoryId }) >= CHANNEL_LIMITS.perCategory) {
@@ -1006,4 +956,101 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
         .map((r) => ({ id: r.id, at: r.at, action: r.action, actorId: r.actor_id, actorName: nameOf(r.actor_id), target: r.target, detail: r.detail })),
     };
   });
+}
+
+/** Shared, idempotent community deletion. HTTP callers must authorize the owner or platform capability before entry.
+ * Accounts and private conversations outside the community are never deleted. */
+export async function eraseWorkspace(
+  ctx: AppContext,
+  orgId: string,
+  authorization: { kind: "owner"; userId: string } | { kind: "platform"; accountId: string },
+  body: { confirmName: string; requestId?: string },
+) {
+  const { ws, authz } = ctx;
+  const platform = authorization.kind === "platform";
+  const actor = authorization.kind === "owner" ? authorization.userId : `platform:${authorization.accountId}`;
+  const previous = () => ws.get<{ deleted_by: string; request_id: string | null; members: number; channels: number; files: number }>("org_deletions", { org_id: orgId });
+  const replay = () => {
+    const d = previous();
+    if (d && body.requestId && d.request_id === body.requestId && d.deleted_by === actor) {
+      return { deleted: true, orgId, members: d.members, channels: d.channels, files: d.files };
+    }
+    throw notFound("Organization not found");
+  };
+  if (previous()) return replay();
+  if (!platform) {
+    const role = authz.requireOrgMember(orgId, actor);
+    if (role !== "OWNER") throw forbidden("Only an owner can delete the organization");
+  }
+  const org = ws.get<{ name: string }>("orgs", { id: orgId });
+  if (!org) throw notFound("Organization not found");
+  if (body.confirmName.trim() !== org.name.trim()) throw new ApiError(400, "confirm_mismatch", "Type the organization's name exactly as it appears to delete it");
+  // The files store may not be SQLite: what the channels hold is read before the transaction (and their records go
+  // inside it, through ctx.files.forgetConversation).
+  const files = await ctx.files.attachmentIdsIn(authz.conversationIdsOf(orgId));
+  // Calls may not be in SQLite either: the live rooms to close are read before the transaction too.
+  const rooms = (await ctx.calls.liveIn(authz.conversationIdsOf(orgId))).map((c) => c.room_name);
+
+  const result = await ws.write((w) => {
+    // Checked again inside the write unit: a concurrent delete may have just finished.
+    if (!w.get("orgs", { id: orgId })) return null;
+    if (!platform && authz.orgRole(orgId, actor) !== "OWNER") return null;
+    const members = w.all<{ user_id: string }>("org_members", { where: { org_id: orgId } }).map((r) => r.user_id);
+    const channels = w.all<{ id: string }>("conversations", { where: { org_id: orgId } }).map((r) => r.id);
+    const channelMembers = new Map<string, string[]>();
+    for (const c of channels) {
+      channelMembers.set(
+        c,
+        w.all<{ user_id: string }>("conversation_members", { where: { conversation_id: c } }).map((r) => r.user_id),
+      );
+      // Rows without a foreign key to the conversation; its files' bytes are scheduled for deletion and its open
+      // uploads abandoned (their objects or parts are removed by the retention job).
+      ctx.relay.forgetConversation(c);
+      ctx.files.forgetConversation(c);
+      w.delete("mention_all_events", { conversation_id: c });
+    }
+    const o = w.get<{ photo_rev: number | null; banner_rev: number | null }>("orgs", { id: orgId })!;
+    if (o.photo_rev) queueBlobDelete(ctx, "profile-photos", photoBlobId(orgId, o.photo_rev));
+    if (o.banner_rev) queueBlobDelete(ctx, "profile-photos", bannerBlobId(orgId, o.banner_rev));
+    // Batch B9: the community's own emoji and stickers.
+    for (const e of w.all<{ id: string }>("community_expressions", { where: { org_id: orgId } })) queueBlobDelete(ctx, "profile-photos", e.id);
+    // Cascades to org_members, roles, categories, overwrites, bans, invitations, the old branch and team rows, and
+    // the community's conversations (members, attachment rows, calls and call participants).
+    w.delete("orgs", { id: orgId });
+    w.insert("org_deletions", {
+      org_id: orgId,
+      name_sha256: sha256Hex(org.name),
+      deleted_by: actor,
+      deleted_at: now(),
+      request_id: body.requestId ?? null,
+      members: members.length,
+      channels: channels.length,
+      files: files.length,
+    });
+    return { members, channelMembers, files, rooms };
+  });
+  if (!result) return replay();
+  // SQLite cascaded its calls with the channels; a call store elsewhere removes them itself.
+  await ctx.calls.forgetConversations([...result.channelMembers.keys()]);
+  for (const c of result.channelMembers.keys()) await ctx.messages.deleteConversation(c);
+  await ctx.prefs.deleteForWorkspace(orgId);
+  await ctx.reports.deleteForOrg(orgId);
+  await ctx.communityRules.removeOrg(orgId);
+  await ctx.communitySafety.removeOrg(orgId);
+
+  ctx.audit({
+    actorId: actor,
+    orgId,
+    action: "org.delete",
+    target: orgId,
+    detail: JSON.stringify({ members: result.members.length, channels: result.channelMembers.size, files: result.files.length }),
+  });
+  // Every device updates: apps from before this change refresh the organization list and each channel (now 404, so
+  // they show it as left); newer apps also get org.deleted.
+  for (const [c, ids] of result.channelMembers) ctx.hub.sendToUsers(new Set(ids), { t: "conv.updated", conversationId: c });
+  ctx.hub.sendToUsers(new Set(result.members), { t: "org.updated", orgId });
+  ctx.hub.sendToUsers(new Set(result.members), { t: "org.deleted", orgId });
+  for (const room of result.rooms) await ctx.livekit?.deleteRoom(room).catch(() => {});
+  await processBlobDeletes(ctx).catch(() => 0);
+  return { deleted: true, orgId, members: result.members.length, channels: result.channelMembers.size, files: result.files.length };
 }

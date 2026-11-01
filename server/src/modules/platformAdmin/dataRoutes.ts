@@ -1,6 +1,15 @@
 import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../../app/context.js";
-import { AdminOrgParams, AdminOrgsQuery, AdminReasonBody, AdminSuspendBody, AdminUserParams, AdminUsersQuery } from "../../shared/contracts/http/platformAdmin.js";
+import {
+  AdminOrgDeleteBody,
+  AdminOrgRestriction,
+  AdminOrgParams,
+  AdminOrgsQuery,
+  AdminReasonBody,
+  AdminSuspendBody,
+  AdminUserParams,
+  AdminUsersQuery,
+} from "../../shared/contracts/http/platformAdmin.js";
 import { parse } from "../../shared/validation/index.js";
 import type { PlatformAudit } from "./audit.js";
 import type { AdminAuthService } from "./auth.js";
@@ -24,7 +33,7 @@ export interface AdminDeps {
 export default async function adminDataRoutes(app: FastifyInstance, d: AdminDeps) {
   const needs = (permission: Permission) => ({ preHandler: requirePermission(d.auth, d.audit, permission) });
   const users = new AdminUsers(d.ctx, d.store, d.audit);
-  const orgs = new AdminOrgs(d.ctx, new AdminBilling(d.ctx, d.audit));
+  const orgs = new AdminOrgs(d.ctx, new AdminBilling(d.ctx, d.audit), d.audit);
 
   app.get("/admin/v1/overview", needs("overview.view"), async (req) => overview(d.ctx, principal(req), d.version));
 
@@ -51,6 +60,16 @@ export default async function adminDataRoutes(app: FastifyInstance, d: AdminDeps
     const { userId } = parse(AdminUserParams, req.params);
     const { reason } = parse(AdminReasonBody, req.body);
     return users.revokeSessions(principal(req), userId, reason, metaOf(req));
+  });
+
+  app.delete("/admin/v1/orgs/:orgId", needs("orgs.delete"), async (req) => {
+    const { orgId } = parse(AdminOrgParams, req.params);
+    return orgs.delete(principal(req), orgId, parse(AdminOrgDeleteBody, req.body), metaOf(req));
+  });
+
+  app.post("/admin/v1/orgs/:orgId/restriction", needs("orgs.restrict"), async (req) => {
+    const { orgId } = parse(AdminOrgParams, req.params);
+    return orgs.restrict(principal(req), orgId, parse(AdminOrgRestriction, req.body), metaOf(req));
   });
 
   app.get("/admin/v1/orgs", needs("orgs.view"), async (req) => orgs.search(parse(AdminOrgsQuery, req.query)));

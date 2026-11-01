@@ -28,8 +28,7 @@ export class PayPalCheckout {
     private readonly billing: Billing,
     private readonly gifts: Gifts,
   ) {
-    if (!(billing.provider instanceof PayPalProvider))
-      throw notFound("PayPal is not configured");
+    if (!(billing.provider instanceof PayPalProvider)) throw notFound("PayPal is not configured");
     this.provider = billing.provider;
   }
 
@@ -101,10 +100,7 @@ export class PayPalCheckout {
         expiresAt: gift.expires_at,
       };
     const c = checkout!;
-    const sub = this.billing.rows.get<SubscriptionRow>(
-      "billing_subscriptions",
-      { provider: "paypal", checkout_id: c.id },
-    );
+    const sub = this.billing.rows.get<SubscriptionRow>("billing_subscriptions", { provider: "paypal", checkout_id: c.id });
     return {
       id,
       product: this.billing.catalog.plan(this.billing.catalog.version(c.plan_version_id)!.plan_id)?.key === "bots_plus" ? "bots_plus" as const : "plus" as const,
@@ -113,8 +109,7 @@ export class PayPalCheckout {
       status: sub?.status ?? c.status,
       confirmed: !!sub && this.billing.subscriptions.grants(sub, Date.now()),
       currency: "USD" as const,
-      amountMinor: this.billing.catalog.version(c.plan_version_id)!
-        .amount_minor,
+      amountMinor: this.billing.catalog.version(c.plan_version_id)!.amount_minor,
       interval: "month" as const,
       expiresAt: c.expires_at,
     };
@@ -126,13 +121,7 @@ export class PayPalCheckout {
     const { gift, checkout } = this.owned(accountId, id);
     if (gift?.provider_session_ref) {
       const expected = { reference: gift.id, amountMinor: gift.amount_minor };
-      const snap =
-        capture && gift.status === "pending"
-          ? await this.provider.captureOrder(
-              gift.provider_session_ref,
-              expected,
-            )
-          : await this.provider.readOrder(gift.provider_session_ref, expected);
+      const snap = capture && gift.status === "pending" ? await this.provider.captureOrder(gift.provider_session_ref, expected) : await this.provider.readOrder(gift.provider_session_ref, expected);
       if (snap.paid)
         await this.billing.webhooks.ingest("paypal", {
           ref: `capture:${snap.paymentRef}`,
@@ -142,13 +131,7 @@ export class PayPalCheckout {
           checkout: snap,
         });
     } else if (checkout?.provider_session_ref) {
-      await this.billing.rows.write((w) =>
-        w.update(
-          "billing_checkouts",
-          { id: checkout.id },
-          { provider_subscription_ref: checkout.provider_session_ref },
-        ),
-      );
+      await this.billing.rows.write((w) => w.update("billing_checkouts", { id: checkout.id }, { provider_subscription_ref: checkout.provider_session_ref }));
       const snapshots = await this.billing.reconcileRefs([checkout.provider_session_ref]);
       approved = snapshots[0]?.approvalConfirmed === true;
     }
@@ -162,21 +145,23 @@ export class PayPalCheckout {
       kind: "account",
       accountId,
     });
-    if (!sub || sub.provider !== "paypal")
-      throw notFound("PayPal subscription not found");
+    if (!sub || sub.provider !== "paypal") throw notFound("PayPal subscription not found");
     await this.provider.cancelSubscription(sub.provider_subscription_ref);
     await this.billing.reconcileRefs([sub.provider_subscription_ref]);
     const updated = this.billing.subscriptions.get(sub.id)!;
     return {
-      confirmed:
-        !!updated.cancel_at_period_end || updated.status === "canceled",
+      confirmed: !!updated.cancel_at_period_end || updated.status === "canceled",
       accessUntil: updated.current_period_end,
       status: updated.status,
     };
   }
 
   transactions(accountId?: string) {
-    const rows = this.billing.rows;
+    return PayPalCheckout.records(this.billing, accountId);
+  }
+
+  static records(billing: Billing, accountId?: string) {
+    const rows = billing.rows;
     const gifts = rows.all<GiftRow>("mojo_gifts", {
       where: {
         provider: "paypal",
@@ -229,18 +214,10 @@ export class PayPalCheckout {
           provider: "paypal",
           providerRef: g.provider_payment_ref ?? g.provider_session_ref,
           status: g.status,
-          refundStatus:
-            g.refund_status && g.refund_status !== "none"
-              ? g.refund_status
-              : g.status === "refunded"
-                ? "refunded"
-                : (action?.status ?? "none"),
+          refundStatus: g.refund_status && g.refund_status !== "none" ? g.refund_status : g.status === "refunded" ? "refunded" : (action?.status ?? "none"),
           createdAt: g.created_at,
           completedAt: g.paid_at,
-          refundable:
-            (g.status === "paid" || g.status === "redeemed") &&
-            !!g.provider_payment_ref &&
-            (!action || action.status === "pending"),
+          refundable: (g.status === "paid" || g.status === "redeemed") && !!g.provider_payment_ref && (!action || action.status === "pending"),
         };
       }),
       ...invoices.map((i) => ({
@@ -320,23 +297,15 @@ export class PayPalCheckout {
   }
 
   /** Full captured-gift refunds only. The durable intent is reserved before the external financial action. */
-  async refund(
-    giftId: string,
-    actorAccountId: string,
-    reason: string,
-    beforeSend: () => Promise<void>,
-  ) {
+  async refund(giftId: string, actorAccountId: string, reason: string, beforeSend: () => Promise<void>) {
     const g = this.gifts.get(giftId);
-    if (!g || g.provider !== "paypal" || !g.provider_payment_ref)
-      throw notFound("PayPal captured gift not found");
+    if (!g || g.provider !== "paypal" || !g.provider_payment_ref) throw notFound("PayPal captured gift not found");
     let action = this.billing.rows.get<ActionRow>("billing_payment_actions", {
       provider: "paypal",
       purchase_id: g.id,
     });
-    if (action?.status === "completed")
-      return { status: "completed", reference: action.provider_ref };
-    if (g.status !== "paid" && g.status !== "redeemed")
-      throw conflict("Only paid gifts can be refunded");
+    if (action?.status === "completed") return { status: "completed", reference: action.provider_ref };
+    if (g.status !== "paid" && g.status !== "redeemed") throw conflict("Only paid gifts can be refunded");
     const now = Date.now();
     await this.billing.rows.write((w) =>
       w.insert(
@@ -357,18 +326,9 @@ export class PayPalCheckout {
     );
     // If audit persistence fails, do not perform the financial action.
     await beforeSend();
-    const result = await this.provider.refundCapture(
-      g.provider_payment_ref,
-      g.id,
-    );
+    const result = await this.provider.refundCapture(g.provider_payment_ref, g.id);
     const status = result.status === "COMPLETED" ? "completed" : "pending";
-    await this.billing.rows.write((w) =>
-      w.update(
-        "billing_payment_actions",
-        { provider: "paypal", purchase_id: g.id },
-        { status, provider_ref: result.id, updated_at: Date.now() },
-      ),
-    );
+    await this.billing.rows.write((w) => w.update("billing_payment_actions", { provider: "paypal", purchase_id: g.id }, { status, provider_ref: result.id, updated_at: Date.now() }));
     if (status === "completed")
       await this.billing.webhooks.ingest("paypal", {
         ref: `refund:${result.id}`,

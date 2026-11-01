@@ -72,6 +72,7 @@ const transaction = z.object({
   refundable: z.boolean(),
 });
 export const PayPalTransactions = z.strictObject({
+  integration: z.strictObject({ available: z.boolean(), reason: z.string().nullable(), mode: z.string().nullable() }),
   transactions: z.array(transaction),
 });
 export const PayPalHistory = z.strictObject({

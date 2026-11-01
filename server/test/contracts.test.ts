@@ -14,9 +14,7 @@ import { type Harness, startServer } from "./support/harness.js";
  */
 
 const walk = (dir: string): string[] =>
-  fs.existsSync(dir)
-    ? fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(dir, e.name)) : [path.join(dir, e.name)]))
-    : [];
+  fs.existsSync(dir) ? fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(dir, e.name)) : [path.join(dir, e.name)])) : [];
 
 describe("contracts", () => {
   let h: Harness;
@@ -42,7 +40,7 @@ describe("contracts", () => {
   it("documents at least the client-critical areas (the count only goes up)", () => {
     const total = [...h.contracts.routes].filter((r) => !r.startsWith("HEAD ") && !/^\w+ \/(fed|core)\//.test(r)).length;
     expect(ROUTE_CONTRACTS.length).toBeGreaterThanOrEqual(30);
-    expect(ROUTE_CONTRACTS.length).toBeLessThanOrEqual(total);
+    expect(ROUTE_CONTRACTS.filter((c) => !c.requires).length).toBeLessThanOrEqual(total);
   });
 
   it("keeps every golden fixture valid against its schema", () => {
@@ -53,11 +51,7 @@ describe("contracts", () => {
     for (const file of files) {
       const rel = path.relative(FIXTURES, file).split(path.sep).join("/");
       const json = JSON.parse(fs.readFileSync(file, "utf8")) as unknown;
-      const schema = rel.startsWith("realtime/")
-        ? ServerEvent
-        : rel.startsWith("http/errors/")
-          ? ErrorEnvelope
-          : byFile.get(path.basename(rel, ".json"))?.response;
+      const schema = rel.startsWith("realtime/") ? ServerEvent : rel.startsWith("http/errors/") ? ErrorEnvelope : byFile.get(path.basename(rel, ".json"))?.response;
       if (!schema) bad.push(`${rel}: no schema (a route contract was renamed or removed)`);
       else if (!schema.safeParse(json).success) bad.push(`${rel}: doesn't match its schema`);
     }

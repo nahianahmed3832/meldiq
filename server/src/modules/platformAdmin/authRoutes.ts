@@ -5,7 +5,7 @@ import type { AdminAuthService, AdminPrincipal, IssuedAdminSession } from "./aut
 import type { AdminConsoleConfig } from "./config.js";
 import { clearCookie, PENDING_COOKIE, readCookie, SESSION_COOKIE, setCookie } from "./cookies.js";
 import { metaOf, principal, requireSession } from "./guards.js";
-import { permissionsOf } from "./permissions.js";
+import { effectivePermissions } from "./permissions.js";
 import { CEREMONY_MS } from "./webauthn.js";
 
 /** What the console shows about the signed-in admin (GET /admin/v1/me and the end of every sign-in). */
@@ -13,7 +13,7 @@ export function meView(p: AdminPrincipal, cfg: AdminConsoleConfig, passkeys: num
   return {
     account: { id: p.account.id, email: p.account.email, name: p.account.name },
     role: p.grant.role,
-    permissions: permissionsOf(p.grant.role),
+    permissions: effectivePermissions(p.grant),
     session: {
       id: p.session.id,
       createdAt: p.session.created_at,
