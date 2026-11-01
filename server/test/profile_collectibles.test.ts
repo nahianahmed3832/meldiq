@@ -5,7 +5,7 @@ import type { GriipClient } from "./support/griipClient.js";
 import { MemoryMailer } from "./support/accounts.js";
 import { ADMIN_ORIGIN, consoleAdmin, type ConsoleAdmin } from "./support/adminConsole.js";
 import { CollectionService } from "../src/modules/accounts/collectibles/service.js";
-import { processAsset } from "../src/modules/accounts/collectibles/assets.js";
+import { boundedBlob, processAsset } from "../src/modules/accounts/collectibles/assets.js";
 import { styleOf } from "../src/modules/accounts/profileMedia.js";
 const ALL = "preferences,reports,relationships,history,accounts,files,relay,billing,platform,federation,calls,workspace,conversations,safety,ephemeral,identity";
 describe.each([
@@ -156,6 +156,13 @@ describe.each([
     expect(res.headers.get("cache-control")).toContain("max-age=86400");
     const cached = await fetch(h.baseUrl + `/v2/profile-collectibles/assets/${asset.id}/poster`, { headers: { "if-none-match": res.headers.get("etag")! } });
     expect(cached.status).toBe(304);
+    const rotated = await sharp({ create: { width: 128, height: 64, channels: 3, background: "#123456" } })
+      .jpeg()
+      .withMetadata({ orientation: 6 })
+      .toBuffer();
+    const oriented = await processAsset(h.ctx, rotated);
+    const poster = await sharp(await boundedBlob(h.ctx, oriented.variants.poster.blob, 6 * 1024 * 1024)).metadata();
+    expect([poster.width, poster.height]).toEqual([64, 128]);
     expect(styleOf(h.ctx.identity.get("users", { id: ada.userId }) ?? {}).nameFont).toBe("mono");
   }, 60000);
 });

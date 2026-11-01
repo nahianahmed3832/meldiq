@@ -56,18 +56,16 @@ async function processAssetUnchecked(ctx: AppContext, input: Buffer): Promise<As
         pages: 1,
         limitInputPixels: 32_000_000,
         failOn: "warning",
-      });
+      }).rotate();
+    const full = sharp(input, { animated: true, limitInputPixels: 32_000_000, failOn: "warning" });
+    if (frames === 1) full.rotate();
     outputs = {
       original: {
         body: input,
         type: format === "jpeg" ? "image/jpeg" : `image/${format}`,
       },
       full: {
-        body: await sharp(input, {
-          animated: true,
-          limitInputPixels: 32_000_000,
-          failOn: "warning",
-        })
+        body: await full
           .resize({
             width: 1200,
             height: 1200,

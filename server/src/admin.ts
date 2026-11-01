@@ -1,3 +1,4 @@
+import { collectibleBlobIsReferenced } from "./modules/accounts/collectibles/assetReferences.js";
 /**
  * Operator CLI. Runs inside the api container; there is no HTTP admin surface.
  *
@@ -786,7 +787,7 @@ switch (cmd) {
     };
     for await (const o of blobs.listIds("profile-photos")) {
       const owner = o.id.replace(/-\d+$/, "");
-      if (o.modifiedAt < cutoff && !photo.get(owner, o.id) && !expression.get(o.id) && !keptProfileMedia(o.id)) orphans.push({ kind: "profile-photos", id: o.id, size: o.size });
+      if (o.modifiedAt < cutoff && !photo.get(owner, o.id) && !expression.get(o.id) && !keptProfileMedia(o.id) && !collectibleBlobIsReferenced(identity, o.id)) orphans.push({ kind: "profile-photos", id: o.id, size: o.size });
     }
     await w.close();
     const bytes = orphans.reduce((a, o) => a + o.size, 0);
