@@ -94,12 +94,10 @@ class MessageRepository(
     private val files = AttachmentFiles(attachmentsDir)
     private val keyRequests = CallKeyRequests()
     private val kickCh = Channel<Unit>(Channel.CONFLATED)
+    private val messageSender = MessageSender(postStored = { api.post<SendStoredReq, SendStoredRes>("/v2/messages", it) })
     private val callControls = CallControlSender { cid, id, sentAt, payload ->
         session.session ?: throw ApiException(0, "not_signed_in", "Sign in before calling")
-        api.post<SendStoredReq, SendStoredRes>(
-            "/v2/messages",
-            SendStoredReq(cid, id, "control", sentAt, StoredEvents.payloadObject(payload)),
-        )
+        messageSender.send(SendStoredReq(cid, id, "control", sentAt, StoredEvents.payloadObject(payload)))
     }
 
 
@@ -311,10 +309,7 @@ class MessageRepository(
         if (!serverHas(ServerFeatures.SELF_CONTROLS)) return false
         return try {
             val now = System.currentTimeMillis()
-            api.post<SendStoredReq, SendStoredRes>(
-                "/v2/messages",
-                SendStoredReq(cid, UUID.randomUUID().toString(), "control", now, StoredEvents.payloadObject(payload), audience = SELF_AUDIENCE),
-            )
+            messageSender.send(SendStoredReq(cid, UUID.randomUUID().toString(), "control", now, StoredEvents.payloadObject(payload), audience = SELF_AUDIENCE))
             true
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
@@ -763,14 +758,11 @@ class MessageRepository(
             val payload = StoredEvents.payloadObject(item.payloadJson)
             // @everyone asks the server for its attestation, on every attempt.
             val mentionAll = item.cls == "message" && runCatching { json.decodeFromString(Payload.serializer(), item.payloadJson).mentionAll == true }.getOrDefault(false)
-            val res = api.post<SendStoredReq, SendStoredRes>(
-                "/v2/messages",
-                SendStoredReq(item.conversationId, item.messageId, item.cls, sentAt, payload, mentionAll = if (mentionAll) true else null),
-            )
+            val serverTs = messageSender.send(SendStoredReq(item.conversationId, item.messageId, item.cls, sentAt, payload, mentionAll = if (mentionAll) true else null))
             db.outbox().remove(item.messageId)
-            if (item.visible) db.messages().markSent(item.messageId, res.serverTs)
+            if (item.visible) db.messages().markSent(item.messageId, serverTs)
             // Batch B3: under slowmode the composer counts down to the next allowed message.
-            if (item.cls == "message") com.meldiq.android.data.model.SlowmodeRules.nextAfterPost(conversations.slowmode.value[item.conversationId], res.serverTs)
+            if (item.cls == "message") com.meldiq.android.data.model.SlowmodeRules.nextAfterPost(conversations.slowmode.value[item.conversationId], serverTs)
                 ?.let { conversations.slowmodeWait(item.conversationId, it) }
         } catch (e: ApiException) {
             // Batch B3: slowmode isn't a failure. The message waits until the server allows the next one.

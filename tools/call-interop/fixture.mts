@@ -90,7 +90,7 @@ const server = http.createServer(async (req, res) => {
       const peer = await h.client("webpeer");
       peer.serverMessages = true;
       let cid, code;
-      if (b.voice) {
+      if (b.voice || b.community) {
         const org = (
           await peer.req("POST", "/v1/orgs", { name: "Call interoperability" })
         ).org.id;
@@ -99,9 +99,9 @@ const server = http.createServer(async (req, res) => {
         ).invite.code;
         cid = (
           await peer.req("POST", `/v1/orgs/${org}/channels`, {
-            name: "Meeting",
+            name: b.community ? "discussion" : "Meeting",
             scope: "ORG",
-            voice: true,
+            voice: !b.community,
             autoJoin: true,
           })
         ).channel.id;
@@ -150,6 +150,15 @@ const server = http.createServer(async (req, res) => {
           await f.peer.req("POST", "/v1/queue/ack", {
             ids: q.items.map((i) => i.id),
           });
+      } else if (req.url === "/sendMessage") {
+        const messageId = crypto.randomUUID();
+        await f.peer.send(f.cid, b.payload, b.cls ?? "message", messageId);
+        out = { messageId };
+      } else if (req.url === "/history") {
+        out = await f.peer.req(
+          "GET",
+          `/v2/conversations/${f.cid}/messages?limit=100`,
+        );
       } else if (req.url === "/request") {
         await f.peer.send(
           f.cid,
