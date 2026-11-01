@@ -367,7 +367,10 @@ class CallManager(
         scope.launch { runCatching { api.post<CallRes>("/v1/calls/${call.id}/alerted") } }
     }
 
-    suspend fun startCall(conversationId: String, video: Boolean) {
+    /** Call setup belongs to the app, so dismissing a meeting sheet or navigating cannot cancel it halfway. */
+    suspend fun startCall(conversationId: String, video: Boolean) = scope.async { placeCall(conversationId, video) }.await()
+
+    private suspend fun placeCall(conversationId: String, video: Boolean) {
         if (_state.value.phase != CallPhase.Idle) return
         val conv = db.conversations().get(conversationId)
         val me = session.session?.userId
@@ -389,9 +392,12 @@ class CallManager(
             markHandled(res.call.id)
             stage("call created")
             _state.update { it.copy(callId = res.call.id, alerted = res.call.alertedAt != null, hands = res.call.hands) }
-            // Round 7 (bug 7): the encrypted key message goes out while this phone connects to the media room. This
-            // phone already has the key; only the callee needs the message, before it joins (it waits for it).
-            val key = if (res.joinedExisting) waitForKey(res.call.id) else newKey().also { k -> sendKeyInBackground(conversationId, res.call.id, video, k) }
+            // A queued key isn't a delivered key. Confirm the control was accepted before opening media, so a
+            // refused send cannot leave the peer waiting or race a failed call back into Connected.
+            val key = if (res.joinedExisting) waitForKey(res.call.id) else newKey().also { k ->
+                messages.sendCallKey(conversationId, res.call.id, video, k)
+                stage("key sent")
+            }
             db.calls().upsertLog(CallLogEntity(res.call.id, conversationId, video, !res.joinedExisting, System.currentTimeMillis(), peerName = _state.value.title))
             connect(res.call.id, res.media!!, key, video)
         } catch (e: ApiException) {
@@ -399,7 +405,9 @@ class CallManager(
         }
     }
 
-    suspend fun accept() {
+    suspend fun accept() = scope.async { acceptCall() }.await()
+
+    private suspend fun acceptCall() {
         val s = _state.value
         val callId = s.callId ?: return
         IncomingCallNotifier.cancel(context)
@@ -418,7 +426,9 @@ class CallManager(
     }
 
     /** Join an already running group call from a conversation banner. */
-    suspend fun join(conversationId: String, callId: String, video: Boolean) {
+    suspend fun join(conversationId: String, callId: String, video: Boolean) = scope.async { joinCall(conversationId, callId, video) }.await()
+
+    private suspend fun joinCall(conversationId: String, callId: String, video: Boolean) {
         if (_state.value.phase != CallPhase.Idle) return
         val conv = db.conversations().get(conversationId)
         _state.value = CallUiState(phase = CallPhase.Connecting, callId = callId, conversationId = conversationId, title = conv?.let { ConversationRepository.title(it, session.session?.userId) } ?: "Call", video = video, cameraOn = video, isGroup = conv?.type != "DM")
@@ -444,18 +454,39 @@ class CallManager(
     private fun newKey(): String = randomBytes(32).b64()
 
     /** The key arrives as an E2EE control message; it may land a moment after the ring event. */
-    private suspend fun waitForKey(callId: String): String? {
-        if (!settings.current.mediaE2ee) return null
+    private suspend fun waitForKey(callId: String): String? = coroutineScope {
+        if (!settings.current.mediaE2ee) return@coroutineScope null
         _state.update { it.copy(waitingForKey = true) }
-        repeat(KEY_WAIT_STEPS) {
-            messages.callKey(callId)?.let { k -> _state.update { it.copy(waitingForKey = false) }; return k }
-            delay(KEY_WAIT_STEP_MS)
+        // Ringing and HTTP join can work while queue delivery is reconnecting or a frame was deferred. Drain the
+        // durable queue over HTTP too; both paths use the receiver's lock and idempotent key acceptance.
+        val recovery = launch {
+            delay(500)
+            while (isActive) {
+                try {
+                    kotlinx.coroutines.withTimeoutOrNull(2_000) { messages.pollQueueOnce() }
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    // The key request and the next poll can recover a temporary failure.
+                }
+                delay(1_500)
+            }
         }
-        _state.update { it.copy(waitingForKey = false) }
-        throw ApiException(0, "no_key", "Couldn't get this call's encryption key, so the call wasn't joined. Ask the caller to try again.")
+        try {
+            repeat(KEY_WAIT_STEPS) {
+                messages.callKey(callId)?.let { return@coroutineScope it }
+                delay(KEY_WAIT_STEP_MS)
+            }
+            throw ApiException(0, "no_key", "Couldn't get this call's encryption key, so the call wasn't joined. Ask the caller to try again.")
+        } finally {
+            recovery.cancel()
+            _state.update { it.copy(waitingForKey = false) }
+        }
     }
 
     private suspend fun connect(callId: String, media: MediaGrant, key: String?, video: Boolean) {
+        // A hang-up can arrive while the key or join request is in flight.
+        if (_state.value.callId != callId || _state.value.phase in setOf(CallPhase.Idle, CallPhase.Ended)) return
         _state.update {
             it.copy(
                 phase = if (it.phase == CallPhase.Outgoing) CallPhase.Outgoing else CallPhase.Connecting, callId = callId,
@@ -514,6 +545,7 @@ class CallManager(
             fail(CallFailure.forConnect(e))
             return
         }
+        if (room !== r || _state.value.callId != callId || _state.value.phase in setOf(CallPhase.Idle, CallPhase.Ended)) return
         diag.log("media room joined in ${System.currentTimeMillis() - t0} ms")
         stage("media joined")
         startMediaMonitor(r)
@@ -636,16 +668,6 @@ class CallManager(
             delay(100)
         }
         if (room === r) diag.log(timeline.summary())
-    }
-
-    /** Sends the call's key message without holding up this phone's own connection; a failure ends the call clearly. */
-    private fun sendKeyInBackground(conversationId: String, callId: String, video: Boolean, key: String) = scope.launch {
-        runCatching { messages.sendCallKey(conversationId, callId, video, key) }
-            .onSuccess { stage("key sent") }
-            .onFailure { e ->
-                Log.w(TAG, "call key send failed: ${e.javaClass.simpleName}")
-                if (_state.value.callId == callId) fail("Couldn't send the call's encryption key, so the other person can't join. Try calling again.")
-            }
     }
 
     private var ticks = 0

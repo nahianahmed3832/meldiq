@@ -94,6 +94,14 @@ class MessageRepository(
     private val files = AttachmentFiles(attachmentsDir)
     private val keyRequests = CallKeyRequests()
     private val kickCh = Channel<Unit>(Channel.CONFLATED)
+    private val callControls = CallControlSender { cid, id, sentAt, payload ->
+        session.session ?: throw ApiException(0, "not_signed_in", "Sign in before calling")
+        api.post<SendStoredReq, SendStoredRes>(
+            "/v2/messages",
+            SendStoredReq(cid, id, "control", sentAt, StoredEvents.payloadObject(payload)),
+        )
+    }
+
 
     private val _transfer = MutableStateFlow<Map<String, Float>>(emptyMap())
     val transferProgress: StateFlow<Map<String, Float>> = _transfer
@@ -287,6 +295,7 @@ class MessageRepository(
     }
 
     private suspend fun sendControl(cid: String, payload: Payload) {
+        if (CallControlSender.handles(payload)) return callControls.send(cid, payload)
         val id = UUID.randomUUID().toString()
         db.outbox().put(OutboxEntity(id, cid, "control", json.encodeToString(Payload.serializer(), payload), System.currentTimeMillis(), visible = false))
         kick()
@@ -328,9 +337,9 @@ class MessageRepository(
         sendText(m.conversationId, m.text, m.replyToId, m.threadRootId, attachments(m), presetId = id, rich = rich(m), forwarded = m.forwarded)
     }
 
-    /** Distribute a call's media E2EE key to all member devices through the encrypted channel. */
+    /** Distribute the media key through the server's current control protocol, before reporting it sent. */
     suspend fun sendCallKey(cid: String, callId: String, video: Boolean, key: String) {
-        val s = session.session ?: return
+        val s = session.session ?: throw ApiException(0, "not_signed_in", "Sign in before calling")
         db.calls().putKey(CallKeyEntity(callId, cid, key, s.userId, System.currentTimeMillis()))
         sendControl(cid, Payload(type = "call_invite", callId = callId, video = video, e2eeKey = key))
     }
