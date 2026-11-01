@@ -107,10 +107,12 @@ async function main() {
           };
           const reports = await migrateToMongo(source!, mongo, candidates, {
             batchSize: value("--batch-size", 50),
+            readBatchSize: value("--read-batch-size", 5000),
             batchDelayMs: value("--batch-delay-ms", 1000),
             conflictPolicy: process.argv.includes("--archive-conflicts") ? "archive" : "reject",
             prune: process.argv.includes("--prune"),
             onProgress: (table, scanned, total) => console.error(JSON.stringify({ table, scanned, total })),
+            onWriteProgress: (table, written, total) => console.error(JSON.stringify({ table, written, total })),
           });
           const ok = reports.every(r => r.ok);
           console.log(JSON.stringify({ authorityChanged: false, excluded, capacity, reports, ok }));

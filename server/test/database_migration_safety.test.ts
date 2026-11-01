@@ -58,6 +58,16 @@ afterAll(async () => {
 });
 
 describe("migration data-loss guards", () => {
+  it("resumes a partial large read window without duplicating acknowledged smaller write chunks", async () => {
+    const { db, mongo } = await fixture(37);
+    let chunks = 0;
+    await expect(migrateToMongo(db, mongo, [spec], { batchSize: 5, readBatchSize: 17, onWriteProgress: () => { if (++chunks === 2) throw Error("write-window interruption"); } })).rejects.toThrow("write-window interruption");
+    expect(await mongo.db.collection(spec.name).countDocuments()).toBe(10);
+    const [resumed] = await migrateToMongo(db, mongo, [spec], { batchSize: 7, readBatchSize: 17 });
+    expect(resumed).toMatchObject({ ok: true, sourceCount: 37, destCount: 37, written: 27 });
+    expect((await migrateToMongo(db, mongo, [spec], { batchSize: 7, readBatchSize: 17 }))[0]).toMatchObject({ ok: true, written: 0 });
+    await expect(migrateToMongo(db, mongo, [spec], { readBatchSize: 0 })).rejects.toThrow(/readBatchSize/);
+  });
   it("resumes checkpoints and reruns idempotently with bounded batches and preserved timestamps", async () => {
     const { db, mongo } = await fixture(1001);
     let batches = 0;
