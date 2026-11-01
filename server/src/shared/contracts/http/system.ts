@@ -52,10 +52,11 @@ export const Health = z.strictObject({
   livekit: z.boolean(),
   /** null: this server doesn't use MongoDB; false answers 503. */
   mongodb: z.boolean().nullable(),
+  redis: z.boolean().nullable().optional(),
 });
 
 export const systemRoutes = [
-  route({ method: "GET", url: "/healthz", tag: "system", summary: "Liveness and database reachability (503 when MongoDB is unreachable).", auth: false, response: Health }),
+  route({ method: "GET", url: "/healthz", tag: "system", summary: "Liveness and database reachability (503 when MongoDB is unreachable).", auth: false, errorFormat: "health", response: Health }),
   route({ method: "GET", url: "/v1/server-info", tag: "system", summary: "What this server is and supports.", auth: false, response: ServerInfo }),
   route({
     method: "GET",

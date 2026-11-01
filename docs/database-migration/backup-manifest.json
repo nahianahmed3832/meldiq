@@ -1,0 +1,33 @@
+{
+  "capturedAt": "20261101T135353Z",
+  "productionWritesStopped": false,
+  "mutuallyConsistentAcrossStores": false,
+  "sqliteIntegrity": "ok",
+  "restored": true,
+  "files": [
+    {
+      "name": "atlas.ejson.gz.age",
+      "bytes": 5532392,
+      "sha256": "cb9d03217ebf5f78d5d0f8913cd533fe0397f88488ba57a1470b61e90ef87e36"
+    },
+    {
+      "name": "sqlite.snapshot.age",
+      "bytes": 76007736,
+      "sha256": "2688776038254f515b73a93095bb4b642829c16388c8fc94beb749f1fa87381f"
+    },
+    {
+      "name": "deployment.env.age",
+      "bytes": 6256,
+      "sha256": "67756a44fb820ef680fef901ee85e23d45df70ed2d2957a7e4e8fd2376bb9164",
+      "decryptionVerified": true
+    },
+    {
+      "name": "reports.key.age",
+      "bytes": 244,
+      "sha256": "e1a601f8726a8be976d74c25d07ec3d61c5558d1de55e18bbf0701ff350c7542",
+      "decryptionVerified": true
+    }
+  ],
+  "atlasRestoreCollections": 78,
+  "atlasRestoreRecords": 50107
+}

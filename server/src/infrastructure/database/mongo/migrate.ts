@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { Binary, type AnyBulkWriteOperation, type Document } from "mongodb";
 import type { DB } from "../db.js";
-import { docId, type TableDomain, type TableSpec, toDocument, toRow } from "./catalog.js";
+import { type TableDomain, type TableSpec, toDocument, toRow } from "./catalog.js";
 import { META_COLLECTION, type MeldiqMongo } from "./client.js";
 
 /**
@@ -17,6 +17,8 @@ export interface TableReport {
   sourceCount: number;
   destCount: number;
   copied: number;
+  /** Actual destination document writes; unchanged records are scanned but never rewritten. */
+  written?: number;
   /** Ids in the destination that the source doesn't have (removed with prune). */
   extra: number;
   /** Ids in the source that the destination doesn't have. */
@@ -31,9 +33,16 @@ export interface TableReport {
 
 export interface MigrateOptions {
   batchSize?: number;
+  /** Read/check a larger bounded window while keeping actual writes paced in batchSize chunks. */
+  readBatchSize?: number;
+  /** Optional pacing after a batch that wrote documents, for small shared clusters. */
+  batchDelayMs?: number;
+  /** Explicit review: archive conflicting destination versions before replacing them from the authoritative source. */
+  conflictPolicy?: "reject" | "archive";
   /** Remove destination documents the source doesn't have (a re-run after rows were deleted). */
   prune?: boolean;
   onProgress?: (table: string, copied: number, total: number) => void;
+  onWriteProgress?: (table: string, written: number, total: number) => void;
 }
 
 interface Checkpoint {
@@ -46,6 +55,7 @@ interface Checkpoint {
 }
 
 const DEFAULT_BATCH = 500;
+const VERIFY_BATCH = 5000;
 
 /** Canonical text of a document: keys sorted at every level, binary as base64, so both sides hash alike. */
 export function canonical(v: unknown): string {
@@ -103,17 +113,30 @@ export function* sourceBatches(db: DB, t: TableSpec, batch: number, after: unkno
   }
 }
 
-function idKey(id: unknown): string {
-  return canonical(id);
-}
-
 /**
  * Copies [tables] from SQLite into MongoDB, resuming from each table's checkpoint, then verifies them. A table whose
- * checkpoint says it finished is copied again from the start (cheap upserts), so a re-run also picks up rows written
- * since; run it during the write freeze for the final pass.
+ * checkpoint says it finished is scanned again from the start, writing only missing or changed documents. A final
+ * pass still requires a write freeze and an immutable snapshot; pre-copy never transfers authority by itself.
  */
 export async function migrateToMongo(db: DB, mongo: MeldiqMongo, tables: TableSpec[], opts: MigrateOptions = {}): Promise<TableReport[]> {
-  const batch = Math.max(1, opts.batchSize ?? DEFAULT_BATCH);
+  const batch = opts.batchSize ?? DEFAULT_BATCH;
+  if (!Number.isInteger(batch) || batch < 1 || batch > 10_000) throw new Error("Migration batchSize must be an integer between 1 and 10000");
+  const readBatch = opts.readBatchSize ?? batch;
+  if (!Number.isInteger(readBatch) || readBatch < 1 || readBatch > 10_000) throw new Error("Migration readBatchSize must be an integer between 1 and 10000");
+  const delay = opts.batchDelayMs ?? 0;
+  if (!Number.isInteger(delay) || delay < 0 || delay > 60_000) throw new Error("Migration batchDelayMs must be an integer between 0 and 60000");
+  // An old SQLite copy must never replace records already accepted by Atlas after cutover.
+  for (const domain of new Set(tables.map((t) => t.domain))) {
+    if (await authorityOf(mongo, domain) === "mongodb") throw new Error(`Refusing SQLite migration: ${domain} is already authoritative in MongoDB`);
+  }
+  const preflight = await verify(db, mongo, tables);
+  if (preflight.some(r => r.differing > 0) && opts.conflictPolicy !== "archive") {
+    throw new Error("Destination conflicts require review and conflictPolicy=archive; nothing was copied");
+  }
+  for (const t of tables) {
+    const report = preflight.find(r => r.table === t.name)!;
+    if (report.differing || (report.extra && opts.prune)) await archiveConflicts(db, mongo, t, opts);
+  }
   const meta = mongo.db.collection<Checkpoint>(META_COLLECTION);
   const reports: TableReport[] = [];
   for (const t of tables) {
@@ -122,6 +145,7 @@ export async function migrateToMongo(db: DB, mongo: MeldiqMongo, tables: TableSp
     const cp = await meta.findOne({ _id: cpId });
     const resumeFrom = cp && cp.finishedAt === null ? cp.lastKey : null;
     let copied = resumeFrom ? cp!.copied : 0;
+    let written = 0;
     await meta.updateOne(
       { _id: cpId },
       { $set: { table: t.name, startedAt: resumeFrom ? cp!.startedAt : started, finishedAt: null, ...(resumeFrom ? {} : { lastKey: null, copied: 0 }) } },
@@ -129,82 +153,116 @@ export async function migrateToMongo(db: DB, mongo: MeldiqMongo, tables: TableSp
     );
     const total = (db.prepare(`SELECT COUNT(*) n FROM "${t.name}"`).get() as { n: number }).n;
     const col = mongo.db.collection<Document>(t.name);
-    for (const rows of sourceBatches(db, t, batch, resumeFrom)) {
-      const ops: AnyBulkWriteOperation<Document>[] = rows.map((r) => ({
-        replaceOne: { filter: { _id: docId(t, r) as never }, replacement: toDocument(t, r), upsert: true },
-      }));
-      await col.bulkWrite(ops, { ordered: false });
+    for (const rows of sourceBatches(db, t, readBatch, resumeFrom)) {
+      const documents = rows.map((r) => toDocument(t, r));
+      // The lookup is limited to one source batch. Atlas Free counts bulk document writes against its throughput
+      // allowance: blindly replacing every unchanged telemetry sample would make the final write freeze much longer.
+      const existing = new Map((await col.find({ _id: { $in: documents.map(d => d._id) as never[] } }, { batchSize: readBatch }).toArray())
+        .map(d => [canonical(d._id), rowHash({ ...toDocument(t, toRow(t, d)), _id: d._id })]));
+      const ops: AnyBulkWriteOperation<Document>[] = documents
+        .filter(d => !existing.get(canonical(d._id))?.equals(rowHash(d)))
+        .map(d => ({ replaceOne: { filter: { _id: d._id as never }, replacement: d, upsert: true } }));
+      for (let offset = 0; offset < ops.length; offset += batch) {
+        const chunk = ops.slice(offset, offset + batch);
+        await col.bulkWrite(chunk, { ordered: false });
+        written += chunk.length;
+        opts.onWriteProgress?.(t.name, written, total);
+        if (delay) await new Promise(resolve => setTimeout(resolve, delay));
+      }
       copied += rows.length;
       const tail = rows[rows.length - 1];
       await meta.updateOne({ _id: cpId }, { $set: { lastKey: keyColumns(t).map((k) => tail[k]), copied } });
       opts.onProgress?.(t.name, copied, total);
     }
-    if (opts.prune) await pruneExtra(db, mongo, t);
-    await meta.updateOne({ _id: cpId }, { $set: { finishedAt: Date.now() } });
+    // Deleted AUTOINCREMENT rows still reserve their IDs. The schema scaffold is empty in Atlas-only runtime.
+    // Rows uses `value`; the encrypted relay's allocator uses `seq`. Preserve both high-water conventions.
+    if (t.autoincrement) {
+      const sequence = db.prepare("SELECT seq FROM sqlite_sequence WHERE name = ?").get(t.name) as { seq: number } | undefined;
+      const floor = sequence?.seq ?? 0;
+      await mongo.db.collection<{ _id: string }>(META_COLLECTION).updateOne(
+        { _id: `seq:${t.name}` }, { $max: { value: floor, seq: floor } }, { upsert: true },
+      );
+    }
+    if (opts.prune) await pruneExtra(db, mongo, t, opts);
     const [report] = await verify(db, mongo, [t]);
-    reports.push({ ...report, copied, ms: Date.now() - started });
+    await meta.updateOne({ _id: cpId }, { $set: report.ok ? { finishedAt: Date.now() } : { finishedAt: null, lastKey: null, copied: 0 } });
+    reports.push({ ...report, copied, written, ms: Date.now() - started });
   }
   return reports;
 }
 
-/** Removes destination documents whose id the source no longer has. */
-async function pruneExtra(db: DB, mongo: MeldiqMongo, t: TableSpec): Promise<number> {
-  const source = new Set<string>();
-  for (const rows of sourceBatches(db, t, 5000, null)) for (const r of rows) source.add(idKey(docId(t, r)));
-  const col = mongo.db.collection<Document>(t.name);
-  const extra: unknown[] = [];
-  for await (const d of col.find({}, { projection: { _id: 1 } })) if (!source.has(idKey(d._id))) extra.push(d._id);
-  for (let i = 0; i < extra.length; i += 1000) await col.deleteMany({ _id: { $in: extra.slice(i, i + 1000) as never[] } });
-  return extra.length;
+/** A bounded indexed lookup by the ORIGINAL destination _id; malformed IDs never bind as SQL objects. */
+function sourceLookup(db: DB, t: TableSpec): (id: unknown) => Record<string, unknown> | undefined {
+  const keys = keyColumns(t);
+  const stmt = db.prepare(`SELECT ${selectColumns(t)} FROM "${t.name}" WHERE ${keys.map(k => `"${k}" = ?`).join(" AND ")}`);
+  return (id) => {
+    const values = keys.length === 1 ? [id] : keys.map(k => id && typeof id === "object" ? (id as Record<string, unknown>)[k] : undefined);
+    if (values.some(v => !(typeof v === "string" || typeof v === "number" || Buffer.isBuffer(v)))) return undefined;
+    return stmt.get(...values) as Record<string, unknown> | undefined;
+  };
 }
 
-/** Compares SQLite and MongoDB for [tables]: counts, id sets, per-row content and the set checksums. */
-export async function verify(db: DB, mongo: MeldiqMongo, tables: TableSpec[]): Promise<TableReport[]> {
+/** Preserves target versions using a deterministic content-addressed ID, before any reviewed replacement or pruning. */
+async function archiveConflicts(db: DB, mongo: MeldiqMongo, table: TableSpec, opts: MigrateOptions): Promise<void> {
+  const lookup = sourceLookup(db, table);
+  const archive = mongo.db.collection<Document>("database_migration_conflicts");
+  let operations: AnyBulkWriteOperation<Document>[] = [];
+  const flush = async () => {
+    if (!operations.length) return;
+    await archive.bulkWrite(operations, { ordered: false });
+    operations = [];
+    if (opts.batchDelayMs) await new Promise(resolve => setTimeout(resolve, opts.batchDelayMs));
+  };
+  for await (const document of mongo.db.collection<Document>(table.name).find({}, { batchSize: VERIFY_BATCH })) {
+    const source = lookup(document._id);
+    const target = { ...toDocument(table, toRow(table, document)), _id: document._id };
+    if (source && rowHash(toDocument(table, source)).equals(rowHash(target))) continue;
+    const checksum = rowHash(document).toString("hex");
+    const id = `${table.name}:${checksum}`;
+    operations.push({ updateOne: { filter: { _id: id as never }, update: { $setOnInsert: { collection: table.name, domain: table.domain, checksum, archivedAt: Date.now(), original: document } }, upsert: true } });
+    if (operations.length >= (opts.batchSize ?? DEFAULT_BATCH)) await flush();
+  }
+  await flush();
+}
+
+/** Deletes in bounded batches; it never keeps the full source or destination ID set in RAM. */
+async function pruneExtra(db: DB, mongo: MeldiqMongo, t: TableSpec, opts: MigrateOptions): Promise<number> {
+  const lookup = sourceLookup(db, t);
+  const col = mongo.db.collection<Document>(t.name);
+  let extra: unknown[] = [];
+  let count = 0;
+  for await (const d of col.find({}, { projection: { _id: 1 }, batchSize: VERIFY_BATCH })) {
+    if (!lookup(d._id)) extra.push(d._id);
+    if (extra.length >= (opts.batchSize ?? DEFAULT_BATCH)) { await col.deleteMany({ _id: { $in: extra as never[] } }); count += extra.length; extra = []; if (opts.batchDelayMs) await new Promise(resolve => setTimeout(resolve, opts.batchDelayMs)); }
+  }
+  if (extra.length) { await col.deleteMany({ _id: { $in: extra as never[] } }); count += extra.length; }
+  return count;
+}
+
+/** Counts, original IDs, timestamps and deterministic content hashes; memory bounded by a cursor batch. */
+export async function verify(db: DB, mongo: Pick<MeldiqMongo, "db">, tables: TableSpec[]): Promise<TableReport[]> {
   const out: TableReport[] = [];
   for (const t of tables) {
     const started = Date.now();
     const sourceSum = new SetChecksum();
-    const sourceRows = new Map<string, string>();
-    for (const rows of sourceBatches(db, t, 5000, null)) {
-      for (const r of rows) {
-        const doc = toDocument(t, r);
-        const h = rowHash(doc);
-        sourceSum.add(h);
-        sourceRows.set(idKey(doc._id), h.toString("hex"));
-      }
-    }
+    let sourceCount = 0;
+    for (const rows of sourceBatches(db, t, VERIFY_BATCH, null)) for (const r of rows) { sourceCount++; sourceSum.add(rowHash(toDocument(t, r))); }
+    const lookup = sourceLookup(db, t);
     const destSum = new SetChecksum();
-    let destCount = 0;
-    let extra = 0;
-    let differing = 0;
-    const seen = new Set<string>();
-    for await (const d of mongo.db.collection<Document>(t.name).find({})) {
+    let destCount = 0, matched = 0, extra = 0, differing = 0;
+    for await (const d of mongo.db.collection<Document>(t.name).find({}, { batchSize: VERIFY_BATCH })) {
       destCount++;
-      // The document as the source would produce it (drops anything not in the table, normalises binary).
-      const doc = toDocument(t, toRow(t, d));
-      const h = rowHash(doc);
-      destSum.add(h);
-      const k = idKey(doc._id);
-      seen.add(k);
-      const s = sourceRows.get(k);
-      if (s === undefined) extra++;
-      else if (s !== h.toString("hex")) differing++;
+      const doc = { ...toDocument(t, toRow(t, d)), _id: d._id };
+      const hash = rowHash(doc);
+      destSum.add(hash);
+      const source = lookup(d._id);
+      if (!source) extra++;
+      else { matched++; if (!rowHash(toDocument(t, source)).equals(hash)) differing++; }
     }
-    const missing = [...sourceRows.keys()].filter((k) => !seen.has(k)).length;
-    out.push({
-      table: t.name,
-      domain: t.domain,
-      sourceCount: sourceRows.size,
-      destCount,
-      copied: 0,
-      extra,
-      missing,
-      differing,
-      sourceChecksum: sourceSum.hex(),
-      destChecksum: destSum.hex(),
-      ok: extra === 0 && missing === 0 && differing === 0 && sourceSum.hex() === destSum.hex(),
-      ms: Date.now() - started,
-    });
+    const missing = Math.max(0, sourceCount - matched);
+    out.push({ table: t.name, domain: t.domain, sourceCount, destCount, copied: 0, extra, missing, differing,
+      sourceChecksum: sourceSum.hex(), destChecksum: destSum.hex(),
+      ok: sourceCount === destCount && extra === 0 && missing === 0 && differing === 0 && sourceSum.hex() === destSum.hex(), ms: Date.now() - started });
   }
   return out;
 }

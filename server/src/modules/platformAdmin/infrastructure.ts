@@ -11,12 +11,12 @@ const SLOW_MS = 1000;
 
 type Status = "ok" | "failing" | "not_measured" | "off";
 
-function checks(h: HealthReport): { id: string; label: string; status: Status; detail: string | null }[] {
+function checks(h: HealthReport, atlasOnly = false): { id: string; label: string; status: Status; detail: string | null }[] {
   const { database, mongodb, livekit, storage } = h.checks;
   return [
     database.available
-      ? { id: "database", label: "Database (SQLite)", status: database.ok ? "ok" : "failing", detail: `${Math.round(database.sizeBytes / 1_048_576)} MB on disk` }
-      : { id: "database", label: "Database (SQLite)", status: "not_measured", detail: database.reason },
+      ? { id: "database", label: atlasOnly ? "Local schema (memory)" : "Database (SQLite)", status: database.ok ? "ok" : "failing", detail: `${Math.round(database.sizeBytes / 1_048_576)} MB on disk` }
+      : { id: "database", label: atlasOnly ? "Local schema (memory)" : "Database (SQLite)", status: "not_measured", detail: database.reason },
     mongodb.available
       ? { id: "mongodb", label: "MongoDB", status: mongodb.ok ? "ok" : "failing", detail: null }
       : { id: "mongodb", label: "MongoDB", status: "off", detail: mongodb.reason },
@@ -45,11 +45,16 @@ export class AdminInfrastructure {
     const m = h.metrics;
     const routes = [...m.routes].sort((a, b) => b.serverErrors - a.serverErrors || (b.p95Ms ?? 0) - (a.p95Ms ?? 0) || b.count - a.count);
     const notable = [...routes.filter((r) => r.serverErrors > 0 || (r.p95Ms ?? 0) >= SLOW_MS), ...routes].filter((r, i, all) => all.indexOf(r) === i).slice(0, ROUTES_SHOWN);
+    const infrastructure = checks(h, this.ctx.config.databaseMode === "atlas");
+    if (this.ctx.redis) {
+      const redis = await this.ctx.redis.diagnostics();
+      infrastructure.push({ id: "redis", label: "Redis", status: redis.ready ? "ok" : "failing", detail: redis.usedMemoryBytes === null ? null : `${Math.round(redis.usedMemoryBytes / 1_048_576)} MB; ${redis.metrics.hits} cache hits, ${redis.metrics.misses} misses` });
+    }
     return {
       version: h.version,
       generatedAt: h.generatedAt,
       uptimeSeconds: h.uptimeSeconds,
-      checks: checks(h),
+      checks: infrastructure,
       process: h.process,
       onlineDevices: h.realtime.onlineDevices,
       queues: {

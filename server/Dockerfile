@@ -23,6 +23,7 @@ COPY --from=build --chown=node:node /app/dist ./dist
 COPY --chown=node:node migrations ./migrations
 # Meldiq's own profile decorations and the template (scripts/render-decorations.mjs, docs/PROFILE_DECORATIONS.md).
 COPY --chown=node:node assets ./assets
+COPY --chown=node:node scripts/database-backup.mjs ./scripts/database-backup.mjs
 COPY --chown=node:node package.json ./
 USER node
 EXPOSE 8080

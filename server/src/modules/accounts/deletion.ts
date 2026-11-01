@@ -116,7 +116,7 @@ export async function eraseAccount(ctx: AppContext, accounts: Accounts, account:
       w.delete("account_warnings", { user_id: userId });
     });
   }
-  await ctx.billing.sparkPurchases.anonymizeAccount(account.id);
+  await ctx.billing.sparkPurchases.anonymizeBuyer(account.id);
   await accounts.store.deleteAccount(account.id);
   // Counts only: the email, username and profile are gone, and the audit log mustn't keep them.
   ctx.audit({

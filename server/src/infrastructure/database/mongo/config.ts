@@ -47,7 +47,7 @@ const DEFAULT_TIMEOUT_MS = 5000;
 
 /** The URI with any password replaced, for logs and errors. */
 export function redactUri(uri: string): string {
-  return uri.replace(/\/\/([^:/@]+):([^@]*)@/, "//$1:***@");
+  return uri.replace(/\/\/([^:/@]+):([^@]*)@/, "//$1:***@").replace(/([?&][^=]+)=([^&]*)/g, "$1=***");
 }
 
 /** Local addresses, where TLS isn't required (a development or test database on the same machine). */
@@ -57,7 +57,10 @@ function isLocalHost(uri: string): boolean {
 }
 
 function usesTls(uri: string): boolean {
-  return uri.startsWith("mongodb+srv://") || /[?&](tls|ssl)=true(&|$)/i.test(uri);
+  const query = new URLSearchParams(uri.split("?")[1] || "");
+  const options = [...query].map(([k, v]) => [k.toLowerCase(), v.toLowerCase()]);
+  if (options.some(([k, v]) => ["tls", "ssl"].includes(k) && v !== "true")) return false;
+  return uri.startsWith("mongodb+srv://") || options.some(([k, v]) => ["tls", "ssl"].includes(k) && v === "true");
 }
 
 export function mongoConfig(env: NodeJS.ProcessEnv, appEnv: string, int: (name: string, def: number) => number): MongoConfig | null {
@@ -87,7 +90,15 @@ export function mongoConfig(env: NodeJS.ProcessEnv, appEnv: string, int: (name: 
   if (!/^mongodb(\+srv)?:\/\//.test(uri)) throw new Error("MONGODB_URI must start with mongodb:// or mongodb+srv://");
   // Production data never crosses a network unencrypted.
   if (appEnv === "production" && !isLocalHost(uri) && !usesTls(uri)) {
-    throw new Error(`MONGODB_URI must use TLS in production (mongodb+srv:// or tls=true): ${redactUri(uri)}`);
+    throw new Error("MONGODB_URI must use TLS in production (mongodb+srv:// or tls=true)");
+  }
+  if (appEnv === "production") {
+    const params = new URLSearchParams(uri.split("?")[1] || "");
+    for (const [key, value] of params) {
+      if (["tlsinsecure", "tlsallowinvalidcertificates", "tlsallowinvalidhostnames"].includes(key.toLowerCase()) && value.toLowerCase() !== "false") {
+        throw new Error("MONGODB_URI must validate TLS certificates and hostnames in production");
+      }
+    }
   }
   const dbName = env.MONGODB_DB?.trim() || DEFAULT_DB;
   if (!/^[A-Za-z0-9_-]{1,38}$/.test(dbName)) throw new Error("MONGODB_DB may only use letters, digits, _ and - (at most 38)");

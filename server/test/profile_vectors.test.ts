@@ -82,6 +82,7 @@ describe("safe vector processing", () => {
       { layers: [{ ty: 4, ks: { p: { x: "eval(x)" } }, shapes: [] }] },
       { layers: [{ ty: 2, refId: "image" }] },
       { op: 1000000 },
+      { w: 512, h: 512, fr: 20, op: 40 },
     ])
       await expect(
         lottieWebp(Buffer.from(JSON.stringify({ ...doc, ...extra }))),

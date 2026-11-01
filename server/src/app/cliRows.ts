@@ -20,7 +20,7 @@ export interface CliRows {
 }
 
 export async function openCliRows(cfg: Config, db: DB): Promise<CliRows> {
-  const mongo = cfg.mongo ? await openMongo(cfg.mongo, db) : undefined;
+  const mongo = cfg.mongo ? await openMongo(cfg.mongo, db, undefined, cfg.databaseMode === "atlas") : undefined;
   const ws = await openWorkspaceRows(db, mongo, console);
   const [identity, platform, fed, safety, ephemeral] = await Promise.all(
     (["identity", "platform", "federation", "safety", "ephemeral"] as const).map((d) => openDomainRows(db, d, mongo, console)),

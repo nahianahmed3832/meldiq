@@ -1,0 +1,41 @@
+{
+  "image": "redis:8-alpine@sha256:21090af93f8324db2f0f0f4f38a7c60369d47d917e000c3423d89d2ae2883537",
+  "platforms": [
+    {
+      "architecture": "amd64",
+      "os": "linux"
+    },
+    {
+      "architecture": "arm",
+      "os": "linux",
+      "variant": "v6"
+    },
+    {
+      "architecture": "arm",
+      "os": "linux",
+      "variant": "v7"
+    },
+    {
+      "architecture": "arm64",
+      "os": "linux",
+      "variant": "v8"
+    },
+    {
+      "architecture": "386",
+      "os": "linux"
+    },
+    {
+      "architecture": "ppc64le",
+      "os": "linux"
+    },
+    {
+      "architecture": "riscv64",
+      "os": "linux"
+    },
+    {
+      "architecture": "s390x",
+      "os": "linux"
+    }
+  ],
+  "source": "https://registry-1.docker.io/v2/library/redis/manifests/8-alpine"
+}

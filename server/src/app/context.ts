@@ -1,3 +1,4 @@
+import type { RedisInfrastructure } from "../infrastructure/redis/service.js";
 import type { FastifyBaseLogger, FastifyRequest } from "fastify";
 import type { FileStore } from "../modules/files/store.js";
 import type { RelayStore } from "../modules/messaging/relay/store.js";
@@ -142,6 +143,7 @@ export interface AppContext {
   ephemeral: Rows;
   /** Present when MONGODB_URI is set: the domains in MONGODB_DOMAINS live there (docs/MONGODB.md). */
   mongo?: MeldiqMongo;
+  redis?: RedisInfrastructure;
   /** Plan-based limits (src/entitlements.ts, docs/PLANS.md): none by default. */
   entitlements: Entitlements;
   /** Reminders kept and fired by the server (src/reminders, docs/REMINDERS.md). */

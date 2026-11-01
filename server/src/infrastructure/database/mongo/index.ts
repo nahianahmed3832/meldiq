@@ -18,10 +18,17 @@ function sqliteRows(db: DB, tables: TableSpec[]): number {
  * - a domain in MONGODB_DOMAINS must have been migrated (`admin mongo-migrate`), unless SQLite has nothing for it yet;
  * - a domain migrated to MongoDB can't silently go back to SQLite's stale copy (`admin mongo-rollback` moves it back).
  */
-export async function openMongo(config: MongoConfig, db: DB, log?: Logger): Promise<MeldiqMongo> {
+export async function openMongo(config: MongoConfig, db: DB, log?: Logger, requireMigrated = false): Promise<MeldiqMongo> {
   checkReferences(tableSpecs(), config.domains);
   const mongo = await MeldiqMongo.connect(config, domainTables(config.domains), log);
   try {
+    if (requireMigrated) {
+      for (const domain of MONGO_DOMAINS) {
+        if (!config.domains.has(domain) || await authorityOf(mongo, domain) !== "mongodb") {
+          throw new Error(`Atlas-only startup refused: ${domain} has no verified MongoDB authority marker`);
+        }
+      }
+    }
     for (const domain of MONGO_DOMAINS) await checkAuthority(mongo, db, domain);
   } catch (e) {
     await mongo.close();

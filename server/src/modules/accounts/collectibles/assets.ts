@@ -1,3 +1,4 @@
+import { COLLECTIBLE_DECODED_PIXELS, COLLECTIBLE_PROCESSORS } from "./limits.js";
 import { safeSvg, lottieWebp } from "./vectors.js";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -30,7 +31,7 @@ export async function processAsset(
   ctx: Pick<AppContext, "identity" | "blobs">,
   input: Buffer,
 ): Promise<Asset> {
-  if (active >= 2)
+  if (active >= COLLECTIBLE_PROCESSORS)
     throw new ApiError(
       429,
       "rate_limited",
@@ -76,7 +77,7 @@ async function processAssetUnchecked(
   try {
     meta = await sharp(input, {
       animated: true,
-      limitInputPixels: 32_000_000,
+      limitInputPixels: COLLECTIBLE_DECODED_PIXELS,
       failOn: "warning",
     }).metadata();
     const width = meta.width ?? 0,
@@ -88,19 +89,19 @@ async function processAssetUnchecked(
       width > 2048 ||
       height > 2048 ||
       frames > 120 ||
-      width * height * frames > 32_000_000
+      width * height * frames > COLLECTIBLE_DECODED_PIXELS
     )
       throw Error("dimensions");
     const still = () =>
       sharp(input, {
         page: 0,
         pages: 1,
-        limitInputPixels: 32_000_000,
+        limitInputPixels: COLLECTIBLE_DECODED_PIXELS,
         failOn: "warning",
       }).rotate();
     const full = sharp(input, {
       animated: true,
-      limitInputPixels: 32_000_000,
+      limitInputPixels: COLLECTIBLE_DECODED_PIXELS,
       failOn: "warning",
     });
     if (frames === 1) full.rotate();
@@ -167,7 +168,7 @@ async function processAssetUnchecked(
     };
   } catch {
     throw badRequest(
-      "Image could not be decoded safely. Use 32–2048 px, at most 120 frames and 32 million decoded pixels.",
+      "Image could not be decoded safely. Use 32–2048 px, at most 120 frames and 8 million decoded pixels.",
     );
   }
   const variants: Asset["variants"] = {};

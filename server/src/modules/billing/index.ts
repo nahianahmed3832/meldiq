@@ -9,6 +9,7 @@ export type { SubscriptionRow } from "./subscriptions.js";
 export { eventRows, giftRows, mojoFigures, sparkOrgIds, subscriptionRecords, subscriptionRows } from "./admin.js";
 export { Mojo } from "./mojo.js";
 export { Gifts } from "./gifts.js";
+export { giftLeaderboard } from "./leaderboard.js";
 export { PlayBilling } from "./play.js";
 export { catalogView, PLAN_PERKS, SPARK_LEVELS, ciphertextCeilingB64, screenAllows, SCREEN_PRESETS, type PlanPerks, type ScreenPresetId } from "./perks.js";
 export { GRANT_SOURCES, type GrantNoteRow, type GrantRow, type GrantSource } from "./grants.js";
@@ -22,4 +23,3 @@ export { isAddonPlanKey } from "./perks.js";
 
 export { PayPalCheckout } from "./paypalCheckout.js";
 
-export { giftLeaderboard } from "./gifts.js";

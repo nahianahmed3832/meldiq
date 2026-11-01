@@ -4,7 +4,7 @@
   "description": "Generated from src/shared/contracts/realtime.ts. Clients ignore frames and fields they don't know.",
   "$defs": {
     "ServerEvent": {
-      "anyOf": [
+      "oneOf": [
         {
           "type": "object",
           "properties": {
@@ -288,7 +288,7 @@
           "additionalProperties": false
         },
         {
-          "anyOf": [
+          "oneOf": [
             {
               "type": "object",
               "properties": {
@@ -322,13 +322,9 @@
                       "maxLength": 128
                     },
                     "conversationType": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     },
                     "createdBy": {
@@ -389,13 +385,9 @@
                       ]
                     },
                     "endReason": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     },
                     "participants": {
@@ -571,13 +563,9 @@
                       "maxLength": 128
                     },
                     "conversationType": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     },
                     "createdBy": {
@@ -638,13 +626,9 @@
                       ]
                     },
                     "endReason": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     },
                     "participants": {
@@ -1193,7 +1177,7 @@
       ]
     },
     "ClientEvent": {
-      "anyOf": [
+      "oneOf": [
         {
           "type": "object",
           "properties": {

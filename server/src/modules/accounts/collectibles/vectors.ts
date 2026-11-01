@@ -1,3 +1,4 @@
+import { COLLECTIBLE_DECODED_PIXELS } from "./limits.js";
 import { SaxesParser } from "saxes";
 import sharp from "sharp";
 import { badRequest } from "../../../shared/errors.js";
@@ -372,7 +373,7 @@ export async function lottieWebp(input: Buffer): Promise<Buffer> {
     throw fail();
   const fps = Math.min(20, fr),
     frames = Math.max(1, Math.ceil(((op - ip) / fr) * fps));
-  if (w * h * frames > 32_000_000) throw fail();
+  if (w * h * frames > COLLECTIBLE_DECODED_PIXELS) throw fail();
   const buffers: Buffer[] = [];
   for (let f = 0; f < frames; f++) {
     const t = ip + (f * fr) / fps;
@@ -402,7 +403,7 @@ export async function lottieWebp(input: Buffer): Promise<Buffer> {
         Buffer.from(
           `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">${body}</svg>`,
         ),
-        { limitInputPixels: 32_000_000 },
+        { limitInputPixels: COLLECTIBLE_DECODED_PIXELS },
       )
         .ensureAlpha()
         .raw()

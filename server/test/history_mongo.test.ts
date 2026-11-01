@@ -1,3 +1,5 @@
+import { MongoHistoryStore } from "../src/modules/messaging/history/mongoStore.js";
+import { migrationTarget } from "./support/migration.js";
 import crypto from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { runCleanup } from "../src/modules/administration/jobs.js";
@@ -70,7 +72,8 @@ describe("moving history from SQLite", () => {
     // A server still on SQLite, with history written through the API.
     const old = await startServer({ MONGODB_DOMAINS: "" }, { mailer });
     // An empty MongoDB database to move into (this suite's own already holds other tests' history).
-    const target = await startServer({ MONGODB_DOMAINS: "history" }, { mailer });
+    const target = await migrationTarget();
+    const targetStore = new MongoHistoryStore(target.mongo);
     try {
       const c = await AccountClient.ready(old.baseUrl, mailer, "mover");
       const body = ct(100);
@@ -78,10 +81,11 @@ describe("moving history from SQLite", () => {
       await put(c, 2);
       // Copy the history tables, then read them through the MongoDB store.
       const tables = describeTables(old.ctx.db).filter((t) => t.domain === "history");
-      const reports = await migrateToMongo(old.ctx.db, target.ctx.mongo!, tables);
+      await target.mongo.ensureSchema(tables);
+      const reports = await migrateToMongo(old.ctx.db, target.mongo, tables);
       for (const r of reports) expect(r, r.table).toMatchObject({ ok: true, missing: 0, extra: 0, differing: 0 });
-      expect(await target.ctx.history.account(c.userId)).toMatchObject({ items: 3, next_seq: 4 });
-      const items = await target.ctx.history.items(c.userId, 0, 10);
+      expect(await targetStore.account(c.userId)).toMatchObject({ items: 3, next_seq: 4 });
+      const items = await targetStore.items(c.userId, 0, 10);
       expect(items.map((i) => i.seq)).toEqual([1, 2, 3]);
       expect(items[0].body!.toString("base64")).toBe(body);
     } finally {

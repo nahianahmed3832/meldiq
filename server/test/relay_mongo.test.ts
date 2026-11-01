@@ -1,3 +1,5 @@
+import { MongoRelayStore } from "../src/modules/messaging/relay/mongoStore.js";
+import { migrationTarget } from "./support/migration.js";
 import crypto from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { describeTables } from "../src/infrastructure/database/mongo/catalog.js";
@@ -65,7 +67,8 @@ describe("relay in MongoDB", () => {
 describe("moving the relay from SQLite", () => {
   it("delivers what the migration copied, with the same ids, and numbers new items after them", async () => {
     const old = await startServer({ MONGODB_DOMAINS: "" });
-    const target = await startServer({ MONGODB_DOMAINS: "relay" });
+    const target = await migrationTarget();
+    const targetStore = new MongoRelayStore(target.mongo, target.db, old.app.log);
     try {
       const a = await old.client("movea");
       const b = await old.client("moveb");
@@ -74,15 +77,16 @@ describe("moving the relay from SQLite", () => {
       const before = (await b.req("GET", "/v1/queue")).items;
       expect(before).toHaveLength(3);
       const tables = describeTables(old.ctx.db).filter((t) => t.domain === "relay");
+      await target.mongo.ensureSchema(tables);
       expect(tables.map((t) => t.name).sort()).toEqual(["delivery_queue", "submitted_messages"]);
-      for (const r of await migrateToMongo(old.ctx.db, target.ctx.mongo!, tables)) {
+      for (const r of await migrateToMongo(old.ctx.db, target.mongo, tables)) {
         expect(r, r.table).toMatchObject({ ok: true, missing: 0, extra: 0, differing: 0 });
       }
-      const moved = await target.ctx.relay.backlog(b.deviceId, Date.now(), 10);
+      const moved = await targetStore.backlog(b.deviceId, Date.now(), 10);
       expect(moved.map((r) => [r.id, r.payload])).toEqual(before.map((i: { id: number; payload: unknown }) => [i.id, JSON.stringify(i.payload)]));
-      expect(await target.ctx.relay.submission(before[0].messageId)).toMatchObject({ sender_user_id: a.userId });
+      expect(await targetStore.submission(before[0].messageId)).toMatchObject({ sender_user_id: a.userId });
       const { id: _old, ...item } = moved[0];
-      const next = await target.ctx.relay.enqueue([{ ...item, message_id: "after-move" }]);
+      const next = await targetStore.enqueue([{ ...item, message_id: "after-move" }]);
       expect(next[0].id).toBeGreaterThan(Math.max(...moved.map((r) => r.id)));
     } finally {
       await old.close();

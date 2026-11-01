@@ -389,4 +389,32 @@ for (const backend of ["sqlite", "mongodb"])
         revoked_at: null,
       });
     });
+    it("awaits asynchronous second-factor rejection before issuing a session or changing providers", async () => {
+      const c = await account();
+      const i = identity("google", c.email);
+      await finish(await ready(i, c), c);
+      const login = await ready(i);
+      const original = h.ctx.accounts.service.secondFactor;
+      h.ctx.accounts.service.secondFactor = async () => {
+        await Promise.resolve();
+        throw new ApiError(401, "totp_required", "Authenticator required");
+      };
+      try {
+        expect((await expectStatus(finish(login), 401)).error.code).toBe("totp_required");
+        expect((await expectStatus(c.req("POST", "/v2/auth/social/start", {provider: "discord", challenge: digest(secret()), mode: "link"}), 401)).error.code).toBe("totp_required");
+        expect((await expectStatus(c.req("DELETE", "/v2/account/identities/google", {}), 401)).error.code).toBe("totp_required");
+        expect((await h.ctx.accounts.social.store.list(c.accountId)).map(x => x.provider)).toContain("google");
+      } finally { h.ctx.accounts.service.secondFactor = original; }
+    });
+
+    it("enforces provider ownership and one provider per account in database indexes", async () => {
+      const first = await account();
+      const second = await account();
+      const i = identity("discord");
+      const store = h.ctx.accounts.social.store;
+      await store.link({...i,id:secret(),account_id:first.accountId,connected_at:Date.now()});
+      await expect(store.link({...i,id:secret(),account_id:second.accountId,connected_at:Date.now()})).rejects.toMatchObject({statusCode:409,code:"identity_conflict"});
+      await expect(store.link({...i,subject:secret(),id:secret(),account_id:first.accountId,connected_at:Date.now()})).rejects.toMatchObject({statusCode:409,code:"identity_conflict"});
+    });
+
   });

@@ -52,7 +52,7 @@ function operation(c: RouteContract): Json {
     summary: c.summary,
     operationId: `${c.method.toLowerCase()}${c.url.replace(/[/:{}-]+(\w)/g, (_m, ch: string) => ch.toUpperCase())}`,
     parameters: parameters(c),
-    responses: { [ok]: success, ...errors },
+    responses: { [ok]: success, ...errors, ...(c.errorFormat === "health" ? { "503": { ...success, description: "Required infrastructure is unavailable" } } : {}) },
   };
   if (c.auth) op.security = [{ [c.scheme === "console" ? "consoleSession" : c.scheme === "bot" ? "bot" : c.scheme === "oauth" ? "oauthToken" : "bearer"]: [] }];
   if (c.scheme === "console") {

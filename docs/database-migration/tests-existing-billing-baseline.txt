@@ -1,0 +1,49 @@
+
+ RUN  v4.1.12 /Volumes/code_files/meldiq_android/.claude/worktrees/yapin-reliability/server
+
+(node:52526) ExperimentalWarning: The supports Web Crypto API method is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:52526) ExperimentalWarning: The ML-DSA-44 Web Crypto API algorithm is an experimental feature and might change at any time
+ ❯ test/billing_trials.test.ts (14 tests | 1 failed) 32928ms
+     × publish Mojo Go and Mojo Plus once, at their prices, and say trials are on 1435ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/billing_trials.test.ts > with trials and invite links > publish Mojo Go and Mojo Plus once, at their prices, and say trials are on
+AssertionError: expected [ [ 'plus', 'Mojo Plus', 399, …(3) ] ] to deeply equal [ …(2) ]
+
+- Expected
++ Received
+
+@@ -1,15 +1,7 @@
+  [
+    [
+-     "spark",
+-     "Meldiq Spark",
+-     99,
+-     "USD",
+-     "month",
+-     "personal",
+-   ],
+-   [
+      "plus",
+      "Mojo Plus",
+      399,
+      "USD",
+      "month",
+
+ ❯ test/billing_trials.test.ts:93:109
+     91|     const plans = (await h.app.inject({ method: "GET", url: "/v2/billi…
+     92|     expect(PublicPlans.safeParse(plans).success).toBe(true);
+     93|     expect(plans.plans.map((p: any) => [p.key, p.name, p.amountMinor, …
+       |                                                                                                             ^
+     94|       // By name: the Spark add-on, then the plans.
+     95|       ["spark", "Meldiq Spark", 99, "USD", "month", "personal"],
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 13 passed (14)
+   Start at  22:10:05
+   Duration  121.58s (transform 47.64s, setup 0ms, import 79.88s, tests 32.93s, environment 0ms)

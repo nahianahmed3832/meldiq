@@ -28,6 +28,7 @@ export { addBotMember, type BotChannelView, botChannels, removeBotMember, requir
 // Community parity batch D: what official bots (modules/officialBots) need from communities.
 export { activeRoleName, botRoleGivableBy, communityFacts, giveRoleAsBot, holdsRole, officialBotAssigner, publicTextChannel } from "./botMembers.js";
 export type { ConversationRow } from "./authz.js";
+export { leaderboardChannels } from "./lobby/view.js";
 
 export type { ReportRow, AdminReportQuery } from "./reports/store.js";
 
@@ -35,5 +36,3 @@ export { orgPlatformRestriction, setOrgPlatformRestriction } from "./platformQue
 
 export { REPORT_RETENTION_MS } from "./reports/routes.js";
 
-export { memberOrgIds } from "./platformQueries.js";
-export { visibleChannels } from "./lobby/view.js";

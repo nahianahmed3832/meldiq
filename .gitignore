@@ -39,3 +39,10 @@ __pycache__/
 # Discord reference captures: real people's names and messages, kept local only (docs/product/MELDIQ_DISCORD_REFERENCE_AUDIT.md)
 research/
 tools/emulator/accounts.local.json
+
+# Database migration secrets and encrypted artifacts stay outside Git.
+**/.env.redis
+**/secrets/redis.acl
+*.agekey
+*.snapshot.age
+*.ejson.gz.age

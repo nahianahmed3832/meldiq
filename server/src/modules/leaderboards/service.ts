@@ -1,8 +1,16 @@
 import type { AppContext } from "../../app/context.js";
 import type { CallParticipantRow } from "../calls/index.js";
 import { giftLeaderboard } from "../billing/index.js";
-import { leaderboardPeople } from "../accounts/index.js";
-import { visibleChannels, memberOrgIds } from "../organizations/index.js";
+import {
+  blockedEitherWay,
+  sharesCommunity,
+  privacyOf,
+  avatarMediaOf,
+  styleOf,
+  personCards,
+  leaderboardIdentity,
+} from "../accounts/index.js";
+import { leaderboardChannels } from "../organizations/index.js";
 import type {
   LeaderboardMetric,
   LeaderboardView,
@@ -54,8 +62,7 @@ export async function leaderboard(
   let totals: { userId: string; count: number }[];
   const weekly = metric === "messages" || metric === "voice";
   if (weekly) {
-    const orgs = memberOrgIds(ctx.ws, viewer);
-    const channels = orgs.flatMap((o) => visibleChannels(ctx, o, viewer));
+    const channels = leaderboardChannels(ctx, viewer);
     if (metric === "messages")
       totals = (
         await ctx.messages.activitySince(
@@ -76,12 +83,48 @@ export async function leaderboard(
   } else if (metric === "gifts") {
     totals = giftLeaderboard(ctx.billing.rows);
   } else totals = await ctx.points.store.leaderboard(metric);
-  const people = leaderboardPeople(
+  const cards = personCards(
     ctx,
-    viewer,
-    totals,
-    metric === "level" ? 1 : 0,
+    totals.map((t) => t.userId),
   );
+  const people = totals
+    .flatMap((t) => {
+      if (
+        !Number.isSafeInteger(t.count) ||
+        t.count <= (metric === "level" ? 1 : 0)
+      )
+        return [];
+      const card = cards.get(t.userId);
+      const user = leaderboardIdentity(ctx, t.userId);
+      if (
+        !card ||
+        !user ||
+        user.kind !== "person" ||
+        user.synthetic ||
+        user.disabled_at ||
+        user.home_server_id ||
+        blockedEitherWay(ctx, viewer, t.userId)
+      )
+        return [];
+      if (
+        t.userId !== viewer &&
+        privacyOf(user).findByUsername !== "everyone" &&
+        !sharesCommunity(ctx, viewer, t.userId)
+      )
+        return [];
+      return [
+        {
+          user: {
+            ...card,
+            avatarMedia:
+              privacyOf(user).photo === "everyone" ? avatarMediaOf(user) : null,
+            decoration: styleOf(user).decoration,
+          },
+          value: t.count,
+        },
+      ];
+    })
+    .sort((a, b) => b.value - a.value || a.user.id.localeCompare(b.user.id));
   let rank = 0,
     previous = -1;
   const entries = people.map((p, index) => {
