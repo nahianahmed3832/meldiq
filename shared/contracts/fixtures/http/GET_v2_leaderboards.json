@@ -1,0 +1,61 @@
+{
+  "metric": "embers",
+  "period": "all",
+  "scope": "meldiq",
+  "generatedAt": 1793549107973,
+  "total": 3,
+  "entries": [
+    {
+      "user": {
+        "id": "u_KebZSAxEXn4vJfVAdeGcWg",
+        "username": "rankbob2",
+        "displayName": "rankbob",
+        "avatarColor": 0,
+        "photoRev": null,
+        "avatarMedia": null,
+        "decoration": null
+      },
+      "value": 1000,
+      "rank": 1
+    },
+    {
+      "user": {
+        "id": "u_Xa-1fnVc1Bl5C8DoGeSOfw",
+        "username": "rankalice1",
+        "displayName": "rankalice",
+        "avatarColor": 0,
+        "photoRev": null,
+        "avatarMedia": null,
+        "decoration": null
+      },
+      "value": 1000,
+      "rank": 1
+    },
+    {
+      "user": {
+        "id": "u_7GvGlLaLPMr8jMdJ6JyWVw",
+        "username": "rankcarol3",
+        "displayName": "rankcarol",
+        "avatarColor": 0,
+        "photoRev": null,
+        "avatarMedia": null,
+        "decoration": null
+      },
+      "value": 500,
+      "rank": 3
+    }
+  ],
+  "me": {
+    "user": {
+      "id": "u_Xa-1fnVc1Bl5C8DoGeSOfw",
+      "username": "rankalice1",
+      "displayName": "rankalice",
+      "avatarColor": 0,
+      "photoRev": null,
+      "avatarMedia": null,
+      "decoration": null
+    },
+    "value": 1000,
+    "rank": 1
+  }
+}
