@@ -1,0 +1,45 @@
+{
+  "capturedAt": "20261101T174639Z",
+  "phase": "approved production preparation",
+  "productionWritesStopped": false,
+  "mutuallyConsistentAcrossStores": false,
+  "sqliteIntegrity": "ok",
+  "restored": false,
+  "optionalFederationKey": {
+    "present": false,
+    "federationEnabled": false
+  },
+  "remoteSqliteSnapshot": "/data/backups/database-migration-20261101T174639Z.sqlite",
+  "files": [
+    {
+      "name": "atlas.ejson.gz.age",
+      "bytes": 5440379,
+      "sha256": "c777d306369c3ac7199e0ebccfdf0f3171c477057e744699a8ea72b84a690609"
+    },
+    {
+      "name": "sqlite.snapshot.age",
+      "bytes": 76061000,
+      "sha256": "416a02279e16f5a51bb48dd2bb9e037645acc570f34cb328b840b8307dac707d"
+    },
+    {
+      "name": "reports.key.age",
+      "bytes": 244,
+      "sha256": "488763c0af2508ab8fb3e4f8a6df0c3bbad8795ba5350c7e6e08342924fdd707"
+    },
+    {
+      "name": "compose.yaml.age",
+      "bytes": 4552,
+      "sha256": "944e969d7f08cbde576b163f3f06cd1b78fcd5fe89fa656dbee3d1d903d9df4e"
+    },
+    {
+      "name": "deployment.env.age",
+      "bytes": 6554,
+      "sha256": "f9d889c8d2837f3f3c21181574a6113269426c173ab9ed1b415bc14ec3c9e51c"
+    }
+  ],
+  "atlasRestoreVerified": true,
+  "atlasRestoredCollections": 80,
+  "atlasRestoredRecords": 50455,
+  "encryptedConfigAndSealingKeyDecryptionVerified": true,
+  "productionImage": "griip-internal-messaging-api:0.74.0-social-8078f2bede40"
+}

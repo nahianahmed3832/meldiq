@@ -1,5 +1,7 @@
 # Migration results — 2026-11-01
 
+> **Current production execution:** the owner subsequently approved production rollout. The live pre-copy is in progress; see [production execution journal](PRODUCTION_EXECUTION_20261102.md). The staging report below is historical and its approval gates are superseded. Production authority has not switched yet.
+
 **Status: implementation and local restored-data rehearsals completed. Production cutover NOT performed.**
 
 ## Implementation delivered

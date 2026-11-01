@@ -19,6 +19,7 @@ parser.add_argument("--image", required=True)
 parser.add_argument("--source", type=Path, required=True)
 parser.add_argument("--run-directory", type=Path, required=True)
 parser.add_argument("--phase", required=True)
+parser.add_argument("--write-batch-size", type=int, choices=[25, 50, 75], default=50)
 parser.add_argument("--prune", action="store_true")
 args = parser.parse_args()
 if not args.phase.replace("-", "").isalnum():
@@ -39,7 +40,7 @@ base = ["docker", "run", "--rm", "--no-healthcheck", "--name", name, "--memory",
         "-e", "MONGODB_STORAGE_LIMIT_MB=512", "-e", "NODE_OPTIONS=--max-old-space-size=384",
         "-v", str(source.parent) + ":/review:rw", args.image,
         "node", "dist/databaseMigration.js", "copy", "/review/" + source.name,
-        "--apply", "--batch-size", "50", "--read-batch-size", "5000",
+        "--apply", "--batch-size", str(args.write_batch_size), "--read-batch-size", "5000",
         "--batch-delay-ms", "1000", "--archive-conflicts"]
 if args.prune:
     base.append("--prune")
@@ -91,6 +92,7 @@ with (phase / "copy.json").open("wb") as out, (phase / "copy-progress.jsonl").op
         code = process.wait()
 after = hashlib.file_digest(source.open("rb"), "sha256").hexdigest()
 receipt = {"phase": args.phase, "image": args.image, "sourceSha256": before,
+           "writeBatchSize": args.write_batch_size,
            "sourceUnchanged": before == after, "authorityChanged": False,
            "applicationWritersStopped": False, "exitCode": code, "watchdogStopped": stopped,
            "healthSamples": samples, "worstHealthSeconds": worst, "durationSeconds": round(time.time()-started, 1)}
