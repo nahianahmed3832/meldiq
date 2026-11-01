@@ -81,7 +81,7 @@ export interface AccountView {
 export class AccountService {
   readonly sessions: SessionService;
   /** API 0.46.0: two-step sign-in, checked after the password (accounts/totp.ts); set by Accounts. */
-  secondFactor: ((accountId: string, code: string | undefined) => Promise<void>) | null = null;
+  secondFactor: ((accountId: string, code: string | undefined) => Promise<boolean | void>) | null = null;
   private readonly codesSent = new SlidingWindow(CODES_PER_HOUR, HOUR_MS);
   private readonly notices = new SlidingWindow(NOTICES_PER_HOUR, HOUR_MS);
   private readonly codeRequests: SlidingWindow;
@@ -471,8 +471,8 @@ export class AccountService {
       throw invalidCredentials();
     }
     await this.checkPassword(a, body.password, ip, reply);
-    await this.secondFactor?.(a.id, body.totpCode);
-    return this.finishLogin(a, body, "password");
+    const secondFactorVerified = (await this.secondFactor?.(a.id, body.totpCode)) === true;
+    return this.finishLogin(a, body, "password", secondFactorVerified);
   }
 
   /**
@@ -494,6 +494,7 @@ export class AccountService {
     a: AccountRow,
     body: { deviceName?: string; device?: { deviceId: string; nonce: string; signature: string } },
     via: "password" | "passkey",
+    secondFactorVerified = false,
   ): Promise<SessionResponse> {
     if (a.disabled_at) throw sessionEnded("account_disabled");
     if (!a.email_verified_at) throw new ApiError(403, "email_unverified", "Verify your email first: enter the code we sent you.", { email: a.email });
@@ -502,7 +503,7 @@ export class AccountService {
       if (user?.disabled_at) throw sessionEnded("account_disabled");
     }
     const deviceId = body.device ? await this.provenDevice(a, body.device) : null;
-    const issued = await this.sessions.issue(a.id, body.deviceName ?? "Meldiq app", deviceId, now());
+    const issued = await this.sessions.issue(a.id, body.deviceName ?? "Meldiq app", deviceId, now(), secondFactorVerified);
     const detail = [via === "passkey" ? "passkey" : null, deviceId ? "device" : null].filter(Boolean).join(",") || null;
     this.ctx.audit({ actorId: a.user_id, action: "account.login", target: issued.session.id, detail });
     // Signed-in sessions per person (docs/QUOTAS.md): observed and warned only; signing in is never refused by a quota.

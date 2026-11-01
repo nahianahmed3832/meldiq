@@ -22,6 +22,8 @@ export interface SessionRow {
   account_id: string;
   device_id: string | null;
   label: string;
+  /** Set only after the server verifies an authenticator/backup code at password sign-in. */
+  second_factor_at?: number | null;
   access_hash: string;
   access_expires_at: number;
   refresh_hash: string;
@@ -174,8 +176,8 @@ export interface AccountStore {
   purgeExpired(at: number): Promise<number>;
 }
 
-const ACTIVE_SESSION = `SELECT s.*, a.user_id, a.disabled_at AS account_disabled_at, u.disabled_at AS user_disabled_at, d.revoked_at AS device_revoked_at
-  FROM account_sessions s JOIN accounts a ON a.id = s.account_id
+const ACTIVE_SESSION = `SELECT s.*, f.verified_at AS second_factor_at, a.user_id, a.disabled_at AS account_disabled_at, u.disabled_at AS user_disabled_at, d.revoked_at AS device_revoked_at
+  FROM account_sessions s LEFT JOIN account_session_factors f ON f.id = s.id JOIN accounts a ON a.id = s.account_id
   LEFT JOIN users u ON u.id = a.user_id LEFT JOIN devices d ON d.id = s.device_id`;
 
 const PATCHABLE = new Set<keyof AccountPatch>([
@@ -272,6 +274,7 @@ export class SqliteAccountStore implements AccountStore {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(r.id, r.account_id, r.device_id, r.label, r.access_hash, r.access_expires_at, r.refresh_hash, r.previous_refresh_hash, r.previous_refresh_answer, r.refresh_expires_at, r.expires_at, r.created_at, r.refreshed_at, r.last_used_at, r.revoked_at, r.revoke_reason);
+    if (r.second_factor_at != null) this.db.prepare("INSERT INTO account_session_factors (id, account_id, verified_at, expires_at) VALUES (?, ?, ?, ?)").run(r.id, r.account_id, r.second_factor_at, r.second_factor_at + 10 * 60_000);
   }
 
   async sessionById(id: string): Promise<ActiveSession | undefined> {

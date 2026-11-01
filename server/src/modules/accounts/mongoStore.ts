@@ -20,6 +20,7 @@ const deviceRevokedAt = (identity: Rows, id: string): number | null => identity.
 type WithId<T, Id> = T & { _id: Id };
 type AccountDoc = WithId<AccountRow, string>;
 type SessionDoc = WithId<SessionRow, string>;
+type FactorDoc = { _id: string; id: string; account_id: string; verified_at: number; expires_at: number };
 type CodeDoc = WithId<CodeRow, { account_id: string; purpose: CodePurpose }>;
 type TicketDoc = WithId<TicketRow, string>;
 
@@ -147,6 +148,7 @@ export class MongoAccountStore implements AccountStore {
     if (res.deletedCount !== 1) return false;
     // ON DELETE CASCADE in SQLite.
     await this.sessions.deleteMany({ account_id: id }, this.o);
+    await this.mongo.db.collection<FactorDoc>("account_session_factors").deleteMany({ account_id: id }, this.o);
     await this.codes.deleteMany({ account_id: id }, this.o);
     return true;
   }
@@ -155,6 +157,7 @@ export class MongoAccountStore implements AccountStore {
     const res = await this.accounts.deleteOne({ _id: id }, this.o);
     // ON DELETE CASCADE in SQLite. Recovery codes and tickets are the recovery store's (RecoveryStore.deleteForAccount).
     await this.sessions.deleteMany({ account_id: id }, this.o);
+    await this.mongo.db.collection<FactorDoc>("account_session_factors").deleteMany({ account_id: id }, this.o);
     await this.codes.deleteMany({ account_id: id }, this.o);
     await this.tickets.deleteMany({ account_id: id }, this.o);
     return res.deletedCount === 1;
@@ -188,22 +191,25 @@ export class MongoAccountStore implements AccountStore {
   }
 
   async insertSession(row: SessionRow): Promise<void> {
-    await this.sessions.insertOne({ _id: row.id, ...row }, this.o);
+    const { second_factor_at, ...session } = row;
+    await this.sessions.insertOne({ _id: row.id, ...session }, this.o);
+    if (second_factor_at != null) await this.mongo.db.collection<FactorDoc>("account_session_factors").insertOne({ _id: row.id, id: row.id, account_id: row.account_id, verified_at: second_factor_at, expires_at: second_factor_at + 10 * 60_000 }, this.o);
   }
 
   /** A session with what decides whether it may be used: its account (MongoDB), user and device (SQLite). */
   private async active(filter: Document): Promise<ActiveSession | undefined> {
     const [d] = await this.sessions
-      .aggregate<SessionDoc & { a: AccountDoc[] }>(
-        [{ $match: filter }, { $limit: 1 }, { $lookup: { from: "accounts", localField: "account_id", foreignField: "_id", as: "a" } }],
+      .aggregate<SessionDoc & { a: AccountDoc[]; factors: { verified_at: number }[] }>(
+        [{ $match: filter }, { $limit: 1 }, { $lookup: { from: "accounts", localField: "account_id", foreignField: "_id", as: "a" } }, { $lookup: { from: "account_session_factors", localField: "_id", foreignField: "_id", as: "factors" } }],
         this.o,
       )
       .toArray();
     const a = d?.a[0];
     if (!d || !a) return undefined;
-    const { a: _a, _id: _id, ...s } = d;
+    const { a: _a, factors, _id: _id, ...s } = d;
     return {
       ...s,
+      second_factor_at: factors[0]?.verified_at ?? null,
       user_id: a.user_id,
       account_disabled_at: a.disabled_at,
       user_disabled_at: a.user_id ? userDisabledAt(this.identity, a.user_id) : null,
@@ -318,6 +324,7 @@ export class MongoAccountStore implements AccountStore {
     const sessions = await this.sessions.deleteMany({
       $or: [{ expires_at: { $lte: grace } }, { refresh_expires_at: { $lte: grace } }, { revoked_at: { $ne: null, $lte: grace } }],
     });
+    await this.mongo.db.collection<FactorDoc>("account_session_factors").deleteMany({ expires_at: { $lte: at } });
     const codes = await this.codes.deleteMany({ expires_at: { $lte: at } });
     const tickets = await this.tickets.deleteMany({ expires_at: { $lte: grace } });
     return sessions.deletedCount + codes.deletedCount + tickets.deletedCount;

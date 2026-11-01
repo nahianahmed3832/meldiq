@@ -14,6 +14,7 @@ export interface BillingProvider {
   /** "test": sandbox or test keys, never real money. "live": real charges. */
   readonly mode: "test" | "live";
   readonly supportsOneTimePurchases?: boolean;
+  readonly supportsSparkPurchases?: boolean;
   /**
    * Checks the signature of a webhook body exactly as received and returns the provider's event, normalized.
    * Throws [WebhookRejected] when the signature or the body can't be trusted.
@@ -64,6 +65,7 @@ export interface CheckoutInput {
 
 /** A one-time payment the server prices itself (a gift): never an amount a client sent. */
 export interface PaymentCheckoutInput {
+  kind?: "gift" | "spark";
   reference: string;
   customerRef: string | null;
   owner: OwnerRef;

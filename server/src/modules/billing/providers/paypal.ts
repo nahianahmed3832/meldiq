@@ -89,6 +89,8 @@ const subscription = z.object({
 export interface PayPalOptions {
   environment?: PayPalEnvironment;
   giftsEnabled?: boolean;
+  sparksEnabled?: boolean;
+  botsPlanId?: string | null;
   clientId: string;
   clientSecret: string;
   webhookId: string;
@@ -118,12 +120,14 @@ export class PayPalProvider implements BillingProvider {
   readonly mode: "test" | "live";
   readonly environment: PayPalEnvironment;
   readonly supportsOneTimePurchases: boolean;
+  readonly supportsSparkPurchases: boolean;
   readonly api: PayPalApi;
   private readonly clock: () => number;
   constructor(readonly options: PayPalOptions) {
     this.environment = options.environment ?? "sandbox";
     this.mode = this.environment === "live" ? "live" : "test";
     this.supportsOneTimePurchases = options.giftsEnabled ?? this.environment === "sandbox";
+    this.supportsSparkPurchases = options.sparksEnabled ?? this.environment === "sandbox";
     this.api =
       options.api ?? new HttpPayPalApi(options.clientId, options.clientSecret, this.environment);
     this.clock = options.clock ?? Date.now;
@@ -137,14 +141,16 @@ export class PayPalProvider implements BillingProvider {
       environment: this.environment,
       clientId: this.options.clientId,
       subscriptions:
-        this.options.subscriptionsApproved && !!this.options.plusPlanId,
+        this.options.subscriptionsApproved && (!!this.options.plusPlanId || !!this.options.botsPlanId),
+      sparks: this.supportsSparkPurchases,
+      botsPlus: this.options.subscriptionsApproved && !!this.options.botsPlanId,
       cards: false as const,
     };
   }
 
   /** Reject a misconfigured remote plan before asking any buyer to approve it. No price overrides or trials. */
-  async verifyPlusPlan(): Promise<void> {
-    if (!this.options.subscriptionsApproved || !this.options.plusPlanId)
+  private async verifyRecurringPlan(planId: string | null): Promise<void> {
+    if (!this.options.subscriptionsApproved || !planId)
       throw new ApiError(
         409,
         "billing_unavailable",
@@ -181,11 +187,11 @@ export class PayPalProvider implements BillingProvider {
       .parse(
         await this.api.request(
           "GET",
-          `/v1/billing/plans/${this.options.plusPlanId}`,
+          `/v1/billing/plans/${planId}`,
         ),
       );
     if (
-      plan.id !== this.options.plusPlanId ||
+      plan.id !== planId ||
       plan.quantity_supported ||
       (plan.payment_preferences?.setup_fee &&
         cents(plan.payment_preferences.setup_fee.value) !== 0) ||
@@ -194,28 +200,32 @@ export class PayPalProvider implements BillingProvider {
       throw new ApiError(
         409,
         "billing_unavailable",
-        "The PayPal plan does not match Meldiq Plus pricing.",
+        "The PayPal plan does not match Meldiq USD 3.99/month pricing.",
       );
   }
 
+  verifyPlusPlan(): Promise<void> { return this.verifyRecurringPlan(this.options.plusPlanId); }
+  verifyBotsPlan(): Promise<void> { return this.verifyRecurringPlan(this.options.botsPlanId ?? null); }
+
   async createCheckout(input: CheckoutInput) {
     if (
-      input.priceRef !== this.options.plusPlanId ||
+      ![this.options.plusPlanId, this.options.botsPlanId].includes(input.priceRef) ||
+      (input.priceRef === this.options.botsPlanId ? input.owner.kind !== "org" : input.owner.kind !== "account") ||
       (input.quantity && input.quantity !== 1) ||
       input.trialDays
     )
       throw new ApiError(
         409,
         "billing_unavailable",
-        "This PayPal checkout supports the monthly Plus plan without price or trial-cycle overrides only.",
+        "This PayPal checkout supports the selected monthly product without price or trial-cycle overrides only.",
       );
-    await this.verifyPlusPlan();
+    await this.verifyRecurringPlan(input.priceRef);
     const result = subscription.parse(
       await this.api.request(
         "POST",
         "/v1/billing/subscriptions",
         {
-          plan_id: this.options.plusPlanId,
+          plan_id: input.priceRef,
           custom_id: input.reference,
           ...(input.trialEndsAt && input.trialEndsAt > this.clock()
             ? { start_time: new Date(input.trialEndsAt).toISOString() }
@@ -235,7 +245,7 @@ export class PayPalProvider implements BillingProvider {
   }
 
   async createPaymentCheckout(input: PaymentCheckoutInput) {
-    if (!this.supportsOneTimePurchases) throw new ApiError(409, "billing_unavailable", "One-time purchases are not enabled for this PayPal app");
+    if (!(input.kind === "spark" ? this.supportsSparkPurchases : this.supportsOneTimePurchases)) throw new ApiError(409, "billing_unavailable", "One-time purchases are not enabled for this PayPal app");
     if (
       input.currency !== "USD" ||
       !Number.isSafeInteger(input.amountMinor) ||
@@ -382,7 +392,7 @@ export class PayPalProvider implements BillingProvider {
     );
     if (
       s.id !== id ||
-      s.plan_id !== this.options.plusPlanId ||
+      ![this.options.plusPlanId, this.options.botsPlanId].includes(s.plan_id) ||
       s.plan_overridden ||
       (s.quantity && s.quantity !== "1")
     )

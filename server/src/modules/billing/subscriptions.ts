@@ -91,11 +91,11 @@ export class Subscriptions {
 
   /** Versions of add-on plans (the Meldiq Spark add-on): an owner has one plan and, beside it, add-ons (docs/MOJO.md). */
   private addonVersions(): string[] {
-    return [...this.catalog.versionIdsOf(SPARK_PLAN_KEY)];
+    return [...this.catalog.versionIdsOf(SPARK_PLAN_KEY), ...this.catalog.versionIdsOf("bots_plus")];
   }
 
   isAddonVersion(versionId: string): boolean {
-    return this.catalog.versionIdsOf(SPARK_PLAN_KEY).has(versionId);
+    return this.addonVersions().includes(versionId);
   }
 
   /** The owner's plan subscription that isn't over (at most one), if any. Add-ons (Sparks) are never the plan. */

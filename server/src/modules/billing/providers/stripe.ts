@@ -148,6 +148,8 @@ function checkoutSnapshot(s: Stripe.Checkout.Session, eventType: string): Checko
     // A completed checkout paid by a delayed method (a bank debit) is paid only at async_payment_succeeded.
     paid: s.payment_status === "paid" || s.payment_status === "no_payment_required",
     paymentRef: idOf(s.payment_intent),
+    currency: s.currency?.toUpperCase(),
+    amountMinor: s.amount_total ?? undefined,
   };
 }
 

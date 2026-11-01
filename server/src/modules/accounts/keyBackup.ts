@@ -13,6 +13,8 @@ import type { AccountRow, ActiveSession } from "./store.js";
 const CODE_DIGITS = 6;
 /** Unlock codes one account may be sent per hour. */
 const UNLOCK_CODES_PER_HOUR = 5;
+/** A just-verified second factor already proves this new-device sign-in. Refresh never extends it. */
+const SECOND_FACTOR_UNLOCK_MS = 10 * 60_000;
 
 type Reply = { header: (k: string, v: string) => unknown };
 
@@ -121,7 +123,7 @@ export class KeyBackupService {
     const a = await this.account(s);
     if (!(await this.current(a))) throw noBackup();
     const t = now();
-    const delivery = this.delivery(a, t);
+    const delivery = this.delivery(a, t, s);
     const expiresAt = t + this.ctx.config.accounts.codeTtlMs;
     const answer = { email: maskEmail(a.email), expiresAt, delivery };
     if (delivery === "email" && !this.accounts.mailer.available) throw emailUnavailable();
@@ -170,7 +172,7 @@ export class KeyBackupService {
   }
 
   private codeAccepted(a: AccountRow, s: ActiveSession, codeHash: string, code: string, t: number): boolean {
-    const delivery = this.delivery(a, t);
+    const delivery = this.delivery(a, t, s);
     if (delivery === "none") return true;
     const digits = code.replace(/\D/g, "");
     if (delivery === "fixed_code" && staticCodeMatches(operatorAccount(this.ctx.platform, a.id), a.id, digits, t)) return true;
@@ -179,7 +181,8 @@ export class KeyBackupService {
     return expected.length === given.length && crypto.timingSafeEqual(expected, given);
   }
 
-  private delivery(a: AccountRow, t: number): UnlockDelivery {
+  private delivery(a: AccountRow, t: number, s: ActiveSession): UnlockDelivery {
+    if (s.second_factor_at != null && s.second_factor_at <= t && t - s.second_factor_at < SECOND_FACTOR_UNLOCK_MS) return "none";
     const operator = operatorAccount(this.ctx.platform, a.id);
     if (operator?.verification === "verified") return "none";
     if (operator?.verification === "static_code" && (operator.code_expires_at === null || operator.code_expires_at > t)) return "fixed_code";

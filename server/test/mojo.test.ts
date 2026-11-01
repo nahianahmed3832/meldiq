@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import Stripe from "stripe";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { addMonths } from "../src/modules/billing/gifts.js";
@@ -87,13 +88,13 @@ describe("Meldiq Mojo", () => {
   const subscribe = async (c: AccountClient, planKey: string, price: string, quantity?: number) => {
     // A pre-retirement Go checkout exercises legacy renewals without reopening new Go sales.
     let legacy: { checkoutId: string } | null = null;
-    if (planKey === "go") {
-      const plan = h.ctx.billing.catalog.byKey("go")!;
-      const checkoutId = `legacy_go_checkout_${++seq}`;
+    if (planKey === "go" || planKey === "spark") {
+      const plan = h.ctx.billing.catalog.byKey(planKey)!;
+      const checkoutId = `legacy_${planKey}_checkout_${++seq}`;
       await h.ctx.billing.rows.write((w) => w.insert("billing_checkouts", {
         id: checkoutId, owner_kind: "account", account_id: c.accountId, user_id: c.userId,
         started_by_account_id: c.accountId, plan_version_id: h.ctx.billing.catalog.current(plan.id)!.id,
-        provider: "stripe", status: "open", created_at: Date.now() - DAY_MS, expires_at: Date.now() + DAY_MS, quantity: 1,
+        provider: "stripe", status: "open", created_at: Date.now() - DAY_MS, expires_at: Date.now() + DAY_MS, quantity: quantity ?? 1,
       }));
       legacy = { checkoutId };
     }
@@ -159,7 +160,7 @@ describe("Meldiq Mojo", () => {
         [2, 5, 200, 200 * MB, 256, ["1080p60"]],
         [3, 8, 500, 1024 * MB, 384, ["1080p60", "1440p30"]],
       ]);
-      expect(c.onSale).toEqual({ mode: "test", go: null, plus: { currency: "USD", amountMinor: 399 }, spark: { currency: "USD", amountMinor: 99 }, gifts: true });
+      expect(c.onSale).toEqual({ mode: "test", go: null, plus: { currency: "USD", amountMinor: 399 }, spark: { currency: "USD", amountMinor: 99 }, gifts: true, botsPlus: null });
     });
 
     it("never offers a larger file than the server takes (FILE_MAX_BYTES)", () => {
@@ -230,11 +231,20 @@ describe("Meldiq Mojo", () => {
       expect((await me(go)).sparks).toMatchObject({ total: 1, free: 0 });
     });
 
-    it("lets anyone buy more Sparks, counted once Stripe confirms, by quantity", async () => {
+    it("buys standalone one-time Sparks through Stripe without a personal plan", async () => {
+      const buyer = await AccountClient.ready(h.baseUrl, mailer, "once" + crypto.randomBytes(3).toString("hex"));
       const before = stripe.sessions.length;
-      await subscribe(free, "spark", "price_spark", 3);
+      const purchase = await buyer.req("POST", "/v2/mojo/sparks/checkout", { quantity: 2 });
       const session = stripe.sessions[before]!;
-      expect(session.params).toMatchObject({ mode: "subscription", line_items: [{ price: "price_spark", quantity: 3 }] });
+      expect(session.params).toMatchObject({ mode: "payment", line_items: [{ quantity: 1, price_data: { currency: "usd", unit_amount: 198 } }] });
+      expect((await me(buyer)).sparks.purchased).toBe(0);
+      const completed = event("checkout.session.completed", { id: session.id, object: "checkout.session", mode: "payment", client_reference_id: purchase.checkoutId, payment_status: "paid", payment_intent: "pi_spark_once", customer: "cus_spark_once", subscription: null, currency: "usd", amount_total: 198, metadata: {} });
+      await deliver(completed); await deliver(completed);
+      expect(await me(buyer)).toMatchObject({ plan: "free", sparks: { purchased: 2, total: 2, subscription: null } });
+    });
+
+    it("preserves legacy recurring Spark slots after the one-time purchase launch", async () => {
+      await subscribe(free, "spark", "price_spark", 3);
       expect((await me(free)).sparks).toMatchObject({ included: 0, purchased: 3, total: 3, free: 3, subscription: { quantity: 3 } });
       // Buying Sparks doesn't make anyone a Mojo subscriber.
       expect((await me(free)).plan).toBe("free");

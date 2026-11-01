@@ -111,7 +111,7 @@ export class Mojo {
   /** [userId]'s Sparks at [t]: included with their plan, and bought (the Spark add-on's quantity while it grants). */
   sparkSlots(userId: string, t = this.clock()): { included: number; purchased: number; total: number } {
     const included = this.perksOf(userId, t).sparks;
-    let purchased = 0;
+    let purchased = this.billing.sparkPurchases.slots(userId);
     for (const s of this.billing.subscriptions.liveForUser(userId)) {
       if (this.billing.subscriptions.isAddonVersion(s.plan_version_id) && this.billing.subscriptions.grants(s, t)) purchased += s.quantity;
     }

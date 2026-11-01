@@ -496,6 +496,32 @@ switch (cmd) {
     }
     break;
   }
+  case "billing-paypal-bots": {
+    const provider = cfg.billing.provider;
+    if (!(provider instanceof PayPalProvider) || !rest.includes("--publish")) throw new Error("Configured PayPal provider and --publish required");
+    await provider.verifyBotsPlan();
+    const mongo = cfg.mongo ? await openMongo(cfg.mongo, db) : undefined;
+    const rows = await openBillingRows(db, mongo, console);
+    const platform = await openDomainRows(db, "platform", mongo, console);
+    try {
+      const catalog = new PlanCatalog(rows);
+      let plan = catalog.byKey("bots_plus");
+      const current = plan && catalog.current(plan.id);
+      if (current?.provider === "paypal" && current.provider_price_ref === provider.options.botsPlanId) {
+        console.log("Bots+ already published"); break;
+      }
+      const terms = { interval: "month" as const, currency: "USD", amountMinor: 399, providerPriceRef: provider.options.botsPlanId!, trialDays: 0, graceDays: 3, limits: {}, notes: "Separate community Bots+ subscription" };
+      if (!plan) plan = await catalog.create("bots_plus", { name: "Meldiq Bots+", description: "Premium bots for one community", segment: "community-bots", public: true, audience: "organization" }, terms, "cli", now());
+      else {
+        if (!plan.public || plan.audience !== "organization" || plan.status === "archived") throw new Error("Existing Bots+ plan is not publicly purchasable");
+        await catalog.saveDraft(plan.id, terms, "cli", now());
+      }
+      const result = await catalog.publish(plan.id, "paypal", "cli", now());
+      await new PlatformAudit(platform).record({ action: "billing.paypal.bots.publish", outcome: "success", actorRole: "operator", targetType: "billing_plan", targetId: plan.id, reason: "Owner authorized separate community Bots+ sales", detail: { mode: provider.mode, amountMinor: 399, currency: "USD", version: result.published.version } });
+      console.log("Published Bots+ USD 3.99/month; personal subscriptions preserved");
+    } finally { await rows.settled(); await rows.close(); await platform.settled(); await platform.close(); await mongo?.close(); }
+    break;
+  }
   case "billing-mojo-plans": {
     const [go, plus, spark, ...cents] = rest;
     const amounts = cents.length === 0 ? DEFAULT_MOJO_AMOUNTS : { go: Number(cents[0]), plus: Number(cents[1]), spark: Number(cents[2]) };

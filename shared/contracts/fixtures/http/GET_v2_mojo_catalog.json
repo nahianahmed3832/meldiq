@@ -1,5 +1,5 @@
 {
-  "version": "2026-10-28.1",
+  "version": "2026-11-01.2",
   "units": {
     "mb": 1000000,
     "gb": 1000000000
@@ -9,10 +9,10 @@
       "key": "free",
       "name": "Free",
       "listPriceMinor": 0,
-      "messageChars": 1000,
+      "messageChars": 2000,
       "uploadBytes": 50000000,
       "screen": [
-        "720p30"
+        "720p60"
       ],
       "sparks": 0,
       "badge": null,
@@ -22,31 +22,13 @@
       "botReview": "regular"
     },
     {
-      "key": "go",
-      "name": "Mojo Go",
-      "listPriceMinor": 99,
-      "messageChars": 2000,
-      "uploadBytes": 200000000,
-      "screen": [
-        "720p60",
-        "1080p30"
-      ],
-      "sparks": 1,
-      "badge": "go",
-      "check": false,
-      "customItems": 50,
-      "bots": 4,
-      "botReview": "regular"
-    },
-    {
       "key": "plus",
       "name": "Mojo Plus",
       "listPriceMinor": 399,
-      "messageChars": 5000,
-      "uploadBytes": 2000000000,
+      "messageChars": 8000,
+      "uploadBytes": 1024000000,
       "screen": [
-        "1080p60",
-        "1440p30"
+        "1440p60"
       ],
       "sparks": 2,
       "badge": "plus",
@@ -91,11 +73,18 @@
       "width": 2560,
       "height": 1440,
       "fps": 30
+    },
+    {
+      "id": "1440p60",
+      "label": "2K (1440p) 60 fps",
+      "width": 2560,
+      "height": 1440,
+      "fps": 60
     }
   ],
   "spark": {
     "listPriceMinor": 99,
-    "interval": "month",
+    "interval": "one_time",
     "maxPurchase": 20,
     "levels": [
       {
@@ -134,7 +123,7 @@
         "sparks": 8,
         "emojiSlots": 500,
         "stickerSlots": 20,
-        "uploadBytes": 2000000000,
+        "uploadBytes": 1024000000,
         "voiceKbps": 384,
         "screen": [
           "1080p60",
@@ -153,10 +142,17 @@
   },
   "enforced": true,
   "onSale": {
-    "mode": null,
+    "mode": "test",
     "go": null,
-    "plus": null,
-    "spark": null,
-    "gifts": false
+    "plus": {
+      "currency": "USD",
+      "amountMinor": 399
+    },
+    "spark": {
+      "currency": "USD",
+      "amountMinor": 99
+    },
+    "botsPlus": null,
+    "gifts": true
   }
 }

@@ -1,3 +1,4 @@
+import { SparkPurchases } from "./sparkPurchases.js";
 import type { FastifyBaseLogger } from "fastify";
 import type { Rows } from "../../infrastructure/database/rows/index.js";
 import { ApiError, conflict, notFound } from "../../shared/errors.js";
@@ -32,6 +33,7 @@ const audienceOf = (owner: BillingOwner): PlanAudience => (owner.kind === "accou
 
 /** The billing module's one entry point (ctx.billing): catalog, subscriptions, webhooks, checkout and the portal. */
 export class Billing {
+  readonly sparkPurchases: SparkPurchases;
   readonly catalog: PlanCatalog;
   readonly subscriptions: Subscriptions;
   readonly webhooks: BillingWebhooks;
@@ -62,6 +64,7 @@ export class Billing {
     this.catalog = new PlanCatalog(rows, quotaPlanExists);
     this.subscriptions = new Subscriptions(rows, this.catalog);
     this.webhooks = new BillingWebhooks(rows, config.provider, this.subscriptions, log, clock);
+    this.sparkPurchases = new SparkPurchases(this, rows, log, clock);
     this.program = new BillingProgram(rows, config.trials);
     this.mojoControls = new MojoControls(rows);
     this.grants = new Grants(rows, () => this.program.current(), clock);
@@ -111,7 +114,7 @@ export class Billing {
     if (!provider) return [];
     return this.catalog
       .all()
-      .filter((p) => p.key !== "go" && p.public && p.status === "active" && (audience === null || p.audience === audience))
+      .filter((p) => p.key !== "go" && p.key !== "spark" && p.public && p.status === "active" && (audience === null || p.audience === audience))
       .flatMap((p) => {
         const v = this.catalog.current(p.id);
         if (!v || v.provider !== provider.id) return [];
@@ -162,6 +165,7 @@ export class Billing {
     planKey: string,
     opts: { quantity?: number; returnUrl?: string | null; requestKey?: string } = {},
   ): Promise<{ checkoutId: string; url: string | null; expiresAt: number }> {
+    if (planKey === "spark") throw conflict("Sparks are now one-time purchases. Use the Spark checkout.");
     if (planKey === "go") throw notFound("Mojo Go is no longer offered. Choose Mojo Plus.");
     const provider = this.requireProvider();
     const plan = this.catalog.byKey(planKey);
@@ -284,7 +288,8 @@ export class Billing {
   /** Whether the account's own subscription will charge again (not ending, not over): account deletion waits for it. */
   renewsPersonal(accountId: string): boolean {
     const s = this.subscriptions.liveForOwner({ kind: "account", accountId });
-    return !!s && !s.cancel_at_period_end && s.status !== "paused";
+    const communitySubscriptions = this.rows.all<SubscriptionRow>("billing_subscriptions", { where: { owner_kind: "org", billing_account_id: accountId, cancel_at_period_end: 0, status: { in: ["incomplete", "trialing", "active", "past_due", "unpaid"] } } });
+    return (!!s && !s.cancel_at_period_end && s.status !== "paused") || communitySubscriptions.length > 0;
   }
 
   /** A hosted page where the owner manages payment methods, invoices, plan changes and cancellation. */

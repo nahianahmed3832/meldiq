@@ -43,6 +43,23 @@ if (!plusPlanId) {
   save("PAYPAL_PLUS_PLAN_ID", plusPlanId = plan.id);
 }
 console.log("Live monthly plan configured");
+let botsPlanId = process.env.PAYPAL_BOTS_PLUS_PLAN_ID;
+if (process.argv.includes("--addons")) {
+  let botsProductId = process.env.PAYPAL_BOTS_PRODUCT_ID;
+  if (!botsProductId) {
+    const product = await api.request("POST", "/v1/catalogs/products", { name: "Meldiq Bots+", description: "Premium bots for one Meldiq community", type: "SERVICE", category: "SOFTWARE" }, requestId("bots-product")) as { id: string };
+    save("PAYPAL_BOTS_PRODUCT_ID", botsProductId = product.id);
+  }
+  if (!botsPlanId) {
+    const plan = await api.request("POST", "/v1/billing/plans", {
+      product_id: botsProductId, name: "Meldiq Bots+ USD 3.99 monthly", status: "ACTIVE",
+      billing_cycles: [{ frequency: { interval_unit: "MONTH", interval_count: 1 }, tenure_type: "REGULAR", sequence: 1, total_cycles: 0, pricing_scheme: { fixed_price: { value: "3.99", currency_code: "USD" } } }],
+      payment_preferences: { auto_bill_outstanding: true, payment_failure_threshold: 2 },
+    }, requestId("bots-plan")) as { id: string };
+    save("PAYPAL_BOTS_PLUS_PLAN_ID", botsPlanId = plan.id);
+  }
+}
+
 let merchantId = process.env.PAYPAL_MERCHANT_ID;
 if (!merchantId) {
   // No payer or approval link is used; the unapproved order expires without a charge.
@@ -58,7 +75,12 @@ let webhook = listed.webhooks.find((w) => w.url === url);
 if (!webhook) webhook = await api.request("POST", "/v1/notifications/webhooks", { url, event_types: names.map((name) => ({ name })) }) as typeof webhook;
 if (!webhook || !names.every((name) => webhook!.event_types.some((e) => e.name === name))) throw new Error("Webhook event coverage mismatch");
 save("PAYPAL_WEBHOOK_ID", webhook.id);
-const provider = new PayPalProvider({ environment: "live", clientId, clientSecret, merchantId, plusPlanId, webhookId: webhook.id, subscriptionsApproved: true, api });
+const provider = new PayPalProvider({ environment: "live", clientId, clientSecret, merchantId, plusPlanId, botsPlanId, webhookId: webhook.id, subscriptionsApproved: true, api });
 await provider.verifyPlusPlan();
+if (process.argv.includes("--addons")) {
+  await provider.verifyBotsPlan();
+  save("PAYPAL_SPARKS_ENABLED", "true");
+  console.log("Bots+ USD 3.99/month verified; standalone Sparks USD 0.99 one-time enabled");
+}
 save("PAYPAL_SUBSCRIPTIONS_APPROVED", "true");
 console.log("Live merchant and webhook verified; Plus USD 3.99/month; no payment approved or captured");

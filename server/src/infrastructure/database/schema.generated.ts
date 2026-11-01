@@ -167,6 +167,24 @@ export const SCHEMA: readonly TableShape[] = [
     autoincrement: false,
   },
   {
+    name: "account_session_factors",
+    columns: [
+      {"name":"id","type":"TEXT","notNull":true},
+      {"name":"account_id","type":"TEXT","notNull":true},
+      {"name":"verified_at","type":"INTEGER","notNull":true},
+      {"name":"expires_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["id"],
+    indexes: [
+      {"name":"idx_session_factors_expiry","columns":["expires_at"],"unique":false,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [
+      {"columns":["account_id"],"table":"accounts","references":["id"],"onDelete":"CASCADE"},
+      {"columns":["id"],"table":"account_sessions","references":["id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
     name: "account_sessions",
     columns: [
       {"name":"id","type":"TEXT","notNull":true},
@@ -4368,6 +4386,36 @@ export const SCHEMA: readonly TableShape[] = [
       {"name":"idx_spark_assignments_user","columns":["user_id","assigned_at"],"unique":false,"nocase":false,"partialNotNull":null},
     ],
     foreignKeys: [],
+    autoincrement: false,
+  },
+  {
+    name: "spark_purchases",
+    columns: [
+      {"name":"id","type":"TEXT","notNull":true},
+      {"name":"buyer_account_id","type":"TEXT","notNull":false},
+      {"name":"buyer_user_id","type":"TEXT","notNull":false},
+      {"name":"quantity","type":"INTEGER","notNull":true},
+      {"name":"currency","type":"TEXT","notNull":true},
+      {"name":"amount_minor","type":"INTEGER","notNull":true},
+      {"name":"status","type":"TEXT","notNull":true},
+      {"name":"provider","type":"TEXT","notNull":true},
+      {"name":"provider_session_ref","type":"TEXT","notNull":false},
+      {"name":"provider_payment_ref","type":"TEXT","notNull":false},
+      {"name":"request_key","type":"TEXT","notNull":false},
+      {"name":"created_at","type":"INTEGER","notNull":true},
+      {"name":"expires_at","type":"INTEGER","notNull":true},
+      {"name":"paid_at","type":"INTEGER","notNull":false},
+      {"name":"updated_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["id"],
+    indexes: [
+      {"name":"idx_spark_purchase_slots","columns":["buyer_user_id","status"],"unique":false,"nocase":false,"partialNotNull":null},
+      {"name":"idx_spark_purchase_payment","columns":["provider","provider_payment_ref"],"unique":true,"nocase":false,"partialNotNull":["provider_payment_ref"]},
+      {"name":"idx_spark_purchase_request","columns":["provider","buyer_account_id","request_key"],"unique":true,"nocase":false,"partialNotNull":["request_key"]},
+    ],
+    foreignKeys: [
+      {"columns":["buyer_user_id"],"table":"users","references":["id"],"onDelete":"SET NULL"},
+    ],
     autoincrement: false,
   },
   {

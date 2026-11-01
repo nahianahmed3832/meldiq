@@ -286,8 +286,10 @@ export default async function billingRoutes(
   });
   app.post("/v2/billing/paypal/checkouts", providerCall, async (req) => {
     const s = session(req);
-    const starter = await starterFor(s, { kind: "account", accountId: s.accountId });
-    const result = await paypal().start({ ...starter, accountId: s.accountId }, parse(PayPalCheckoutBody, req.body));
+    const input = parse(PayPalCheckoutBody, req.body);
+    const owner = ownerFor(s, input.product === "bots_plus" ? input.orgId : undefined);
+    const starter = await starterFor(s, owner);
+    const result = await paypal().start({ ...starter, accountId: s.accountId }, input);
     ctx.audit({ actorId: s.userId ?? s.accountId, action: "billing.paypal.checkout", target: result.id, detail: result.product });
     return result;
   });
@@ -295,9 +297,9 @@ export default async function billingRoutes(
   app.post("/v2/billing/paypal/checkouts/:id/confirm", providerCall, async (req) => paypal().confirm(session(req).accountId, parse(PayPalCheckoutParams, req.params).id, true));
   app.get("/v2/billing/paypal/history", authed, async (req) => paypal().history(session(req).accountId));
   app.post("/v2/billing/paypal/cancel", providerCall, async (req) => {
-    parse(PayPalCancelBody, req.body);
+    const input = parse(PayPalCancelBody, req.body);
     const s = session(req);
-    const result = await paypal().cancel(s.accountId);
+    const result = await paypal().cancel(s.accountId, input.subscriptionId);
     ctx.audit({ actorId: s.userId ?? s.accountId, action: "billing.paypal.cancel", target: s.accountId, detail: result.confirmed ? "confirmed" : "pending" });
     return result;
   });

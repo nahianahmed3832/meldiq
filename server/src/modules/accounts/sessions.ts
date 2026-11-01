@@ -106,7 +106,7 @@ export class SessionService {
     private readonly config: AccountsConfig,
   ) {}
 
-  async issue(accountId: string, label: string, deviceId: string | null, t: number): Promise<IssuedSession> {
+  async issue(accountId: string, label: string, deviceId: string | null, t: number, secondFactorVerified = false): Promise<IssuedSession> {
     const id = newId("s");
     const accessToken = newToken();
     const refreshToken = refreshTokenFor(id);
@@ -114,6 +114,7 @@ export class SessionService {
     const session: SessionRow = {
       id,
       account_id: accountId,
+      second_factor_at: secondFactorVerified ? t : null,
       device_id: deviceId,
       label,
       access_hash: sha256Hex(accessToken),

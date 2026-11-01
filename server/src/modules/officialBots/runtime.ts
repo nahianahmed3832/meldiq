@@ -67,9 +67,16 @@ export class OfficialBots {
   }
 
   /** Whether [orgId] has Bots+ now. */
+  private paidPlus(orgId: string) {
+    const subscription = this.ctx.billing.subscriptions.liveAddonForOwner({ kind: "org", orgId });
+    if (!subscription || !this.ctx.billing.subscriptions.grants(subscription, this.clock())) return null;
+    const version = this.ctx.billing.catalog.version(subscription.plan_version_id);
+    return version && this.ctx.billing.catalog.plan(version.plan_id)?.key === "bots_plus" ? subscription : null;
+  }
+
   hasPlus(orgId: string): boolean {
-    const p = this.rows.plus(orgId);
-    return !!p && (p.expires_at === null || p.expires_at > this.clock());
+    const grant = this.rows.plus(orgId);
+    return !!(grant && (grant.expires_at === null || grant.expires_at > this.clock())) || this.paidPlus(orgId) !== null;
   }
 
   /** Bots+ for [orgId] as the Platform Admin Console shows it. */
@@ -80,13 +87,15 @@ export class OfficialBots {
     grantedBy: string | null;
     reason: string | null;
   } {
-    const p = this.rows.plus(orgId);
+    const stored = this.rows.plus(orgId);
+    const p = stored && (stored.expires_at === null || stored.expires_at > this.clock()) ? stored : null;
+    const subscription = this.paidPlus(orgId);
     return {
-      enabled: this.hasPlus(orgId),
-      grantedAt: p?.granted_at ?? null,
-      expiresAt: p?.expires_at ?? null,
+      enabled: !!p || !!subscription,
+      grantedAt: p ? p.granted_at : subscription?.created_at ?? null,
+      expiresAt: p ? p.expires_at : subscription?.current_period_end ?? null,
       grantedBy: p?.granted_by ?? null,
-      reason: p?.reason ?? null,
+      reason: p?.reason ?? (subscription ? "Active Bots+ subscription" : null),
     };
   }
 

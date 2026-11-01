@@ -142,7 +142,7 @@ import { now } from "../shared/utilities/util.js";
 import wsRoutes from "../modules/realtime/ws.js";
 import { Billing, billingRoutes } from "../modules/billing/index.js";
 
-export const VERSION = "0.69.0";
+export const VERSION = "0.71.0";
 /**
  * The client API this server speaks and the oldest client API it accepts. Clients refuse a server whose
  * minClientApi is newer than theirs; servers from before these fields existed count as API 1.
@@ -416,7 +416,10 @@ export async function buildApp(
     },
     app.log,
   );
-  ctx.billing.webhooks.payments = ctx.gifts;
+  ctx.billing.webhooks.payments = {
+    applyCheckout: (w, provider, snapshot, t) => ctx.billing.sparkPurchases.applyCheckout(w, provider, snapshot, t) ?? ctx.gifts.applyCheckout(w, provider, snapshot, t),
+    applyPayment: (w, provider, payment, t) => ctx.billing.sparkPurchases.applyPayment(w, provider, payment, t) ?? ctx.gifts.applyPayment(w, provider, payment, t),
+  };
   ctx.play = config.billing.play ? new PlayBilling(ctx.billing, ctx.gifts, config.billing.play, app.log) : null;
   ctx.billing.onChange = (owner) => {
     if (owner.kind === "org")

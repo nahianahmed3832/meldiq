@@ -175,9 +175,11 @@ function providerConfig(env: NodeJS.ProcessEnv): Omit<BillingConfig, "trials" | 
     if (!clientId || !clientSecret || !webhookId || !merchantId) throw new Error("PayPal requires client ID, secret, webhook ID and merchant ID in the API environment");
     const plusPlanId = (env.PAYPAL_PLUS_PLAN_ID ?? "").trim() || null;
     if (plusPlanId && !/^P-[A-Z0-9]+$/.test(plusPlanId)) throw new Error("PAYPAL_PLUS_PLAN_ID must be a PayPal plan ID");
+    if (env.PAYPAL_BOTS_PLUS_PLAN_ID && !/^P-[A-Z0-9]+$/.test(env.PAYPAL_BOTS_PLUS_PLAN_ID.trim())) throw new Error("PAYPAL_BOTS_PLUS_PLAN_ID must be a PayPal plan ID");
+    if (env.PAYPAL_BOTS_PLUS_PLAN_ID?.trim() && env.PAYPAL_BOTS_PLUS_PLAN_ID.trim() === plusPlanId) throw new Error("Bots+ and Plus must use distinct PayPal product plans");
     const approved = env.PAYPAL_SUBSCRIPTIONS_APPROVED ?? "false";
     if (approved !== "true" && approved !== "false") throw new Error("PAYPAL_SUBSCRIPTIONS_APPROVED must be true or false");
-    return { provider: new PayPalProvider({ environment, clientId, clientSecret, webhookId, merchantId, plusPlanId, subscriptionsApproved: approved === "true", giftsEnabled: environment === "sandbox" || env.PAYPAL_GIFTS_ENABLED === "true" }), unavailableReason: null, returnUrl: returnUrl(env.BILLING_RETURN_URL, production) };
+    return { provider: new PayPalProvider({ environment, clientId, clientSecret, webhookId, merchantId, plusPlanId, subscriptionsApproved: approved === "true", giftsEnabled: environment === "sandbox" || env.PAYPAL_GIFTS_ENABLED === "true", sparksEnabled: environment === "sandbox" || env.PAYPAL_SPARKS_ENABLED === "true", botsPlanId: env.PAYPAL_BOTS_PLUS_PLAN_ID?.trim() || null }), unavailableReason: null, returnUrl: returnUrl(env.BILLING_RETURN_URL, production) };
   }
   if (name === "stripe") {
     const key = (env.STRIPE_SECRET_KEY ?? "").trim();

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Meldiq API",
-    "version": "0.69.0",
+    "version": "0.71.0",
     "description": "The canonical contract of the Meldiq server (docs/architecture/ARCHITECTURE_1_0_PLAN.md §4), generated from src/shared/contracts. Fields are only ever added within a version; clients ignore unknown fields. Routes not listed here exist but aren't documented yet."
   },
   "servers": [
@@ -66029,6 +66029,12 @@
                     "cards": {
                       "type": "boolean",
                       "const": false
+                    },
+                    "sparks": {
+                      "type": "boolean"
+                    },
+                    "botsPlus": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
@@ -66080,7 +66086,27 @@
                       "type": "string",
                       "enum": [
                         "plus",
-                        "gift"
+                        "gift",
+                        "spark",
+                        "bots_plus"
+                      ]
+                    },
+                    "quantity": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "orgId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 150,
+                          "pattern": "^[A-Za-z0-9_-]+$"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "providerRef": {
@@ -66168,6 +66194,57 @@
                     },
                     "required": [
                       "product",
+                      "requestKey"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "product": {
+                        "type": "string",
+                        "const": "spark"
+                      },
+                      "quantity": {
+                        "default": 1,
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 20
+                      },
+                      "requestKey": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+                      }
+                    },
+                    "required": [
+                      "product",
+                      "requestKey"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "product": {
+                        "type": "string",
+                        "const": "bots_plus"
+                      },
+                      "orgId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 150,
+                        "pattern": "^[A-Za-z0-9_-]+$"
+                      },
+                      "requestKey": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+                      }
+                    },
+                    "required": [
+                      "product",
+                      "orgId",
                       "requestKey"
                     ],
                     "additionalProperties": false
@@ -66265,7 +66342,27 @@
                       "type": "string",
                       "enum": [
                         "plus",
-                        "gift"
+                        "gift",
+                        "spark",
+                        "bots_plus"
+                      ]
+                    },
+                    "quantity": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "orgId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 150,
+                          "pattern": "^[A-Za-z0-9_-]+$"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "providerRef": {
@@ -66372,7 +66469,27 @@
                       "type": "string",
                       "enum": [
                         "plus",
-                        "gift"
+                        "gift",
+                        "spark",
+                        "bots_plus"
+                      ]
+                    },
+                    "quantity": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "orgId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 150,
+                          "pattern": "^[A-Za-z0-9_-]+$"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "providerRef": {
@@ -66555,6 +66672,22 @@
                           "status": {
                             "type": "string"
                           },
+                          "product": {
+                            "type": "string"
+                          },
+                          "orgId": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 150,
+                                "pattern": "^[A-Za-z0-9_-]+$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
                           "currentPeriodEnd": {
                             "anyOf": [
                               {
@@ -66705,6 +66838,12 @@
                   "confirm": {
                     "type": "boolean",
                     "const": true
+                  },
+                  "subscriptionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 150,
+                    "pattern": "^[A-Za-z0-9_-]+$"
                   }
                 },
                 "required": [
@@ -68830,7 +68969,7 @@
                         },
                         "interval": {
                           "type": "string",
-                          "const": "month"
+                          "const": "one_time"
                         },
                         "maxPurchase": {
                           "type": "integer",
@@ -69009,6 +69148,31 @@
                           ]
                         },
                         "spark": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "currency": {
+                                  "type": "string"
+                                },
+                                "amountMinor": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "currency",
+                                "amountMinor"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "botsPlus": {
                           "anyOf": [
                             {
                               "type": "object",

@@ -64,6 +64,7 @@ export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
   ...(Object.fromEntries(Object.keys(EPHEMERAL_TABLES).map((t) => [t, "ephemeral"])) as Record<string, TableDomain>),
   accounts: "accounts",
   account_sessions: "accounts",
+  account_session_factors: "accounts",
   account_codes: "accounts",
   legacy_tickets: "accounts",
   // Recovery codes (round 6, docs/ACCOUNT_RECOVERY.md).
@@ -306,6 +307,7 @@ export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
   // Meldiq Mojo's perks (API 0.54.0, docs/MOJO.md).
   spark_assignments: "billing",
   mojo_gifts: "billing",
+  spark_purchases: "billing",
   billing_program: "billing",
   mojo_controls: "billing",
   billing_grant_notes: "billing",

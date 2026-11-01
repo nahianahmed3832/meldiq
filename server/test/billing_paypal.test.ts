@@ -366,6 +366,8 @@ describe("PayPal through authenticated billing APIs", () => {
       clientId: env.PAYPAL_CLIENT_ID,
       billingStartAt: null,
       subscriptions: true,
+      sparks: true,
+      botsPlus: false,
       cards: false,
     });
     expect(JSON.stringify(c)).not.toContain(env.PAYPAL_CLIENT_SECRET);

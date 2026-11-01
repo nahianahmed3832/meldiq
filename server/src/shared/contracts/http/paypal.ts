@@ -8,6 +8,8 @@ const id = z
 export const PayPalCheckoutParams = z.strictObject({ id });
 export const PayPalCheckoutBody = z.discriminatedUnion("product", [
   z.strictObject({ product: z.literal("plus"), requestKey: z.uuid() }),
+  z.strictObject({ product: z.literal("spark"), quantity: z.number().int().min(1).max(20).default(1), requestKey: z.uuid() }),
+  z.strictObject({ product: z.literal("bots_plus"), orgId: id, requestKey: z.uuid() }),
   z.strictObject({
     product: z.literal("gift"),
     requestKey: z.uuid(),
@@ -23,10 +25,14 @@ export const PayPalConfig = z.strictObject({
   billingStartAt: z.number().nullable().optional(),
   subscriptions: z.boolean(),
   cards: z.literal(false),
+  sparks: z.boolean().optional(),
+  botsPlus: z.boolean().optional(),
 });
 export const PayPalCheckoutView = z.strictObject({
   id,
-  product: z.enum(["plus", "gift"]),
+  product: z.enum(["plus", "gift", "spark", "bots_plus"]),
+  quantity: z.number().int().positive().optional(),
+  orgId: id.nullable().optional(),
   providerRef: z.string().nullable(),
   status: z.string(),
   confirmed: z.boolean(),
@@ -36,7 +42,7 @@ export const PayPalCheckoutView = z.strictObject({
   interval: z.enum(["month", "one_time"]),
   expiresAt: z.number(),
 });
-export const PayPalCancelBody = z.strictObject({ confirm: z.literal(true) });
+export const PayPalCancelBody = z.strictObject({ confirm: z.literal(true), subscriptionId: id.optional() });
 export const PayPalCanceled = z.strictObject({
   confirmed: z.boolean(),
   accessUntil: z.number().nullable(),
@@ -75,6 +81,8 @@ export const PayPalHistory = z.strictObject({
       id: z.string(),
       providerRef: z.string(),
       status: z.string(),
+      product: z.string().optional(),
+      orgId: id.nullable().optional(),
       currentPeriodEnd: z.number().nullable(),
       cancelAtPeriodEnd: z.boolean(),
       createdAt: z.number(),

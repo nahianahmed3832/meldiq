@@ -1,0 +1,13 @@
+# Sign-in, loading and standalone commerce — API 0.71.0
+
+Owner authorized production release on 1 November 2026. Preserve the Plus USD 3.99/month live plan, existing grants, legacy Go/Spark subscriptions and the immediate 1024 MB server upload ceiling.
+
+New paid products: Bots+ USD 3.99/month for one community, separate from personal Mojo Plus; Sparks USD 0.99 each, one-time permanent slots, quantities 1–20. Browser approval never grants benefits; verified capture/paid subscription does. Full refunds/reversals remove purchased Spark slots without resurrecting them on late capture callbacks.
+
+Migrations 083/084 add account_session_factors and spark_purchases. Existing account_sessions validators remain unchanged. Session assurance is stored separately, expires after ten minutes and is not renewed by refresh. Existing accounts/sessions need no rewrite. Billing account IDs deliberately have no cross-store account FK, matching the existing billing architecture; account deletion explicitly anonymizes purchase ownership and refuses while payer-owned community subscriptions renew.
+
+Operator setup: run scripts/paypal-live-setup.ts with --live --addons --env-file=<private0600file>, using the existing live environment. It reuses the existing Plus product/plan, creates/reuses a distinct Bots+ product and USD 3.99 monthly plan, verifies merchant/webhook/plan terms, and writes PAYPAL_BOTS_PLUS_PLAN_ID and PAYPAL_SPARKS_ENABLED=true. It never approves or captures payment. Keep PAYPAL_GIFTS_ENABLED=false. Publish the organization offer with node dist/admin.js billing-paypal-bots --publish against the real configured billing Rows/MongoDB store. No direct SQLite catalog edits on MongoDB deployments.
+
+Native/older Spark checkout responds with the account-owned web resume URL. The web app reads the opaque purchase ID, verifies ownership through the API and resumes the SDK capture flow. Secrets and provider references are never accepted from the browser to decide entitlements.
+
+Deploy only after integrating any concurrent API 0.70 admin release. Back up current environment, compose, SQLite, MongoDB billing/accounts domains and web symlink; retain current API image. The two migrations are additive. New MongoDB collections require createCollection/index permissions; existing collection validators must match the integrated release. Rehearse on a backup before cutover. Use guarded API-only compose recreation and atomic web symlink switch. Never restore whole databases over post-release user activity.

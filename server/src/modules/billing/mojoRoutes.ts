@@ -59,7 +59,8 @@ export function mojoRoutes(app: FastifyInstance, ctx: AppContext, h: MojoRouteHe
         mode: ctx.billing.provider?.mode ?? null,
         go: price("go"),
         plus: price("plus"),
-        spark: price(SPARK_PLAN_KEY),
+        spark: ctx.billing.sparkPurchases.available() ? { currency: "USD", amountMinor: 99 } : null,
+        botsPlus: (() => { const offer = ctx.billing.offers("organization").find((offer) => offer.key === "bots_plus"); return offer ? { currency: offer.currency, amountMinor: offer.amountMinor } : null; })(),
         gifts: ctx.billing.provider?.supportsOneTimePurchases !== false && !!ctx.billing.provider?.createPaymentCheckout && (price("go") !== null || price("plus") !== null),
       },
     };
@@ -137,7 +138,11 @@ export function mojoRoutes(app: FastifyInstance, ctx: AppContext, h: MojoRouteHe
     const s = h.session(req);
     const { quantity, returnTo } = parse(SparkCheckoutBody, req.body);
     const owner = { kind: "account" as const, accountId: needsAccount(s) };
-    const started = await ctx.billing.startOwnerCheckout(owner, await h.starterFor(s, owner), SPARK_PLAN_KEY, { quantity, returnUrl: ctx.billing.returnTo(returnTo) });
+    const starter = { ...await h.starterFor(s, owner), accountId: owner.accountId };
+    const webReturn = ctx.billing.returnTo("web");
+    if (ctx.billing.provider?.id === "paypal" && !webReturn) throw new ApiError(503, "billing_unavailable", "Configure the web checkout before selling Sparks.");
+    const purchased = await ctx.billing.sparkPurchases.start(starter, quantity, ctx.billing.returnTo(returnTo));
+    const started = { checkoutId: purchased.purchaseId, url: ctx.billing.provider?.id === "paypal" ? (() => { const url = new URL("/settings/checkout", webReturn!); url.searchParams.set("purchase", purchased.purchaseId); return url.href; })() : purchased.url, expiresAt: purchased.expiresAt };
     ctx.audit({ actorId: s.userId ?? s.accountId, action: "billing.checkout", target: started.checkoutId, detail: `spark x${quantity}` });
     return started;
   });

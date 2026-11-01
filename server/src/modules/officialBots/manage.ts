@@ -72,7 +72,7 @@ export class BotManager {
     this.ctx.authz.requireOrgMember(orgId, userId);
     const plus = this.rt.hasPlus(orgId);
     const editor = this.canEdit(orgId, userId);
-    return { botsPlus: plus, botsPlusUntil: plus ? (this.rt.rows.plus(orgId)?.expires_at ?? null) : null, canEdit: editor, bots: OFFICIAL_BOT_KEYS.map((k) => this.view(orgId, k, editor, plus)) };
+    return { botsPlus: plus, botsPlusUntil: plus ? this.rt.plusGrant(orgId).expiresAt : null, canEdit: editor, bots: OFFICIAL_BOT_KEYS.map((k) => this.view(orgId, k, editor, plus)) };
   }
 
   one(orgId: string, key: OfficialBotKey, userId: string): { bot: View } {

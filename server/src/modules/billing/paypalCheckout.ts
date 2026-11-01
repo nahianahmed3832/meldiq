@@ -1,3 +1,4 @@
+import type { SparkPurchaseRow } from "./sparkPurchases.js";
 import { ApiError, conflict, notFound } from "../../shared/errors.js";
 import type { GiftRow, Gifts } from "./gifts.js";
 import { PayPalProvider } from "./providers/paypal.js";
@@ -8,6 +9,7 @@ interface CheckoutRow {
   id: string;
   user_id: string | null;
   account_id: string;
+  org_id?: string | null;
   provider_session_ref: string | null;
   status: string;
   expires_at: number;
@@ -35,50 +37,27 @@ export class PayPalCheckout {
     starter: CheckoutStarter & { accountId: string },
     input:
       | { product: "plus"; requestKey: string }
-      | {
-          product: "gift";
-          requestKey: string;
-          recipientUserId: string;
-          months: number;
-          note: string;
-        },
+      | { product: "bots_plus"; orgId: string; requestKey: string }
+      | { product: "spark"; quantity: number; requestKey: string }
+      | { product: "gift"; requestKey: string; recipientUserId: string; months: number; note: string },
   ) {
-    const price = this.gifts.price("plus", 1);
-    if (!price || price.currency !== "USD" || price.amountMinor !== 399)
-      throw new ApiError(
-        409,
-        "billing_unavailable",
-        "Publish the existing Plus offer at USD 3.99/month for PayPal before checkout.",
-      );
+    if (input.product === "spark") {
+      const result = await this.billing.sparkPurchases.start(starter, input.quantity, this.billing.returnTo("web"), input.requestKey);
+      return this.view(starter.accountId, result.purchaseId);
+    }
+    const price = input.product === "bots_plus"
+      ? this.billing.offers("organization").find((offer) => offer.key === "bots_plus" && offer.interval === "month")
+      : this.gifts.price("plus", 1);
+    if (!price || price.currency !== "USD" || price.amountMinor !== 399) throw new ApiError(409, "billing_unavailable", "Publish the selected product at USD 3.99/month before checkout.");
     let id: string;
-    if (input.product === "plus") {
-      const pending = this.billing.subscriptions.liveForOwner({
-        kind: "account",
-        accountId: starter.accountId,
-      });
-      if (
-        pending?.provider === "paypal" &&
-        pending.status === "incomplete" &&
-        pending.checkout_id
-      )
-        return this.confirm(starter.accountId, pending.checkout_id, false);
-      const result = await this.billing.startOwnerCheckout(
-        { kind: "account", accountId: starter.accountId },
-        starter,
-        "plus",
-        {
-          returnUrl: this.billing.returnTo("web"),
-          requestKey: input.requestKey,
-        },
-      );
+    if (input.product === "plus" || input.product === "bots_plus") {
+      const owner = input.product === "bots_plus" ? { kind: "org" as const, orgId: input.orgId } : { kind: "account" as const, accountId: starter.accountId };
+      const pending = input.product === "bots_plus" ? this.billing.subscriptions.liveAddonForOwner(owner) : this.billing.subscriptions.liveForOwner(owner);
+      if (pending?.provider === "paypal" && pending.status === "incomplete" && pending.checkout_id) return this.confirm(starter.accountId, pending.checkout_id, false);
+      const result = await this.billing.startOwnerCheckout(owner, starter, input.product, { returnUrl: this.billing.returnTo("web"), requestKey: input.requestKey });
       id = result.checkoutId;
     } else {
-      const result = await this.gifts.start(
-        starter,
-        { ...input, planKey: "plus" },
-        this.billing.returnTo("web"),
-        input.requestKey,
-      );
+      const result = await this.gifts.start(starter, { ...input, planKey: "plus" }, this.billing.returnTo("web"), input.requestKey);
       id = result.giftId;
     }
     return this.view(starter.accountId, id);
@@ -87,8 +66,8 @@ export class PayPalCheckout {
   private owned(
     accountId: string,
     id: string,
-  ): { gift: GiftRow | null; checkout: CheckoutRow | null } {
-    const gift = this.gifts.get(id);
+  ): { gift: GiftRow | SparkPurchaseRow | null; checkout: CheckoutRow | null } {
+    const gift = this.gifts.get(id) ?? this.billing.sparkPurchases.get(id);
     if (
       gift &&
       gift.provider === "paypal" &&
@@ -101,7 +80,7 @@ export class PayPalCheckout {
         provider: "paypal",
         owner_kind: "account",
         account_id: accountId,
-      }) ?? null;
+      }) ?? this.billing.rows.get<CheckoutRow>("billing_checkouts", { id, provider: "paypal", owner_kind: "org", started_by_account_id: accountId }) ?? null;
     if (!checkout) throw notFound("Purchase not found");
     return { gift: null, checkout };
   }
@@ -111,7 +90,8 @@ export class PayPalCheckout {
     if (gift)
       return {
         id,
-        product: "gift" as const,
+        product: "quantity" in gift ? "spark" as const : "gift" as const,
+        ...("quantity" in gift ? { quantity: gift.quantity } : {}),
         providerRef: gift.provider_session_ref,
         status: gift.status,
         confirmed: gift.status === "paid" || gift.status === "redeemed",
@@ -127,7 +107,8 @@ export class PayPalCheckout {
     );
     return {
       id,
-      product: "plus" as const,
+      product: this.billing.catalog.plan(this.billing.catalog.version(c.plan_version_id)!.plan_id)?.key === "bots_plus" ? "bots_plus" as const : "plus" as const,
+      orgId: c.org_id ?? null,
       providerRef: c.provider_session_ref,
       status: sub?.status ?? c.status,
       confirmed: !!sub && this.billing.subscriptions.grants(sub, Date.now()),
@@ -174,8 +155,10 @@ export class PayPalCheckout {
     return { ...this.view(accountId, id), approved };
   }
 
-  async cancel(accountId: string) {
-    const sub = this.billing.subscriptions.liveForOwner({
+  async cancel(accountId: string, subscriptionId?: string) {
+    const selected = subscriptionId ? this.billing.subscriptions.get(subscriptionId) : null;
+    if (subscriptionId && (!selected || selected.billing_account_id !== accountId)) throw notFound("PayPal subscription not found");
+    const sub = selected ?? this.billing.subscriptions.liveForOwner({
       kind: "account",
       accountId,
     });
@@ -202,9 +185,10 @@ export class PayPalCheckout {
       orderBy: [["created_at", "desc"]],
       limit: 100,
     });
-    const invoices = rows.all<{
+    const personalInvoices = rows.all<{
       id: string;
       account_id: string;
+      subscription_id: string | null;
       provider_invoice_ref: string;
       status: string;
       currency: string;
@@ -221,7 +205,15 @@ export class PayPalCheckout {
       orderBy: [["issued_at", "desc"]],
       limit: 100,
     });
+    const paidOrganizations = accountId ? rows.all<SubscriptionRow>("billing_subscriptions", { where: { provider: "paypal", owner_kind: "org", billing_account_id: accountId } }) : [];
+    const orgInvoices = paidOrganizations.length ? rows.all<(typeof personalInvoices)[number]>("billing_invoices", { where: { provider: "paypal", subscription_id: { in: paidOrganizations.map((subscription) => subscription.id) } }, orderBy: [["issued_at", "desc"]], limit: 100 }) : [];
+    const invoices = [...personalInvoices, ...orgInvoices];
+    const sparks = rows.all<SparkPurchaseRow>("spark_purchases", { where: { provider: "paypal", ...(accountId ? { buyer_account_id: accountId } : {}) }, orderBy: [["created_at", "desc"]], limit: 100 });
     return [
+      ...sparks.map((purchase) => ({ id: purchase.id, userId: purchase.buyer_user_id, customer: purchase.buyer_account_id,
+        product: `${purchase.quantity} Meldiq Spark${purchase.quantity === 1 ? "" : "s"} · one-time`, currency: purchase.currency,
+        amountMinor: purchase.amount_minor, provider: "paypal", providerRef: purchase.provider_payment_ref ?? purchase.provider_session_ref,
+        status: purchase.status, refundStatus: purchase.status === "refunded" ? "refunded" : "none", createdAt: purchase.created_at, completedAt: purchase.paid_at, refundable: false })),
       ...gifts.map((g) => {
         const action = rows.get<ActionRow>("billing_payment_actions", {
           provider: "paypal",
@@ -255,7 +247,7 @@ export class PayPalCheckout {
         id: i.id,
         userId: null,
         customer: i.account_id,
-        product: "Plus subscription",
+        product: this.subscriptionName(i.subscription_id),
         currency: i.currency,
         amountMinor: i.amount_paid_minor || i.amount_due_minor,
         provider: "paypal",
@@ -271,8 +263,14 @@ export class PayPalCheckout {
       .slice(0, 100);
   }
 
+  private subscriptionName(id: string | null): string {
+    const subscription = id ? this.billing.subscriptions.get(id) : null;
+    const version = subscription ? this.billing.catalog.version(subscription.plan_version_id) : null;
+    return version ? this.billing.catalog.plan(version.plan_id)?.name ?? "Meldiq subscription" : "Meldiq payment";
+  }
+
   history(accountId: string) {
-    const subs = this.billing.rows.all<SubscriptionRow>(
+    const personal = this.billing.rows.all<SubscriptionRow>(
       "billing_subscriptions",
       {
         where: {
@@ -284,6 +282,8 @@ export class PayPalCheckout {
         limit: 50,
       },
     );
+    const organization = this.billing.rows.all<SubscriptionRow>("billing_subscriptions", { where: { provider: "paypal", owner_kind: "org", billing_account_id: accountId }, orderBy: [["created_at", "desc"]], limit: 50 });
+    const subs = [...personal, ...organization];
     const history = subs.length
       ? this.billing.rows.all<{
           subscription_id: string;
@@ -301,6 +301,8 @@ export class PayPalCheckout {
       transactions: this.transactions(accountId),
       subscriptions: subs.map((s) => ({
         id: s.id,
+        product: this.billing.catalog.plan(this.billing.catalog.version(s.plan_version_id)!.plan_id)?.key ?? "plus",
+        orgId: s.org_id,
         providerRef: s.provider_subscription_ref,
         status: s.status,
         currentPeriodEnd: s.current_period_end,

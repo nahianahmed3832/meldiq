@@ -180,10 +180,11 @@ export class TotpService {
    * At a password sign-in: nothing to do when it's off; otherwise the code (app or backup) must be right. Too many wrong
    * codes pause the account's second step for 15 minutes.
    */
-  async checkSignIn(accountId: string, code: string | undefined): Promise<void> {
-    if (!this.enabled(accountId)) return;
+  async checkSignIn(accountId: string, code: string | undefined): Promise<boolean> {
+    if (!this.enabled(accountId)) return false;
     if (!code) throw new ApiError(401, "totp_required", "Enter the code from your authenticator app.");
     await this.requireCode(accountId, code);
+    return true;
   }
 
   private async requireCode(accountId: string, code: string): Promise<void> {

@@ -7,7 +7,7 @@
  *
  * Plan numbers: the owner's Free/Go/Plus spec of 2026-10-30 (docs/PLANS.md), replacing those of 2026-10-28.
  */
-export const CATALOG_VERSION = "2026-11-01.1";
+export const CATALOG_VERSION = "2026-11-01.2";
 
 export const PLAN_KEYS = ["free", "go", "plus"] as const;
 export type PlanKey = (typeof PLAN_KEYS)[number];
@@ -19,7 +19,9 @@ export const PLAN_RANK: Readonly<Record<PlanKey, number>> = { free: 0, go: 1, pl
 
 /** The billing catalog's key of the Meldiq Spark add-on: bought in any quantity, next to (never instead of) a plan. */
 export const SPARK_PLAN_KEY = "spark";
-export const isAddonPlanKey = (k: string): boolean => k === SPARK_PLAN_KEY;
+export const BOTS_PLAN_KEY = "bots_plus";
+export const BOTS_LIST_PRICE_MINOR = 399;
+export const isAddonPlanKey = (k: string): boolean => k === SPARK_PLAN_KEY || k === BOTS_PLAN_KEY;
 
 export const MB = 1_000_000;
 export const GB = 1_000_000_000;
@@ -170,7 +172,7 @@ export function catalogView(
     units: { mb: MB, gb: GB },
     plans: OFFERED_PLAN_KEYS.map((k) => plans[k]),
     screenPresets: Object.values(SCREEN_PRESETS),
-    spark: { listPriceMinor: SPARK_LIST_PRICE_MINOR, interval: "month" as const, maxPurchase: SPARK_MAX_PURCHASE, levels },
+    spark: { listPriceMinor: SPARK_LIST_PRICE_MINOR, interval: "one_time" as const, maxPurchase: SPARK_MAX_PURCHASE, levels },
     gifts: { months: GIFT_MONTHS, noteMax: GIFT_NOTE_MAX },
   };
 }

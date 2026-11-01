@@ -42,7 +42,7 @@ export const MojoCatalog = z.strictObject({
   units: z.strictObject({ mb: zCount, gb: zCount }),
   plans: z.array(zPlanPerks),
   screenPresets: z.array(z.strictObject({ id: zPresetId, label: z.string(), width: zCount, height: zCount, fps: zCount })),
-  spark: z.strictObject({ listPriceMinor: zCount, interval: z.literal("month"), maxPurchase: zCount, levels: z.array(zSparkLevel) }),
+  spark: z.strictObject({ listPriceMinor: zCount, interval: z.literal("one_time"), maxPurchase: zCount, levels: z.array(zSparkLevel) }),
   gifts: z.strictObject({ months: z.array(z.number().int()), noteMax: zCount }),
   /** Whether plan limits apply on this server now (MOJO_ENFORCE: on, or once Mojo is on sale). False: apps keep the old limits. */
   enforced: z.boolean(),
@@ -52,6 +52,7 @@ export const MojoCatalog = z.strictObject({
     go: zPrice,
     plus: zPrice,
     spark: zPrice,
+    botsPlus: zPrice.optional(),
     gifts: z.boolean(),
   }),
 });

@@ -116,6 +116,7 @@ export async function eraseAccount(ctx: AppContext, accounts: Accounts, account:
       w.delete("account_warnings", { user_id: userId });
     });
   }
+  await ctx.billing.rows.write((w) => w.update("spark_purchases", { buyer_account_id: account.id }, { buyer_account_id: null, buyer_user_id: null }));
   await accounts.store.deleteAccount(account.id);
   // Counts only: the email, username and profile are gone, and the audit log mustn't keep them.
   ctx.audit({
