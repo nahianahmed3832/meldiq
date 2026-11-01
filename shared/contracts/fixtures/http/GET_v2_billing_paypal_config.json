@@ -1,0 +1,7 @@
+{
+  "provider": "paypal",
+  "environment": "sandbox",
+  "clientId": "test-public-client",
+  "subscriptions": true,
+  "cards": false
+}

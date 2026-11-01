@@ -34,6 +34,7 @@ import {
   AdminSubscriptionParams,
   AdminSubscriptionsQuery,
 } from "../../shared/contracts/http/platformAdminBilling.js";
+import { PayPalCheckoutParams, PayPalRefundBody } from "../../shared/contracts/http/paypal.js";
 import { parse } from "../../shared/validation/index.js";
 import { AdminAdmins } from "./admins.js";
 import { AdminAuditView } from "./auditView.js";
@@ -90,6 +91,11 @@ export default async function adminOpsRoutes(app: FastifyInstance, d: AdminDeps)
   app.post("/admin/v1/billing/subscriptions/:subscriptionId/resync", needs("billing.manage"), async (req) =>
     billing.resync(principal(req), parse(AdminSubscriptionParams, req.params).subscriptionId, parse(AdminReasonBody, req.body).reason, metaOf(req)),
   );
+  app.get("/admin/v1/billing/paypal/transactions", needs("billing.view"), async () => billing.paypalTransactions());
+  app.post("/admin/v1/billing/paypal/transactions/:id/refund", { ...needs("billing.manage"), config: { rateLimit: { max: 5, timeWindow: "1 minute" } } }, async (req) => {
+    const body = parse(PayPalRefundBody, req.body);
+    return billing.refundPayPal(principal(req), parse(PayPalCheckoutParams, req.params).id, body.reason, metaOf(req));
+  });
   app.get("/admin/v1/billing/events", needs("billing.view"), async (req) => billing.events(parse(AdminBillingEventsQuery, req.query)));
   app.post("/admin/v1/billing/events/:eventId/replay", needs("billing.events.replay"), async (req) => {
     const { eventId } = parse(AdminBillingEventParams, req.params);

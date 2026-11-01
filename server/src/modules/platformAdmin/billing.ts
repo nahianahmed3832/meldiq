@@ -1,4 +1,5 @@
 import type { AppContext } from "../../app/context.js";
+import { PayPalCheckout } from "../billing/paypalCheckout.js";
 import { networkKey } from "../../app/middleware/abuse.js";
 import { ApiError, forbidden, notFound } from "../../shared/errors.js";
 import { now } from "../../shared/utilities/util.js";
@@ -53,6 +54,15 @@ export class AdminBilling {
       network: networkKey(meta.ip),
       detail,
     });
+  }
+
+  paypalTransactions() { return { transactions: new PayPalCheckout(this.ctx.billing, this.ctx.gifts).transactions() }; }
+
+  async refundPayPal(p: AdminPrincipal, id: string, reason: string, meta: RequestMeta) {
+    const checkout = new PayPalCheckout(this.ctx.billing, this.ctx.gifts);
+    const result = await checkout.refund(id, p.account.id, reason, () => this.record(p, "billing.paypal.refund_requested", "mojo_gift", id, reason, meta, { provider: "paypal", mode: "test" }));
+    await this.record(p, "billing.paypal.refund_result", "mojo_gift", id, reason, meta, { status: result.status, reference: result.reference });
+    return result;
   }
 
   setup() {

@@ -115,6 +115,7 @@ export const ReferralClaimed = z.strictObject({ inviteeEndsAt: zTime, inviterDay
 const zSubscriptionView = OrgBilling.shape.subscription.unwrap();
 
 export const OwnerBilling = z.strictObject({
+  provider: z.string().nullable(),
   available: z.boolean(),
   reason: z.string().nullable(),
   mode: z.enum(["test", "live"]).nullable(),

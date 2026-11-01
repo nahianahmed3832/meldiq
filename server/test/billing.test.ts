@@ -79,7 +79,7 @@ describe("sandbox provider", () => {
 
   it("needs a long secret, and an unknown provider stops the server", () => {
     expect(() => billingConfig({ BILLING_PROVIDER: "sandbox", BILLING_SANDBOX_WEBHOOK_SECRET: "short" })).toThrow(/at least 32/);
-    expect(() => billingConfig({ BILLING_PROVIDER: "paypal" })).toThrow(/unknown provider/);
+    expect(() => billingConfig({ BILLING_PROVIDER: "nonexistent" })).toThrow(/unknown provider/);
     expect(billingConfig({}).provider).toBeNull();
   });
 });

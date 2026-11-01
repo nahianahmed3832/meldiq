@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { type GooglePlayApi, GoogleJwks, HttpGooglePlayApi, type JwksSource, type ServiceAccountKey } from "./providers/googlePlay.js";
+import { PayPalProvider } from "./providers/paypal.js";
 import { SandboxProvider } from "./providers/sandbox.js";
 import { StripeProvider, stripeKeyMode } from "./providers/stripe.js";
 import type { BillingProvider } from "./providers/types.js";
@@ -162,6 +163,19 @@ function providerConfig(env: NodeJS.ProcessEnv): Omit<BillingConfig, "trials" | 
     if (secret.length < 32) throw new Error("BILLING_SANDBOX_WEBHOOK_SECRET must be at least 32 characters with BILLING_PROVIDER=sandbox");
     return { provider: new SandboxProvider(secret), unavailableReason: null, returnUrl: env.BILLING_RETURN_URL ? returnUrl(env.BILLING_RETURN_URL, production) : null };
   }
+  if (name === "paypal") {
+    if (env.PAYPAL_ENVIRONMENT !== "sandbox" || production) throw new Error("PayPal is Sandbox-only and is disabled in production");
+    const clientId = (env.PAYPAL_CLIENT_ID ?? "").trim();
+    const clientSecret = (env.PAYPAL_CLIENT_SECRET ?? "").trim();
+    const webhookId = (env.PAYPAL_WEBHOOK_ID ?? "").trim();
+    const merchantId = (env.PAYPAL_MERCHANT_ID ?? "").trim();
+    if (!clientId || !clientSecret || !webhookId || !merchantId) throw new Error("PayPal Sandbox requires client ID, secret, webhook ID and merchant ID in the API environment");
+    const plusPlanId = (env.PAYPAL_PLUS_PLAN_ID ?? "").trim() || null;
+    if (plusPlanId && !/^P-[A-Z0-9]+$/.test(plusPlanId)) throw new Error("PAYPAL_PLUS_PLAN_ID must be a Sandbox plan ID");
+    const approved = env.PAYPAL_SUBSCRIPTIONS_APPROVED ?? "false";
+    if (approved !== "true" && approved !== "false") throw new Error("PAYPAL_SUBSCRIPTIONS_APPROVED must be true or false");
+    return { provider: new PayPalProvider({ clientId, clientSecret, webhookId, merchantId, plusPlanId, subscriptionsApproved: approved === "true" }), unavailableReason: null, returnUrl: returnUrl(env.BILLING_RETURN_URL, false) };
+  }
   if (name === "stripe") {
     const key = (env.STRIPE_SECRET_KEY ?? "").trim();
     const mode = stripeKeyMode(key);
@@ -179,5 +193,5 @@ function providerConfig(env: NodeJS.ProcessEnv): Omit<BillingConfig, "trials" | 
       returnUrl: returnUrl(env.BILLING_RETURN_URL, production),
     };
   }
-  throw new Error(`BILLING_PROVIDER: unknown provider "${name}" (known: none, sandbox, stripe)`);
+  throw new Error(`BILLING_PROVIDER: unknown provider "${name}" (known: none, sandbox, stripe, paypal)`);
 }

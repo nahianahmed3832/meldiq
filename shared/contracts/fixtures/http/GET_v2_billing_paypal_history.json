@@ -1,0 +1,51 @@
+{
+  "transactions": [
+    {
+      "id": "gft_xesMET905dhn8e1F2ZCZiA",
+      "userId": "u_lBrLNhGfS_FxUWMTFzEaEA",
+      "customer": "acc_9p23Em0ZLsqBupozjm6YIw",
+      "product": "Plus gift · 3 months",
+      "currency": "USD",
+      "amountMinor": 1197,
+      "provider": "paypal",
+      "providerRef": "CAPTUREORDER3",
+      "status": "paid",
+      "refundStatus": "none",
+      "createdAt": 1793518118724,
+      "completedAt": 1793518118730,
+      "refundable": true
+    },
+    {
+      "id": "gft_bA7tyLt6ksE0Aq0Yy4CdPQ",
+      "userId": "u_lBrLNhGfS_FxUWMTFzEaEA",
+      "customer": "acc_9p23Em0ZLsqBupozjm6YIw",
+      "product": "Plus gift · 3 months",
+      "currency": "USD",
+      "amountMinor": 1197,
+      "provider": "paypal",
+      "providerRef": "ORDER2",
+      "status": "pending",
+      "refundStatus": "none",
+      "createdAt": 1793518118709,
+      "completedAt": null,
+      "refundable": false
+    },
+    {
+      "id": "gft_RxJ2lY3Ku56VJv_BlcP5Cg",
+      "userId": "u_lBrLNhGfS_FxUWMTFzEaEA",
+      "customer": "acc_9p23Em0ZLsqBupozjm6YIw",
+      "product": "Plus gift · 3 months",
+      "currency": "USD",
+      "amountMinor": 1197,
+      "provider": "paypal",
+      "providerRef": "ORDER1",
+      "status": "pending",
+      "refundStatus": "none",
+      "createdAt": 1793518118697,
+      "completedAt": null,
+      "refundable": false
+    }
+  ],
+  "subscriptions": [],
+  "history": []
+}

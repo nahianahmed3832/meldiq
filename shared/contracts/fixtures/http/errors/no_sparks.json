@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "no_sparks",
+    "message": "You don't have any Sparks. Mojo Go includes one, Mojo Plus two, and you can buy more."
+  }
+}

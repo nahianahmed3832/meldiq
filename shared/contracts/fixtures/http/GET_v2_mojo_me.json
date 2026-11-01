@@ -1,0 +1,36 @@
+{
+  "plan": "plus",
+  "perks": {
+    "key": "plus",
+    "name": "Mojo Plus",
+    "listPriceMinor": 399,
+    "messageChars": 8000,
+    "uploadBytes": 1024000000,
+    "screen": [
+      "1440p60"
+    ],
+    "sparks": 2,
+    "badge": "plus",
+    "check": true,
+    "customItems": 250,
+    "bots": 10,
+    "botReview": "priority"
+  },
+  "sparks": {
+    "included": 2,
+    "purchased": 0,
+    "total": 2,
+    "free": 2,
+    "assignments": [],
+    "subscription": null
+  },
+  "badge": {
+    "kind": "plus",
+    "check": true,
+    "hidden": false
+  },
+  "gifts": {
+    "received": [],
+    "sent": []
+  }
+}

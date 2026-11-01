@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "no_free_sparks",
+    "message": "All your Sparks are given. Move one, or get another."
+  }
+}

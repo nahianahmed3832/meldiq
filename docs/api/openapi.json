@@ -65983,6 +65983,926 @@
         ]
       }
     },
+    "/v2/billing/paypal/config": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Public Sandbox SDK configuration (no credentials or tokens).",
+        "operationId": "getV2BillingPaypalConfig",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "provider": {
+                      "type": "string",
+                      "const": "paypal"
+                    },
+                    "environment": {
+                      "type": "string",
+                      "const": "sandbox"
+                    },
+                    "clientId": {
+                      "type": "string"
+                    },
+                    "subscriptions": {
+                      "type": "boolean"
+                    },
+                    "cards": {
+                      "type": "boolean",
+                      "const": false
+                    }
+                  },
+                  "required": [
+                    "provider",
+                    "environment",
+                    "clientId",
+                    "subscriptions",
+                    "cards"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/billing/paypal/checkouts": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Create an idempotent, backend-priced Plus or gift Sandbox purchase.",
+        "operationId": "postV2BillingPaypalCheckouts",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 150,
+                      "pattern": "^[A-Za-z0-9_-]+$"
+                    },
+                    "product": {
+                      "type": "string",
+                      "enum": [
+                        "plus",
+                        "gift"
+                      ]
+                    },
+                    "providerRef": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "confirmed": {
+                      "type": "boolean"
+                    },
+                    "currency": {
+                      "type": "string",
+                      "const": "USD"
+                    },
+                    "amountMinor": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "interval": {
+                      "type": "string",
+                      "enum": [
+                        "month",
+                        "one_time"
+                      ]
+                    },
+                    "expiresAt": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "product",
+                    "providerRef",
+                    "status",
+                    "confirmed",
+                    "currency",
+                    "amountMinor",
+                    "interval",
+                    "expiresAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "product": {
+                        "type": "string",
+                        "const": "plus"
+                      },
+                      "requestKey": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+                      }
+                    },
+                    "required": [
+                      "product",
+                      "requestKey"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "product": {
+                        "type": "string",
+                        "const": "gift"
+                      },
+                      "requestKey": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+                      },
+                      "recipientUserId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 150,
+                        "pattern": "^[A-Za-z0-9_-]+$"
+                      },
+                      "months": {
+                        "anyOf": [
+                          {
+                            "type": "number",
+                            "const": 1
+                          },
+                          {
+                            "type": "number",
+                            "const": 3
+                          },
+                          {
+                            "type": "number",
+                            "const": 12
+                          }
+                        ]
+                      },
+                      "note": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 500
+                      }
+                    },
+                    "required": [
+                      "product",
+                      "requestKey",
+                      "recipientUserId",
+                      "months"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/billing/paypal/checkouts/{id}": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Read and reconcile an owned purchase; never capture on GET.",
+        "operationId": "getV2BillingPaypalCheckoutsId",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 150,
+                      "pattern": "^[A-Za-z0-9_-]+$"
+                    },
+                    "product": {
+                      "type": "string",
+                      "enum": [
+                        "plus",
+                        "gift"
+                      ]
+                    },
+                    "providerRef": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "confirmed": {
+                      "type": "boolean"
+                    },
+                    "currency": {
+                      "type": "string",
+                      "const": "USD"
+                    },
+                    "amountMinor": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "interval": {
+                      "type": "string",
+                      "enum": [
+                        "month",
+                        "one_time"
+                      ]
+                    },
+                    "expiresAt": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "product",
+                    "providerRef",
+                    "status",
+                    "confirmed",
+                    "currency",
+                    "amountMinor",
+                    "interval",
+                    "expiresAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/billing/paypal/checkouts/{id}/confirm": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Capture an owned order or independently verify a subscription.",
+        "operationId": "postV2BillingPaypalCheckoutsIdConfirm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 150,
+                      "pattern": "^[A-Za-z0-9_-]+$"
+                    },
+                    "product": {
+                      "type": "string",
+                      "enum": [
+                        "plus",
+                        "gift"
+                      ]
+                    },
+                    "providerRef": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "confirmed": {
+                      "type": "boolean"
+                    },
+                    "currency": {
+                      "type": "string",
+                      "const": "USD"
+                    },
+                    "amountMinor": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "interval": {
+                      "type": "string",
+                      "enum": [
+                        "month",
+                        "one_time"
+                      ]
+                    },
+                    "expiresAt": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "product",
+                    "providerRef",
+                    "status",
+                    "confirmed",
+                    "currency",
+                    "amountMinor",
+                    "interval",
+                    "expiresAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/billing/paypal/history": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "The account's Sandbox purchases and subscription history.",
+        "operationId": "getV2BillingPaypalHistory",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "transactions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "userId": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "customer": {
+                            "type": "string"
+                          },
+                          "product": {
+                            "type": "string"
+                          },
+                          "currency": {
+                            "type": "string"
+                          },
+                          "amountMinor": {
+                            "type": "number"
+                          },
+                          "provider": {
+                            "type": "string"
+                          },
+                          "providerRef": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "refundStatus": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "number"
+                          },
+                          "completedAt": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "refundable": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "userId",
+                          "customer",
+                          "product",
+                          "currency",
+                          "amountMinor",
+                          "provider",
+                          "providerRef",
+                          "status",
+                          "refundStatus",
+                          "createdAt",
+                          "completedAt",
+                          "refundable"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "subscriptions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "providerRef": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "currentPeriodEnd": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "cancelAtPeriodEnd": {
+                            "type": "boolean"
+                          },
+                          "createdAt": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "providerRef",
+                          "status",
+                          "currentPeriodEnd",
+                          "cancelAtPeriodEnd",
+                          "createdAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "history": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "subscriptionId": {
+                            "type": "string"
+                          },
+                          "at": {
+                            "type": "number"
+                          },
+                          "from": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "to": {
+                            "type": "string"
+                          },
+                          "source": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "subscriptionId",
+                          "at",
+                          "from",
+                          "to",
+                          "source"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "transactions",
+                    "subscriptions",
+                    "history"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/billing/paypal/cancel": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Cancel verified PayPal renewal; retain the paid period.",
+        "operationId": "postV2BillingPaypalCancel",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "confirmed": {
+                      "type": "boolean"
+                    },
+                    "accessUntil": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "confirmed",
+                    "accessUntil",
+                    "status"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "confirm": {
+                    "type": "boolean",
+                    "const": true
+                  }
+                },
+                "required": [
+                  "confirm"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/v1/billing/paypal/transactions": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Billing administrators: PayPal transactions and refund status.",
+        "operationId": "getAdminV1BillingPaypalTransactions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "transactions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "userId": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "customer": {
+                            "type": "string"
+                          },
+                          "product": {
+                            "type": "string"
+                          },
+                          "currency": {
+                            "type": "string"
+                          },
+                          "amountMinor": {
+                            "type": "number"
+                          },
+                          "provider": {
+                            "type": "string"
+                          },
+                          "providerRef": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "refundStatus": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "number"
+                          },
+                          "completedAt": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "refundable": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "userId",
+                          "customer",
+                          "product",
+                          "currency",
+                          "amountMinor",
+                          "provider",
+                          "providerRef",
+                          "status",
+                          "refundStatus",
+                          "createdAt",
+                          "completedAt",
+                          "refundable"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "transactions"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/admin/v1/billing/paypal/transactions/{id}/refund": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Confirmed and audited full refund of a captured Sandbox gift, with recent admin passkey verification.",
+        "operationId": "postAdminV1BillingPaypalTransactionsIdRefund",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "reference": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "reference"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "confirm": {
+                    "type": "boolean",
+                    "const": true
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "confirm",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/v2/billing/plans": {
       "get": {
         "tags": [
@@ -66651,6 +67571,16 @@
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "provider": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
                     "available": {
                       "type": "boolean"
                     },
@@ -66926,6 +67856,7 @@
                     }
                   },
                   "required": [
+                    "provider",
                     "available",
                     "reason",
                     "mode",
@@ -66978,6 +67909,16 @@
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "provider": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
                     "available": {
                       "type": "boolean"
                     },
@@ -67253,6 +68194,7 @@
                     }
                   },
                   "required": [
+                    "provider",
                     "available",
                     "reason",
                     "mode",

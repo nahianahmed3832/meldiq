@@ -1,0 +1,35 @@
+{
+  "available": true,
+  "reason": null,
+  "mode": "test",
+  "provider": "stripe",
+  "subscription": null,
+  "invoices": [],
+  "offers": [
+    {
+      "key": "premium",
+      "name": "Meldiq premium",
+      "description": "For tests",
+      "audience": "personal",
+      "interval": "month",
+      "currency": "USD",
+      "amountMinor": 500,
+      "trialDays": 7,
+      "graceDays": 3,
+      "limits": {}
+    },
+    {
+      "key": "premiumyear",
+      "name": "Meldiq premiumyear",
+      "description": "For tests",
+      "audience": "personal",
+      "interval": "year",
+      "currency": "USD",
+      "amountMinor": 5000,
+      "trialDays": 0,
+      "graceDays": 3,
+      "limits": {}
+    }
+  ],
+  "portal": true
+}

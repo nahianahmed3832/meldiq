@@ -299,6 +299,7 @@ export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
   billing_provider_events: "billing",
   billing_webhook_rejections: "billing",
   billing_customers: "billing",
+  billing_payment_actions: "billing",
   billing_grants: "billing",
   billing_referral_codes: "billing",
   billing_referrals: "billing",

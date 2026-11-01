@@ -1,0 +1,63 @@
+{
+  "level": 0,
+  "active": 1,
+  "next": {
+    "level": 1,
+    "needs": 1
+  },
+  "perks": {
+    "level": 0,
+    "sparks": 0,
+    "emojiSlots": 50,
+    "stickerSlots": 20,
+    "uploadBytes": null,
+    "voiceKbps": 48,
+    "screen": []
+  },
+  "levels": [
+    {
+      "level": 0,
+      "sparks": 0,
+      "emojiSlots": 50,
+      "stickerSlots": 20,
+      "uploadBytes": null,
+      "voiceKbps": 48,
+      "screen": []
+    },
+    {
+      "level": 1,
+      "sparks": 2,
+      "emojiSlots": 100,
+      "stickerSlots": 20,
+      "uploadBytes": 50000000,
+      "voiceKbps": 128,
+      "screen": [
+        "720p30"
+      ]
+    },
+    {
+      "level": 2,
+      "sparks": 5,
+      "emojiSlots": 200,
+      "stickerSlots": 20,
+      "uploadBytes": 200000000,
+      "voiceKbps": 256,
+      "screen": [
+        "1080p60"
+      ]
+    },
+    {
+      "level": 3,
+      "sparks": 8,
+      "emojiSlots": 500,
+      "stickerSlots": 20,
+      "uploadBytes": 1024000000,
+      "voiceKbps": 384,
+      "screen": [
+        "1080p60",
+        "1440p30"
+      ]
+    }
+  ],
+  "mine": []
+}

@@ -23,6 +23,8 @@ import { orgNames } from "../organizations/index.js";
 import { resolveEntitlements } from "./entitlements.js";
 import type { BillingOwner } from "./owners.js";
 import type { CheckoutStarter } from "./service.js";
+import { PayPalCheckout } from "./paypalCheckout.js";
+import { PayPalCheckoutBody, PayPalCheckoutParams, PayPalCancelBody } from "../../shared/contracts/http/paypal.js";
 import { mojoRoutes } from "./mojoRoutes.js";
 import { isAddonPlanKey } from "./perks.js";
 
@@ -275,6 +277,26 @@ export default async function billingRoutes(
     const s = session(req);
     const { orgId } = parse(OwnerBody, req.body ?? {});
     return ctx.billing.reconcile(ownerFor(s, orgId));
+  });
+
+  const paypal = () => new PayPalCheckout(ctx.billing, ctx.gifts);
+  app.get("/v2/billing/paypal/config", authed, async () => paypal().provider.publicConfig());
+  app.post("/v2/billing/paypal/checkouts", providerCall, async (req) => {
+    const s = session(req);
+    const starter = await starterFor(s, { kind: "account", accountId: s.accountId });
+    const result = await paypal().start({ ...starter, accountId: s.accountId }, parse(PayPalCheckoutBody, req.body));
+    ctx.audit({ actorId: s.userId ?? s.accountId, action: "billing.paypal.checkout", target: result.id, detail: result.product });
+    return result;
+  });
+  app.get("/v2/billing/paypal/checkouts/:id", providerCall, async (req) => paypal().confirm(session(req).accountId, parse(PayPalCheckoutParams, req.params).id, false));
+  app.post("/v2/billing/paypal/checkouts/:id/confirm", providerCall, async (req) => paypal().confirm(session(req).accountId, parse(PayPalCheckoutParams, req.params).id, true));
+  app.get("/v2/billing/paypal/history", authed, async (req) => paypal().history(session(req).accountId));
+  app.post("/v2/billing/paypal/cancel", providerCall, async (req) => {
+    parse(PayPalCancelBody, req.body);
+    const s = session(req);
+    const result = await paypal().cancel(s.accountId);
+    ctx.audit({ actorId: s.userId ?? s.accountId, action: "billing.paypal.cancel", target: s.accountId, detail: result.confirmed ? "confirmed" : "pending" });
+    return result;
   });
 
   // Meldiq Mojo: the catalog, Sparks, gifts and badges (docs/MOJO.md).
