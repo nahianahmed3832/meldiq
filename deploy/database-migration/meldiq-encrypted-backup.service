@@ -1,0 +1,19 @@
+[Unit]
+Description=Meldiq encrypted Atlas and deployment backup
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=root
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/bin/python3 /opt/griip-internal-messaging/database-migration/backup-tools/scheduled-backup.py
+TimeoutStartSec=30min
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

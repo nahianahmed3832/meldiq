@@ -33,7 +33,7 @@ phase = run / args.phase
 phase.mkdir(mode=0o700)
 before = hashlib.file_digest(source.open("rb"), "sha256").hexdigest()
 name = "meldiq-atlas-" + args.phase
-base = ["docker", "run", "--rm", "--name", name, "--memory", "768m", "--cpus", "0.5",
+base = ["docker", "run", "--rm", "--no-healthcheck", "--name", name, "--memory", "768m", "--cpus", "0.5",
         "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true", "--read-only",
         "--tmpfs", "/tmp:rw,noexec,nosuid,size=32m", "--env-file", "/opt/griip-internal-messaging/.env",
         "-e", "MONGODB_STORAGE_LIMIT_MB=512", "-e", "NODE_OPTIONS=--max-old-space-size=384",
