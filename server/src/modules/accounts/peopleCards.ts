@@ -11,6 +11,19 @@ export interface PersonCard {
   photoRev: number | null;
 }
 
+/** Profile eligibility read for ranked public cards; kept in the account owner module. */
+export function leaderboardIdentity(ctx: Pick<AppContext, "identity">, userId: string) {
+  return ctx.identity.get<{
+    kind: string;
+    synthetic: number;
+    disabled_at: number | null;
+    home_server_id: string | null;
+    privacy: string | null;
+    avatar_media: string | null;
+    profile_style: string | null;
+  }>("users", { id: userId });
+}
+
 interface CardRow {
   id: string;
   username: string;

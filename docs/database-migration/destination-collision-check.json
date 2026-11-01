@@ -1,0 +1,1 @@
+[{"table":"account_passkeys","same":0,"conflicting":1,"extra":0,"changedFields":["last_used_at"]},{"table":"platform_audit","same":0,"conflicting":1,"extra":0,"changedFields":["at","request_id","actor_account_id","actor_role","action","target_type","target_id","outcome","reason","network","detail","hash"]}]

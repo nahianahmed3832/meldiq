@@ -38,6 +38,11 @@ export class SparkPurchases implements PaymentEvents {
   userIdsOf(accountId: string): string[] {
     return [...new Set(this.rows.all<SparkPurchaseRow>("spark_purchases", { where: { buyer_account_id: accountId } }).flatMap((purchase) => purchase.buyer_user_id ? [purchase.buyer_user_id] : []))];
   }
+  /** Account deletion unlinks its buyer identity while retaining the payment reference/history. */
+  async anonymizeBuyer(accountId: string): Promise<void> {
+    await this.rows.write((w) => w.update("spark_purchases", { buyer_account_id: accountId }, { buyer_account_id: null, buyer_user_id: null }));
+  }
+
   slots(userId: string): number {
     return this.rows.all<SparkPurchaseRow>("spark_purchases", { where: { buyer_user_id: userId, status: "paid" } }).reduce((total, purchase) => total + purchase.quantity, 0);
   }

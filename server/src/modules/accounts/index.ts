@@ -56,7 +56,9 @@ export {
 export { type AccountFacts, accountFacts, createdBefore } from "./questFacts.js";
 export { announceProfileChange } from "./profileEvents.js";
 /** Community parity B: people as the lobby lists them, and how many of a community appear online. */
-export { onlineCount, type PersonCard, personCards } from "./peopleCards.js";
+export { onlineCount, type PersonCard, personCards, leaderboardIdentity } from "./peopleCards.js";
+export { privacyOf } from "./profile.js";
+export { avatarMediaOf, styleOf } from "./profileMedia.js";
 /** Who may reach whom (connections, blocks, messaging settings): for other modules' consent checks. */
 export { availableUser, blockedEitherWay, dmDecision, sharesCommunity } from "./relationships/rules.js";
 

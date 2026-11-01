@@ -1,14 +1,16 @@
 import type { AppContext } from "../../app/context.js";
-import type { CallParticipantRow } from "../calls/store.js";
-import type { GiftRow } from "../billing/gifts.js";
+import type { CallParticipantRow } from "../calls/index.js";
+import { giftLeaderboard } from "../billing/index.js";
 import {
   blockedEitherWay,
   sharesCommunity,
-} from "../accounts/relationships/rules.js";
-import { privacyOf } from "../accounts/profile.js";
-import { avatarMediaOf, styleOf } from "../accounts/profileMedia.js";
-import { personCards } from "../accounts/peopleCards.js";
-import { visibleChannels } from "../organizations/lobby/view.js";
+  privacyOf,
+  avatarMediaOf,
+  styleOf,
+  personCards,
+  leaderboardIdentity,
+} from "../accounts/index.js";
+import { leaderboardChannels } from "../organizations/index.js";
 import type {
   LeaderboardMetric,
   LeaderboardView,
@@ -60,12 +62,7 @@ export async function leaderboard(
   let totals: { userId: string; count: number }[];
   const weekly = metric === "messages" || metric === "voice";
   if (weekly) {
-    const orgs = ctx.ws.all<{ org_id: string }>("org_members", {
-      where: { user_id: viewer },
-    });
-    const channels = orgs.flatMap((o) =>
-      visibleChannels(ctx, o.org_id, viewer),
-    );
+    const channels = leaderboardChannels(ctx, viewer);
     if (metric === "messages")
       totals = (
         await ctx.messages.activitySince(
@@ -84,19 +81,7 @@ export async function leaderboard(
         now,
       );
   } else if (metric === "gifts") {
-    const counts = new Map<string, number>();
-    for (const g of ctx.billing.rows.all<GiftRow>("mojo_gifts", {
-      where: { status: { in: ["paid", "redeemed"] } },
-    })) {
-      if (
-        !g.buyer_user_id ||
-        (g.refund_status && g.refund_status !== "none") ||
-        g.dispute_status
-      )
-        continue;
-      counts.set(g.buyer_user_id, (counts.get(g.buyer_user_id) ?? 0) + 1);
-    }
-    totals = [...counts].map(([userId, count]) => ({ userId, count }));
+    totals = giftLeaderboard(ctx.billing.rows);
   } else totals = await ctx.points.store.leaderboard(metric);
   const cards = personCards(
     ctx,
@@ -110,15 +95,7 @@ export async function leaderboard(
       )
         return [];
       const card = cards.get(t.userId);
-      const user = ctx.identity.get<{
-        kind: string;
-        synthetic: number;
-        disabled_at: number | null;
-        home_server_id: string | null;
-        privacy: string | null;
-        avatar_media: string | null;
-        profile_style: string | null;
-      }>("users", { id: t.userId });
+      const user = leaderboardIdentity(ctx, t.userId);
       if (
         !card ||
         !user ||

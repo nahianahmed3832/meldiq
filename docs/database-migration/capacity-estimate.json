@@ -1,0 +1,1231 @@
+{
+  "source": "encrypted preparation SQLite snapshot",
+  "remainingTables": 174,
+  "tables": [
+    {
+      "table": "account_email_changes",
+      "domain": "safety",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "account_passkey_challenges",
+      "domain": "safety",
+      "rows": 7,
+      "dataBytes": 1414,
+      "indexBytes": 672
+    },
+    {
+      "table": "account_passkeys",
+      "domain": "safety",
+      "rows": 1,
+      "dataBytes": 375,
+      "indexBytes": 122
+    },
+    {
+      "table": "account_totp",
+      "domain": "safety",
+      "rows": 1,
+      "dataBytes": 230,
+      "indexBytes": 57
+    },
+    {
+      "table": "account_totp_backup",
+      "domain": "safety",
+      "rows": 10,
+      "dataBytes": 2260,
+      "indexBytes": 2210
+    },
+    {
+      "table": "account_warnings",
+      "domain": "safety",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "activity_daily",
+      "domain": "platform",
+      "rows": 94,
+      "dataBytes": 29722,
+      "indexBytes": 36926
+    },
+    {
+      "table": "ai_agent_channels",
+      "domain": "platform",
+      "rows": 1,
+      "dataBytes": 311,
+      "indexBytes": 251
+    },
+    {
+      "table": "ai_agent_identities",
+      "domain": "platform",
+      "rows": 1,
+      "dataBytes": 242,
+      "indexBytes": 116
+    },
+    {
+      "table": "ai_agent_installs",
+      "domain": "platform",
+      "rows": 16,
+      "dataBytes": 13878,
+      "indexBytes": 3517
+    },
+    {
+      "table": "ai_agent_templates",
+      "domain": "platform",
+      "rows": 21,
+      "dataBytes": 5161,
+      "indexBytes": 3397
+    },
+    {
+      "table": "ai_approvals",
+      "domain": "platform",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "ai_channel_context",
+      "domain": "platform",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "ai_channel_posts",
+      "domain": "platform",
+      "rows": 6,
+      "dataBytes": 2889,
+      "indexBytes": 1128
+    },
+    {
+      "table": "ai_channel_readers",
+      "domain": "platform",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "ai_files",
+      "domain": "platform",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "ai_job_events",
+      "domain": "platform",
+      "rows": 49,
+      "dataBytes": 8641,
+      "indexBytes": 4802
+    },
+    {
+      "table": "ai_jobs",
+      "domain": "platform",
+      "rows": 8,
+      "dataBytes": 10997,
+      "indexBytes": 3931
+    },
+    {
+      "table": "ai_model_capabilities",
+      "domain": "platform",
+      "rows": 8,
+      "dataBytes": 2278,
+      "indexBytes": 2290
+    },
+    {
+      "table": "ai_models",
+      "domain": "platform",
+      "rows": 6,
+      "dataBytes": 1922,
+      "indexBytes": 1292
+    },
+    {
+      "table": "ai_org_entitlements",
+      "domain": "platform",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "ai_providers",
+      "domain": "platform",
+      "rows": 2,
+      "dataBytes": 1067,
+      "indexBytes": 196
+    },
+    {
+      "table": "ai_reader_choices",
+      "domain": "platform",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "ai_reader_events",
+      "domain": "platform",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "ai_routing",
+      "domain": "platform",
+      "rows": 7,
+      "dataBytes": 1562,
+      "indexBytes": 281
+    },
+    {
+      "table": "ai_shared_messages",
+      "domain": "platform",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "ai_system_checks",
+      "domain": "platform",
+      "rows": 13,
+      "dataBytes": 95708,
+      "indexBytes": 1538
+    },
+    {
+      "table": "ai_task_events",
+      "domain": "platform",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "ai_task_settings",
+      "domain": "platform",
+      "rows": 1,
+      "dataBytes": 191,
+      "indexBytes": 55
+    },
+    {
+      "table": "ai_tasks",
+      "domain": "platform",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "ai_tool_policies",
+      "domain": "platform",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "ai_triggers",
+      "domain": "platform",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "ai_usage",
+      "domain": "platform",
+      "rows": 29,
+      "dataBytes": 12450,
+      "indexBytes": 6618
+    },
+    {
+      "table": "alert_deliveries",
+      "domain": "platform",
+      "rows": 5,
+      "dataBytes": 885,
+      "indexBytes": 535
+    },
+    {
+      "table": "alert_rules",
+      "domain": "platform",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "alert_state",
+      "domain": "platform",
+      "rows": 15,
+      "dataBytes": 1941,
+      "indexBytes": 642
+    },
+    {
+      "table": "analytics_daily",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "api_keys",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "audit_log",
+      "domain": "workspace",
+      "rows": 1270,
+      "dataBytes": 240871,
+      "indexBytes": 280570
+    },
+    {
+      "table": "auth_challenges",
+      "domain": "ephemeral",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "bot_afk",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "bot_alert_watches",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "bot_giveaways",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "bot_levels",
+      "domain": "workspace",
+      "rows": 4,
+      "dataBytes": 772,
+      "indexBytes": 924
+    },
+    {
+      "table": "bot_listings",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "bot_runtime_events",
+      "domain": "workspace",
+      "rows": 46,
+      "dataBytes": 8126,
+      "indexBytes": 8265
+    },
+    {
+      "table": "bot_starboard",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "bot_wordy_games",
+      "domain": "workspace",
+      "rows": 1,
+      "dataBytes": 281,
+      "indexBytes": 284
+    },
+    {
+      "table": "bot_wordy_recaps",
+      "domain": "workspace",
+      "rows": 2,
+      "dataBytes": 296,
+      "indexBytes": 374
+    },
+    {
+      "table": "bot_wordy_stats",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "branch_members",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "branches",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "bug_reports",
+      "domain": "safety",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "call_hands",
+      "domain": "calls",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "call_participants",
+      "domain": "calls",
+      "rows": 237,
+      "dataBytes": 59487,
+      "indexBytes": 55695
+    },
+    {
+      "table": "calls",
+      "domain": "calls",
+      "rows": 139,
+      "dataBytes": 49854,
+      "indexBytes": 29051
+    },
+    {
+      "table": "channel_categories",
+      "domain": "workspace",
+      "rows": 40,
+      "dataBytes": 9295,
+      "indexBytes": 5160
+    },
+    {
+      "table": "channel_options",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "channel_overwrites",
+      "domain": "workspace",
+      "rows": 2,
+      "dataBytes": 658,
+      "indexBytes": 652
+    },
+    {
+      "table": "channel_webhooks",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "community_discovery",
+      "domain": "workspace",
+      "rows": 1,
+      "dataBytes": 270,
+      "indexBytes": 55
+    },
+    {
+      "table": "community_expressions",
+      "domain": "workspace",
+      "rows": 24,
+      "dataBytes": 7952,
+      "indexBytes": 3632
+    },
+    {
+      "table": "community_lobbies",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "community_lobby_feeds",
+      "domain": "workspace",
+      "rows": 1,
+      "dataBytes": 232,
+      "indexBytes": 157
+    },
+    {
+      "table": "community_lobby_posts",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "community_lobby_seen",
+      "domain": "workspace",
+      "rows": 14,
+      "dataBytes": 2548,
+      "indexBytes": 3122
+    },
+    {
+      "table": "community_member_defaults",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "community_migration_runs",
+      "domain": "workspace",
+      "rows": 1,
+      "dataBytes": 310,
+      "indexBytes": 197
+    },
+    {
+      "table": "community_onboarding",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "community_profiles",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "community_safety",
+      "domain": "workspace",
+      "rows": 1,
+      "dataBytes": 251,
+      "indexBytes": 55
+    },
+    {
+      "table": "community_settings",
+      "domain": "workspace",
+      "rows": 2,
+      "dataBytes": 478,
+      "indexBytes": 110
+    },
+    {
+      "table": "community_standard_invites",
+      "domain": "workspace",
+      "rows": 3,
+      "dataBytes": 696,
+      "indexBytes": 669
+    },
+    {
+      "table": "community_templates",
+      "domain": "workspace",
+      "rows": 1,
+      "dataBytes": 4126,
+      "indexBytes": 159
+    },
+    {
+      "table": "community_tickets",
+      "domain": "workspace",
+      "rows": 2,
+      "dataBytes": 384,
+      "indexBytes": 110
+    },
+    {
+      "table": "community_vanity_invites",
+      "domain": "workspace",
+      "rows": 2,
+      "dataBytes": 370,
+      "indexBytes": 197
+    },
+    {
+      "table": "community_voice_bans",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "community_voice_mutes",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "conversation_members",
+      "domain": "conversations",
+      "rows": 1172,
+      "dataBytes": 273356,
+      "indexBytes": 282452
+    },
+    {
+      "table": "conversations",
+      "domain": "conversations",
+      "rows": 194,
+      "dataBytes": 87821,
+      "indexBytes": 34855
+    },
+    {
+      "table": "departments",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "devices",
+      "domain": "identity",
+      "rows": 122,
+      "dataBytes": 52454,
+      "indexBytes": 24034
+    },
+    {
+      "table": "discord_connections",
+      "domain": "workspace",
+      "rows": 1,
+      "dataBytes": 262,
+      "indexBytes": 137
+    },
+    {
+      "table": "discord_import_items",
+      "domain": "workspace",
+      "rows": 271,
+      "dataBytes": 122084,
+      "indexBytes": 66451
+    },
+    {
+      "table": "discord_imports",
+      "domain": "workspace",
+      "rows": 5,
+      "dataBytes": 2088,
+      "indexBytes": 685
+    },
+    {
+      "table": "discord_oauth_states",
+      "domain": "ephemeral",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "discovery_boosts",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "discovery_clicks",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "discovery_visits",
+      "domain": "workspace",
+      "rows": 6,
+      "dataBytes": 786,
+      "indexBytes": 1134
+    },
+    {
+      "table": "document_comments",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "document_members",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "document_versions",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "documents",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "fcm_tokens",
+      "domain": "identity",
+      "rows": 11,
+      "dataBytes": 3394,
+      "indexBytes": 2530
+    },
+    {
+      "table": "federation_blocks",
+      "domain": "federation",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "federation_domains",
+      "domain": "federation",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "federation_inbox",
+      "domain": "federation",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "federation_nonces",
+      "domain": "ephemeral",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "federation_outbox",
+      "domain": "federation",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "federation_peers",
+      "domain": "federation",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "inbox_accounts",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "inbox_contacts",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "inbox_conversations",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "inbox_events",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "inbox_messages",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "inbox_queues",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "inbox_settings",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "invitations",
+      "domain": "workspace",
+      "rows": 33,
+      "dataBytes": 13016,
+      "indexBytes": 7128
+    },
+    {
+      "table": "join_applications",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "loadtest_registrations",
+      "domain": "identity",
+      "rows": 1,
+      "dataBytes": 151,
+      "indexBytes": 71
+    },
+    {
+      "table": "meeting_participants",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "meetings",
+      "domain": "workspace",
+      "rows": 1,
+      "dataBytes": 385,
+      "indexBytes": 174
+    },
+    {
+      "table": "mention_all_events",
+      "domain": "conversations",
+      "rows": 4,
+      "dataBytes": 652,
+      "indexBytes": 588
+    },
+    {
+      "table": "official_bots",
+      "domain": "workspace",
+      "rows": 16,
+      "dataBytes": 5275,
+      "indexBytes": 3968
+    },
+    {
+      "table": "official_bots_plus",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "onboarding_answers",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "onboarding_completions",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "operator_accounts",
+      "domain": "platform",
+      "rows": 1,
+      "dataBytes": 283,
+      "indexBytes": 141
+    },
+    {
+      "table": "org_bans",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "org_deletions",
+      "domain": "workspace",
+      "rows": 9,
+      "dataBytes": 2790,
+      "indexBytes": 495
+    },
+    {
+      "table": "org_entitlements",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "org_members",
+      "domain": "workspace",
+      "rows": 45,
+      "dataBytes": 10601,
+      "indexBytes": 10035
+    },
+    {
+      "table": "org_nicknames",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "org_role_extras",
+      "domain": "workspace",
+      "rows": 1,
+      "dataBytes": 241,
+      "indexBytes": 114
+    },
+    {
+      "table": "org_role_members",
+      "domain": "workspace",
+      "rows": 30,
+      "dataBytes": 7710,
+      "indexBytes": 9690
+    },
+    {
+      "table": "org_roles",
+      "domain": "workspace",
+      "rows": 30,
+      "dataBytes": 11509,
+      "indexBytes": 3420
+    },
+    {
+      "table": "orgs",
+      "domain": "workspace",
+      "rows": 12,
+      "dataBytes": 9020,
+      "indexBytes": 4238
+    },
+    {
+      "table": "pairing_requests",
+      "domain": "ephemeral",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "platform_admin_challenges",
+      "domain": "ephemeral",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "platform_admin_enrolments",
+      "domain": "ephemeral",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "platform_admin_passkeys",
+      "domain": "platform",
+      "rows": 1,
+      "dataBytes": 375,
+      "indexBytes": 122
+    },
+    {
+      "table": "platform_admin_sessions",
+      "domain": "ephemeral",
+      "rows": 5,
+      "dataBytes": 1795,
+      "indexBytes": 1315
+    },
+    {
+      "table": "platform_admins",
+      "domain": "platform",
+      "rows": 1,
+      "dataBytes": 211,
+      "indexBytes": 100
+    },
+    {
+      "table": "platform_audit",
+      "domain": "platform",
+      "rows": 183,
+      "dataBytes": 93810,
+      "indexBytes": 54731
+    },
+    {
+      "table": "platform_incident_events",
+      "domain": "platform",
+      "rows": 125,
+      "dataBytes": 27094,
+      "indexBytes": 13375
+    },
+    {
+      "table": "platform_incidents",
+      "domain": "platform",
+      "rows": 5,
+      "dataBytes": 2369,
+      "indexBytes": 1173
+    },
+    {
+      "table": "platform_report_cases",
+      "domain": "platform",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "platform_report_events",
+      "domain": "platform",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "platform_restrictions",
+      "domain": "platform",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "platform_settings",
+      "domain": "platform",
+      "rows": 5,
+      "dataBytes": 739,
+      "indexBytes": 247
+    },
+    {
+      "table": "presence_hourly",
+      "domain": "platform",
+      "rows": 208,
+      "dataBytes": 31848,
+      "indexBytes": 6240
+    },
+    {
+      "table": "presence_samples",
+      "domain": "ephemeral",
+      "rows": 12493,
+      "dataBytes": 2437012,
+      "indexBytes": 374790
+    },
+    {
+      "table": "promoted_bookings",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "push_endpoints",
+      "domain": "identity",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "quota_counters",
+      "domain": "platform",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "quota_events",
+      "domain": "platform",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "quota_plan_members",
+      "domain": "platform",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "quota_plans",
+      "domain": "platform",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "quota_policies",
+      "domain": "platform",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "quota_reservations",
+      "domain": "platform",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "reaction_roles",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "registration_invites",
+      "domain": "identity",
+      "rows": 1,
+      "dataBytes": 313,
+      "indexBytes": 159
+    },
+    {
+      "table": "reminder_occurrences",
+      "domain": "identity",
+      "rows": 2,
+      "dataBytes": 382,
+      "indexBytes": 540
+    },
+    {
+      "table": "reminders",
+      "domain": "identity",
+      "rows": 2,
+      "dataBytes": 1357,
+      "indexBytes": 428
+    },
+    {
+      "table": "resource_hourly",
+      "domain": "platform",
+      "rows": 12688,
+      "dataBytes": 1824028,
+      "indexBytes": 1967472
+    },
+    {
+      "table": "resource_samples",
+      "domain": "ephemeral",
+      "rows": 594509,
+      "dataBytes": 67755806,
+      "indexBytes": 94527569
+    },
+    {
+      "table": "session_clients",
+      "domain": "platform",
+      "rows": 59,
+      "dataBytes": 11992,
+      "indexBytes": 3245
+    },
+    {
+      "table": "sessions",
+      "domain": "ephemeral",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "stage_speakers",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "team_members",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "teams",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "telemetry_epochs",
+      "domain": "platform",
+      "rows": 47,
+      "dataBytes": 3430,
+      "indexBytes": 2091
+    },
+    {
+      "table": "ticket_panels",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "tickets",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "traffic_user_daily",
+      "domain": "platform",
+      "rows": 413,
+      "dataBytes": 75758,
+      "indexBytes": 112098
+    },
+    {
+      "table": "usage_daily",
+      "domain": "workspace",
+      "rows": 475,
+      "dataBytes": 95062,
+      "indexBytes": 127362
+    },
+    {
+      "table": "user_blocks",
+      "domain": "identity",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "user_group_members",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "user_groups",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "users",
+      "domain": "identity",
+      "rows": 65,
+      "dataBytes": 42299,
+      "indexBytes": 6670
+    },
+    {
+      "table": "webhook_deliveries",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "webhooks",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "workflow_runs",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    },
+    {
+      "table": "workflows",
+      "domain": "workspace",
+      "rows": 0,
+      "dataBytes": 0,
+      "indexBytes": 0
+    }
+  ],
+  "dataBytes": 73590939,
+  "indexBytes": 98112081,
+  "totalBytes": 171703020,
+  "observedClusterUsageBytes": 45413827,
+  "projectedBytes": 217116847,
+  "headroomLimitBytes": 375809638.4,
+  "fitsBelow70Percent": true
+}

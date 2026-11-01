@@ -30,8 +30,8 @@ if (!ownerName) {
   process.exit(2);
 }
 const cfg = loadConfig();
-const db = openDatabase(cfg.databasePath);
-const mongo = cfg.mongo ? await openMongo(cfg.mongo, db) : undefined;
+const db = openDatabase(cfg.databaseMode === "atlas" ? ":memory:" : cfg.databasePath);
+const mongo = cfg.mongo ? await openMongo(cfg.mongo, db, undefined, cfg.databaseMode === "atlas") : undefined;
 const ws = await openWorkspaceRows(db, mongo, console);
 const identity = await openDomainRows(db, "identity", mongo, console);
 const authz = new Authz(ws);

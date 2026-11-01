@@ -1,0 +1,52 @@
+{
+  "base": "1e99c4ae",
+  "allPersistenceComponentsUnchangedFrom072Candidate": true,
+  "components": [
+    {
+      "path": "server/src/infrastructure/database/mongo/migrate.ts",
+      "sha256": "b66735ddd2375a0bd8b948807fe5c21a4ed070ca34089a1a58196047aec5db79",
+      "unchangedFrom072Candidate": true
+    },
+    {
+      "path": "server/src/infrastructure/database/mongo/catalog.ts",
+      "sha256": "5dea0b47bbad6008ae5abbb5f78ca0773f4e5a91140ec471338c4fe228a8c09f",
+      "unchangedFrom072Candidate": true
+    },
+    {
+      "path": "server/src/infrastructure/database/mongo/client.ts",
+      "sha256": "55fbe93e7f41deaabeb2faeac0c2fffe56a07bccffeabfa100186c74d4d40bf8",
+      "unchangedFrom072Candidate": true
+    },
+    {
+      "path": "server/src/infrastructure/database/mongo/config.ts",
+      "sha256": "efa467c282a3d1c28cb04f8cecbf6e11604600e230c9d41fd7dd213cfea1403d",
+      "unchangedFrom072Candidate": true
+    },
+    {
+      "path": "server/src/infrastructure/database/mongo/validate.ts",
+      "sha256": "4c73f43fdc39257293e5a5e75795efd97ada58a2d606a05a34dd06bb5bec683e",
+      "unchangedFrom072Candidate": true
+    },
+    {
+      "path": "server/src/infrastructure/database/rows/mongoRows.ts",
+      "sha256": "e124afb2c4d8652103e20eb180dadb1e7d2788be34e421e846c2e76cf8103f84",
+      "unchangedFrom072Candidate": true
+    },
+    {
+      "path": "server/src/infrastructure/database/rows/memory.ts",
+      "sha256": "f822e2ed3a1cc7ffbc7c3c85c8a289c3dbb4fbe5ca89eff8a535aad4908862b8",
+      "unchangedFrom072Candidate": true
+    },
+    {
+      "path": "server/src/infrastructure/redis/service.ts",
+      "sha256": "1c4527181cb4f7abad556ad5b229179f0a66bcaaa1bf1f88210497ddba3b2ceb",
+      "unchangedFrom072Candidate": true
+    },
+    {
+      "path": "server/src/app/config.ts",
+      "sha256": "b209aa1aa8808928f2beba47fecad673018163dc693c8f3a24138ff704dd365f",
+      "unchangedFrom072Candidate": true
+    }
+  ],
+  "newFeature": "leaderboards derive reads from existing authoritative collections; no new persistent source"
+}

@@ -56,6 +56,11 @@ export function contractCheck(): ContractCheck {
       }
       const contract: RouteContract | undefined = byRoute.get(`${method} ${url}`);
       // The OAuth token endpoint answers errors as RFC 6749 §5.2 says, not with the error envelope.
+      if (contract?.errorFormat === "health" && (status === 200 || status === 503)) {
+        const result = contract.response.safeParse(json);
+        if (!result.success) note(where, `health response: ${result.error.message}`);
+        return;
+      }
       if (status >= 400 && contract?.errorFormat === "oauth") {
         const r = OAuthErrorBody.safeParse(json);
         if (!r.success) note(where, `OAuth error body: ${r.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ")}`);

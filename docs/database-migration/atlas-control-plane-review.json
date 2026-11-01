@@ -1,0 +1,32 @@
+{
+  "project": "Meldiq",
+  "cluster": "Cluster0",
+  "tier": "FREE",
+  "storageLimitMiB": 512,
+  "displayedDataSizeMB": 43.31,
+  "connections": 22,
+  "connectionLimit": 500,
+  "mongodbVersion": "8.0.36",
+  "cloudBackupsEnabled": false,
+  "network": {
+    "entries": 4,
+    "allEntriesAreSingleIPv4Hosts": true,
+    "vpsAddressAllowed": true,
+    "allowsAllIPv4": false
+  },
+  "applicationUser": {
+    "name": "meldiq_api",
+    "roles": [
+      {
+        "role": "readWrite",
+        "database": "meldiq"
+      },
+      {
+        "role": "readWrite",
+        "database": "meldiq_rehearsal"
+      }
+    ],
+    "resourceScope": "one cluster"
+  },
+  "changesMade": false
+}

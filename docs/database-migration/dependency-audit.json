@@ -1,0 +1,83 @@
+{
+  "productionOnly": true,
+  "counts": {
+    "info": 0,
+    "low": 0,
+    "moderate": 2,
+    "high": 1,
+    "critical": 0,
+    "total": 3
+  },
+  "newRedisDependencyAdvisories": false,
+  "details": [
+    {
+      "package": "fast-uri",
+      "severity": "moderate",
+      "versionsUnchangedFromProductionBase": true,
+      "advisories": [
+        {
+          "title": "fast-uri vulnerable to URI scheme spoofing via percent-encoded scheme decoding",
+          "url": "https://github.com/advisories/GHSA-w74x-v6f9-j3xg"
+        },
+        {
+          "title": "fast-uri vulnerable to URI scheme spoofing via percent-encoded scheme decoding",
+          "url": "https://github.com/advisories/GHSA-w74x-v6f9-j3xg"
+        },
+        {
+          "title": "fast-uri vulnerable to improper path equivalence in relative reference normalization",
+          "url": "https://github.com/advisories/GHSA-xhq7-xmqj-769h"
+        },
+        {
+          "title": "fast-uri vulnerable to improper path equivalence in relative reference normalization",
+          "url": "https://github.com/advisories/GHSA-xhq7-xmqj-769h"
+        },
+        {
+          "title": "fast-uri vulnerable to host confusion via unchecked WHATWG host canonicalization",
+          "url": "https://github.com/advisories/GHSA-wjr9-j795-jxcr"
+        },
+        {
+          "title": "fast-uri vulnerable to host confusion via unchecked WHATWG host canonicalization",
+          "url": "https://github.com/advisories/GHSA-wjr9-j795-jxcr"
+        },
+        {
+          "title": "fast-uri vulnerable to scheme injection via an unescaped first-segment colon in suffix references",
+          "url": "https://github.com/advisories/GHSA-333x-w4r6-6crp"
+        },
+        {
+          "title": "fast-uri vulnerable to scheme injection via an unescaped first-segment colon in suffix references",
+          "url": "https://github.com/advisories/GHSA-333x-w4r6-6crp"
+        }
+      ]
+    },
+    {
+      "package": "nodemailer",
+      "severity": "moderate",
+      "versionsUnchangedFromProductionBase": true,
+      "advisories": [
+        {
+          "title": "Nodemailer: A nested comment ends early in addressparser, releasing the rest of the comment as a recipient",
+          "url": "https://github.com/advisories/GHSA-8c8m-p3m8-cjg8"
+        },
+        {
+          "title": "Nodemailer: A \";\" inside a quoted string or comment ends an address group early in addressparser, turning display text into a recipient",
+          "url": "https://github.com/advisories/GHSA-m943-m63m-w62w"
+        },
+        {
+          "title": "Nodemailer: A \">\" inside a quoted local part ends an angle-addr early in addressparser, delivering to a domain the header does not name",
+          "url": "https://github.com/advisories/GHSA-85x2-q946-cp5h"
+        }
+      ]
+    },
+    {
+      "package": "zod",
+      "severity": "high",
+      "versionsUnchangedFromProductionBase": true,
+      "advisories": [
+        {
+          "title": "Zod can exhaust memory while validating oversized constrained collections",
+          "url": "https://github.com/advisories/GHSA-mrhx-c7xc-m3w5"
+        }
+      ]
+    }
+  ]
+}

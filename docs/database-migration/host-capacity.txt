@@ -1,0 +1,7 @@
+               total        used        free      shared  buff/cache   available
+Mem:      8326639616  5068374016   792633344    37502976  2816032768  3258265600
+Swap:              0           0           0
+
+{"Name": "griip-internal-messaging-api-1", "MemUsage": "184.6MiB / 512MiB", "MemPerc": "36.06%", "CPUPerc": "20.91%"}
+{"Name": "griip-internal-messaging-livekit-1", "MemUsage": "49.96MiB / 1GiB", "MemPerc": "4.88%", "CPUPerc": "0.11%"}
+{"Name": "griip-internal-messaging-ntfy-1", "MemUsage": "17.24MiB / 256MiB", "MemPerc": "6.73%", "CPUPerc": "0.06%"}

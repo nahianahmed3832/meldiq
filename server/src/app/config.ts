@@ -1,8 +1,9 @@
 import { socialConfig, type SocialConfig } from "../modules/accounts/social/config.js";
+import { redisConfig, type RedisConfig } from "../infrastructure/redis/config.js";
 import { secretsKey } from "../infrastructure/crypto/secretBox.js";
 import path from "node:path";
 import { networkKey } from "./middleware/abuse.js";
-import { type MongoConfig, mongoConfig } from "../infrastructure/database/mongo/config.js";
+import { MONGO_DOMAINS, type MongoConfig, mongoConfig } from "../infrastructure/database/mongo/config.js";
 import { type AccountsConfig, accountsConfig } from "../modules/accounts/config.js";
 import { type EntitlementConfig, entitlementConfig } from "../modules/administration/entitlements.js";
 import { type ExperimentsConfig, experimentsConfig } from "../modules/administration/experiments/assign.js";
@@ -37,6 +38,8 @@ function intFrom(env: NodeJS.ProcessEnv, name: string, def: number): number {
   if (!Number.isFinite(n)) throw new Error(`Invalid integer for ${name}`);
   return n;
 }
+
+const productionEnvironment = (env: NodeJS.ProcessEnv) => env.APP_ENV?.trim() === "production" || env.NODE_ENV?.trim() === "production";
 
 export interface Config {
   socialAuth: SocialConfig | null;
@@ -185,6 +188,8 @@ export interface Config {
   accounts: AccountsConfig;
   /** MongoDB, for the data domains listed in MONGODB_DOMAINS (docs/MONGODB.md); null: everything stays in SQLite. */
   mongo: MongoConfig | null;
+  redis?: RedisConfig | null;
+  databaseMode?: "hybrid" | "atlas";
   /**
    * Platform administrators (PLATFORM_ADMIN_USER_IDS, user ids): the service health, usage and experiments views. Never
    * grants anything inside a community.
@@ -591,7 +596,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     fileMaxBytes,
     socialAuth: socialConfig(env),
     accounts: accountsConfig(env, dataDir, int),
-    mongo: mongoConfig(env, env.APP_ENV?.trim() || "development", int),
+    databaseMode: databaseMode(env),
+    mongo: mongoConfig(env, productionEnvironment(env) ? "production" : env.APP_ENV?.trim() || env.NODE_ENV?.trim() || "development", int),
+    redis: redisConfig(env, productionEnvironment(env)),
     platformAdmins: new Set((env.PLATFORM_ADMIN_USER_IDS ?? "").split(",").map((s) => s.trim()).filter(Boolean)),
     adminConsole: adminConsoleConfig(env, int),
     entitlements: entitlementConfig(env),
@@ -750,4 +757,16 @@ function s3Credentials(env: NodeJS.ProcessEnv): S3Config["credentials"] {
   if (!id && !secret) return null;
   if (!id || !secret) throw new Error("Set both S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY, or neither (to use the AWS default credential chain)");
   return { accessKeyId: id, secretAccessKey: secret, sessionToken: env.S3_SESSION_TOKEN?.trim() || undefined };
+}
+
+/** Atlas mode never opens the legacy persistent SQLite file or silently bootstraps migration authority. */
+export function databaseMode(env: NodeJS.ProcessEnv): "hybrid" | "atlas" {
+  const mode = env.DATABASE_MODE?.trim() || "hybrid";
+  if (mode !== "hybrid" && mode !== "atlas") throw new Error("DATABASE_MODE must be hybrid or atlas");
+  if (mode === "atlas") {
+    const domains = new Set(env.MONGODB_DOMAINS?.split(",").map(d => d.trim()));
+    if (!env.MONGODB_URI || MONGO_DOMAINS.some(d => !domains.has(d))) throw new Error("DATABASE_MODE=atlas requires MongoDB and every active domain");
+    if (productionEnvironment(env) && !env.REDIS_URL) throw new Error("DATABASE_MODE=atlas in production requires shared REDIS_URL");
+  }
+  return mode;
 }

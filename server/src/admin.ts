@@ -56,7 +56,7 @@ import { Accounts } from "./modules/accounts/index.js";
 import { Authz } from "./modules/organizations/authz.js";
 import { backupDatabase, verifyBackup } from "./modules/administration/backup.js";
 import { loadConfig } from "./app/config.js";
-import { siteDetailsFromDb } from "./app/siteDetails.js";
+import { readSiteDetails } from "./app/siteDetails.js";
 import Stripe from "stripe";
 import { PlanCatalog, termsOf } from "./modules/billing/catalog.js";
 import { stripeKeyMode } from "./modules/billing/providers/stripe.js";
@@ -109,7 +109,7 @@ const callStore = (ctx: AppContext): CallStore => (ctx.mongo?.owns("calls") ? ne
 
 /** Communities and conversations, wherever MONGODB_DOMAINS keeps them; [close] when done. */
 async function workspace(): Promise<{ ws: Rows; mongo?: MeldiqMongo; close: () => Promise<void> }> {
-  const mongo = cfg.mongo ? await openMongo(cfg.mongo, db) : undefined;
+  const mongo = cfg.mongo ? await openMongo(cfg.mongo, db, undefined, cfg.databaseMode === "atlas") : undefined;
   const ws = await openWorkspaceRows(db, mongo, console);
   return {
     ws,
@@ -125,7 +125,7 @@ async function workspace(): Promise<{ ws: Rows; mongo?: MeldiqMongo; close: () =
 /** The stores org repair reads (files, relay and calls may live in MongoDB); [close] when done. */
 async function repairStores(): Promise<{ stores: OrgRepairStores; close: () => Promise<void> }> {
   const ctx = { db } as AppContext;
-  if (cfg.mongo) ctx.mongo = await openMongo(cfg.mongo, db);
+  if (cfg.mongo) ctx.mongo = await openMongo(cfg.mongo, db, undefined, cfg.databaseMode === "atlas");
   ctx.ws = await openWorkspaceRows(db, ctx.mongo, console);
   ctx.files = fileStore(ctx);
   ctx.relay = relayStore(ctx);
@@ -151,7 +151,7 @@ if (cmd === "verify-backup") {
   process.exit(r.ok ? 0 : 1);
 }
 const cfg = loadConfig();
-const db = openDatabase(cfg.databasePath);
+const db = openDatabase(cfg.databaseMode === "atlas" && !MONGO_COMMANDS.includes(cmd) ? ":memory:" : cfg.databasePath);
 if (RETIRED_COMMANDS.includes(cmd)) {
   // The retired tables belong to the workspace domain: in MongoDB, SQLite holds only the copy taken before the move.
   if (cfg.mongo?.domains.has("workspace")) {
@@ -438,7 +438,7 @@ switch (cmd) {
     const api = (process.env.PUBLIC_API_URL ?? "https://msg.meldiq.app").replace(/\/$/, "");
     // The catalog's published prices, so a rerun keeps the console's; --list-prices sells at MOJO_PRICES (docs/PLANS.md).
     const amounts = rest.includes("--list-prices") ? DEFAULT_MOJO_AMOUNTS : await (async () => {
-      const mongo = cfg.mongo ? await openMongo(cfg.mongo, db) : undefined;
+      const mongo = cfg.mongo ? await openMongo(cfg.mongo, db, undefined, cfg.databaseMode === "atlas") : undefined;
       const rows = await openBillingRows(db, mongo, console);
       const found = publishedMojoAmounts(new PlanCatalog(rows));
       await rows.close();
@@ -468,7 +468,7 @@ switch (cmd) {
     const provider = cfg.billing.provider;
     if (!(provider instanceof PayPalProvider) || !rest.includes("--publish")) throw new Error("Configured PayPal provider and --publish required");
     await provider.verifyPlusPlan();
-    const mongo = cfg.mongo ? await openMongo(cfg.mongo, db) : undefined;
+    const mongo = cfg.mongo ? await openMongo(cfg.mongo, db, undefined, cfg.databaseMode === "atlas") : undefined;
     const rows = await openBillingRows(db, mongo, console);
     const platform = await openDomainRows(db, "platform", mongo, console);
     try {
@@ -480,7 +480,7 @@ switch (cmd) {
         break;
       }
       const terms = {
-        ...(current ? termsOf(current) : { limits: {}, quotaPlanId: null, notes: "", graceDays: siteDetailsFromDb(db).policies.failedPaymentGraceDays ?? 0 }),
+        ...(current ? termsOf(current) : { limits: {}, quotaPlanId: null, notes: "", graceDays: readSiteDetails(platform).policies.failedPaymentGraceDays ?? 0 }),
         interval: "month" as const, currency: "USD", amountMinor: 399, providerPriceRef: provider.options.plusPlanId!, trialDays: 0,
       };
       if (!plan) plan = await catalog.create("plus", { name: "Mojo Plus", description: "", segment: "personal", public: true, audience: "personal" }, terms, "cli", now());
@@ -500,7 +500,7 @@ switch (cmd) {
     const provider = cfg.billing.provider;
     if (!(provider instanceof PayPalProvider) || !rest.includes("--publish")) throw new Error("Configured PayPal provider and --publish required");
     await provider.verifyBotsPlan();
-    const mongo = cfg.mongo ? await openMongo(cfg.mongo, db) : undefined;
+    const mongo = cfg.mongo ? await openMongo(cfg.mongo, db, undefined, cfg.databaseMode === "atlas") : undefined;
     const rows = await openBillingRows(db, mongo, console);
     const platform = await openDomainRows(db, "platform", mongo, console);
     try {
@@ -534,11 +534,11 @@ switch (cmd) {
       console.error("No billing provider is configured (BILLING_PROVIDER): set it to stripe first");
       process.exit(1);
     }
-    const mongo = cfg.mongo ? await openMongo(cfg.mongo, db) : undefined;
+    const mongo = cfg.mongo ? await openMongo(cfg.mongo, db, undefined, cfg.databaseMode === "atlas") : undefined;
     const rows = await openBillingRows(db, mongo, console);
     const catalog = new PlanCatalog(rows);
     // The grace period after a failed payment is set in the console (site details); 0 until it is.
-    const grace = siteDetailsFromDb(db).policies.failedPaymentGraceDays ?? 0;
+    const grace = readSiteDetails((await domains()).platform).policies.failedPaymentGraceDays ?? 0;
     console.log(`grace period after a failed payment: ${grace} days (console › site details)`);
     for (const line of await publishMojoPlans(catalog, provider.id, { go, plus, spark }, "cli", now(), grace, amounts)) console.log(line);
     await rows.settled();
@@ -547,6 +547,17 @@ switch (cmd) {
     break;
   }
   case "table-counts": {
+    if (cfg.databaseMode === "atlas" && cfg.mongo) {
+      const mongo = await openMongo(cfg.mongo, db, undefined, true);
+      try {
+        const counts: Record<string, number> = {};
+        for (const collection of await mongo.db.listCollections({}, { nameOnly: true }).toArray()) {
+          counts[collection.name] = await mongo.db.collection(collection.name).countDocuments();
+        }
+        console.log(JSON.stringify(counts, null, 2));
+      } finally { await mongo.close(); }
+      break;
+    }
     const tables = (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all() as { name: string }[]).map((r) => r.name);
     console.log(JSON.stringify(Object.fromEntries(tables.map((t) => [t, one(`SELECT COUNT(*) n FROM "${t}"`)])), null, 2));
     break;
@@ -571,6 +582,7 @@ switch (cmd) {
     break;
   }
   case "backup": {
+    if (cfg.databaseMode === "atlas") throw new Error("SQLite-only backups do not cover Atlas mode; use scripts/database-backup.mjs through an encrypted output pipe");
     if (!rest[0]) {
       console.error("usage: backup <file>");
       process.exit(2);
@@ -747,7 +759,7 @@ switch (cmd) {
   case "storage-orphans": {
     const blobs = createBlobStore(cfg);
     const fctx = { db, config: cfg } as unknown as AppContext;
-    if (cfg.mongo) fctx.mongo = await openMongo(cfg.mongo, db);
+    if (cfg.mongo) fctx.mongo = await openMongo(cfg.mongo, db, undefined, cfg.databaseMode === "atlas");
     const files = fileStore(fctx);
     const cutoff = now() - 86_400_000;
     const orphans: { kind: "attachments" | "profile-photos"; id: string; size: number }[] = [];
@@ -804,7 +816,7 @@ switch (cmd) {
   case "report-show":
   case "report-close": {
     const ctx = { db, config: cfg } as unknown as AppContext;
-    if (cfg.mongo) ctx.mongo = await openMongo(cfg.mongo, db);
+    if (cfg.mongo) ctx.mongo = await openMongo(cfg.mongo, db, undefined, cfg.databaseMode === "atlas");
     const store = reportStore(ctx);
     const sealer = ReportSealer.load(process.env, cfg.dataDir);
     try {

@@ -1,0 +1,97 @@
+DEPRECATED: The legacy builder is deprecated and will be removed in a future release.
+            BuildKit is currently disabled; enable it by removing the DOCKER_BUILDKIT=0
+            environment-variable.
+
+Sending build context to Docker daemon   13.5MB
+
+Step 1/24 : FROM node:22.22.3-alpine3.24 AS build
+ ---> e58326d0d441
+Step 2/24 : WORKDIR /app
+ ---> Using cache
+ ---> fd999badec9b
+Step 3/24 : RUN apk add --no-cache python3 make g++
+ ---> Using cache
+ ---> 515e9d032b4c
+Step 4/24 : ENV MONGOMS_DISABLE_POSTINSTALL=1
+ ---> Using cache
+ ---> 2bab1f41fc47
+Step 5/24 : COPY package.json package-lock.json ./
+ ---> Using cache
+ ---> e119d4f6fbec
+Step 6/24 : RUN npm ci
+ ---> Using cache
+ ---> 5fb5df66436c
+Step 7/24 : COPY tsconfig.json ./
+ ---> Using cache
+ ---> af292b2a8c6f
+Step 8/24 : COPY src ./src
+ ---> bf3b8cc72748
+Step 9/24 : RUN NODE_OPTIONS=--max-old-space-size=1536 npm run build && npm prune --omit=dev
+ ---> Running in 6c380922f0de
+
+> meldiq-server@0.71.1 build
+> tsc -p tsconfig.json
+
+
+up to date, audited 150 packages in 2s
+
+26 packages are looking for funding
+  run `npm fund` for details
+
+3 vulnerabilities (2 moderate, 1 high)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+ ---> Removed intermediate container 6c380922f0de
+ ---> d1094ac39c63
+Step 10/24 : FROM node:22.22.3-alpine3.24
+ ---> e58326d0d441
+Step 11/24 : ENV NODE_ENV=production     DATA_DIR=/data     PORT=8080
+ ---> Using cache
+ ---> c11c1e860879
+Step 12/24 : WORKDIR /app
+ ---> Using cache
+ ---> a78c303c160c
+Step 13/24 : RUN apk add --no-cache tini wget ffmpeg font-dejavu && mkdir -p /data && chown node:node /data
+ ---> Using cache
+ ---> 8445d6fc7d36
+Step 14/24 : COPY --from=build --chown=node:node /app/node_modules ./node_modules
+ ---> Using cache
+ ---> 43cdb917fa59
+Step 15/24 : COPY --from=build --chown=node:node /app/dist ./dist
+ ---> 6fa8f78bb886
+Step 16/24 : COPY --chown=node:node migrations ./migrations
+ ---> 056c7f7859e7
+Step 17/24 : COPY --chown=node:node assets ./assets
+ ---> 86b73ba4013d
+Step 18/24 : COPY --chown=node:node scripts/database-backup.mjs ./scripts/database-backup.mjs
+ ---> 00825d13d999
+Step 19/24 : COPY --chown=node:node package.json ./
+ ---> 227a200f3e9b
+Step 20/24 : USER node
+ ---> Running in 2e0c3a1934dc
+ ---> Removed intermediate container 2e0c3a1934dc
+ ---> 9628bca7cf38
+Step 21/24 : EXPOSE 8080
+ ---> Running in 31f86e7cf96f
+ ---> Removed intermediate container 31f86e7cf96f
+ ---> 97d04ff94f04
+Step 22/24 : HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=4   CMD wget -q -O /dev/null http://127.0.0.1:8080/healthz || exit 1
+ ---> Running in 8cb1a3ef07fc
+ ---> Removed intermediate container 8cb1a3ef07fc
+ ---> 8e17106c9c70
+Step 23/24 : ENTRYPOINT ["/sbin/tini", "--"]
+ ---> Running in 61b756b8df50
+ ---> Removed intermediate container 61b756b8df50
+ ---> 7da074ac1bb4
+Step 24/24 : CMD ["node", "dist/index.js"]
+ ---> Running in 45090914bc1f
+ ---> Removed intermediate container 45090914bc1f
+ ---> f7dd2072c477
+Successfully built f7dd2072c477
+Successfully tagged meldiq-api-database:review-20261101

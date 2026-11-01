@@ -142,6 +142,7 @@ export default async function preferenceRoutes(app: FastifyInstance, ctx: AppCon
     }
     // The person's other devices fetch the new copy (no content in the frame).
     ctx.hub.sendToUser(userId, { t: "prefs.updated", workspaceId, rev: result.doc.rev }, deviceId);
+    await ctx.redis?.publish("preferences", JSON.stringify({ origin: ctx.redis.instanceId, userId, workspaceId, rev: result.doc.rev }));
     return view(workspaceId, result.doc);
   });
 }

@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { type ClientSession, type Db, type Document, MongoClient, MongoServerError } from "mongodb";
 import { indexesFor, type TableSpec, tableSpecs, validatorFor } from "./catalog.js";
-import { type MongoConfig, type MongoDomain, redactUri } from "./config.js";
+import { type MongoConfig, type MongoDomain } from "./config.js";
 
 /** Bumped whenever the collections' validators or indexes change; recorded in orbit_meta. */
 export const MONGO_SCHEMA_VERSION = 4;
@@ -31,20 +31,21 @@ export class MeldiqMongo {
 
   /** Connects, checks the deployment and prepares the collections of [tables] (validators and indexes). */
   static async connect(config: MongoConfig, tables: TableSpec[], log?: Logger): Promise<MeldiqMongo> {
-    const client = new MongoClient(config.uri, {
-      appName: "meldiq-api",
-      maxPoolSize: config.maxPoolSize,
-      minPoolSize: 0,
-      serverSelectionTimeoutMS: config.timeoutMs,
-      connectTimeoutMS: config.timeoutMs,
-      socketTimeoutMS: config.timeoutMs * 6,
-      retryWrites: true,
-      retryReads: true,
-      // Acknowledged by a majority of the replica set: a failover never rolls back a write the app was told succeeded.
-      writeConcern: { w: "majority" },
-      readConcern: { level: "majority" },
-    });
+    let client: MongoClient | undefined;
     try {
+      client = new MongoClient(config.uri, {
+        appName: "meldiq-api",
+        maxPoolSize: config.maxPoolSize,
+        minPoolSize: 0,
+        serverSelectionTimeoutMS: config.timeoutMs,
+        connectTimeoutMS: config.timeoutMs,
+        socketTimeoutMS: config.timeoutMs * 6,
+        retryWrites: true,
+        retryReads: true,
+        // Acknowledged by a majority of the replica set: a failover never rolls back a write the app was told succeeded.
+        writeConcern: { w: "majority" },
+        readConcern: { level: "majority" },
+      });
       await client.connect();
       const db = client.db(config.dbName);
       const hello = (await db.admin().command({ hello: 1 })) as { setName?: string; msg?: string };
@@ -54,9 +55,9 @@ export class MeldiqMongo {
       log?.info({ db: config.dbName, domains: [...config.domains], transactions: supportsTransactions }, "MongoDB connected");
       return mongo;
     } catch (e) {
-      await client.close().catch(() => undefined);
-      // The driver's message may echo the host; never the password.
-      throw new Error(`MongoDB unavailable (${redactUri(config.uri)}): ${(e as Error).message.replaceAll(config.uri, redactUri(config.uri))}`);
+      await client?.close().catch(() => undefined);
+      // Driver errors may echo credentials outside the original URI (including query parameters).
+      throw new Error("MongoDB unavailable; check server connectivity and credentials");
     }
   }
 
@@ -67,9 +68,11 @@ export class MeldiqMongo {
    */
   async ensureSchema(tables: TableSpec[]): Promise<void> {
     const existing = new Map((await this.db.listCollections({}).toArray()).map((c) => [c.name, (c as { options?: Document }).options ?? {}]));
-    // Collections are independent of each other: prepared side by side.
-    await Promise.all(
-      tables.map(async (t) => {
+    // Bound DDL concurrency: unbounded creation of hundreds of collections exhausts small clusters' work queues.
+    let next = 0;
+    await Promise.all(Array.from({ length: Math.min(4, tables.length) }, async () => {
+      while (next < tables.length) {
+        const t = tables[next++];
         const validator = validatorFor(t);
         const options = existing.get(t.name);
         if (!options) await this.db.createCollection(t.name, { validator, validationLevel: "strict", validationAction: "error" });
@@ -78,8 +81,8 @@ export class MeldiqMongo {
         }
         const indexes = indexesFor(t);
         if (indexes.length) await this.db.collection(t.name).createIndexes(indexes);
-      }),
-    );
+      }
+    }));
     await this.db
       .collection<{ _id: string }>(META_COLLECTION)
       .updateOne({ _id: "schema" }, { $set: { version: MONGO_SCHEMA_VERSION, tables: tables.map((t) => t.name), updatedAt: Date.now() } }, { upsert: true });

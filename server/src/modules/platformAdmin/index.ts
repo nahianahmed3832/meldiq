@@ -49,3 +49,5 @@ export async function registerPlatformAdmin(app: FastifyInstance, ctx: AppContex
 }
 
 export { recoverReportWorkflows } from "./reportRecovery.js";
+
+export { validateAuditChain } from "./auditValidation.js";

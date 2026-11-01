@@ -1,0 +1,1 @@
+{"actualDeploymentConfigValid": true, "originalApiEnvironmentPreserved": true, "runtimeHeapMiB": 384, "runtimeHeapOverrideValid": true, "apiContainerLimitBytes": "805306368", "apiImagePreserved": true, "apiMountsPreserved": true, "apiPortsPreserved": true, "existingServicesPreserved": true, "redisPublishedPorts": 0, "servicesStarted": false, "productionFilesChanged": false}

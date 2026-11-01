@@ -1,0 +1,1 @@
+{"observedAt":"2026-11-01T16:28:50.151Z","version":"0.72.1","databaseMode":"hybrid","activeMongoDomains":["preferences","reports","relationships","history","accounts","files","relay","billing"],"redisConfigured":false,"migrationDeployedByThisWork":false}

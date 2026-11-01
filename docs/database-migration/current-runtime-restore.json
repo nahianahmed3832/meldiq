@@ -1,0 +1,395 @@
+{
+  "verified": true,
+  "collections": [
+    {
+      "collection": "points_accounts",
+      "count": 8,
+      "checksum": "3c32571c0c4017c56371b4bc0a44d2ae2995b4903a7eb194e332b37a714269d7"
+    },
+    {
+      "collection": "username_holds",
+      "count": 1,
+      "checksum": "9a7c7c7b9f8c29fe871604d688feb22af2014c4b9b7614486df8be1cd0d8e980"
+    },
+    {
+      "collection": "points_days",
+      "count": 23,
+      "checksum": "cb085d304cb7f857a4101fb02cb80f990a4f997391a7552286992e5a0c179a4b"
+    },
+    {
+      "collection": "billing_grants",
+      "count": 18,
+      "checksum": "e639a227d1990607abf14becc0ca16a8ea553c4a6f2c62c9246f5136f112f55c"
+    },
+    {
+      "collection": "oauth_apps",
+      "count": 1,
+      "checksum": "6819652c6491d0bd05a31fcc690c73129d01ee2ef5c57b45b12eac31be0951e3"
+    },
+    {
+      "collection": "account_totp",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "billing_program",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "connections",
+      "count": 8,
+      "checksum": "0de788b3b4ffad0f0ffd10fe9dd6825d655c3ca40a9060a4d1ca58e114b01039"
+    },
+    {
+      "collection": "creator_posts",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "billing_grant_notes",
+      "count": 11,
+      "checksum": "f4c606e88fcbf99bc8ab843733a117aeb8281f25e1477a7974a3366b4d572fd4"
+    },
+    {
+      "collection": "mojo_gifts",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "pending_blob_deletes",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "account_sessions",
+      "count": 67,
+      "checksum": "3b53bbd07d3bb70583107713f6ab963ee4234c900f0a07fa4e7e9f898e985e12"
+    },
+    {
+      "collection": "billing_invoices",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "attachments",
+      "count": 458,
+      "checksum": "db836d27d42350a5f210504cd448ef9a9d505cbaf02b4d4a585b901e6d6cbd12"
+    },
+    {
+      "collection": "decoration_favorites",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "billing_payment_actions",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "abandoned_uploads",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "points_ledger",
+      "count": 104,
+      "checksum": "c87e7ae06633beb5771dd38a9b3dba29fd80b56bdc6e8b33f343396a8dba0ade"
+    },
+    {
+      "collection": "user_activities",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "billing_subscription_history",
+      "count": 3,
+      "checksum": "e0b4748cec3af94f71b6e89761a18a61458f8e7fcca7d5eac58fbc8b19fadc29"
+    },
+    {
+      "collection": "oauth_codes",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "orbit_meta",
+      "count": 39,
+      "checksum": "b5ce741eeb548caca89efd26c85f0b0d3892b8c7164fb2a7022b0bc4be321cfa"
+    },
+    {
+      "collection": "dm_requests",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "spark_purchases",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "mojo_profile",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "submitted_messages",
+      "count": 2811,
+      "checksum": "4954ca317386947c5baa604294b28a9f8277dd87e99b5fa45baa4f842b779189"
+    },
+    {
+      "collection": "account_warnings",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "linked_account_starts",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "bots",
+      "count": 1,
+      "checksum": "3bf9a706b920a29f83d2a4b74b0949b6b9986d9d2f9dc87f1f4f7621f3a791c0"
+    },
+    {
+      "collection": "nav_preferences",
+      "count": 9,
+      "checksum": "8b3221f91c18b537adc928ec630b4e4948a7285607585ff42646bd5c0ea3bca7"
+    },
+    {
+      "collection": "account_passkeys",
+      "count": 1,
+      "checksum": "06bd3f674dbb34b5abd5bc7d41220824138822b97614d7c5cfe929c4d0563a67"
+    },
+    {
+      "collection": "history_accounts",
+      "count": 13,
+      "checksum": "99da62408e94c197c5127cb5db8fb62955da42bbf540ddf0ae2b656a7e00dd69"
+    },
+    {
+      "collection": "billing_checkouts_pre_paypal_20261101",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "community_pin_awards",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "community_pins",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "billing_referrals",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "account_totp_backup",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "account_session_factors",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "account_key_unlocks",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "community_rules",
+      "count": 1,
+      "checksum": "8e2cd23a8c377efa79baf05cad843a853cafbd6e11bc9ec644ac260b38931e5d"
+    },
+    {
+      "collection": "billing_webhook_rejections",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "accounts",
+      "count": 26,
+      "checksum": "171d3f117a308adef2387c819b397b545a512327a7e3f4dac624ec0d33a4b443"
+    },
+    {
+      "collection": "account_email_changes",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "creator_verifications",
+      "count": 1,
+      "checksum": "0cb65520eb85ab0a9c7db308cb31a9ef2a20bf3e676d00a421709ef8195e2bc5"
+    },
+    {
+      "collection": "creator_program",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "account_recovery_tickets",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "account_passkey_challenges",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "spark_assignments",
+      "count": 10,
+      "checksum": "29c080b981dbae6837c6e7c9a28bf8d92ff66c3631c64e1bdd21fd83d88174d5"
+    },
+    {
+      "collection": "profile_decorations",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "account_recovery_codes",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "mojo_gifts_pre_paypal_20261101",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "legacy_tickets",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "bug_reports",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "billing_play_purchases",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "account_codes",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "billing_checkouts",
+      "count": 3,
+      "checksum": "f98070652e85b200dde7f165d03fea34fb10895deb734b303245de38c9f78be0"
+    },
+    {
+      "collection": "billing_referral_codes",
+      "count": 12,
+      "checksum": "f5258d84beeb0619864d3c5ea07167600226e4031891612d3d9bc25dba8a93ef"
+    },
+    {
+      "collection": "platform_audit",
+      "count": 1,
+      "checksum": "6cf9bfa81aed1c866a120feb7954e3f85fc0f08adf2884fea3139772fa793450"
+    },
+    {
+      "collection": "billing_plan_versions",
+      "count": 2,
+      "checksum": "71909422f54fbf05111f2697a830fcc14d0b9e08db44bceee5e31916944f17c8"
+    },
+    {
+      "collection": "linked_accounts",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "billing_plans",
+      "count": 2,
+      "checksum": "a4682e6bb547ee8f7677dbb3d0c4c08715d7d5a031603fb17f1dcc2cf3eb98c7"
+    },
+    {
+      "collection": "billing_customers",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "community_rule_agreements",
+      "count": 1,
+      "checksum": "fb950184a803858986db9f09854599bb45c93217333d7b7d5242436d8161e0f7"
+    },
+    {
+      "collection": "attachment_uploads",
+      "count": 1,
+      "checksum": "151f8ffd565e3184d84993cb4b9ba456b298326893592da2c89a2d2dffb22737"
+    },
+    {
+      "collection": "billing_subscriptions",
+      "count": 3,
+      "checksum": "a06e48e15379cb3e1af1deb4590f282f5308c4e15b969409244dff8f880d98cb"
+    },
+    {
+      "collection": "delivery_queue",
+      "count": 40713,
+      "checksum": "719892409963510543a1fa38af584bf3841a76e8f437778b145cb807d0b0c918"
+    },
+    {
+      "collection": "points_invites",
+      "count": 1,
+      "checksum": "b5a21ef43d6af89015e554b720172938917ededf3990feaadb41a4b6a5d1fc74"
+    },
+    {
+      "collection": "reports",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "oauth_grants",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "oauth_tokens",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "account_key_backups",
+      "count": 14,
+      "checksum": "483616811561fca1b12c5a3549009f659df08d804d9c25077b8b73de30ca1e46"
+    },
+    {
+      "collection": "history_items",
+      "count": 3025,
+      "checksum": "96fa750398f452aa7c4161297b7f0ccd03984f452cd7d7cec201cf07474e1e4b"
+    },
+    {
+      "collection": "bot_interactions",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "billing_provider_events",
+      "count": 5,
+      "checksum": "3fa473b6576b6ad23d4d5b477f6e25a2506001717a5f7d68b0c11c50c4d1b9b3"
+    },
+    {
+      "collection": "mojo_controls",
+      "count": 0,
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "collection": "message_events",
+      "count": 2709,
+      "checksum": "8062f045b7e1c9aedd4e5c07ec1bd782b16839b2a4dcac58cd8f774483c421f6"
+    },
+    {
+      "collection": "messaging_settings",
+      "count": 1,
+      "checksum": "eddf93e5284a3f5e4be040648ac355a8bca36d964cdc808b82a5b7b6a96dbc78"
+    }
+  ]
+}
