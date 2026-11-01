@@ -60,7 +60,7 @@ export class AdminBilling {
 
   async refundPayPal(p: AdminPrincipal, id: string, reason: string, meta: RequestMeta) {
     const checkout = new PayPalCheckout(this.ctx.billing, this.ctx.gifts);
-    const result = await checkout.refund(id, p.account.id, reason, () => this.record(p, "billing.paypal.refund_requested", "mojo_gift", id, reason, meta, { provider: "paypal", mode: "test" }));
+    const result = await checkout.refund(id, p.account.id, reason, () => this.record(p, "billing.paypal.refund_requested", "mojo_gift", id, reason, meta, { provider: "paypal", mode: checkout.provider.mode }));
     await this.record(p, "billing.paypal.refund_result", "mojo_gift", id, reason, meta, { status: result.status, reference: result.reference });
     return result;
   }

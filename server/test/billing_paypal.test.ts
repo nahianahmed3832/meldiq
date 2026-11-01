@@ -101,6 +101,7 @@ class FakePayPal implements PayPalApi {
         plan_id: body.plan_id,
         custom_id: body.custom_id,
         status: "APPROVAL_PENDING",
+        start_time: body.start_time,
         links: [],
       };
       this.subs.set(id, result);
@@ -176,7 +177,7 @@ const headers = () => ({
 });
 
 describe("PayPal Sandbox configuration", () => {
-  it("hard-refuses production and live selections even if BILLING_ALLOW_LIVE is enabled", () => {
+  it("separates Sandbox from explicitly enabled production live charges", () => {
     expect(billingConfig(env).provider).toMatchObject({
       id: "paypal",
       mode: "test",
@@ -187,7 +188,7 @@ describe("PayPal Sandbox configuration", () => {
         PAYPAL_ENVIRONMENT: "live",
         BILLING_ALLOW_LIVE: "true",
       }),
-    ).toThrow(/Sandbox/);
+    ).toThrow(/APP_ENV/);
     expect(() =>
       billingConfig({
         ...env,
@@ -195,6 +196,11 @@ describe("PayPal Sandbox configuration", () => {
         BILLING_ALLOW_LIVE: "true",
       }),
     ).toThrow(/production/);
+    const live = billingConfig({ ...env, APP_ENV: "production", PAYPAL_ENVIRONMENT: "live", BILLING_ALLOW_LIVE: "true" }).provider as PayPalProvider;
+    expect(live.mode).toBe("live");
+    expect(live.publicConfig().environment).toBe("live");
+    expect(live.supportsOneTimePurchases).toBe(false);
+    expect(() => billingConfig({ ...env, APP_ENV: "production", PAYPAL_ENVIRONMENT: "live" })).toThrow(/BILLING_ALLOW_LIVE/);
     expect(() => billingConfig({ ...env, PAYPAL_CLIENT_SECRET: "" })).toThrow(
       /requires/,
     );
@@ -358,6 +364,7 @@ describe("PayPal through authenticated billing APIs", () => {
       provider: "paypal",
       environment: "sandbox",
       clientId: env.PAYPAL_CLIENT_ID,
+      billingStartAt: null,
       subscriptions: true,
       cards: false,
     });
@@ -548,6 +555,24 @@ describe("PayPal through authenticated billing APIs", () => {
     });
     expect(malicious.statusCode).toBe(400);
   });
+  it("preserves existing free time while scheduling and cancelling an approved unpaid subscription", async () => {
+    const user = await AccountClient.ready(h.baseUrl, mailer, "paypalfreeperiod");
+    const end = Date.now() + 7 * 86400000;
+    const id = "grt_paypal_free_period";
+    await h.ctx.billing.rows.write((w) => w.insert("billing_grants", { id, account_id: user.accountId, user_id: user.userId, plan_key: "plus", source: "operator", starts_at: Date.now() - 1000, ends_at: end, created_at: Date.now() }));
+    expect((await user.req("GET", "/v2/billing/paypal/config")).billingStartAt).toBe(end);
+    const p = await user.req("POST", "/v2/billing/paypal/checkouts", { product: "plus", requestKey: randomUUID() });
+    const remote = api.subs.get(p.providerRef);
+    expect(remote.start_time).toBe(new Date(end).toISOString());
+    remote.status = "ACTIVE";
+    const result = await user.req("POST", `/v2/billing/paypal/checkouts/${p.id}/confirm`, {});
+    expect(result).toMatchObject({ approved: true, confirmed: false, status: "incomplete" });
+    expect(h.ctx.billing.grants.get(id)?.ends_at).toBe(end);
+    const canceled = await user.req("POST", "/v2/billing/paypal/cancel", { confirm: true });
+    expect(canceled.confirmed).toBe(true);
+    expect(h.ctx.billing.grants.get(id)?.ends_at).toBe(end);
+  });
+
   it("independently verifies Plus activation, failed renewal, recovery, cancellation and paid-period expiration", async () => {
     const user = await AccountClient.ready(h.baseUrl, mailer, "paypalplus");
     const started = await user.req("POST", "/v2/billing/paypal/checkouts", {

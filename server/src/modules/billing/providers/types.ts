@@ -13,6 +13,7 @@ export interface BillingProvider {
   readonly id: string;
   /** "test": sandbox or test keys, never real money. "live": real charges. */
   readonly mode: "test" | "live";
+  readonly supportsOneTimePurchases?: boolean;
   /**
    * Checks the signature of a webhook body exactly as received and returns the provider's event, normalized.
    * Throws [WebhookRejected] when the signature or the body can't be trusted.
@@ -82,6 +83,7 @@ export class WebhookRejected extends Error {
 
 /** A subscription's whole state as the provider reports it: applying a newer snapshot over an older one is safe. */
 export interface SubscriptionSnapshot {
+  approvalConfirmed?: boolean;
   ref: string;
   customerRef: string | null;
   status: SubscriptionStatus;

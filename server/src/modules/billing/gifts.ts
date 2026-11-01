@@ -102,7 +102,7 @@ export class Gifts implements PaymentEvents {
     requestKey?: string,
   ): Promise<{ giftId: string; url: string | null; expiresAt: number }> {
     const provider = this.billing.requireProvider();
-    if (!provider.createPaymentCheckout) throw new ApiError(409, "billing_unavailable", "Gifts can't be bought with this payment provider");
+    if (!provider.createPaymentCheckout || provider.supportsOneTimePurchases === false) throw new ApiError(409, "billing_unavailable", "Gifts can't be bought with this payment provider");
     const { planKey, note } = this.validate(starter, input);
     const price = this.price(planKey, input.months);
     if (!price) throw new ApiError(409, "billing_unavailable", "Mojo isn't on sale yet");

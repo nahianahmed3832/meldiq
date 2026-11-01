@@ -164,17 +164,20 @@ function providerConfig(env: NodeJS.ProcessEnv): Omit<BillingConfig, "trials" | 
     return { provider: new SandboxProvider(secret), unavailableReason: null, returnUrl: env.BILLING_RETURN_URL ? returnUrl(env.BILLING_RETURN_URL, production) : null };
   }
   if (name === "paypal") {
-    if (env.PAYPAL_ENVIRONMENT !== "sandbox" || production) throw new Error("PayPal is Sandbox-only and is disabled in production");
+    const environment = env.PAYPAL_ENVIRONMENT;
+    if (environment !== "sandbox" && environment !== "live") throw new Error("PAYPAL_ENVIRONMENT must be sandbox or live");
+    if (environment === "sandbox" && production) throw new Error("PayPal Sandbox cannot run in production");
+    if (environment === "live" && !(production && env.BILLING_ALLOW_LIVE === "true")) throw new Error("PayPal live charges require APP_ENV=production and BILLING_ALLOW_LIVE=true");
     const clientId = (env.PAYPAL_CLIENT_ID ?? "").trim();
     const clientSecret = (env.PAYPAL_CLIENT_SECRET ?? "").trim();
     const webhookId = (env.PAYPAL_WEBHOOK_ID ?? "").trim();
     const merchantId = (env.PAYPAL_MERCHANT_ID ?? "").trim();
-    if (!clientId || !clientSecret || !webhookId || !merchantId) throw new Error("PayPal Sandbox requires client ID, secret, webhook ID and merchant ID in the API environment");
+    if (!clientId || !clientSecret || !webhookId || !merchantId) throw new Error("PayPal requires client ID, secret, webhook ID and merchant ID in the API environment");
     const plusPlanId = (env.PAYPAL_PLUS_PLAN_ID ?? "").trim() || null;
-    if (plusPlanId && !/^P-[A-Z0-9]+$/.test(plusPlanId)) throw new Error("PAYPAL_PLUS_PLAN_ID must be a Sandbox plan ID");
+    if (plusPlanId && !/^P-[A-Z0-9]+$/.test(plusPlanId)) throw new Error("PAYPAL_PLUS_PLAN_ID must be a PayPal plan ID");
     const approved = env.PAYPAL_SUBSCRIPTIONS_APPROVED ?? "false";
     if (approved !== "true" && approved !== "false") throw new Error("PAYPAL_SUBSCRIPTIONS_APPROVED must be true or false");
-    return { provider: new PayPalProvider({ clientId, clientSecret, webhookId, merchantId, plusPlanId, subscriptionsApproved: approved === "true" }), unavailableReason: null, returnUrl: returnUrl(env.BILLING_RETURN_URL, false) };
+    return { provider: new PayPalProvider({ environment, clientId, clientSecret, webhookId, merchantId, plusPlanId, subscriptionsApproved: approved === "true", giftsEnabled: environment === "sandbox" || env.PAYPAL_GIFTS_ENABLED === "true" }), unavailableReason: null, returnUrl: returnUrl(env.BILLING_RETURN_URL, production) };
   }
   if (name === "stripe") {
     const key = (env.STRIPE_SECRET_KEY ?? "").trim();

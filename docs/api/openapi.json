@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Meldiq API",
-    "version": "0.68.0",
+    "version": "0.69.0",
     "description": "The canonical contract of the Meldiq server (docs/architecture/ARCHITECTURE_1_0_PLAN.md §4), generated from src/shared/contracts. Fields are only ever added within a version; clients ignore unknown fields. Routes not listed here exist but aren't documented yet."
   },
   "servers": [
@@ -66005,10 +66005,23 @@
                     },
                     "environment": {
                       "type": "string",
-                      "const": "sandbox"
+                      "enum": [
+                        "sandbox",
+                        "live"
+                      ]
                     },
                     "clientId": {
                       "type": "string"
+                    },
+                    "billingStartAt": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "subscriptions": {
                       "type": "boolean"
@@ -66084,6 +66097,9 @@
                       "type": "string"
                     },
                     "confirmed": {
+                      "type": "boolean"
+                    },
+                    "approved": {
                       "type": "boolean"
                     },
                     "currency": {
@@ -66268,6 +66284,9 @@
                     "confirmed": {
                       "type": "boolean"
                     },
+                    "approved": {
+                      "type": "boolean"
+                    },
                     "currency": {
                       "type": "string",
                       "const": "USD"
@@ -66370,6 +66389,9 @@
                       "type": "string"
                     },
                     "confirmed": {
+                      "type": "boolean"
+                    },
+                    "approved": {
                       "type": "boolean"
                     },
                     "currency": {

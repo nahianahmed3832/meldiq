@@ -5,7 +5,7 @@ import { newId } from "../../shared/utilities/util.js";
 import { type PlanAudience, PlanCatalog, type QuotaPlanCheck, parseLimits } from "./catalog.js";
 import type { BillingConfig } from "./config.js";
 import { type BillingOwner, ownerRef } from "./owners.js";
-import type { BillingProvider } from "./providers/types.js";
+import type { BillingProvider, SubscriptionSnapshot } from "./providers/types.js";
 import { ownerWhere, type SubscriptionRow, Subscriptions } from "./subscriptions.js";
 import { isAddonPlanKey, SPARK_MAX_PURCHASE, SPARK_PLAN_KEY } from "./perks.js";
 import { MojoControls } from "./controls.js";
@@ -241,7 +241,7 @@ export class Billing {
    * When the owner's free period (a grant) ends, if it still has more than two days left: a subscription bought during
    * it starts charging then, so subscribing early never costs free days. (Providers need a trial end some time ahead.)
    */
-  private freePeriodEnd(owner: BillingOwner): number | null {
+  freePeriodEnd(owner: BillingOwner): number | null {
     if (owner.kind !== "account") return null;
     const t = this.clock();
     const g = this.grants.active(owner.accountId, t);
@@ -320,9 +320,10 @@ export class Billing {
     return { checked: refs.size };
   }
 
-  async reconcileRefs(refs: string[]): Promise<void> {
+  async reconcileRefs(refs: string[]): Promise<SubscriptionSnapshot[]> {
     const provider = this.provider;
-    if (!provider?.fetchSubscription) return;
+    if (!provider?.fetchSubscription) return [];
+    const snapshots: SubscriptionSnapshot[] = [];
     for (const ref of refs) {
       const snap = await provider.fetchSubscription(ref);
       if (!snap) continue;
@@ -331,11 +332,13 @@ export class Billing {
       const at = Math.max(existing?.provider_updated_at ?? 0, t - RECONCILE_SKEW_MS);
       try {
         const outcome = await this.rows.write((w) => this.subscriptions.applySnapshot(w, provider.id, snap, at, `reconcile:${t}`, t));
+        snapshots.push(snap);
         if (outcome.owner && outcome.result === "applied") this.changed(outcome.owner);
       } catch (e) {
         this.log.warn({ err: e, subscription: ref }, "billing reconciliation couldn't apply the provider's state");
       }
     }
+    return snapshots;
   }
 
   private subscriptionView(s: SubscriptionRow, t: number) {

@@ -27,7 +27,7 @@ export class PayPalCheckout {
     private readonly gifts: Gifts,
   ) {
     if (!(billing.provider instanceof PayPalProvider))
-      throw notFound("PayPal Sandbox is not configured");
+      throw notFound("PayPal is not configured");
     this.provider = billing.provider;
   }
 
@@ -48,7 +48,7 @@ export class PayPalCheckout {
       throw new ApiError(
         409,
         "billing_unavailable",
-        "Publish the existing Plus offer at USD 3.99/month for PayPal Sandbox before checkout.",
+        "Publish the existing Plus offer at USD 3.99/month for PayPal before checkout.",
       );
     let id: string;
     if (input.product === "plus") {
@@ -61,7 +61,7 @@ export class PayPalCheckout {
         pending.status === "incomplete" &&
         pending.checkout_id
       )
-        return this.view(starter.accountId, pending.checkout_id);
+        return this.confirm(starter.accountId, pending.checkout_id, false);
       const result = await this.billing.startOwnerCheckout(
         { kind: "account", accountId: starter.accountId },
         starter,
@@ -141,6 +141,7 @@ export class PayPalCheckout {
 
   /** The client supplies only our purchase ID; the provider reference always comes from the owned stored row. */
   async confirm(accountId: string, id: string, capture: boolean) {
+    let approved = false;
     const { gift, checkout } = this.owned(accountId, id);
     if (gift?.provider_session_ref) {
       const expected = { reference: gift.id, amountMinor: gift.amount_minor };
@@ -167,9 +168,10 @@ export class PayPalCheckout {
           { provider_subscription_ref: checkout.provider_session_ref },
         ),
       );
-      await this.billing.reconcileRefs([checkout.provider_session_ref]);
+      const snapshots = await this.billing.reconcileRefs([checkout.provider_session_ref]);
+      approved = snapshots[0]?.approvalConfirmed === true;
     }
-    return this.view(accountId, id);
+    return { ...this.view(accountId, id), approved };
   }
 
   async cancel(accountId: string) {

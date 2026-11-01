@@ -18,8 +18,9 @@ export const PayPalCheckoutBody = z.discriminatedUnion("product", [
 ]);
 export const PayPalConfig = z.strictObject({
   provider: z.literal("paypal"),
-  environment: z.literal("sandbox"),
+  environment: z.enum(["sandbox", "live"]),
   clientId: z.string(),
+  billingStartAt: z.number().nullable().optional(),
   subscriptions: z.boolean(),
   cards: z.literal(false),
 });
@@ -29,6 +30,7 @@ export const PayPalCheckoutView = z.strictObject({
   providerRef: z.string().nullable(),
   status: z.string(),
   confirmed: z.boolean(),
+  approved: z.boolean().optional(),
   currency: z.literal("USD"),
   amountMinor: z.number().int().nonnegative(),
   interval: z.enum(["month", "one_time"]),

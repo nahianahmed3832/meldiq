@@ -280,7 +280,10 @@ export default async function billingRoutes(
   });
 
   const paypal = () => new PayPalCheckout(ctx.billing, ctx.gifts);
-  app.get("/v2/billing/paypal/config", authed, async () => paypal().provider.publicConfig());
+  app.get("/v2/billing/paypal/config", authed, async (req) => {
+    await accountWithTrial(session(req));
+    return { ...paypal().provider.publicConfig(), billingStartAt: ctx.billing.freePeriodEnd({ kind: "account", accountId: session(req).accountId }) };
+  });
   app.post("/v2/billing/paypal/checkouts", providerCall, async (req) => {
     const s = session(req);
     const starter = await starterFor(s, { kind: "account", accountId: s.accountId });

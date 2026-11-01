@@ -2,7 +2,7 @@ import { z } from "zod/v4";
 import { ApiError } from "../../../shared/errors.js";
 import { addMonths } from "../gifts.js";
 import type { SubscriptionStatus } from "../lifecycle.js";
-import { HttpPayPalApi, type PayPalApi } from "./paypalApi.js";
+import { HttpPayPalApi, type PayPalApi, type PayPalEnvironment } from "./paypalApi.js";
 import {
   type BillingProvider,
   type CheckoutInput,
@@ -87,6 +87,8 @@ const subscription = z.object({
 });
 
 export interface PayPalOptions {
+  environment?: PayPalEnvironment;
+  giftsEnabled?: boolean;
   clientId: string;
   clientSecret: string;
   webhookId: string;
@@ -110,22 +112,29 @@ const at = (value: string | undefined): number | null => {
   return Number.isFinite(t) ? t : null;
 };
 
-/** Existing billing adapter, Sandbox only. All financial values come from REST reads or server-owned inputs. */
+/** Existing billing adapter with strictly separated Sandbox and live hosts. All financial values come from REST reads or server-owned inputs. */
 export class PayPalProvider implements BillingProvider {
   readonly id = "paypal";
-  readonly mode = "test";
+  readonly mode: "test" | "live";
+  readonly environment: PayPalEnvironment;
+  readonly supportsOneTimePurchases: boolean;
   readonly api: PayPalApi;
   private readonly clock: () => number;
   constructor(readonly options: PayPalOptions) {
+    this.environment = options.environment ?? "sandbox";
+    this.mode = this.environment === "live" ? "live" : "test";
+    this.supportsOneTimePurchases = options.giftsEnabled ?? this.environment === "sandbox";
     this.api =
-      options.api ?? new HttpPayPalApi(options.clientId, options.clientSecret);
+      options.api ?? new HttpPayPalApi(options.clientId, options.clientSecret, this.environment);
     this.clock = options.clock ?? Date.now;
   }
+
+  private apiHosts(): string[] { return this.environment === "live" ? ["api.paypal.com", "api-m.paypal.com"] : ["api.sandbox.paypal.com", "api-m.sandbox.paypal.com"]; }
 
   publicConfig() {
     return {
       provider: "paypal" as const,
-      environment: "sandbox" as const,
+      environment: this.environment,
       clientId: this.options.clientId,
       subscriptions:
         this.options.subscriptionsApproved && !!this.options.plusPlanId,
@@ -139,7 +148,7 @@ export class PayPalProvider implements BillingProvider {
       throw new ApiError(
         409,
         "billing_unavailable",
-        "PayPal recurring payments have not been approved for this Sandbox app.",
+        "PayPal recurring payments have not been approved for this app.",
       );
     const plan = z
       .object({
@@ -193,13 +202,12 @@ export class PayPalProvider implements BillingProvider {
     if (
       input.priceRef !== this.options.plusPlanId ||
       (input.quantity && input.quantity !== 1) ||
-      input.trialDays ||
-      input.trialEndsAt
+      input.trialDays
     )
       throw new ApiError(
         409,
         "billing_unavailable",
-        "This PayPal checkout supports the monthly Plus plan without trial overrides only.",
+        "This PayPal checkout supports the monthly Plus plan without price or trial-cycle overrides only.",
       );
     await this.verifyPlusPlan();
     const result = subscription.parse(
@@ -209,6 +217,9 @@ export class PayPalProvider implements BillingProvider {
         {
           plan_id: this.options.plusPlanId,
           custom_id: input.reference,
+          ...(input.trialEndsAt && input.trialEndsAt > this.clock()
+            ? { start_time: new Date(input.trialEndsAt).toISOString() }
+            : {}),
           application_context: {
             brand_name: "Meldiq",
             shipping_preference: "NO_SHIPPING",
@@ -224,6 +235,7 @@ export class PayPalProvider implements BillingProvider {
   }
 
   async createPaymentCheckout(input: PaymentCheckoutInput) {
+    if (!this.supportsOneTimePurchases) throw new ApiError(409, "billing_unavailable", "One-time purchases are not enabled for this PayPal app");
     if (
       input.currency !== "USD" ||
       !Number.isSafeInteger(input.amountMinor) ||
@@ -232,7 +244,7 @@ export class PayPalProvider implements BillingProvider {
       throw new ApiError(
         409,
         "billing_unavailable",
-        "This Sandbox checkout supports existing USD products only.",
+        "This checkout supports existing USD products only.",
       );
     const result = order.parse(
       await this.api.request(
@@ -279,7 +291,7 @@ export class PayPalProvider implements BillingProvider {
     const u = new URL(link.href);
     if (
       u.protocol !== "https:" ||
-      u.hostname !== "www.sandbox.paypal.com" ||
+      u.hostname !== (this.environment === "live" ? "www.paypal.com" : "www.sandbox.paypal.com") ||
       u.username ||
       u.password
     )
@@ -411,13 +423,14 @@ export class PayPalProvider implements BillingProvider {
     if (s.status === "EXPIRED") status = "canceled";
     return {
       ref: id,
+      approvalConfirmed: s.status === "APPROVED" || s.status === "ACTIVE",
       customerRef: null,
       status,
       priceRef: s.plan_id,
       checkoutRef: s.custom_id,
       currentPeriodStart: paidAt,
       currentPeriodEnd: paidUntil,
-      trialEnd: null,
+      trialEnd: at(s.start_time) !== null && at(s.start_time)! > now ? at(s.start_time) : null,
       cancelAtPeriodEnd: canceled,
       canceledAt: canceled ? at(s.status_update_time) : null,
       quantity: 1,
@@ -499,7 +512,7 @@ export class PayPalProvider implements BillingProvider {
     }
     if (
       cert.protocol !== "https:" ||
-      !["api.sandbox.paypal.com", "api-m.sandbox.paypal.com"].includes(
+      !this.apiHosts().includes(
         cert.hostname,
       ) ||
       !cert.pathname.startsWith("/v1/notifications/certs/") ||
@@ -623,7 +636,7 @@ export class PayPalProvider implements BillingProvider {
           }
           if (
             url.protocol !== "https:" ||
-            !["api.sandbox.paypal.com", "api-m.sandbox.paypal.com"].includes(
+            !this.apiHosts().includes(
               url.hostname,
             )
           )
