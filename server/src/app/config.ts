@@ -1,3 +1,4 @@
+import { socialConfig, type SocialConfig } from "../modules/accounts/social/config.js";
 import { secretsKey } from "../infrastructure/crypto/secretBox.js";
 import path from "node:path";
 import { networkKey } from "./middleware/abuse.js";
@@ -38,6 +39,7 @@ function intFrom(env: NodeJS.ProcessEnv, name: string, def: number): number {
 }
 
 export interface Config {
+  socialAuth: SocialConfig | null;
   host: string;
   port: number;
   databasePath: string;
@@ -587,6 +589,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     // straight from the app; uploads through the server need the reverse proxy to allow bodies this large.
     attachmentMaxBytes,
     fileMaxBytes,
+    socialAuth: socialConfig(env),
     accounts: accountsConfig(env, dataDir, int),
     mongo: mongoConfig(env, env.APP_ENV?.trim() || "development", int),
     platformAdmins: new Set((env.PLATFORM_ADMIN_USER_IDS ?? "").split(",").map((s) => s.trim()).filter(Boolean)),

@@ -1,3 +1,4 @@
+import socialRoutes from "../modules/accounts/social/routes.js";
 import rateLimit from "@fastify/rate-limit";
 import { MAINTENANCE_RETRY_SECONDS, maintenanceError, readControl, signupMode } from "./platformControls.js";
 import { readSiteDetails } from "./siteDetails.js";
@@ -144,7 +145,7 @@ import { now } from "../shared/utilities/util.js";
 import wsRoutes from "../modules/realtime/ws.js";
 import { Billing, billingRoutes } from "../modules/billing/index.js";
 
-export const VERSION = "0.73.0";
+export const VERSION = "0.74.0";
 /**
  * The client API this server speaks and the oldest client API it accepts. Clients refuse a server whose
  * minClientApi is newer than theirs; servers from before these fields existed count as API 1.
@@ -159,6 +160,7 @@ export const SERVER_INFO_VERSION = 1;
  * (/admin/v1/users?q=…): its query strings are never logged, so no address or search ends up in the logs.
  */
 export function logUrl(url: string): string {
+  if (url.startsWith("/v2/auth/social/")) return url.split("?")[0];
   if (url.startsWith("/admin/")) return url.split("?")[0];
   // A webhook's address holds its secret token (community parity batch C): never logged.
   return url.replace(/^(\/v1\/webhooks\/[^/?]+\/)(?!avatar(?:[?]|$))[^/?]+/, "$1<token>");
@@ -726,6 +728,7 @@ export async function buildApp(
   await app.register(async (scope) => communityRoutes(scope, ctx));
   await app.register(async (scope) => experimentRoutes(scope, ctx));
   await app.register(async (scope) => accountRoutes(scope, ctx, ctx.accounts));
+  await app.register(async (scope) => socialRoutes(scope, ctx));
   await app.register(async (scope) => billingRoutes(scope, ctx));
   // The Platform Admin Console's /admin/v1 (only with ADMIN_CONSOLE_ORIGIN set; its own sessions, roles and audit).
   await registerPlatformAdmin(app, ctx, VERSION);
