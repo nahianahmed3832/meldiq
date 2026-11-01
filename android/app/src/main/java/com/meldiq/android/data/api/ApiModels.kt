@@ -267,6 +267,7 @@ object ChannelFormat {
 @Serializable data class SendStoredReq(
     val conversationId: String, val messageId: String, val cls: String, val sentAt: Long,
     val payload: kotlinx.serialization.json.JsonObject,
+    val mentionAll: Boolean? = null, val audience: String? = null,
 )
 @Serializable data class SendStoredRes(val messageId: String, val serverTs: Long, val duplicate: Boolean = false)
 @Serializable data class StoredEventDto(

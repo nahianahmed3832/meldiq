@@ -52,3 +52,9 @@ Checks:
 
 The media test is skipped unless `interopMedia=true`; all fixture tests are skipped in ordinary CI runs without
 `interopApi` and `interopFixture`. Physical phone and restricted-network coverage remain separate checks.
+
+For ordinary messaging, use the same fixture and emulator ports, and set
+`-e class com.meldiq.android.MessageInteropTest` instead. These four tests check community and personal-inbox sends,
+web-format replies, edits, reactions, server read markers, and retrying messages previously rejected with
+`426 update_required`. Retries must clear the visible error and keep one server message with the original id.
+Messaging tests do not need the local media server or `interopMedia`.
