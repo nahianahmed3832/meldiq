@@ -1,5 +1,6 @@
+import { processAsset } from "../src/modules/accounts/collectibles/assets.js";
 import { createHash, randomBytes } from "node:crypto";
-import { beforeAll, afterAll, describe, expect, it } from "vitest";
+import { beforeAll, afterAll, describe, expect, it, vi } from "vitest";
 import { startServer, type Harness } from "./support/harness.js";
 import {
   ADMIN_ORIGIN,
@@ -143,6 +144,27 @@ describe.skipIf(!bucket)(
           optimizedVariants: 4,
           conditionalGet: 304,
         }),
+      );
+    }, 60000);
+
+    it("recovers interrupted content-addressed processing without replacing existing objects", async () => {
+      const body = Buffer.from(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="#818cf8"/></svg>',
+      );
+      const put = h.ctx.blobs.putFile.bind(h.ctx.blobs);
+      let count = 0;
+      const spy = vi
+        .spyOn(h.ctx.blobs, "putFile")
+        .mockImplementation(async (...args) => {
+          if (++count === 3) throw new Error("Simulated interrupted upload");
+          return put(...args);
+        });
+      await expect(processAsset(h.ctx, body)).rejects.toThrow(
+        "Simulated interrupted upload",
+      );
+      spy.mockRestore();
+      expect((await processAsset(h.ctx, body)).variants).toHaveProperty(
+        "thumbnail",
       );
     }, 60000);
   },

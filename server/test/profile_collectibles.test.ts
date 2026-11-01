@@ -1,3 +1,4 @@
+import { seedCollectionArtwork } from "../src/modules/accounts/collectibles/seedAssets.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import sharp from "sharp";
 import { startServer, type Harness, expectStatus } from "./support/harness.js";
@@ -47,6 +48,17 @@ describe.each([
       baseStyleRevision: rev ?? (await state()).styleRevision,
       slots,
     });
+  it("publishes original launch artwork once and preserves catalog overrides", async () => {
+    const first = await seedCollectionArtwork(h.ctx, "assets/collectibles");
+    expect(first.assetId).toMatch(/^[a-f0-9]{64}$/);
+    expect(await seedCollectionArtwork(h.ctx, "assets/collectibles")).toEqual({
+      id: "blue-horizon",
+      skipped: true,
+    });
+    expect(
+      new CollectionService(h.ctx).item("blue-horizon").recipe.assetId,
+    ).toBe(first.assetId);
+  });
   it("requires authentication and paginates every category without duplicates", async () => {
     expect((await fetch(h.baseUrl + "/v2/profile-collectibles")).status).toBe(
       401,
@@ -54,6 +66,9 @@ describe.each([
     expect(
       (await ada.req("GET", "/v2/profile-collectibles/categories")).categories,
     ).toHaveLength(8);
+    expect((await ada.req("GET", "/v2/auth/social/config")).providers).toEqual(
+      [],
+    );
     const a = await ada.req(
       "GET",
       "/v2/profile-collectibles?limit=2&category=avatar-frame",

@@ -27,7 +27,7 @@ export const Asset = z.object({
 export type Asset = z.infer<typeof Asset>;
 let active = 0;
 export async function processAsset(
-  ctx: AppContext,
+  ctx: Pick<AppContext, "identity" | "blobs">,
   input: Buffer,
 ): Promise<Asset> {
   if (active >= 2)
@@ -44,7 +44,7 @@ export async function processAsset(
   }
 }
 async function processAssetUnchecked(
-  ctx: AppContext,
+  ctx: Pick<AppContext, "identity" | "blobs">,
   input: Buffer,
 ): Promise<Asset> {
   if (!input.length || input.length > ASSET_MAX)

@@ -1,3 +1,4 @@
+import { seedCollectionArtwork } from "./modules/accounts/collectibles/seedAssets.js";
 import { collectibleBlobIsReferenced } from "./modules/accounts/collectibles/assetReferences.js";
 /**
  * Operator CLI. Runs inside the api container; there is no HTTP admin surface.
@@ -28,6 +29,7 @@ import { collectibleBlobIsReferenced } from "./modules/accounts/collectibles/ass
  *   org-delete-empty <orgId> [--yes]  remove one provably empty duplicate (dry run without --yes; back up first)
  *   channel-access-repair [--yes]  public channels created as opt-in before round 7: mark them auto-joined and add the
  *                                  members who may see them (dry run without --yes; back up first)
+ *   collectibles-seed-artwork       seed original launch artwork once; preserves ownership/operator overrides
  *   storage-check                  which file store is configured and whether it answers (no secrets printed)
  *   storage-orphans [--delete]     stored files no record refers to, older than a day (dry run; --delete queues them
  *                                  for the retention job)
@@ -195,6 +197,13 @@ const domains = () => (cliRows ??= openCliRows(cfg, db));
 const iso = (t: number | null) => (t === null ? null : new Date(t).toISOString());
 
 switch (cmd) {
+  case "collectibles-seed-artwork": {
+    const { identity, platform } = await domains();
+    const blobs = createBlobStore(cfg);
+    console.log(JSON.stringify(await seedCollectionArtwork({ identity, platform, blobs }, "assets/collectibles")));
+    break;
+  }
+
   case "stats": {
     const { identity } = await domains();
     console.table({
