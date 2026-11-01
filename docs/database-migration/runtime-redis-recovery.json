@@ -1,0 +1,53 @@
+{
+  "productionWrites": false,
+  "containerLimitMiB": 768,
+  "heapBudgetMiB": 384,
+  "startup": {
+    "productionWrites": false,
+    "node": "v22.22.3",
+    "health": 200,
+    "serverInfo": 200,
+    "persistentSqliteOpened": false,
+    "memory": {
+      "rss": 352964608,
+      "heapTotal": 300191744,
+      "heapUsed": 242453360,
+      "external": 22295648,
+      "arrayBuffers": 18470735
+    },
+    "domains": [
+      "accounts",
+      "preferences",
+      "history",
+      "reports",
+      "relationships",
+      "relay",
+      "files",
+      "calls",
+      "workspace",
+      "conversations",
+      "billing",
+      "safety",
+      "platform",
+      "federation",
+      "ephemeral",
+      "identity"
+    ],
+    "redis": true,
+    "ok": true
+  },
+  "outage": {
+    "phase": "redis-stopped",
+    "health": 503,
+    "serverInfo": 503,
+    "redis": false
+  },
+  "recovered": {
+    "phase": "redis-restarted",
+    "health": 200,
+    "serverInfo": 200,
+    "redis": true
+  },
+  "ok": true,
+  "processExit": 0
+}

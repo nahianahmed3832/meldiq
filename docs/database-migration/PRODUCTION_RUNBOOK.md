@@ -1,0 +1,37 @@
+# Production runbook
+
+## Current state and gate
+
+Latest API image observed during integration: `griip-internal-messaging-api:0.73.0-1e99c4ae` (independent releases advanced it after the original audit); fixed Compose project `griip-internal-messaging`; deployment root `/opt/griip-internal-messaging`. Existing Atlas database `meldiq`, S3 backend, LiveKit and ntfy remain running. This implementation has not changed production application data, image, environment or running services. It added encrypted backup files and isolated build/rehearsal staging artifacts. No production service was recreated. See MIGRATION_RESULTS for executed evidence and unresolved gates.
+
+Do not execute a production write migration until the final verification report, Atlas control-plane review, capacity checks, restore drill and owner-approved maintenance window are complete. Keep the image/tag/environment recoverable. Never use unscoped `docker compose down`, rename the Compose project, or remove existing volumes.
+
+## Preparation
+
+- Build/test the isolated backend, including all-domain tests. The final staged candidate is pinned to 1e99c4ae / API 0.73.0. The owner requested staging only while production continues moving. Compare the running image with this baseline and halt rollout if it has advanced; integrate newer work before assigning a production version/tag. Run the compiled `node dist/databaseMigration.js plan <snapshot>`, `preflight <snapshot>` and `validate` diagnostic commands with `node --env-file` or Compose env injection; never source a credential-bearing `.env` with shell evaluation.
+- Review MELDIQ_NODE_OPTIONS: the overlay defaults to --max-old-space-size=384 with the new 768 MiB API cap. Preserve any other required Node flags in that setting. Node’s automatic ~256 MiB heap failed on the restored telemetry dataset. The API cap increase plus Redis adds up to 448 MiB to the existing limits; observed host available memory was about 3.2 GiB. Refresh capacity before rollout; no paid infrastructure is added.
+- Check current host free memory, API RSS and Atlas projected BSON+index capacity. Existing Rows has a whole-domain read model; do not increase API replicas.
+- Atlas read-only console review passed: four /32 entries, dedicated readWrite user, 512 MiB FREE tier, cloud backups OFF. Refresh this evidence before execution. platform_audit requires collMod; arrange temporary schema-migration access or an owner-applied validator, then revoke it. Escrow the backup key separately and establish recurring encrypted backups. Do not change paid tier without approval.
+- Copy `deploy/redis` files into deployment `database-migration/`, review the already pinned Redis digest, then run `python3 database-migration/prepare-redis.py database-migration`. This refuses overwrites and prints no password. Keep `.env.redis` 0600 and its directory 0700. ACL file contains only a password hash and is readable by the non-root Redis container through its secret mount.
+- Validate the merged Compose with `docker compose -p griip-internal-messaging -f compose.yaml -f database-migration/compose.redis.yaml config -q`. Do not print interpolated `config` output, Docker environments, or credential files. The overlay publishes no Redis port. Inspect the merged API env_file list without revealing values; preserve the original .env.
+- Start Redis only within the approved deployment scope after staging. Verify named-user authentication, memory limits, TTLs, ACL scripting commands, health and denied unauthenticated access. The overlay uses a private Docker network and documents its TLS exception.
+
+## Controlled pre-copy
+
+After the owner approves the production write preparation, take an immutable private SQLite backup and run `node dist/databaseMigration.js preflight <snapshot>` without changes. Review the two known destination collisions and any new differences. With temporary schema privileges, use `node dist/databaseMigration.js copy <snapshot> --apply --batch-size 50 --batch-delay-ms 1000 --archive-conflicts`. Inject the existing server-only environment securely, set the actual storage limit, and keep existing active domains configured so they are excluded. The command also excludes recorded Atlas-authoritative domains. It never changes authority. Keep the snapshot parent private/writable for SQLite WAL bookkeeping; the source itself is opened read-only and its hash must remain unchanged.
+
+Measure both migration throughput and cold API startup against Atlas before choosing maintenance/readiness deadlines; the local replica-set drill does not measure Atlas network latency or the full read-model load. Free tier is limited to 100 read/write operations/second. Pre-copy can take hours; observe API health/latency and throttle or stop if affected. No uncontrolled dual writes: the API continues writing only the original authoritative stores. Final scan/verification time must be measured before choosing the write-freeze window.
+
+## Controlled cutover
+
+1. Enter the approved maintenance period and stop all application writers. Capture current authority/configuration and fresh mutually consistent final snapshots; preserve the independently encrypted preparation backups too.
+2. Run read-only preflight against the exact frozen SQLite snapshot and current Atlas. Exclude active Mongo domains by both configuration and authority markers. Investigate missing relationships and review destination conflicts. No automatic orphan deletion or deduplication.
+3. Prepare validators/indexes with the schema-migration credential. Use runtime least privilege afterwards. Migrate only the pending domains in a reference-safe sequence. `mongo-migrate <domain> --yes --archive-conflicts` is permitted only for the conflicts explicitly reviewed; default refuses them. Do not use `--prune` without a specific reviewed reason and backup. Inspect reports before setting each domain's authority.
+4. Verify counts, original IDs, checksums, timestamps, audit chain and tenant relationships. Keep sensitive reports restricted if they include contents; the supplied reports output only aggregates/hashes. Review archived conflicts, not printed raw records.
+5. Set DATABASE_MODE=atlas and all 16 active domains. Keep existing MONGODB_DB, connection settings and S3 configuration. Recreate only the API as required and keep one writer. Use the Redis overlay and preserve the fixed data-volume mappings. The API should not open the persistent SQLite file.
+6. Check `/healthz`, admin Redis/Mongo infrastructure, restart/RSS, logs using safe error categories, and the complete Android/web/admin smoke matrix. Redis failure must preserve Mongo outcomes and return controlled cache/admission behavior.
+7. Record actual final counts and behavior in MIGRATION_RESULTS. Approval to cut over does not authorize deleting original databases, conflict archives, backups or S3 objects.
+
+## Ongoing operation
+
+Schedule encrypted Atlas snapshots or the owner's approved Atlas backup plan, verify restore drills and age-key escrow, monitor Atlas connections/data/index growth, Redis memory/connections/errors, queue age, API memory and change-stream health. No recurring automation was created by this work because none was requested. The snapshot script uses a single Atlas read transaction; failure or timeout invalidates incomplete output. No backup is verified without a complete footer and a restored checksum comparison.

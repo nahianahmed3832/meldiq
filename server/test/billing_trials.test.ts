@@ -83,7 +83,7 @@ describe("with trials and invite links", () => {
   });
   afterAll(async () => h.close());
 
-  it("publishes Plus as recurring, keeps one-time Sparks out, and says trials are on", async () => {
+  it("preserves legacy Spark terms, offers Plus without reselling the retired subscription, and reports trials", async () => {
     expect(await publishMojoPlans(h.ctx.billing.catalog, "stripe", { go: "price_go", plus: "price_plus", spark: "price_spark" }, "test", Date.now())).toEqual([
       "Mojo Plus: already published at price_plus",
       "Meldiq Spark: already published at price_spark",
@@ -91,9 +91,11 @@ describe("with trials and invite links", () => {
     const plans = (await h.app.inject({ method: "GET", url: "/v2/billing/plans" })).json();
     expect(PublicPlans.safeParse(plans).success).toBe(true);
     expect(plans.plans.map((p: any) => [p.key, p.name, p.amountMinor, p.currency, p.interval, p.audience])).toEqual([
-      // Sparks are bought once through their own checkout, not offered as a monthly subscription.
       ["plus", "Mojo Plus", 399, "USD", "month", "personal"],
     ]);
+    // Existing monthly Spark references survive the one-time Spark rollout; they are no longer sold as a plan.
+    const legacySpark = h.ctx.billing.catalog.byKey("spark")!;
+    expect(h.ctx.billing.catalog.current(legacySpark.id)).toMatchObject({ amount_minor: 99, currency: "USD", interval: "month", provider_price_ref: "price_spark" });
     expect(plans.trial).toEqual({ planKey: "plus", days: 14, referralDays: 30, referralYearlyCapDays: 90 });
   });
 

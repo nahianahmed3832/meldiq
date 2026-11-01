@@ -78,7 +78,7 @@ const TABLE_OWNERS: Readonly<Record<string, string>> = {
   ...owned("auth", "auth_challenges sessions pairing_requests"),
   ...owned(
     "accounts",
-    "accounts account_sessions account_codes operator_accounts legacy_tickets account_recovery_codes account_recovery_tickets account_passkeys account_passkey_challenges " +
+    "accounts account_sessions account_session_factors account_codes operator_accounts legacy_tickets account_recovery_codes account_recovery_tickets account_passkeys account_passkey_challenges " +
       "account_key_backups account_key_unlocks users devices user_blocks nav_preferences connections dm_requests " +
       "messaging_settings reminders reminder_occurrences registration_invites loadtest_registrations " +
       "account_totp account_totp_backup account_email_changes account_warnings bug_reports",
@@ -129,7 +129,7 @@ const TABLE_OWNERS: Readonly<Record<string, string>> = {
   // Billing (migration 061).
   ...owned(
     "billing",
-    "billing_payment_actions billing_plans billing_plan_versions billing_checkouts billing_subscriptions billing_subscription_history billing_invoices billing_provider_events billing_webhook_rejections billing_customers " +
+    "spark_purchases billing_payment_actions billing_plans billing_plan_versions billing_checkouts billing_subscriptions billing_subscription_history billing_invoices billing_provider_events billing_webhook_rejections billing_customers " +
       // Migration 062 rebuilds three tables through these names (they exist only during the migration).
       "billing_checkouts_rebuilt billing_subscriptions_rebuilt billing_invoices_rebuilt " +
       // Migration 063: trials and invite links.

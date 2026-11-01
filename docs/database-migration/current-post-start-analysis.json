@@ -1,0 +1,13 @@
+{
+  "expectedStartupAddition": {
+    "table": "telemetry_epochs",
+    "kind": "version:0.72.1",
+    "sourceCount": 0,
+    "destinationCount": 1
+  },
+  "matchesExpectedVersionBootstrap": true,
+  "productionWrites": false,
+  "allOriginalRecordsPreserved": true,
+  "onlyExpectedExtra": true,
+  "postStartIntegrityOk": true
+}

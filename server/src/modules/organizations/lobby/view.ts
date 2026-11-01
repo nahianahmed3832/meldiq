@@ -12,6 +12,12 @@ import type { LobbyStore, StoredLobby } from "./store.js";
 type View = z.infer<typeof LobbyView>;
 type Channel = z.infer<typeof LobbyChannel>;
 
+/** Channels across the viewer's current communities, with the existing visibility checks. */
+export function leaderboardChannels(ctx: AppContext, viewerId: string): ConversationRow[] {
+  return ctx.ws.all<{ org_id: string }>("org_members", { where: { user_id: viewerId } })
+    .flatMap(o => visibleChannels(ctx, o.org_id, viewerId));
+}
+
 /** Live channels of [orgId] that [viewerId] can see, in the community's order. */
 export function visibleChannels(ctx: AppContext, orgId: string, viewerId: string): ConversationRow[] {
   return ctx.authz

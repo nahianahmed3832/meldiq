@@ -1,3 +1,4 @@
+import { MongoClient } from "mongodb";
 import fs from "node:fs";
 import path from "node:path";
 import { backupDatabase } from "../../../modules/administration/backup.js";
@@ -160,6 +161,7 @@ export async function runMongoCommand(cmd: string, rest: string[], cfg: Config, 
         await backupFirst(cfg, db, `pre-mongo-${domain}`);
         const reports = await migrateToMongo(db, mongo, tables, {
           prune: rest.includes("--prune"),
+          conflictPolicy: rest.includes("--archive-conflicts") ? "archive" : "reject",
           onProgress: (t, n, total) => process.stdout.write(`\r${t}: ${n}/${total}   `),
         });
         process.stdout.write("\n");
@@ -218,10 +220,18 @@ export async function runMongoCommand(cmd: string, rest: string[], cfg: Config, 
     case "mongo-dryrun": {
       const snapshot = optionValue(rest, "--snapshot");
       const source = snapshot ? openDatabase(snapshot) : db;
-      const tables = describeTables(source);
+      const tables = describeTables(source).filter(t => !cfg.mongo?.domains.has(t.domain as MongoDomain));
       const dbName = optionValue(rest, "--db") ?? `meldiq_dryrun_${Date.now().toString(36)}`;
       if (!DB_NAME.test(dbName)) throw new Error("--db may only use letters, digits, _ and - (at most 38)");
       if (dbName === cfg.mongo?.dbName) throw new Error("--db must not be the server's own database");
+      if (!cfg.mongo) throw new Error("MONGODB_URI is not set");
+      const probe = new MongoClient(cfg.mongo.uri, { serverSelectionTimeoutMS: cfg.mongo.timeoutMs });
+      try {
+        await probe.connect();
+        if ((await probe.db(dbName).listCollections({}, { nameOnly: true }).toArray()).length) {
+          throw new Error("Dry-run database must be empty; refusing to modify existing collections");
+        }
+      } finally { await probe.close(); }
       console.log(`Dry run into ${dbName}; not copied (SQLite's own bookkeeping): ${Object.keys(EXCLUDED_TABLES).join(", ")}`);
       const mongo = await connect(cfg, tables, dbName);
       try {

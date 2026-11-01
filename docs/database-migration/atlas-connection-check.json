@@ -1,0 +1,1 @@
+{"tls":true,"invalidCertificatesAllowed":false,"invalidHostnamesAllowed":false,"roles":[{"role":"readWrite","applicationDatabase":true},{"role":"readWrite","applicationDatabase":false}],"configuredPoolLimit":20,"mailTransport":"smtp","reachable":true}

@@ -1,3 +1,5 @@
+import { MongoFileStore } from "../src/modules/files/mongoStore.js";
+import { migrationTarget } from "./support/migration.js";
 import crypto from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { describeTables } from "../src/infrastructure/database/mongo/catalog.js";
@@ -84,18 +86,20 @@ describe("files in MongoDB", () => {
 describe("moving files from SQLite", () => {
   it("serves what the migration copied", async () => {
     const old = await startServer({ MONGODB_DOMAINS: "" });
-    const target = await startServer({ MONGODB_DOMAINS: "files" });
+    const target = await migrationTarget();
+    const targetStore = new MongoFileStore(target.mongo, old.app.log);
     try {
       const a = await old.client("fmovea");
       const b = await old.client("fmoveb");
       const conv = (await a.req("POST", "/v1/conversations/dm", { userId: b.userId })).conversation.id;
       const stored = await upload(a, conv, crypto.randomBytes(500));
       const tables = describeTables(old.ctx.db).filter((t) => t.domain === "files");
+      await target.mongo.ensureSchema(tables);
       expect(tables.map((t) => t.name).sort()).toEqual(["abandoned_uploads", "attachment_uploads", "attachments", "pending_blob_deletes"]);
-      for (const r of await migrateToMongo(old.ctx.db, target.ctx.mongo!, tables)) {
+      for (const r of await migrateToMongo(old.ctx.db, target.mongo, tables)) {
         expect(r, r.table).toMatchObject({ ok: true, missing: 0, extra: 0, differing: 0 });
       }
-      expect(await target.ctx.files.attachment(stored.id)).toMatchObject({ id: stored.id, size: 500, uploader_user_id: a.userId, kept: 0 });
+      expect(await targetStore.attachment(stored.id)).toMatchObject({ id: stored.id, size: 500, uploader_user_id: a.userId, kept: 0 });
     } finally {
       await old.close();
       await target.close();

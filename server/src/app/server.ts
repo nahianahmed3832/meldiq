@@ -1,3 +1,5 @@
+import { RedisInfrastructure } from "../infrastructure/redis/service.js";
+import { CachedPreferenceStore } from "../modules/accounts/preferences/cachedStore.js";
 import rateLimit from "@fastify/rate-limit";
 import { MAINTENANCE_RETRY_SECONDS, maintenanceError, readControl, signupMode } from "./platformControls.js";
 import { readSiteDetails } from "./siteDetails.js";
@@ -208,7 +210,7 @@ export async function buildApp(
   });
   if (opts.contracts) observeContracts(app, opts.contracts);
 
-  const db = opts.db ?? openDatabase(config.databasePath);
+  const db = opts.db ?? openDatabase(config.databaseMode === "atlas" ? ":memory:" : config.databasePath);
   // `accounts` needs the finished context; it is set right below, before any route can run.
   const ctx = {
     db,
@@ -237,7 +239,7 @@ export async function buildApp(
   } as AppContext;
   // MongoDB holds the domains in MONGODB_DOMAINS; it refuses to start if that would split a domain between stores.
   if (config.mongo) {
-    const mongo = opts.mongo ?? (await openMongo(config.mongo, db, app.log));
+    const mongo = opts.mongo ?? (await openMongo(config.mongo, db, app.log, config.databaseMode === "atlas"));
     ctx.mongo = mongo;
     // Write units still committing finish first: one cut off mid-transaction would hold its locks until it times out.
     if (!opts.mongo)
@@ -247,6 +249,11 @@ export async function buildApp(
         for (const r of [ctx.identity, ctx.platform, ctx.fed, ctx.safety, ctx.ephemeral]) await r?.settled();
         await mongo.close();
       });
+  }
+  if (config.redis) {
+    ctx.redis = new RedisInfrastructure(config.redis, app.log);
+    await ctx.redis.connect();
+    app.addHook("onClose", async () => ctx.redis?.close());
   }
   // Communities and conversations: authorisation reads them synchronously, wherever they live.
   ctx.ws = await openWorkspaceRows(db, ctx.mongo, app.log);
@@ -281,6 +288,14 @@ export async function buildApp(
   }
   ctx.relay = ctx.mongo?.owns("relay") ? new MongoRelayStore(ctx.mongo, db, app.log) : new SqliteRelayStore(db);
   ctx.hub = new Hub(ctx.relay, config.abuse.wsMaxSocketsPerDevice, config.presence);
+  if (ctx.redis) await ctx.redis.subscribe("preferences", (data) => {
+    if (data.length > 8192) return;
+    try {
+      const event = JSON.parse(data) as Record<string, unknown>;
+      if (event.origin === ctx.redis!.instanceId || typeof event.userId !== "string" || event.userId.length > 200 || typeof event.workspaceId !== "string" || event.workspaceId.length > 200 || !Number.isSafeInteger(event.rev) || Number(event.rev) < 1) return;
+      ctx.hub.sendToUser(event.userId, { t: "prefs.updated", workspaceId: event.workspaceId, rev: Number(event.rev) });
+    } catch { /* malformed transient metadata is ignored */ }
+  });
   ctx.files = ctx.mongo?.owns("files") ? new MongoFileStore(ctx.mongo, app.log) : new SqliteFileStore(db);
   if (opts.contracts) {
     const observer = opts.contracts;
@@ -288,6 +303,7 @@ export async function buildApp(
   }
   ctx.accounts = new Accounts(ctx, { mailer: opts.mailer });
   ctx.prefs = ctx.mongo?.owns("preferences") ? new MongoPreferenceStore(ctx.mongo) : new SqlitePreferenceStore(db);
+  if (ctx.redis) ctx.prefs = new CachedPreferenceStore(ctx.prefs, ctx.redis);
   ctx.history = ctx.mongo?.owns("history") ? new MongoHistoryStore(ctx.mongo) : new SqliteHistoryStore(db);
   // Server-stored messages live with message history (the "history" domain).
   ctx.messages = ctx.mongo?.owns("history") ? new MongoMessageStore(ctx.mongo) : new SqliteMessageStore(db);
@@ -542,16 +558,35 @@ export async function buildApp(
     throw blocked;
   });
 
+  if (ctx.redis) app.addHook("onRequest", async (req) => {
+    if (req.url.split("?")[0] !== "/healthz" && ctx.redis!.client.status !== "ready") {
+      throw new ApiError(503, "unavailable", "Shared request limits are temporarily unavailable.");
+    }
+  });
   await app.register(rateLimit, {
     global: true,
+    ...(ctx.redis ? { redis: ctx.redis.client, nameSpace: `${config.redis!.prefix}:http:`, skipOnError: false } : {}),
     max: config.rateLimitPerMinute,
     timeWindow: "1 minute",
     keyGenerator: async (req) => {
       // Unavailable account store: limit by network for now; the route's own check answers 503.
       const auth = await authenticateRequest(ctx, req).catch(() => null);
       // Without a session: per network, an IPv4 address or an IPv6 /64 (one phone or home holds a whole /64).
-      return auth ? `d:${auth.deviceId}` : `ip:${networkKey(req.ip)}`;
+      return auth ? `u:${auth.userId}` : `ip:${networkKey(req.ip)}`;
     },
+  });
+  if (ctx.redis) app.addHook("onRequest", async (req, reply) => {
+    if (req.url.split("?")[0] === "/healthz") return;
+    try {
+      const result = await ctx.redis!.rateLimit(["http-ip", networkKey(req.ip)], Math.max(config.rateLimitPerMinute * 10, 1), 60_000);
+      if (!result.allowed) {
+        reply.header("retry-after", String(Math.ceil(result.retryAfterMs / 1000)));
+        throw new ApiError(429, "rate_limited", "Too many requests, slow down");
+      }
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(503, "unavailable", "The server cannot check request limits right now. Try again shortly.");
+    }
   });
   await app.register(websocket, { options: { maxPayload: 64 * 1024 } });
 
@@ -563,13 +598,16 @@ export async function buildApp(
     }
     // MongoDB unreachable (its domains can't be served): a clear, retryable answer, details only in the log.
     if (err instanceof MongoNetworkError || err instanceof MongoServerSelectionError) {
-      req.log.error({ err: { name: err.name, message: err.message } }, "MongoDB unavailable");
+      req.log.error({ errorType: err.name }, "MongoDB unavailable");
       return reply.code(503).send({
         error: {
           code: "unavailable",
           message: "The server can't reach its database right now. Try again in a moment.",
         },
       });
+    }
+    if (ctx.redis && ctx.redis.client.status !== "ready") {
+      return reply.code(503).send({ error: { code: "unavailable", message: "Shared infrastructure is temporarily unavailable." } });
     }
     const status = (err as { statusCode?: number }).statusCode ?? 500;
     if (status === 429)
@@ -597,18 +635,20 @@ export async function buildApp(
     });
   });
 
-  app.get("/healthz", async (_req, reply) => {
+  app.get("/healthz", { config: { rateLimit: false } }, async (_req, reply) => {
     db.prepare("SELECT 1").get();
     // MongoDB, when the server uses it: unreachable means the domains it holds can't be served.
     const mongodb = ctx.mongo ? await ctx.mongo.ping() : null;
-    if (mongodb === false) reply.code(503);
+    const redis = ctx.redis ? await ctx.redis.ping() : null;
+    if (mongodb === false || redis === false) reply.code(503);
     // Public: says nothing about usage (the online-device count was removed, D28).
     return {
-      ok: mongodb !== false,
+      ok: mongodb !== false && redis !== false,
       version: VERSION,
       time: now(),
       livekit: !!ctx.livekit,
       mongodb,
+      ...(ctx.redis ? { redis } : {}),
     };
   });
 

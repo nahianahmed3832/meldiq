@@ -22,7 +22,7 @@ export interface RouteContract {
    */
   scheme?: "bot" | "oauth" | "console";
   /** "oauth": errors are RFC 6749 §5.2 bodies (`{ error, error_description }`), not the error envelope. */
-  errorFormat?: "oauth";
+  errorFormat?: "oauth" | "health";
   params?: z.ZodType;
   query?: z.ZodType;
   body?: z.ZodType;

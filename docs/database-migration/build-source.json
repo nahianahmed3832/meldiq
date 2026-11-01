@@ -1,0 +1,12 @@
+{
+  "archiveSha256": "d7b9b8018a01ab0dc113da173fe62964cf0c7dea9c5b64229986e2359879064a",
+  "source": "codex/unified-atlas-redis",
+  "baseCommit": "d7fd6b31",
+  "image": "meldiq-api-database:review-20261101",
+  "buildMemoryLimitMiB": 2048,
+  "buildHeapMiB": 1536,
+  "runtimeMemoryLimitMiB": 768,
+  "runtimeHeapMiB": 384,
+  "productionServicesChanged": false,
+  "constrainedStartupTestLimitMiB": 512
+}

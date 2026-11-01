@@ -9,7 +9,7 @@ COPY package.json package-lock.json ./
 RUN npm ci
 COPY tsconfig.json ./
 COPY src ./src
-RUN npm run build && npm prune --omit=dev
+RUN NODE_OPTIONS=--max-old-space-size=1536 npm run build && npm prune --omit=dev
 
 FROM node:22.22.3-alpine3.24
 ENV NODE_ENV=production \
@@ -23,6 +23,7 @@ COPY --from=build --chown=node:node /app/dist ./dist
 COPY --chown=node:node migrations ./migrations
 # Meldiq's own profile decorations and the template (scripts/render-decorations.mjs, docs/PROFILE_DECORATIONS.md).
 COPY --chown=node:node assets ./assets
+COPY --chown=node:node scripts/database-backup.mjs ./scripts/database-backup.mjs
 COPY --chown=node:node package.json ./
 USER node
 EXPOSE 8080

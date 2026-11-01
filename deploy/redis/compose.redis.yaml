@@ -1,0 +1,50 @@
+# Merge with the existing project; no host ports and no unrelated service recreation.
+# Copy this directory under /opt/griip-internal-messaging/database-migration first.
+services:
+  api:
+    environment:
+      # The existing telemetry read model needs more than Node's automatic ~256 MiB heap in the old 512 MiB cap.
+      # Keep native/Buffer headroom; retain any other required Node flags in MELDIQ_NODE_OPTIONS.
+      NODE_OPTIONS: ${MELDIQ_NODE_OPTIONS:---max-old-space-size=384}
+    deploy:
+      resources:
+        limits:
+          # Measured cold-start RSS can approach 460 MiB; retain room for request/crypto bursts on the existing VPS.
+          memory: 768M
+    env_file:
+      - ./database-migration/.env.redis
+    depends_on:
+      redis:
+        condition: service_healthy
+  redis:
+    # Official multi-platform Redis 8 image, resolved from registry-1.docker.io during migration preparation.
+    image: redis:8-alpine@sha256:21090af93f8324db2f0f0f4f38a7c60369d47d917e000c3423d89d2ae2883537
+    restart: unless-stopped
+    user: redis
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    env_file: ./database-migration/.env.redis
+    volumes:
+      - ./database-migration/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    secrets:
+      - meldiq_redis_acl
+    networks: [default]
+    # No published port. This private Docker network is the documented TLS exception.
+    healthcheck:
+      test: ["CMD-SHELL", 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli --user meldiq ping | grep -q PONG']
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    deploy:
+      resources:
+        limits:
+          memory: 192M
+          cpus: "0.25"
+          pids: 64
+    logging:
+      driver: json-file
+      options: {max-size: "5m", max-file: "3"}
+secrets:
+  meldiq_redis_acl:
+    file: ./database-migration/secrets/redis.acl

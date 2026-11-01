@@ -1,0 +1,11 @@
+
+ RUN  v4.1.12 /Users/nahian/.cache/meldiq-database-verification/server
+
+(node:58728) ExperimentalWarning: The supports Web Crypto API method is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:58728) ExperimentalWarning: The ML-DSA-44 Web Crypto API algorithm is an experimental feature and might change at any time
+
+ Test Files  4 passed (4)
+      Tests  23 passed (23)
+   Start at  22:37:54
+   Duration  9.29s (transform 1.37s, setup 0ms, import 2.61s, tests 5.29s, environment 0ms)

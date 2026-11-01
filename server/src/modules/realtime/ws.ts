@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import type { WebSocket } from "ws";
 import { type AppContext } from "../../app/context.js";
@@ -140,6 +141,9 @@ export default async function wsRoutes(app: FastifyInstance, ctx: AppContext) {
   /** A connection authenticated as [auth]: registered with the hub, sent its backlog; returns its frame handler. */
   const open = (socket: WebSocket, auth: AuthInfo, token: string | undefined, client?: Conn["client"]): ((raw: Buffer) => Promise<void>) => {
     const conn = hub.add(socket, auth.userId, auth.deviceId);
+    const presenceLease = randomUUID();
+    const touchPresence = () => { void ctx.redis?.touchPresence(auth.userId, auth.deviceId, presenceLease); };
+    touchPresence();
     conn.client = client;
     conn.sessionId = auth.sessionId;
     seen(auth.deviceId);
@@ -159,7 +163,7 @@ export default async function wsRoutes(app: FastifyInstance, ctx: AppContext) {
         /* closed */
       }
     }, 30_000);
-    socket.on("pong", () => (alive = true));
+    socket.on("pong", () => { alive = true; touchPresence(); });
 
     // Frame budget (docs/ABUSE_CONTROLS.md › Realtime): a steady rate with a burst. Frames past it are ignored, and a
     // connection that keeps sending far past it is closed. Apps send a few frames a second at most.
@@ -216,6 +220,7 @@ export default async function wsRoutes(app: FastifyInstance, ctx: AppContext) {
           if (!conv || !authz.isMember(conv.id, auth.userId)) break;
           const members = memberIds(ctx, conv.id).filter((u) => u !== auth.userId);
           if (members.length > 200) break; // large channels: skip typing fan-out
+          await ctx.redis?.typing(conv.id, auth.userId, !!msg.on);
           hub.sendToUsers(members, { t: "typing", c: conv.id, u: auth.userId, on: !!msg.on });
           break;
         }
@@ -226,6 +231,7 @@ export default async function wsRoutes(app: FastifyInstance, ctx: AppContext) {
 
     socket.on("close", (code: number) => {
       clearInterval(heartbeat);
+      void ctx.redis?.removePresence(auth.userId, auth.deviceId, presenceLease);
       hub.remove(conn, code);
       if (db.open) seen(auth.deviceId);
     });
