@@ -1547,6 +1547,25 @@ export const SCHEMA: readonly TableShape[] = [
     autoincrement: false,
   },
   {
+    name: "bot_runtime_events",
+    columns: [
+      {"name":"id","type":"TEXT","notNull":true},
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"bot_key","type":"TEXT","notNull":true},
+      {"name":"kind","type":"TEXT","notNull":true},
+      {"name":"outcome","type":"TEXT","notNull":true},
+      {"name":"at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["id"],
+    indexes: [
+      {"name":"idx_bot_runtime_events_scope","columns":["org_id","bot_key","at","id"],"unique":false,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [
+      {"columns":["org_id"],"table":"orgs","references":["id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
     name: "bot_starboard",
     columns: [
       {"name":"message_id","type":"TEXT","notNull":true},
@@ -1995,6 +2014,22 @@ export const SCHEMA: readonly TableShape[] = [
     indexes: [],
     foreignKeys: [
       {"columns":["org_id"],"table":"orgs","references":["id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
+    name: "community_profiles",
+    columns: [
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"user_id","type":"TEXT","notNull":true},
+      {"name":"profile","type":"TEXT","notNull":true},
+      {"name":"rev","type":"INTEGER","notNull":true,"default":1},
+      {"name":"updated_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["org_id","user_id"],
+    indexes: [],
+    foreignKeys: [
+      {"columns":["org_id","user_id"],"table":"org_members","references":["org_id","user_id"],"onDelete":"CASCADE"},
     ],
     autoincrement: false,
   },

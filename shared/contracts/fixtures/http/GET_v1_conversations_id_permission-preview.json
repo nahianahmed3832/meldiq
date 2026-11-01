@@ -1,0 +1,173 @@
+{
+  "base": "MEMBER",
+  "subject": "u_0meT-670-GfNosE-JkHM7A",
+  "steps": [
+    {
+      "label": "Community base and assigned roles (restrictions win)",
+      "effective": [
+        "channels.view",
+        "members.nickname",
+        "messages.attach",
+        "messages.big_text",
+        "messages.embed",
+        "messages.external_emoji",
+        "messages.history",
+        "messages.polls",
+        "messages.react",
+        "messages.voice",
+        "roles.view",
+        "threads.create",
+        "threads.post",
+        "voice.connect",
+        "voice.speak"
+      ]
+    },
+    {
+      "label": "After category rules",
+      "effective": [
+        "channels.view",
+        "members.nickname",
+        "messages.attach",
+        "messages.big_text",
+        "messages.embed",
+        "messages.external_emoji",
+        "messages.history",
+        "messages.polls",
+        "messages.react",
+        "messages.voice",
+        "roles.view",
+        "threads.create",
+        "threads.post",
+        "voice.connect",
+        "voice.speak"
+      ]
+    },
+    {
+      "label": "After channel rules",
+      "effective": [
+        "channels.view",
+        "members.nickname",
+        "messages.attach",
+        "messages.big_text",
+        "messages.embed",
+        "messages.external_emoji",
+        "messages.history",
+        "messages.polls",
+        "messages.react",
+        "messages.voice",
+        "roles.view",
+        "threads.create",
+        "threads.post",
+        "voice.connect",
+        "voice.speak"
+      ]
+    }
+  ],
+  "capabilities": [
+    {
+      "key": "channels.view",
+      "label": "See channels",
+      "allowed": true
+    },
+    {
+      "key": "messages.post",
+      "label": "Post in channels",
+      "allowed": false
+    },
+    {
+      "key": "messages.attach",
+      "label": "Share files",
+      "allowed": true
+    },
+    {
+      "key": "messages.announce",
+      "label": "Post announcements",
+      "allowed": false
+    },
+    {
+      "key": "channels.manage",
+      "label": "Manage channels",
+      "allowed": false
+    },
+    {
+      "key": "voice.connect",
+      "label": "Join voice channels",
+      "allowed": true
+    },
+    {
+      "key": "voice.speak",
+      "label": "Speak in voice channels",
+      "allowed": true
+    },
+    {
+      "key": "messages.react",
+      "label": "Add reactions",
+      "allowed": true
+    },
+    {
+      "key": "messages.embed",
+      "label": "Post links",
+      "allowed": true
+    },
+    {
+      "key": "messages.voice",
+      "label": "Send voice messages",
+      "allowed": true
+    },
+    {
+      "key": "messages.external_emoji",
+      "label": "Use emoji from other communities",
+      "allowed": true
+    },
+    {
+      "key": "messages.polls",
+      "label": "Create polls",
+      "allowed": true
+    },
+    {
+      "key": "messages.big_text",
+      "label": "Write headings",
+      "allowed": true
+    },
+    {
+      "key": "messages.mention_all",
+      "label": "Mention everyone",
+      "allowed": false
+    },
+    {
+      "key": "messages.manage",
+      "label": "Manage messages",
+      "allowed": false
+    },
+    {
+      "key": "messages.history",
+      "label": "Read earlier messages",
+      "allowed": true
+    },
+    {
+      "key": "threads.create",
+      "label": "Start threads",
+      "allowed": true
+    },
+    {
+      "key": "threads.post",
+      "label": "Reply in threads",
+      "allowed": true
+    },
+    {
+      "key": "threads.manage",
+      "label": "Manage threads",
+      "allowed": false
+    },
+    {
+      "key": "voice.mute_members",
+      "label": "Mute people in voice",
+      "allowed": false
+    },
+    {
+      "key": "voice.move_members",
+      "label": "Disconnect people from voice",
+      "allowed": false
+    }
+  ]
+}

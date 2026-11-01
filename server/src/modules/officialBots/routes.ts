@@ -15,7 +15,10 @@ export default async function officialBotRoutes(app: FastifyInstance, ctx: AppCo
   const bots = new BotManager(ctx.officialBots);
   const alerts = new AlertWatchManager(ctx.officialBots);
   const auth = { preHandler: requireAuth(ctx) };
-  const few = { ...auth, config: { rateLimit: { max: 10, timeWindow: "1 minute" } } };
+  const few = {
+    ...auth,
+    config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+  };
 
   app.get("/v1/official-bots", auth, async () => {
     ctx.officialBots.requireEnabled();
@@ -41,6 +44,58 @@ export default async function officialBotRoutes(app: FastifyInstance, ctx: AppCo
   );
   app.get("/v1/orgs/:orgId/official-bots", auth, async (req) => bots.list(parse(OrgParamsNonEmpty, req.params).orgId, me(req).userId));
   app.post("/v1/orgs/:orgId/official-bots/welcomer/test", few, async (req) => bots.testWelcome(parse(OrgParamsNonEmpty, req.params).orgId, me(req).userId));
+  app.get("/v1/orgs/:orgId/official-bots/:key/diagnostics", auth, async (req) => {
+    const p = parse(OfficialBotParams, req.params);
+    const userId = me(req).userId;
+    ctx.officialBots.requireEnabled();
+    ctx.authz.requirePermission(p.orgId, userId, "workspace.edit", "Only community editors can inspect bot diagnostics");
+    const { bot } = bots.one(p.orgId, p.key, userId);
+    const checks = [
+      {
+        label: "Runtime",
+        ok: bot.available,
+        detail: bot.unavailableReason ?? "Available on this server",
+      },
+      {
+        label: "Enabled",
+        ok: bot.enabled,
+        detail: bot.enabled ? "Listening for supported events" : "Turned off; settings are retained",
+      },
+    ];
+    for (const [key, value] of Object.entries(bot.settings ?? {})) {
+      if (!/^(channelId|memberChannelId|announceChannelId)$/.test(key)) continue;
+      const conv = typeof value === "string" ? ctx.authz.conversation(value) : null;
+      const ok = !!conv && conv.org_id === p.orgId && !conv.archived_at;
+      checks.push({
+        label: key,
+        ok,
+        detail: ok ? "Configured channel exists in this community" : "Choose an available channel in settings",
+      });
+    }
+    const events = ctx.ws
+      .all<{
+        id: string;
+        kind: string;
+        outcome: "ok" | "failed";
+        at: number;
+      }>("bot_runtime_events", {
+        where: { org_id: p.orgId, bot_key: p.key },
+        orderBy: [
+          ["at", "desc"],
+          ["id", "desc"],
+        ],
+        limit: 50,
+      })
+      .map(({ id, kind, outcome, at }) => ({ id, kind, outcome, at }));
+    return {
+      enabled: bot.enabled,
+      available: bot.available,
+      reason: bot.unavailableReason,
+      checkedAt: Date.now(),
+      checks,
+      events,
+    };
+  });
   app.get("/v1/orgs/:orgId/official-bots/:key", auth, async (req) => {
     const p = parse(OfficialBotParams, req.params);
     return bots.one(p.orgId, p.key, me(req).userId);

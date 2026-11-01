@@ -184,6 +184,8 @@ export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
   // Community parity A1 (migration 069): @everyone defaults, nicknames, role extras, channel options, stage speakers.
   community_member_defaults: "workspace",
   org_nicknames: "workspace",
+  community_profiles: "workspace",
+  bot_runtime_events: "workspace",
   org_role_extras: "workspace",
   channel_options: "workspace",
   stage_speakers: "workspace",
@@ -362,7 +364,9 @@ function parseDefault(raw: string | null): ColumnSpec["default"] {
 }
 
 /** Columns stored as JSON text in SQLite and as embedded documents in MongoDB. */
-const JSON_COLUMNS: Readonly<Record<string, readonly string[]>> = { nav_preferences: ["doc"] };
+const JSON_COLUMNS: Readonly<Record<string, readonly string[]>> = {
+  nav_preferences: ["doc"],
+};
 
 /** A table as the migrations create it, before its domain is assigned (the checked-in schema's entries). */
 export type TableShape = Omit<TableSpec, "domain">;
@@ -420,7 +424,13 @@ export function describeTables(db: DB): TableSpec[] {
     if (name in EXCLUDED_TABLES) continue;
     const domain = TABLE_DOMAINS[name];
     if (!domain) throw new Error(`Table ${name} has no MongoDB domain: classify it in src/infrastructure/database/mongo/catalog.ts`);
-    const info = db.prepare(`PRAGMA table_info("${name}")`).all() as { name: string; type: string; notnull: number; pk: number; dflt_value: string | null }[];
+    const info = db.prepare(`PRAGMA table_info("${name}")`).all() as {
+      name: string;
+      type: string;
+      notnull: number;
+      pk: number;
+      dflt_value: string | null;
+    }[];
     const columns: ColumnSpec[] = info.map((c) => ({
       name: c.name,
       type: (c.type || "TEXT").toUpperCase(),
@@ -428,19 +438,39 @@ export function describeTables(db: DB): TableSpec[] {
       ...(c.dflt_value !== null ? { default: parseDefault(c.dflt_value) } : {}),
       ...(columnNocase(db, name, c.name) ? { nocase: true } : {}),
     }));
-    const primaryKey = info.filter((c) => c.pk > 0).sort((a, b) => a.pk - b.pk).map((c) => c.name);
+    const primaryKey = info
+      .filter((c) => c.pk > 0)
+      .sort((a, b) => a.pk - b.pk)
+      .map((c) => c.name);
     const sql = (db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?").get(name) as { sql: string }).sql;
-    specs.push({ name, domain, columns, primaryKey, indexes: describeIndexes(db, name, columns), foreignKeys: describeForeignKeys(db, name), autoincrement: /AUTOINCREMENT/i.test(sql) });
+    specs.push({
+      name,
+      domain,
+      columns,
+      primaryKey,
+      indexes: describeIndexes(db, name, columns),
+      foreignKeys: describeForeignKeys(db, name),
+      autoincrement: /AUTOINCREMENT/i.test(sql),
+    });
   }
   return specs;
 }
 
 function describeIndexes(db: DB, table: string, columns: ColumnSpec[]): IndexSpec[] {
-  const list = db.prepare(`PRAGMA index_list("${table}")`).all() as { name: string; unique: number; origin: string; partial: number }[];
+  const list = db.prepare(`PRAGMA index_list("${table}")`).all() as {
+    name: string;
+    unique: number;
+    origin: string;
+    partial: number;
+  }[];
   const out: IndexSpec[] = [];
   for (const ix of list) {
     if (ix.origin === "pk") continue; // the primary key is `_id`
-    const info = db.prepare(`PRAGMA index_xinfo("${ix.name}")`).all() as { name: string | null; coll: string; key: number }[];
+    const info = db.prepare(`PRAGMA index_xinfo("${ix.name}")`).all() as {
+      name: string | null;
+      coll: string;
+      key: number;
+    }[];
     const keyCols = info.filter((c) => c.key === 1 && c.name);
     const sql = (db.prepare("SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?").get(ix.name) as { sql: string | null } | undefined)?.sql ?? "";
     let partialNotNull: string[] | null = null;
@@ -468,10 +498,22 @@ function describeIndexes(db: DB, table: string, columns: ColumnSpec[]): IndexSpe
 }
 
 function describeForeignKeys(db: DB, table: string): ForeignKeySpec[] {
-  const rows = db.prepare(`PRAGMA foreign_key_list("${table}")`).all() as { id: number; seq: number; table: string; from: string; to: string; on_delete: string }[];
+  const rows = db.prepare(`PRAGMA foreign_key_list("${table}")`).all() as {
+    id: number;
+    seq: number;
+    table: string;
+    from: string;
+    to: string;
+    on_delete: string;
+  }[];
   const byId = new Map<number, ForeignKeySpec>();
   for (const r of [...rows].sort((a, b) => a.id - b.id || a.seq - b.seq)) {
-    const fk = byId.get(r.id) ?? { columns: [], table: r.table, references: [], onDelete: r.on_delete as ForeignKeySpec["onDelete"] };
+    const fk = byId.get(r.id) ?? {
+      columns: [],
+      table: r.table,
+      references: [],
+      onDelete: r.on_delete as ForeignKeySpec["onDelete"],
+    };
     fk.columns.push(r.from);
     fk.references.push(r.to);
     byId.set(r.id, fk);
@@ -515,11 +557,23 @@ const NOCASE_COLLATION = { locale: "en", strength: 2 } as const;
 /** MongoDB indexes for a table: its SQLite indexes, plus one per primary-key column of a composite key (lookups by part). */
 export function indexesFor(t: TableSpec): IndexDescription[] {
   const out: IndexDescription[] = t.indexes.map((ix) => {
-    const d: IndexDescription = { key: Object.fromEntries(ix.columns.map((c) => [c, 1])), name: ix.name, unique: ix.unique };
+    const d: IndexDescription = {
+      key: Object.fromEntries(ix.columns.map((c) => [c, 1])),
+      name: ix.name,
+      unique: ix.unique,
+    };
     if (ix.nocase) d.collation = { ...NOCASE_COLLATION };
     if (ix.partialNotNull) {
       d.partialFilterExpression = Object.fromEntries(
-        ix.partialNotNull.map((c) => [c, { $type: bsonTypes(t.columns.find((col) => col.name === c)!, t.name)[0] }]),
+        ix.partialNotNull.map((c) => [
+          c,
+          {
+            $type: bsonTypes(
+              t.columns.find((col) => col.name === c)!,
+              t.name,
+            )[0],
+          },
+        ]),
       );
     }
     return d;

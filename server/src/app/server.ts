@@ -142,7 +142,7 @@ import { now } from "../shared/utilities/util.js";
 import wsRoutes from "../modules/realtime/ws.js";
 import { Billing, billingRoutes } from "../modules/billing/index.js";
 
-export const VERSION = "0.67.1";
+export const VERSION = "0.68.0";
 /**
  * The client API this server speaks and the oldest client API it accepts. Clients refuse a server whose
  * minClientApi is newer than theirs; servers from before these fields existed count as API 1.
@@ -187,7 +187,10 @@ export async function buildApp(
             level: config.logLevel,
             // Never log credentials. Request bodies are not logged at all (default), so
             // message ciphertext and keys never reach the logs either.
-            redact: { paths: ["req.headers.authorization", "req.headers.cookie"], remove: true },
+            redact: {
+              paths: ["req.headers.authorization", "req.headers.cookie"],
+              remove: true,
+            },
             serializers: {
               req: (r: { method: string; url: string; hostname?: string; ip?: string; socket?: { remotePort?: number } }) => ({
                 method: r.method,
@@ -216,7 +219,14 @@ export async function buildApp(
       // Part of the write unit running now, if any (as it was part of the SQLite transaction); its own unit otherwise.
       ctx.ws
         .write((w) =>
-          w.insert("audit_log", { at: now(), actor_id: e.actorId ?? null, org_id: e.orgId ?? null, action: e.action, target: e.target ?? null, detail: e.detail ?? null }),
+          w.insert("audit_log", {
+            at: now(),
+            actor_id: e.actorId ?? null,
+            org_id: e.orgId ?? null,
+            action: e.action,
+            target: e.target ?? null,
+            detail: e.detail ?? null,
+          }),
         )
         .catch((err) => app.log.error({ err, action: e.action }, "audit: entry not stored"));
       // Community parity batch D: official bots hear about joins, leaves, moderation and roles (only queued here).
@@ -381,7 +391,12 @@ export async function buildApp(
     enforce: config.mojoEnforce,
     // Mojo on sale in Google Play counts as on sale (MOJO_ENFORCE=auto).
     storeOnSale: () => ctx.play?.onSale() ?? false,
-    notifyOrg: (orgId) => ctx.hub.sendToUsers(orgMemberIds(ctx.ws, orgId), { t: "entitlements.changed", scope: "org", orgId }),
+    notifyOrg: (orgId) =>
+      ctx.hub.sendToUsers(orgMemberIds(ctx.ws, orgId), {
+        t: "entitlements.changed",
+        scope: "org",
+        orgId,
+      }),
     maxUploadBytes: effectiveFileMaxBytes(config),
   });
   ctx.gifts = new Gifts(
@@ -393,17 +408,30 @@ export async function buildApp(
         const u = availableUser(ctx, recipient);
         return !!u && u.home_server_id === null && !(buyer && blockedEitherWay(ctx, recipient, buyer));
       },
-      notify: (userId) => ctx.hub.sendToUser(userId, { t: "entitlements.changed", scope: "account" }),
+      notify: (userId) =>
+        ctx.hub.sendToUser(userId, {
+          t: "entitlements.changed",
+          scope: "account",
+        }),
     },
     app.log,
   );
   ctx.billing.webhooks.payments = ctx.gifts;
   ctx.play = config.billing.play ? new PlayBilling(ctx.billing, ctx.gifts, config.billing.play, app.log) : null;
   ctx.billing.onChange = (owner) => {
-    if (owner.kind === "org") ctx.hub.sendToUsers(orgMemberIds(ctx.ws, owner.orgId), { t: "entitlements.changed", scope: "org", orgId: owner.orgId });
+    if (owner.kind === "org")
+      ctx.hub.sendToUsers(orgMemberIds(ctx.ws, owner.orgId), {
+        t: "entitlements.changed",
+        scope: "org",
+        orgId: owner.orgId,
+      });
     else {
       const userIds = new Set([...ctx.billing.subscriptions.ownerUserIds(owner.accountId), ...ctx.billing.grants.userIdsOf(owner.accountId)]);
-      for (const userId of userIds) ctx.hub.sendToUser(userId, { t: "entitlements.changed", scope: "account" });
+      for (const userId of userIds)
+        ctx.hub.sendToUser(userId, {
+          t: "entitlements.changed",
+          scope: "account",
+        });
     }
   };
   // A workspace's subscription adds its plan's limits between operator overrides and server-wide limits.
@@ -433,7 +461,9 @@ export async function buildApp(
 
   if (config.fcm && !config.push) ctx.hub.onQueuedOffline = (deviceId) => ctx.fcm?.queued(deviceId);
   if (config.trustProxy === true) {
-    app.log.warn("TRUST_PROXY=true believes X-Forwarded-For entries clients send themselves, so per-address limits can be dodged. Set the proxy's addresses instead, e.g. TRUST_PROXY=loopback,uniquelocal (docs/ABUSE_CONTROLS.md)");
+    app.log.warn(
+      "TRUST_PROXY=true believes X-Forwarded-For entries clients send themselves, so per-address limits can be dodged. Set the proxy's addresses instead, e.g. TRUST_PROXY=loopback,uniquelocal (docs/ABUSE_CONTROLS.md)",
+    );
   }
   if (config.federation) ctx.federation = new Federation(ctx, config.federation);
   if (config.fcm) {
@@ -518,21 +548,44 @@ export async function buildApp(
 
   app.setErrorHandler((err, req, reply) => {
     if (err instanceof ApiError) {
-      return reply.code(err.statusCode).send({ error: { code: err.code, message: err.message, details: err.details } });
+      return reply.code(err.statusCode).send({
+        error: { code: err.code, message: err.message, details: err.details },
+      });
     }
     // MongoDB unreachable (its domains can't be served): a clear, retryable answer, details only in the log.
     if (err instanceof MongoNetworkError || err instanceof MongoServerSelectionError) {
       req.log.error({ err: { name: err.name, message: err.message } }, "MongoDB unavailable");
-      return reply.code(503).send({ error: { code: "unavailable", message: "The server can't reach its database right now. Try again in a moment." } });
+      return reply.code(503).send({
+        error: {
+          code: "unavailable",
+          message: "The server can't reach its database right now. Try again in a moment.",
+        },
+      });
     }
     const status = (err as { statusCode?: number }).statusCode ?? 500;
-    if (status === 429) return reply.code(429).send({ error: { code: "rate_limited", message: "Too many requests, slow down" } });
-    if (status === 413) return reply.code(413).send({ error: { code: "too_large", message: "Request is too large" } });
+    if (status === 429)
+      return reply.code(429).send({
+        error: {
+          code: "rate_limited",
+          message: "Too many requests, slow down",
+        },
+      });
+    if (status === 413)
+      return reply.code(413).send({
+        error: { code: "too_large", message: "Request is too large" },
+      });
     if (status >= 400 && status < 500) {
-      return reply.code(status).send({ error: { code: "bad_request", message: (err as Error).message } });
+      return reply.code(status).send({
+        error: { code: "bad_request", message: (err as Error).message },
+      });
     }
     req.log.error({ err }, "unhandled error");
-    return reply.code(500).send({ error: { code: "internal", message: "Something went wrong on the server" } });
+    return reply.code(500).send({
+      error: {
+        code: "internal",
+        message: "Something went wrong on the server",
+      },
+    });
   });
 
   app.get("/healthz", async (_req, reply) => {
@@ -541,7 +594,13 @@ export async function buildApp(
     const mongodb = ctx.mongo ? await ctx.mongo.ping() : null;
     if (mongodb === false) reply.code(503);
     // Public: says nothing about usage (the online-device count was removed, D28).
-    return { ok: mongodb !== false, version: VERSION, time: now(), livekit: !!ctx.livekit, mongodb };
+    return {
+      ok: mongodb !== false,
+      version: VERSION,
+      time: now(),
+      livekit: !!ctx.livekit,
+      mongodb,
+    };
   });
 
   // Public: who runs Meldiq and its policies, as set in the console (docs/SITE_DETAILS.md). Cached briefly.
@@ -562,7 +621,13 @@ export async function buildApp(
     signups: signupMode(ctx.platform, config.registrationMode),
     maintenance: (({ enabled, message }) => ({ enabled, message }))(readControl(ctx.platform, "maintenance")),
     // Federation (additive): this server's global identity, if it federates.
-    federation: ctx.federation ? { domain: ctx.federation.domain, serverId: ctx.federation.serverId, protocols: ["griip-fed/1"] } : null,
+    federation: ctx.federation
+      ? {
+          domain: ctx.federation.domain,
+          serverId: ctx.federation.serverId,
+          protocols: ["griip-fed/1"],
+        }
+      : null,
     version: VERSION,
     calling: !!ctx.livekit,
     queueTtlSeconds: config.queueTtlSeconds,
@@ -592,7 +657,54 @@ export async function buildApp(
     passkeys: ctx.accounts.passkeys.available ? { webOrigins: ctx.accounts.passkeys.webOrigins } : null,
   }));
 
-  for (const r of [authRoutes, userRoutes, profileMediaRoutes, gifRoutes, bugReportRoutes, orgRoutes, addMembersRoutes, roleRoutes, conversationRoutes, messageRoutes, serverMessagesRoutes, callRoutes, attachmentRoutes, historyRoutes, pushRoutes, preferenceRoutes, activityRoutes, decorationRoutes, pinRoutes, reminderRoutes, reportRoutes, applicationRoutes, connectionRoutes, onboardingRoutes, guideRoutes, communityRulesRoutes, communityPermissionsRoutes, communitySafetyRoutes, voiceModerationRoutes, expressionRoutes, discordRoutes, leaveManyRoutes, pointsRoutes, creatorRoutes, linkedAccountRoutes, oauthRoutes, botRoutes, communityLobbyRoutes, webhookRoutes, reactionRoleRoutes, ticketRoutes, officialBotRoutes, discoveryRoutes, communityTemplateRoutes, botDirectoryRoutes, wsRoutes]) {
+  for (const r of [
+    authRoutes,
+    userRoutes,
+    profileMediaRoutes,
+    gifRoutes,
+    bugReportRoutes,
+    orgRoutes,
+    addMembersRoutes,
+    roleRoutes,
+    conversationRoutes,
+    messageRoutes,
+    serverMessagesRoutes,
+    callRoutes,
+    attachmentRoutes,
+    historyRoutes,
+    pushRoutes,
+    preferenceRoutes,
+    activityRoutes,
+    decorationRoutes,
+    pinRoutes,
+    reminderRoutes,
+    reportRoutes,
+    applicationRoutes,
+    connectionRoutes,
+    onboardingRoutes,
+    guideRoutes,
+    communityRulesRoutes,
+    communityPermissionsRoutes,
+    communitySafetyRoutes,
+    voiceModerationRoutes,
+    expressionRoutes,
+    discordRoutes,
+    leaveManyRoutes,
+    pointsRoutes,
+    creatorRoutes,
+    linkedAccountRoutes,
+    oauthRoutes,
+    botRoutes,
+    communityLobbyRoutes,
+    webhookRoutes,
+    reactionRoleRoutes,
+    ticketRoutes,
+    officialBotRoutes,
+    discoveryRoutes,
+    communityTemplateRoutes,
+    botDirectoryRoutes,
+    wsRoutes,
+  ]) {
     await app.register(async (scope) => r(scope, ctx));
   }
   // Community parity A3: the community settings routes.
@@ -618,6 +730,11 @@ export async function buildApp(
 export function serverFeatures(config: Config, directUploads = false): string[] {
   const f = [
     "profiles",
+    "profile-revisions",
+    "permission-preview",
+    "expression-preferences",
+    "attachment-proxy",
+    "bot-diagnostics",
     "profile-photos",
     "privacy",
     "phone-lookup",
@@ -760,7 +877,7 @@ export function serverFeatures(config: Config, directUploads = false): string[] 
   if (config.communityRules) f.push("rules-channel");
   // Community parity A1 (docs/COMMUNITY_PERMISSIONS.md): @everyone defaults, nicknames, role extras and order, channel
   // options and stages, and the new message permissions (COMMUNITY_PERMISSIONS=off switches it off).
-  if (config.communityPermissions) f.push("community-permissions");
+  if (config.communityPermissions) f.push("community-permissions", "community-profiles");
   // Community parity A3 (docs/COMMUNITY_SETTINGS_API.md): never-expiring and custom invite links, community links, the
   // background tint and onboarding's "must finish" (COMMUNITY_SETTINGS=off switches it off).
   if (config.communitySettings) f.push("community-settings");

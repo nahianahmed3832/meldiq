@@ -6,21 +6,57 @@ import { z } from "zod";
  */
 
 /** Conversation ids: "c_…" (local) or "cf_…" (federated DMs). */
-export const zConversationId = z.string().min(3).max(64).regex(/^[A-Za-z0-9_-]+$/);
+export const zConversationId = z
+  .string()
+  .min(3)
+  .max(64)
+  .regex(/^[A-Za-z0-9_-]+$/);
 /** Home's built-in groups ("dms", "channels", "branch:<id>", "team:<id>", …): a short opaque key chosen by the app. */
-const zGroupKey = z.string().min(1).max(80).regex(/^[A-Za-z0-9_:.-]+$/);
-const zSectionId = z.string().min(3).max(40).regex(/^[A-Za-z0-9_-]+$/);
+const zGroupKey = z
+  .string()
+  .min(1)
+  .max(80)
+  .regex(/^[A-Za-z0-9_:.-]+$/);
+const zSectionId = z
+  .string()
+  .min(3)
+  .max(40)
+  .regex(/^[A-Za-z0-9_-]+$/);
 /** Organisation (community) ids as the server assigns them. */
-export const zOrgId = z.string().min(3).max(64).regex(/^o_[A-Za-z0-9_-]+$/);
+export const zOrgId = z
+  .string()
+  .min(3)
+  .max(64)
+  .regex(/^o_[A-Za-z0-9_-]+$/);
 /** Message ids as the server assigns them. */
-const zMessageId = z.string().min(3).max(64).regex(/^[A-Za-z0-9_-]+$/);
+const zMessageId = z
+  .string()
+  .min(3)
+  .max(64)
+  .regex(/^[A-Za-z0-9_-]+$/);
 
 export const NOTIFY_LEVELS = ["all", "mentions", "none"] as const;
 export type NotifyLevel = (typeof NOTIFY_LEVELS)[number];
 
-export const LIMITS = { starred: 200, sections: 30, itemsPerSection: 200, collapsed: 200, notify: 1000, saved: 500, railOrder: 200, mutedUntil: 1000, categories: 200, hidden: 500, railFolders: 50 } as const;
+export const LIMITS = {
+  starred: 200,
+  sections: 30,
+  itemsPerSection: 200,
+  collapsed: 200,
+  notify: 1000,
+  saved: 500,
+  railOrder: 200,
+  mutedUntil: 1000,
+  categories: 200,
+  hidden: 500,
+  railFolders: 50,
+} as const;
 /** Category ids as the server assigns them. */
-const zCategoryId = z.string().min(3).max(64).regex(/^cat_[A-Za-z0-9_-]+$/);
+const zCategoryId = z
+  .string()
+  .min(3)
+  .max(64)
+  .regex(/^cat_[A-Za-z0-9_-]+$/);
 
 /**
  * A community's own notification settings (batch B2, Discord reference COMM-CTRL-002), in that community's document:
@@ -81,7 +117,9 @@ export const zNavPrefs = z
     notify: z
       .record(zConversationId, z.enum(NOTIFY_LEVELS))
       .default({})
-      .refine((m) => Object.keys(m).length <= LIMITS.notify, { message: `At most ${LIMITS.notify} notification settings` }),
+      .refine((m) => Object.keys(m).length <= LIMITS.notify, {
+        message: `At most ${LIMITS.notify} notification settings`,
+      }),
     /**
      * Saved messages. Optional on the wire: a client that doesn't know the field (an older app, the web app) leaves it
      * out, and the stored list is kept (routes.ts) instead of being emptied.
@@ -102,12 +140,16 @@ export const zNavPrefs = z
      */
     mutedUntil: z
       .record(zConversationId, z.number().int().min(0))
-      .refine((m) => Object.keys(m).length <= LIMITS.mutedUntil, { message: `At most ${LIMITS.mutedUntil} timed mutes` })
+      .refine((m) => Object.keys(m).length <= LIMITS.mutedUntil, {
+        message: `At most ${LIMITS.mutedUntil} timed mutes`,
+      })
       .optional(),
     /** Batch B3, community documents only: a category's own level, which its channels follow unless they have one. */
     categoryNotify: z
       .record(zCategoryId, z.enum(NOTIFY_LEVELS))
-      .refine((m) => Object.keys(m).length <= LIMITS.categories, { message: `At most ${LIMITS.categories} category settings` })
+      .refine((m) => Object.keys(m).length <= LIMITS.categories, {
+        message: `At most ${LIMITS.categories} category settings`,
+      })
       .optional(),
     /** Batch B3, community documents only: channels hidden from the person's channel list (they stay joined). */
     hidden: z.array(zConversationId).max(LIMITS.hidden).optional(),
@@ -116,6 +158,14 @@ export const zNavPrefs = z
      * (false: Meldiq's own theme everywhere). Left out, the stored choice is kept; never set means shown.
      */
     communityThemes: z.boolean().optional(),
+    expressionFavorites: z
+      .array(z.string().regex(/^(emj|stk)_[A-Za-z0-9_-]{1,40}$/))
+      .max(100)
+      .optional(),
+    expressionRecents: z
+      .array(z.string().regex(/^(emj|stk)_[A-Za-z0-9_-]{1,40}$/))
+      .max(40)
+      .optional(),
   })
   .strict();
 
@@ -124,7 +174,13 @@ export type SavedItem = z.infer<typeof zSavedItem>;
 export type CommunityNotify = z.infer<typeof zCommunityNotify>;
 export type NavPrefs = z.infer<typeof zNavPrefs>;
 
-export const EMPTY_PREFS: NavPrefs = { starred: [], sections: [], collapsed: [], notify: {}, saved: [] };
+export const EMPTY_PREFS: NavPrefs = {
+  starred: [],
+  sections: [],
+  collapsed: [],
+  notify: {},
+  saved: [],
+};
 
 /** A stored document: the preferences plus the revision every write must name (optimistic concurrency). */
 export interface StoredPrefs {
@@ -158,9 +214,7 @@ export function normalizePrefs(
     });
   const starred = take(p.starred);
   const sectionIds = new Set<string>();
-  const sections = p.sections
-    .filter((s) => !sectionIds.has(s.id) && (sectionIds.add(s.id), true))
-    .map((s) => ({ ...s, items: take(s.items) }));
+  const sections = p.sections.filter((s) => !sectionIds.has(s.id) && (sectionIds.add(s.id), true)).map((s) => ({ ...s, items: take(s.items) }));
   const notify = Object.fromEntries(
     Object.entries(p.notify)
       .filter(([id, level]) => (level !== "all" || parentLevel(id) !== "all") && keep(id))
@@ -177,9 +231,15 @@ export function normalizePrefs(
     ...(p.community ? { community: liveCommunity(p.community, at) } : {}),
     ...(p.railOrder ? { railOrder: [...new Set(p.railOrder)] } : {}),
     ...(p.railFolders ? { railFolders: normalizeFolders(p.railFolders) } : {}),
-    ...(p.mutedUntil ? { mutedUntil: Object.fromEntries(Object.entries(p.mutedUntil).filter(([id, until]) => until > at && keep(id))) } : {}),
+    ...(p.mutedUntil
+      ? {
+          mutedUntil: Object.fromEntries(Object.entries(p.mutedUntil).filter(([id, until]) => until > at && keep(id))),
+        }
+      : {}),
     ...(p.categoryNotify ? { categoryNotify: p.categoryNotify } : {}),
     ...(p.hidden ? { hidden: [...new Set(p.hidden)] } : {}),
+    ...(p.expressionFavorites ? { expressionFavorites: [...new Set(p.expressionFavorites)] } : {}),
+    ...(p.expressionRecents ? { expressionRecents: [...new Set(p.expressionRecents)] } : {}),
     ...(p.communityThemes !== undefined ? { communityThemes: p.communityThemes } : {}),
   };
 }

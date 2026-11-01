@@ -9,7 +9,12 @@ import { PreferencesBody, WorkspaceParams } from "../../../shared/contracts/http
 import { EMPTY_PREFS, type NavPrefs, normalizePrefs, type StoredPrefs } from "./schema.js";
 
 function view(workspaceId: string, s: StoredPrefs | null) {
-  return { workspaceId, rev: s?.rev ?? 0, updatedAt: s?.updatedAt ?? null, prefs: s?.prefs ?? EMPTY_PREFS };
+  return {
+    workspaceId,
+    rev: s?.rev ?? 0,
+    updatedAt: s?.updatedAt ?? null,
+    prefs: s?.prefs ?? EMPTY_PREFS,
+  };
 }
 
 /**
@@ -39,7 +44,13 @@ export default async function preferenceRoutes(app: FastifyInstance, ctx: AppCon
     const body = parse(PreferencesBody, req.body);
     requireWorkspace(workspaceId, userId);
     // Only the person's own conversations can be arranged; anything else (left meanwhile, never joined) is dropped.
-    const mine = new Set(ctx.ws.all<{ conversation_id: string }>("conversation_members", { where: { user_id: userId } }).map((r) => r.conversation_id));
+    const mine = new Set(
+      ctx.ws
+        .all<{ conversation_id: string }>("conversation_members", {
+          where: { user_id: userId },
+        })
+        .map((r) => r.conversation_id),
+    );
     // A client that doesn't know saved messages leaves the field out: keep the stored list. If the document changed
     // since that copy was read, the revision check below refuses the write, so nothing stale is kept.
     const stored = (await ctx.prefs.get(userId, workspaceId))?.prefs;
@@ -52,13 +63,27 @@ export default async function preferenceRoutes(app: FastifyInstance, ctx: AppCon
     const community = personal
       ? undefined
       : sentCommunity
-        ? { ...sentCommunity, mutedUntil: sentCommunity.mutedUntil !== undefined ? sentCommunity.mutedUntil : stored?.community?.mutedUntil }
+        ? {
+            ...sentCommunity,
+            mutedUntil: sentCommunity.mutedUntil !== undefined ? sentCommunity.mutedUntil : stored?.community?.mutedUntil,
+          }
         : stored?.community;
-    const myOrgs = new Set(ctx.ws.all<{ org_id: string }>("org_members", { where: { user_id: userId } }).map((r) => r.org_id));
+    const myOrgs = new Set(
+      ctx.ws
+        .all<{ org_id: string }>("org_members", {
+          where: { user_id: userId },
+        })
+        .map((r) => r.org_id),
+    );
     const railOrder = personal ? (body.prefs.railOrder ?? stored?.railOrder)?.filter((id) => myOrgs.has(id)) : undefined;
     // API 0.50.0: rail folders hold only communities the person is in; a folder left with none is dropped.
     const railFolders = personal
-      ? (body.prefs.railFolders ?? stored?.railFolders)?.map((f) => ({ ...f, orgIds: f.orgIds.filter((id) => myOrgs.has(id)) })).filter((f) => f.orgIds.length > 0)
+      ? (body.prefs.railFolders ?? stored?.railFolders)
+          ?.map((f) => ({
+            ...f,
+            orgIds: f.orgIds.filter((id) => myOrgs.has(id)),
+          }))
+          .filter((f) => f.orgIds.length > 0)
       : undefined;
     // Batch B3: timed mutes (any document), and a community's category levels and hidden channels (its document only):
     // only its own categories, and only its channels the person can see (joined or not).
@@ -70,7 +95,10 @@ export default async function preferenceRoutes(app: FastifyInstance, ctx: AppCon
     let hidden: string[] | undefined;
     const channelCategory = new Map<string, string | null>();
     if (!personal) {
-      for (const r of ctx.ws.all<{ id: string }>("channel_categories", { where: { org_id: workspaceId } })) categories.add(r.id);
+      for (const r of ctx.ws.all<{ id: string }>("channel_categories", {
+        where: { org_id: workspaceId },
+      }))
+        categories.add(r.id);
       for (const r of ctx.ws.all<{ id: string; category_id: string | null }>("conversations", { where: { org_id: workspaceId, type: "CHANNEL" } })) {
         channelCategory.set(r.id, r.category_id);
       }
@@ -87,7 +115,25 @@ export default async function preferenceRoutes(app: FastifyInstance, ctx: AppCon
       const cat = channelCategory.get(id);
       return (cat && categoryNotify?.[cat]) || communityLevel;
     };
-    const prefs = normalizePrefs({ ...body.prefs, saved, community, railOrder, railFolders, mutedUntil, categoryNotify, hidden, communityThemes }, (id) => mine.has(id), parentLevel);
+    const expressionFavorites = personal ? (body.prefs.expressionFavorites ?? stored?.expressionFavorites) : undefined;
+    const expressionRecents = personal ? (body.prefs.expressionRecents ?? stored?.expressionRecents) : undefined;
+    const prefs = normalizePrefs(
+      {
+        ...body.prefs,
+        expressionFavorites,
+        expressionRecents,
+        saved,
+        community,
+        railOrder,
+        railFolders,
+        mutedUntil,
+        categoryNotify,
+        hidden,
+        communityThemes,
+      },
+      (id) => mine.has(id),
+      parentLevel,
+    );
     const result = await ctx.prefs.put(userId, workspaceId, prefs, body.baseRev, now());
     if (!result.ok) {
       throw new ApiError(409, "stale_preferences", "These preferences changed on another device. Apply your change to this copy and try again.", {

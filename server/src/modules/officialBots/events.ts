@@ -56,6 +56,7 @@ export interface MessageDeleted extends Base {
 }
 export interface ReactionChanged extends Base {
   kind: "reaction";
+  eventId: string;
   conversationId: string;
   userId: string;
   target: string;
@@ -82,18 +83,49 @@ export type BotEvent = MessagePosted | MessageEdited | MessageDeleted | Reaction
 
 /** The message path's side: new messages, edits, deletions and reactions; everything else is ignored. */
 export function fromMessage(m: NotedMessage): BotEvent | null {
-  const base = { orgId: m.orgId, conversationId: m.conversationId, userId: m.userId, at: m.at };
+  const base = {
+    orgId: m.orgId,
+    conversationId: m.conversationId,
+    userId: m.userId,
+    at: m.at,
+  };
   const { type, target } = m.payload;
-  if (m.cls === "message") return { kind: "message", ...base, messageId: m.messageId, payload: m.payload };
+  if (m.cls === "message")
+    return {
+      kind: "message",
+      ...base,
+      messageId: m.messageId,
+      payload: m.payload,
+    };
   if (typeof target !== "string") return null;
-  if (type === "edit") return { kind: "edit", ...base, eventId: m.messageId, target, text: typeof m.payload.text === "string" ? m.payload.text : "" };
+  if (type === "edit")
+    return {
+      kind: "edit",
+      ...base,
+      eventId: m.messageId,
+      target,
+      text: typeof m.payload.text === "string" ? m.payload.text : "",
+    };
   if (type === "delete") return { kind: "delete", ...base, target };
-  if (type === "reaction" && typeof m.payload.emoji === "string") return { kind: "reaction", ...base, target, emoji: m.payload.emoji, add: m.payload.add !== false };
+  if (type === "reaction" && typeof m.payload.emoji === "string")
+    return {
+      kind: "reaction",
+      ...base,
+      eventId: m.messageId,
+      target,
+      emoji: m.payload.emoji,
+      add: m.payload.add !== false,
+    };
   return null;
 }
 
 /** Audit actions that mean someone joined, and where the newcomer's id is. */
-const JOINS: Record<string, "actor" | "target"> = { "community.join": "target", "invite.accept": "actor", "member.add": "target", "application.approved": "target" };
+const JOINS: Record<string, "actor" | "target"> = {
+  "community.join": "target",
+  "invite.accept": "actor",
+  "member.add": "target",
+  "application.approved": "target",
+};
 const MEMBER_CHANGES: Record<string, MemberChange> = {
   "member.leave": "leave",
   "member.remove": "remove",
@@ -111,14 +143,44 @@ export function fromAudit(e: NotedAudit, at: number): BotEvent | null {
   const join = JOINS[e.action];
   if (join) {
     const userId = join === "actor" ? actorId : (e.target ?? null);
-    return userId ? { kind: "member", orgId: e.orgId, at, change: "join", userId, actorId, detail: null } : null;
+    return userId
+      ? {
+          kind: "member",
+          orgId: e.orgId,
+          at,
+          change: "join",
+          userId,
+          actorId,
+          detail: null,
+        }
+      : null;
   }
   const change = MEMBER_CHANGES[e.action];
-  if (change) return e.target ? { kind: "member", orgId: e.orgId, at, change, userId: e.target, actorId, detail: e.detail ?? null } : null;
+  if (change)
+    return e.target
+      ? {
+          kind: "member",
+          orgId: e.orgId,
+          at,
+          change,
+          userId: e.target,
+          actorId,
+          detail: e.detail ?? null,
+        }
+      : null;
   if (e.action === "role.assign" || e.action === "role.unassign") {
     const [roleId, userId] = (e.target ?? "").split(":");
     if (!roleId || !userId) return null;
-    return { kind: "role", orgId: e.orgId, at, given: e.action === "role.assign", userId, roleId, roleName: e.detail ?? "a role", actorId };
+    return {
+      kind: "role",
+      orgId: e.orgId,
+      at,
+      given: e.action === "role.assign",
+      userId,
+      roleId,
+      roleName: e.detail ?? "a role",
+      actorId,
+    };
   }
   return null;
 }

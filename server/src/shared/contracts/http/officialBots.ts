@@ -58,7 +58,13 @@ export const HelperSettings = z.strictObject({
     .array(
       z.strictObject({
         /** Without the "!": letters, digits, "-" and "_". */
-        name: z.string().trim().toLowerCase().regex(/^[a-z0-9_-]+$/).min(1).max(BOT_LIMITS.customCommandName),
+        name: z
+          .string()
+          .trim()
+          .toLowerCase()
+          .regex(/^[a-z0-9_-]+$/)
+          .min(1)
+          .max(BOT_LIMITS.customCommandName),
         /** {user}: whoever ran it (a mention). */
         response: z.string().trim().min(1).max(BOT_LIMITS.customResponse),
       }),
@@ -71,7 +77,14 @@ export const LevelsSettings = z.strictObject({
   announce: z.boolean(),
   announceChannelId: zChannelId.nullable(),
   boost: zBoost,
-  roleRewards: z.array(z.strictObject({ level: z.number().int().min(1).max(BOT_LIMITS.maxLevel), roleId: z.string().min(1).max(64) })).max(BOT_LIMITS.roleRewards),
+  roleRewards: z
+    .array(
+      z.strictObject({
+        level: z.number().int().min(1).max(BOT_LIMITS.maxLevel),
+        roleId: z.string().min(1).max(64),
+      }),
+    )
+    .max(BOT_LIMITS.roleRewards),
   /** Placeholders {user} (a mention) and {level}; null: Meldiq's line. */
   levelUpMessage: z.string().trim().min(1).max(BOT_LIMITS.welcomeMessage).nullable(),
 });
@@ -95,14 +108,22 @@ export const StarboardSettings = z.strictObject({
 const zRoleId = z.string().min(1).max(64);
 
 /** Giveaways: the limits follow Bots+ (winners, length). Plus: only members holding `requiredRoleId` may win. */
-export const GiveawaysSettings = z.strictObject({ requiredRoleId: zRoleId.nullable() });
+export const GiveawaysSettings = z.strictObject({
+  requiredRoleId: zRoleId.nullable(),
+});
 
 /**
  * What the Tickets bot keeps itself: the Bots+ extras of each panel (by panel id) and transcripts. The rest of its
  * settings is batch C's tickets config (`TicketsBotSettings` is what editors see and send).
  */
 export const TicketsBotStored = z.strictObject({
-  panels: z.record(z.string(), z.strictObject({ supportRoleId: zRoleId.nullable(), welcomeMessage: z.string().nullable() })),
+  panels: z.record(
+    z.string(),
+    z.strictObject({
+      supportRoleId: zRoleId.nullable(),
+      welcomeMessage: z.string().nullable(),
+    }),
+  ),
   transcripts: z.boolean(),
 });
 
@@ -110,7 +131,9 @@ export const TicketsBotStored = z.strictObject({
 export const AlertsSettings = z.strictObject({});
 
 /** Wordy: quiet until `channelId` (where the game is played and the daily recap goes) is set. */
-export const WordySettings = z.strictObject({ channelId: zChannelId.nullable() });
+export const WordySettings = z.strictObject({
+  channelId: zChannelId.nullable(),
+});
 
 export const BOT_SETTINGS = {
   welcomer: WelcomerSettings,
@@ -174,7 +197,11 @@ export const CatalogBot = z.strictObject({
 
 export const OfficialBotsCatalog = z.strictObject({
   bots: z.array(CatalogBot),
-  botsPlus: z.strictObject({ name: z.string(), description: z.string(), perks: z.array(z.string()) }),
+  botsPlus: z.strictObject({
+    name: z.string(),
+    description: z.string(),
+    perks: z.array(z.string()),
+  }),
 });
 
 export const OfficialBotView = z.strictObject({
@@ -212,11 +239,18 @@ export const OfficialBotBody = z.strictObject({
   enabled: z.boolean().optional(),
   /** Some or all of the bot's settings (the rest stay); checked against that bot's settings. */
   settings: z.record(z.string(), z.unknown()).optional(),
-  look: z.strictObject({ name: z.string().trim().min(1).max(BOT_LIMITS.lookName).nullable() }).optional(),
+  look: z
+    .strictObject({
+      name: z.string().trim().min(1).max(BOT_LIMITS.lookName).nullable(),
+    })
+    .optional(),
 });
 
 export const OfficialBotOne = z.strictObject({ bot: OfficialBotView });
-export const OfficialBotParams = z.object({ orgId: z.string().min(1).max(64), key: z.enum(OFFICIAL_BOT_KEYS) });
+export const OfficialBotParams = z.object({
+  orgId: z.string().min(1).max(64),
+  key: z.enum(OFFICIAL_BOT_KEYS),
+});
 const OrgOnly = z.object({ orgId: z.string().min(1).max(64) });
 
 /** Platform Admin Console: Bots+ for a community, while billing for it is off. */
@@ -226,15 +260,73 @@ export const AdminBotsPlusBody = z.strictObject({
   expiresAt: zTime.nullable().optional(),
   reason: z.string().trim().min(3).max(500),
 });
-export const BotsPlusGrant = z.strictObject({ enabled: z.boolean(), grantedAt: zTime.nullable(), expiresAt: zTime.nullable(), grantedBy: z.string().nullable(), reason: z.string().nullable() });
+export const BotsPlusGrant = z.strictObject({
+  enabled: z.boolean(),
+  grantedAt: zTime.nullable(),
+  expiresAt: zTime.nullable(),
+  grantedBy: z.string().nullable(),
+  reason: z.string().nullable(),
+});
 
 const tag = "official-bots";
 const off = ["not_found", "feature_disabled"] as const;
 
+export const BotDiagnostics = z.strictObject({
+  enabled: z.boolean(),
+  available: z.boolean(),
+  reason: z.string().nullable(),
+  checkedAt: z.number().int(),
+  checks: z.array(z.strictObject({ label: z.string(), ok: z.boolean(), detail: z.string() })),
+  events: z.array(
+    z.strictObject({
+      id: z.string(),
+      kind: z.string(),
+      outcome: z.enum(["ok", "failed"]),
+      at: z.number().int(),
+    }),
+  ),
+});
+
 export const officialBotRoutes = [
-  route({ method: "GET", url: "/v1/official-bots", tag, summary: "The official bots: what each does, its commands and its Free vs Plus table.", auth: true, response: OfficialBotsCatalog, errors: ["feature_disabled"] }),
-  route({ method: "GET", url: "/v1/orgs/:orgId/official-bots", tag, summary: "A community's official bots: on or off, look, settings (editors) and Bots+.", auth: true, params: OrgOnly, response: CommunityOfficialBots, errors: [...off] }),
-  route({ method: "GET", url: "/v1/orgs/:orgId/official-bots/:key", tag, summary: "One official bot in a community.", auth: true, params: OfficialBotParams, response: OfficialBotOne, errors: [...off] }),
+  route({
+    method: "GET",
+    url: "/v1/orgs/:orgId/official-bots/:key/diagnostics",
+    tag,
+    auth: true,
+    summary: "Read-only configuration checks and last 50 metadata-only event outcomes for community editors.",
+    params: OfficialBotParams,
+    response: BotDiagnostics,
+    errors: ["not_found", "forbidden", "feature_disabled"],
+  }),
+  route({
+    method: "GET",
+    url: "/v1/official-bots",
+    tag,
+    summary: "The official bots: what each does, its commands and its Free vs Plus table.",
+    auth: true,
+    response: OfficialBotsCatalog,
+    errors: ["feature_disabled"],
+  }),
+  route({
+    method: "GET",
+    url: "/v1/orgs/:orgId/official-bots",
+    tag,
+    summary: "A community's official bots: on or off, look, settings (editors) and Bots+.",
+    auth: true,
+    params: OrgOnly,
+    response: CommunityOfficialBots,
+    errors: [...off],
+  }),
+  route({
+    method: "GET",
+    url: "/v1/orgs/:orgId/official-bots/:key",
+    tag,
+    summary: "One official bot in a community.",
+    auth: true,
+    params: OfficialBotParams,
+    response: OfficialBotOne,
+    errors: [...off],
+  }),
   route({
     method: "PUT",
     url: "/v1/orgs/:orgId/official-bots/:key",
@@ -246,8 +338,27 @@ export const officialBotRoutes = [
     response: OfficialBotOne,
     errors: [...off, "forbidden", "bots_plus_required", "official_bot_unavailable", "official_bot_channel_invalid", "bot_role_not_givable", "banned", "limit_reached"],
   }),
-  route({ method: "PUT", url: "/v1/orgs/:orgId/official-bots/:key/avatar", tag, summary: "The bot's picture in this community (JPEG).", auth: true, params: OfficialBotParams, binary: "request", response: OfficialBotOne, errors: [...off, "forbidden", "official_bot_unavailable", "too_large", "storage_unavailable"] }),
-  route({ method: "DELETE", url: "/v1/orgs/:orgId/official-bots/:key/avatar", tag, summary: "Back to the bot's standard picture.", auth: true, params: OfficialBotParams, response: OfficialBotOne, errors: [...off, "forbidden", "official_bot_unavailable"] }),
+  route({
+    method: "PUT",
+    url: "/v1/orgs/:orgId/official-bots/:key/avatar",
+    tag,
+    summary: "The bot's picture in this community (JPEG).",
+    auth: true,
+    params: OfficialBotParams,
+    binary: "request",
+    response: OfficialBotOne,
+    errors: [...off, "forbidden", "official_bot_unavailable", "too_large", "storage_unavailable"],
+  }),
+  route({
+    method: "DELETE",
+    url: "/v1/orgs/:orgId/official-bots/:key/avatar",
+    tag,
+    summary: "Back to the bot's standard picture.",
+    auth: true,
+    params: OfficialBotParams,
+    response: OfficialBotOne,
+    errors: [...off, "forbidden", "official_bot_unavailable"],
+  }),
   route({
     method: "POST",
     url: "/v1/orgs/:orgId/official-bots/welcomer/test",

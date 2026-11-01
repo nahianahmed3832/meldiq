@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import { AsyncLock } from "../../shared/utilities/lock.js";
 import { KEPT_FOREVER, type UploadRow, type UsageFilter } from "./store.js";
 import { type Config, DEFAULT_FILE_MAX_BYTES, effectiveFileMaxBytes, encryptedAttachmentBytes } from "../../app/config.js";
-import { CompleteBody, ConversationQuery, PartsBody, UploadStartBody } from "../../shared/contracts/http/files.js";
+import { AttachmentDownloadQuery, CompleteBody, ConversationQuery, PartsBody, UploadStartBody } from "../../shared/contracts/http/files.js";
 import { idParams } from "../../shared/contracts/http/primitives.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -49,7 +49,13 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
   // Uploads in progress: bounds concurrency and the temporary disk space they can claim. Their bytes also count for
   // their workspace and, for accounts under new-account limits, for those accounts together, so uploads running in
   // parallel can't pass those limits either.
-  const inFlight = { count: 0, bytes: 0, users: new Map<string, { count: number; bytes: number }>(), orgs: new Map<string, number>(), newAccounts: 0 };
+  const inFlight = {
+    count: 0,
+    bytes: 0,
+    users: new Map<string, { count: number; bytes: number }>(),
+    orgs: new Map<string, number>(),
+    newAccounts: 0,
+  };
   // Uploads started per person per hour, finished or not (docs/ABUSE_CONTROLS.md › Uploads).
   const starts = new SlidingWindow(abuse.uploadStartsPerHour, HOUR_MS);
   /** A new-account allowance, never above the general one (0: no separate allowance; a general 0 means no limit). */
@@ -64,7 +70,11 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
     /** Under new-account limits. */
     limited: boolean;
   }
-  const uploaderOf = (userId: string, orgId: string | null): Uploader => ({ userId, orgId, limited: hasNewAccountLimits(ctx.identity, userId) });
+  const uploaderOf = (userId: string, orgId: string | null): Uploader => ({
+    userId,
+    orgId,
+    limited: hasNewAccountLimits(ctx.identity, userId),
+  });
 
   /**
    * The unified quotas (docs/QUOTAS.md), after the server's own limits above: the largest single upload, stored bytes
@@ -88,7 +98,11 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
       const stored = await q.check("storage.bytes", scopes, size, { measured });
       if (!stored.allowed) throw refusal(stored);
     }
-    const month = await q.check("files.upload_bytes", scopes, size, { reserve: true, idempotencyKey: `upload:${uploadId}`, ttlMs });
+    const month = await q.check("files.upload_bytes", scopes, size, {
+      reserve: true,
+      idempotencyKey: `upload:${uploadId}`,
+      ttlMs,
+    });
     if (!month.allowed) throw refusal(month);
   };
   /** Never rejects: a reservation left open is released by the retention job when its time is up. */
@@ -109,8 +123,7 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
   const checkQuotas = async (who: Uploader, reserve: number, streaming: number): Promise<void> => {
     const t = now();
     const { userId } = who;
-    const bytes = async (stored: UsageFilter, pending: Omit<UsageFilter, "kept">) =>
-      (await files.storedUsage(stored)).bytes + (await files.pendingUsage(pending)).bytes;
+    const bytes = async (stored: UsageFilter, pending: Omit<UsageFilter, "kept">) => (await files.storedUsage(stored)).bytes + (await files.pendingUsage(pending)).bytes;
     const today = await bytes({ uploaders: [userId], createdAfter: t - 86_400_000 }, { uploaders: [userId], createdAfter: t - 86_400_000 });
     const daily = who.limited ? newAccountCap(abuse.newAccountDailyBytes, cfg.attachmentUserDailyBytes) : cfg.attachmentUserDailyBytes;
     if (exceeds(daily, today + streaming + reserve)) {
@@ -249,18 +262,32 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
       await quotaSettle(id, storedSize);
     }
     const expiresAt = expiryOf(cfg, t);
-    await files.recordAttachment({ id, conversation_id: conv.id, uploader_user_id: userId, size, created_at: t, expires_at: expiresAt });
+    await files.recordAttachment({
+      id,
+      conversation_id: conv.id,
+      uploader_user_id: userId,
+      size,
+      created_at: t,
+      expires_at: expiresAt,
+    });
     ctx.usage?.add(conv.org_id, "files.upload_bytes", size);
     ctx.telemetry?.activity.addTraffic(userId, "files.upload", size, t);
     // Federated conversation: the ciphertext is pushed to the other people's servers, so they download it from
     // their own server. Queued before the message that references it, and delivered in order.
-    await ctx.federation?.pushAttachment(conv.id, { id, conversationId: conv.id, uploaderUserId: userId, size, expiresAt });
+    await ctx.federation?.pushAttachment(conv.id, {
+      id,
+      conversationId: conv.id,
+      uploaderUserId: userId,
+      size,
+      expiresAt,
+    });
     return { id, size, expiresAt };
   });
 
   app.get("/v1/attachments/:id", auth, async (req, reply) => {
     const { userId } = me(req);
     const { id } = parse(idParams, req.params);
+    const { proxy } = parse(AttachmentDownloadQuery, req.query);
     const a = await files.attachment(id);
     // Same 404 for unknown, expired and unauthorised: no oracle for guessing ids.
     if (!a || a.expires_at <= now() || !ctx.authz.isMember(a.conversation_id, userId)) throw notFound("Attachment not found or expired");
@@ -275,7 +302,7 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
     ctx.telemetry?.activity.addTraffic(userId, "files.download", asked, now());
     // S3 with presigned downloads: after the checks above, a link valid for a few minutes (the client follows it; its
     // Range header still applies). The bucket itself stays private.
-    const direct = await blobs.presignedGet("attachments", a.id);
+    const direct = proxy === "1" ? null : await blobs.presignedGet("attachments", a.id);
     if (direct) return reply.redirect(direct, 302);
     reply.header("accept-ranges", "bytes");
     // Resumable downloads (T2.6): a single "bytes=start-[end]" range, checked after membership.
@@ -285,7 +312,12 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
       const end = range[2] === "" ? a.size - 1 : Math.min(Number(range[2]), a.size - 1);
       if (start >= a.size || start > end) {
         reply.header("content-range", `bytes */${a.size}`);
-        return reply.code(416).send({ error: { code: "range_not_satisfiable", message: "Requested range is outside the file" } });
+        return reply.code(416).send({
+          error: {
+            code: "range_not_satisfiable",
+            message: "Requested range is outside the file",
+          },
+        });
       }
       const part = await blobs.get("attachments", a.id, { start, end });
       if (!part) throw notFound("Attachment not found or expired");
@@ -315,7 +347,13 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
     // Files kept for good (ATTACHMENT_KEEP_FOREVER) stay kept for good; otherwise for ATTACHMENT_KEEP_DAYS from now.
     const until = cfg.attachmentKeepForever ? KEPT_FOREVER : t + cfg.attachmentKeepDays * 86_400_000;
     if (!a.kept) {
-      const kept = (await files.storedUsage({ uploaders: [a.uploader_user_id], kept: true, liveAt: t })).bytes;
+      const kept = (
+        await files.storedUsage({
+          uploaders: [a.uploader_user_id],
+          kept: true,
+          liveAt: t,
+        })
+      ).bytes;
       if (exceeds(cfg.attachmentUserKeptBytes, kept + a.size)) {
         throw new ApiError(429, "quota_exceeded", "This file can't be kept on the server: its sender's storage for kept files is full.");
       }
@@ -396,7 +434,13 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
         return storeFailure(e, "create-multipart");
       });
       await files.setMultipart(id, multipartId);
-      return { uploadId: id, mode: "multipart", partSize: d.partSize, partCount: Math.ceil(body.size / d.partSize), expiresAt };
+      return {
+        uploadId: id,
+        mode: "multipart",
+        partSize: d.partSize,
+        partCount: Math.ceil(body.size / d.partSize),
+        expiresAt,
+      };
     }
     const upload = await d.presignPut("attachments", id, body.size, body.sha256, cfg.directUploads.urlTtlSeconds).catch((e) => storeFailure(e, "presign"));
     return { uploadId: id, mode: "single", upload, expiresAt };
@@ -407,7 +451,9 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
     const d = requireDirect();
     const u = await loadUpload(parse(idParams, req.params).id, me(req).userId);
     if (u.multipart_id) throw badRequest("This is a multipart upload: ask for its parts");
-    return { upload: await d.presignPut("attachments", u.id, u.size, u.sha256, cfg.directUploads.urlTtlSeconds).catch((e) => storeFailure(e, "presign")) };
+    return {
+      upload: await d.presignPut("attachments", u.id, u.size, u.sha256, cfg.directUploads.urlTtlSeconds).catch((e) => storeFailure(e, "presign")),
+    };
   });
 
   // URLs for parts of a multipart upload: each bound to its exact size and SHA-256.
@@ -420,7 +466,10 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
       if (p.n > partCount(u) || p.size !== partSizeOf(u, p.n)) throw badRequest(`Part ${p.n} must be ${p.n > partCount(u) ? "within the upload" : `${partSizeOf(u, p.n)} bytes`}`);
     }
     const signed = await Promise.all(
-      parts.map(async (p) => ({ n: p.n, upload: await d.presignPart("attachments", u.id, u.multipart_id!, p.n, p.size, p.sha256, cfg.directUploads.urlTtlSeconds) })),
+      parts.map(async (p) => ({
+        n: p.n,
+        upload: await d.presignPart("attachments", u.id, u.multipart_id!, p.n, p.size, p.sha256, cfg.directUploads.urlTtlSeconds),
+      })),
     ).catch((e) => storeFailure(e, "presign-part"));
     return { parts: signed };
   });
@@ -431,7 +480,14 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
     const u = await loadUpload(parse(idParams, req.params).id, me(req).userId);
     if (!u.multipart_id) throw badRequest("This is a single upload");
     const have = await d.listParts("attachments", u.id, u.multipart_id).catch((e) => storeFailure(e, "list-parts"));
-    return { parts: have.map((p) => ({ n: p.partNumber, etag: p.etag, size: p.size, sha256: p.sha256 })) };
+    return {
+      parts: have.map((p) => ({
+        n: p.partNumber,
+        etag: p.etag,
+        size: p.size,
+        sha256: p.sha256,
+      })),
+    };
   });
 
   // Checks the stored object and records the attachment. Safe to repeat: a completed upload answers the same again.
@@ -461,7 +517,16 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
         }
       }
       await d
-        .completeMultipart("attachments", u.id, u.multipart_id, parts.map((p) => ({ partNumber: p.n, etag: p.etag, sha256: p.sha256 })))
+        .completeMultipart(
+          "attachments",
+          u.id,
+          u.multipart_id,
+          parts.map((p) => ({
+            partNumber: p.n,
+            etag: p.etag,
+            sha256: p.sha256,
+          })),
+        )
         .catch((e) => storeFailure(e, "complete-multipart"));
     }
     const stored = await d.head("attachments", u.id).catch((e) => storeFailure(e, "head"));
@@ -474,7 +539,14 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
     const t = now();
     const expiresAt = expiryOf(cfg, t);
     // Exactly one of this and the expiry job wins: the attachment exists only if this upload session was still open.
-    const recorded = await files.completeUpload(u.id, { id: u.id, conversation_id: conv.id, uploader_user_id: userId, size: u.size, created_at: t, expires_at: expiresAt });
+    const recorded = await files.completeUpload(u.id, {
+      id: u.id,
+      conversation_id: conv.id,
+      uploader_user_id: userId,
+      size: u.size,
+      created_at: t,
+      expires_at: expiresAt,
+    });
     if (!recorded) {
       await quotaSettle(u.id, null);
       throw new ApiError(410, "upload_expired", "This upload took too long. Start it again.");
@@ -482,7 +554,13 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
     await quotaSettle(u.id, u.size);
     ctx.usage?.add(conv.org_id, "files.upload_bytes", u.size);
     ctx.telemetry?.activity.addTraffic(userId, "files.upload", u.size, t);
-    await ctx.federation?.pushAttachment(conv.id, { id: u.id, conversationId: conv.id, uploaderUserId: userId, size: u.size, expiresAt });
+    await ctx.federation?.pushAttachment(conv.id, {
+      id: u.id,
+      conversationId: conv.id,
+      uploaderUserId: userId,
+      size: u.size,
+      expiresAt,
+    });
     return { id: u.id, size: u.size, expiresAt };
   });
 

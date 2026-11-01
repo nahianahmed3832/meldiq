@@ -90,7 +90,7 @@ const TABLE_OWNERS: Readonly<Record<string, string>> = {
       "org_deletions reports branches branch_members departments teams team_members " +
       "discord_oauth_states discord_connections discord_imports discord_import_items " +
       // Community parity A1 (migration 069).
-      "community_member_defaults org_nicknames org_role_extras channel_options stage_speakers " +
+      "community_profiles community_member_defaults org_nicknames org_role_extras channel_options stage_speakers " +
       // Community parity A2 (migration 070).
       "community_safety community_voice_bans community_voice_mutes " +
       // Community parity B (migration 072): the lobby.
@@ -101,13 +101,10 @@ const TABLE_OWNERS: Readonly<Record<string, string>> = {
       "community_discovery community_templates bot_listings discovery_boosts promoted_bookings discovery_visits discovery_clicks",
   ),
   // Community parity batch D, official bots (migration 074, then 076 for giveaways, alerts and Wordy).
-  ...owned("officialBots", "official_bots official_bots_plus bot_levels bot_afk bot_starboard bot_giveaways bot_alert_watches bot_wordy_games bot_wordy_stats bot_wordy_recaps"),
+  ...owned("officialBots", "bot_runtime_events official_bots official_bots_plus bot_levels bot_afk bot_starboard bot_giveaways bot_alert_watches bot_wordy_games bot_wordy_stats bot_wordy_recaps"),
   // Community parity A3 (migration 071).
   ...owned("organizations", "community_settings community_vanity_invites community_standard_invites onboarding_completions"),
-  ...owned(
-    "messaging",
-    "conversations conversation_members mention_all_events delivery_queue delivery_queue_rebuilt submitted_messages history_accounts history_items message_events",
-  ),
+  ...owned("messaging", "conversations conversation_members mention_all_events delivery_queue delivery_queue_rebuilt submitted_messages history_accounts history_items message_events"),
   ...owned("files", "attachments attachment_uploads abandoned_uploads pending_blob_deletes"),
   ...owned("calls", "calls call_participants call_hands meetings meeting_participants"),
   ...owned("notifications", "push_endpoints fcm_tokens"),
@@ -119,10 +116,7 @@ const TABLE_OWNERS: Readonly<Record<string, string>> = {
       "integration_channel_events integration_credentials integration_deliveries integration_hooks integration_installs " +
       "integration_jobs integration_oauth_states integration_policies integration_subscriptions",
   ),
-  ...owned(
-    "federation",
-    "federation_blocks federation_domains federation_inbox federation_nonces federation_outbox federation_peers",
-  ),
+  ...owned("federation", "federation_blocks federation_domains federation_inbox federation_nonces federation_outbox federation_peers"),
   // The Platform Admin Console (migration 046).
   ...owned(
     "platformAdmin",
@@ -131,10 +125,7 @@ const TABLE_OWNERS: Readonly<Record<string, string>> = {
       "platform_restrictions",
   ),
   // Platform Admin 2.0 (migration 048).
-  ...owned(
-    "telemetry",
-    "activity_daily telemetry_epochs traffic_user_daily presence_samples presence_hourly resource_samples resource_hourly session_clients",
-  ),
+  ...owned("telemetry", "activity_daily telemetry_epochs traffic_user_daily presence_samples presence_hourly resource_samples resource_hourly session_clients"),
   // Billing (migration 061).
   ...owned(
     "billing",
@@ -220,7 +211,11 @@ describe("architecture boundaries", () => {
   });
 
   it("keeps the layout's top-level folders", () => {
-    const top = fs.readdirSync(SRC, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort();
+    const top = fs
+      .readdirSync(SRC, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => e.name)
+      .sort();
     expect(top).toEqual(["app", "core", "infrastructure", "modules", "shared"]);
   });
 });

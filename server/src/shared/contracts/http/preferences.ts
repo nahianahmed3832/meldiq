@@ -26,15 +26,39 @@ export const PREFS_LIMITS = {
 } as const;
 
 /** Conversation ids: "c_…" (local) or "cf_…" (federated DMs). */
-const zConversationId = z.string().min(3).max(64).regex(/^[A-Za-z0-9_-]+$/);
+const zConversationId = z
+  .string()
+  .min(3)
+  .max(64)
+  .regex(/^[A-Za-z0-9_-]+$/);
 /** Home's built-in groups ("dms", "channels", "branch:<id>", "team:<id>", …): a short opaque key chosen by the app. */
-const zGroupKey = z.string().min(1).max(80).regex(/^[A-Za-z0-9_:.-]+$/);
-const zSectionId = z.string().min(3).max(40).regex(/^[A-Za-z0-9_-]+$/);
+const zGroupKey = z
+  .string()
+  .min(1)
+  .max(80)
+  .regex(/^[A-Za-z0-9_:.-]+$/);
+const zSectionId = z
+  .string()
+  .min(3)
+  .max(40)
+  .regex(/^[A-Za-z0-9_-]+$/);
 /** Community ids as the server assigns them. */
-const zOrgId = z.string().min(3).max(64).regex(/^o_[A-Za-z0-9_-]+$/);
-const zMessageId = z.string().min(3).max(64).regex(/^[A-Za-z0-9_-]+$/);
+const zOrgId = z
+  .string()
+  .min(3)
+  .max(64)
+  .regex(/^o_[A-Za-z0-9_-]+$/);
+const zMessageId = z
+  .string()
+  .min(3)
+  .max(64)
+  .regex(/^[A-Za-z0-9_-]+$/);
 /** Category ids as the server assigns them. */
-const zCategoryId = z.string().min(3).max(64).regex(/^cat_[A-Za-z0-9_-]+$/);
+const zCategoryId = z
+  .string()
+  .min(3)
+  .max(64)
+  .regex(/^cat_[A-Za-z0-9_-]+$/);
 
 /** A community's own notification level, and whether @everyone counts as a mention (community documents only). */
 export const CommunityNotify = z.strictObject({
@@ -68,7 +92,9 @@ const prefsFields = {
   notify: z
     .record(zConversationId, NotifyLevel)
     .default({})
-    .refine((m) => Object.keys(m).length <= PREFS_LIMITS.notify, { message: `At most ${PREFS_LIMITS.notify} notification settings` }),
+    .refine((m) => Object.keys(m).length <= PREFS_LIMITS.notify, {
+      message: `At most ${PREFS_LIMITS.notify} notification settings`,
+    }),
   /** Saved messages. Left out, the stored list is kept. */
   saved: z.array(SavedItem).max(PREFS_LIMITS.saved).optional(),
   /** Community documents only. Left out, the stored settings are kept. */
@@ -94,30 +120,54 @@ const prefsFields = {
   /** Mutes that end by themselves: conversation id → epoch ms. Left out, the stored ones are kept. */
   mutedUntil: z
     .record(zConversationId, z.number().int().min(0))
-    .refine((m) => Object.keys(m).length <= PREFS_LIMITS.mutedUntil, { message: `At most ${PREFS_LIMITS.mutedUntil} timed mutes` })
+    .refine((m) => Object.keys(m).length <= PREFS_LIMITS.mutedUntil, {
+      message: `At most ${PREFS_LIMITS.mutedUntil} timed mutes`,
+    })
     .optional(),
   /** Community documents only: a category's own level, which its channels follow unless they have one. */
   categoryNotify: z
     .record(zCategoryId, NotifyLevel)
-    .refine((m) => Object.keys(m).length <= PREFS_LIMITS.categories, { message: `At most ${PREFS_LIMITS.categories} category settings` })
+    .refine((m) => Object.keys(m).length <= PREFS_LIMITS.categories, {
+      message: `At most ${PREFS_LIMITS.categories} category settings`,
+    })
     .optional(),
   /** Community documents only: channels hidden from the person's channel list (they stay joined). */
   hidden: z.array(zConversationId).max(PREFS_LIMITS.hidden).optional(),
   /** Community parity A3, personal document only: show communities' accent and background tint (false: Meldiq's own). */
   communityThemes: z.boolean().optional(),
+  expressionFavorites: z
+    .array(z.string().regex(/^(emj|stk)_[A-Za-z0-9_-]{1,40}$/))
+    .max(100)
+    .optional(),
+  expressionRecents: z
+    .array(z.string().regex(/^(emj|stk)_[A-Za-z0-9_-]{1,40}$/))
+    .max(40)
+    .optional(),
 };
 
 export const NavPrefs = z.strictObject(prefsFields);
 
-export const WorkspaceParams = z.object({ workspaceId: z.string().min(1).max(64).regex(/^[A-Za-z0-9_-]+$/) });
-export const PreferencesBody = z.object({ baseRev: z.number().int().min(0), prefs: NavPrefs });
+export const WorkspaceParams = z.object({
+  workspaceId: z
+    .string()
+    .min(1)
+    .max(64)
+    .regex(/^[A-Za-z0-9_-]+$/),
+});
+export const PreferencesBody = z.object({
+  baseRev: z.number().int().min(0),
+  prefs: NavPrefs,
+});
 
 /** A document as stored: rev 0 and updatedAt null before the first write. */
 export const PreferencesView = z.strictObject({
   workspaceId: z.string(),
   rev: z.number().int().nonnegative(),
   updatedAt: zTime.nullable(),
-  prefs: z.strictObject({ ...prefsFields, sections: z.array(z.strictObject(NavSection.shape)).max(PREFS_LIMITS.sections) }),
+  prefs: z.strictObject({
+    ...prefsFields,
+    sections: z.array(z.strictObject(NavSection.shape)).max(PREFS_LIMITS.sections),
+  }),
 });
 
 export const preferenceRoutes = [
@@ -125,7 +175,7 @@ export const preferenceRoutes = [
     method: "GET",
     url: "/v1/me/preferences/:workspaceId",
     tag: "preferences",
-    summary: "Your navigation preferences for a workspace (\"personal\" or a community you belong to).",
+    summary: 'Your navigation preferences for a workspace ("personal" or a community you belong to).',
     auth: true,
     params: WorkspaceParams,
     response: PreferencesView,

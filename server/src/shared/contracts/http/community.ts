@@ -10,9 +10,31 @@ import { route } from "./route.js";
  */
 
 /** Path parameters of the community routes (any length up to 64; Fastify never passes an empty segment). */
+export const PermissionPreviewQuery = z
+  .object({
+    userId: z.string().min(1).max(64).optional(),
+    roleId: z.string().min(1).max(64).optional(),
+  })
+  .refine((q) => !(q.userId && q.roleId), "Choose a member or a role");
+export const PermissionPreview = z.strictObject({
+  base: z.string(),
+  subject: z.string(),
+  steps: z.array(z.strictObject({ label: z.string(), effective: z.array(z.string()) })),
+  capabilities: z.array(
+    z.strictObject({
+      key: z.string(),
+      label: z.string(),
+      allowed: z.boolean(),
+    }),
+  ),
+});
+
 export const OrgParams = z.object({ orgId: z.string().max(64) });
 export const IdParams = z.object({ id: z.string().max(64) });
-export const OrgMemberParams = z.object({ orgId: z.string().max(64), userId: z.string().max(64) });
+export const OrgMemberParams = z.object({
+  orgId: z.string().max(64),
+  userId: z.string().max(64),
+});
 /** The same, as the newer community routes (applications, guide, onboarding, emoji, reports) check them. */
 export const OrgParamsNonEmpty = z.object({ orgId: z.string().min(1).max(64) });
 export const IdParamsNonEmpty = z.object({ id: z.string().min(1).max(64) });
@@ -64,14 +86,26 @@ export const OkResult = z.strictObject({ ok: z.literal(true) });
 /** At most this much in a guide. */
 export const GUIDE_LIMITS = { welcome: 500, items: 5, title: 80 } as const;
 
-export const GuideItem = z.strictObject({ id: z.string(), title: z.string(), channelId: z.string() });
+export const GuideItem = z.strictObject({
+  id: z.string(),
+  title: z.string(),
+  channelId: z.string(),
+});
 /** The community guide (batch B8b): a welcome line, "Get started" tasks and resources, each opening a channel. */
-export const Guide = z.strictObject({ welcome: z.string().nullable(), tasks: z.array(GuideItem), resources: z.array(GuideItem) });
+export const Guide = z.strictObject({
+  welcome: z.string().nullable(),
+  tasks: z.array(GuideItem),
+  resources: z.array(GuideItem),
+});
 
 // ───────────── A community as a member (or someone previewing it) sees it ─────────────
 
 /** A recent burst of joins, shown to moderators (batch B4b). */
-export const ActivityAlert = z.strictObject({ kind: z.literal("joins"), count: zCount, at: zTime });
+export const ActivityAlert = z.strictObject({
+  kind: z.literal("joins"),
+  count: zCount,
+  at: zTime,
+});
 
 /** A community's summary as the preview and joining answer it: the same view as GET /v1/orgs (orgSummary). */
 export const CommunitySummary = CommunityView;
@@ -88,13 +122,23 @@ export const CategoryView = z.strictObject({
   canManage: z.boolean(),
   canCreateChannels: z.boolean(),
 });
-export const CategoryList = z.strictObject({ categories: z.array(CategoryView) });
+export const CategoryList = z.strictObject({
+  categories: z.array(CategoryView),
+});
 
-export const CategoryNameBody = z.object({ name: z.string().trim().min(1).max(60) });
+export const CategoryNameBody = z.object({
+  name: z.string().trim().min(1).max(60),
+});
 export const LayoutBody = z.object({
   categories: z.array(z.string().max(64)).max(CATEGORY_LIMIT).default([]),
   channels: z
-    .array(z.object({ id: z.string().max(64), categoryId: z.string().max(64).nullable(), position: z.number().int().min(0).max(10_000) }))
+    .array(
+      z.object({
+        id: z.string().max(64),
+        categoryId: z.string().max(64).nullable(),
+        position: z.number().int().min(0).max(10_000),
+      }),
+    )
     .max(CHANNELS_PER_COMMUNITY)
     .default([]),
 });
@@ -121,9 +165,21 @@ export const OverwriteView = z.strictObject({
 export const OverwriteList = z.strictObject({
   overwrites: z.array(OverwriteView),
   /** What can be set here (a channel's list leaves out channels.create). */
-  capabilities: z.array(z.strictObject({ key: ChannelCapabilityKey, label: z.string(), description: z.string() })),
+  capabilities: z.array(
+    z.strictObject({
+      key: ChannelCapabilityKey,
+      label: z.string(),
+      description: z.string(),
+    }),
+  ),
   /** The community's roles that aren't archived, for picking a subject. */
-  roles: z.array(z.strictObject({ id: z.string(), name: z.string(), color: z.string().nullable() })),
+  roles: z.array(
+    z.strictObject({
+      id: z.string(),
+      name: z.string(),
+      color: z.string().nullable(),
+    }),
+  ),
   canManage: z.boolean(),
 });
 /** After a write: the new list, and how many channel memberships the re-check removed. */
@@ -131,7 +187,10 @@ export const OverwriteWriteResult = OverwriteList.extend({ removed: zCount });
 
 // ───────────── Discovery and joining ─────────────
 
-export const DiscoverQuery = z.object({ q: z.string().trim().max(60).optional(), cursor: z.coerce.number().int().min(0).max(10_000).default(0) });
+export const DiscoverQuery = z.object({
+  q: z.string().trim().max(60).optional(),
+  cursor: z.coerce.number().int().min(0).max(10_000).default(0),
+});
 export const DiscoveredCommunity = z.strictObject({
   id: z.string(),
   name: z.string(),
@@ -146,7 +205,10 @@ export const DiscoveredCommunity = z.strictObject({
   applications: z.boolean(),
   joined: z.boolean(),
 });
-export const DiscoverPage = z.strictObject({ communities: z.array(DiscoveredCommunity), nextCursor: zCount.nullable() });
+export const DiscoverPage = z.strictObject({
+  communities: z.array(DiscoveredCommunity),
+  nextCursor: zCount.nullable(),
+});
 
 export const PreviewChannel = z.strictObject({
   id: z.string(),
@@ -163,9 +225,18 @@ export const CommunityPreview = z.strictObject({
   joined: z.boolean(),
   banned: z.boolean(),
   /** The viewer's latest application here (batch B4b), if any. */
-  application: z.strictObject({ id: z.string(), status: ApplicationStatus, createdAt: zTime }).nullable(),
+  application: z
+    .strictObject({
+      id: z.string(),
+      status: ApplicationStatus,
+      createdAt: zTime,
+    })
+    .nullable(),
 });
-export const JoinResult = z.strictObject({ org: CommunitySummary, alreadyMember: z.boolean() });
+export const JoinResult = z.strictObject({
+  org: CommunitySummary,
+  alreadyMember: z.boolean(),
+});
 
 // ───────────── Bans, guests, Security actions, timeouts ─────────────
 
@@ -178,12 +249,21 @@ export const BanView = z.strictObject({
   bannedBy: z.string(),
   bannedByName: z.string().nullable(),
 });
-export const BanBody = z.object({ userId: z.string().max(64), reason: z.string().trim().max(300).nullish() });
+export const BanBody = z.object({
+  userId: z.string().max(64),
+  reason: z.string().trim().max(300).nullish(),
+});
 /** Community parity A2: a voice ban (kept out of the community's voice channels, still chatting), shaped like a ban. */
 export const VoiceBanView = BanView;
 
-export const GuestPolicyBody = z.object({ guestsAllowed: z.boolean(), guestMaxDays: z.number().int().min(1).max(365).nullable() });
-export const GuestPolicy = z.strictObject({ guestsAllowed: z.boolean(), guestMaxDays: z.number().int().nullable() });
+export const GuestPolicyBody = z.object({
+  guestsAllowed: z.boolean(),
+  guestMaxDays: z.number().int().min(1).max(365).nullable(),
+});
+export const GuestPolicy = z.strictObject({
+  guestsAllowed: z.boolean(),
+  guestMaxDays: z.number().int().nullable(),
+});
 export const ExpiryBody = z.object({ expiresAt: z.number().int().nullable() });
 
 export const SecurityBody = z.strictObject({
@@ -191,13 +271,33 @@ export const SecurityBody = z.strictObject({
   dmsPausedUntil: z.number().int().nullable().optional(),
   activityAlerts: z.boolean().optional(),
 });
-export const SecurityState = z.strictObject({ invitesPausedUntil: zTime.nullable(), dmsPausedUntil: zTime.nullable(), activityAlerts: z.boolean() });
+export const SecurityState = z.strictObject({
+  invitesPausedUntil: zTime.nullable(),
+  dmsPausedUntil: zTime.nullable(),
+  activityAlerts: z.boolean(),
+});
 
-export const TimeoutBody = z.object({ until: z.number().int().nullable(), reason: z.string().trim().max(300).nullish() });
+export const TimeoutBody = z.object({
+  until: z.number().int().nullable(),
+  reason: z.string().trim().max(300).nullish(),
+});
 
 const tag = "community";
 
 export const communityStructureRoutes = [
+  ...(["categories", "conversations"] as const).map((resource) =>
+    route({
+      method: "GET",
+      url: `/v1/${resource}/:id/permission-preview`,
+      tag,
+      auth: true,
+      summary: "Read-only effective permissions using the server resolver; optional member or role simulation.",
+      params: IdParams,
+      query: PermissionPreviewQuery,
+      response: PermissionPreview,
+      errors: ["not_found", "forbidden"],
+    }),
+  ),
   route({
     method: "GET",
     url: "/v1/orgs/:orgId/categories",
@@ -248,7 +348,11 @@ export const communityStructureRoutes = [
     auth: true,
     params: OrgParams,
     body: LayoutBody,
-    response: z.strictObject({ ok: z.literal(true), removed: zCount, categories: z.array(CategoryView) }),
+    response: z.strictObject({
+      ok: z.literal(true),
+      removed: zCount,
+      categories: z.array(CategoryView),
+    }),
     errors: ["not_found", "forbidden", "conflict"],
   }),
   route({
@@ -335,7 +439,10 @@ export const communityModerationRoutes = [
     summary: "The community's bans, newest first (at most 500), and its voice bans while community safety is on.",
     auth: true,
     params: OrgParams,
-    response: z.strictObject({ bans: z.array(BanView), voiceBans: z.array(VoiceBanView).optional() }),
+    response: z.strictObject({
+      bans: z.array(BanView),
+      voiceBans: z.array(VoiceBanView).optional(),
+    }),
     errors: ["not_found", "forbidden"],
   }),
   route({
@@ -400,7 +507,10 @@ export const communityModerationRoutes = [
     auth: true,
     params: OrgMemberParams,
     body: TimeoutBody,
-    response: z.strictObject({ userId: z.string(), timeoutUntil: zTime.nullable() }),
+    response: z.strictObject({
+      userId: z.string(),
+      timeoutUntil: zTime.nullable(),
+    }),
     errors: ["not_found", "forbidden"],
   }),
 ];

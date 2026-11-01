@@ -73,9 +73,21 @@ export class OfficialBots {
   }
 
   /** Bots+ for [orgId] as the Platform Admin Console shows it. */
-  plusGrant(orgId: string): { enabled: boolean; grantedAt: number | null; expiresAt: number | null; grantedBy: string | null; reason: string | null } {
+  plusGrant(orgId: string): {
+    enabled: boolean;
+    grantedAt: number | null;
+    expiresAt: number | null;
+    grantedBy: string | null;
+    reason: string | null;
+  } {
     const p = this.rows.plus(orgId);
-    return { enabled: this.hasPlus(orgId), grantedAt: p?.granted_at ?? null, expiresAt: p?.expires_at ?? null, grantedBy: p?.granted_by ?? null, reason: p?.reason ?? null };
+    return {
+      enabled: this.hasPlus(orgId),
+      grantedAt: p?.granted_at ?? null,
+      expiresAt: p?.expires_at ?? null,
+      grantedBy: p?.granted_by ?? null,
+      reason: p?.reason ?? null,
+    };
   }
 
   /**
@@ -83,7 +95,18 @@ export class OfficialBots {
    * while billing for Bots+ is off; settings using Plus extras are kept either way and apply again when it's back.
    */
   async setPlus(orgId: string, grant: { by: string; expiresAt: number | null; reason: string } | null): Promise<void> {
-    await this.rows.setPlus(grant ? { org_id: orgId, granted_by: grant.by, granted_at: this.clock(), expires_at: grant.expiresAt, reason: grant.reason } : null, orgId);
+    await this.rows.setPlus(
+      grant
+        ? {
+            org_id: orgId,
+            granted_by: grant.by,
+            granted_at: this.clock(),
+            expires_at: grant.expiresAt,
+            reason: grant.reason,
+          }
+        : null,
+      orgId,
+    );
   }
 
   /** [key]'s account in [orgId], made the first time it's needed (named as the community wants it). */
@@ -102,7 +125,14 @@ export class OfficialBots {
     const r = this.rows.bot(orgId, key);
     if (!r?.user_id) return null;
     const plus = this.hasPlus(orgId);
-    return { key, orgId, userId: r.user_id, name: this.nameOf(r.user_id), settings: effectiveSettings(key, storedSettings(key, r.settings), plus), plus };
+    return {
+      key,
+      orgId,
+      userId: r.user_id,
+      name: this.nameOf(r.user_id),
+      settings: effectiveSettings(key, storedSettings(key, r.settings), plus),
+      plus,
+    };
   }
 
   /** The bots on in [orgId] whose account is still a member there. */
@@ -110,11 +140,23 @@ export class OfficialBots {
     const plus = this.hasPlus(orgId);
     const out: ActiveBots = {};
     const rows = this.rows.bots(orgId).filter((r) => r.enabled === 1 && r.user_id && isLiveBot(r.bot_key) && this.ctx.authz.orgRole(orgId, r.user_id));
-    const names = new Map(namesOf(this.ctx.identity, rows.map((r) => r.user_id!)).map((n) => [n.id, n.displayName]));
+    const names = new Map(
+      namesOf(
+        this.ctx.identity,
+        rows.map((r) => r.user_id!),
+      ).map((n) => [n.id, n.displayName]),
+    );
     for (const r of rows) {
       const key = r.bot_key as LiveBotKey;
       const settings = effectiveSettings(key, storedSettings(key, r.settings), plus);
-      (out as Record<string, ActiveBot>)[key] = { key, orgId, userId: r.user_id!, name: names.get(r.user_id!) ?? catalogEntry(key).name, settings, plus };
+      (out as Record<string, ActiveBot>)[key] = {
+        key,
+        orgId,
+        userId: r.user_id!,
+        name: names.get(r.user_id!) ?? catalogEntry(key).name,
+        settings,
+        plus,
+      };
     }
     return out;
   }
@@ -177,8 +219,39 @@ export class OfficialBots {
   async safely(key: LiveBotKey, ev: BotEvent, fn: () => Promise<unknown>): Promise<void> {
     try {
       await fn();
+      await this.recordOutcome(ev.orgId, key, ev.kind, "ok");
     } catch (err) {
+      await this.recordOutcome(ev.orgId, key, ev.kind, "failed");
       this.ctx.log.warn({ err, bot: key, kind: ev.kind, orgId: ev.orgId }, "official bots: a bot failed");
+    }
+  }
+
+  /** No message text, user identifiers, tokens or raw exception details enter the administrator-facing history. */
+  async recordOutcome(orgId: string, key: OfficialBotKey, kind: string, outcome: "ok" | "failed"): Promise<void> {
+    try {
+      await this.ctx.ws.write((w) => {
+        const old = this.ctx.ws.all<{ id: string }>("bot_runtime_events", {
+          where: { org_id: orgId, bot_key: key },
+          orderBy: [
+            ["at", "desc"],
+            ["id", "desc"],
+          ],
+        });
+        if (old.length >= 50)
+          w.delete("bot_runtime_events", {
+            id: { in: old.slice(49).map((r) => r.id) },
+          });
+        w.insert("bot_runtime_events", {
+          id: newId("be"),
+          org_id: orgId,
+          bot_key: key,
+          kind: kind.slice(0, 40),
+          outcome,
+          at: this.clock(),
+        });
+      });
+    } catch {
+      this.ctx.log.warn({ orgId, bot: key }, "official bots: execution metadata could not be stored");
     }
   }
 
@@ -200,8 +273,23 @@ export class OfficialBots {
   async chat(bot: ActiveBot, conversationId: string, text: string, mentions: readonly string[] = []): Promise<string | null> {
     const conv = this.ctx.authz.conversation(conversationId);
     if (!conv || conv.org_id !== bot.orgId || !this.ctx.authz.canPost(conv, bot.userId)) return null;
-    const payload: Payload = { type: "text", text, ...(mentions.length ? { mentions: [...new Set(mentions)] } : {}) };
-    const sent = await sendServerMessage(this.ctx, { userId: bot.userId, deviceId: null }, { conversationId, messageId: newId("m"), cls: "message", sentAt: this.clock(), payload }, this.ctx.log);
+    const payload: Payload = {
+      type: "text",
+      text,
+      ...(mentions.length ? { mentions: [...new Set(mentions)] } : {}),
+    };
+    const sent = await sendServerMessage(
+      this.ctx,
+      { userId: bot.userId, deviceId: null },
+      {
+        conversationId,
+        messageId: newId("m"),
+        cls: "message",
+        sentAt: this.clock(),
+        payload,
+      },
+      this.ctx.log,
+    );
     return sent.messageId;
   }
 
@@ -215,15 +303,42 @@ export class OfficialBots {
   async post(bot: ActiveBot, channelId: string | null, payload: Payload): Promise<{ messageId: string; channelId: string } | null> {
     const id = this.textChannel(bot.orgId, channelId);
     if (!id) return null;
-    const sent = await sendServerMessage(this.ctx, { userId: bot.userId, deviceId: null, channelGrant: id }, { conversationId: id, messageId: newId("m"), cls: "message", sentAt: this.clock(), payload }, this.ctx.log);
+    const sent = await sendServerMessage(
+      this.ctx,
+      { userId: bot.userId, deviceId: null, channelGrant: id },
+      {
+        conversationId: id,
+        messageId: newId("m"),
+        cls: "message",
+        sentAt: this.clock(),
+        payload,
+      },
+      this.ctx.log,
+    );
     return { messageId: sent.messageId, channelId: id };
   }
 
   /** Changes the text (and with [extra], the boxes) of [bot]'s own post in a channel it was given. */
   async editPost(bot: ActiveBot, channelId: string, messageId: string, text: string, extra: Record<string, unknown> = {}): Promise<void> {
     if (!this.textChannel(bot.orgId, channelId)) return;
-    const payload: Payload = { ...extra, type: "edit", target: messageId, text };
-    await sendServerMessage(this.ctx, { userId: bot.userId, deviceId: null, channelGrant: channelId }, { conversationId: channelId, messageId: newId("m"), cls: "control", sentAt: this.clock(), payload }, this.ctx.log);
+    const payload: Payload = {
+      ...extra,
+      type: "edit",
+      target: messageId,
+      text,
+    };
+    await sendServerMessage(
+      this.ctx,
+      { userId: bot.userId, deviceId: null, channelGrant: channelId },
+      {
+        conversationId: channelId,
+        messageId: newId("m"),
+        cls: "control",
+        sentAt: this.clock(),
+        payload,
+      },
+      this.ctx.log,
+    );
   }
 
   // ───────────── Seams for other modules ─────────────
@@ -231,7 +346,16 @@ export class OfficialBots {
   /** The lobby's Levels board (organizations/lobby/boards.ts): the most XP first, while Levels is on. */
   levelsTop(orgId: string, limit: number): { userId: string; count: number }[] {
     if (!this.enabled || !this.rows.bot(orgId, "levels")?.enabled) return [];
-    return this.ctx.ws.all<LevelRow>("bot_levels", { where: { org_id: orgId }, orderBy: [["xp", "desc"], ["user_id", "asc"]], limit }).map((r) => ({ userId: r.user_id, count: r.xp }));
+    return this.ctx.ws
+      .all<LevelRow>("bot_levels", {
+        where: { org_id: orgId },
+        orderBy: [
+          ["xp", "desc"],
+          ["user_id", "asc"],
+        ],
+        limit,
+      })
+      .map((r) => ({ userId: r.user_id, count: r.xp }));
   }
 
   /**
@@ -242,7 +366,18 @@ export class OfficialBots {
     const conv = this.ctx.authz.conversation(conversationId);
     if (!conv || !this.ctx.authz.isMember(conv.id, bot.userId) || !this.ctx.authz.canReact(conv, bot.userId)) return;
     const payload: Payload = { type: "reaction", target, emoji, add: true };
-    await sendServerMessage(this.ctx, { userId: bot.userId, deviceId: null }, { conversationId, messageId: newId("m"), cls: "control", sentAt: this.clock(), payload }, this.ctx.log).catch(() => undefined);
+    await sendServerMessage(
+      this.ctx,
+      { userId: bot.userId, deviceId: null },
+      {
+        conversationId,
+        messageId: newId("m"),
+        cls: "control",
+        sentAt: this.clock(),
+        payload,
+      },
+      this.ctx.log,
+    ).catch(() => undefined);
   }
 
   /** The lobby's running giveaways (organizations/lobby/view.ts) in channels [viewerId] can see, ending first first. */

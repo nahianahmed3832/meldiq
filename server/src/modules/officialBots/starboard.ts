@@ -20,9 +20,11 @@ interface Original {
  * Who stars [messageId] now: everyone whose latest reaction with a star emoji is still on (people, not bots), without
  * its author unless self-stars are allowed.
  */
-async function starrers(rt: OfficialBots, bot: ActiveBot<"starboard">, o: Original, emoji: readonly string[]): Promise<number> {
+async function starrers(rt: OfficialBots, bot: ActiveBot<"starboard">, o: Original, emoji: readonly string[], ev: ReactionChanged): Promise<number> {
   const on = new Map<string, boolean>();
   for (const r of await rt.ctx.messages.changesTo(o.channelId, o.id, "reaction")) {
+    // Resolve the reaction state at this queued event, even when later reactions arrived while a bot was busy.
+    if (r.server_ts > ev.at || (r.server_ts === ev.at && r.id > ev.eventId)) continue;
     const p = JSON.parse(r.payload) as { emoji?: unknown; add?: unknown };
     if (typeof p.emoji === "string" && emoji.includes(p.emoji)) on.set(`${r.sender_user_id}|${p.emoji}`, p.add !== false);
   }
@@ -41,7 +43,10 @@ function postText(rt: OfficialBots, o: Original, emoji: string, stars: number): 
 }
 
 /** The first picture of the message: an image attachment, or a webhook box's image. */
-function firstImage(payload: Record<string, unknown>): { attachments?: unknown[]; embeds?: unknown[] } {
+function firstImage(payload: Record<string, unknown>): {
+  attachments?: unknown[];
+  embeds?: unknown[];
+} {
   const attachments = Array.isArray(payload.attachments) ? payload.attachments : [];
   const image = attachments.find((a) => typeof (a as { mime?: unknown })?.mime === "string" && (a as { mime: string }).mime.startsWith("image/"));
   if (image) return { attachments: [image] };
@@ -56,7 +61,15 @@ async function copy(rt: OfficialBots, bot: ActiveBot<"starboard">, o: Original, 
   // Claimed first, so a message never goes up twice, however the stars arrive.
   const claimed = await rt.ctx.ws.write((w) => {
     if (w.get("bot_starboard", { message_id: o.id })) return false;
-    w.insert("bot_starboard", { message_id: o.id, org_id: bot.orgId, channel_id: o.channelId, star_channel_id: starChannel, star_message_id: null, stars, created_at: at });
+    w.insert("bot_starboard", {
+      message_id: o.id,
+      org_id: bot.orgId,
+      channel_id: o.channelId,
+      star_channel_id: starChannel,
+      star_message_id: null,
+      stars,
+      created_at: at,
+    });
     return true;
   });
   if (!claimed) return;
@@ -67,7 +80,11 @@ async function copy(rt: OfficialBots, bot: ActiveBot<"starboard">, o: Original, 
     text: postText(rt, o, emoji, stars),
     starboard: { channelId: o.channelId, messageId: o.id },
     ...firstImage(o.payload),
-    ...(link ? { buttons: [{ kind: "link", label: "Jump to message", emoji: null, url: link }] } : {}),
+    ...(link
+      ? {
+          buttons: [{ kind: "link", label: "Jump to message", emoji: null, url: link }],
+        }
+      : {}),
   });
   if (sent) await rt.ctx.ws.write((w) => w.update("bot_starboard", { message_id: o.id }, { star_message_id: sent.messageId }));
 }
@@ -84,8 +101,13 @@ export async function countStars(rt: OfficialBots, bot: ActiveBot<"starboard">, 
   if (!publicTextChannel(rt.ctx, rt.ctx.authz.conversation(ev.conversationId), bot.orgId)) return;
   const m = await rt.ctx.messages.get(ev.target);
   if (!m || m.conversation_id !== ev.conversationId || m.cls !== "message") return;
-  const o: Original = { id: m.id, channelId: m.conversation_id, author: m.sender_user_id, payload: JSON.parse(m.payload) as Record<string, unknown> };
-  const stars = await starrers(rt, bot, o, emoji);
+  const o: Original = {
+    id: m.id,
+    channelId: m.conversation_id,
+    author: m.sender_user_id,
+    payload: JSON.parse(m.payload) as Record<string, unknown>,
+  };
+  const stars = await starrers(rt, bot, o, emoji, ev);
   const known = rt.ctx.ws.get<StarRow>("bot_starboard", { message_id: o.id });
   if (!known) {
     if (stars >= s.threshold) await copy(rt, bot, o, emoji[0]!, stars, ev.at);

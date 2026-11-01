@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { deleteBlobNow } from "../files/routes.js";
 import { photoBlobId, readJpegBody, storePhoto } from "./photos.js";
@@ -9,17 +10,7 @@ import { me, requireAuth } from "../auth/index.js";
 import { parse } from "../../shared/validation/index.js";
 import { UserIdParams } from "../../shared/contracts/http/auth.js";
 import { idParams } from "../../shared/contracts/http/primitives.js";
-import {
-  BlockBody,
-  DevicesBody,
-  PHONE,
-  PhoneQuery,
-  PresenceBody,
-  PresenceQuery,
-  PrivacyBody,
-  ProfileUpdateBody,
-  SearchQuery,
-} from "../../shared/contracts/http/users.js";
+import { BlockBody, DevicesBody, PHONE, PhoneQuery, PresenceBody, PresenceQuery, PrivacyBody, ProfileUpdateBody, SearchQuery } from "../../shared/contracts/http/users.js";
 import { keyFingerprint } from "../../shared/utilities/crypto.js";
 import { allows, appearsOnline, canSeeLastSeen, type ProfileRow, privacyOf, profileView, relation, shownPresence } from "./profile.js";
 import { announcePresence } from "../realtime/ws.js";
@@ -78,21 +69,44 @@ const directoryDevice = (r: Omit<DeviceKeyRow, "user_id" | "identity_key">): Dir
 export function deviceDirectory(ctx: AppContext, userIds: string[]): DirectoryEntry[] {
   if (userIds.length === 0) return [];
   const { identity } = ctx;
-  type Device = Omit<DeviceKeyRow, "identity_key"> & { revoked_at: number | null };
+  type Device = Omit<DeviceKeyRow, "identity_key"> & {
+    revoked_at: number | null;
+  };
   const byUser = new Map<string, DirectoryEntry>();
-  for (const u of identity.all<{ id: string; identity_key: string }>("users", { where: { id: { in: userIds }, disabled_at: null } })) {
-    byUser.set(u.id, { userId: u.id, identityKey: u.identity_key, devices: [], revokedDevices: [] });
+  for (const u of identity.all<{ id: string; identity_key: string }>("users", {
+    where: { id: { in: userIds }, disabled_at: null },
+  })) {
+    byUser.set(u.id, {
+      userId: u.id,
+      identityKey: u.identity_key,
+      devices: [],
+      revokedDevices: [],
+    });
   }
   const ids = [...byUser.keys()];
-  for (const d of identity.all<Device>("devices", { where: { user_id: { in: ids }, revoked_at: null } })) {
+  for (const d of identity.all<Device>("devices", {
+    where: { user_id: { in: ids }, revoked_at: null },
+  })) {
     byUser.get(d.user_id)!.devices.push(directoryDevice(d));
   }
   const since = now() - ctx.config.queueTtlSeconds * 1000;
-  for (const d of identity.all<Device>("devices", { where: { user_id: { in: userIds }, revoked_at: { gt: since } }, orderBy: [["revoked_at", "asc"]] })) {
-    byUser.get(d.user_id)?.revokedDevices.push({ ...directoryDevice(d), revokedAt: d.revoked_at! });
+  for (const d of identity.all<Device>("devices", {
+    where: { user_id: { in: userIds }, revoked_at: { gt: since } },
+    orderBy: [["revoked_at", "asc"]],
+  })) {
+    byUser.get(d.user_id)?.revokedDevices.push({
+      ...directoryDevice(d),
+      revokedAt: d.revoked_at!,
+    });
   }
   return [...byUser.values()];
 }
+
+/** Content revision excludes presence/photo/style, which have independent save controls. */
+const profileRevision = (u: Record<string, unknown>) =>
+  createHash("sha256")
+    .update(JSON.stringify(["display_name", "username", "status_text", "first_name", "last_name", "pronouns", "about_me", "profile_links", "birthday", "phone"].map((k) => u[k] ?? null)))
+    .digest("hex");
 
 export default async function userRoutes(app: FastifyInstance, ctx: AppContext) {
   const auth = { preHandler: requireAuth(ctx) };
@@ -110,6 +124,7 @@ export default async function userRoutes(app: FastifyInstance, ctx: AppContext) 
   const meView = (u: any) => ({
     ...profileView(u, { self: true, contact: true, blockedByTarget: false }, ctx),
     ...tagOf(u),
+    profileRevision: profileRevision(u),
     identityKey: u.identity_key,
     fingerprint: keyFingerprint(u.identity_key),
     createdAt: u.created_at,
@@ -119,7 +134,13 @@ export default async function userRoutes(app: FastifyInstance, ctx: AppContext) 
     const { userId, deviceId } = me(req);
     const u = ctx.identity.get<any>("users", { id: userId });
     // API 0.65.0 batch B: the linked accounts you show (refreshed in the background when stale).
-    return { user: { ...meView(u), ...(await ctx.linkedAccounts.profileField(userId, false)) }, deviceId };
+    return {
+      user: {
+        ...meView(u),
+        ...(await ctx.linkedAccounts.profileField(userId, false)),
+      },
+      deviceId,
+    };
   });
 
   // The person's own profile. Every field is optional; null clears it. Hidden fields stay stored (privacy decides who
@@ -138,7 +159,13 @@ export default async function userRoutes(app: FastifyInstance, ctx: AppContext) 
         throw new ApiError(429, "username_recently_changed", "You can change your username once an hour");
       }
       // API 0.65.0: someone's old username stays theirs for 7 days (they can take it back).
-      if (ctx.identity.get("users", { username: body.username, id: { ne: userId } }) || ctx.usernames.heldFromOthers(body.username, userId)) {
+      if (
+        ctx.identity.get("users", {
+          username: body.username,
+          id: { ne: userId },
+        }) ||
+        ctx.usernames.heldFromOthers(body.username, userId)
+      ) {
         throw conflict("That username is taken");
       }
       username = body.username;
@@ -171,10 +198,19 @@ export default async function userRoutes(app: FastifyInstance, ctx: AppContext) 
       updated_at: now(),
       // API 0.46.0: About me and links, only when sent.
       ...(body.aboutMe !== undefined ? { about_me: body.aboutMe || null } : {}),
-      ...(body.links !== undefined ? { profile_links: body.links?.length ? JSON.stringify(body.links) : null } : {}),
+      ...(body.links !== undefined
+        ? {
+            profile_links: body.links?.length ? JSON.stringify(body.links) : null,
+          }
+        : {}),
     };
     try {
-      await ctx.identity.write((w) => w.update("users", { id: userId }, profile));
+      await ctx.identity.write((w) => {
+        const current = ctx.identity.get<any>("users", { id: userId });
+        if (body.baseProfileRevision && profileRevision(current) !== body.baseProfileRevision)
+          throw new ApiError(409, "conflict", "Your profile changed on another device. Reload the latest profile before saving.");
+        w.update("users", { id: userId }, profile);
+      });
     } catch (e) {
       // Taken by someone else between the check above and this write.
       if (String(e).includes("users.username")) throw conflict("That username is taken");
@@ -196,7 +232,17 @@ export default async function userRoutes(app: FastifyInstance, ctx: AppContext) 
     const t = now();
     if (body.until != null && (body.until <= t || body.until > t + PAUSE_MAX_MS)) throw badRequest("A presence choice ends in the future, within 30 days");
     const until = body.mode === "auto" ? null : (body.until ?? null);
-    await ctx.identity.write((w) => w.update("users", { id: userId }, { presence_mode: body.mode === "auto" ? null : body.mode, presence_until: until, updated_at: t }));
+    await ctx.identity.write((w) =>
+      w.update(
+        "users",
+        { id: userId },
+        {
+          presence_mode: body.mode === "auto" ? null : body.mode,
+          presence_until: until,
+          updated_at: t,
+        },
+      ),
+    );
     announcePresence(ctx, userId);
     // Invisible hides the activity too; appearing again shows it.
     announceActivity(ctx, userId);
@@ -208,7 +254,10 @@ export default async function userRoutes(app: FastifyInstance, ctx: AppContext) 
     const { userId } = me(req);
     const body = parse(PrivacyBody, req.body);
     const u = ctx.identity.get<any>("users", { id: userId });
-    const next = { ...privacyOf(u), ...Object.fromEntries(Object.entries(body).filter(([, v]) => v !== undefined)) };
+    const next = {
+      ...privacyOf(u),
+      ...Object.fromEntries(Object.entries(body).filter(([, v]) => v !== undefined)),
+    };
     await ctx.identity.write((w) => w.update("users", { id: userId }, { privacy: JSON.stringify(next), updated_at: now() }));
     // What others may see changed, so they fetch the profile again (and get only what's now allowed).
     announceProfileChange(ctx, userId);
@@ -249,11 +298,7 @@ export default async function userRoutes(app: FastifyInstance, ctx: AppContext) 
     if (!u?.photo_rev || !allows(privacyOf(u).photo, relation(ctx, me(req).userId, u.id))) throw notFound("No photo");
     const stream = (await ctx.blobs.get("profile-photos", photoId(u.id, u.photo_rev))) ?? (await ctx.blobs.get("profile-photos", u.id));
     if (!stream) throw notFound("No photo");
-    return reply
-      .header("content-type", "image/jpeg")
-      .header("cache-control", "private, max-age=3600")
-      .header("etag", `"${u.photo_rev}"`)
-      .send(stream);
+    return reply.header("content-type", "image/jpeg").header("cache-control", "private, max-age=3600").header("etag", `"${u.photo_rev}"`).send(stream);
   });
 
   // Find someone by their exact phone number, if they allow it. Never a list or a partial match, and the same answer
@@ -263,7 +308,12 @@ export default async function userRoutes(app: FastifyInstance, ctx: AppContext) 
     const { phone } = parse(PhoneQuery, req.query);
     const p = phone.replace(/[\s()-]/g, "");
     if (!PHONE.test(p)) throw badRequest("Phone numbers start with + and the country code");
-    const u = ctx.identity.get<ProfileRow>("users", { phone: p, disabled_at: null, home_server_id: null, id: { ne: userId } });
+    const u = ctx.identity.get<ProfileRow>("users", {
+      phone: p,
+      disabled_at: null,
+      home_server_id: null,
+      id: { ne: userId },
+    });
     if (!u || !allows(privacyOf(u).findByPhone, relation(ctx, userId, u.id))) throw notFound("No one found");
     return { user: userSummary(u as any) };
   });
@@ -288,7 +338,12 @@ export default async function userRoutes(app: FastifyInstance, ctx: AppContext) 
       const r = relation(ctx, userId, u.id);
       return !r.blockedByTarget && (r.contact || allows(privacyOf(u).findByUsername, r));
     });
-    return { users: visible.map((u) => ({ ...userSummary(u), online: canSeeLastSeen(ctx, userId, u) ? appearsOnline(ctx, u) : null })) };
+    return {
+      users: visible.map((u) => ({
+        ...userSummary(u),
+        online: canSeeLastSeen(ctx, userId, u) ? appearsOnline(ctx, u) : null,
+      })),
+    };
   });
 
   app.get("/v1/users/:id", auth, async (req) => {
@@ -312,7 +367,12 @@ export default async function userRoutes(app: FastifyInstance, ctx: AppContext) 
         // API 0.56.0: what they're playing, under the same rule (your own always).
         ...activityField(activityFor(ctx, viewer, u)),
         // Someone they blocked sees only the basics: neither when they joined nor where you meet.
-        ...(r.blockedByTarget ? {} : { memberSince: u.created_at, mutualCommunities: mutualCommunities(ctx, viewer, u.id) }),
+        ...(r.blockedByTarget
+          ? {}
+          : {
+              memberSince: u.created_at,
+              mutualCommunities: mutualCommunities(ctx, viewer, u.id),
+            }),
         // API 0.61.0: the Artist badge.
         ...(ctx.decorations.isArtist(u.id) ? { decorationArtist: true as const } : {}),
         // API 0.64.0: pins (Meldiq's for milestones, communities' own); someone they blocked sees none.
@@ -350,7 +410,9 @@ export default async function userRoutes(app: FastifyInstance, ctx: AppContext) 
   });
 
   app.get("/v1/blocks", auth, async (req) => {
-    const rows = ctx.identity.all<{ blocked_user_id: string }>("user_blocks", { where: { user_id: me(req).userId } });
+    const rows = ctx.identity.all<{ blocked_user_id: string }>("user_blocks", {
+      where: { user_id: me(req).userId },
+    });
     return { userIds: rows.map((r) => r.blocked_user_id) };
   });
 
@@ -361,7 +423,9 @@ export default async function userRoutes(app: FastifyInstance, ctx: AppContext) 
     const wanted = [...new Set(ids.split(",").filter(Boolean))].slice(0, 200);
     const rows = wanted.length
       ? // Disabled and deleted accounts are left out: their last-seen time stays in memory until the server restarts.
-        ctx.identity.all<ProfileRow>("users", { where: { disabled_at: null, id: { in: wanted } } })
+        ctx.identity.all<ProfileRow>("users", {
+          where: { disabled_at: null, id: { in: wanted } },
+        })
       : [];
     // Each person's "last seen" setting decides (contacts by default, the rule this endpoint always had).
     const list = rows.filter((u) => canSeeLastSeen(ctx, userId, u)).map((u) => u.id);
@@ -385,13 +449,35 @@ const pinsField = (pins: ProfilePin[]) => (pins.length ? { pins } : {});
 function mutualCommunities(ctx: AppContext, viewer: string, userId: string): { id: string; name: string; photoRev: number | null; joinedAt: number }[] {
   if (viewer === userId) return [];
   const mine = new Set(ctx.ws.all<{ org_id: string }>("org_members", { where: { user_id: viewer } }).map((m) => m.org_id));
-  const theirs = ctx.ws.all<{ org_id: string; joined_at: number }>("org_members", { where: { user_id: userId } }).filter((m) => mine.has(m.org_id));
+  const theirs = ctx.ws
+    .all<{ org_id: string; joined_at: number }>("org_members", {
+      where: { user_id: userId },
+    })
+    .filter((m) => mine.has(m.org_id));
   return theirs
     .map((m) => {
-      const o = ctx.ws.get<{ name: string; photo_rev: number | null }>("orgs", { id: m.org_id });
-      return o ? { id: m.org_id, name: o.name, photoRev: o.photo_rev ?? null, joinedAt: m.joined_at } : null;
+      const o = ctx.ws.get<{ name: string; photo_rev: number | null }>("orgs", {
+        id: m.org_id,
+      });
+      return o
+        ? {
+            id: m.org_id,
+            name: o.name,
+            photoRev: o.photo_rev ?? null,
+            joinedAt: m.joined_at,
+          }
+        : null;
     })
-    .filter((x): x is { id: string; name: string; photoRev: number | null; joinedAt: number } => x !== null)
+    .filter(
+      (
+        x,
+      ): x is {
+        id: string;
+        name: string;
+        photoRev: number | null;
+        joinedAt: number;
+      } => x !== null,
+    )
     .sort((a, b) => b.joinedAt - a.joinedAt)
     .slice(0, 50);
 }

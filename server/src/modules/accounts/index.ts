@@ -26,15 +26,7 @@ export { gifInfo, type ImageInfo, sniff, webpInfo } from "./mediaFormats.js";
 export { requireStanding } from "./standing.js";
 // For the Platform Admin Console (modules/platformAdmin), which signs admins in with their account password.
 export type { AccountRow } from "./store.js";
-export {
-  deleteOperatorAccount,
-  insertOperatorAccount,
-  listOperatorAccounts,
-  type OperatorAccountRow,
-  operatorAccount,
-  staticCodeHash,
-  updateOperatorVerification,
-} from "./operatorAccounts.js";
+export { deleteOperatorAccount, insertOperatorAccount, listOperatorAccounts, type OperatorAccountRow, operatorAccount, staticCodeHash, updateOperatorVerification } from "./operatorAccounts.js";
 export { burnPasswordCheck, verifyPassword } from "./passwords.js";
 export {
   accountStateCounts,
@@ -87,11 +79,18 @@ export class Accounts {
 
   private readonly identityRows: AppContext["identity"];
 
-  constructor(ctx: AppContext, opts: { mailer?: Mailer; store?: AccountStore; recoveryStore?: RecoveryStore; keyBackupStore?: KeyBackupStore } = {}) {
+  constructor(
+    ctx: AppContext,
+    opts: {
+      mailer?: Mailer;
+      store?: AccountStore;
+      recoveryStore?: RecoveryStore;
+      keyBackupStore?: KeyBackupStore;
+    } = {},
+  ) {
     this.identityRows = ctx.identity;
     // MONGODB_DOMAINS includes "accounts": the account rows live in MongoDB (docs/MONGODB.md).
-    this.store =
-      opts.store ?? (ctx.mongo?.owns("accounts") ? new MongoAccountStore(ctx.mongo, ctx.identity) : new SqliteAccountStore(ctx.db, sqliteIdentity(ctx.identity)));
+    this.store = opts.store ?? (ctx.mongo?.owns("accounts") ? new MongoAccountStore(ctx.mongo, ctx.identity) : new SqliteAccountStore(ctx.db, sqliteIdentity(ctx.identity)));
     this.mailer = opts.mailer ?? createMailer(ctx.config.accounts.mail);
     this.service = new AccountService(ctx, this.store, meteredMailer(this.mailer, ctx.metrics));
     this.identity = new IdentityService(ctx, this.service);
@@ -131,7 +130,10 @@ export class Accounts {
    * this instead of reading the users table itself.
    */
   identityBlocked(userId: string): boolean {
-    const u = this.identityRows.get<{ disabled_at: number | null; deleted_at: number | null }>("users", { id: userId });
+    const u = this.identityRows.get<{
+      disabled_at: number | null;
+      deleted_at: number | null;
+    }>("users", { id: userId });
     return !!u && (u.disabled_at !== null || u.deleted_at !== null);
   }
 
@@ -148,8 +150,17 @@ export { type AppIdentity, appIdentity, photoBytes } from "./appIdentity.js";
 
 // Load-test provisioning (docs/LOADTEST_PROVISIONING.md), used by auth, organizations and messaging.
 export {
-  admitLoadtestAccount, checkLoadtestRequest, createLoadtestInvite, findLoadtestInvite, isSynthetic, LOADTEST_INVITE_MAX_DAYS, LOADTEST_INVITE_MAX_USES,
-  loadtestQuota, requireSyntheticScopeForPeople, type LoadtestPolicy, type QuotaState,
+  admitLoadtestAccount,
+  checkLoadtestRequest,
+  createLoadtestInvite,
+  findLoadtestInvite,
+  isSynthetic,
+  LOADTEST_INVITE_MAX_DAYS,
+  LOADTEST_INVITE_MAX_USES,
+  loadtestQuota,
+  requireSyntheticScopeForPeople,
+  type LoadtestPolicy,
+  type QuotaState,
 } from "./loadtest.js";
 // Community photos made from a Discord server's icon (modules/organizations/discord).
 export { MAX_PHOTO_BYTES, photoBlobId, readJpegBody, storePhoto } from "./photos.js";
@@ -159,3 +170,5 @@ function sqliteIdentity(identity: AppContext["identity"]): SqliteRows {
   if (!(identity instanceof SqliteRows)) throw new Error("Accounts in SQLite need the identity domain in SQLite too");
   return identity;
 }
+
+export { profileAudience } from "./profileAudience.js";

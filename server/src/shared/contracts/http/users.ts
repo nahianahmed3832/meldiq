@@ -79,6 +79,10 @@ export const BugReportBody = z.object({
 });
 
 export const ProfileUpdateBody = z.object({
+  baseProfileRevision: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/)
+    .optional(),
   /** API 0.46.0: "About me", shown with the bio. */
   aboutMe: z.string().trim().max(300).nullable().optional(),
   links: z.array(ProfileLink).max(PROFILE_LINKS_MAX).nullable().optional(),
@@ -111,7 +115,10 @@ export const ProfileUpdateBody = z.object({
   /** At most one change an hour. */
   username: zUsername.optional(),
 });
-export const PresenceBody = z.strictObject({ mode: PresenceMode, until: z.number().int().nullable().optional() });
+export const PresenceBody = z.strictObject({
+  mode: PresenceMode,
+  until: z.number().int().nullable().optional(),
+});
 export const PrivacyBody = Privacy.partial();
 
 /** Profile style (API 0.45.0, docs/PROFILE_MEDIA.md): Meldiq's own decorations and effects, drawn by the apps. */
@@ -149,7 +156,10 @@ export const ProfileStyleBody = z.object({
    */
   themeColors: z.array(zHex).min(1).max(2).nullable().optional(),
   /** API 0.65.0: the badge shown next to your name: one you hold, "none" to show none, null for the apps' default. */
-  shownBadge: z.enum([...SHOWABLE_BADGES, "none"]).nullable().optional(),
+  shownBadge: z
+    .enum([...SHOWABLE_BADGES, "none"])
+    .nullable()
+    .optional(),
 });
 export const ProfileStyle = z.strictObject({
   decoration: zWornDecoration.nullable(),
@@ -161,15 +171,30 @@ export const ProfileStyle = z.strictObject({
   tagOrgId: z.string().nullable().optional(),
   themeColors: z.array(z.string()).nullable().optional(),
   /** A badge no longer held reads as null (the default). */
-  shownBadge: z.enum([...SHOWABLE_BADGES, "none"]).nullable().optional(),
+  shownBadge: z
+    .enum([...SHOWABLE_BADGES, "none"])
+    .nullable()
+    .optional(),
 });
 /** The community tag someone wears (API 0.46.0): its letters, colour (the community's accent) and community. */
-export const WornTag = z.strictObject({ orgId: z.string(), text: z.string(), color: z.string().nullable() });
-export const AvatarMedia = z.strictObject({ kind: z.enum(["gif", "webp", "video"]), rev: z.number().int() });
-const ProfileBanner = z.strictObject({ kind: z.enum(["jpeg", "gif", "webp"]), rev: z.number().int() });
+export const WornTag = z.strictObject({
+  orgId: z.string(),
+  text: z.string(),
+  color: z.string().nullable(),
+});
+export const AvatarMedia = z.strictObject({
+  kind: z.enum(["gif", "webp", "video"]),
+  rev: z.number().int(),
+});
+const ProfileBanner = z.strictObject({
+  kind: z.enum(["jpeg", "gif", "webp"]),
+  rev: z.number().int(),
+});
 export const PhoneQuery = z.object({ phone: z.string().trim().max(24) });
 export const SearchQuery = z.object({ q: z.string().trim().min(1).max(40) });
-export const DevicesBody = z.object({ userIds: z.array(z.string().max(64)).min(1).max(500) });
+export const DevicesBody = z.object({
+  userIds: z.array(z.string().max(64)).min(1).max(500),
+});
 export const BlockBody = z.object({ userId: z.string().max(64) });
 export const PresenceQuery = z.object({ ids: z.string().max(5000) });
 
@@ -179,7 +204,10 @@ export const PresenceQuery = z.object({ ids: z.string().max(5000) });
  */
 /** API 0.46.0: what lists add from a person's profile media (the animated avatar, the style, the worn tag). */
 /** API 0.54.0: the Mojo badge someone shows (docs/MOJO.md); "check" is Meldiq Check, a Plus perk, not verification. */
-export const MojoBadge = z.strictObject({ badge: z.enum(["go", "plus"]), check: z.boolean() });
+export const MojoBadge = z.strictObject({
+  badge: z.enum(["go", "plus"]),
+  check: z.boolean(),
+});
 
 export const listMediaFields = {
   avatarMedia: AvatarMedia.optional(),
@@ -237,6 +265,7 @@ const profileFields = {
 };
 /** Only in the person's own profile. */
 const ownFields = {
+  profileRevision: z.string().optional(),
   privacy: Privacy,
   /** Set while notifications are paused. */
   notificationsPausedUntil: z.number().int().nullable(),
@@ -275,7 +304,16 @@ export const UserProfile = z.strictObject({
   /** API 0.57.0: when they joined Meldiq (the profile's "Member since"). */
   memberSince: zTime.optional(),
   /** API 0.57.0: communities you're both in (their icon, name, and when they joined it), newest join first. */
-  mutualCommunities: z.array(z.strictObject({ id: z.string(), name: z.string(), photoRev: z.number().int().nullable(), joinedAt: zTime })).optional(),
+  mutualCommunities: z
+    .array(
+      z.strictObject({
+        id: z.string(),
+        name: z.string(),
+        photoRev: z.number().int().nullable(),
+        joinedAt: zTime,
+      }),
+    )
+    .optional(),
   /** API 0.61.0: they have a profile decoration approved (the Artist badge); absent otherwise. */
   decorationArtist: z.literal(true).optional(),
   /** API 0.64.0: their pins (docs/PROFILE_PINS.md), Meldiq's then communities'; absent when there are none. */
@@ -283,7 +321,12 @@ export const UserProfile = z.strictObject({
 });
 
 /** A device's public keys, to encrypt to and verify. */
-export const DirectoryDevice = z.strictObject({ id: z.string(), signingKey: z.string(), encryptionKey: z.string(), certificate: z.string() });
+export const DirectoryDevice = z.strictObject({
+  id: z.string(),
+  signingKey: z.string(),
+  encryptionKey: z.string(),
+  certificate: z.string(),
+});
 /**
  * A person's public keys: `devices` are the ones to encrypt to; `revokedDevices` were removed within the queue lifetime,
  * and their earlier envelopes still verify against these keys.
@@ -307,7 +350,11 @@ export const PresenceEntry = z.strictObject({
 const user = (url: string, extra: Omit<Parameters<typeof route>[0], "url" | "tag" | "auth">) => route({ url, tag: "users", auth: true, ...extra });
 
 export const userRoutes = [
-  user("/v1/users/me", { method: "GET", summary: "Your own profile, and this device's id.", response: z.strictObject({ user: OwnProfile, deviceId: z.string() }) }),
+  user("/v1/users/me", {
+    method: "GET",
+    summary: "Your own profile, and this device's id.",
+    response: z.strictObject({ user: OwnProfile, deviceId: z.string() }),
+  }),
   user("/v1/users/me", {
     method: "PATCH",
     summary: "Edit your profile; only the fields sent change.",
@@ -319,7 +366,10 @@ export const userRoutes = [
     method: "PUT",
     summary: "Appear online automatically, idle, do not disturb or invisible, until a time or until changed.",
     body: PresenceBody,
-    response: z.strictObject({ mode: PresenceMode, until: z.number().int().nullable() }),
+    response: z.strictObject({
+      mode: PresenceMode,
+      until: z.number().int().nullable(),
+    }),
   }),
   user("/v1/users/me/privacy", {
     method: "PUT",
@@ -334,7 +384,11 @@ export const userRoutes = [
     response: z.strictObject({ photoRev: z.number().int() }),
     errors: ["too_large", "storage_unavailable"],
   }),
-  user("/v1/users/me/photo", { method: "DELETE", summary: "Remove your profile photo.", response: z.strictObject({ photoRev: z.null() }) }),
+  user("/v1/users/me/photo", {
+    method: "DELETE",
+    summary: "Remove your profile photo.",
+    response: z.strictObject({ photoRev: z.null() }),
+  }),
   user("/v1/users/:id/photo", {
     method: "GET",
     summary: "Someone's profile photo (image/jpeg), if they show it to you.",
@@ -350,7 +404,11 @@ export const userRoutes = [
     response: z.strictObject({ avatarMedia: AvatarMedia }),
     errors: ["bad_request", "too_large", "storage_unavailable", "media_engine_unavailable"],
   }),
-  user("/v1/users/me/avatar-media", { method: "DELETE", summary: "Remove your animated avatar.", response: z.strictObject({ avatarMedia: z.null() }) }),
+  user("/v1/users/me/avatar-media", {
+    method: "DELETE",
+    summary: "Remove your animated avatar.",
+    response: z.strictObject({ avatarMedia: z.null() }),
+  }),
   user("/v1/users/:id/avatar-media", {
     method: "GET",
     summary: "Someone's animated avatar (image/gif, image/webp or video/mp4), if they show you their photo.",
@@ -374,7 +432,11 @@ export const userRoutes = [
     response: z.strictObject({ profileBanner: ProfileBanner }),
     errors: ["bad_request", "too_large", "storage_unavailable"],
   }),
-  user("/v1/users/me/profile-banner", { method: "DELETE", summary: "Remove your profile banner.", response: z.strictObject({ profileBanner: z.null() }) }),
+  user("/v1/users/me/profile-banner", {
+    method: "DELETE",
+    summary: "Remove your profile banner.",
+    response: z.strictObject({ profileBanner: z.null() }),
+  }),
   user("/v1/users/:id/profile-banner", {
     method: "GET",
     summary: "Someone's profile banner, if they show you their photo.",
@@ -401,7 +463,9 @@ export const userRoutes = [
     method: "GET",
     summary: "People who share a community with you (prefix match), plus an exact username match for anyone who allows it.",
     query: SearchQuery,
-    response: z.strictObject({ users: z.array(UserSummary.extend({ online: z.boolean().nullable() })) }),
+    response: z.strictObject({
+      users: z.array(UserSummary.extend({ online: z.boolean().nullable() })),
+    }),
   }),
   user("/v1/users/:id", {
     method: "GET",
@@ -423,8 +487,17 @@ export const userRoutes = [
     response: z.strictObject({ blocked: z.literal(true) }),
     errors: ["not_found"],
   }),
-  user("/v1/blocks/:userId", { method: "DELETE", summary: "Unblock someone.", params: UserIdParams, response: z.strictObject({ blocked: z.literal(false) }) }),
-  user("/v1/blocks", { method: "GET", summary: "The people you've blocked.", response: z.strictObject({ userIds: z.array(z.string()) }) }),
+  user("/v1/blocks/:userId", {
+    method: "DELETE",
+    summary: "Unblock someone.",
+    params: UserIdParams,
+    response: z.strictObject({ blocked: z.literal(false) }),
+  }),
+  user("/v1/blocks", {
+    method: "GET",
+    summary: "The people you've blocked.",
+    response: z.strictObject({ userIds: z.array(z.string()) }),
+  }),
   user("/v1/presence", {
     method: "GET",
     summary: "Presence of up to 200 people (comma-separated ids); people whose last seen you may not see are left out.",

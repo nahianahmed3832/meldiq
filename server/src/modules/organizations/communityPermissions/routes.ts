@@ -1,14 +1,6 @@
+import { communityProfileRoutes } from "./profiles.js";
 import type { FastifyInstance } from "fastify";
-import {
-  ChannelMemberParams,
-  EveryoneBody,
-  NicknameBody,
-  OrgMemberParams,
-  OrgParams,
-  RoleExtrasBody,
-  RoleOrderBody,
-  RoleParams,
-} from "../../../shared/contracts/http/communityPermissions.js";
+import { ChannelMemberParams, EveryoneBody, NicknameBody, OrgMemberParams, OrgParams, RoleExtrasBody, RoleOrderBody, RoleParams } from "../../../shared/contracts/http/communityPermissions.js";
 import type { AppContext } from "../../../app/context.js";
 import { me, requireAuth } from "../../auth/index.js";
 import { parse } from "../../../shared/validation/index.js";
@@ -27,12 +19,15 @@ import { grantSpeaker, revokeSpeaker } from "./stage.js";
 export default async function communityPermissionsRoutes(app: FastifyInstance, ctx: AppContext) {
   const auth = { preHandler: requireAuth(ctx) };
   const feature = ctx.communityPermissions;
+  await communityProfileRoutes(app, ctx);
 
   app.put("/v1/orgs/:orgId/roles/everyone", auth, async (req) => {
     const { orgId } = parse(OrgParams, req.params);
     const { permissions } = parse(EveryoneBody, req.body);
     feature.requireEnabled();
-    return { everyone: await setEveryone(ctx, orgId, me(req).userId, permissions as Permission[]) };
+    return {
+      everyone: await setEveryone(ctx, orgId, me(req).userId, permissions as Permission[]),
+    };
   });
 
   app.put("/v1/orgs/:orgId/members/:userId/nickname", auth, async (req) => {

@@ -5,6 +5,7 @@ import type { RowReader } from "../../infrastructure/database/rows/index.js";
 import { mapByIds } from "../../infrastructure/database/byIds.js";
 import { compareText, foldAscii, likeContains } from "../../shared/utilities/sqlText.js";
 import {
+  PermissionPreviewQuery,
   BanBody,
   CATEGORY_LIMIT,
   CategoryNameBody,
@@ -26,15 +27,8 @@ import { type AppContext } from "../../app/context.js";
 import { me, requireAuth } from "../auth/index.js";
 import { parse } from "../../shared/validation/index.js";
 import { BASE_ROLE_PERMISSIONS, type Permission, permissionDef } from "./permissions/catalog.js";
-import {
-  CHANNEL_CAPABILITIES,
-  type ChannelCapability,
-  channelPermissions,
-  EVERYONE,
-  type Overwrite,
-  overwriteRefusal,
-  USER_PREFIX,
-} from "./permissions/channel.js";
+import { CHANNEL_CAPABILITIES, type ChannelCapability, channelPermissions, EVERYONE, type Overwrite, overwriteRefusal, USER_PREFIX } from "./permissions/channel.js";
+import { effectivePermissions } from "./permissions/rules.js";
 import { banAllowed, timeoutAllowed } from "./roleRules.js";
 import { ApiError, badRequest, conflict, forbidden, notFound } from "../../shared/errors.js";
 import { newId, now } from "../../shared/utilities/util.js";
@@ -67,9 +61,7 @@ interface CategoryRow {
 
 /** A community's categories in their order: position, then name ignoring ASCII case, then id (the SQL's order). */
 export function categoriesInOrder<T extends CategoryRow>(rows: RowReader, orgId: string): T[] {
-  return rows
-    .all<T>("channel_categories", { where: { org_id: orgId } })
-    .sort((a, b) => a.position - b.position || compareText(foldAscii(a.name), foldAscii(b.name)) || compareText(a.id, b.id));
+  return rows.all<T>("channel_categories", { where: { org_id: orgId } }).sort((a, b) => a.position - b.position || compareText(foldAscii(a.name), foldAscii(b.name)) || compareText(a.id, b.id));
 }
 
 /**
@@ -84,10 +76,20 @@ export function categoryViews(ctx: AppContext, orgId: string, userId: string) {
   return rows
     .map((c) => {
       const perms = authz.categoryPermissions(orgId, c.id, userId);
-      const channels = ctx.ws.all<ConversationRow>("conversations", { where: { category_id: c.id, type: "CHANNEL" } });
+      const channels = ctx.ws.all<ConversationRow>("conversations", {
+        where: { category_id: c.id, type: "CHANNEL" },
+      });
       const visible = channels.filter((ch) => !ch.archived_at && authz.canViewChannel(ch, userId)).length;
       const canManage = manageAll || perms.has("channels.manage");
-      return { id: c.id, name: c.name, position: c.position, channelCount: visible, canManage, canCreateChannels: createAll || perms.has("channels.create"), show: visible > 0 || canManage };
+      return {
+        id: c.id,
+        name: c.name,
+        position: c.position,
+        channelCount: visible,
+        canManage,
+        canCreateChannels: createAll || perms.has("channels.create"),
+        show: visible > 0 || canManage,
+      };
     })
     .filter((c) => c.show)
     .map(({ show: _show, ...c }) => c);
@@ -99,7 +101,16 @@ export function visibleToEveryone(ctx: AppContext, conv: ConversationRow): boole
   const levels = [conv.category_id ? ctx.authz.overwrites("category", conv.category_id) : [], ctx.authz.overwrites("channel", conv.id)];
   // Community parity A1: a plain member holds the community's "@everyone" defaults.
   const base = conv.org_id ? ctx.authz.basePermissions(conv.org_id, "MEMBER") : BASE_ROLE_PERMISSIONS.MEMBER;
-  const perms = channelPermissions({ base: "MEMBER", userId: "", perms: base, roleIds: [], restricted: new Set() }, levels);
+  const perms = channelPermissions(
+    {
+      base: "MEMBER",
+      userId: "",
+      perms: base,
+      roleIds: [],
+      restricted: new Set(),
+    },
+    levels,
+  );
   return perms.has("channels.view");
 }
 
@@ -149,8 +160,7 @@ export default async function communityRoutes(app: FastifyInstance, ctx: AppCont
     authz.requireOrgMember(c.org_id, userId);
     return c;
   };
-  const canManageCategory = (c: CategoryRow, userId: string) =>
-    authz.can(c.org_id, userId, "channels.manage") || authz.categoryPermissions(c.org_id, c.id, userId).has("channels.manage");
+  const canManageCategory = (c: CategoryRow, userId: string) => authz.can(c.org_id, userId, "channels.manage") || authz.categoryPermissions(c.org_id, c.id, userId).has("channels.manage");
 
   // ───────────── Categories ─────────────
   app.get("/v1/orgs/:orgId/categories", auth, async (req) => {
@@ -169,11 +179,27 @@ export default async function communityRoutes(app: FastifyInstance, ctx: AppCont
     await ws.write((w) => {
       if (w.count("channel_categories", { org_id: orgId }) >= CATEGORY_LIMIT) throw conflict(`A community has at most ${CATEGORY_LIMIT} categories`);
       const last = w.get<{ position: number }>("channel_categories", { org_id: orgId }, [["position", "desc"]]);
-      w.insert("channel_categories", { id, org_id: orgId, name, position: (last?.position ?? -1) + 1, created_by: actor, created_at: t, updated_at: t });
+      w.insert("channel_categories", {
+        id,
+        org_id: orgId,
+        name,
+        position: (last?.position ?? -1) + 1,
+        created_by: actor,
+        created_at: t,
+        updated_at: t,
+      });
     });
-    ctx.audit({ actorId: actor, orgId, action: "category.create", target: id, detail: name });
+    ctx.audit({
+      actorId: actor,
+      orgId,
+      action: "category.create",
+      target: id,
+      detail: name,
+    });
     notifyOrg(ctx, orgId);
-    return { category: categoryViews(ctx, orgId, actor).find((c) => c.id === id) };
+    return {
+      category: categoryViews(ctx, orgId, actor).find((c) => c.id === id),
+    };
   });
 
   app.patch("/v1/categories/:id", auth, async (req) => {
@@ -182,9 +208,16 @@ export default async function communityRoutes(app: FastifyInstance, ctx: AppCont
     if (!canManageCategory(c, actor)) throw forbidden("You can't manage this category");
     const { name } = parse(CategoryNameBody, req.body);
     await ws.write((w) => w.update("channel_categories", { id: c.id }, { name, updated_at: now() }));
-    ctx.audit({ actorId: actor, orgId: c.org_id, action: "category.update", target: c.id });
+    ctx.audit({
+      actorId: actor,
+      orgId: c.org_id,
+      action: "category.update",
+      target: c.id,
+    });
     notifyOrg(ctx, c.org_id);
-    return { category: categoryViews(ctx, c.org_id, actor).find((x) => x.id === c.id) ?? null };
+    return {
+      category: categoryViews(ctx, c.org_id, actor).find((x) => x.id === c.id) ?? null,
+    };
   });
 
   /**
@@ -200,10 +233,19 @@ export default async function communityRoutes(app: FastifyInstance, ctx: AppCont
       throw new ApiError(409, "category_has_permissions", "This category's permissions decide who sees its channels. Move its channels out (or delete them) first.");
     }
     await ws.write((w) => {
-      w.delete("channel_overwrites", { target_type: "category", target_id: c.id });
+      w.delete("channel_overwrites", {
+        target_type: "category",
+        target_id: c.id,
+      });
       w.delete("channel_categories", { id: c.id });
     });
-    ctx.audit({ actorId: actor, orgId: c.org_id, action: "category.delete", target: c.id, detail: c.name });
+    ctx.audit({
+      actorId: actor,
+      orgId: c.org_id,
+      action: "category.delete",
+      target: c.id,
+      detail: c.name,
+    });
     notifyOrg(ctx, c.org_id);
     return { ok: true };
   });
@@ -228,7 +270,13 @@ export default async function communityRoutes(app: FastifyInstance, ctx: AppCont
       if ((conv.category_id ?? null) !== ch.categoryId) moved = true;
     }
     const perCategory = new Map<string, number>();
-    const after = new Map(ws.all<{ id: string; category_id: string | null }>("conversations", { where: { org_id: orgId, type: "CHANNEL" } }).map((r) => [r.id, r.category_id]));
+    const after = new Map(
+      ws
+        .all<{ id: string; category_id: string | null }>("conversations", {
+          where: { org_id: orgId, type: "CHANNEL" },
+        })
+        .map((r) => [r.id, r.category_id]),
+    );
     for (const ch of body.channels) after.set(ch.id, ch.categoryId);
     for (const cat of after.values()) if (cat) perCategory.set(cat, (perCategory.get(cat) ?? 0) + 1);
     for (const [cat, n] of perCategory) if (n > CHANNEL_LIMITS.perCategory) throw conflict(`A category holds at most ${CHANNEL_LIMITS.perCategory} channels`, { categoryId: cat });
@@ -242,36 +290,94 @@ export default async function communityRoutes(app: FastifyInstance, ctx: AppCont
       }
       for (const ch of body.channels) w.update("conversations", { id: ch.id }, { category_id: ch.categoryId, position: ch.position, updated_at: t });
     });
-    ctx.audit({ actorId: actor, orgId, action: "layout.update", detail: `${body.categories.length} categories, ${body.channels.length} channels` });
+    ctx.audit({
+      actorId: actor,
+      orgId,
+      action: "layout.update",
+      detail: `${body.categories.length} categories, ${body.channels.length} channels`,
+    });
     const result = moved ? await reconcile(orgId) : (notifyOrg(ctx, orgId), { removed: 0 });
     for (const ch of body.channels) notifyConversation(ctx, ch.id);
-    return { ok: true, ...result, categories: categoryViews(ctx, orgId, actor) };
+    return {
+      ok: true,
+      ...result,
+      categories: categoryViews(ctx, orgId, actor),
+    };
   });
 
   // ───────────── Permission overwrites ─────────────
-  type Target = { type: "category" | "channel"; id: string; orgId: string; held: Set<Permission>; canManage: boolean };
+  type Target = {
+    type: "category" | "channel";
+    id: string;
+    orgId: string;
+    held: Set<Permission>;
+    canManage: boolean;
+  };
 
   const targetFor = (type: "category" | "channel", id: string, actor: string): Target => {
     if (type === "category") {
       const c = loadCategory(id, actor);
-      return { type, id, orgId: c.org_id, held: authz.categoryPermissions(c.org_id, c.id, actor), canManage: canManageCategory(c, actor) };
+      return {
+        type,
+        id,
+        orgId: c.org_id,
+        held: authz.categoryPermissions(c.org_id, c.id, actor),
+        canManage: canManageCategory(c, actor),
+      };
     }
     const conv = authz.conversation(id);
     if (!conv || conv.type !== "CHANNEL" || !conv.org_id || !authz.canViewChannel(conv, actor)) throw notFound("Channel not found");
-    return { type, id, orgId: conv.org_id, held: authz.channelPermissions(conv, actor), canManage: authz.canManageConversation(conv, actor) };
+    return {
+      type,
+      id,
+      orgId: conv.org_id,
+      held: authz.channelPermissions(conv, actor),
+      canManage: authz.canManageConversation(conv, actor),
+    };
   };
 
   const overwriteView = (orgId: string, o: Overwrite) => {
-    if (o.subject === EVERYONE) return { subject: o.subject, kind: "everyone", label: "@everyone", color: null, allow: o.allow, deny: o.deny };
+    if (o.subject === EVERYONE)
+      return {
+        subject: o.subject,
+        kind: "everyone",
+        label: "@everyone",
+        color: null,
+        allow: o.allow,
+        deny: o.deny,
+      };
     if (o.subject.startsWith(USER_PREFIX)) {
-      const u = ctx.identity.get<{ display_name: string }>("users", { id: o.subject.slice(USER_PREFIX.length) });
-      return { subject: o.subject, kind: "member", label: u?.display_name ?? "Former member", color: null, allow: o.allow, deny: o.deny };
+      const u = ctx.identity.get<{ display_name: string }>("users", {
+        id: o.subject.slice(USER_PREFIX.length),
+      });
+      return {
+        subject: o.subject,
+        kind: "member",
+        label: u?.display_name ?? "Former member",
+        color: null,
+        allow: o.allow,
+        deny: o.deny,
+      };
     }
-    const r = ws.get<{ name: string; color: string | null }>("org_roles", { id: o.subject, org_id: orgId });
-    return { subject: o.subject, kind: "role", label: r?.name ?? "Deleted role", color: r?.color ?? null, allow: o.allow, deny: o.deny };
+    const r = ws.get<{ name: string; color: string | null }>("org_roles", {
+      id: o.subject,
+      org_id: orgId,
+    });
+    return {
+      subject: o.subject,
+      kind: "role",
+      label: r?.name ?? "Deleted role",
+      color: r?.color ?? null,
+      allow: o.allow,
+      deny: o.deny,
+    };
   };
 
-  const capabilityCatalog = CHANNEL_CAPABILITIES.map((k) => ({ key: k, label: permissionDef(k).label, description: permissionDef(k).description }));
+  const capabilityCatalog = CHANNEL_CAPABILITIES.map((k) => ({
+    key: k,
+    label: permissionDef(k).label,
+    description: permissionDef(k).description,
+  }));
 
   const listOverwrites = (t: Target) => ({
     overwrites: authz.overwrites(t.type, t.id).map((o) => overwriteView(t.orgId, o)),
@@ -295,7 +401,13 @@ export default async function communityRoutes(app: FastifyInstance, ctx: AppCont
     if (subject !== EVERYONE) {
       if (subject.startsWith(USER_PREFIX)) {
         if (!authz.orgRole(t.orgId, subject.slice(USER_PREFIX.length))) throw badRequest("That person isn't in this community");
-      } else if (!ws.get("org_roles", { id: subject, org_id: t.orgId, archived_at: null })) {
+      } else if (
+        !ws.get("org_roles", {
+          id: subject,
+          org_id: t.orgId,
+          archived_at: null,
+        })
+      ) {
         throw badRequest("Unknown role");
       }
     }
@@ -315,17 +427,90 @@ export default async function communityRoutes(app: FastifyInstance, ctx: AppCont
     }
     await ws.write((w) => {
       if (allow.length === 0 && deny.length === 0) {
-        w.delete("channel_overwrites", { target_type: type, target_id: id, subject });
+        w.delete("channel_overwrites", {
+          target_type: type,
+          target_id: id,
+          subject,
+        });
       } else {
-        const row = { target_type: type, target_id: id, org_id: t.orgId, subject, allow: JSON.stringify(allow), deny: JSON.stringify(deny), updated_by: actor, updated_at: now() };
-        w.upsert("channel_overwrites", row, { allow: row.allow, deny: row.deny, updated_by: row.updated_by, updated_at: row.updated_at });
+        const row = {
+          target_type: type,
+          target_id: id,
+          org_id: t.orgId,
+          subject,
+          allow: JSON.stringify(allow),
+          deny: JSON.stringify(deny),
+          updated_by: actor,
+          updated_at: now(),
+        };
+        w.upsert("channel_overwrites", row, {
+          allow: row.allow,
+          deny: row.deny,
+          updated_by: row.updated_by,
+          updated_at: row.updated_at,
+        });
       }
     });
-    ctx.audit({ actorId: actor, orgId: t.orgId, action: "permissions.update", target: `${type}:${id}`, detail: `${subject} +${allow.join(",")} -${deny.join(",")}` });
+    ctx.audit({
+      actorId: actor,
+      orgId: t.orgId,
+      action: "permissions.update",
+      target: `${type}:${id}`,
+      detail: `${subject} +${allow.join(",")} -${deny.join(",")}`,
+    });
     const result = await reconcile(t.orgId);
     if (type === "channel") notifyConversation(ctx, id);
     return { ...listOverwrites(targetFor(type, id, actor)), ...result };
   };
+
+  const previewPermissions = (type: "category" | "channel", id: string, viewer: string, query: ReturnType<typeof PermissionPreviewQuery.parse>) => {
+    const t = targetFor(type, id, viewer);
+    const other = query.roleId || (query.userId && query.userId !== viewer);
+    if (other && !(authz.can(t.orgId, viewer, "roles.view") && authz.can(t.orgId, viewer, "members.view"))) throw forbidden("Your role doesn't include viewing other people's permissions");
+    let actor = authz.channelActor(t.orgId, query.userId ?? viewer);
+    let subject = query.userId ?? viewer;
+    if (query.roleId) {
+      const role = authz.roleGrant(query.roleId, t.orgId);
+      if (!role) throw notFound("Role not found");
+      actor = {
+        base: "MEMBER",
+        userId: "",
+        roleIds: [query.roleId],
+        perms: effectivePermissions("MEMBER", [role], authz.memberDefaults(t.orgId)),
+        restricted: new Set(role.denies),
+      };
+      subject = query.roleId;
+    }
+    if (!actor) throw notFound("Member not found");
+    const category = type === "category" ? id : authz.conversation(id)?.category_id;
+    const levels = [category ? authz.overwrites("category", category) : [], ...(type === "channel" ? [authz.overwrites("channel", id)] : [])];
+    const steps = [
+      {
+        label: "Community base and assigned roles (restrictions win)",
+        effective: [...actor.perms].sort(),
+      },
+    ];
+    for (let i = 0; i < levels.length; i++)
+      steps.push({
+        label: i === 0 ? "After category rules" : "After channel rules",
+        effective: [...channelPermissions(actor, levels.slice(0, i + 1))].sort(),
+      });
+    const final = new Set(steps[steps.length - 1].effective);
+    return {
+      base: actor.base,
+      subject,
+      steps,
+      capabilities: capabilityCatalog
+        .filter((c) => type === "category" || c.key !== "channels.create")
+        .map((c) => ({
+          key: c.key,
+          label: c.label,
+          allowed: final.has(c.key),
+        })),
+    };
+  };
+  app.get("/v1/categories/:id/permission-preview", auth, async (req) => previewPermissions("category", parse(IdParams, req.params).id, me(req).userId, parse(PermissionPreviewQuery, req.query)));
+  app.get("/v1/conversations/:id/permission-preview", auth, async (req) => previewPermissions("channel", parse(IdParams, req.params).id, me(req).userId, parse(PermissionPreviewQuery, req.query)));
 
   app.get("/v1/categories/:id/overwrites", auth, async (req) => {
     const actor = me(req).userId;
@@ -339,7 +524,10 @@ export default async function communityRoutes(app: FastifyInstance, ctx: AppCont
   app.put("/v1/conversations/:id/overwrites", auth, async (req) => writeOverwrite("channel", parse(IdParams, req.params).id, me(req).userId, parse(OverwriteBody, req.body)));
 
   // ───────────── Discovery and joining ─────────────
-  const discoverRate = { preHandler: requireAuth(ctx), config: { rateLimit: { max: 60, timeWindow: "1 minute" } } };
+  const discoverRate = {
+    preHandler: requireAuth(ctx),
+    config: { rateLimit: { max: 60, timeWindow: "1 minute" } },
+  };
 
   /** Public communities, most members first; [q] matches name or description. Cursor: the next offset. */
   app.get("/v1/communities/discover", discoverRate, async (req) => {
@@ -352,7 +540,10 @@ export default async function communityRoutes(app: FastifyInstance, ctx: AppCont
       .filter((o) => !banned.has(o.id) && (!term || likeContains(o.name, term) || likeContains(o.description ?? "", term)))
       // Community parity E: communities turned off in Discovery, removed, locked or with a blocked name don't show.
       .filter((o) => ctx.discovery.shownToOlderApps(o.id))
-      .map((o) => ({ ...o, member_count: ws.count("org_members", { org_id: o.id }) }))
+      .map((o) => ({
+        ...o,
+        member_count: ws.count("org_members", { org_id: o.id }),
+      }))
       .sort((a, b) => b.member_count - a.member_count || compareText(foldAscii(a.name), foldAscii(b.name)) || compareText(a.id, b.id))
       .slice(q.cursor, q.cursor + DISCOVER_PAGE + 1);
     const page = rows.slice(0, DISCOVER_PAGE);
@@ -382,12 +573,24 @@ export default async function communityRoutes(app: FastifyInstance, ctx: AppCont
     const member = o ? authz.orgRole(o.id, userId) !== null : false;
     if (!o || (o.visibility !== "public" && !member)) throw notFound("Community not found");
     const channels = ws
-      .all<ConversationRow>("conversations", { where: { org_id: id, type: "CHANNEL" } })
+      .all<ConversationRow>("conversations", {
+        where: { org_id: id, type: "CHANNEL" },
+      })
       .sort((a, b) => (a.position ?? 0) - (b.position ?? 0) || compareText(foldAscii(a.name ?? ""), foldAscii(b.name ?? "")))
       .filter((c) => visibleToEveryone(ctx, c));
     return {
-      community: { ...orgSummary(ctx, o, userId), photoRev: o.photo_rev ?? null },
-      channels: channels.map((c) => ({ id: c.id, name: c.name, topic: c.topic, kind: c.kind, voice: !!c.voice, format: c.format ?? "text" })),
+      community: {
+        ...orgSummary(ctx, o, userId),
+        photoRev: o.photo_rev ?? null,
+      },
+      channels: channels.map((c) => ({
+        id: c.id,
+        name: c.name,
+        topic: c.topic,
+        kind: c.kind,
+        voice: !!c.voice,
+        format: c.format ?? "text",
+      })),
       joined: member,
       banned: authz.isBanned(id, userId),
       // Batch B4b: the person's latest application here, if any.
@@ -397,49 +600,93 @@ export default async function communityRoutes(app: FastifyInstance, ctx: AppCont
     };
   });
 
-  app.post("/v1/communities/:id/join", { preHandler: requireAuth(ctx), config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (req) => {
-    const userId = me(req).userId;
-    const { id } = parse(IdParams, req.params);
-    const o = ws.get<any>("orgs", { id });
-    if (!o || o.visibility !== "public") throw notFound("Community not found");
-    if (authz.orgRole(id, userId)) return { org: orgSummary(ctx, o, userId), alreadyMember: true };
-    requireSyntheticScopeForOrg(ctx, userId, id);
-    if (o.join_policy !== "open") throw forbidden("This community is invite-only: ask a member for an invitation");
-    // Batch B4b: a community with questions takes applications instead.
-    if (joinQuestions(o)) throw new ApiError(403, "application_required", "This community asks a few questions first: apply to join");
-    if (authz.isBanned(id, userId)) throw new ApiError(403, "banned", "You've been banned from this community");
-    const t = now();
-    if (authz.pausedUntil(id, "invites", t)) throw new ApiError(403, "invites_paused", "This community has paused new members for now. Try again later.");
-    await ctx.communitySafety.admitJoin(id, userId);
-    await ws.write((w) => {
-      ctx.entitlements.check("members", w.count("org_members", { org_id: id }), id);
-      w.insert("org_members", { org_id: id, user_id: userId, role: "MEMBER", joined_at: t }, { orIgnore: true });
-      ctx.communityPermissions.assignAutoRoles(w, id, userId, t);
-      authz.autoJoinScope(w, id, userId, t);
-    });
-    ctx.audit({ actorId: userId, orgId: id, action: "community.join", target: userId });
-    await noteJoin(ctx, id, t);
-    // Community parity E: a join for the community's Promoted spot when they opened it from Discover.
-    await ctx.discovery.noteJoin(id, userId);
-    notifyOrg(ctx, id);
-    return { org: orgSummary(ctx, ws.get("orgs", { id }), userId), alreadyMember: false };
-  });
+  app.post(
+    "/v1/communities/:id/join",
+    {
+      preHandler: requireAuth(ctx),
+      config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+    },
+    async (req) => {
+      const userId = me(req).userId;
+      const { id } = parse(IdParams, req.params);
+      const o = ws.get<any>("orgs", { id });
+      if (!o || o.visibility !== "public") throw notFound("Community not found");
+      if (authz.orgRole(id, userId)) return { org: orgSummary(ctx, o, userId), alreadyMember: true };
+      requireSyntheticScopeForOrg(ctx, userId, id);
+      if (o.join_policy !== "open") throw forbidden("This community is invite-only: ask a member for an invitation");
+      // Batch B4b: a community with questions takes applications instead.
+      if (joinQuestions(o)) throw new ApiError(403, "application_required", "This community asks a few questions first: apply to join");
+      if (authz.isBanned(id, userId)) throw new ApiError(403, "banned", "You've been banned from this community");
+      const t = now();
+      if (authz.pausedUntil(id, "invites", t)) throw new ApiError(403, "invites_paused", "This community has paused new members for now. Try again later.");
+      await ctx.communitySafety.admitJoin(id, userId);
+      await ws.write((w) => {
+        ctx.entitlements.check("members", w.count("org_members", { org_id: id }), id);
+        w.insert("org_members", { org_id: id, user_id: userId, role: "MEMBER", joined_at: t }, { orIgnore: true });
+        ctx.communityPermissions.assignAutoRoles(w, id, userId, t);
+        authz.autoJoinScope(w, id, userId, t);
+      });
+      ctx.audit({
+        actorId: userId,
+        orgId: id,
+        action: "community.join",
+        target: userId,
+      });
+      await noteJoin(ctx, id, t);
+      // Community parity E: a join for the community's Promoted spot when they opened it from Discover.
+      await ctx.discovery.noteJoin(id, userId);
+      notifyOrg(ctx, id);
+      return {
+        org: orgSummary(ctx, ws.get("orgs", { id }), userId),
+        alreadyMember: false,
+      };
+    },
+  );
 
   // ───────────── Bans ─────────────
   app.get("/v1/orgs/:orgId/bans", auth, async (req) => {
     const { orgId } = parse(OrgParams, req.params);
     authz.requirePermission(orgId, me(req).userId, "members.ban", "Your role doesn't include bans");
-    const bans = ws.all<{ user_id: string; reason: string | null; banned_at: number; banned_by: string }>("org_bans", { where: { org_id: orgId }, orderBy: [["banned_at", "desc"]] });
-    const people = mapByIds<{ id: string; display_name: string; username: string }>(ctx.identity, "users", "id", [...bans.map((b) => b.user_id), ...bans.map((b) => b.banned_by)], "id, display_name, username");
+    const bans = ws.all<{
+      user_id: string;
+      reason: string | null;
+      banned_at: number;
+      banned_by: string;
+    }>("org_bans", {
+      where: { org_id: orgId },
+      orderBy: [["banned_at", "desc"]],
+    });
+    const people = mapByIds<{
+      id: string;
+      display_name: string;
+      username: string;
+    }>(ctx.identity, "users", "id", [...bans.map((b) => b.user_id), ...bans.map((b) => b.banned_by)], "id, display_name, username");
     // An inner join on the banned person (a ban of someone unknown here isn't listed), a left join on who banned them.
     const rows = bans
       .flatMap((b) => {
         const u = people.get(b.user_id);
-        return u ? [{ ...b, display_name: u.display_name, username: u.username, by_name: people.get(b.banned_by)?.display_name ?? null }] : [];
+        return u
+          ? [
+              {
+                ...b,
+                display_name: u.display_name,
+                username: u.username,
+                by_name: people.get(b.banned_by)?.display_name ?? null,
+              },
+            ]
+          : [];
       })
       .slice(0, 500);
     return {
-      bans: rows.map((r) => ({ userId: r.user_id, displayName: r.display_name, username: r.username, reason: r.reason, bannedAt: r.banned_at, bannedBy: r.banned_by, bannedByName: r.by_name })),
+      bans: rows.map((r) => ({
+        userId: r.user_id,
+        displayName: r.display_name,
+        username: r.username,
+        reason: r.reason,
+        bannedAt: r.banned_at,
+        bannedBy: r.banned_by,
+        bannedByName: r.by_name,
+      })),
       // Community parity A2: voice bans, a list of their own.
       ...(ctx.communitySafety.enabled ? { voiceBans: ctx.communitySafety.voice.bans(orgId) } : {}),
     };
@@ -457,10 +704,26 @@ export default async function communityRoutes(app: FastifyInstance, ctx: AppCont
       throw forbidden(targetRole === "OWNER" ? "Owners can't be banned" : "You can't ban this person");
     }
     await ws.write((w) =>
-      w.upsert("org_bans", { org_id: orgId, user_id: body.userId, reason: body.reason ?? null, banned_by: actor, banned_at: now() }, { reason: body.reason ?? null }),
+      w.upsert(
+        "org_bans",
+        {
+          org_id: orgId,
+          user_id: body.userId,
+          reason: body.reason ?? null,
+          banned_by: actor,
+          banned_at: now(),
+        },
+        { reason: body.reason ?? null },
+      ),
     );
     if (targetRole) await removeFromWorkspace(ctx, orgId, body.userId, actor, "banned");
-    else ctx.audit({ actorId: actor, orgId, action: "member.ban", target: body.userId });
+    else
+      ctx.audit({
+        actorId: actor,
+        orgId,
+        action: "member.ban",
+        target: body.userId,
+      });
     return { ok: true };
   });
 
@@ -470,7 +733,12 @@ export default async function communityRoutes(app: FastifyInstance, ctx: AppCont
     authz.requirePermission(p.orgId, actor, "members.ban", "Your role doesn't include bans");
     const removed = await ws.write((w) => w.delete("org_bans", { org_id: p.orgId, user_id: p.userId }));
     if (!removed) throw notFound("Not banned");
-    ctx.audit({ actorId: actor, orgId: p.orgId, action: "member.unban", target: p.userId });
+    ctx.audit({
+      actorId: actor,
+      orgId: p.orgId,
+      action: "member.unban",
+      target: p.userId,
+    });
     return { ok: true };
   });
 
@@ -481,15 +749,39 @@ export default async function communityRoutes(app: FastifyInstance, ctx: AppCont
     authz.requirePermission(orgId, actor, "workspace.edit", "Only people who can edit the community can change the guest policy");
     const body = parse(GuestPolicyBody, req.body);
     await ws.write((w) => {
-      w.update("orgs", { id: orgId }, { guests_allowed: body.guestsAllowed ? 1 : 0, guest_max_days: body.guestMaxDays, updated_at: now() });
+      w.update(
+        "orgs",
+        { id: orgId },
+        {
+          guests_allowed: body.guestsAllowed ? 1 : 0,
+          guest_max_days: body.guestMaxDays,
+          updated_at: now(),
+        },
+      );
       // A shorter maximum brings current guests' end dates forward; turning guests off doesn't remove anyone by itself.
       if (body.guestMaxDays) {
         const cap = now() + body.guestMaxDays * 86_400_000;
-        w.update("org_members", { org_id: orgId, role: "GUEST", $or: [{ expires_at: null }, { expires_at: { gt: cap } }] }, { expires_at: cap });
+        w.update(
+          "org_members",
+          {
+            org_id: orgId,
+            role: "GUEST",
+            $or: [{ expires_at: null }, { expires_at: { gt: cap } }],
+          },
+          { expires_at: cap },
+        );
       }
     });
-    ctx.audit({ actorId: actor, orgId, action: "org.guest_policy", detail: `${body.guestsAllowed ? "allowed" : "off"} ${body.guestMaxDays ?? "∞"}` });
-    return { guestsAllowed: body.guestsAllowed, guestMaxDays: body.guestMaxDays };
+    ctx.audit({
+      actorId: actor,
+      orgId,
+      action: "org.guest_policy",
+      detail: `${body.guestsAllowed ? "allowed" : "off"} ${body.guestMaxDays ?? "∞"}`,
+    });
+    return {
+      guestsAllowed: body.guestsAllowed,
+      guestMaxDays: body.guestMaxDays,
+    };
   });
 
   /** A guest's end date (null: none, within the policy's maximum). Members and admins have no end date. */
@@ -501,13 +793,20 @@ export default async function communityRoutes(app: FastifyInstance, ctx: AppCont
     if (!role) throw notFound("Member not found");
     if (role !== "GUEST") throw badRequest("Only guests have an end date");
     const { expiresAt } = parse(ExpiryBody, req.body);
-    const policy = ws.get<{ guest_max_days: number | null }>("orgs", { id: p.orgId })!;
+    const policy = ws.get<{ guest_max_days: number | null }>("orgs", {
+      id: p.orgId,
+    })!;
     if (expiresAt !== null && expiresAt <= now()) throw badRequest("Pick a date in the future, or remove the guest instead");
     if (policy.guest_max_days && (expiresAt === null || expiresAt > now() + policy.guest_max_days * 86_400_000)) {
       throw conflict(`This community keeps guests for at most ${policy.guest_max_days} days`);
     }
     await ws.write((w) => w.update("org_members", { org_id: p.orgId, user_id: p.userId }, { expires_at: expiresAt }));
-    ctx.audit({ actorId: actor, orgId: p.orgId, action: "member.expiry", target: p.userId });
+    ctx.audit({
+      actorId: actor,
+      orgId: p.orgId,
+      action: "member.expiry",
+      target: p.userId,
+    });
     return { expiresAt };
   });
 
@@ -530,19 +829,38 @@ export default async function communityRoutes(app: FastifyInstance, ctx: AppCont
     }
     if (body.invitesPausedUntil !== undefined) {
       await ws.write((w) => w.update("orgs", { id: orgId }, { invites_paused_until: body.invitesPausedUntil }));
-      ctx.audit({ actorId: actor, orgId, action: body.invitesPausedUntil === null ? "community.invites_resume" : "community.invites_pause", target: orgId });
+      ctx.audit({
+        actorId: actor,
+        orgId,
+        action: body.invitesPausedUntil === null ? "community.invites_resume" : "community.invites_pause",
+        target: orgId,
+      });
     }
     if (body.activityAlerts !== undefined) {
       await ws.write((w) => w.update("orgs", { id: orgId }, { activity_alerts: body.activityAlerts ? 1 : 0 }));
-      ctx.audit({ actorId: actor, orgId, action: body.activityAlerts ? "community.alerts_on" : "community.alerts_off", target: orgId });
+      ctx.audit({
+        actorId: actor,
+        orgId,
+        action: body.activityAlerts ? "community.alerts_on" : "community.alerts_off",
+        target: orgId,
+      });
     }
     if (body.dmsPausedUntil !== undefined) {
       await ws.write((w) => w.update("orgs", { id: orgId }, { dms_paused_until: body.dmsPausedUntil }));
-      ctx.audit({ actorId: actor, orgId, action: body.dmsPausedUntil === null ? "community.dms_resume" : "community.dms_pause", target: orgId });
+      ctx.audit({
+        actorId: actor,
+        orgId,
+        action: body.dmsPausedUntil === null ? "community.dms_resume" : "community.dms_pause",
+        target: orgId,
+      });
     }
     notifyOrg(ctx, orgId);
     const alerts = ws.get<{ activity_alerts: number }>("orgs", { id: orgId })?.activity_alerts ?? 1;
-    return { invitesPausedUntil: authz.pausedUntil(orgId, "invites", t), dmsPausedUntil: authz.pausedUntil(orgId, "dms", t), activityAlerts: !!alerts };
+    return {
+      invitesPausedUntil: authz.pausedUntil(orgId, "invites", t),
+      dmsPausedUntil: authz.pausedUntil(orgId, "dms", t),
+      activityAlerts: !!alerts,
+    };
   });
 
   // ───────────── Timeouts (docs/product/MELDIQ_FEATURE_GAP_MATRIX.md MOD-06) ─────────────
@@ -573,14 +891,26 @@ export default async function communityRoutes(app: FastifyInstance, ctx: AppCont
       detail: body.until === null ? null : `${new Date(body.until).toISOString()}${body.reason ? ` ${body.reason}` : ""}`,
     });
     // Out of the community's live voice calls at once; every app reloads what it may do.
-    const voiceChannels = ws.all<{ id: string }>("conversations", { where: { org_id: p.orgId, voice: 1 } }).map((r) => r.id);
+    const voiceChannels = ws
+      .all<{ id: string }>("conversations", {
+        where: { org_id: p.orgId, voice: 1 },
+      })
+      .map((r) => r.id);
     for (const c of await ctx.calls.liveIn(voiceChannels)) await evictFromCall(ctx, c);
     notifyOrg(ctx, p.orgId);
     // Only the person's own view of each channel changes (posting, voice), so only their devices reload them.
-    const mine = ws.all<{ conversation_id: string }>("conversation_members", { where: { user_id: p.userId } }).map((m) => m.conversation_id);
-    const channels = ws.all<{ id: string }>("conversations", { where: { org_id: p.orgId, id: { in: mine } } });
+    const mine = ws
+      .all<{ conversation_id: string }>("conversation_members", {
+        where: { user_id: p.userId },
+      })
+      .map((m) => m.conversation_id);
+    const channels = ws.all<{ id: string }>("conversations", {
+      where: { org_id: p.orgId, id: { in: mine } },
+    });
     for (const c of channels) ctx.hub.sendToUser(p.userId, { t: "conv.updated", conversationId: c.id });
-    return { userId: p.userId, timeoutUntil: authz.timeoutUntil(p.orgId, p.userId) };
+    return {
+      userId: p.userId,
+      timeoutUntil: authz.timeoutUntil(p.orgId, p.userId),
+    };
   });
-
 }

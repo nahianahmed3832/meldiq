@@ -27,6 +27,23 @@ export const OrgMemberParams = z.object({ orgId: zId, userId: zId });
 export const RoleParams = z.object({ roleId: zId });
 export const ChannelMemberParams = z.object({ id: zId, userId: zId });
 
+export const CommunityProfile = z.strictObject({
+  aboutMe: z.string().max(300).nullable(),
+  pronouns: z.string().max(40).nullable(),
+  theme: z.array(zHex).min(1).max(2).nullable(),
+});
+export const CommunityProfileBody = z.strictObject({
+  baseRev: z.number().int().min(0),
+  profile: CommunityProfile,
+});
+export const CommunityProfileView = z.strictObject({
+  orgId: z.string(),
+  userId: z.string(),
+  rev: z.number().int(),
+  profile: CommunityProfile.partial(),
+  own: z.boolean(),
+});
+
 // ───────────── @everyone ─────────────
 
 export const EveryoneBody = z.object({ permissions: zPermissionList });
@@ -35,8 +52,13 @@ export const EveryoneOnly = z.strictObject({ everyone: EveryoneDefaults });
 // ───────────── Nicknames ─────────────
 
 /** An empty or blank nickname clears it (the display name shows again). */
-export const NicknameBody = z.object({ nickname: z.string().max(200).nullable() });
-export const NicknameResult = z.strictObject({ userId: z.string(), nickname: z.string().nullable() });
+export const NicknameBody = z.object({
+  nickname: z.string().max(200).nullable(),
+});
+export const NicknameResult = z.strictObject({
+  userId: z.string(),
+  nickname: z.string().nullable(),
+});
 
 // ───────────── Role extras and order ─────────────
 
@@ -45,17 +67,30 @@ export const RoleExtrasBody = z.object({
   mentionable: z.boolean().optional(),
   autoAssign: z
     .object({ mode: AutoAssignMode, before: zTime.nullable().optional() })
-    .refine((a) => (a.mode === "joined_before") === (a.before != null), { message: "A date goes with \"joined before\", and only with it" })
+    .refine((a) => (a.mode === "joined_before") === (a.before != null), {
+      message: 'A date goes with "joined before", and only with it',
+    })
     .optional(),
 });
-export const RoleExtrasResult = z.strictObject({ roleId: z.string(), extras: RoleExtras, memberCount: zCount });
+export const RoleExtrasResult = z.strictObject({
+  roleId: z.string(),
+  extras: RoleExtras,
+  memberCount: zCount,
+});
 
-export const RoleOrderBody = z.object({ roleIds: z.array(zId).min(1).max(100) });
-export const RoleOrderResult = z.strictObject({ order: z.array(z.strictObject({ id: z.string(), position: z.number().int() })) });
+export const RoleOrderBody = z.object({
+  roleIds: z.array(zId).min(1).max(100),
+});
+export const RoleOrderResult = z.strictObject({
+  order: z.array(z.strictObject({ id: z.string(), position: z.number().int() })),
+});
 
 // ───────────── Stages ─────────────
 
-export const StageResult = z.strictObject({ conversationId: z.string(), speakerIds: z.array(z.string()) });
+export const StageResult = z.strictObject({
+  conversationId: z.string(),
+  speakerIds: z.array(z.string()),
+});
 
 // ───────────── Routes ─────────────
 
@@ -63,6 +98,23 @@ const tag = "community-permissions";
 const r = (c: Omit<Parameters<typeof route>[0], "tag" | "auth">) => route({ tag, auth: true, ...c });
 
 export const communityPermissionsRoutes = [
+  r({
+    method: "GET",
+    url: "/v1/orgs/:orgId/members/:userId/profile",
+    summary: "Community profile overrides, projected through global privacy and current membership.",
+    params: OrgMemberParams,
+    response: CommunityProfileView,
+    errors: ["not_found", "forbidden", "feature_disabled"],
+  }),
+  r({
+    method: "PUT",
+    url: "/v1/orgs/:orgId/members/:userId/profile",
+    summary: "Replace your own community profile overrides using its revision. Null fields inherit the global profile.",
+    params: OrgMemberParams,
+    body: CommunityProfileBody,
+    response: CommunityProfileView,
+    errors: ["not_found", "forbidden", "conflict", "feature_disabled"],
+  }),
   r({
     method: "PUT",
     url: "/v1/orgs/:orgId/roles/everyone",
