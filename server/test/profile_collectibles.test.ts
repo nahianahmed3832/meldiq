@@ -221,6 +221,18 @@ describe.each([
       "/admin/v1/profile-collectibles/violet-circuit/grant",
       { userId: ada.userId, reason: "Event reward for test" },
     );
+    expect(
+      new CollectionService(h.ctx)
+        .inventory(ada.userId)
+        .find((x) => x.decoration_id === "violet-circuit")?.acquisition_source,
+    ).toBe("admin");
+    expect(
+      h.ctx.platform
+        .all<{ reason: string }>("platform_audit", {
+          where: { action: "collectible.grant" },
+        })
+        .at(-1)?.reason,
+    ).toBe("Event reward for test");
     await equip({ "avatar-frame": "violet-circuit" });
     await admin.browser.expect(
       200,

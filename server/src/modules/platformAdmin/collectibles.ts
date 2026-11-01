@@ -47,6 +47,7 @@ export default async function collectibleAdminRoutes(
     req: Parameters<typeof principal>[0],
     action: string,
     id: string,
+    reason = "Catalog management",
   ) => {
     const p = principal(req);
     await d.audit.record({
@@ -56,7 +57,7 @@ export default async function collectibleAdminRoutes(
       actorRole: p.grant.role,
       targetType: "collectible",
       targetId: id,
-      reason: "Catalog management",
+      reason,
       requestId: String(req.id),
     });
   };
@@ -88,13 +89,8 @@ export default async function collectibleAdminRoutes(
       }),
       req.body,
     );
-    await service.acquire(
-      userId,
-      id,
-      `admin:${principal(req).account.id}:${reason}`,
-      true,
-    );
-    await audit(req, "collectible.grant", id);
+    await service.acquire(userId, id, "admin", true);
+    await audit(req, "collectible.grant", id, reason);
     return { ok: true };
   });
   app.post(
