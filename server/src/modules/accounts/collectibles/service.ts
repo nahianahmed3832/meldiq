@@ -27,16 +27,17 @@ export const lookOf = (item: CatalogItem): CollectibleLook => ({
 export function applySlot(s: Style, category: Category, item: CollectibleLook | null): Style {
   const next = { ...s };
   const r = item?.recipe;
+  const colors = r?.colors.map((c) => c.toLowerCase());
   switch (category) {
     case "avatar-frame":
       next.decoration = r?.frame ?? null;
       break;
     case "profile-theme":
-      next.themeColors = r?.colors ?? null;
-      next.accent = r?.colors[0] ?? null;
+      next.themeColors = colors ?? null;
+      next.accent = colors?.[0] ?? null;
       break;
     case "name-effect":
-      next.nameColors = r?.colors ?? null;
+      next.nameColors = colors ?? null;
       next.nameEffect = r?.nameEffect ?? null;
       break;
     case "particles":
