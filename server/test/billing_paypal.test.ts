@@ -6,7 +6,7 @@ import {
   cents,
   PayPalProvider,
 } from "../src/modules/billing/providers/paypal.js";
-import type { PayPalApi } from "../src/modules/billing/providers/paypalApi.js";
+import { PayPalResourceNotFound, type PayPalApi } from "../src/modules/billing/providers/paypalApi.js";
 import { AccountClient, MemoryMailer } from "./support/accounts.js";
 import {
   ADMIN_ORIGIN,
@@ -40,6 +40,8 @@ class FakePayPal implements PayPalApi {
   keys = new Map<string, any>();
   denyCapture = false;
   planPrice = "3.99";
+  missingSubscriptions = new Set<string>();
+  blockedSubscriptions = new Set<string>();
   async request(
     method: string,
     path: string,
@@ -144,8 +146,12 @@ class FakePayPal implements PayPalApi {
       s.status = "CANCELLED";
       s.status_update_time = new Date().toISOString();
       result = {};
-    } else if (/\/v1\/billing\/subscriptions\/[^/]+$/.test(path))
-      result = this.subs.get(path.split("/").at(-1)!);
+    } else if (/\/v1\/billing\/subscriptions\/[^/]+$/.test(path)) {
+      const id = path.split("/").at(-1)!;
+      if (this.missingSubscriptions.has(id)) throw new PayPalResourceNotFound();
+      if (this.blockedSubscriptions.has(id)) throw new Error("Provider temporarily unavailable");
+      result = this.subs.get(id);
+    }
     else if (/\/v2\/payments\/captures\/[^/]+\/refund$/.test(path))
       result = { id: `REFUND${path.split("/").at(-2)}`, status: "COMPLETED" };
     else throw new Error(`Unexpected fake REST request: ${method} ${path}`);
@@ -577,6 +583,35 @@ describe("PayPal through authenticated billing APIs", () => {
     expect((await user.req("GET", "/v2/billing/paypal/history")).subscriptions[0]).toMatchObject({ approvalPending: true, billingStartAt: null });
   });
 
+  it("expires a definitively missing unpaid checkout and allows a fresh purchase without pretending to cancel it", async () => {
+    const user = await AccountClient.ready(h.baseUrl, mailer, "paypalexpiredattempt");
+    const first = await user.req("POST", "/v2/billing/paypal/checkouts", { product: "plus", requestKey: randomUUID() });
+    await user.req("GET", `/v2/billing/paypal/checkouts/${first.id}`);
+    const stored = h.ctx.billing.rows.get<{ id: string }>("billing_subscriptions", { checkout_id: first.id })!;
+    api.missingSubscriptions.add(first.providerRef);
+    expect(await user.req("GET", `/v2/billing/paypal/checkouts/${first.id}`)).toMatchObject({ status: "incomplete_expired", confirmed: false, approved: false });
+    expect(await user.req("POST", "/v2/billing/paypal/cancel", { confirm: true, subscriptionId: stored.id })).toMatchObject({ confirmed: false, checkoutExpired: true });
+    const next = await user.req("POST", "/v2/billing/paypal/checkouts", { product: "plus", requestKey: randomUUID() });
+    expect(next.providerRef).not.toBe(first.providerRef);
+    expect(next.id).not.toBe(first.id);
+  });
+
+  it("isolates a failed provider read and never expires a verified paid subscription on a 404", async () => {
+    const bad = await AccountClient.ready(h.baseUrl, mailer, "paypalblockedread");
+    const good = await AccountClient.ready(h.baseUrl, mailer, "paypalhealthyread");
+    const a = await bad.req("POST", "/v2/billing/paypal/checkouts", { product: "plus", requestKey: randomUUID() });
+    const b = await good.req("POST", "/v2/billing/paypal/checkouts", { product: "plus", requestKey: randomUUID() });
+    await bad.req("GET", `/v2/billing/paypal/checkouts/${a.id}`);
+    api.blockedSubscriptions.add(a.providerRef);
+    expect((await h.ctx.billing.reconcileRefs([a.providerRef, b.providerRef])).map((s) => s.ref)).toEqual([b.providerRef]);
+    api.blockedSubscriptions.delete(a.providerRef);
+    api.activate(a.providerRef);
+    await h.ctx.billing.reconcileRefs([a.providerRef]);
+    api.missingSubscriptions.add(a.providerRef);
+    expect(await h.ctx.billing.reconcileRefs([a.providerRef])).toEqual([]);
+    expect(h.ctx.billing.rows.get<{ status: string }>("billing_subscriptions", { checkout_id: a.id })?.status).toBe("active");
+  });
+
   it("preserves existing free time while scheduling and cancelling an approved unpaid subscription", async () => {
     const user = await AccountClient.ready(h.baseUrl, mailer, "paypalfreeperiod");
     const end = Date.now() + 7 * 86400000;
@@ -898,6 +933,6 @@ describe("PayPal through authenticated billing APIs", () => {
     remote.plan_id = "P-ATTACKER";
     await expect(
       checkout().confirm(user.accountId, start.id, false),
-    ).rejects.toThrow(/terms/);
+    ).rejects.toThrow(/could not be verified/);
   });
 });

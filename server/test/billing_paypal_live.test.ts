@@ -1,8 +1,14 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { HttpPayPalApi } from "../src/modules/billing/providers/paypalApi.js";
+import { HttpPayPalApi, PayPalResourceNotFound } from "../src/modules/billing/providers/paypalApi.js";
 import { PayPalProvider } from "../src/modules/billing/providers/paypal.js";
 
 afterEach(() => vi.unstubAllGlobals());
+it.each([["GET", 404, true], ["POST", 404, false], ["GET", 401, false]] as const)("classifies %s %i without exposing provider data", async (method, status, missing) => {
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => new Response(JSON.stringify(url.endsWith("/token") ? { access_token: "fake", expires_in: 300 } : { privatePayerData: "must-not-leak" }), { status: url.endsWith("/token") ? 200 : status })));
+  const error = await new HttpPayPalApi("fake", "fake", "live").request(method, "/v1/billing/subscriptions/I-EXPIRED").catch((e) => e);
+  expect(error instanceof PayPalResourceNotFound).toBe(missing);
+  expect(error.message).not.toContain("must-not-leak");
+});
 it.each(["live", "sandbox"] as const)("keeps %s OAuth and resource traffic on the matching host", async (environment) => {
   const requests: string[] = [];
   vi.stubGlobal("fetch", vi.fn(async (url: string) => {

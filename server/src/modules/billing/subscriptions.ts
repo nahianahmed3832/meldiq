@@ -100,6 +100,8 @@ export class Subscriptions {
     if (snap.approvalConfirmed) {
       const checkout = w.get<{ completed_at: number | null }>("billing_checkouts", { id: checkoutId });
       w.update("billing_checkouts", { id: checkoutId }, { status: "completed", completed_at: checkout?.completed_at ?? t });
+    } else if (snap.status === "incomplete_expired") {
+      w.update("billing_checkouts", { id: checkoutId }, { status: "expired", completed_at: null });
     } else if (snap.status === "incomplete") {
       // Repair pre-approval rows previously marked completed by the CREATED webhook.
       const checkout = w.get<{ status: string; expires_at: number }>("billing_checkouts", { id: checkoutId });

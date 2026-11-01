@@ -68430,6 +68430,9 @@
                     },
                     "approvalPending": {
                       "type": "boolean"
+                    },
+                    "checkoutExpired": {
+                      "type": "boolean"
                     }
                   },
                   "required": [

@@ -7,6 +7,7 @@ import { type PlanAudience, PlanCatalog, type QuotaPlanCheck, parseLimits } from
 import type { BillingConfig } from "./config.js";
 import { type BillingOwner, ownerRef } from "./owners.js";
 import type { BillingProvider, SubscriptionSnapshot } from "./providers/types.js";
+import { PayPalResourceNotFound } from "./providers/paypalApi.js";
 import { ownerWhere, type SubscriptionRow, Subscriptions } from "./subscriptions.js";
 import { isAddonPlanKey, SPARK_MAX_PURCHASE, SPARK_PLAN_KEY } from "./perks.js";
 import { MojoControls } from "./controls.js";
@@ -321,8 +322,9 @@ export class Billing {
       where: { ...ownerWhere(owner), provider: provider.id, provider_subscription_ref: { ne: null } },
     });
     for (const c of checkouts) if (!this.rows.get("billing_subscriptions", { checkout_id: c.id })) refs.add(c.provider_subscription_ref);
-    await this.reconcileRefs([...refs]);
-    return { checked: refs.size };
+    const snapshots = await this.reconcileRefs([...refs]);
+    if (provider.id === "paypal" && refs.size && !snapshots.length) throw new ApiError(503, "unavailable", "PayPal status could not be verified. Refresh billing before trying again.");
+    return { checked: provider.id === "paypal" ? snapshots.length : refs.size };
   }
 
   async reconcileRefs(refs: string[]): Promise<SubscriptionSnapshot[]> {
@@ -330,7 +332,19 @@ export class Billing {
     if (!provider?.fetchSubscription) return [];
     const snapshots: SubscriptionSnapshot[] = [];
     for (const ref of refs) {
-      const snap = await provider.fetchSubscription(ref);
+      let snap: SubscriptionSnapshot | null;
+      try {
+        snap = await provider.fetchSubscription(ref);
+      } catch (error) {
+        const previous = this.rows.get<SubscriptionRow>("billing_subscriptions", { provider: provider.id, provider_subscription_ref: ref });
+        // A missing, never-paid attempt can expire. Never infer cancellation of a paid mandate from a 404.
+        const unpaidAttempt = provider.id === "paypal" && error instanceof PayPalResourceNotFound && previous?.status === "incomplete" && previous.current_period_start === null && previous.current_period_end === null && !this.rows.get("billing_invoices", { subscription_id: previous.id, amount_paid_minor: { gt: 0 } });
+        if (!unpaidAttempt) {
+          this.log.warn({ err: error, subscription: ref }, "billing reconciliation couldn't read provider state");
+          continue;
+        }
+        snap = { ref, approvalConfirmed: false, customerRef: null, status: "incomplete_expired", priceRef: this.catalog.version(previous.plan_version_id)!.provider_price_ref!, checkoutRef: previous.checkout_id, currentPeriodStart: null, currentPeriodEnd: null, trialEnd: null, cancelAtPeriodEnd: false, canceledAt: null, quantity: previous.quantity };
+      }
       if (!snap) continue;
       const existing = this.rows.get<{ provider_updated_at: number }>("billing_subscriptions", { provider: provider.id, provider_subscription_ref: ref });
       const t = this.clock();
