@@ -224,7 +224,7 @@ export class PayPalCheckout {
         id: i.id,
         userId: null,
         customer: i.account_id,
-        product: this.subscriptionName(i.subscription_id),
+        product: PayPalCheckout.subscriptionName(billing, i.subscription_id),
         currency: i.currency,
         amountMinor: i.amount_paid_minor || i.amount_due_minor,
         provider: "paypal",
@@ -240,10 +240,10 @@ export class PayPalCheckout {
       .slice(0, 100);
   }
 
-  private subscriptionName(id: string | null): string {
-    const subscription = id ? this.billing.subscriptions.get(id) : null;
-    const version = subscription ? this.billing.catalog.version(subscription.plan_version_id) : null;
-    return version ? this.billing.catalog.plan(version.plan_id)?.name ?? "Meldiq subscription" : "Meldiq payment";
+  private static subscriptionName(billing: Billing, id: string | null): string {
+    const subscription = id ? billing.subscriptions.get(id) : null;
+    const version = subscription ? billing.catalog.version(subscription.plan_version_id) : null;
+    return version ? billing.catalog.plan(version.plan_id)?.name ?? "Meldiq subscription" : "Meldiq payment";
   }
 
   history(accountId: string) {
