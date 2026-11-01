@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Meldiq API",
-    "version": "0.71.1",
+    "version": "0.71.2",
     "description": "The canonical contract of the Meldiq server (docs/architecture/ARCHITECTURE_1_0_PLAN.md §4), generated from src/shared/contracts. Fields are only ever added within a version; clients ignore unknown fields. Routes not listed here exist but aren't documented yet."
   },
   "servers": [
@@ -68279,6 +68279,19 @@
                           "status": {
                             "type": "string"
                           },
+                          "approvalPending": {
+                            "type": "boolean"
+                          },
+                          "billingStartAt": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
                           "product": {
                             "type": "string"
                           },
@@ -68414,6 +68427,9 @@
                     },
                     "status": {
                       "type": "string"
+                    },
+                    "approvalPending": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
@@ -69510,6 +69526,9 @@
                             },
                             "cancelAtPeriodEnd": {
                               "type": "boolean"
+                            },
+                            "approvalPending": {
+                              "type": "boolean"
                             }
                           },
                           "required": [
@@ -69522,6 +69541,35 @@
                             "currentPeriodEnd",
                             "trialEnd",
                             "cancelAtPeriodEnd"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "freePeriod": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "source": {
+                              "type": "string"
+                            },
+                            "planKey": {
+                              "type": "string"
+                            },
+                            "endsAt": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "source",
+                            "planKey",
+                            "endsAt"
                           ],
                           "additionalProperties": false
                         },
@@ -69848,6 +69896,9 @@
                             },
                             "cancelAtPeriodEnd": {
                               "type": "boolean"
+                            },
+                            "approvalPending": {
+                              "type": "boolean"
                             }
                           },
                           "required": [
@@ -69860,6 +69911,35 @@
                             "currentPeriodEnd",
                             "trialEnd",
                             "cancelAtPeriodEnd"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "freePeriod": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "source": {
+                              "type": "string"
+                            },
+                            "planKey": {
+                              "type": "string"
+                            },
+                            "endsAt": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "source",
+                            "planKey",
+                            "endsAt"
                           ],
                           "additionalProperties": false
                         },

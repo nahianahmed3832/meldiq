@@ -89,6 +89,24 @@ export class Subscriptions {
     return this.rows.get<SubscriptionRow>("billing_subscriptions", { id }) ?? null;
   }
 
+  /** A PayPal CREATED event is a checkout attempt, not the buyer's approval. */
+  awaitingApproval(s: SubscriptionRow): boolean {
+    return s.provider === "paypal" && s.status === "incomplete" &&
+      (!s.checkout_id || this.rows.get<{ status: string }>("billing_checkouts", { id: s.checkout_id })?.status !== "completed");
+  }
+
+  private recordPayPalApproval(w: RowWriter, checkoutId: string | null, snap: SubscriptionSnapshot, t: number): void {
+    if (!checkoutId || snap.approvalConfirmed === undefined) return;
+    if (snap.approvalConfirmed) {
+      const checkout = w.get<{ completed_at: number | null }>("billing_checkouts", { id: checkoutId });
+      w.update("billing_checkouts", { id: checkoutId }, { status: "completed", completed_at: checkout?.completed_at ?? t });
+    } else if (snap.status === "incomplete") {
+      // Repair pre-approval rows previously marked completed by the CREATED webhook.
+      const checkout = w.get<{ status: string; expires_at: number }>("billing_checkouts", { id: checkoutId });
+      if (checkout?.status === "completed") w.update("billing_checkouts", { id: checkoutId }, { status: checkout.expires_at > t ? "open" : "expired", completed_at: null });
+    }
+  }
+
   /** Versions of add-on plans (the Meldiq Spark add-on): an owner has one plan and, beside it, add-ons (docs/MOJO.md). */
   private addonVersions(): string[] {
     return [...this.catalog.versionIdsOf(SPARK_PLAN_KEY), ...this.catalog.versionIdsOf("bots_plus")];
@@ -231,7 +249,8 @@ export class Subscriptions {
       quantity: snap.quantity ?? 1,
     });
     const done = w.get<{ completed_at: number | null }>("billing_checkouts", { id: checkout.id });
-    w.update("billing_checkouts", { id: checkout.id }, { status: "completed", completed_at: done?.completed_at ?? t });
+    if (provider !== "paypal" || snap.approvalConfirmed !== false) w.update("billing_checkouts", { id: checkout.id }, { status: "completed", completed_at: done?.completed_at ?? t });
+    if (provider === "paypal") this.recordPayPalApproval(w, checkout.id, snap, t);
     if (snap.customerRef) this.rememberCustomer(w, provider, owner, snap.customerRef, t);
     this.history(w, id, t, null, snap.status, versionId, source, snap.cancelAtPeriodEnd ? { cancelAtPeriodEnd: true } : {});
     return { result: "applied", subscriptionId: id, owner };
@@ -253,6 +272,7 @@ export class Subscriptions {
     const unpaid = snap.status === "past_due" || snap.status === "unpaid";
     const pastDueSince = unpaid ? (s.past_due_since ?? providerAt) : null;
     const quantity = snap.quantity ?? s.quantity;
+    if (s.provider === "paypal") this.recordPayPalApproval(w, s.checkout_id, snap, t);
     w.update("billing_subscriptions", { id: s.id }, {
       plan_version_id: versionId, status: snap.status, provider_customer_ref: snap.customerRef ?? s.provider_customer_ref, current_period_start: snap.currentPeriodStart,
       current_period_end: snap.currentPeriodEnd, trial_end: snap.trialEnd, cancel_at_period_end: snap.cancelAtPeriodEnd ? 1 : 0, canceled_at: snap.canceledAt,
