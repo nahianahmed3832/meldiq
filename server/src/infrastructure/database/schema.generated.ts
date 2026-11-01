@@ -219,6 +219,40 @@ export const SCHEMA: readonly TableShape[] = [
     autoincrement: false,
   },
   {
+    name: "account_social_flows",
+    columns: [
+      {"name":"id","type":"TEXT","notNull":true},
+      {"name":"data","type":"TEXT","notNull":true},
+      {"name":"stage","type":"TEXT","notNull":true},
+      {"name":"expires_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["id"],
+    indexes: [
+      {"name":"account_social_flows_expiry","columns":["expires_at"],"unique":false,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [],
+    autoincrement: false,
+  },
+  {
+    name: "account_social_identities",
+    columns: [
+      {"name":"id","type":"TEXT","notNull":true},
+      {"name":"account_id","type":"TEXT","notNull":true},
+      {"name":"provider","type":"TEXT","notNull":true},
+      {"name":"issuer","type":"TEXT","notNull":true},
+      {"name":"subject","type":"TEXT","notNull":true},
+      {"name":"email","type":"TEXT","notNull":false},
+      {"name":"connected_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["id"],
+    indexes: [
+      {"name":"sqlite_autoindex_account_social_identities_3","columns":["account_id","provider"],"unique":true,"nocase":false,"partialNotNull":null},
+      {"name":"sqlite_autoindex_account_social_identities_2","columns":["provider","issuer","subject"],"unique":true,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [],
+    autoincrement: false,
+  },
+  {
     name: "account_totp",
     columns: [
       {"name":"account_id","type":"TEXT","notNull":true},

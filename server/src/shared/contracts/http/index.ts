@@ -1,3 +1,4 @@
+import { socialAuthRoutes } from "./areas/socialAuth.js";
 import { collectibleRoutes } from "./areas/collectibles.js";
 import { leaderboardContracts } from "./leaderboards.js";
 import { messageCollectionRoutes } from "./messageCollections.js";
@@ -38,6 +39,7 @@ export const ErrorEnvelope = z.strictObject({
 /** The documented routes. Routes not listed yet are still checked for the error envelope by the test suite. */
 export const ROUTE_CONTRACTS: readonly RouteContract[] = [
   ...collectibleRoutes,
+  ...socialAuthRoutes,
   ...adminOperationsRoutes,
   ...systemRoutes,
   ...messagingRoutes,

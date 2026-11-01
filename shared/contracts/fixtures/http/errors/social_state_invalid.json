@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "social_state_invalid",
+    "message": "Sign-in state is missing. Start again from Meldiq."
+  }
+}

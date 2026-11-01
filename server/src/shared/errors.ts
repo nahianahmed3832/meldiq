@@ -53,6 +53,17 @@ const FEDERATION_ERROR_CODES = {
 } as const satisfies Record<string, ErrorSpec>;
 
 export const ERROR_CODES = {
+  account_link_required: { status: [409], meaning: "Sign in to the existing account and explicitly connect the provider." },
+  social_state_invalid: { status: [400], meaning: "OAuth state is missing or invalid." },
+  social_flow_expired: { status: [400], meaning: "Sign-in expired or was already used." },
+  provider_not_configured: { status: [503], meaning: "Provider is not configured." },
+  fresh_auth_required: { status: [403], meaning: "Confirm your password or sign in again." },
+  identity_conflict: { status: [409], meaning: "Provider identity is already connected." },
+  provider_email_required: { status: [400], meaning: "Provider did not supply a verified email." },
+  social_profile_required: { status: [400], meaning: "Display name required to create an account." },
+  last_login_method: { status: [409], meaning: "Another login method must remain." },
+  external_identity_invalid: { status: [401], meaning: "Provider identity verification failed." },
+  provider_unavailable: { status: [503], meaning: "Provider is temporarily unavailable." },
   collectible_unavailable: { status: [409], meaning: "Decoration is unavailable." },
   acquisition_required: { status: [403], meaning: "An authorized ownership grant is required." },
   not_owned: { status: [403], meaning: "Decoration is not owned." },

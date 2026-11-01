@@ -1,0 +1,15 @@
+{
+  "password": false,
+  "identities": [
+    {
+      "provider": "apple",
+      "email": "apple.mvy41a2r21@example.test",
+      "connectedAt": 1793554490706
+    }
+  ],
+  "providers": [
+    "google",
+    "apple",
+    "discord"
+  ]
+}

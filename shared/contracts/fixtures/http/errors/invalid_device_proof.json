@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "invalid_device_proof",
+    "message": "This phone's keys don't belong to this account. Set up encryption again."
+  }
+}

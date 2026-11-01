@@ -63,6 +63,8 @@ export const EPHEMERAL_TABLES: Readonly<Record<string, string>> = {
 export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
   ...(Object.fromEntries(Object.keys(EPHEMERAL_TABLES).map((t) => [t, "ephemeral"])) as Record<string, TableDomain>),
   accounts: "accounts",
+  account_social_identities: "accounts",
+  account_social_flows: "accounts",
   account_sessions: "accounts",
   account_session_factors: "accounts",
   account_codes: "accounts",

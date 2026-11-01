@@ -263,6 +263,7 @@ export class SqliteAccountStore implements AccountStore {
   }
 
   async deleteAccount(id: string): Promise<boolean> {
+    this.db.prepare("DELETE FROM account_social_identities WHERE account_id = ?").run(id);
     // Sessions, codes, legacy tickets and recovery codes and tickets go with it (ON DELETE CASCADE).
     return this.db.prepare("DELETE FROM accounts WHERE id = ?").run(id).changes === 1;
   }

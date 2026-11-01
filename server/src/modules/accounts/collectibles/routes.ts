@@ -1,12 +1,20 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod/v4";
 import type { AppContext } from "../../../app/context.js";
-import { CATEGORIES, ItemId, CatalogQuery, EquipBody } from "../../../shared/contracts/http/collectibles.js";
+import {
+  CATEGORIES,
+  ItemId,
+  CatalogQuery,
+  EquipBody,
+} from "../../../shared/contracts/http/collectibles.js";
 import { parse } from "../../../shared/validation/index.js";
 import { me, requireAuth } from "../../auth/index.js";
 import { CollectionService, available } from "./service.js";
-import { serveAsset } from "./assets.js";
-export default async function collectionRoutes(app: FastifyInstance, ctx: AppContext) {
+import { serveAsset, cleanupStaging } from "./assets.js";
+export default async function collectionRoutes(
+  app: FastifyInstance,
+  ctx: AppContext,
+) {
   const service = new CollectionService(ctx);
   let sweeping = false;
   const sweep = async () => {
@@ -14,6 +22,7 @@ export default async function collectionRoutes(app: FastifyInstance, ctx: AppCon
     sweeping = true;
     try {
       await service.expireUnavailable();
+      await cleanupStaging(ctx);
     } catch (err) {
       ctx.log.error({ err }, "Collectible availability sweep failed");
     } finally {
@@ -39,9 +48,40 @@ export default async function collectionRoutes(app: FastifyInstance, ctx: AppCon
   app.get("/v2/profile-collectibles", auth, async (req, reply) => {
     const q = parse(CatalogQuery, req.query);
     reply.header("cache-control", "private, no-cache");
-    const all = service
-      .catalog()
-      .filter((x) => available(x) && (!q.category || x.category === q.category) && (!q.q || (x.name + " " + x.description).toLowerCase().includes(q.q.toLowerCase())) && (!q.after || x.id > q.after));
+    const ownership = new Map(
+      service.inventory(me(req).userId).map((x) => [x.decoration_id, x]),
+    );
+    const filtered = service.catalog().filter((x) => {
+      const own = ownership.get(x.id);
+      return (
+        available(x) &&
+        (!q.category || x.category === q.category) &&
+        (!q.q ||
+          (x.name + " " + x.description)
+            .toLowerCase()
+            .includes(q.q.toLowerCase())) &&
+        (q.filter === "owned" || q.filter === "recent"
+          ? !!own
+          : q.filter === "unowned"
+            ? !own
+            : q.filter === "favorites"
+              ? !!own?.is_favorite
+              : true)
+      );
+    });
+    if (q.filter === "recent")
+      filtered.sort(
+        (a, b) =>
+          (ownership.get(b.id)?.acquired_at ?? 0) -
+            (ownership.get(a.id)?.acquired_at ?? 0) ||
+          a.id.localeCompare(b.id, "en"),
+      );
+    // Cursor IDs refer to this filtered order, including acquisition-time ordering.
+    const all = q.after
+      ? filtered.slice(
+          Math.max(0, filtered.findIndex((x) => x.id === q.after) + 1),
+        )
+      : filtered;
     const items = all.slice(0, q.limit);
     return { items, next: all.length > q.limit ? items.at(-1)!.id : null };
   });
@@ -62,7 +102,11 @@ export default async function collectionRoutes(app: FastifyInstance, ctx: AppCon
       url: "/v2/users/me/profile-collectibles/:id/favorite",
       ...auth,
       handler: async (req) => {
-        await service.favorite(me(req).userId, parse(params, req.params).id, method === "PUT");
+        await service.favorite(
+          me(req).userId,
+          parse(params, req.params).id,
+          method === "PUT",
+        );
         return { ok: true };
       },
     });
@@ -70,9 +114,17 @@ export default async function collectionRoutes(app: FastifyInstance, ctx: AppCon
     reply.header("cache-control", "no-store");
     return service.state(me(req).userId);
   });
-  app.patch("/v2/users/me/profile-customization", { ...auth, config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (req) => {
-    const body = parse(EquipBody, req.body);
-    return service.equip(me(req).userId, body.baseStyleRevision, body.slots);
-  });
-  app.get("/v2/profile-collectibles/assets/:id/:variant", { config: { rateLimit: { max: 600, timeWindow: "1 minute" } } }, async (req, reply) => serveAsset(ctx, req, reply));
+  app.patch(
+    "/v2/users/me/profile-customization",
+    { ...auth, config: { rateLimit: { max: 20, timeWindow: "1 minute" } } },
+    async (req) => {
+      const body = parse(EquipBody, req.body);
+      return service.equip(me(req).userId, body.baseStyleRevision, body.slots);
+    },
+  );
+  app.get(
+    "/v2/profile-collectibles/assets/:id/:variant",
+    { config: { rateLimit: { max: 600, timeWindow: "1 minute" } } },
+    async (req, reply) => serveAsset(ctx, req, reply),
+  );
 }

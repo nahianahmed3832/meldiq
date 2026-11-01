@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "last_login_method",
+    "message": "Connect another provider or set a password using Forgot password before disconnecting your only login method."
+  }
+}

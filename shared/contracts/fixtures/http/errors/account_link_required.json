@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "account_link_required",
+    "message": "Sign in with your existing Meldiq login, then connect this provider in Settings > Account > Connected Accounts."
+  }
+}

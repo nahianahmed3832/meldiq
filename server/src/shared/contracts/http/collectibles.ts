@@ -1,5 +1,14 @@
 import { z } from "zod/v4";
-export const CATEGORIES = ["avatar-frame", "avatar-effect", "background", "banner", "profile-theme", "name-effect", "badge", "particles"] as const;
+export const CATEGORIES = [
+  "avatar-frame",
+  "avatar-effect",
+  "background",
+  "banner",
+  "profile-theme",
+  "name-effect",
+  "badge",
+  "particles",
+] as const;
 export const Category = z.enum(CATEGORIES);
 export const ItemId = z.string().regex(/^[a-z][a-z0-9-]{2,63}$/);
 export const AssetId = z.string().regex(/^[a-f0-9]{64}$/);
@@ -9,7 +18,9 @@ export const Recipe = z.strictObject({
     .min(2)
     .max(2),
   pattern: z.enum(["solid", "orbit", "grid", "prism"]),
-  frame: z.enum(["aurora", "ember", "frost", "neon", "sakura", "pixel"]).optional(),
+  frame: z
+    .enum(["aurora", "ember", "frost", "neon", "sakura", "pixel"])
+    .optional(),
   effect: z.enum(["sparkles", "glow", "stars", "bubbles"]).optional(),
   nameEffect: z.enum(["glow", "shimmer"]).optional(),
   assetId: AssetId.optional(),
@@ -32,9 +43,15 @@ export const CatalogItem = CollectibleLook.extend({
   isFeatured: z.boolean(),
   availableFrom: z.number().int().nullable(),
   availableUntil: z.number().int().nullable(),
-  supportedPlatforms: z.array(z.enum(["web", "android", "windows", "macos"])).min(1),
+  supportedPlatforms: z
+    .array(z.enum(["web", "android", "windows", "macos"]))
+    .min(1),
 }).superRefine((v, c) => {
-  if (v.availableFrom !== null && v.availableUntil !== null && v.availableUntil <= v.availableFrom)
+  if (
+    v.availableFrom !== null &&
+    v.availableUntil !== null &&
+    v.availableUntil <= v.availableFrom
+  )
     c.addIssue({
       code: "custom",
       message: "Availability end must follow start",
@@ -48,12 +65,17 @@ export const CatalogItem = CollectibleLook.extend({
 export type CatalogItem = z.infer<typeof CatalogItem>;
 export const EquipBody = z.strictObject({
   baseStyleRevision: z.string().regex(/^[a-f0-9]{64}$/),
-  slots: z.partialRecord(Category, ItemId.nullable()).refine((v) => Object.keys(v).length > 0, "Choose a slot"),
+  slots: z
+    .partialRecord(Category, ItemId.nullable())
+    .refine((v) => Object.keys(v).length > 0, "Choose a slot"),
 });
 export const CatalogQuery = z.object({
   category: Category.optional(),
   q: z.string().trim().max(80).optional(),
   after: ItemId.optional(),
+  filter: z
+    .enum(["all", "owned", "unowned", "favorites", "recent"])
+    .default("all"),
   limit: z.coerce.number().int().min(1).max(48).default(24),
 });
 

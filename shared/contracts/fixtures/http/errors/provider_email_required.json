@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "provider_email_required",
+    "message": "The provider didn't supply a verified email. Use email sign-up, then connect this provider from Settings."
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "fresh_auth_required",
+    "message": "Confirm your password or sign in again before changing connected accounts."
+  }
+}

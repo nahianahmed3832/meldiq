@@ -1,19 +1,60 @@
-import { requireSignupAllowed, signupMode } from "../../app/platformControls.js";
+import {
+  requireSignupAllowed,
+  signupMode,
+} from "../../app/platformControls.js";
 import crypto from "node:crypto";
-import { DAY_MS, HOUR_MS, networkKey, openRegistrationsToday, SlidingWindow } from "../../app/middleware/abuse.js";
+import {
+  DAY_MS,
+  HOUR_MS,
+  networkKey,
+  openRegistrationsToday,
+  SlidingWindow,
+} from "../../app/middleware/abuse.js";
 import type { AppContext } from "../../app/context.js";
 import { canonical, verifyEd25519 } from "../../shared/utilities/crypto.js";
-import { consumeInviteUse, consumeRegistrationInvite, findOrgInvite, findRegistrationInvite, returnInviteUse } from "../organizations/invites.js";
+import {
+  consumeInviteUse,
+  consumeRegistrationInvite,
+  findOrgInvite,
+  findRegistrationInvite,
+  returnInviteUse,
+} from "../organizations/invites.js";
 import type { RowWriter } from "../../infrastructure/database/rows/index.js";
 import { ApiError } from "../../shared/errors.js";
-import { humanCode, newId, normalizeCode, now, sha256Hex } from "../../shared/utilities/util.js";
+import {
+  humanCode,
+  newId,
+  normalizeCode,
+  now,
+  sha256Hex,
+} from "../../shared/utilities/util.js";
 import type { Mailer } from "../../infrastructure/mail/mailer.js";
 import { mailTexts } from "../../infrastructure/mail/mailer.js";
 import { operatorAccount, staticCodeMatches } from "./operatorAccounts.js";
-import { burnPasswordCheck, hashPassword, needsRehash, PASSWORD_PROBLEMS, passwordProblem, verifyPassword } from "./passwords.js";
-import type { LoginBody, RegisterBody } from "../../shared/contracts/http/accounts.js";
-import { type IssuedSession, sessionEnded, SessionService } from "./sessions.js";
-import type { AccountRow, AccountStore, ActiveSession, Admission as StoreAdmission, CodePurpose } from "./store.js";
+import {
+  burnPasswordCheck,
+  hashPassword,
+  needsRehash,
+  PASSWORD_PROBLEMS,
+  passwordProblem,
+  verifyPassword,
+} from "./passwords.js";
+import type {
+  LoginBody,
+  RegisterBody,
+} from "../../shared/contracts/http/accounts.js";
+import {
+  type IssuedSession,
+  sessionEnded,
+  SessionService,
+} from "./sessions.js";
+import type {
+  AccountRow,
+  AccountStore,
+  ActiveSession,
+  Admission as StoreAdmission,
+  CodePurpose,
+} from "./store.js";
 
 const MINUTE_MS = 60_000;
 const VERIFY_CODE_DIGITS = 6;
@@ -27,24 +68,47 @@ const NOTICES_PER_HOUR = 1;
 const LOGIN_FAILURES_PER_NETWORK = 5;
 const LOGIN_FAILURES_PER_ACCOUNT = 50;
 
-export const invalidCredentials = () => new ApiError(401, "invalid_credentials", "That email and password don't match an account.");
-const invalidCode = () => new ApiError(400, "invalid_code", "That code isn't right, or it has expired. Ask for a new one.");
-const emailUnavailable = () => new ApiError(503, "email_unavailable", "This server can't send email yet, so new accounts can't be verified. Try again later.");
+export const invalidCredentials = () =>
+  new ApiError(
+    401,
+    "invalid_credentials",
+    "That email and password don't match an account.",
+  );
+const invalidCode = () =>
+  new ApiError(
+    400,
+    "invalid_code",
+    "That code isn't right, or it has expired. Ask for a new one.",
+  );
+const emailUnavailable = () =>
+  new ApiError(
+    503,
+    "email_unavailable",
+    "This server can't send email yet, so new accounts can't be verified. Try again later.",
+  );
 
 export function weakPassword(password: string, email: string): ApiError | null {
   const problem = passwordProblem(password, email);
-  return problem ? new ApiError(400, "weak_password", PASSWORD_PROBLEMS[problem], { reason: problem }) : null;
+  return problem
+    ? new ApiError(400, "weak_password", PASSWORD_PROBLEMS[problem], {
+        reason: problem,
+      })
+    : null;
 }
 
 /** "n********2@gmail.com": enough for someone to recognise their own address, not enough to learn someone else's. */
 export function maskEmail(email: string): string {
   const [local, domain] = email.split("@");
   if (!domain) return "***";
-  const shown = local.length <= 2 ? local[0] ?? "" : `${local[0]}${"*".repeat(Math.min(local.length - 2, 8))}${local[local.length - 1]}`;
+  const shown =
+    local.length <= 2
+      ? (local[0] ?? "")
+      : `${local[0]}${"*".repeat(Math.min(local.length - 2, 8))}${local[local.length - 1]}`;
   return `${shown}@${domain}`;
 }
 
-const codeHash = (accountId: string, purpose: CodePurpose, code: string) => sha256Hex(`${accountId}:${purpose}:${code}`);
+const codeHash = (accountId: string, purpose: CodePurpose, code: string) =>
+  sha256Hex(`${accountId}:${purpose}:${code}`);
 
 /** How an invite-only server admitted a sign-up (accounts.admitted_via). */
 interface Admission {
@@ -81,12 +145,20 @@ export interface AccountView {
 export class AccountService {
   readonly sessions: SessionService;
   /** API 0.46.0: two-step sign-in, checked after the password (accounts/totp.ts); set by Accounts. */
-  secondFactor: ((accountId: string, code: string | undefined) => Promise<boolean | void>) | null = null;
+  secondFactor:
+    | ((accountId: string, code: string | undefined) => Promise<boolean | void>)
+    | null = null;
   private readonly codesSent = new SlidingWindow(CODES_PER_HOUR, HOUR_MS);
   private readonly notices = new SlidingWindow(NOTICES_PER_HOUR, HOUR_MS);
   private readonly codeRequests: SlidingWindow;
-  private readonly failuresByNetwork = new SlidingWindow(LOGIN_FAILURES_PER_NETWORK, 15 * MINUTE_MS);
-  private readonly failuresByAccount = new SlidingWindow(LOGIN_FAILURES_PER_ACCOUNT, HOUR_MS);
+  private readonly failuresByNetwork = new SlidingWindow(
+    LOGIN_FAILURES_PER_NETWORK,
+    15 * MINUTE_MS,
+  );
+  private readonly failuresByAccount = new SlidingWindow(
+    LOGIN_FAILURES_PER_ACCOUNT,
+    HOUR_MS,
+  );
   private readonly registeredFrom: { hour: SlidingWindow; day: SlidingWindow };
 
   constructor(
@@ -95,7 +167,10 @@ export class AccountService {
     readonly mailer: Mailer,
   ) {
     this.sessions = new SessionService(store, ctx.config.accounts);
-    this.codeRequests = new SlidingWindow(ctx.config.accounts.emailsPerNetworkPerHour, HOUR_MS);
+    this.codeRequests = new SlidingWindow(
+      ctx.config.accounts.emailsPerNetworkPerHour,
+      HOUR_MS,
+    );
     const abuse = ctx.config.abuse;
     this.registeredFrom = {
       hour: new SlidingWindow(abuse.registrationsPerAddressPerHour, HOUR_MS),
@@ -111,7 +186,11 @@ export class AccountService {
 
   view(a: AccountRow): AccountView {
     const u = a.user_id
-      ? this.ctx.identity.get<{ id: string; username: string; identity_key: string }>("users", { id: a.user_id })
+      ? this.ctx.identity.get<{
+          id: string;
+          username: string;
+          identity_key: string;
+        }>("users", { id: a.user_id })
       : undefined;
     return {
       id: a.id,
@@ -120,13 +199,23 @@ export class AccountService {
       createdAt: a.created_at,
       legacyLinkedAt: a.legacy_linked_at,
       selectedWorkspaceId: a.selected_workspace_id,
-      identity: u ? { userId: u.id, username: u.username, identityKey: u.identity_key } : null,
+      identity: u
+        ? { userId: u.id, username: u.username, identityKey: u.identity_key }
+        : null,
     };
   }
 
   respond(issued: IssuedSession, a: AccountRow): SessionResponse {
     const { session, ...tokens } = issued;
-    return { ...tokens, session: { id: session.id, deviceId: session.device_id, createdAt: session.created_at }, account: this.view(a) };
+    return {
+      ...tokens,
+      session: {
+        id: session.id,
+        deviceId: session.device_id,
+        createdAt: session.created_at,
+      },
+      account: this.view(a),
+    };
   }
 
   // ───────────── Sign-up and email codes ─────────────
@@ -142,9 +231,19 @@ export class AccountService {
 
   private requireAdmission(inviteCode: string | undefined): Admission | null {
     if (this.signupMode() !== "invite") return null;
-    if (!inviteCode) throw new ApiError(403, "invite_required", "Signing up needs an invitation code");
+    if (!inviteCode)
+      throw new ApiError(
+        403,
+        "invite_required",
+        "Signing up needs an invitation code",
+      );
     const admission = this.findAdmission(inviteCode);
-    if (!admission) throw new ApiError(403, "invalid_invite", "This invitation code is invalid, expired or already used");
+    if (!admission)
+      throw new ApiError(
+        403,
+        "invalid_invite",
+        "This invitation code is invalid, expired or already used",
+      );
     return admission;
   }
 
@@ -162,7 +261,12 @@ export class AccountService {
    */
   private consumeAdmission(w: RowWriter, code: string): string {
     const reg = findRegistrationInvite(w, code);
-    if (!reg || !consumeRegistrationInvite(w, reg.id)) throw new ApiError(403, "invalid_invite", "This invitation code is invalid, expired or already used");
+    if (!reg || !consumeRegistrationInvite(w, reg.id))
+      throw new ApiError(
+        403,
+        "invalid_invite",
+        "This invitation code is invalid, expired or already used",
+      );
     return `registration-invite:${reg.id}`;
   }
 
@@ -173,7 +277,12 @@ export class AccountService {
   private async reserveOrgInvite(code: string): Promise<string> {
     const id = await this.ctx.ws.write((w) => {
       const org = findOrgInvite(w, this.ctx.authz, code);
-      if (!org) throw new ApiError(403, "invalid_invite", "This invitation code is invalid, expired or already used");
+      if (!org)
+        throw new ApiError(
+          403,
+          "invalid_invite",
+          "This invitation code is invalid, expired or already used",
+        );
       consumeInviteUse(w, org.id);
       return org.id;
     });
@@ -182,38 +291,69 @@ export class AccountService {
 
   /** Gives back the use [consumeAdmission] took ("<kind>:<id>") when the account couldn't be made after all. */
   private returnAdmission(w: RowWriter | null, admittedVia: string): void {
-    const [kind, id] = [admittedVia.slice(0, admittedVia.indexOf(":")), admittedVia.slice(admittedVia.indexOf(":") + 1)];
+    const [kind, id] = [
+      admittedVia.slice(0, admittedVia.indexOf(":")),
+      admittedVia.slice(admittedVia.indexOf(":") + 1),
+    ];
     if (kind === "registration-invite") {
       // Given back in the account store's identity unit ([w]); it's only ever taken there.
       const inv = w?.get<{ uses: number }>("registration_invites", { id });
-      if (w && inv && inv.uses > 0) w.update("registration_invites", { id }, { uses: inv.uses - 1 });
+      if (w && inv && inv.uses > 0)
+        w.update("registration_invites", { id }, { uses: inv.uses - 1 });
       return;
     }
     // Called from the account store's own step (synchronous): the give-back is its own write unit.
     this.ctx.ws
       .write((w) => returnInviteUse(w, id))
-      .catch((e) => this.ctx.log.error({ err: e }, "sign-up: an invitation's reserved use wasn't given back"));
+      .catch((e) =>
+        this.ctx.log.error(
+          { err: e },
+          "sign-up: an invitation's reserved use wasn't given back",
+        ),
+      );
   }
 
   /** Open sign-up is limited per network and per day (docs/ABUSE_CONTROLS.md › Registration), before any hashing. */
-  private requireRegistrationAllowance(ip: string, reply: { header: (k: string, v: string) => unknown }): string {
+  private requireRegistrationAllowance(
+    ip: string,
+    reply: { header: (k: string, v: string) => unknown },
+  ): string {
     const network = networkKey(ip);
     if (this.signupMode() !== "open") return network;
-    const wait = Math.max(this.registeredFrom.hour.retryAfterMs(network), this.registeredFrom.day.retryAfterMs(network));
+    const wait = Math.max(
+      this.registeredFrom.hour.retryAfterMs(network),
+      this.registeredFrom.day.retryAfterMs(network),
+    );
     if (wait > 0) {
       reply.header("retry-after", String(Math.ceil(wait / 1000)));
-      throw new ApiError(429, "registration_limited", "Too many new accounts from this network. Try again later, or ask for an invitation code.");
+      throw new ApiError(
+        429,
+        "registration_limited",
+        "Too many new accounts from this network. Try again later, or ask for an invitation code.",
+      );
     }
     const perDay = this.ctx.config.abuse.openRegistrationsPerDay;
     if (perDay > 0 && openRegistrationsToday(this.ctx.ws) >= perDay) {
-      throw new ApiError(429, "registration_paused", "New sign-ups are paused for now. Try again later, or ask for an invitation code.");
+      throw new ApiError(
+        429,
+        "registration_paused",
+        "New sign-ups are paused for now. Try again later, or ask for an invitation code.",
+      );
     }
     return network;
   }
 
-  async register(body: RegisterBody, ip: string, reply: { header: (k: string, v: string) => unknown }): Promise<void> {
+  async register(
+    body: RegisterBody,
+    ip: string,
+    reply: { header: (k: string, v: string) => unknown },
+  ): Promise<void> {
     // The console's sign-up controls (docs/PLATFORM_CONTROLS.md) come first: a closed or blocked sign-up costs nothing.
-    requireSignupAllowed(this.ctx.platform, this.ctx.config.registrationMode, body.email);
+    requireSignupAllowed(
+      this.ctx.platform,
+      this.ctx.config.registrationMode,
+      body.email,
+    );
     if (!this.mailer.available) throw emailUnavailable();
     const weak = weakPassword(body.password, body.email);
     if (weak) throw weak;
@@ -237,15 +377,28 @@ export class AccountService {
       // tester code would hand the account to whoever signs up with the address. Its owner may get the emailed code again.
       const operator = operatorAccount(this.ctx.platform, existing.id);
       if (operator) {
-        if (operator.verification === "email" && this.canSendCode(existing, "verify_email", network)) await this.sendCode(existing, "verify_email", network);
+        if (
+          operator.verification === "email" &&
+          this.canSendCode(existing, "verify_email", network)
+        )
+          await this.sendCode(existing, "verify_email", network);
         return;
       }
       // Nobody has proved this address yet: the newest sign-up wins, so an unverified sign-up can't hold it hostage. Its
       // details change only together with a new code, and the code checks the password (verifyEmail), so whoever set the
       // password is whoever can verify. A legacy link keeps its details until it is verified or redone.
       if (!this.canSendCode(existing, "verify_email", network)) return;
-      if (!existing.legacy_linked_at) await this.store.updateAccount(existing.id, { name: body.name, password_hash: hash, password_changed_at: t }, t);
-      await this.sendCode((await this.store.accountById(existing.id))!, "verify_email", network);
+      if (!existing.legacy_linked_at)
+        await this.store.updateAccount(
+          existing.id,
+          { name: body.name, password_hash: hash, password_changed_at: t },
+          t,
+        );
+      await this.sendCode(
+        (await this.store.accountById(existing.id))!,
+        "verify_email",
+        network,
+      );
       return;
     }
     const account: AccountRow = {
@@ -265,7 +418,10 @@ export class AccountService {
     };
     const code = body.inviteCode;
     let taken: string | null = null;
-    const reserved = admission?.kind === "org-invite" && code ? await this.reserveOrgInvite(code) : null;
+    const reserved =
+      admission?.kind === "org-invite" && code
+        ? await this.reserveOrgInvite(code)
+        : null;
     let givenBack = false;
     const giveBack = (w: RowWriter | null, via: string) => {
       if (givenBack) return;
@@ -274,7 +430,10 @@ export class AccountService {
     };
     const take: StoreAdmission | null =
       admission && code
-        ? { take: (w) => (taken = reserved ?? this.consumeAdmission(w, code)), undo: (w) => void (taken && giveBack(w, taken)) }
+        ? {
+            take: (w) => (taken = reserved ?? this.consumeAdmission(w, code)),
+            undo: (w) => void (taken && giveBack(w, taken)),
+          }
         : null;
     let created: Awaited<ReturnType<typeof this.store.createAccount>>;
     try {
@@ -289,7 +448,11 @@ export class AccountService {
       if (reserved) giveBack(null, reserved);
       return;
     }
-    this.ctx.audit({ action: "account.register", target: created.id, detail: created.admitted_via });
+    this.ctx.audit({
+      action: "account.register",
+      target: created.id,
+      detail: created.admitted_via,
+    });
     await this.sendCode(created, "verify_email", network);
   }
 
@@ -297,7 +460,13 @@ export class AccountService {
    * An account an operator makes in the console (docs/ADMIN_ACCOUNTS.md): no sign-up controls, network limits or invite
    * apply, and with [verified] its address counts as proven at once. Null when the address already has an account.
    */
-  async createByOperator(input: { id: string; name: string; email: string; password: string; verified: boolean }): Promise<AccountRow | null> {
+  async createByOperator(input: {
+    id: string;
+    name: string;
+    email: string;
+    password: string;
+    verified: boolean;
+  }): Promise<AccountRow | null> {
     const weak = weakPassword(input.password, input.email);
     if (weak) throw weak;
     if (await this.store.accountByEmail(input.email)) return null;
@@ -318,7 +487,12 @@ export class AccountService {
       disabled_at: null,
     };
     const created = await this.store.createAccount(account, null);
-    if (created) this.ctx.audit({ action: "account.register", target: created.id, detail: "operator" });
+    if (created)
+      this.ctx.audit({
+        action: "account.register",
+        target: created.id,
+        detail: "operator",
+      });
     return created;
   }
 
@@ -328,43 +502,164 @@ export class AccountService {
     await this.store.updateAccount(accountId, { email_verified_at: t }, t);
   }
 
+  /** Social sign-up shares the email registration's admission and abuse policy; no usable password is invented. */
+  async registerExternal(
+    body: { email: string; name: string; inviteCode?: string },
+    ip: string,
+    reply: { header: (k: string, v: string) => unknown },
+  ): Promise<AccountRow> {
+    requireSignupAllowed(
+      this.ctx.platform,
+      this.ctx.config.registrationMode,
+      body.email,
+    );
+    const admission = this.requireAdmission(body.inviteCode);
+    const network = this.requireRegistrationAllowance(ip, reply);
+    if (this.signupMode() === "open") {
+      this.registeredFrom.hour.record(network);
+      this.registeredFrom.day.record(network);
+    }
+    const t = now();
+    const row: AccountRow = {
+      id: newId("acc"),
+      email: body.email,
+      name: body.name,
+      password_hash: "!social-only",
+      password_changed_at: t,
+      email_verified_at: t,
+      user_id: null,
+      legacy_linked_at: null,
+      selected_workspace_id: null,
+      admitted_via: null,
+      created_at: t,
+      updated_at: t,
+      disabled_at: null,
+    };
+    let taken: string | null = null;
+    const code = body.inviteCode;
+    const reserved =
+      admission?.kind === "org-invite" && code
+        ? await this.reserveOrgInvite(code)
+        : null;
+    let givenBack = false;
+    const giveBack = (w: RowWriter | null, via: string) => {
+      if (givenBack) return;
+      givenBack = true;
+      this.returnAdmission(w, via);
+    };
+    const take: StoreAdmission | null =
+      admission && code
+        ? {
+            take: (w) => (taken = reserved ?? this.consumeAdmission(w, code)),
+            undo: (w) => void (taken && giveBack(w, taken)),
+          }
+        : null;
+    let created: Awaited<ReturnType<typeof this.store.createAccount>>;
+    try {
+      created = await this.store.createAccount(row, take);
+    } catch (e) {
+      if (reserved) giveBack(null, reserved);
+      throw e;
+    }
+    if (!created && reserved) giveBack(null, reserved);
+    if (!created)
+      throw new ApiError(
+        409,
+        "account_link_required",
+        "Sign in to your existing Meldiq account, then connect this provider in Settings > Account.",
+      );
+    this.ctx.audit({
+      action: "account.register",
+      target: created.id,
+      detail: created.admitted_via,
+    });
+    return created;
+  }
+
+  async loginWithExternal(
+    a: AccountRow,
+    body: {
+      deviceName?: string;
+      device?: { deviceId: string; nonce: string; signature: string };
+      totpCode?: string;
+    },
+    provider: "google" | "apple" | "discord",
+  ): Promise<SessionResponse> {
+    const verified = (await this.secondFactor?.(a.id, body.totpCode)) === true;
+    return this.finishLogin(a, body, provider, verified);
+  }
+
   private codeKey(a: AccountRow, purpose: CodePurpose) {
     return `${a.id}:${purpose}`;
   }
 
   /** Codes are limited per account and purpose, and per requesting network, so nobody can use up someone's reset emails. */
-  private canSendCode(a: AccountRow, purpose: CodePurpose, network: string | null): boolean {
-    return this.codesSent.allows(this.codeKey(a, purpose)) && (network === null || this.codeRequests.allows(network));
+  private canSendCode(
+    a: AccountRow,
+    purpose: CodePurpose,
+    network: string | null,
+  ): boolean {
+    return (
+      this.codesSent.allows(this.codeKey(a, purpose)) &&
+      (network === null || this.codeRequests.allows(network))
+    );
   }
 
   /**
    * A new code replaces the previous one. Past the limits nothing is sent (same answer). [network] is the requester's,
    * or null for a step that already proved something (a legacy ticket).
    */
-  async sendCode(a: AccountRow, purpose: CodePurpose, network: string | null): Promise<void> {
+  async sendCode(
+    a: AccountRow,
+    purpose: CodePurpose,
+    network: string | null,
+  ): Promise<void> {
     if (!this.mailer.available) throw emailUnavailable();
     if (!this.canSendCode(a, purpose, network)) return;
-    const code = purpose === "verify_email" ? crypto.randomInt(0, 10 ** VERIFY_CODE_DIGITS).toString().padStart(VERIFY_CODE_DIGITS, "0") : humanCode(RESET_CODE_LENGTH);
+    const code =
+      purpose === "verify_email"
+        ? crypto
+            .randomInt(0, 10 ** VERIFY_CODE_DIGITS)
+            .toString()
+            .padStart(VERIFY_CODE_DIGITS, "0")
+        : humanCode(RESET_CODE_LENGTH);
     const t = now();
-    await this.store.putCode({ account_id: a.id, purpose, code_hash: codeHash(a.id, purpose, code), attempts: 0, created_at: t, expires_at: t + this.cfg.codeTtlMs });
+    await this.store.putCode({
+      account_id: a.id,
+      purpose,
+      code_hash: codeHash(a.id, purpose, code),
+      attempts: 0,
+      created_at: t,
+      expires_at: t + this.cfg.codeTtlMs,
+    });
     this.codesSent.record(this.codeKey(a, purpose), t);
     if (network !== null) this.codeRequests.record(network, t);
-    const text = purpose === "verify_email" ? mailTexts.verifyEmail(code) : mailTexts.resetPassword(formatResetCode(code));
+    const text =
+      purpose === "verify_email"
+        ? mailTexts.verifyEmail(code)
+        : mailTexts.resetPassword(formatResetCode(code));
     try {
       await this.mailer.send({ to: a.email, ...text });
     } catch (e) {
       // The code itself is never logged; only that sending failed.
       this.ctx.log.error({ err: e, purpose }, "account email not sent");
-      throw new ApiError(503, "email_failed", "We couldn't send the email just now. Try again in a minute.");
+      throw new ApiError(
+        503,
+        "email_failed",
+        "We couldn't send the email just now. Try again in a minute.",
+      );
     }
   }
 
   /** "Someone tried to sign up with your address": its own small allowance, so it never crowds out a reset code. */
   private async sendNotice(a: AccountRow, network: string): Promise<void> {
-    if (!this.notices.allows(a.id) || !this.codeRequests.allows(network)) return;
+    if (!this.notices.allows(a.id) || !this.codeRequests.allows(network))
+      return;
     this.notices.record(a.id);
     this.codeRequests.record(network);
-    await this.mailer.send({ to: a.email, ...mailTexts.alreadyRegistered() }).catch((e) => this.ctx.log.warn({ err: e }, "account email not sent"));
+    await this.mailer
+      .send({ to: a.email, ...mailTexts.alreadyRegistered() })
+      .catch((e) => this.ctx.log.warn({ err: e }, "account email not sent"));
   }
 
   /**
@@ -372,11 +667,24 @@ export class AccountService {
    * many the code is dead until a new one is sent. Every failure gives the same answer, whether or not the address has an
    * account or a code, so this reveals nothing about either.
    */
-  private async consumeCode(a: AccountRow | undefined, purpose: CodePurpose, code: string, alsoRequired = true): Promise<AccountRow> {
+  private async consumeCode(
+    a: AccountRow | undefined,
+    purpose: CodePurpose,
+    code: string,
+    alsoRequired = true,
+  ): Promise<AccountRow> {
     if (!a) throw invalidCode();
     const row = await this.store.code(a.id, purpose);
-    if (!row || row.expires_at <= now() || row.attempts >= this.cfg.codeMaxAttempts) throw invalidCode();
-    const normalized = purpose === "verify_email" ? normalizeVerifyCode(code) : normalizeCode(code);
+    if (
+      !row ||
+      row.expires_at <= now() ||
+      row.attempts >= this.cfg.codeMaxAttempts
+    )
+      throw invalidCode();
+    const normalized =
+      purpose === "verify_email"
+        ? normalizeVerifyCode(code)
+        : normalizeCode(code);
     const expected = Buffer.from(row.code_hash, "hex");
     const given = Buffer.from(codeHash(a.id, purpose, normalized), "hex");
     if (!crypto.timingSafeEqual(expected, given) || !alsoRequired) {
@@ -384,7 +692,8 @@ export class AccountService {
       throw invalidCode();
     }
     // A code works once: of two requests with it, only the one that removes it goes on.
-    if (!(await this.store.deleteCode(a.id, purpose, row.code_hash))) throw invalidCode();
+    if (!(await this.store.deleteCode(a.id, purpose, row.code_hash)))
+      throw invalidCode();
     return a;
   }
 
@@ -392,7 +701,11 @@ export class AccountService {
    * The emailed code and the password chosen at sign-up, together: whoever verifies is whoever set the password, so a
    * later sign-up for the same unverified address can't take over the account its owner is verifying.
    */
-  async verifyEmail(email: string, code: string, password: string): Promise<void> {
+  async verifyEmail(
+    email: string,
+    code: string,
+    password: string,
+  ): Promise<void> {
     const existing = await this.store.accountByEmail(email);
     // A verified address has no code: same answer as a wrong one, so this doesn't reveal which addresses are verified.
     const target = existing?.email_verified_at ? undefined : existing;
@@ -404,22 +717,44 @@ export class AccountService {
     const t = now();
     // A tester's fixed code from the console (docs/ADMIN_ACCOUNTS.md) works like an emailed one, with the password too,
     // and keeps working until it ends; anything else goes on to the emailed code.
-    if (passwordOk && staticCodeMatches(operatorAccount(this.ctx.platform, target.id), target.id, normalizeVerifyCode(code), t)) {
+    if (
+      passwordOk &&
+      staticCodeMatches(
+        operatorAccount(this.ctx.platform, target.id),
+        target.id,
+        normalizeVerifyCode(code),
+        t,
+      )
+    ) {
       await this.store.updateAccount(target.id, { email_verified_at: t }, t);
-      this.ctx.audit({ actorId: target.user_id, action: "account.verify_email", target: target.id, detail: "static_code" });
+      this.ctx.audit({
+        actorId: target.user_id,
+        action: "account.verify_email",
+        target: target.id,
+        detail: "static_code",
+      });
       return;
     }
     const a = await this.consumeCode(target, "verify_email", code, passwordOk);
     await this.store.updateAccount(a.id, { email_verified_at: t }, t);
-    this.ctx.audit({ actorId: a.user_id, action: "account.verify_email", target: a.id });
+    this.ctx.audit({
+      actorId: a.user_id,
+      action: "account.verify_email",
+      target: a.id,
+    });
   }
 
   async resendVerification(email: string, ip: string): Promise<void> {
     if (!this.mailer.available) throw emailUnavailable();
     const a = await this.store.accountByEmail(email);
     // A tester's account verifies with its fixed code: its address may not even receive mail.
-    if (a && operatorAccount(this.ctx.platform, a.id)?.verification === "static_code") return;
-    if (a && !a.email_verified_at && !a.disabled_at) await this.sendCode(a, "verify_email", networkKey(ip));
+    if (
+      a &&
+      operatorAccount(this.ctx.platform, a.id)?.verification === "static_code"
+    )
+      return;
+    if (a && !a.email_verified_at && !a.disabled_at)
+      await this.sendCode(a, "verify_email", networkKey(ip));
   }
 
   // ───────────── Sign-in ─────────────
@@ -438,31 +773,59 @@ export class AccountService {
     this.failuresByAccount.record(k.account);
   }
 
-  private requireNotThrottled(email: string, ip: string, reply: { header: (k: string, v: string) => unknown }): void {
+  private requireNotThrottled(
+    email: string,
+    ip: string,
+    reply: { header: (k: string, v: string) => unknown },
+  ): void {
     const k = this.throttleKeys(email, ip);
-    const wait = Math.max(this.failuresByNetwork.retryAfterMs(k.network), this.failuresByAccount.retryAfterMs(k.account));
+    const wait = Math.max(
+      this.failuresByNetwork.retryAfterMs(k.network),
+      this.failuresByAccount.retryAfterMs(k.account),
+    );
     if (wait > 0) {
       reply.header("retry-after", String(Math.ceil(wait / 1000)));
-      throw new ApiError(429, "login_throttled", "Too many wrong passwords. Wait a few minutes and try again.");
+      throw new ApiError(
+        429,
+        "login_throttled",
+        "Too many wrong passwords. Wait a few minutes and try again.",
+      );
     }
   }
 
   /** Checks [password] for [a], counting failures; rehashes with current parameters when they were raised. */
-  async checkPassword(a: AccountRow, password: string, ip: string, reply: { header: (k: string, v: string) => unknown }): Promise<void> {
+  async checkPassword(
+    a: AccountRow,
+    password: string,
+    ip: string,
+    reply: { header: (k: string, v: string) => unknown },
+  ): Promise<void> {
     this.requireNotThrottled(a.email, ip, reply);
     if (!(await verifyPassword(password, a.password_hash))) {
       this.recordFailure(a.email, ip);
       // The person's sign-in history (Platform Admin Console): a wrong password for an existing account.
-      this.ctx.audit({ actorId: a.user_id, action: "account.login_failed", target: a.id });
+      this.ctx.audit({
+        actorId: a.user_id,
+        action: "account.login_failed",
+        target: a.id,
+      });
       throw invalidCredentials();
     }
     if (needsRehash(a.password_hash, this.cfg.scryptLogN)) {
       const t = now();
-      await this.store.updateAccount(a.id, { password_hash: await hashPassword(password, this.cfg.scryptLogN) }, t);
+      await this.store.updateAccount(
+        a.id,
+        { password_hash: await hashPassword(password, this.cfg.scryptLogN) },
+        t,
+      );
     }
   }
 
-  async login(body: LoginBody, ip: string, reply: { header: (k: string, v: string) => unknown }): Promise<SessionResponse> {
+  async login(
+    body: LoginBody,
+    ip: string,
+    reply: { header: (k: string, v: string) => unknown },
+  ): Promise<SessionResponse> {
     const a = await this.store.accountByEmail(body.email);
     if (!a) {
       this.requireNotThrottled(body.email, ip, reply);
@@ -471,7 +834,8 @@ export class AccountService {
       throw invalidCredentials();
     }
     await this.checkPassword(a, body.password, ip, reply);
-    const secondFactorVerified = (await this.secondFactor?.(a.id, body.totpCode)) === true;
+    const secondFactorVerified =
+      (await this.secondFactor?.(a.id, body.totpCode)) === true;
     return this.finishLogin(a, body, "password", secondFactorVerified);
   }
 
@@ -481,35 +845,76 @@ export class AccountService {
    */
   async loginWithPasskey(
     accountId: string,
-    body: { deviceName?: string; device?: { deviceId: string; nonce: string; signature: string } },
+    body: {
+      deviceName?: string;
+      device?: { deviceId: string; nonce: string; signature: string };
+    },
     _ip: string,
     _reply: { header: (k: string, v: string) => unknown },
   ): Promise<SessionResponse> {
     const a = await this.store.accountById(accountId);
-    if (!a) throw new ApiError(401, "passkey_unknown", "This passkey isn't registered here. Sign in with your password and add it again.");
+    if (!a)
+      throw new ApiError(
+        401,
+        "passkey_unknown",
+        "This passkey isn't registered here. Sign in with your password and add it again.",
+      );
     return this.finishLogin(a, body, "passkey");
   }
 
   private async finishLogin(
     a: AccountRow,
-    body: { deviceName?: string; device?: { deviceId: string; nonce: string; signature: string } },
-    via: "password" | "passkey",
+    body: {
+      deviceName?: string;
+      device?: { deviceId: string; nonce: string; signature: string };
+    },
+    via: "password" | "passkey" | "google" | "apple" | "discord",
     secondFactorVerified = false,
   ): Promise<SessionResponse> {
     if (a.disabled_at) throw sessionEnded("account_disabled");
-    if (!a.email_verified_at) throw new ApiError(403, "email_unverified", "Verify your email first: enter the code we sent you.", { email: a.email });
+    if (!a.email_verified_at)
+      throw new ApiError(
+        403,
+        "email_unverified",
+        "Verify your email first: enter the code we sent you.",
+        { email: a.email },
+      );
     if (a.user_id) {
-      const user = this.ctx.identity.get<{ disabled_at: number | null }>("users", { id: a.user_id });
+      const user = this.ctx.identity.get<{ disabled_at: number | null }>(
+        "users",
+        { id: a.user_id },
+      );
       if (user?.disabled_at) throw sessionEnded("account_disabled");
     }
-    const deviceId = body.device ? await this.provenDevice(a, body.device) : null;
-    const issued = await this.sessions.issue(a.id, body.deviceName ?? "Meldiq app", deviceId, now(), secondFactorVerified);
-    const detail = [via === "passkey" ? "passkey" : null, deviceId ? "device" : null].filter(Boolean).join(",") || null;
-    this.ctx.audit({ actorId: a.user_id, action: "account.login", target: issued.session.id, detail });
+    const deviceId = body.device
+      ? await this.provenDevice(a, body.device)
+      : null;
+    const issued = await this.sessions.issue(
+      a.id,
+      body.deviceName ?? "Meldiq app",
+      deviceId,
+      now(),
+      secondFactorVerified,
+    );
+    const detail =
+      [via !== "password" ? via : null, deviceId ? "device" : null]
+        .filter(Boolean)
+        .join(",") || null;
+    this.ctx.audit({
+      actorId: a.user_id,
+      action: "account.login",
+      target: issued.session.id,
+      detail,
+    });
     // Signed-in sessions per person (docs/QUOTAS.md): observed and warned only; signing in is never refused by a quota.
     if (a.user_id && this.ctx.quotas?.hasPolicies("sessions.active")) {
       const open = (await this.store.activeSessions(a.id, now())).length;
-      await this.ctx.quotas.check("sessions.active", [{ type: "user", id: a.user_id }], 0, { measured: { user: open } });
+      await this.ctx.quotas.check(
+        "sessions.active",
+        [{ type: "user", id: a.user_id }],
+        0,
+        { measured: { user: open } },
+      );
     }
     return this.respond(issued, (await this.store.accountById(a.id))!);
   }
@@ -518,27 +923,71 @@ export class AccountService {
    * A device of this account signing in again proves it holds the device key (a fresh challenge signed with it), so its
    * new session is bound to it at once and the app keeps its keys, database and history.
    */
-  private async provenDevice(a: AccountRow, proof: { deviceId: string; nonce: string; signature: string }): Promise<string> {
-    const dev = a.user_id ? this.ctx.identity.get<{ id: string; signing_key: string; revoked_at: number | null }>("devices", { id: proof.deviceId, user_id: a.user_id }) : undefined;
-    if (!dev || !verifyEd25519(dev.signing_key, canonical.authProof("login", proof.nonce, dev.signing_key), proof.signature)) {
-      throw new ApiError(401, "invalid_device_proof", "This phone's keys don't belong to this account. Set up encryption again.");
+  private async provenDevice(
+    a: AccountRow,
+    proof: { deviceId: string; nonce: string; signature: string },
+  ): Promise<string> {
+    const dev = a.user_id
+      ? this.ctx.identity.get<{
+          id: string;
+          signing_key: string;
+          revoked_at: number | null;
+        }>("devices", { id: proof.deviceId, user_id: a.user_id })
+      : undefined;
+    if (
+      !dev ||
+      !verifyEd25519(
+        dev.signing_key,
+        canonical.authProof("login", proof.nonce, dev.signing_key),
+        proof.signature,
+      )
+    ) {
+      throw new ApiError(
+        401,
+        "invalid_device_proof",
+        "This phone's keys don't belong to this account. Set up encryption again.",
+      );
     }
-    if (!(await consumeChallenge(this.ctx, proof.nonce))) throw new ApiError(401, "challenge_expired", "The sign-in took too long. Try again.");
-    if (dev.revoked_at) throw new ApiError(401, "device_revoked", "This phone was removed from your account. Set up encryption again.");
+    if (!(await consumeChallenge(this.ctx, proof.nonce)))
+      throw new ApiError(
+        401,
+        "challenge_expired",
+        "The sign-in took too long. Try again.",
+      );
+    if (dev.revoked_at)
+      throw new ApiError(
+        401,
+        "device_revoked",
+        "This phone was removed from your account. Set up encryption again.",
+      );
     return dev.id;
   }
 
   async refresh(refreshToken: string): Promise<SessionResponse> {
     const issued = await this.sessions.refresh(refreshToken, now(), (s) => {
-      if (s.device_id) this.ctx.hub.disconnectDevice(s.device_id, "session revoked");
+      if (s.device_id)
+        this.ctx.hub.disconnectDevice(s.device_id, "session revoked");
       this.ctx.audit({ action: "account.refresh_reuse", target: s.id });
     });
-    return this.respond(issued, (await this.store.accountById(issued.session.account_id))!);
+    return this.respond(
+      issued,
+      (await this.store.accountById(issued.session.account_id))!,
+    );
   }
 
   /** Ends sessions and closes their devices' sockets. */
-  async revokeSessions(accountId: string, reason: string, exceptSessionId?: string): Promise<void> {
-    for (const d of await this.store.revokeAccountSessions(accountId, reason, now(), exceptSessionId)) this.ctx.hub.disconnectDevice(d, "session revoked");
+  async revokeSessions(
+    accountId: string,
+    reason: string,
+    exceptSessionId?: string,
+  ): Promise<void> {
+    for (const d of await this.store.revokeAccountSessions(
+      accountId,
+      reason,
+      now(),
+      exceptSessionId,
+    ))
+      this.ctx.hub.disconnectDevice(d, "session revoked");
   }
 
   async logout(s: ActiveSession): Promise<void> {
@@ -551,33 +1000,71 @@ export class AccountService {
   async forgotPassword(email: string, ip: string): Promise<void> {
     if (!this.mailer.available) throw emailUnavailable();
     const a = await this.store.accountByEmail(email);
-    if (a && !a.disabled_at) await this.sendCode(a, "reset_password", networkKey(ip));
+    if (a && !a.disabled_at)
+      await this.sendCode(a, "reset_password", networkKey(ip));
   }
 
-  async resetPassword(email: string, code: string, newPassword: string): Promise<void> {
+  async resetPassword(
+    email: string,
+    code: string,
+    newPassword: string,
+  ): Promise<void> {
     const weak = weakPassword(newPassword, email);
     if (weak) throw weak;
-    const a = await this.consumeCode(await this.store.accountByEmail(email), "reset_password", code);
+    const a = await this.consumeCode(
+      await this.store.accountByEmail(email),
+      "reset_password",
+      code,
+    );
     const hash = await hashPassword(newPassword, this.cfg.scryptLogN);
     const t = now();
     // The code arrived by email, so the address is proven too.
-    await this.store.updateAccount(a.id, { password_hash: hash, password_changed_at: t, email_verified_at: a.email_verified_at ?? t }, t);
+    await this.store.updateAccount(
+      a.id,
+      {
+        password_hash: hash,
+        password_changed_at: t,
+        email_verified_at: a.email_verified_at ?? t,
+      },
+      t,
+    );
     await this.revokeSessions(a.id, "password_reset");
     // Whoever reset the password owns the inbox: wrong guesses by others no longer keep them out.
     this.failuresByAccount.clear(a.email);
     this.failuresByNetwork.clearPrefix(`${a.email}|`);
-    this.ctx.audit({ actorId: a.user_id, action: "account.password_reset", target: a.id });
+    this.ctx.audit({
+      actorId: a.user_id,
+      action: "account.password_reset",
+      target: a.id,
+    });
   }
 
-  async changePassword(s: ActiveSession, current: string, next: string, ip: string, reply: { header: (k: string, v: string) => unknown }): Promise<void> {
+  async changePassword(
+    s: ActiveSession,
+    current: string,
+    next: string,
+    ip: string,
+    reply: { header: (k: string, v: string) => unknown },
+  ): Promise<void> {
     const a = (await this.store.accountById(s.account_id))!;
     await this.checkPassword(a, current, ip, reply);
     const weak = weakPassword(next, a.email);
     if (weak) throw weak;
     const t = now();
-    await this.store.updateAccount(a.id, { password_hash: await hashPassword(next, this.cfg.scryptLogN), password_changed_at: t }, t);
+    await this.store.updateAccount(
+      a.id,
+      {
+        password_hash: await hashPassword(next, this.cfg.scryptLogN),
+        password_changed_at: t,
+      },
+      t,
+    );
     await this.revokeSessions(a.id, "password_changed", s.id);
-    this.ctx.audit({ actorId: a.user_id, action: "account.password_change", target: a.id });
+    this.ctx.audit({
+      actorId: a.user_id,
+      action: "account.password_change",
+      target: a.id,
+    });
   }
 }
 
@@ -587,6 +1074,12 @@ function formatResetCode(code: string): string {
 }
 
 /** Consumes a single-use /v1/auth/challenge nonce. False if unknown, expired or already used. */
-export function consumeChallenge(ctx: AppContext, nonce: string): Promise<boolean> {
-  return ctx.ephemeral.write((w) => w.delete("auth_challenges", { nonce, expires_at: { gt: now() } }) > 0);
+export function consumeChallenge(
+  ctx: AppContext,
+  nonce: string,
+): Promise<boolean> {
+  return ctx.ephemeral.write(
+    (w) =>
+      w.delete("auth_challenges", { nonce, expires_at: { gt: now() } }) > 0,
+  );
 }

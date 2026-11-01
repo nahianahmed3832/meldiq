@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "identity_conflict",
+    "message": "This identity belongs to another Meldiq account. Sign in to that account or recover it. Nothing was merged."
+  }
+}

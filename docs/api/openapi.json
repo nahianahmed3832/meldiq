@@ -18,6 +18,9 @@
       "name": "Profile collection admin"
     },
     {
+      "name": "accounts"
+    },
+    {
       "name": "Central administration"
     },
     {
@@ -43,9 +46,6 @@
     },
     {
       "name": "calls"
-    },
-    {
-      "name": "accounts"
     },
     {
       "name": "auth"
@@ -266,6 +266,22 @@
             "schema": {
               "type": "string",
               "pattern": "^[a-z][a-z0-9-]{2,63}$"
+            }
+          },
+          {
+            "name": "filter",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "type": "string",
+              "enum": [
+                "all",
+                "owned",
+                "unowned",
+                "favorites",
+                "recent"
+              ]
             }
           },
           {
@@ -2847,6 +2863,731 @@
           }
         ],
         "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification."
+      }
+    },
+    "/v2/auth/social/config": {
+      "get": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Available external sign-in providers (disabled until configured)",
+        "operationId": "getV2AuthSocialConfig",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "providers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "google",
+                          "apple",
+                          "discord"
+                        ]
+                      }
+                    },
+                    "googleClientId": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "authorizeOrigin": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "providers",
+                    "googleClientId",
+                    "authorizeOrigin"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v2/auth/social/start": {
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Start a client-proof-bound Google/Apple/Discord login or authenticated account link",
+        "operationId": "postV2AuthSocialStart",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9_-]{43}$"
+                    },
+                    "authorizeUrl": {
+                      "type": "string"
+                    },
+                    "nonce": {
+                      "type": "string"
+                    },
+                    "expiresAt": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "authorizeUrl",
+                    "nonce",
+                    "expiresAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "password": {
+                    "type": "string",
+                    "maxLength": 128
+                  },
+                  "totpCode": {
+                    "type": "string",
+                    "maxLength": 32
+                  },
+                  "provider": {
+                    "type": "string",
+                    "enum": [
+                      "google",
+                      "apple",
+                      "discord"
+                    ]
+                  },
+                  "challenge": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{43}$"
+                  },
+                  "mode": {
+                    "default": "login",
+                    "type": "string",
+                    "enum": [
+                      "login",
+                      "link"
+                    ]
+                  },
+                  "platform": {
+                    "default": "web",
+                    "type": "string",
+                    "enum": [
+                      "web",
+                      "android"
+                    ]
+                  }
+                },
+                "required": [
+                  "provider",
+                  "challenge"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/auth/social/authorize/{id}": {
+      "get": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Set the HttpOnly OAuth state cookie and redirect to Supabase PKCE",
+        "operationId": "getV2AuthSocialAuthorizeId",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{43}$"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "The bytes (or 302 to a storage URL)",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v2/auth/social/callback": {
+      "get": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Validate browser state and provider code; return a one-use receipt (never tokens)",
+        "operationId": "getV2AuthSocialCallback",
+        "parameters": [],
+        "responses": {
+          "302": {
+            "description": "The bytes (or 302 to a storage URL)",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v2/auth/social/native": {
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Verify a nonce-bound native Google ID token through Supabase",
+        "operationId": "postV2AuthSocialNative",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9_-]{43}$"
+                    },
+                    "receipt": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9_-]{43}$"
+                    },
+                    "platform": {
+                      "type": "string",
+                      "enum": [
+                        "web",
+                        "android"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "receipt",
+                    "platform"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{43}$"
+                  },
+                  "verifier": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{43}$"
+                  },
+                  "idToken": {
+                    "type": "string",
+                    "minLength": 20,
+                    "maxLength": 16384
+                  }
+                },
+                "required": [
+                  "id",
+                  "verifier",
+                  "idToken"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/auth/social/complete": {
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Redeem a receipt and client verifier for a Meldiq session or explicit account link",
+        "operationId": "postV2AuthSocialComplete",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "linked": {
+                          "type": "boolean",
+                          "const": true
+                        }
+                      },
+                      "required": [
+                        "linked"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "grant": {
+                          "type": "object",
+                          "properties": {
+                            "accessToken": {
+                              "type": "string"
+                            },
+                            "accessTokenExpiresAt": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "refreshToken": {
+                              "type": "string"
+                            },
+                            "refreshTokenExpiresAt": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "session": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "deviceId": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "createdAt": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "deviceId",
+                                "createdAt"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "account": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "email": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "createdAt": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "legacyLinkedAt": {
+                                  "anyOf": [
+                                    {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 9007199254740991
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "selectedWorkspaceId": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "identity": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "userId": {
+                                          "type": "string"
+                                        },
+                                        "username": {
+                                          "type": "string"
+                                        },
+                                        "identityKey": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "userId",
+                                        "username",
+                                        "identityKey"
+                                      ],
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "email",
+                                "name",
+                                "createdAt",
+                                "legacyLinkedAt",
+                                "selectedWorkspaceId",
+                                "identity"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "accessToken",
+                            "accessTokenExpiresAt",
+                            "refreshToken",
+                            "refreshTokenExpiresAt",
+                            "session",
+                            "account"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "grant"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{43}$"
+                  },
+                  "verifier": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{43}$"
+                  },
+                  "receipt": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{43}$"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "inviteCode": {
+                    "type": "string",
+                    "maxLength": 100
+                  },
+                  "deviceName": {
+                    "type": "string",
+                    "maxLength": 100
+                  },
+                  "totpCode": {
+                    "type": "string",
+                    "maxLength": 32
+                  },
+                  "device": {
+                    "type": "object",
+                    "properties": {
+                      "deviceId": {
+                        "type": "string",
+                        "minLength": 3,
+                        "maxLength": 64
+                      },
+                      "nonce": {
+                        "type": "string",
+                        "minLength": 16,
+                        "maxLength": 64
+                      },
+                      "signature": {
+                        "type": "string",
+                        "minLength": 88,
+                        "maxLength": 88,
+                        "pattern": "^[A-Za-z0-9+/]+={0,2}$"
+                      }
+                    },
+                    "required": [
+                      "deviceId",
+                      "nonce",
+                      "signature"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "verifier",
+                  "receipt"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/account/identities": {
+      "get": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "List connected login providers and password availability",
+        "operationId": "getV2AccountIdentities",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "password": {
+                      "type": "boolean"
+                    },
+                    "identities": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "provider": {
+                            "type": "string",
+                            "enum": [
+                              "google",
+                              "apple",
+                              "discord"
+                            ]
+                          },
+                          "email": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "connectedAt": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "provider",
+                          "email",
+                          "connectedAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "providers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "google",
+                          "apple",
+                          "discord"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "password",
+                    "identities",
+                    "providers"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/account/identities/{provider}": {
+      "delete": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Disconnect a provider after fresh authentication, retaining another login method",
+        "operationId": "deleteV2AccountIdentitiesProvider",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "google",
+                "apple",
+                "discord"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "password": {
+                    "type": "string",
+                    "maxLength": 128
+                  },
+                  "totpCode": {
+                    "type": "string",
+                    "maxLength": 32
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        }
       }
     },
     "/admin/v1/orgs/{orgId}": {
@@ -83011,6 +83752,17 @@
               "code": {
                 "type": "string",
                 "enum": [
+                  "account_link_required",
+                  "social_state_invalid",
+                  "social_flow_expired",
+                  "provider_not_configured",
+                  "fresh_auth_required",
+                  "identity_conflict",
+                  "provider_email_required",
+                  "social_profile_required",
+                  "last_login_method",
+                  "external_identity_invalid",
+                  "provider_unavailable",
                   "collectible_unavailable",
                   "acquisition_required",
                   "not_owned",
@@ -83353,6 +84105,72 @@
     }
   },
   "x-error-codes": {
+    "account_link_required": {
+      "status": [
+        409
+      ],
+      "meaning": "Sign in to the existing account and explicitly connect the provider."
+    },
+    "social_state_invalid": {
+      "status": [
+        400
+      ],
+      "meaning": "OAuth state is missing or invalid."
+    },
+    "social_flow_expired": {
+      "status": [
+        400
+      ],
+      "meaning": "Sign-in expired or was already used."
+    },
+    "provider_not_configured": {
+      "status": [
+        503
+      ],
+      "meaning": "Provider is not configured."
+    },
+    "fresh_auth_required": {
+      "status": [
+        403
+      ],
+      "meaning": "Confirm your password or sign in again."
+    },
+    "identity_conflict": {
+      "status": [
+        409
+      ],
+      "meaning": "Provider identity is already connected."
+    },
+    "provider_email_required": {
+      "status": [
+        400
+      ],
+      "meaning": "Provider did not supply a verified email."
+    },
+    "social_profile_required": {
+      "status": [
+        400
+      ],
+      "meaning": "Display name required to create an account."
+    },
+    "last_login_method": {
+      "status": [
+        409
+      ],
+      "meaning": "Another login method must remain."
+    },
+    "external_identity_invalid": {
+      "status": [
+        401
+      ],
+      "meaning": "Provider identity verification failed."
+    },
+    "provider_unavailable": {
+      "status": [
+        503
+      ],
+      "meaning": "Provider is temporarily unavailable."
+    },
     "collectible_unavailable": {
       "status": [
         409

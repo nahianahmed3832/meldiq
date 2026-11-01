@@ -1,3 +1,4 @@
+import socialRoutes from "../modules/accounts/social/routes.js";
 import rateLimit from "@fastify/rate-limit";
 import { MAINTENANCE_RETRY_SECONDS, maintenanceError, readControl, signupMode } from "./platformControls.js";
 import { readSiteDetails } from "./siteDetails.js";
@@ -160,7 +161,7 @@ export const SERVER_INFO_VERSION = 1;
  * (/admin/v1/users?q=…): its query strings are never logged, so no address or search ends up in the logs.
  */
 export function logUrl(url: string): string {
-  if (url.startsWith("/admin/")) return url.split("?")[0];
+  if ((url.startsWith("/admin/") || url.startsWith("/v2/auth/social/"))) return url.split("?")[0];
   // A webhook's address holds its secret token (community parity batch C): never logged.
   return url.replace(/^(\/v1\/webhooks\/[^/?]+\/)(?!avatar(?:[?]|$))[^/?]+/, "$1<token>");
 }
@@ -688,6 +689,7 @@ export async function buildApp(
     activityRoutes,
     decorationRoutes,
     collectionRoutes,
+    socialRoutes,
     pinRoutes,
     reminderRoutes,
     reportRoutes,
