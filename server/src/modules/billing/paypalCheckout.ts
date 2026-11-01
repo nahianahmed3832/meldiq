@@ -146,6 +146,11 @@ export class PayPalCheckout {
       accountId,
     });
     if (!sub || sub.provider !== "paypal") throw notFound("PayPal subscription not found");
+    const snapshots = await this.billing.reconcileRefs([sub.provider_subscription_ref]);
+    if (snapshots[0]?.status === "incomplete" && snapshots[0].approvalConfirmed === false) {
+      // PayPal rejects /cancel before buyer approval; no recurring mandate exists to cancel.
+      return { confirmed: false, accessUntil: null, status: "incomplete", approvalPending: true };
+    }
     await this.provider.cancelSubscription(sub.provider_subscription_ref);
     await this.billing.reconcileRefs([sub.provider_subscription_ref]);
     const updated = this.billing.subscriptions.get(sub.id)!;
@@ -282,6 +287,8 @@ export class PayPalCheckout {
         orgId: s.org_id,
         providerRef: s.provider_subscription_ref,
         status: s.status,
+        approvalPending: this.billing.subscriptions.awaitingApproval(s),
+        billingStartAt: s.trial_end,
         currentPeriodEnd: s.current_period_end,
         cancelAtPeriodEnd: !!s.cancel_at_period_end,
         createdAt: s.created_at,

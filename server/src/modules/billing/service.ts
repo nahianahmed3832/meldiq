@@ -359,6 +359,7 @@ export class Billing {
       currentPeriodEnd: s.current_period_end,
       trialEnd: s.trial_end,
       cancelAtPeriodEnd: !!s.cancel_at_period_end,
+      approvalPending: this.subscriptions.awaitingApproval(s),
     };
   }
 
@@ -403,12 +404,14 @@ export class Billing {
   /** An owner's billing page (the website's account and organization pages). */
   summary(owner: BillingOwner) {
     const s = this.subscriptions.liveForOwner(owner);
+    const freePeriod = owner.kind === "account" ? this.grants.active(owner.accountId, this.clock()) : null;
     return {
       available: !!this.provider,
       reason: this.unavailableReason,
       mode: this.provider?.mode ?? null,
       provider: this.provider?.id ?? null,
       subscription: s ? this.subscriptionView(s, this.clock()) : null,
+      freePeriod: freePeriod ? { source: freePeriod.source, planKey: freePeriod.plan_key, endsAt: freePeriod.ends_at } : null,
       invoices: this.invoices(owner),
       offers: this.offers(audienceOf(owner)),
       portal: !!this.provider?.createPortal && !!this.returnUrl && this.storedCustomer(owner) !== null,

@@ -41,6 +41,162 @@
       "name": "Bug hunter",
       "description": "Reported a bug Meldiq fixed",
       "imageUrl": "/v2/pins/bug-hunter/image"
+    },
+    {
+      "id": "first-ember",
+      "name": "First Ember",
+      "description": "Check in on your first eligible day.",
+      "imageUrl": "/v2/pins/first-ember/image"
+    },
+    {
+      "id": "regular",
+      "name": "Regular",
+      "description": "Visit Meldiq on 30 different days.",
+      "imageUrl": "/v2/pins/regular/image"
+    },
+    {
+      "id": "familiar-face",
+      "name": "Familiar Face",
+      "description": "Visit Meldiq on 100 different days.",
+      "imageUrl": "/v2/pins/familiar-face/image"
+    },
+    {
+      "id": "kindling",
+      "name": "Kindling",
+      "description": "Keep a three-day visit streak.",
+      "imageUrl": "/v2/pins/kindling/image"
+    },
+    {
+      "id": "steady-flame",
+      "name": "Steady Flame",
+      "description": "Keep a seven-day visit streak.",
+      "imageUrl": "/v2/pins/steady-flame/image"
+    },
+    {
+      "id": "bright-flame",
+      "name": "Bright Flame",
+      "description": "Keep a fourteen-day visit streak.",
+      "imageUrl": "/v2/pins/bright-flame/image"
+    },
+    {
+      "id": "everglow",
+      "name": "Everglow",
+      "description": "Keep a thirty-day visit streak.",
+      "imageUrl": "/v2/pins/everglow/image"
+    },
+    {
+      "id": "ember-keeper",
+      "name": "Ember Keeper",
+      "description": "Earn 100 Embers in total.",
+      "imageUrl": "/v2/pins/ember-keeper/image"
+    },
+    {
+      "id": "ember-collector",
+      "name": "Ember Collector",
+      "description": "Earn 1,000 Embers in total.",
+      "imageUrl": "/v2/pins/ember-collector/image"
+    },
+    {
+      "id": "ember-vault",
+      "name": "Ember Vault",
+      "description": "Earn 10,000 Embers in total.",
+      "imageUrl": "/v2/pins/ember-vault/image"
+    },
+    {
+      "id": "rising-light",
+      "name": "Rising Light",
+      "description": "Reach account level 5.",
+      "imageUrl": "/v2/pins/rising-light/image"
+    },
+    {
+      "id": "trailblazer",
+      "name": "Trailblazer",
+      "description": "Reach account level 10.",
+      "imageUrl": "/v2/pins/trailblazer/image"
+    },
+    {
+      "id": "luminary",
+      "name": "Luminary",
+      "description": "Reach account level 25.",
+      "imageUrl": "/v2/pins/luminary/image"
+    },
+    {
+      "id": "constellation",
+      "name": "Constellation",
+      "description": "Reach account level 50.",
+      "imageUrl": "/v2/pins/constellation/image"
+    },
+    {
+      "id": "quest-apprentice",
+      "name": "Quest Apprentice",
+      "description": "Complete 5 quests.",
+      "imageUrl": "/v2/pins/quest-apprentice/image"
+    },
+    {
+      "id": "quest-seeker",
+      "name": "Quest Seeker",
+      "description": "Complete 25 quests.",
+      "imageUrl": "/v2/pins/quest-seeker/image"
+    },
+    {
+      "id": "quest-master",
+      "name": "Quest Master",
+      "description": "Complete 100 quests.",
+      "imageUrl": "/v2/pins/quest-master/image"
+    },
+    {
+      "id": "welcome-guide",
+      "name": "Welcome Guide",
+      "description": "Invite someone who stays in a community for seven days.",
+      "imageUrl": "/v2/pins/welcome-guide/image"
+    },
+    {
+      "id": "community-magnet",
+      "name": "Community Magnet",
+      "description": "Bring five people who stay for seven days.",
+      "imageUrl": "/v2/pins/community-magnet/image"
+    },
+    {
+      "id": "bridge-builder",
+      "name": "Bridge Builder",
+      "description": "Bring ten people who stay for seven days.",
+      "imageUrl": "/v2/pins/bridge-builder/image"
+    },
+    {
+      "id": "first-campfire",
+      "name": "First Campfire",
+      "description": "Join your first community.",
+      "imageUrl": "/v2/pins/first-campfire/image"
+    },
+    {
+      "id": "wayfinder",
+      "name": "Wayfinder",
+      "description": "Be part of three communities.",
+      "imageUrl": "/v2/pins/wayfinder/image"
+    },
+    {
+      "id": "world-walker",
+      "name": "World Walker",
+      "description": "Be part of ten communities.",
+      "imageUrl": "/v2/pins/world-walker/image"
+    },
+    {
+      "id": "first-conversation",
+      "name": "First Conversation",
+      "description": "Complete your first five-minute active chat block.",
+      "imageUrl": "/v2/pins/first-conversation/image"
+    },
+    {
+      "id": "conversation-weaver",
+      "name": "Conversation Weaver",
+      "description": "Complete twenty active chat blocks.",
+      "imageUrl": "/v2/pins/conversation-weaver/image"
+    },
+    {
+      "id": "campfire-storyteller",
+      "name": "Campfire Storyteller",
+      "description": "Complete one hundred active chat blocks.",
+      "imageUrl": "/v2/pins/campfire-storyteller/image"
     }
   ]
 }

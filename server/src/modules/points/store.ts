@@ -1,5 +1,6 @@
 import type { z } from "zod/v4";
 import type { PointsKind as PointsKindEnum } from "../../shared/contracts/http/points.js";
+import type { AchievementAward } from "./achievements.js";
 
 export type PointsKind = z.infer<typeof PointsKindEnum>;
 
@@ -67,14 +68,25 @@ export interface PointsStore {
   account(userId: string): Promise<PointsAccount | null>;
   /** Everyone above level 1 (loaded at start: profiles show levels synchronously). */
   levels(): Promise<Map<string, number>>;
+  achievementAwards(userId?: string): Promise<AchievementAward[]>;
   /** Records [entry] unless its id was recorded before (then false); a new one adds to the balance, total and day. */
   earn(entry: PointsEntry): Promise<boolean>;
   /** Takes [cost] and raises the level by one if the balance covers it (recording [entry]); the account after, or null. */
-  levelUp(userId: string, cost: number, entry: (level: number) => PointsEntry): Promise<PointsAccount | null>;
+  levelUp(
+    userId: string,
+    cost: number,
+    entry: (level: number) => PointsEntry,
+  ): Promise<PointsAccount | null>;
   setStreak(userId: string, day: string, streak: number): Promise<void>;
   day(userId: string, day: string): Promise<PointsDay | null>;
   /** Adds [value] to the day's [set] while it holds fewer than [cap]: the set's size after, or null (there already, or full). */
-  addToDay(userId: string, day: string, set: DaySet, value: string | number, cap: number): Promise<number | null>;
+  addToDay(
+    userId: string,
+    day: string,
+    set: DaySet,
+    value: string | number,
+    cap: number,
+  ): Promise<number | null>;
   /** Which of [ids] are recorded. */
   recorded(ids: readonly string[]): Promise<Set<string>>;
   history(userId: string, limit: number): Promise<PointsEntry[]>;
@@ -84,11 +96,21 @@ export interface PointsStore {
   addInvite(join: InviteJoin): Promise<void>;
   invitesBy(inviterId: string): Promise<InviteJoin[]>;
   /** Settles a pending invite; false when it was settled already. */
-  settleInvite(id: string, state: Exclude<InviteState, "pending">, at: number): Promise<boolean>;
+  settleInvite(
+    id: string,
+    state: Exclude<InviteState, "pending">,
+    at: number,
+  ): Promise<boolean>;
   deleteForUser(userId: string): Promise<void>;
 }
 
-const EMPTY_DAY: PointsDay = { earned: 0, minutes: [], chats: [], reacted: [], replied: [] };
+const EMPTY_DAY: PointsDay = {
+  earned: 0,
+  minutes: [],
+  chats: [],
+  reacted: [],
+  replied: [],
+};
 
 export class MemoryPointsStore implements PointsStore {
   readonly backend = "memory" as const;
@@ -103,21 +125,55 @@ export class MemoryPointsStore implements PointsStore {
   }
 
   async levels(): Promise<Map<string, number>> {
-    return new Map([...this.accounts.values()].filter((a) => a.level > 1).map((a) => [a.userId, a.level]));
+    return new Map(
+      [...this.accounts.values()]
+        .filter((a) => a.level > 1)
+        .map((a) => [a.userId, a.level]),
+    );
+  }
+
+  async achievementAwards(userId?: string): Promise<AchievementAward[]> {
+    return [...this.ledger.values()]
+      .filter(
+        (e) =>
+          (!userId || e.userId === userId) &&
+          e.detail?.startsWith("achievement:") &&
+          e.amount === 0,
+      )
+      .map((e) => ({
+        userId: e.userId,
+        achievementId: e.detail!.slice("achievement:".length),
+        at: e.at,
+      }));
   }
 
   async earn(e: PointsEntry): Promise<boolean> {
     if (this.ledger.has(e.id)) return false;
     this.ledger.set(e.id, { ...e });
-    const a = this.accounts.get(e.userId) ?? { userId: e.userId, balance: 0, earnedTotal: 0, level: 1, streak: 0, lastVisitDay: null };
-    this.accounts.set(e.userId, { ...a, balance: a.balance + e.amount, earnedTotal: a.earnedTotal + e.amount });
+    const a = this.accounts.get(e.userId) ?? {
+      userId: e.userId,
+      balance: 0,
+      earnedTotal: 0,
+      level: 1,
+      streak: 0,
+      lastVisitDay: null,
+    };
+    this.accounts.set(e.userId, {
+      ...a,
+      balance: a.balance + e.amount,
+      earnedTotal: a.earnedTotal + e.amount,
+    });
     const key = `${e.userId}|${e.day}`;
     const d = this.days.get(key) ?? EMPTY_DAY;
     this.days.set(key, { ...d, earned: d.earned + e.amount });
     return true;
   }
 
-  async levelUp(userId: string, cost: number, entry: (level: number) => PointsEntry): Promise<PointsAccount | null> {
+  async levelUp(
+    userId: string,
+    cost: number,
+    entry: (level: number) => PointsEntry,
+  ): Promise<PointsAccount | null> {
     const a = this.accounts.get(userId);
     if (!a || a.balance < cost) return null;
     const next = { ...a, balance: a.balance - cost, level: a.level + 1 };
@@ -137,7 +193,13 @@ export class MemoryPointsStore implements PointsStore {
     return d ? { ...d } : null;
   }
 
-  async addToDay(userId: string, day: string, set: DaySet, value: string | number, cap: number): Promise<number | null> {
+  async addToDay(
+    userId: string,
+    day: string,
+    set: DaySet,
+    value: string | number,
+    cap: number,
+  ): Promise<number | null> {
     const key = `${userId}|${day}`;
     const d = this.days.get(key) ?? EMPTY_DAY;
     const values = d[set] as (string | number)[];
@@ -158,8 +220,15 @@ export class MemoryPointsStore implements PointsStore {
       .map((e) => ({ ...e }));
   }
 
-  async countSince(userId: string, kind: PointsKind, since: number): Promise<number> {
-    return [...this.ledger.values()].filter((e) => e.userId === userId && e.kind === kind && e.at >= since).length;
+  async countSince(
+    userId: string,
+    kind: PointsKind,
+    since: number,
+  ): Promise<number> {
+    return [...this.ledger.values()].filter(
+      (e) =>
+        e.userId === userId && e.kind === kind && e.at >= since && e.amount > 0,
+    ).length;
   }
 
   async addInvite(join: InviteJoin): Promise<void> {
@@ -167,10 +236,16 @@ export class MemoryPointsStore implements PointsStore {
   }
 
   async invitesBy(inviterId: string): Promise<InviteJoin[]> {
-    return [...this.invites.values()].filter((i) => i.inviterId === inviterId).map((i) => ({ ...i }));
+    return [...this.invites.values()]
+      .filter((i) => i.inviterId === inviterId)
+      .map((i) => ({ ...i }));
   }
 
-  async settleInvite(id: string, state: Exclude<InviteState, "pending">, at: number): Promise<boolean> {
+  async settleInvite(
+    id: string,
+    state: Exclude<InviteState, "pending">,
+    at: number,
+  ): Promise<boolean> {
     const i = this.invites.get(id);
     if (!i || i.state !== "pending") return false;
     this.invites.set(id, { ...i, state, settledAt: at });
@@ -179,8 +254,12 @@ export class MemoryPointsStore implements PointsStore {
 
   async deleteForUser(userId: string): Promise<void> {
     this.accounts.delete(userId);
-    for (const [id, e] of this.ledger) if (e.userId === userId) this.ledger.delete(id);
-    for (const key of this.days.keys()) if (key.startsWith(`${userId}|`)) this.days.delete(key);
-    for (const [id, i] of this.invites) if (i.inviterId === userId || i.joinerId === userId) this.invites.delete(id);
+    for (const [id, e] of this.ledger)
+      if (e.userId === userId) this.ledger.delete(id);
+    for (const key of this.days.keys())
+      if (key.startsWith(`${userId}|`)) this.days.delete(key);
+    for (const [id, i] of this.invites)
+      if (i.inviterId === userId || i.joinerId === userId)
+        this.invites.delete(id);
   }
 }

@@ -440,7 +440,8 @@ export class PayPalProvider implements BillingProvider {
       checkoutRef: s.custom_id,
       currentPeriodStart: paidAt,
       currentPeriodEnd: paidUntil,
-      trialEnd: at(s.start_time) !== null && at(s.start_time)! > now ? at(s.start_time) : null,
+      // A future start date is not an approved trial or renewal until the buyer authorizes it.
+      trialEnd: (s.status === "APPROVED" || s.status === "ACTIVE") && at(s.start_time) !== null && at(s.start_time)! > now ? at(s.start_time) : null,
       cancelAtPeriodEnd: canceled,
       canceledAt: canceled ? at(s.status_update_time) : null,
       quantity: 1,

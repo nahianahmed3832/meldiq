@@ -32,6 +32,7 @@ export const OrgBilling = z.strictObject({
       currentPeriodEnd: zTime.nullable(),
       trialEnd: zTime.nullable(),
       cancelAtPeriodEnd: z.boolean(),
+      approvalPending: z.boolean().optional(),
     })
     .nullable(),
   invoices: z.array(
@@ -120,6 +121,7 @@ export const OwnerBilling = z.strictObject({
   reason: z.string().nullable(),
   mode: z.enum(["test", "live"]).nullable(),
   subscription: zSubscriptionView.nullable(),
+  freePeriod: z.object({ source: z.string(), planKey: z.string(), endsAt: zTime }).nullable().optional(),
   invoices: OrgBilling.shape.invoices,
   offers: z.array(zOffer),
   /** Whether the provider's customer portal can be opened (a customer exists and the provider has one). */
