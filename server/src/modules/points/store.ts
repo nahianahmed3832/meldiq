@@ -66,6 +66,8 @@ export interface InviteJoin {
 export interface PointsStore {
   readonly backend: "memory" | "mongodb";
   account(userId: string): Promise<PointsAccount | null>;
+  /** Public ranking totals; never balances or private earning history. */
+  leaderboard(metric: "level" | "embers" | "invites"): Promise<{ userId: string; count: number }[]>;
   /** Everyone above level 1 (loaded at start: profiles show levels synchronously). */
   levels(): Promise<Map<string, number>>;
   achievementAwards(userId?: string): Promise<AchievementAward[]>;
@@ -122,6 +124,13 @@ export class MemoryPointsStore implements PointsStore {
   async account(userId: string): Promise<PointsAccount | null> {
     const a = this.accounts.get(userId);
     return a ? { ...a } : null;
+  }
+
+  async leaderboard(metric: "level" | "embers" | "invites"): Promise<{ userId: string; count: number }[]> {
+    if (metric !== "invites") return [...this.accounts.values()].map(a => ({ userId: a.userId, count: metric === "level" ? a.level : a.earnedTotal }));
+    const totals = new Map<string, number>();
+    for (const i of this.invites.values()) if (i.state === "credited") totals.set(i.inviterId, (totals.get(i.inviterId) ?? 0) + 1);
+    return [...totals].map(([userId, count]) => ({ userId, count }));
   }
 
   async levels(): Promise<Map<string, number>> {

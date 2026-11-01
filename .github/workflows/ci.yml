@@ -8,6 +8,15 @@ on:
     branches: [internal-beta]
   pull_request:
   workflow_dispatch:
+    inputs:
+      server_only:
+        description: Check only the API server
+        type: boolean
+        default: false
+      server_test_files:
+        description: Optional space-separated server test paths (empty runs the full suite)
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -43,15 +52,31 @@ jobs:
       # A throwaway local MongoDB replica set comes up for the run (test/support/mongoGlobal.ts; the mongod binary is
       # fetched by mongodb-memory-server). No shared or production database, no credentials.
       - name: Unit and integration tests
-        run: npm test
-      - name: The same tests with the MongoDB-capable domains in MongoDB (docs/MONGODB.md, docs/product/MELDIQ_MONGODB_MIGRATION.md)
+        env:
+          SERVER_TEST_FILES: ${{ inputs.server_test_files }}
+        run: |
+          if [ -n "$SERVER_TEST_FILES" ]; then
+            read -ra test_files <<< "$SERVER_TEST_FILES"
+            npm test -- --maxWorkers=2 "${test_files[@]}"
+          else
+            npm test
+          fi
+      - if: ${{ !inputs.server_test_files }}
+        name: The same tests with the MongoDB-capable domains in MongoDB (docs/MONGODB.md, docs/product/MELDIQ_MONGODB_MIGRATION.md)
         run: npm test
         env:
           MELDIQ_TEST_MONGO_DOMAINS: accounts,preferences,history,reports,relationships,relay,files
       - name: Build
         run: npm run build
+      - name: Export checked API build
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: meldiq-api-build
+          path: server/dist/
+          retention-days: 7
 
   android:
+    if: ${{ !inputs.server_only }}
     name: Android (unit tests, lint, debug and release builds)
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -116,6 +141,7 @@ jobs:
         env:
           SERVER: ${{ needs.server.result }}
           ANDROID: ${{ needs.android.result }}
+          SERVER_ONLY: ${{ inputs.server_only }}
         run: |
           echo "server: $SERVER, android: $ANDROID"
-          [ "$SERVER" = success ] && [ "$ANDROID" = success ]
+          [ "$SERVER" = success ] && { [ "$ANDROID" = success ] || { [ "$SERVER_ONLY" = true ] && [ "$ANDROID" = skipped ]; }; }

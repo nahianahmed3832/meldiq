@@ -103,6 +103,8 @@ export interface CallStore {
   days(from: number): Promise<CallDay[]>;
   /** Minutes devices spent in calls of these conversations within [from, to) (usage meter); [now] closes open spans. */
   participantMinutes(conversationIds: readonly string[], from: number, to: number, now: number): Promise<number>;
+  /** Recorded room participation; callers supply only channels the viewer may see. */
+  leaderboardSpans(conversationIds: readonly string[], since: number): Promise<CallParticipantRow[]>;
 }
 
 const placeholders = (n: number) => Array.from({ length: n }, () => "?").join(", ");
@@ -284,6 +286,13 @@ export class SqliteCallStore implements CallStore {
            FROM calls WHERE created_at >= ? GROUP BY day ORDER BY day`,
       )
       .all(from) as CallDay[];
+  }
+
+  async leaderboardSpans(conversationIds: readonly string[], since: number): Promise<CallParticipantRow[]> {
+    if (!conversationIds.length) return [];
+    return this.db.prepare(`SELECT p.* FROM call_participants p JOIN calls c ON c.id = p.call_id
+      WHERE c.conversation_id IN (${placeholders(conversationIds.length)}) AND (p.left_at IS NULL OR p.left_at > ?)`
+    ).all(...conversationIds, since) as CallParticipantRow[];
   }
 
   async participantMinutes(conversationIds: readonly string[], from: number, to: number, now: number): Promise<number> {

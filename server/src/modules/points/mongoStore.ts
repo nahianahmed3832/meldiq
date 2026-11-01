@@ -137,6 +137,17 @@ export class MongoPointsStore implements PointsStore {
     return d ? fromAccount(d) : null;
   }
 
+  async leaderboard(metric: "level" | "embers" | "invites"): Promise<{ userId: string; count: number }[]> {
+    if (metric === "invites") {
+      const totals = await this.invites.aggregate<{ _id: string; count: number }>([
+        { $match: { state: "credited" } }, { $group: { _id: "$inviter_id", count: { $sum: 1 } } },
+      ]).toArray();
+      return totals.map(a => ({ userId: a._id, count: a.count }));
+    }
+    const rows = await this.accounts.find({}, { projection: { level: 1, earned_total: 1 } }).toArray();
+    return rows.map(a => ({ userId: a._id, count: metric === "level" ? a.level : a.earned_total }));
+  }
+
   async levels(): Promise<Map<string, number>> {
     const docs = await this.accounts
       .find({ level: { $gt: 1 } }, { projection: { level: 1 } })

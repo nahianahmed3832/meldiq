@@ -1,3 +1,4 @@
+import { leaderboardContracts } from "./leaderboards.js";
 import { messageCollectionRoutes } from "./messageCollections.js";
 import { z } from "zod/v4";
 import { ERROR_CODES, type ErrorCode } from "../../errors.js";
@@ -40,6 +41,7 @@ export const ROUTE_CONTRACTS: readonly RouteContract[] = [
   ...messagingRoutes,
   ...serverMessagesRoutes,
   ...messageCollectionRoutes,
+  ...leaderboardContracts,
   ...gifRoutes,
   ...bugReportRoutes,
   ...historyRoutes,
