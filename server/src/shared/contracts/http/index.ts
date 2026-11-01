@@ -52,6 +52,7 @@ export const ROUTE_CONTRACTS: readonly RouteContract[] = [
   ...fileRoutes,
   ...callRoutes,
   ...accountsRoutes,
+  ...socialAuthRoutes,
   ...identityRoutes,
   ...organizationsRoutes,
   ...communityRoutes,
