@@ -142,7 +142,7 @@ import { now } from "../shared/utilities/util.js";
 import wsRoutes from "../modules/realtime/ws.js";
 import { Billing, billingRoutes } from "../modules/billing/index.js";
 
-export const VERSION = "0.71.0";
+export const VERSION = "0.71.1";
 /**
  * The client API this server speaks and the oldest client API it accepts. Clients refuse a server whose
  * minClientApi is newer than theirs; servers from before these fields existed count as API 1.
@@ -364,7 +364,10 @@ export async function buildApp(
   // (migration 074). Registered after the stores' own onClose hooks, so queued bot work finishes before they close.
   ctx.officialBots = new OfficialBots(ctx, config.communityBots);
   // Part 2: giveaways ending, Wordy recaps and Alerts' checks run on timers (stopped before the queue drains).
-  ctx.officialBots.scheduler.start();
+  // Paid bot features need the completed billing context before the first scheduled tick.
+  app.addHook("onReady", async () => {
+    ctx.officialBots.scheduler.start();
+  });
   app.addHook("onClose", async () => {
     await ctx.officialBots.scheduler.stop();
     await ctx.officialBots.settled();
