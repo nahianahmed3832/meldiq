@@ -22,7 +22,7 @@ export const MAX_CONTENT = 4000;
 
 const zCommandName = z.string().regex(COMMAND_NAME, "1–32 characters: a–z, 0–9 and -");
 const zDescription = z.string().trim().min(1).max(100);
-const unique = <T>(key: (t: T) => string) => (l: T[]) => new Set(l.map(key)).size === l.length;
+const uniqueNames = (items: readonly { name: string }[]) => new Set(items.map(item => item.name)).size === items.length;
 
 export const CommandOption = z.strictObject({
   name: zCommandName,
@@ -37,14 +37,14 @@ export const BotCommand = z.strictObject({
     .array(CommandOption)
     .max(OPTION_LIMIT)
     .default([])
-    .refine(unique((o) => o.name), "Each option name once"),
+    .refine(uniqueNames, "Each option name once"),
 });
 export type BotCommand = z.output<typeof BotCommand>;
 export const CommandsBody = z.strictObject({
   commands: z
     .array(BotCommand)
     .max(COMMAND_LIMIT)
-    .refine(unique((c) => c.name), "Each command name once"),
+    .refine(uniqueNames, "Each command name once"),
 });
 export const CommandsResult = z.strictObject({ commands: z.array(BotCommand) });
 
