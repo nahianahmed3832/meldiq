@@ -12,8 +12,8 @@
     "chatPointsToday": 0,
     "chatDailyCap": 25,
     "earning": false,
-    "day": "2026-10-29",
-    "resetsAt": 1793318400000,
+    "day": "2026-11-01",
+    "resetsAt": 1793577600000,
     "quests": [
       {
         "id": "daily-chats",
@@ -78,6 +78,94 @@
         "progress": 0,
         "goal": 1,
         "state": "open"
+      },
+      {
+        "id": "daily-active",
+        "kind": "daily",
+        "reward": 10,
+        "progress": 0,
+        "goal": 10,
+        "state": "open"
+      },
+      {
+        "id": "daily-appreciation",
+        "kind": "daily",
+        "reward": 10,
+        "progress": 0,
+        "goal": 5,
+        "state": "open"
+      },
+      {
+        "id": "daily-thoughtful",
+        "kind": "daily",
+        "reward": 10,
+        "progress": 0,
+        "goal": 3,
+        "state": "open"
+      },
+      {
+        "id": "daily-conversations",
+        "kind": "daily",
+        "reward": 15,
+        "progress": 0,
+        "goal": 5,
+        "state": "open"
+      },
+      {
+        "id": "avatar",
+        "kind": "once",
+        "reward": 10,
+        "progress": 0,
+        "goal": 1,
+        "state": "open"
+      },
+      {
+        "id": "bio",
+        "kind": "once",
+        "reward": 10,
+        "progress": 0,
+        "goal": 1,
+        "state": "open"
+      },
+      {
+        "id": "banner",
+        "kind": "once",
+        "reward": 15,
+        "progress": 0,
+        "goal": 1,
+        "state": "open"
+      },
+      {
+        "id": "pronouns",
+        "kind": "once",
+        "reward": 10,
+        "progress": 0,
+        "goal": 1,
+        "state": "open"
+      },
+      {
+        "id": "first-community",
+        "kind": "once",
+        "reward": 15,
+        "progress": 0,
+        "goal": 1,
+        "state": "open"
+      },
+      {
+        "id": "community-explorer",
+        "kind": "once",
+        "reward": 40,
+        "progress": 0,
+        "goal": 5,
+        "state": "open"
+      },
+      {
+        "id": "close-circle",
+        "kind": "once",
+        "reward": 35,
+        "progress": 0,
+        "goal": 3,
+        "state": "open"
       }
     ],
     "invites": {
@@ -86,6 +174,294 @@
       "creditedThisMonth": 0,
       "monthlyLimit": 10
     },
-    "history": []
+    "history": [],
+    "achievements": [
+      {
+        "id": "first-ember",
+        "name": "First Ember",
+        "description": "Check in on your first eligible day.",
+        "category": "visits",
+        "tier": "bronze",
+        "icon": "flame",
+        "goal": 1,
+        "progress": 0,
+        "earnedAt": null
+      },
+      {
+        "id": "regular",
+        "name": "Regular",
+        "description": "Visit Meldiq on 30 different days.",
+        "category": "visits",
+        "tier": "silver",
+        "icon": "calendar",
+        "goal": 30,
+        "progress": 0,
+        "earnedAt": null
+      },
+      {
+        "id": "familiar-face",
+        "name": "Familiar Face",
+        "description": "Visit Meldiq on 100 different days.",
+        "category": "visits",
+        "tier": "gold",
+        "icon": "calendar",
+        "goal": 100,
+        "progress": 0,
+        "earnedAt": null
+      },
+      {
+        "id": "kindling",
+        "name": "Kindling",
+        "description": "Keep a three-day visit streak.",
+        "category": "streak",
+        "tier": "bronze",
+        "icon": "flame",
+        "goal": 3,
+        "progress": 0,
+        "earnedAt": null
+      },
+      {
+        "id": "steady-flame",
+        "name": "Steady Flame",
+        "description": "Keep a seven-day visit streak.",
+        "category": "streak",
+        "tier": "silver",
+        "icon": "flame",
+        "goal": 7,
+        "progress": 0,
+        "earnedAt": null
+      },
+      {
+        "id": "bright-flame",
+        "name": "Bright Flame",
+        "description": "Keep a fourteen-day visit streak.",
+        "category": "streak",
+        "tier": "gold",
+        "icon": "flame",
+        "goal": 14,
+        "progress": 0,
+        "earnedAt": null
+      },
+      {
+        "id": "everglow",
+        "name": "Everglow",
+        "description": "Keep a thirty-day visit streak.",
+        "category": "streak",
+        "tier": "mythic",
+        "icon": "flame",
+        "goal": 30,
+        "progress": 0,
+        "earnedAt": null
+      },
+      {
+        "id": "ember-keeper",
+        "name": "Ember Keeper",
+        "description": "Earn 100 Embers in total.",
+        "category": "earned",
+        "tier": "bronze",
+        "icon": "gem",
+        "goal": 100,
+        "progress": 0,
+        "earnedAt": null
+      },
+      {
+        "id": "ember-collector",
+        "name": "Ember Collector",
+        "description": "Earn 1,000 Embers in total.",
+        "category": "earned",
+        "tier": "silver",
+        "icon": "gem",
+        "goal": 1000,
+        "progress": 0,
+        "earnedAt": null
+      },
+      {
+        "id": "ember-vault",
+        "name": "Ember Vault",
+        "description": "Earn 10,000 Embers in total.",
+        "category": "earned",
+        "tier": "mythic",
+        "icon": "gem",
+        "goal": 10000,
+        "progress": 0,
+        "earnedAt": null
+      },
+      {
+        "id": "rising-light",
+        "name": "Rising Light",
+        "description": "Reach account level 5.",
+        "category": "level",
+        "tier": "bronze",
+        "icon": "star",
+        "goal": 5,
+        "progress": 1,
+        "earnedAt": null
+      },
+      {
+        "id": "trailblazer",
+        "name": "Trailblazer",
+        "description": "Reach account level 10.",
+        "category": "level",
+        "tier": "silver",
+        "icon": "star",
+        "goal": 10,
+        "progress": 1,
+        "earnedAt": null
+      },
+      {
+        "id": "luminary",
+        "name": "Luminary",
+        "description": "Reach account level 25.",
+        "category": "level",
+        "tier": "gold",
+        "icon": "crown",
+        "goal": 25,
+        "progress": 1,
+        "earnedAt": null
+      },
+      {
+        "id": "constellation",
+        "name": "Constellation",
+        "description": "Reach account level 50.",
+        "category": "level",
+        "tier": "mythic",
+        "icon": "crown",
+        "goal": 50,
+        "progress": 1,
+        "earnedAt": null
+      },
+      {
+        "id": "quest-apprentice",
+        "name": "Quest Apprentice",
+        "description": "Complete 5 quests.",
+        "category": "quests",
+        "tier": "bronze",
+        "icon": "compass",
+        "goal": 5,
+        "progress": 0,
+        "earnedAt": null
+      },
+      {
+        "id": "quest-seeker",
+        "name": "Quest Seeker",
+        "description": "Complete 25 quests.",
+        "category": "quests",
+        "tier": "silver",
+        "icon": "compass",
+        "goal": 25,
+        "progress": 0,
+        "earnedAt": null
+      },
+      {
+        "id": "quest-master",
+        "name": "Quest Master",
+        "description": "Complete 100 quests.",
+        "category": "quests",
+        "tier": "gold",
+        "icon": "trophy",
+        "goal": 100,
+        "progress": 0,
+        "earnedAt": null
+      },
+      {
+        "id": "welcome-guide",
+        "name": "Welcome Guide",
+        "description": "Invite someone who stays in a community for seven days.",
+        "category": "invites",
+        "tier": "bronze",
+        "icon": "heart",
+        "goal": 1,
+        "progress": 0,
+        "earnedAt": null
+      },
+      {
+        "id": "community-magnet",
+        "name": "Community Magnet",
+        "description": "Bring five people who stay for seven days.",
+        "category": "invites",
+        "tier": "silver",
+        "icon": "heart",
+        "goal": 5,
+        "progress": 0,
+        "earnedAt": null
+      },
+      {
+        "id": "bridge-builder",
+        "name": "Bridge Builder",
+        "description": "Bring ten people who stay for seven days.",
+        "category": "invites",
+        "tier": "gold",
+        "icon": "heart",
+        "goal": 10,
+        "progress": 0,
+        "earnedAt": null
+      },
+      {
+        "id": "first-campfire",
+        "name": "First Campfire",
+        "description": "Join your first community.",
+        "category": "communities",
+        "tier": "bronze",
+        "icon": "tent",
+        "goal": 1,
+        "progress": 0,
+        "earnedAt": null
+      },
+      {
+        "id": "wayfinder",
+        "name": "Wayfinder",
+        "description": "Be part of three communities.",
+        "category": "communities",
+        "tier": "silver",
+        "icon": "tent",
+        "goal": 3,
+        "progress": 0,
+        "earnedAt": null
+      },
+      {
+        "id": "world-walker",
+        "name": "World Walker",
+        "description": "Be part of ten communities.",
+        "category": "communities",
+        "tier": "gold",
+        "icon": "globe",
+        "goal": 10,
+        "progress": 0,
+        "earnedAt": null
+      },
+      {
+        "id": "first-conversation",
+        "name": "First Conversation",
+        "description": "Complete your first five-minute active chat block.",
+        "category": "chatBlocks",
+        "tier": "bronze",
+        "icon": "message",
+        "goal": 1,
+        "progress": 0,
+        "earnedAt": null
+      },
+      {
+        "id": "conversation-weaver",
+        "name": "Conversation Weaver",
+        "description": "Complete twenty active chat blocks.",
+        "category": "chatBlocks",
+        "tier": "silver",
+        "icon": "message",
+        "goal": 20,
+        "progress": 0,
+        "earnedAt": null
+      },
+      {
+        "id": "campfire-storyteller",
+        "name": "Campfire Storyteller",
+        "description": "Complete one hundred active chat blocks.",
+        "category": "chatBlocks",
+        "tier": "gold",
+        "icon": "message",
+        "goal": 100,
+        "progress": 0,
+        "earnedAt": null
+      }
+    ]
   }
 }

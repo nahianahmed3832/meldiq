@@ -8,8 +8,27 @@ import { route } from "./route.js";
  * every amount; points can't be bought, sold or sent. "Points" is the code's name; the apps choose what to call them.
  */
 
-export const PointsKind = z.enum(["visit", "streak", "chat", "invite", "quest", "level"]);
+export const PointsKind = z.enum([
+  "visit",
+  "streak",
+  "chat",
+  "invite",
+  "quest",
+  "level",
+]);
 export const QuestKind = z.enum(["daily", "once"]);
+
+export const AchievementView = z.strictObject({
+  id: z.string(),
+  name: z.string(),
+  description: z.string(),
+  category: z.string(),
+  tier: z.enum(["bronze", "silver", "gold", "mythic"]),
+  icon: z.string(),
+  goal: z.number().int().positive(),
+  progress: zCount,
+  earnedAt: zTime.nullable(),
+});
 
 export const QuestView = z.strictObject({
   id: z.string(),
@@ -62,6 +81,7 @@ export const PointsView = z.strictObject({
   invites: InviteStats,
   /** The last 50 changes, newest first. */
   history: z.array(PointsHistoryRow),
+  achievements: z.array(AchievementView),
 });
 export type PointsView = z.infer<typeof PointsView>;
 
@@ -71,16 +91,28 @@ export const CheckinResult = z.strictObject({
   points: PointsView,
 });
 
-export const LevelUpResult = z.strictObject({ level: z.number().int().min(2), balance: zCount, nextLevelCost: z.number().int().positive() });
+export const LevelUpResult = z.strictObject({
+  level: z.number().int().min(2),
+  balance: zCount,
+  nextLevelCost: z.number().int().positive(),
+});
 
-const points = (c: Omit<Parameters<typeof route>[0], "tag" | "auth">) => route({ tag: "points", auth: true, ...c });
+const points = (c: Omit<Parameters<typeof route>[0], "tag" | "auth">) =>
+  route({ tag: "points", auth: true, ...c });
 
 export const pointsRoutes = [
-  points({ method: "GET", url: "/v2/points", summary: "Your points: balance, today's earnings, level, streak, quests, invites and the last 50 changes.", response: PointsView }),
+  points({
+    method: "GET",
+    url: "/v2/points",
+    summary:
+      "Your points: balance, today's earnings, level, streak, quests, invites and the last 50 changes.",
+    response: PointsView,
+  }),
   points({
     method: "POST",
     url: "/v2/points/checkin",
-    summary: "Count today's visit (the apps call it when they open): 5 points once a UTC day, and 30 more every 7 days in a row.",
+    summary:
+      "Count today's visit (the apps call it when they open): 5 points once a UTC day, and 30 more every 7 days in a row.",
     response: CheckinResult,
   }),
   points({

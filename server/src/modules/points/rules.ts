@@ -23,7 +23,26 @@ export const POINTS = {
   historyRows: 50,
 } as const;
 
-export type QuestId = "daily-chats" | "daily-reactions" | "daily-reply" | "profile" | "friend" | "communities" | "decoration" | "two-step";
+export type QuestId =
+  | "daily-chats"
+  | "daily-reactions"
+  | "daily-reply"
+  | "profile"
+  | "friend"
+  | "communities"
+  | "decoration"
+  | "two-step"
+  | "daily-active"
+  | "daily-appreciation"
+  | "daily-thoughtful"
+  | "daily-conversations"
+  | "avatar"
+  | "bio"
+  | "banner"
+  | "pronouns"
+  | "first-community"
+  | "community-explorer"
+  | "close-circle";
 
 export interface QuestSpec {
   id: QuestId;
@@ -45,16 +64,31 @@ export const QUESTS: readonly QuestSpec[] = [
   { id: "communities", kind: "once", reward: 25, goal: 3 },
   { id: "decoration", kind: "once", reward: 15, goal: 1 },
   { id: "two-step", kind: "once", reward: 50, goal: 1 },
+  { id: "daily-active", kind: "daily", reward: 10, goal: 10 },
+  { id: "daily-appreciation", kind: "daily", reward: 10, goal: 5 },
+  { id: "daily-thoughtful", kind: "daily", reward: 10, goal: 3 },
+  { id: "daily-conversations", kind: "daily", reward: 15, goal: 5 },
+  { id: "avatar", kind: "once", reward: 10, goal: 1 },
+  { id: "bio", kind: "once", reward: 10, goal: 1 },
+  { id: "banner", kind: "once", reward: 15, goal: 1 },
+  { id: "pronouns", kind: "once", reward: 10, goal: 1 },
+  { id: "first-community", kind: "once", reward: 15, goal: 1 },
+  { id: "community-explorer", kind: "once", reward: 40, goal: 5 },
+  { id: "close-circle", kind: "once", reward: 35, goal: 3 },
 ];
 
-export const questSpec = (id: QuestId): QuestSpec => QUESTS.find((q) => q.id === id)!;
+export const questSpec = (id: QuestId): QuestSpec =>
+  QUESTS.find((q) => q.id === id)!;
 
 const DAY_MS = 86_400_000;
 /** The UTC day of [ms], "YYYY-MM-DD". */
-export const utcDay = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
-export const previousDay = (day: string): string => utcDay(Date.parse(`${day}T00:00:00Z`) - DAY_MS);
+export const utcDay = (ms: number): string =>
+  new Date(ms).toISOString().slice(0, 10);
+export const previousDay = (day: string): string =>
+  utcDay(Date.parse(`${day}T00:00:00Z`) - DAY_MS);
 /** The next 00:00 UTC after [ms]. */
-export const nextDayStart = (ms: number): number => Date.parse(`${utcDay(ms)}T00:00:00Z`) + DAY_MS;
+export const nextDayStart = (ms: number): number =>
+  Date.parse(`${utcDay(ms)}T00:00:00Z`) + DAY_MS;
 /** The first moment of [ms]'s UTC month. */
 export function monthStart(ms: number): number {
   const d = new Date(ms);
@@ -62,7 +96,8 @@ export function monthStart(ms: number): number {
 }
 
 /** [base] with the plan's multiplier, rounded to whole points. */
-export const scaled = (base: number, multiplier: number): number => Math.round(base * multiplier);
+export const scaled = (base: number, multiplier: number): number =>
+  Math.round(base * multiplier);
 
 /**
  * Ledger ids: each earning has one, so recording it twice (a retry, two devices, two requests at once) counts once.
@@ -71,8 +106,12 @@ export const scaled = (base: number, multiplier: number): number => Math.round(b
 export const entryId = {
   visit: (userId: string, day: string) => `visit:${userId}:${day}`,
   streak: (userId: string, day: string) => `streak:${userId}:${day}`,
-  chat: (userId: string, day: string, block: number) => `chat:${userId}:${day}:${block}`,
-  quest: (userId: string, q: QuestSpec, day: string) => (q.kind === "daily" ? `quest:${q.id}:${userId}:${day}` : `quest:${q.id}:${userId}`),
+  chat: (userId: string, day: string, block: number) =>
+    `chat:${userId}:${day}:${block}`,
+  quest: (userId: string, q: QuestSpec, day: string) =>
+    q.kind === "daily"
+      ? `quest:${q.id}:${userId}:${day}`
+      : `quest:${q.id}:${userId}`,
   invite: (inviteId: string) => `invite:${inviteId}`,
   level: (userId: string, level: number) => `level:${userId}:${level}`,
 };

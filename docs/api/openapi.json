@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Meldiq API",
-    "version": "0.71.2",
+    "version": "0.71.4",
     "description": "The canonical contract of the Meldiq server (docs/architecture/ARCHITECTURE_1_0_PLAN.md §4), generated from src/shared/contracts. Fields are only ever added within a version; clients ignore unknown fields. Routes not listed here exist but aren't documented yet."
   },
   "servers": [
@@ -22647,6 +22647,72 @@
                         ],
                         "additionalProperties": false
                       }
+                    },
+                    "achievements": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "category": {
+                            "type": "string"
+                          },
+                          "tier": {
+                            "type": "string",
+                            "enum": [
+                              "bronze",
+                              "silver",
+                              "gold",
+                              "mythic"
+                            ]
+                          },
+                          "icon": {
+                            "type": "string"
+                          },
+                          "goal": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "progress": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "earnedAt": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "description",
+                          "category",
+                          "tier",
+                          "icon",
+                          "goal",
+                          "progress",
+                          "earnedAt"
+                        ],
+                        "additionalProperties": false
+                      }
                     }
                   },
                   "required": [
@@ -22665,7 +22731,8 @@
                     "resetsAt",
                     "quests",
                     "invites",
-                    "history"
+                    "history",
+                    "achievements"
                   ],
                   "additionalProperties": false
                 }
@@ -22891,6 +22958,72 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        "achievements": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "description": {
+                                "type": "string"
+                              },
+                              "category": {
+                                "type": "string"
+                              },
+                              "tier": {
+                                "type": "string",
+                                "enum": [
+                                  "bronze",
+                                  "silver",
+                                  "gold",
+                                  "mythic"
+                                ]
+                              },
+                              "icon": {
+                                "type": "string"
+                              },
+                              "goal": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "progress": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "earnedAt": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name",
+                              "description",
+                              "category",
+                              "tier",
+                              "icon",
+                              "goal",
+                              "progress",
+                              "earnedAt"
+                            ],
+                            "additionalProperties": false
+                          }
                         }
                       },
                       "required": [
@@ -22909,7 +23042,8 @@
                         "resetsAt",
                         "quests",
                         "invites",
-                        "history"
+                        "history",
+                        "achievements"
                       ],
                       "additionalProperties": false
                     }

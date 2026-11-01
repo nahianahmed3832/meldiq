@@ -1,6 +1,19 @@
 import type { Collection } from "mongodb";
-import { isDuplicateKey, type MeldiqMongo } from "../../infrastructure/database/mongo/client.js";
-import type { DaySet, InviteJoin, InviteState, PointsAccount, PointsDay, PointsEntry, PointsKind, PointsStore } from "./store.js";
+import type { AchievementAward } from "./achievements.js";
+import {
+  isDuplicateKey,
+  type MeldiqMongo,
+} from "../../infrastructure/database/mongo/client.js";
+import type {
+  DaySet,
+  InviteJoin,
+  InviteState,
+  PointsAccount,
+  PointsDay,
+  PointsEntry,
+  PointsKind,
+  PointsStore,
+} from "./store.js";
 
 /** points_accounts: one document per person who ever earned, keyed by user id. */
 interface AccountDoc {
@@ -47,10 +60,41 @@ interface InviteDoc {
   settled_at: number | null;
 }
 
-const fromAccount = (d: AccountDoc): PointsAccount => ({ userId: d._id, balance: d.balance, earnedTotal: d.earned_total, level: d.level, streak: d.streak, lastVisitDay: d.last_visit_day });
-const fromEntry = (d: EntryDoc): PointsEntry => ({ id: d._id, userId: d.user_id, kind: d.kind, amount: d.amount, detail: d.detail, day: d.day, at: d.at });
-const toEntry = (e: PointsEntry): EntryDoc => ({ _id: e.id, user_id: e.userId, kind: e.kind, amount: e.amount, detail: e.detail, day: e.day, at: e.at });
-const fromInvite = (d: InviteDoc): InviteJoin => ({ id: d._id, inviterId: d.inviter_id, joinerId: d.joiner_id, orgId: d.org_id, joinedAt: d.joined_at, state: d.state, settledAt: d.settled_at });
+const fromAccount = (d: AccountDoc): PointsAccount => ({
+  userId: d._id,
+  balance: d.balance,
+  earnedTotal: d.earned_total,
+  level: d.level,
+  streak: d.streak,
+  lastVisitDay: d.last_visit_day,
+});
+const fromEntry = (d: EntryDoc): PointsEntry => ({
+  id: d._id,
+  userId: d.user_id,
+  kind: d.kind,
+  amount: d.amount,
+  detail: d.detail,
+  day: d.day,
+  at: d.at,
+});
+const toEntry = (e: PointsEntry): EntryDoc => ({
+  _id: e.id,
+  user_id: e.userId,
+  kind: e.kind,
+  amount: e.amount,
+  detail: e.detail,
+  day: e.day,
+  at: e.at,
+});
+const fromInvite = (d: InviteDoc): InviteJoin => ({
+  id: d._id,
+  inviterId: d.inviter_id,
+  joinerId: d.joiner_id,
+  orgId: d.org_id,
+  joinedAt: d.joined_at,
+  state: d.state,
+  settledAt: d.settled_at,
+});
 const dayKey = (userId: string, day: string) => `${userId}|${day}`;
 
 /**
@@ -75,10 +119,16 @@ export class MongoPointsStore implements PointsStore {
   /** The indexes history, the monthly invite count, levels and invites use (idempotent). */
   async ensureIndexes(): Promise<void> {
     await this.ledger.createIndex({ user_id: 1, at: -1 }, { name: "user_at" });
-    await this.ledger.createIndex({ user_id: 1, kind: 1, at: -1 }, { name: "user_kind_at" });
+    await this.ledger.createIndex(
+      { user_id: 1, kind: 1, at: -1 },
+      { name: "user_kind_at" },
+    );
     await this.accounts.createIndex({ level: 1 }, { name: "level" });
     await this.days.createIndex({ user_id: 1 }, { name: "user_id" });
-    await this.invites.createIndex({ inviter_id: 1, state: 1 }, { name: "inviter_state" });
+    await this.invites.createIndex(
+      { inviter_id: 1, state: 1 },
+      { name: "inviter_state" },
+    );
     await this.invites.createIndex({ joiner_id: 1 }, { name: "joiner_id" });
   }
 
@@ -88,8 +138,26 @@ export class MongoPointsStore implements PointsStore {
   }
 
   async levels(): Promise<Map<string, number>> {
-    const docs = await this.accounts.find({ level: { $gt: 1 } }, { projection: { level: 1 } }).toArray();
+    const docs = await this.accounts
+      .find({ level: { $gt: 1 } }, { projection: { level: 1 } })
+      .toArray();
     return new Map(docs.map((d) => [d._id, d.level]));
+  }
+
+  async achievementAwards(userId?: string): Promise<AchievementAward[]> {
+    const rows = await this.ledger
+      .find({
+        ...(userId ? { user_id: userId } : {}),
+        kind: "quest",
+        amount: 0,
+        detail: { $regex: "^achievement:" },
+      })
+      .toArray();
+    return rows.map((d) => ({
+      userId: d.user_id,
+      achievementId: d.detail!.slice("achievement:".length),
+      at: d.at,
+    }));
   }
 
   async earn(e: PointsEntry): Promise<boolean> {
@@ -101,34 +169,74 @@ export class MongoPointsStore implements PointsStore {
     }
     await this.accounts.updateOne(
       { _id: e.userId },
-      { $inc: { balance: e.amount, earned_total: e.amount }, $set: { updated_at: e.at }, $setOnInsert: { level: 1, streak: 0, last_visit_day: null } },
+      {
+        $inc: { balance: e.amount, earned_total: e.amount },
+        $set: { updated_at: e.at },
+        $setOnInsert: { level: 1, streak: 0, last_visit_day: null },
+      },
       { upsert: true },
     );
-    await this.days.updateOne({ _id: dayKey(e.userId, e.day) }, { $inc: { earned: e.amount }, $setOnInsert: { user_id: e.userId, day: e.day } }, { upsert: true });
+    await this.days.updateOne(
+      { _id: dayKey(e.userId, e.day) },
+      {
+        $inc: { earned: e.amount },
+        $setOnInsert: { user_id: e.userId, day: e.day },
+      },
+      { upsert: true },
+    );
     return true;
   }
 
-  async levelUp(userId: string, cost: number, entry: (level: number) => PointsEntry): Promise<PointsAccount | null> {
-    const d = await this.accounts.findOneAndUpdate({ _id: userId, balance: { $gte: cost } }, { $inc: { balance: -cost, level: 1 }, $set: { updated_at: Date.now() } }, { returnDocument: "after" });
+  async levelUp(
+    userId: string,
+    cost: number,
+    entry: (level: number) => PointsEntry,
+  ): Promise<PointsAccount | null> {
+    const d = await this.accounts.findOneAndUpdate(
+      { _id: userId, balance: { $gte: cost } },
+      { $inc: { balance: -cost, level: 1 }, $set: { updated_at: Date.now() } },
+      { returnDocument: "after" },
+    );
     if (!d) return null;
     await this.ledger.insertOne(toEntry(entry(d.level)));
     return fromAccount(d);
   }
 
   async setStreak(userId: string, day: string, streak: number): Promise<void> {
-    await this.accounts.updateOne({ _id: userId }, { $set: { streak, last_visit_day: day } });
+    await this.accounts.updateOne(
+      { _id: userId },
+      { $set: { streak, last_visit_day: day } },
+    );
   }
 
   async day(userId: string, day: string): Promise<PointsDay | null> {
     const d = await this.days.findOne({ _id: dayKey(userId, day) });
-    return d ? { earned: d.earned ?? 0, minutes: d.minutes ?? [], chats: d.chats ?? [], reacted: d.reacted ?? [], replied: d.replied ?? [] } : null;
+    return d
+      ? {
+          earned: d.earned ?? 0,
+          minutes: d.minutes ?? [],
+          chats: d.chats ?? [],
+          reacted: d.reacted ?? [],
+          replied: d.replied ?? [],
+        }
+      : null;
   }
 
-  async addToDay(userId: string, day: string, set: DaySet, value: string | number, cap: number): Promise<number | null> {
+  async addToDay(
+    userId: string,
+    day: string,
+    set: DaySet,
+    value: string | number,
+    cap: number,
+  ): Promise<number | null> {
     try {
       // Matches only while [value] is missing and the set is below [cap]; otherwise the upsert's insert collides on _id.
       const d = await this.days.findOneAndUpdate(
-        { _id: dayKey(userId, day), [set]: { $ne: value }, [`${set}.${cap - 1}`]: { $exists: false } },
+        {
+          _id: dayKey(userId, day),
+          [set]: { $ne: value },
+          [`${set}.${cap - 1}`]: { $exists: false },
+        },
         { $addToSet: { [set]: value }, $setOnInsert: { user_id: userId, day } },
         { upsert: true, returnDocument: "after" },
       );
@@ -141,32 +249,67 @@ export class MongoPointsStore implements PointsStore {
 
   async recorded(ids: readonly string[]): Promise<Set<string>> {
     if (!ids.length) return new Set();
-    const docs = await this.ledger.find({ _id: { $in: [...ids] } }, { projection: { _id: 1 } }).toArray();
+    const docs = await this.ledger
+      .find({ _id: { $in: [...ids] } }, { projection: { _id: 1 } })
+      .toArray();
     return new Set(docs.map((d) => d._id));
   }
 
   async history(userId: string, limit: number): Promise<PointsEntry[]> {
-    return (await this.ledger.find({ user_id: userId }).sort({ at: -1 }).limit(limit).toArray()).map(fromEntry);
+    return (
+      await this.ledger
+        .find({ user_id: userId })
+        .sort({ at: -1 })
+        .limit(limit)
+        .toArray()
+    ).map(fromEntry);
   }
 
-  async countSince(userId: string, kind: PointsKind, since: number): Promise<number> {
-    return this.ledger.countDocuments({ user_id: userId, kind, at: { $gte: since } });
+  async countSince(
+    userId: string,
+    kind: PointsKind,
+    since: number,
+  ): Promise<number> {
+    return this.ledger.countDocuments({
+      user_id: userId,
+      kind,
+      at: { $gte: since },
+      amount: { $gt: 0 },
+    });
   }
 
   async addInvite(j: InviteJoin): Promise<void> {
     await this.invites.updateOne(
       { _id: j.id },
-      { $setOnInsert: { inviter_id: j.inviterId, joiner_id: j.joinerId, org_id: j.orgId, joined_at: j.joinedAt, state: j.state, settled_at: j.settledAt } },
+      {
+        $setOnInsert: {
+          inviter_id: j.inviterId,
+          joiner_id: j.joinerId,
+          org_id: j.orgId,
+          joined_at: j.joinedAt,
+          state: j.state,
+          settled_at: j.settledAt,
+        },
+      },
       { upsert: true },
     );
   }
 
   async invitesBy(inviterId: string): Promise<InviteJoin[]> {
-    return (await this.invites.find({ inviter_id: inviterId }).toArray()).map(fromInvite);
+    return (await this.invites.find({ inviter_id: inviterId }).toArray()).map(
+      fromInvite,
+    );
   }
 
-  async settleInvite(id: string, state: Exclude<InviteState, "pending">, at: number): Promise<boolean> {
-    const r = await this.invites.updateOne({ _id: id, state: "pending" }, { $set: { state, settled_at: at } });
+  async settleInvite(
+    id: string,
+    state: Exclude<InviteState, "pending">,
+    at: number,
+  ): Promise<boolean> {
+    const r = await this.invites.updateOne(
+      { _id: id, state: "pending" },
+      { $set: { state, settled_at: at } },
+    );
     return r.modifiedCount === 1;
   }
 
@@ -174,6 +317,8 @@ export class MongoPointsStore implements PointsStore {
     await this.accounts.deleteOne({ _id: userId });
     await this.ledger.deleteMany({ user_id: userId });
     await this.days.deleteMany({ user_id: userId });
-    await this.invites.deleteMany({ $or: [{ inviter_id: userId }, { joiner_id: userId }] });
+    await this.invites.deleteMany({
+      $or: [{ inviter_id: userId }, { joiner_id: userId }],
+    });
   }
 }
