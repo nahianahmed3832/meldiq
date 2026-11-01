@@ -56,11 +56,8 @@ async function dump() {
       createdAt: new Date().toISOString(),
       collections: definitions,
     });
-    session = client.startSession();
-    session.startTransaction({
-      readConcern: { level: "snapshot" },
-      writeConcern: { w: "majority" },
-    });
+    // Snapshot sessions pin atClusterTime across collections without a transaction lifetime ceiling.
+    session = client.startSession({ snapshot: true, causalConsistency: false });
     const totals = [];
     for (const { name } of definitions) {
       let count = 0,
@@ -71,7 +68,7 @@ async function dump() {
           {},
           {
             session,
-            batchSize: 500,
+            batchSize: 5000,
             promoteLongs: false,
             promoteValues: false,
           },
@@ -86,7 +83,6 @@ async function dump() {
       }
       totals.push({ collection: name, count, checksum: hex(sum) });
     }
-    await session.commitTransaction();
     await write({ type: "complete", totals });
     const ended = once(gzip, "end");
     gzip.end();
