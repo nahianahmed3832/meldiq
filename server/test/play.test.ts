@@ -155,6 +155,11 @@ describe("Meldiq Mojo on Google Play", () => {
   describe("subscriptions", () => {
     let plusToken = "";
 
+    it("retires new Go subscription and gift intents while leaving purchase verification available", async () => {
+      await expectStatus(buyer.req("POST", "/v2/mojo/play/intent", { kind: "plan", productId: "mojo_go" }), 404);
+      await expectStatus(gifter.req("POST", "/v2/mojo/play/intent", { kind: "gift", productId: "gift_go_1m", giftTo: friend.userId }), 404);
+    });
+
     it("grants Mojo Plus only once Google says it's paid, and then acknowledges it", async () => {
       plusToken = await buySubscription(buyer, "mojo_plus");
       expect((await planOf(buyer)).plan).toBeNull();
@@ -186,29 +191,29 @@ describe("Meldiq Mojo on Google Play", () => {
         subscriptionState: "SUBSCRIPTION_STATE_ACTIVE",
         acknowledgementState: "ACKNOWLEDGEMENT_STATE_PENDING",
         externalAccountIdentifiers: { obfuscatedExternalAccountId: accountToken(SECRET, other.accountId), obfuscatedExternalProfileId: "chk_made_up" },
-        lineItems: [{ productId: "mojo_go", expiryTime: iso(Date.now() + 30 * DAY_MS) }],
+        lineItems: [{ productId: "mojo_plus", expiryTime: iso(Date.now() + 30 * DAY_MS) }],
       });
-      expect(await verify(other, "mojo_go", token)).toBe("invalid");
+      expect(await verify(other, "mojo_plus", token)).toBe("invalid");
       expect(google.acked).not.toContain(token);
-      expect(await verify(other, "mojo_go", "a-token-google-never-issued")).toBe("invalid");
+      expect(await verify(other, "mojo_plus", "a-token-google-never-issued")).toBe("invalid");
     });
 
     it("refuses another account's purchase, even with a real intent", async () => {
-      const token = await buySubscription(other, "mojo_go");
-      expect(await verify(buyer, "mojo_go", token)).toBe("already_linked");
+      const token = await buySubscription(other, "mojo_plus");
+      expect(await verify(buyer, "mojo_plus", token)).toBe("already_linked");
     });
 
     it("asks before a second Play subscription: a change must name the one it replaces", async () => {
-      await expectStatus(buyer.req("POST", "/v2/mojo/play/intent", { kind: "plan", productId: "mojo_go" }), 409);
-      await expectStatus(buyer.req("POST", "/v2/mojo/play/intent", { kind: "plan", productId: "mojo_go", replacing: "mojo_go" }), 409);
-      await expectStatus(buyer.req("POST", "/v2/mojo/play/intent", { kind: "gift", productId: "mojo_go" }), 400);
+      await expectStatus(buyer.req("POST", "/v2/mojo/play/intent", { kind: "plan", productId: "mojo_plus" }), 409);
+      await expectStatus(buyer.req("POST", "/v2/mojo/play/intent", { kind: "plan", productId: "mojo_plus", replacing: "mojo_go" }), 409);
+      await expectStatus(buyer.req("POST", "/v2/mojo/play/intent", { kind: "gift", productId: "mojo_plus" }), 400);
       await expectStatus(buyer.req("POST", "/v2/mojo/play/intent", { kind: "plan", productId: "mojo_gold" }), 404);
     });
 
-    it("moves to the new plan on a change, ending the replaced purchase even before Google reports it", async () => {
-      const goToken = await buySubscription(buyer, "mojo_go", { replacing: "mojo_plus", linked: plusToken });
-      expect(await verify(buyer, "mojo_go", goToken)).toBe("granted");
-      expect((await planOf(buyer)).plan.key).toBe("go");
+    it("replaces the purchase without granting two subscriptions, before Google reports the old cancellation", async () => {
+      const goToken = await buySubscription(buyer, "mojo_plus", { replacing: "mojo_plus", linked: plusToken });
+      expect(await verify(buyer, "mojo_plus", goToken)).toBe("granted");
+      expect((await planOf(buyer)).plan.key).toBe("plus");
       const old = h.ctx.billing.rows.get<{ status: string }>("billing_subscriptions", { provider_subscription_ref: tokenHash(plusToken) })!;
       expect(old.status).toBe("canceled");
       plusToken = goToken;
@@ -217,24 +222,24 @@ describe("Meldiq Mojo on Google Play", () => {
     it("keeps the plan in Google's grace period, removes it on hold, and restores it when paid", async () => {
       const sub = google.subs.get(plusToken)!;
       sub.subscriptionState = "SUBSCRIPTION_STATE_IN_GRACE_PERIOD";
-      expect((await push({ subscriptionNotification: { notificationType: 6, purchaseToken: plusToken, subscriptionId: "mojo_go" } })).statusCode).toBe(200);
-      expect((await planOf(buyer)).plan.key).toBe("go");
+      expect((await push({ subscriptionNotification: { notificationType: 6, purchaseToken: plusToken, subscriptionId: "mojo_plus" } })).statusCode).toBe(200);
+      expect((await planOf(buyer)).plan.key).toBe("plus");
       sub.subscriptionState = "SUBSCRIPTION_STATE_ON_HOLD";
-      await push({ subscriptionNotification: { notificationType: 5, purchaseToken: plusToken, subscriptionId: "mojo_go" } });
+      await push({ subscriptionNotification: { notificationType: 5, purchaseToken: plusToken, subscriptionId: "mojo_plus" } });
       expect((await planOf(buyer)).plan).toBeNull();
       sub.subscriptionState = "SUBSCRIPTION_STATE_ACTIVE";
-      await push({ subscriptionNotification: { notificationType: 1, purchaseToken: plusToken, subscriptionId: "mojo_go" } });
-      expect((await planOf(buyer)).plan.key).toBe("go");
+      await push({ subscriptionNotification: { notificationType: 1, purchaseToken: plusToken, subscriptionId: "mojo_plus" } });
+      expect((await planOf(buyer)).plan.key).toBe("plus");
     });
 
     it("keeps a cancelled plan until its paid time ends", async () => {
       const sub = google.subs.get(plusToken)!;
       sub.subscriptionState = "SUBSCRIPTION_STATE_CANCELED";
       sub.lineItems![0]!.autoRenewingPlan = { autoRenewEnabled: false };
-      await push({ subscriptionNotification: { notificationType: 3, purchaseToken: plusToken, subscriptionId: "mojo_go" } });
-      expect(await planOf(buyer)).toMatchObject({ plan: { key: "go" }, renews: false });
+      await push({ subscriptionNotification: { notificationType: 3, purchaseToken: plusToken, subscriptionId: "mojo_plus" } });
+      expect(await planOf(buyer)).toMatchObject({ plan: { key: "plus" }, renews: false });
       sub.subscriptionState = "SUBSCRIPTION_STATE_EXPIRED";
-      await push({ subscriptionNotification: { notificationType: 13, purchaseToken: plusToken, subscriptionId: "mojo_go" } });
+      await push({ subscriptionNotification: { notificationType: 13, purchaseToken: plusToken, subscriptionId: "mojo_plus" } });
       expect((await planOf(buyer)).plan).toBeNull();
     });
 
@@ -246,9 +251,9 @@ describe("Meldiq Mojo on Google Play", () => {
     });
 
     it("applies a purchase from Google's notification when the app never sent it", async () => {
-      const token = await buySubscription(friend, "mojo_go");
-      expect((await push({ subscriptionNotification: { notificationType: 4, purchaseToken: token, subscriptionId: "mojo_go" } })).statusCode).toBe(200);
-      expect((await planOf(friend)).plan.key).toBe("go");
+      const token = await buySubscription(friend, "mojo_plus");
+      expect((await push({ subscriptionNotification: { notificationType: 4, purchaseToken: token, subscriptionId: "mojo_plus" } })).statusCode).toBe(200);
+      expect((await planOf(friend)).plan.key).toBe("plus");
       expect(google.acked).toContain(token);
     });
 
@@ -265,7 +270,7 @@ describe("Meldiq Mojo on Google Play", () => {
         headers: { "content-type": "application/json", [STRIPE_SIGNATURE_HEADER]: Stripe.webhooks.generateTestHeaderString({ payload, secret: WHSEC }) },
       });
       expect(res.statusCode).toBe(200);
-      const refused = await expectStatus(webBuyer.req("POST", "/v2/mojo/play/intent", { kind: "plan", productId: "mojo_go" }), 409);
+      const refused = await expectStatus(webBuyer.req("POST", "/v2/mojo/play/intent", { kind: "plan", productId: "mojo_plus" }), 409);
       expect(refused.error.code).toBe("billed_elsewhere");
     });
   });
@@ -291,8 +296,8 @@ describe("Meldiq Mojo on Google Play", () => {
     };
 
     it("refuses gifts to oneself and to nobody", async () => {
-      await expectStatus(gifter.req("POST", "/v2/mojo/play/intent", { kind: "gift", productId: "gift_go_1m", giftTo: gifter.userId }), 409);
-      await expectStatus(gifter.req("POST", "/v2/mojo/play/intent", { kind: "gift", productId: "gift_go_1m", giftTo: "u_nobody" }), 404);
+      await expectStatus(gifter.req("POST", "/v2/mojo/play/intent", { kind: "gift", productId: "gift_plus_1m", giftTo: gifter.userId }), 409);
+      await expectStatus(gifter.req("POST", "/v2/mojo/play/intent", { kind: "gift", productId: "gift_plus_1m", giftTo: "u_nobody" }), 404);
     });
 
     it("delivers a paid gift, then consumes the purchase so another can be bought", async () => {
@@ -304,20 +309,20 @@ describe("Meldiq Mojo on Google Play", () => {
     });
 
     it("waits for a pending payment without delivering or consuming", async () => {
-      const { token, giftId } = await buyGift(friend.userId, "gift_go_1m", 2);
-      expect(await verify(gifter, "gift_go_1m", token)).toBe("pending");
+      const { token, giftId } = await buyGift(friend.userId, "gift_plus_1m", 2);
+      expect(await verify(gifter, "gift_plus_1m", token)).toBe("pending");
       expect(google.consumed).not.toContain(token);
       expect((await me(friend)).gifts.received.some((g: { id: string }) => g.id === giftId)).toBe(false);
     });
 
     it("won't deliver a purchase for a different gift than the one recorded", async () => {
-      const { token } = await buyGift(friend.userId, "gift_go_1m", 0);
+      const { token } = await buyGift(friend.userId, "gift_plus_1m", 0);
       expect(await verify(gifter, "gift_plus_12m", token)).toBe("invalid");
     });
 
     it("can't be started once Google refunded it", async () => {
-      const { token, giftId } = await buyGift(friend.userId, "gift_go_3m", 0);
-      expect(await verify(gifter, "gift_go_3m", token)).toBe("granted");
+      const { token, giftId } = await buyGift(friend.userId, "gift_plus_3m", 0);
+      expect(await verify(gifter, "gift_plus_3m", token)).toBe("granted");
       expect((await push({ voidedPurchaseNotification: { purchaseToken: token, orderId: "GPA.1", productType: 2, refundType: 1 } })).statusCode).toBe(200);
       const refused = await expectStatus(friend.req("POST", `/v2/mojo/gifts/${giftId}/redeem`), 403);
       expect(refused.error.message).toMatch(/refunded/);
@@ -326,7 +331,7 @@ describe("Meldiq Mojo on Google Play", () => {
 
   describe("Google's notifications", () => {
     it("refuses pushes not signed by Google for this endpoint", async () => {
-      const note = { subscriptionNotification: { notificationType: 2, purchaseToken: "x", subscriptionId: "mojo_go" } };
+      const note = { subscriptionNotification: { notificationType: 2, purchaseToken: "x", subscriptionId: "mojo_plus" } };
       expect((await push(note, oidc({ aud: "https://elsewhere.test/hook" }))).statusCode).toBe(401);
       expect((await push(note, oidc({ email: "someone@else.iam.gserviceaccount.com" }))).statusCode).toBe(401);
       expect((await push(note, oidc({ exp: Math.floor(Date.now() / 1000) - 3600 }))).statusCode).toBe(401);
@@ -345,7 +350,7 @@ describe("Meldiq Mojo on Google Play", () => {
     it("asks Pub/Sub to send it again while Google can't be reached", async () => {
       google.down = true;
       try {
-        const r = await push({ subscriptionNotification: { notificationType: 2, purchaseToken: "anything", subscriptionId: "mojo_go" } });
+        const r = await push({ subscriptionNotification: { notificationType: 2, purchaseToken: "anything", subscriptionId: "mojo_plus" } });
         expect(r.statusCode).toBe(503);
       } finally {
         google.down = false;
