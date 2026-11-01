@@ -85,7 +85,6 @@ describe("with trials and invite links", () => {
 
   it("publish Mojo Go and Mojo Plus once, at their prices, and say trials are on", async () => {
     expect(await publishMojoPlans(h.ctx.billing.catalog, "stripe", { go: "price_go", plus: "price_plus", spark: "price_spark" }, "test", Date.now())).toEqual([
-      "Mojo Go: already published at price_go",
       "Mojo Plus: already published at price_plus",
       "Meldiq Spark: already published at price_spark",
     ]);
@@ -94,8 +93,7 @@ describe("with trials and invite links", () => {
     expect(plans.plans.map((p: any) => [p.key, p.name, p.amountMinor, p.currency, p.interval, p.audience])).toEqual([
       // By name: the Spark add-on, then the plans.
       ["spark", "Meldiq Spark", 99, "USD", "month", "personal"],
-      ["go", "Mojo Go", 199, "USD", "month", "personal"],
-      ["plus", "Mojo Plus", 499, "USD", "month", "personal"],
+      ["plus", "Mojo Plus", 399, "USD", "month", "personal"],
     ]);
     expect(plans.trial).toEqual({ planKey: "plus", days: 14, referralDays: 30, referralYearlyCapDays: 90 });
   });
@@ -171,11 +169,11 @@ describe("with trials and invite links", () => {
   it("start charging a subscription bought during a free period only when the period ends", async () => {
     const buyer = await signedIn("buyer");
     const e = await ent(buyer);
-    await buyer.req("POST", "/v2/billing/checkout", { planKey: "go" });
+    await buyer.req("POST", "/v2/billing/checkout", { planKey: "plus" });
     const params = stripe.sessions.at(-1)!;
     expect(params.subscription_data).toMatchObject({ trial_end: Math.floor(e.personal.accessUntil / 1000) });
     expect(params.subscription_data).not.toHaveProperty("trial_period_days");
-    expect(params.line_items).toEqual([{ price: "price_go", quantity: 1 }]);
+    expect(params.line_items).toEqual([{ price: "price_plus", quantity: 1 }]);
   });
 
   it("give the trial's quota plan while it lasts", async () => {
@@ -306,7 +304,6 @@ describe("one-command Stripe setup", () => {
     // and product there), and Sparks are their own line on invoices.
     expect(new Set(MOJO_PRICES.map((p) => productOf(api, p.lookupKey))).size).toBe(3);
     expect(api.portals[0]!.products).toEqual([
-      { product: productOf(api, "meldiq_mojo_go_monthly"), prices: [first.prices.go] },
       { product: productOf(api, "meldiq_mojo_plus_monthly"), prices: [first.prices.plus] },
     ]);
     expect(api.calls).toContain("updatePortal");
@@ -358,13 +355,13 @@ describe("one-command Stripe setup", () => {
     const r = await stripeSetup(api, opts);
     expect(api.prices.filter((p) => p.active).map((p) => [p.lookup_key, p.unit_amount])).toEqual([
       ["meldiq_mojo_go_monthly", 199],
-      ["meldiq_mojo_plus_monthly", 499],
+      ["meldiq_mojo_plus_monthly", 399],
       ["meldiq_spark_monthly", 99],
     ]);
     // Archived, never deleted: Stripe keeps charging the subscriber the old price.
     expect(api.prices.find((p) => p.id === "price_old_go")).toMatchObject({ active: false });
     expect(r.steps.join("\n")).toMatch(/now 1\.99 USD a month .*archived price_old_go; its subscribers keep it/);
-    expect(api.portals[0]!.products.map((p: { prices: string[] }) => p.prices)).toEqual([[r.prices.go], [r.prices.plus]]);
+    expect(api.portals[0]!.products.map((p: { prices: string[] }) => p.prices)).toEqual([[r.prices.plus]]);
 
     // The console's price change: prices and the portal only, no webhook.
     const before = api.calls.length;

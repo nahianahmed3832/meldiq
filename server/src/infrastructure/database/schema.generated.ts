@@ -3261,6 +3261,7 @@ export const SCHEMA: readonly TableShape[] = [
     ],
     primaryKey: ["id"],
     indexes: [
+      {"name":"message_events_history_cursor","columns":["conversation_id","cls","server_ts","id"],"unique":false,"nocase":false,"partialNotNull":null},
       {"name":"idx_message_events_sender","columns":["sender_user_id"],"unique":false,"nocase":false,"partialNotNull":null},
       {"name":"idx_message_events_target","columns":["conversation_id","target"],"unique":false,"nocase":false,"partialNotNull":null},
       {"name":"idx_message_events_page","columns":["conversation_id","cls","server_ts"],"unique":false,"nocase":false,"partialNotNull":null},

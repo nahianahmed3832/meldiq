@@ -108,7 +108,7 @@ export class PlayBilling {
   /** Records what the person is about to buy on Google Play and answers what the app passes to Google's sheet. */
   async intent(starter: { accountId: string; userId: string | null }, input: PlayIntentInput): Promise<{ reference: string; accountToken: string }> {
     const product = playProduct(input.productId);
-    if (!product) throw notFound("No such product");
+    if (!product || (product.kind !== "spark" && product.planKey === "go")) throw notFound("Mojo Go is no longer offered. Choose Mojo Plus.");
     if (product.kind !== input.kind) throw badRequest(`${input.productId} isn't a ${input.kind}`);
     const reference =
       product.kind === "gift"

@@ -2,7 +2,7 @@ import { requireFeature } from "../../app/platformControls.js";
 import crypto from "node:crypto";
 import { AsyncLock } from "../../shared/utilities/lock.js";
 import { KEPT_FOREVER, type UploadRow, type UsageFilter } from "./store.js";
-import type { Config } from "../../app/config.js";
+import { type Config, DEFAULT_FILE_MAX_BYTES, effectiveFileMaxBytes, encryptedAttachmentBytes } from "../../app/config.js";
 import { CompleteBody, ConversationQuery, PartsBody, UploadStartBody } from "../../shared/contracts/http/files.js";
 import { idParams } from "../../shared/contracts/http/primitives.js";
 import fs from "node:fs";
@@ -29,6 +29,7 @@ import { refusal, scopesFor } from "../quotas/index.js";
  */
 /** A file over the sender's plan (and the community's Spark level): says the limit, decimal as people read it. */
 function uploadLimit(max: number): ApiError {
+  if (max >= DEFAULT_FILE_MAX_BYTES) return new ApiError(413, "upload_limit", "Files can be up to 1,024 MB on this server.", { maxBytes: max });
   const label = max >= 1_000_000_000 ? `${+(max / 1_000_000_000).toFixed(1)} GB` : `${Math.round(max / 1_000_000)} MB`;
   return new ApiError(413, "upload_limit", `Files can be up to ${label} on your plan here. Mojo raises it, and so do a community's Sparks.`, { maxBytes: max });
 }
@@ -191,8 +192,9 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
     if (declared !== null && (!Number.isSafeInteger(declared) || declared <= 0)) throw badRequest("Expected a non-empty body");
     if (declared !== null && declared > cfg.attachmentMaxBytes) throw new ApiError(413, "too_large", "Attachment is too large");
     // The person's plan, or the community's Spark level, sets the largest file (docs/MOJO.md), within the server's own.
-    const planMax = Math.min(cfg.attachmentMaxBytes, ctx.mojo.uploadBytes(userId, conv.org_id));
-    if (declared !== null && declared > planMax) throw uploadLimit(planMax);
+    const plainMax = Math.min(effectiveFileMaxBytes(cfg), ctx.mojo.uploadBytes(userId, conv.org_id));
+    const planMax = Math.min(cfg.attachmentMaxBytes, encryptedAttachmentBytes(plainMax));
+    if (declared !== null && declared > planMax) throw uploadLimit(plainMax);
 
     // Quotas are checked before reading the body. A body of unknown length reserves the maximum size. Checking and
     // reserving run under the quota lock, so parallel uploads see each other's reservations.
@@ -220,7 +222,7 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
         transform(chunk: Buffer, _enc, cb) {
           size += chunk.length;
           hash.update(chunk);
-          if (size > planMax) cb(uploadLimit(planMax));
+          if (size > planMax) cb(uploadLimit(plainMax));
           else if (size > cfg.attachmentMaxBytes || (declared !== null && size > declared)) cb(new ApiError(413, "too_large", "Attachment is too large"));
           else cb(null, chunk);
         },
@@ -337,10 +339,11 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
   const partCount = (u: UploadRow) => Math.ceil(u.size / (u.part_size ?? u.size));
   const partSizeOf = (u: UploadRow, n: number) => (n < partCount(u) ? u.part_size! : u.size - u.part_size! * (partCount(u) - 1));
   // Only the person who started an upload can see or continue it; anyone else gets the same 404 as for no upload.
-  const loadUpload = async (id: string, userId: string): Promise<UploadRow> => {
+  const loadUpload = async (id: string, userId: string, allowOversized = false): Promise<UploadRow> => {
     const u = await files.upload(id);
     if (!u || u.user_id !== userId) throw notFound("Upload not found");
     if (u.expires_at <= now()) throw new ApiError(410, "upload_expired", "This upload took too long. Start it again.");
+    if (!allowOversized && u.size > encryptedAttachmentBytes(effectiveFileMaxBytes(cfg))) throw uploadLimit(effectiveFileMaxBytes(cfg));
     return u;
   };
   const storeFailure = (e: unknown, what: string): never => {
@@ -358,8 +361,9 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
     if (!ctx.authz.canAttach(conv, userId)) throw new ApiError(403, "forbidden", "You can't share files in this channel");
     if (body.size > cfg.attachmentMaxBytes) throw new ApiError(413, "too_large", "Attachment is too large");
     // Direct uploads are bound to this size (each part's URL to its exact length): the plan's limit holds at S3 too.
-    const planMax = Math.min(cfg.attachmentMaxBytes, ctx.mojo.uploadBytes(userId, conv.org_id));
-    if (body.size > planMax) throw uploadLimit(planMax);
+    const plainMax = Math.min(effectiveFileMaxBytes(cfg), ctx.mojo.uploadBytes(userId, conv.org_id));
+    const planMax = Math.min(cfg.attachmentMaxBytes, encryptedAttachmentBytes(plainMax));
+    if (body.size > planMax) throw uploadLimit(plainMax);
     admitStart(userId, reply);
     const id = newId("a");
     const multipart = body.size > d.multipartThreshold;
@@ -484,7 +488,7 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
 
   // The app gave up (cancelled, or failed for good): whatever reached the store is removed.
   app.delete("/v1/attachments/uploads/:id", auth, async (req) => {
-    const u = await loadUpload(parse(idParams, req.params).id, me(req).userId);
+    const u = await loadUpload(parse(idParams, req.params).id, me(req).userId, true);
     await files.abandonUpload(u);
     await quotaSettle(u.id, null);
     await processAbandonedUploads(ctx).catch(() => 0);

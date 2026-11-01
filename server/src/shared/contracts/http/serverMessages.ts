@@ -56,10 +56,12 @@ export const MessageItemPayload = z.strictObject({ v: z.literal(2), event: Store
 export const HistoryQuery = z.object({
   /** Messages strictly older than this serverTs; omitted: the newest. */
   before: z.coerce.number().int().positive().optional(),
+  /** ID at the exclusive timestamp boundary; omitted by older clients. */
+  beforeId: zMessageId.optional(),
   /** Instead of a page: the messages around this one (a link or a search hit). */
   around: zMessageId.optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
-});
+}).refine((q) => !q.beforeId || (q.before !== undefined && !q.around), { message: "beforeId requires before and cannot be combined with around" });
 
 export const HistoryResponse = z.strictObject({
   /** Newest first. */
@@ -70,6 +72,8 @@ export const HistoryResponse = z.strictObject({
    */
   changes: z.array(StoredEvent),
   more: z.boolean(),
+  /** Additive cursor for clients that support timestamp ties. */
+  nextCursor: z.object({ serverTs: zTime, id: zMessageId }).nullable().optional(),
 });
 
 /** History a device held from before the server kept messages: uploaded once when the app updates. */

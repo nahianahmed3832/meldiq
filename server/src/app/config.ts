@@ -15,10 +15,9 @@ import { type LinkedAccountsConfig, linkedAccountsConfig } from "../modules/link
 const SEVEN_DAYS_S = 7 * 24 * 3600;
 const MiB = 1024 * 1024;
 /**
- * The default per-file limit: 2 GB (decimal) of the person's file, before encryption, so Mojo Plus's largest file
- * (docs/PLANS.md) fits. Each plan's own limit applies below it (billing/mojo.ts). Was 1 GiB until API 0.66.0.
+ * Server-wide ceiling: 1024 MB (decimal), before encryption. Applies immediately to every plan and Spark level.
  */
-export const DEFAULT_FILE_MAX_BYTES = 2_000_000_000;
+export const DEFAULT_FILE_MAX_BYTES = 1024 * 1_000_000;
 /** Room for encryption overhead on top of the file limit: the chunked format adds 16 bytes per 1 MiB chunk. */
 const ENCRYPTION_HEADROOM_BYTES = MiB;
 
@@ -511,6 +510,9 @@ function federationConfig(env: NodeJS.ProcessEnv, dataDir: string, int: (n: stri
 const CHUNK_TAG_BYTES = 16;
 const CHUNK_BYTES = MiB;
 
+/** Ciphertext bytes for the shared chunked attachment format. */
+export const encryptedAttachmentBytes = (plain: number): number => plain + CHUNK_TAG_BYTES * Math.max(1, Math.ceil(plain / CHUNK_BYTES));
+
 /**
  * The file limit apps are told (`fileMaxBytes` in server-info): [Config.fileMaxBytes], lowered when the ciphertext
  * limit is set smaller (production ran ATTACHMENT_MAX_BYTES at 25 MB), so a file the app accepts always fits once
@@ -562,7 +564,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     throw new Error("LIVEKIT_API_SECRET must be at least 32 characters");
   }
   const queueTtl = Math.min(int("QUEUE_TTL_SECONDS", SEVEN_DAYS_S), SEVEN_DAYS_S);
-  const fileMaxBytes = Math.max(int("FILE_MAX_BYTES", DEFAULT_FILE_MAX_BYTES), 1);
+  const fileMaxBytes = Math.min(Math.max(int("FILE_MAX_BYTES", DEFAULT_FILE_MAX_BYTES), 1), DEFAULT_FILE_MAX_BYTES);
   const attachmentMaxBytes = int("ATTACHMENT_MAX_BYTES", fileMaxBytes + ENCRYPTION_HEADROOM_BYTES);
   return {
     host: env.HOST ?? "0.0.0.0",

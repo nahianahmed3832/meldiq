@@ -59,12 +59,12 @@ export interface MessageStore {
   /** Adds what isn't there yet (imported history: the first device to upload a message wins). Returns how many were new. */
   addMany(events: MessageEvent[]): Promise<number>;
   /**
-   * A page of [conversationId]'s history: messages with server_ts before [before] (or the newest), at most [limit],
+   * A page of [conversationId]'s history: messages before the ordered (server_ts, id) cursor (or the newest), at most [limit],
    * and the changes to them, with the other members' newest read receipts (so an app rebuilding the conversation from
    * history shows what they have read). Self-only events (a person's read markers on their own devices) are only
    * [viewer]'s.
    */
-  page(conversationId: string, viewer: string, before: number | null, limit: number): Promise<HistoryPage>;
+  page(conversationId: string, viewer: string, before: number | null, limit: number, beforeId?: string): Promise<HistoryPage>;
   /** Messages around one (a link or a search hit): [limit] before it, it, and [limit] after, with their changes. */
   around(conversationId: string, viewer: string, messageId: string, limit: number): Promise<HistoryPage | null>;
   /** Text messages in [conversationIds] whose text contains [query] (case-insensitive), newest first. */
@@ -157,12 +157,12 @@ export class SqliteMessageStore implements MessageStore {
     return this.db.transaction(() => events.reduce((n, e) => n + (this.insert(e) ? 1 : 0), 0))();
   }
 
-  async page(conversationId: string, viewer: string, before: number | null, limit: number): Promise<HistoryPage> {
+  async page(conversationId: string, viewer: string, before: number | null, limit: number, beforeId?: string): Promise<HistoryPage> {
     const rows = this.db
       .prepare(
-        `SELECT ${COLUMNS} FROM message_events WHERE conversation_id = ? AND cls = 'message' AND server_ts < ? ORDER BY server_ts DESC, id DESC LIMIT ?`,
+        `SELECT ${COLUMNS} FROM message_events WHERE conversation_id = ? AND cls = 'message' AND (server_ts < ? OR (server_ts = ? AND id < ?)) ORDER BY server_ts DESC, id DESC LIMIT ?`,
       )
-      .all(conversationId, before ?? Number.MAX_SAFE_INTEGER, limit + 1) as MessageEvent[];
+      .all(conversationId, before ?? Number.MAX_SAFE_INTEGER, before ?? Number.MAX_SAFE_INTEGER, beforeId ?? '', limit + 1) as MessageEvent[];
     const messages = rows.slice(0, limit);
     return { messages, changes: this.changesFor(conversationId, viewer, messages), more: rows.length > limit };
   }
@@ -171,11 +171,11 @@ export class SqliteMessageStore implements MessageStore {
     const at = await this.get(messageId);
     if (!at || at.conversation_id !== conversationId || at.cls !== "message") return null;
     const older = this.db
-      .prepare(`SELECT ${COLUMNS} FROM message_events WHERE conversation_id = ? AND cls = 'message' AND server_ts < ? ORDER BY server_ts DESC, id DESC LIMIT ?`)
-      .all(conversationId, at.server_ts, limit + 1) as MessageEvent[];
+      .prepare(`SELECT ${COLUMNS} FROM message_events WHERE conversation_id = ? AND cls = 'message' AND (server_ts < ? OR (server_ts = ? AND id < ?)) ORDER BY server_ts DESC, id DESC LIMIT ?`)
+      .all(conversationId, at.server_ts, at.server_ts, at.id, limit + 1) as MessageEvent[];
     const newer = this.db
-      .prepare(`SELECT ${COLUMNS} FROM message_events WHERE conversation_id = ? AND cls = 'message' AND server_ts >= ? AND id <> ? ORDER BY server_ts, id LIMIT ?`)
-      .all(conversationId, at.server_ts, at.id, limit) as MessageEvent[];
+      .prepare(`SELECT ${COLUMNS} FROM message_events WHERE conversation_id = ? AND cls = 'message' AND (server_ts > ? OR (server_ts = ? AND id > ?)) ORDER BY server_ts, id LIMIT ?`)
+      .all(conversationId, at.server_ts, at.server_ts, at.id, limit) as MessageEvent[];
     const messages = [...newer.reverse(), at, ...older.slice(0, limit)];
     return { messages, changes: this.changesFor(conversationId, viewer, messages), more: older.length > limit };
   }

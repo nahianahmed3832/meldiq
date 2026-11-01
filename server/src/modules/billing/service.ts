@@ -107,7 +107,7 @@ export class Billing {
     if (!provider) return [];
     return this.catalog
       .all()
-      .filter((p) => p.public && p.status === "active" && (audience === null || p.audience === audience))
+      .filter((p) => p.key !== "go" && p.public && p.status === "active" && (audience === null || p.audience === audience))
       .flatMap((p) => {
         const v = this.catalog.current(p.id);
         if (!v || v.provider !== provider.id) return [];
@@ -158,6 +158,7 @@ export class Billing {
     planKey: string,
     opts: { quantity?: number; returnUrl?: string | null } = {},
   ): Promise<{ checkoutId: string; url: string | null; expiresAt: number }> {
+    if (planKey === "go") throw notFound("Mojo Go is no longer offered. Choose Mojo Plus.");
     const provider = this.requireProvider();
     const plan = this.catalog.byKey(planKey);
     const version = plan && plan.public && plan.status === "active" && plan.audience === audienceOf(owner) ? this.catalog.current(plan.id) : null;

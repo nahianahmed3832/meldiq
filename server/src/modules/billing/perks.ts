@@ -7,10 +7,12 @@
  *
  * Plan numbers: the owner's Free/Go/Plus spec of 2026-10-30 (docs/PLANS.md), replacing those of 2026-10-28.
  */
-export const CATALOG_VERSION = "2026-10-30.1";
+export const CATALOG_VERSION = "2026-11-01.1";
 
 export const PLAN_KEYS = ["free", "go", "plus"] as const;
 export type PlanKey = (typeof PLAN_KEYS)[number];
+/** Go remains valid for existing subscribers and gifts, but is closed to new purchases. */
+export const OFFERED_PLAN_KEYS = ["free", "plus"] as const;
 export const isPlanKey = (k: string): k is PlanKey => (PLAN_KEYS as readonly string[]).includes(k);
 /** Higher is more: the plan that applies when several do (a subscription and a gift, say). */
 export const PLAN_RANK: Readonly<Record<PlanKey, number>> = { free: 0, go: 1, plus: 2 };
@@ -76,7 +78,7 @@ export const PLAN_PERKS: Readonly<Record<PlanKey, PlanPerks>> = {
     customItems: 50, bots: 4, botReview: "regular",
   },
   plus: {
-    key: "plus", name: "Mojo Plus", listPriceMinor: 499, messageChars: 8000, uploadBytes: 2 * GB, screen: ["1440p60"], sparks: 2, badge: "plus", check: true,
+    key: "plus", name: "Mojo Plus", listPriceMinor: 399, messageChars: 8000, uploadBytes: 1024 * MB, screen: ["1440p60"], sparks: 2, badge: "plus", check: true,
     customItems: 250, bots: 10, botReview: "priority",
   },
 };
@@ -105,7 +107,7 @@ export const SPARK_LEVELS: readonly SparkLevel[] = [
   { level: 0, sparks: 0, emojiSlots: 50, stickerSlots: 20, uploadBytes: null, voiceKbps: 48, screen: [] },
   { level: 1, sparks: 2, emojiSlots: 100, stickerSlots: 20, uploadBytes: 50 * MB, voiceKbps: 128, screen: ["720p30"] },
   { level: 2, sparks: 5, emojiSlots: 200, stickerSlots: 20, uploadBytes: 200 * MB, voiceKbps: 256, screen: ["1080p60"] },
-  { level: 3, sparks: 8, emojiSlots: 500, stickerSlots: 20, uploadBytes: 2 * GB, voiceKbps: 384, screen: ["1080p60", "1440p30"] },
+  { level: 3, sparks: 8, emojiSlots: 500, stickerSlots: 20, uploadBytes: 1024 * MB, voiceKbps: 384, screen: ["1080p60", "1440p30"] },
 ];
 export const MAX_SPARK_LEVEL = 3;
 
@@ -166,7 +168,7 @@ export function catalogView(
   return {
     version,
     units: { mb: MB, gb: GB },
-    plans: PLAN_KEYS.map((k) => plans[k]),
+    plans: OFFERED_PLAN_KEYS.map((k) => plans[k]),
     screenPresets: Object.values(SCREEN_PRESETS),
     spark: { listPriceMinor: SPARK_LIST_PRICE_MINOR, interval: "month" as const, maxPurchase: SPARK_MAX_PURCHASE, levels },
     gifts: { months: GIFT_MONTHS, noteMax: GIFT_NOTE_MAX },

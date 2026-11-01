@@ -5,19 +5,18 @@ import { type FakeS3, startFakeS3 } from "./support/fakeS3.js";
 import type { GriipClient } from "./support/griipClient.js";
 import { expectStatus, type Harness, startServer } from "./support/harness.js";
 
-// The server's file limit: 2 GB of the person's file since API 0.66.0 (Mojo Plus's largest file, docs/PLANS.md; 1 GiB
-// before), uploaded straight to S3 in parts (docs/ORBIT_2_ARCHITECTURE §7). The test names keep "1 GiB" as before.
+// The server-wide ceiling is 1024 MB (decimal), with exact encryption overhead allowed on the wire.
 const MiB = 1024 * 1024;
 const GiB = 1024 * MiB;
-const FILE_MAX = 2_000_000_000;
+const FILE_MAX = 1024 * 1_000_000;
 const creds = { accessKeyId: "AKIDFILES1G", secretAccessKey: "files-1g-test-secret" };
 const anySha = crypto.createHash("sha256").update("x").digest("base64");
 /** Ciphertext size of a file in the chunked format: 16 bytes of tag per started 1 MiB chunk. */
 const encryptedSize = (plain: number) => plain + 16 * Math.max(Math.ceil(plain / MiB), 1);
 
 describe("the 1 GiB limit in configuration", () => {
-  it("defaults to exactly 1,073,741,824 bytes with room for encryption on top", () => {
-    const c = loadConfig({ DATA_DIR: "/tmp/orbit-config-test" } as NodeJS.ProcessEnv);
+  it("defaults to exactly 1024 MB with room for encryption on top", () => {
+    const c = loadConfig({ DATA_DIR: "/tmp/orbit-config-test", FILE_MAX_BYTES: "2000000000" } as NodeJS.ProcessEnv);
     expect(DEFAULT_FILE_MAX_BYTES).toBe(FILE_MAX);
     expect(c.fileMaxBytes).toBe(FILE_MAX);
     expect(c.attachmentMaxBytes).toBe(FILE_MAX + MiB);
@@ -104,8 +103,22 @@ describe("1 GiB uploads straight to S3", () => {
     // Cancelling removes it from the store.
     await alice.req("DELETE", `/v1/attachments/uploads/${s.uploadId}`);
     await expectStatus(alice.req("GET", `/v1/attachments/uploads/${s.uploadId}/parts`), 404);
+    const exactBoundary = await expectStatus(alice.req("POST", "/v1/attachments/uploads", { conversationId: dm, size: encryptedSize(FILE_MAX) + 1, sha256: anySha }), 413);
+    expect(exactBoundary.error.code).toBe("upload_limit");
     const tooBig = await expectStatus(alice.req("POST", "/v1/attachments/uploads", { conversationId: dm, size: FILE_MAX + MiB + 1, sha256: anySha }), 413);
     expect(tooBig.error.code).toBe("too_large");
+  });
+
+  it("stops an oversized in-flight upload after a lower cap while keeping cancellation available", async () => {
+    const upload = await alice.req("POST", "/v1/attachments/uploads", { conversationId: dm, size: 200 * MiB, sha256: anySha });
+    const before = h.ctx.config.fileMaxBytes;
+    try {
+      h.ctx.config.fileMaxBytes = 100 * MiB;
+      await expectStatus(alice.req("GET", `/v1/attachments/uploads/${upload.uploadId}/parts`), 413);
+      expect(await alice.req("DELETE", `/v1/attachments/uploads/${upload.uploadId}`)).toEqual({ ok: true });
+    } finally {
+      h.ctx.config.fileMaxBytes = before;
+    }
   });
 
   it("only lets the uploader continue an upload, and only members start one", async () => {

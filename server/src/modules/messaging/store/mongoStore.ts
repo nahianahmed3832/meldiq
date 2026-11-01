@@ -41,9 +41,9 @@ export class MongoMessageStore implements MessageStore {
     return r.upsertedCount;
   }
 
-  async page(conversationId: string, viewer: string, before: number | null, limit: number): Promise<HistoryPage> {
+  async page(conversationId: string, viewer: string, before: number | null, limit: number, beforeId?: string): Promise<HistoryPage> {
     const docs = await this.col
-      .find({ conversation_id: conversationId, cls: "message", server_ts: { $lt: before ?? Number.MAX_SAFE_INTEGER } }, { session: this.mongo.session() })
+      .find({ conversation_id: conversationId, cls: "message", $or: [{ server_ts: { $lt: before ?? Number.MAX_SAFE_INTEGER } }, { server_ts: before ?? Number.MAX_SAFE_INTEGER, _id: { $lt: beforeId ?? "" } }] }, { session: this.mongo.session() })
       .sort({ server_ts: -1, _id: -1 })
       .limit(limit + 1)
       .toArray();
@@ -57,14 +57,14 @@ export class MongoMessageStore implements MessageStore {
     const session = this.mongo.session();
     const older = (
       await this.col
-        .find({ conversation_id: conversationId, cls: "message", server_ts: { $lt: at.server_ts } }, { session })
+        .find({ conversation_id: conversationId, cls: "message", $or: [{ server_ts: { $lt: at.server_ts } }, { server_ts: at.server_ts, _id: { $lt: at.id } }] }, { session })
         .sort({ server_ts: -1, _id: -1 })
         .limit(limit + 1)
         .toArray()
     ).map(toEvent);
     const newer = (
       await this.col
-        .find({ conversation_id: conversationId, cls: "message", server_ts: { $gte: at.server_ts }, _id: { $ne: at.id } }, { session })
+        .find({ conversation_id: conversationId, cls: "message", $or: [{ server_ts: { $gt: at.server_ts } }, { server_ts: at.server_ts, _id: { $gt: at.id } }] }, { session })
         .sort({ server_ts: 1, _id: 1 })
         .limit(limit)
         .toArray()

@@ -68,7 +68,7 @@ describe("the trial program in the console", () => {
   it("follows the environment until an operator saves it: off here, so nobody gets a trial", async () => {
     const p = await program();
     expect(p).toMatchObject({ source: "environment", live: false, settings: { enabled: false, planKey: "plus", days: 14, referralDays: 30, referralCapDays: 90, claimWindowDays: 7 } });
-    expect(p.plans.map((x: any) => x.key)).toEqual(["go", "plus"]);
+    expect(p.plans.map((x: any) => x.key)).toEqual(["plus"]);
     expect((await h.app.inject({ method: "GET", url: "/v2/billing/plans" })).json().trial).toBeNull();
     const early = await signedIn("earlybird");
     expect((await ent(early)).personal).toMatchObject({ plan: null, trial: null });
@@ -210,7 +210,7 @@ describe("the trial program in the console", () => {
     it("start from the built-in numbers, not enforced while nothing is on sale", async () => {
       const c = await controls();
       expect(c).toMatchObject({ enforced: false, enforce: { console: null, environment: "auto", effective: "auto" }, overrides: { plans: {}, levels: {} }, updatedBy: null });
-      expect(c.plans.map((p: any) => [p.key, p.messageChars, p.listPriceMinor])).toEqual([["free", 2000, 0], ["go", 4000, 199], ["plus", 8000, 499]]);
+      expect(c.plans.map((p: any) => [p.key, p.messageChars, p.listPriceMinor])).toEqual([["free", 2000, 0], ["go", 4000, 199], ["plus", 8000, 399]]);
       expect(c.prices).toMatchObject({ providerSync: false, bounds: { min: 50, max: 9999 } });
       expect(h.ctx.mojo.limitsOf("u_nobody")).toBeNull();
     });
@@ -267,10 +267,10 @@ describe("the trial program in the console", () => {
       expect(r.body.steps).toEqual(["no payment provider: only the list price changed"]);
       expect(r.body.plans.map((p: any) => p.listPriceMinor)).toEqual([0, 299, 699]);
       const catalog = (await h.app.inject({ method: "GET", url: "/v2/mojo/catalog" })).json();
-      expect(catalog.plans.map((p: any) => p.listPriceMinor)).toEqual([0, 299, 699]);
+      expect(catalog.plans.map((p: any) => p.listPriceMinor)).toEqual([0, 699]);
       const audit = h.ctx.db.prepare("SELECT reason, detail FROM platform_audit WHERE action = 'mojo.prices_update' ORDER BY id DESC LIMIT 1").get() as any;
       expect(audit.reason).toBe("Owner's plan prices for launch");
-      expect(JSON.parse(audit.detail)).toMatchObject({ goBefore: 199, goAfter: 299, plusBefore: 499, plusAfter: 699, provider: "none" });
+      expect(JSON.parse(audit.detail)).toMatchObject({ goBefore: 199, goAfter: 299, plusBefore: 399, plusAfter: 699, provider: "none" });
       // Saving the limits keeps the prices: they change only here.
       expect((await save({ enforce: "on", plans: { go: { bots: 5 } } })).body.plans.find((p: any) => p.key === "go").listPriceMinor).toBe(299);
       await put({ go: 199, plus: 499 });

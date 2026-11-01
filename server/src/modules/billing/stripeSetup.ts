@@ -24,7 +24,7 @@ import { STRIPE_WEBHOOK_EVENTS } from "./providers/stripe.js";
 export const MOJO_PRICES = [
   // The owner's spec of 2026-10-30 (docs/PLANS.md): Go $1.99 and Plus $4.99 a month. The console can change them.
   { tier: "go", name: "Mojo Go", lookupKey: "meldiq_mojo_go_monthly", amountMinor: 199, product: "go" },
-  { tier: "plus", name: "Mojo Plus", lookupKey: "meldiq_mojo_plus_monthly", amountMinor: 499, product: "plus" },
+  { tier: "plus", name: "Mojo Plus", lookupKey: "meldiq_mojo_plus_monthly", amountMinor: 399, product: "plus" },
   // Meldiq Spark (docs/MOJO.md): $0.99 per Spark per month, bought by quantity, on its own product (its own invoice line).
   { tier: "spark", name: "Meldiq Spark", lookupKey: "meldiq_spark_monthly", amountMinor: 99, product: "spark" },
 ] as const;
@@ -215,7 +215,6 @@ async function setUpCatalog(api: StripeSetupApi, siteUrl: string, amounts: MojoA
         schedule_at_period_end: { conditions: [{ type: "decreasing_item_amount" }] },
         // One entry per plan: Stripe allows only one price per billing interval for each product listed here.
         products: [
-          { product: products.go.id, prices: [prices.go] },
           { product: products.plus.id, prices: [prices.plus] },
         ],
       },
@@ -266,7 +265,7 @@ export async function publishMojoPlans(
   amounts: MojoAmounts = DEFAULT_MOJO_AMOUNTS,
 ): Promise<string[]> {
   const done: string[] = [];
-  for (const p of MOJO_PRICES) {
+  for (const p of MOJO_PRICES.filter((p) => p.tier !== "go")) {
     const terms = { interval: "month" as const, currency: "USD", amountMinor: amounts[p.tier], providerPriceRef: prices[p.tier], trialDays: 0, graceDays, limits: {}, notes: "", quotaPlanId: null };
     let plan = catalog.byKey(p.tier);
     if (!plan) {

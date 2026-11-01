@@ -84,6 +84,7 @@ export class Gifts implements PaymentEvents {
 
   /** The plan's current price for [months], from the published catalog at the configured provider; null: not on sale. */
   price(planKey: PlanKey, months: number): { currency: string; amountMinor: number } | null {
+    if (planKey === "go") return null;
     const provider = this.billing.provider;
     const plan = this.billing.catalog.byKey(planKey);
     const v = plan && plan.public && plan.status === "active" ? this.billing.catalog.current(plan.id) : null;
@@ -131,7 +132,7 @@ export class Gifts implements PaymentEvents {
   }
 
   private validate(starter: { userId: string | null }, input: { recipientUserId: string; planKey: string; months: number; note?: string | null }): { planKey: "go" | "plus"; note: string } {
-    if (!isPlanKey(input.planKey) || input.planKey === "free") throw notFound("No such plan");
+    if (!isPlanKey(input.planKey) || input.planKey === "free" || input.planKey === "go") throw notFound("No such plan");
     const planKey = input.planKey;
     if (!(GIFT_MONTHS as readonly number[]).includes(input.months)) throw badRequest(`Gifts are for ${GIFT_MONTHS.join(", ")} months`);
     const note = (input.note ?? "").trim();

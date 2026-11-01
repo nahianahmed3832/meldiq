@@ -45,11 +45,15 @@ export default async function serverMessagesRoutes(app: FastifyInstance, ctx: Ap
     const { userId } = me(req);
     const q = parse(HistoryQuery, req.query);
     const conv = ctx.authz.requireMember(req.params.id, userId);
-    const page = q.around ? await ctx.messages.around(conv.id, userId, q.around, Math.ceil(q.limit / 2)) : await ctx.messages.page(conv.id, userId, q.before ?? null, q.limit);
+    const page = q.around ? await ctx.messages.around(conv.id, userId, q.around, Math.ceil(q.limit / 2)) : await ctx.messages.page(conv.id, userId, q.before ?? null, q.limit, q.beforeId);
     if (!page) throw new ApiError(404, "not_found", "That message isn't in this conversation");
     // Community parity A1: without `messages.history`, a channel's history starts when the person joined it.
     const shown = pageSince(page, ctx.authz.historySince(conv, userId));
-    return { messages: shown.messages.map(eventToWire), changes: shown.changes.map(eventToWire), more: shown.more };
+    const oldest = shown.messages.at(-1);
+    return {
+      messages: shown.messages.map(eventToWire), changes: shown.changes.map(eventToWire), more: shown.more,
+      nextCursor: shown.more && oldest ? { serverTs: oldest.server_ts, id: oldest.id } : null,
+    };
   });
 
   // A device's history from before the server kept messages, uploaded once when its app updates: what's already stored
