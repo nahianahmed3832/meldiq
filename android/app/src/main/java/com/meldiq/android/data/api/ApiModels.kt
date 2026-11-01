@@ -263,12 +263,24 @@ object ChannelFormat {
     val audience: String? = null,
 )
 @Serializable data class SendMessageRes(val messageId: String, val serverTs: Long, val recipientCount: Int, val duplicate: Boolean = false)
+/** Current servers deliver the same payload through the v2 message store, including call controls. */
+@Serializable data class SendStoredReq(
+    val conversationId: String, val messageId: String, val cls: String, val sentAt: Long,
+    val payload: kotlinx.serialization.json.JsonObject,
+)
+@Serializable data class SendStoredRes(val messageId: String, val serverTs: Long, val duplicate: Boolean = false)
+@Serializable data class StoredEventDto(
+    val id: String, val conversationId: String, val senderUserId: String, val senderDeviceId: String? = null,
+    val cls: String = "message", val payload: kotlinx.serialization.json.JsonObject, val sentAt: Long, val serverTs: Long,
+    val mentionAll: Boolean = false, val importedBy: String? = null,
+)
 @Serializable data class QueuePayload(
     val v: Int? = null, val cls: String? = null, val sentAt: Long? = null, val serverTs: Long? = null, val nonce: String? = null,
     val ciphertext: String? = null, val signature: String? = null, val enc: String? = null, val wrappedKey: String? = null,
     val status: String? = null, val at: Long? = null,
     /** The server attested @everyone on this copy (servers from 2026-10-17). */
     val mentionAll: Boolean? = null,
+    val event: StoredEventDto? = null,
 )
 @Serializable data class QueueItem(
     val id: Long, val kind: String, val conversationId: String, val messageId: String, val senderUserId: String,

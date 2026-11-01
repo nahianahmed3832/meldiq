@@ -49,6 +49,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.json.jsonObject
 import java.io.File
 import java.util.UUID
 
@@ -91,6 +92,23 @@ class MessageRepository(
     private val files = AttachmentFiles(attachmentsDir)
     private val keyRequests = CallKeyRequests()
     private val kickCh = Channel<Unit>(Channel.CONFLATED)
+    private val callControls = CallControlSender { cid, id, sentAt, payload ->
+        val s = session.session ?: throw ApiException(0, "not_signed_in", "Sign in before calling")
+        if (serverHas(ServerFeatures.SERVER_MESSAGES)) {
+            api.post<com.meldiq.android.data.api.SendStoredReq, com.meldiq.android.data.api.SendStoredRes>(
+                "/v2/messages",
+                com.meldiq.android.data.api.SendStoredReq(cid, id, "control", sentAt, json.encodeToJsonElement(Payload.serializer(), payload).jsonObject),
+            )
+        } else {
+            // Older self-hosted servers still use encrypted envelopes. Call controls bypass the outbox there too.
+            val recips = directory.conversationRecipients(cid, s.deviceId, true)
+            val sealed = crypto.seal(EnvelopeHeader(id, cid, s.userId, s.deviceId, sentAt, "control"), json.encodeToString(Payload.serializer(), payload).toByteArray(), recips)
+            api.post<SendMessageReq, SendMessageRes>(
+                "/v1/messages",
+                SendMessageReq(cid, id, "control", sentAt, sealed.nonce, sealed.ciphertext, sealed.signature, sealed.recipients.map { WireKeyWrap(it.deviceId, it.enc, it.wrappedKey) }),
+            )
+        }
+    }
 
     private val _transfer = MutableStateFlow<Map<String, Float>>(emptyMap())
     val transferProgress: StateFlow<Map<String, Float>> = _transfer
@@ -267,6 +285,7 @@ class MessageRepository(
     }
 
     private suspend fun sendControl(cid: String, payload: Payload) {
+        if (CallControlSender.handles(payload)) return callControls.send(cid, payload)
         val id = UUID.randomUUID().toString()
         db.outbox().put(OutboxEntity(id, cid, "control", json.encodeToString(Payload.serializer(), payload), System.currentTimeMillis(), visible = false))
         kick()
@@ -323,7 +342,7 @@ class MessageRepository(
 
     /** Distribute a call's media E2EE key to all member devices through the encrypted channel. */
     suspend fun sendCallKey(cid: String, callId: String, video: Boolean, key: String) {
-        val s = session.session ?: return
+        val s = session.session ?: throw ApiException(0, "not_signed_in", "Sign in before calling")
         db.calls().putKey(CallKeyEntity(callId, cid, key, s.userId, System.currentTimeMillis()))
         sendControl(cid, Payload(type = "call_invite", callId = callId, video = video, e2eeKey = key))
     }
