@@ -1,5 +1,6 @@
 import { z } from "zod/v4";
 import { ERROR_CODES, type ErrorCode } from "../../errors.js";
+import { adminOperationsRoutes } from "./areas/adminOperations.js";
 import { accountsRoutes } from "./areas/accounts.js";
 import { billingRoutes } from "./areas/billing.js";
 import { mojoRoutes } from "./areas/mojo.js";
@@ -33,6 +34,7 @@ export const ErrorEnvelope = z.strictObject({
 
 /** The documented routes. Routes not listed yet are still checked for the error envelope by the test suite. */
 export const ROUTE_CONTRACTS: readonly RouteContract[] = [
+  ...adminOperationsRoutes,
   ...systemRoutes,
   ...messagingRoutes,
   ...serverMessagesRoutes,

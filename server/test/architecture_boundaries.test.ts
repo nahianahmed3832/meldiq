@@ -120,7 +120,7 @@ const TABLE_OWNERS: Readonly<Record<string, string>> = {
   // The Platform Admin Console (migration 046).
   ...owned(
     "platformAdmin",
-    "platform_admins platform_admin_passkeys platform_admin_enrolments platform_admin_challenges platform_admin_sessions " +
+    "platform_admins_next platform_report_cases platform_report_events platform_admins platform_admin_passkeys platform_admin_enrolments platform_admin_challenges platform_admin_sessions " +
       "platform_audit platform_incidents platform_incident_events platform_settings alert_rules alert_state alert_deliveries " +
       "platform_restrictions",
   ),
@@ -129,7 +129,7 @@ const TABLE_OWNERS: Readonly<Record<string, string>> = {
   // Billing (migration 061).
   ...owned(
     "billing",
-    "billing_plans billing_plan_versions billing_checkouts billing_subscriptions billing_subscription_history billing_invoices billing_provider_events billing_webhook_rejections billing_customers " +
+    "billing_payment_actions billing_plans billing_plan_versions billing_checkouts billing_subscriptions billing_subscription_history billing_invoices billing_provider_events billing_webhook_rejections billing_customers " +
       // Migration 062 rebuilds three tables through these names (they exist only during the migration).
       "billing_checkouts_rebuilt billing_subscriptions_rebuilt billing_invoices_rebuilt " +
       // Migration 063: trials and invite links.

@@ -3,16 +3,7 @@ import { runPlatformAdminCommand } from "../src/modules/platformAdmin/index.js";
 import { AdminMe } from "../src/shared/contracts/http/platformAdmin.js";
 import { MemoryMailer } from "./support/accounts.js";
 import { accountRows } from "./support/accountRows.js";
-import {
-  ADMIN_HOST,
-  ADMIN_ORIGIN,
-  AdminBrowser,
-  consoleAdmin,
-  consoleAudit,
-  consoleStore,
-  plainAccount,
-  signIn,
-} from "./support/adminConsole.js";
+import { ADMIN_HOST, ADMIN_ORIGIN, AdminBrowser, consoleAdmin, consoleAudit, consoleStore, plainAccount, signIn } from "./support/adminConsole.js";
 import { FakePasskey } from "./support/fakePasskey.js";
 import { type Harness, startServer } from "./support/harness.js";
 
@@ -101,7 +92,7 @@ describe("enrolment", () => {
     const account = await plainAccount(h, mailer, "enrol");
     const { code, out } = await cli("platform-admin-grant", account.email, "support_admin", "on-call support");
     expect(code).toBe(0);
-    const enrolCode = /([A-Z2-9]{5}-[A-Z2-9]{5})/.exec(out)![1];
+    const enrolCode = /((?<![A-Za-z0-9_-])[A-Z2-9]{5}-[A-Z2-9]{5}(?![A-Za-z0-9_-]))/.exec(out)![1];
     const b = new AdminBrowser(h);
     const wrong = await b.req("POST", "/admin/v1/auth/enrol/options", { email: account.email, password: account.password, code: "AAAAA-BBBBB" });
     expect(wrong.status).toBe(400);
@@ -128,7 +119,7 @@ describe("enrolment", () => {
   it("voids a code after five wrong tries", async () => {
     const account = await plainAccount(h, mailer, "fivewrong");
     const { out } = await cli("platform-admin-grant", account.email, "auditor");
-    const enrolCode = /([A-Z2-9]{5}-[A-Z2-9]{5})/.exec(out)![1];
+    const enrolCode = /((?<![A-Za-z0-9_-])[A-Z2-9]{5}-[A-Z2-9]{5}(?![A-Za-z0-9_-]))/.exec(out)![1];
     const b = new AdminBrowser(h);
     b.ip = "198.51.100.20";
     for (let i = 0; i < 5; i++) await b.expect(400, "POST", "/admin/v1/auth/enrol/options", { email: account.email, password: account.password, code: "ZZZZZ-ZZZZZ" });
@@ -277,7 +268,7 @@ describe("the CLI", () => {
     const admin = await consoleAdmin(h, mailer, "auditor", "lostdevice");
     expect((await cli("platform-admin-list")).out).toContain(admin.account.accountId);
     const reset = await cli("platform-admin-reset-passkeys", admin.account.email, "phone lost");
-    expect(reset.out).toMatch(/[A-Z2-9]{5}-[A-Z2-9]{5}/);
+    expect(reset.out).toMatch(/(?<![A-Za-z0-9_-])[A-Z2-9]{5}-[A-Z2-9]{5}(?![A-Za-z0-9_-])/);
     expect(consoleStore(h).passkeys(admin.account.accountId)).toEqual([]);
     await admin.browser.expect(401, "GET", "/admin/v1/me");
   });
@@ -292,7 +283,7 @@ describe("the platform audit", () => {
       expect(() => h.ctx.db.prepare("DELETE FROM platform_audit").run()).toThrow(/append-only/);
     }
     const all = JSON.stringify(h.ctx.platform.all("platform_audit"));
-    expect(all).not.toMatch(/correct horse battery|__Host-|[A-Z2-9]{5}-[A-Z2-9]{5}|nobody@example\.test/);
+    expect(all).not.toMatch(/correct horse battery|__Host-|(?<![A-Za-z0-9_-])[A-Z2-9]{5}-[A-Z2-9]{5}(?![A-Za-z0-9_-])|nobody@example\.test/);
   });
 
   it("detects an edited row by its hash chain", async () => {

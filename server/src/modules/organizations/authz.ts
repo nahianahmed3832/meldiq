@@ -178,7 +178,14 @@ export class Authz {
     return role;
   }
 
+  /** Platform restrictions apply independently of community owner/admin powers. Expired restrictions lift on read. */
+  platformSuspended(orgId: string): boolean {
+    const row = this.rows.get<{ platform_suspended_at: number | null; platform_suspended_until: number | null }>("orgs", { id: orgId });
+    return row?.platform_suspended_at != null && (row.platform_suspended_until === null || row.platform_suspended_until > Date.now());
+  }
+
   orgRole(orgId: string, userId: string): OrgRole | null {
+    if (this.platformSuspended(orgId)) return null;
     return this.rows.get<{ role: OrgRole }>("org_members", { org_id: orgId, user_id: userId })?.role ?? null;
   }
 
@@ -213,6 +220,8 @@ export class Authz {
   }
 
   isMember(convId: string, userId: string): boolean {
+    const conv = this.conversation(convId);
+    if (conv?.org_id && this.platformSuspended(conv.org_id)) return false;
     return this.conversationRole(convId, userId) !== null;
   }
 

@@ -11,7 +11,7 @@ import type { PlatformAudit } from "./audit.js";
 import type { AdminPrincipal } from "./auth.js";
 import type { RequestMeta } from "./credentials.js";
 import type { Exclusions } from "./exclusions.js";
-import { can, type Permission } from "./permissions.js";
+import { allowed, type Permission } from "./permissions.js";
 import { statusOf, userExtras } from "./users.js";
 
 const SEARCH_EACH = 8;
@@ -54,15 +54,14 @@ export class AdminSearchExport {
 
   search(p: AdminPrincipal, q: string) {
     const { platform, ws } = this.ctx;
-    const role = p.grant.role;
     const sections: string[] = [];
-    const users = can(role, "users.view")
+    const users = allowed(p.grant, "users.view")
       ? searchUsers(this.ctx.identity, { q, limit: SEARCH_EACH }).map((u) => ({ id: u.id, username: u.username, displayName: u.display_name, status: statusOf(u) }))
       : null;
     if (users) sections.push("users");
-    const organizations = can(role, "orgs.view") ? searchOrgs(ws, { q, limit: SEARCH_EACH }).map((o) => ({ id: o.id, name: o.name, kind: o.kind })) : null;
+    const organizations = allowed(p.grant, "orgs.view") ? searchOrgs(ws, { q, limit: SEARCH_EACH }).map((o) => ({ id: o.id, name: o.name, kind: o.kind })) : null;
     if (organizations) sections.push("organizations");
-    const incidents = can(role, "incidents.view")
+    const incidents = allowed(p.grant, "incidents.view")
       ? platform
           .all<{ id: string; title: string; status: string; closed_at: number | null }>("platform_incidents", { orderBy: [["created_at", "desc"]] })
           .filter((i) => i.id === q || likeContains(i.title, q))
@@ -70,9 +69,9 @@ export class AdminSearchExport {
           .map((i) => ({ id: i.id, title: i.title, status: i.closed_at ? "closed" : i.status === "mitigated" ? "monitoring" : i.status }))
       : null;
     if (incidents) sections.push("incidents");
-    const devices = can(role, "devices.view") ? devicesPage(this.ctx.identity, { ids: [q], limit: SEARCH_EACH }).map((d) => ({ id: d.id, userId: d.user_id, name: d.name })) : null;
+    const devices = allowed(p.grant, "devices.view") ? devicesPage(this.ctx.identity, { ids: [q], limit: SEARCH_EACH }).map((d) => ({ id: d.id, userId: d.user_id, name: d.name })) : null;
     if (devices) sections.push("devices");
-    const audit = can(role, "audit.view")
+    const audit = allowed(p.grant, "audit.view")
       ? platform
           .all<{ id: number; at: number; action: string }>("platform_audit", { where: { $or: [{ request_id: q }, { target_id: q }] }, orderBy: [["id", "desc"]], limit: SEARCH_EACH })
           .map((a) => ({ id: a.id, at: a.at, action: a.action }))
@@ -82,8 +81,18 @@ export class AdminSearchExport {
   }
 
   async export(p: AdminPrincipal, kind: ExportKind, q: { from?: string; to?: string; reason: string }, meta: RequestMeta): Promise<{ filename: string; csv: string; rows: number }> {
-    if (!can(p.grant.role, NEEDS[kind])) {
-      await this.audit.record({ action: "export.create", outcome: "denied", actorAccountId: p.account.id, actorRole: p.grant.role, targetType: "export", targetId: kind, reason: q.reason, requestId: meta.requestId, network: networkKey(meta.ip) });
+    if (!allowed(p.grant, NEEDS[kind])) {
+      await this.audit.record({
+        action: "export.create",
+        outcome: "denied",
+        actorAccountId: p.account.id,
+        actorRole: p.grant.role,
+        targetType: "export",
+        targetId: kind,
+        reason: q.reason,
+        requestId: meta.requestId,
+        network: networkKey(meta.ip),
+      });
       throw forbidden("Your console role doesn't allow that.");
     }
     const t = now();
@@ -97,7 +106,10 @@ export class AdminSearchExport {
     switch (kind) {
       case "users": {
         const list = searchUsers(this.ctx.identity, { limit: EXPORT_MAX_ROWS, createdFrom: fromMs, createdTo: toMs });
-        const extras = userExtras(this.ctx, list.map((u) => u.id));
+        const extras = userExtras(
+          this.ctx,
+          list.map((u) => u.id),
+        );
         header = ["id", "username", "display_name", "status", "created_at", "last_active_at", "active_devices", "last_seen_at"];
         rows = list.map((u) => [u.id, u.username, u.display_name, statusOf(u), u.created_at, extras.get(u.id)?.lastActiveAt ?? "", u.active_devices, u.last_seen_at ?? ""]);
         break;
@@ -132,7 +144,9 @@ export class AdminSearchExport {
       }
       case "quota-events": {
         header = ["id", "at", "quota", "scope_type", "scope_id", "outcome", "amount", "used", "limit", "detail"];
-        rows = quotaAdmin.eventsPage(platform, { from: fromMs, to: toMs, limit: EXPORT_MAX_ROWS }).map((e) => [e.id, e.at, e.quota_key, e.scope_type, e.scope_id, e.outcome, e.amount, e.used, e.limit_value ?? "", e.detail ?? ""]);
+        rows = quotaAdmin
+          .eventsPage(platform, { from: fromMs, to: toMs, limit: EXPORT_MAX_ROWS })
+          .map((e) => [e.id, e.at, e.quota_key, e.scope_type, e.scope_id, e.outcome, e.amount, e.used, e.limit_value ?? "", e.detail ?? ""]);
         break;
       }
       case "active-users": {

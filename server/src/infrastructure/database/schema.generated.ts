@@ -3704,9 +3704,12 @@ export const SCHEMA: readonly TableShape[] = [
       {"name":"accent","type":"TEXT","notNull":false},
       {"name":"banner_rev","type":"INTEGER","notNull":false},
       {"name":"tag","type":"TEXT","notNull":false},
+      {"name":"platform_suspended_at","type":"INTEGER","notNull":false},
+      {"name":"platform_suspended_until","type":"INTEGER","notNull":false},
     ],
     primaryKey: ["id"],
     indexes: [
+      {"name":"idx_orgs_platform_suspension","columns":["platform_suspended_at","platform_suspended_until"],"unique":false,"nocase":false,"partialNotNull":null},
       {"name":"idx_orgs_public","columns":["visibility","name"],"unique":false,"nocase":false,"partialNotNull":null},
       {"name":"idx_orgs_create_request","columns":["created_by","create_request_id"],"unique":true,"nocase":false,"partialNotNull":["create_request_id"]},
       {"name":"sqlite_autoindex_orgs_2","columns":["slug"],"unique":true,"nocase":true,"partialNotNull":null},
@@ -3840,6 +3843,7 @@ export const SCHEMA: readonly TableShape[] = [
       {"name":"revoked_at","type":"INTEGER","notNull":false},
       {"name":"revoked_by","type":"TEXT","notNull":false},
       {"name":"note","type":"TEXT","notNull":false},
+      {"name":"permissions","type":"TEXT","notNull":false},
     ],
     primaryKey: ["account_id"],
     indexes: [
@@ -3929,6 +3933,42 @@ export const SCHEMA: readonly TableShape[] = [
     ],
     foreignKeys: [],
     autoincrement: false,
+  },
+  {
+    name: "platform_report_cases",
+    columns: [
+      {"name":"report_id","type":"TEXT","notNull":true},
+      {"name":"assignee_account_id","type":"TEXT","notNull":false},
+      {"name":"priority","type":"TEXT","notNull":true,"default":"normal"},
+      {"name":"appeal_status","type":"TEXT","notNull":true,"default":"none"},
+      {"name":"sync_status","type":"TEXT","notNull":true,"default":"synced"},
+      {"name":"intended_status","type":"TEXT","notNull":false},
+      {"name":"version","type":"INTEGER","notNull":true,"default":1},
+      {"name":"updated_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["report_id"],
+    indexes: [
+      {"name":"idx_platform_report_assignee","columns":["assignee_account_id","priority"],"unique":false,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [],
+    autoincrement: false,
+  },
+  {
+    name: "platform_report_events",
+    columns: [
+      {"name":"id","type":"INTEGER","notNull":true},
+      {"name":"report_id","type":"TEXT","notNull":true},
+      {"name":"actor_account_id","type":"TEXT","notNull":true},
+      {"name":"at","type":"INTEGER","notNull":true},
+      {"name":"kind","type":"TEXT","notNull":true},
+      {"name":"body","type":"TEXT","notNull":true},
+    ],
+    primaryKey: ["id"],
+    indexes: [
+      {"name":"idx_platform_report_events","columns":["report_id","id"],"unique":false,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [],
+    autoincrement: true,
   },
   {
     name: "platform_restrictions",
@@ -4281,6 +4321,7 @@ export const SCHEMA: readonly TableShape[] = [
     ],
     primaryKey: ["id"],
     indexes: [
+      {"name":"idx_reports_admin","columns":["status","created_at","id"],"unique":false,"nocase":false,"partialNotNull":null},
       {"name":"reports_target","columns":["target_user_id"],"unique":false,"nocase":false,"partialNotNull":null},
       {"name":"reports_reporter","columns":["reporter_id","created_at"],"unique":false,"nocase":false,"partialNotNull":null},
       {"name":"reports_org_status","columns":["org_id","status","created_at"],"unique":false,"nocase":false,"partialNotNull":null},

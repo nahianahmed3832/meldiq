@@ -20,7 +20,7 @@ export interface RouteContract {
    * API 0.65.0 batch B: a credential other than a person's session. "bot": `Authorization: Bot <token>` (/v2/bot/…);
    * "oauth": an app's OAuth access token as the bearer (/v2/oauth/userinfo), which no other route accepts.
    */
-  scheme?: "bot" | "oauth";
+  scheme?: "bot" | "oauth" | "console";
   /** "oauth": errors are RFC 6749 §5.2 bodies (`{ error, error_description }`), not the error envelope. */
   errorFormat?: "oauth";
   params?: z.ZodType;
@@ -35,7 +35,7 @@ export interface RouteContract {
   /** Error codes this route is documented to answer with (besides the common ones: bad_request, unauthorized, rate_limited). */
   errors?: readonly ErrorCode[];
   /** The route exists only with an optional feature: "federation" when FEDERATION_DOMAIN is set. */
-  requires?: "federation";
+  requires?: "federation" | "admin_console";
 }
 
 export const route = (c: RouteContract): RouteContract => c;

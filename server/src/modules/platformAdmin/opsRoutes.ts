@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import {
   AdminAccountParams,
+  AdminPermissionUpdate,
   AdminAuditQuery,
   AdminConnectorParams,
   AdminGrantBody,
@@ -55,6 +56,13 @@ export default async function adminOpsRoutes(app: FastifyInstance, d: AdminDeps)
   const incidents = new AdminIncidents(d.ctx, d.store, d.audit);
   const auditView = new AdminAuditView(d.ctx, d.audit);
   const admins = new AdminAdmins(d.ctx, d.store, d.audit);
+
+  app.get("/admin/v1/admins/:accountId/permissions", needs("admins.view"), async (req) => admins.permissionView(parse(AdminAccountParams, req.params).accountId));
+  app.put("/admin/v1/admins/:accountId/permissions", needs("admins.manage"), async (req) => {
+    const { accountId } = parse(AdminAccountParams, req.params);
+    const { permissions, reason } = parse(AdminPermissionUpdate, req.body);
+    return admins.setPermissions(principal(req), accountId, permissions, reason, metaOf(req));
+  });
 
   // ── Entitlements and billing status ──
   app.get("/admin/v1/entitlements", needs("entitlements.view"), async () => billing.overview());

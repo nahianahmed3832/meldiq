@@ -5,6 +5,7 @@ import type { PlatformRole } from "./permissions.js";
 export interface AdminGrantRow {
   account_id: string;
   role: PlatformRole;
+  permissions?: string | null;
   granted_by: string | null;
   granted_at: number;
   updated_at: number;
@@ -101,7 +102,16 @@ export class PlatformAdminStore {
     w.update(
       "platform_admins",
       { account_id: accountId },
-      { role, updated_at: t, note, granted_by: regrant ? by : before.granted_by, granted_at: regrant ? t : before.granted_at, revoked_at: null, revoked_by: null },
+      {
+        role,
+        permissions: role === before.role ? (before.permissions ?? null) : null,
+        updated_at: t,
+        note,
+        granted_by: regrant ? by : before.granted_by,
+        granted_at: regrant ? t : before.granted_at,
+        revoked_at: null,
+        revoked_by: null,
+      },
     );
   }
 

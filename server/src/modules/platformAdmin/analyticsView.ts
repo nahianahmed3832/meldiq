@@ -6,7 +6,7 @@ import { orgCounts, orgsCreatedBetween, orgsWithMembers } from "../organizations
 import { analytics, utcDay } from "../telemetry/index.js";
 import type { AdminPrincipal } from "./auth.js";
 import type { Exclusions } from "./exclusions.js";
-import { can } from "./permissions.js";
+import { allowed } from "./permissions.js";
 import { platformSetting } from "./settings.js";
 
 export const RANGE_MS = { "1h": 3_600_000, "24h": 86_400_000, "7d": 7 * 86_400_000, "30d": 30 * 86_400_000, "90d": 90 * 86_400_000 } as const;
@@ -20,8 +20,7 @@ const ORGS_SHOWN = 100;
 const ACTIVATION_DAYS = 7;
 const GB = 1024 ** 3;
 
-const change = (current: number | null, previous: number | null) =>
-  current === null || previous === null || previous === 0 ? null : Math.round(((current - previous) / previous) * 1000) / 10;
+const change = (current: number | null, previous: number | null) => (current === null || previous === null || previous === 0 ? null : Math.round(((current - previous) / previous) * 1000) / 10);
 const compare = (current: number | null, previous: number | null) => ({ current, previous, change: change(current, previous) });
 
 /** A [from, to] day range: defaults to the last 30 days, at most MAX_DAYS, never in the future. */
@@ -54,7 +53,8 @@ export class AdminAnalytics {
     const yesterday = utcDay(t - DAY_MS);
     const before = utcDay(t - 2 * DAY_MS);
     const covered = (day: string, span: number) => since !== null && analytics.addDays(day, -(span - 1)) >= utcDay(since);
-    const metric = (day: string, span: number) => (covered(day, span) || (since !== null && day >= utcDay(since) && span === 1) ? analytics.distinctActive(this.ctx, analytics.addDays(day, -(span - 1)), day, excluded) : null);
+    const metric = (day: string, span: number) =>
+      covered(day, span) || (since !== null && day >= utcDay(since) && span === 1) ? analytics.distinctActive(this.ctx, analytics.addDays(day, -(span - 1)), day, excluded) : null;
     const pick = (span: number) => compare(metric(yesterday, span), metric(span === 1 ? before : analytics.addDays(yesterday, -span), span));
     return { dau: pick(1), wau: pick(7), mau: pick(30) };
   }
@@ -82,7 +82,7 @@ export class AdminAnalytics {
     const sum = (metric: string) => (since === null ? null : trafficDays.filter((d) => d.metric === metric).reduce((a, d) => a + d.value, 0));
     await this.ctx.usage.snapshot();
     const workspaceBytes = this.ctx.usage.totals(1).reduce((a, o) => a + (o.metrics["storage.bytes"] ?? 0), 0);
-    const health = can(p.grant.role, "health.view");
+    const health = allowed(p.grant, "health.view");
     const requests = health
       ? {
           requests: analytics.seriesSum(this.ctx, "api.requests", t - ms, t),
@@ -106,7 +106,13 @@ export class AdminAnalytics {
       range,
       collectingSince: since,
       excluded: ex.counts,
-      people: { registered: people.total, usable: states.usable, suspended: people.suspended, newAccountLimited: states.newAccountLimited, withSession: await this.ctx.accounts.store.sessionHolders(t) },
+      people: {
+        registered: people.total,
+        usable: states.usable,
+        suspended: people.suspended,
+        newAccountLimited: states.newAccountLimited,
+        withSession: await this.ctx.accounts.store.sessionHolders(t),
+      },
       activity: {
         ...trio,
         activeInRange: compare(since === null ? null : activeNow, activePrev),
@@ -114,7 +120,16 @@ export class AdminAnalytics {
         dauOverMau: trio.dau.current !== null && trio.mau.current ? Math.round((trio.dau.current / trio.mau.current) * 1000) / 10 : null,
         wauOverMau: trio.wau.current !== null && trio.mau.current ? Math.round((trio.wau.current / trio.mau.current) * 1000) / 10 : null,
       },
-      live: { users: live.users, activeUsers: live.activeUsers, devices: live.devices, sockets: live.sockets, calls: live.calls.calls, callParticipants: live.calls.participants, peakUsers: presence.peakUsers, peakAt: presence.peakAt },
+      live: {
+        users: live.users,
+        activeUsers: live.activeUsers,
+        devices: live.devices,
+        sockets: live.sockets,
+        calls: live.calls.calls,
+        callParticipants: live.calls.participants,
+        peakUsers: presence.peakUsers,
+        peakAt: presence.peakAt,
+      },
       organizations: { total: orgs.total, active: activeOrgs, newInRange: compare(orgsCreatedBetween(ws, t - ms, t), orgsCreatedBetween(ws, t - 2 * ms, t - ms)) },
       messaging: {
         messagesAccepted: sum("messages"),
@@ -162,7 +177,13 @@ export class AdminAnalytics {
       to,
       collectingSince: sinceDay,
       cohorts,
-      activation: { eligible, activated: act.activated, rate: eligible ? Math.round((act.activated / eligible) * 1000) / 10 : null, medianMsToFirstAction: act.medianMsToFirstAction, windowDays: ACTIVATION_DAYS },
+      activation: {
+        eligible,
+        activated: act.activated,
+        rate: eligible ? Math.round((act.activated / eligible) * 1000) / 10 : null,
+        medianMsToFirstAction: act.medianMsToFirstAction,
+        windowDays: ACTIVATION_DAYS,
+      },
       definitions: {
         cohort: "People who signed up on the UTC day (load-test and excluded accounts left out; deleted accounts still count).",
         retention: "Day N: the share of the cohort with qualifying activity on the UTC day N days after signing up. Blank: that day isn't over yet, or was before collection began.",
@@ -203,12 +224,23 @@ export class AdminAnalytics {
     const t = now();
     const fromMs = Date.parse(`${from}T00:00:00Z`);
     const toMs = Math.min(Date.parse(`${to}T00:00:00Z`) + DAY_MS, t);
-    const days = analytics.trafficDays(this.ctx, from, to, ex.ids).filter((d) => d.metric !== "messages") as { day: string; metric: "api.in" | "api.out" | "ws.in" | "ws.out" | "files.upload" | "files.download"; value: number }[];
+    const days = analytics.trafficDays(this.ctx, from, to, ex.ids).filter((d) => d.metric !== "messages") as {
+      day: string;
+      metric: "api.in" | "api.out" | "ws.in" | "ws.out" | "files.upload" | "files.download";
+      value: number;
+    }[];
     const totals: Record<string, number> = {};
     for (const d of days) totals[d.metric] = (totals[d.metric] ?? 0) + d.value;
     const top = analytics.topTraffic(this.ctx, from, to, ex.ids, 20).map((u) => ({ ...u, byMetric: Object.fromEntries(Object.entries(u.byMetric).filter(([k]) => k !== "messages")) }));
-    const names = usernames(this.ctx.identity, top.map((u) => u.userId));
-    const services = (["api", "livekit", "ntfy", "other"] as const).map((s) => ({ service: s, txBytes: analytics.seriesTotal(this.ctx, `svc.${s}.net_tx_bps`, fromMs, toMs), rxBytes: analytics.seriesTotal(this.ctx, `svc.${s}.net_rx_bps`, fromMs, toMs) }));
+    const names = usernames(
+      this.ctx.identity,
+      top.map((u) => u.userId),
+    );
+    const services = (["api", "livekit", "ntfy", "other"] as const).map((s) => ({
+      service: s,
+      txBytes: analytics.seriesTotal(this.ctx, `svc.${s}.net_tx_bps`, fromMs, toMs),
+      rxBytes: analytics.seriesTotal(this.ctx, `svc.${s}.net_rx_bps`, fromMs, toMs),
+    }));
     // Month to date, for the plan's transfer allowance and the storage provider's prices (operator-entered).
     const monthStart = Date.UTC(new Date(t).getUTCFullYear(), new Date(t).getUTCMonth(), 1);
     const monthEnd = Date.UTC(new Date(t).getUTCFullYear(), new Date(t).getUTCMonth() + 1, 1);
@@ -218,7 +250,10 @@ export class AdminAnalytics {
     const egressPrice = platformSetting(this.ctx.platform, "costs.egress_per_gb");
     const server = platformSetting(this.ctx.platform, "costs.server_monthly");
     const stored = analytics.latestResources(this.ctx, t, 2 * 3_600_000).get("storage.files_bytes")?.value ?? null;
-    const mtdDownloads = analytics.trafficDays(this.ctx, utcDay(monthStart), utcDay(t), []).filter((d) => d.metric === "files.download").reduce((a, d) => a + d.value, 0);
+    const mtdDownloads = analytics
+      .trafficDays(this.ctx, utcDay(monthStart), utcDay(t), [])
+      .filter((d) => d.metric === "files.download")
+      .reduce((a, d) => a + d.value, 0);
     return {
       from,
       to,
@@ -231,7 +266,8 @@ export class AdminAnalytics {
         apiTxBytes: analytics.seriesTotal(this.ctx, "api.net.tx_bps", fromMs, toMs),
         apiRxBytes: analytics.seriesTotal(this.ctx, "api.net.rx_bps", fromMs, toMs),
         services,
-        source: "Host and per-service figures come from the host collector (network interface and container counters); the API's own figures from its network namespace. Each is measured once: they overlap (the API's traffic is part of the host's), so they aren't added up.",
+        source:
+          "Host and per-service figures come from the host collector (network interface and container counters); the API's own figures from its network namespace. Each is measured once: they overlap (the API's traffic is part of the host's), so they aren't added up.",
       },
       costs: {
         transferAllowanceBytes: allowance.bytes,

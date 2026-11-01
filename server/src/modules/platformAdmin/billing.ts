@@ -1,5 +1,5 @@
 import type { AppContext } from "../../app/context.js";
-import { PayPalCheckout } from "../billing/paypalCheckout.js";
+import { PayPalCheckout } from "../billing/index.js";
 import { networkKey } from "../../app/middleware/abuse.js";
 import { ApiError, forbidden, notFound } from "../../shared/errors.js";
 import { now } from "../../shared/utilities/util.js";
@@ -41,7 +41,15 @@ export class AdminBilling {
     private readonly audit: PlatformAudit,
   ) {}
 
-  private async record(p: AdminPrincipal, action: string, targetType: string, targetId: string, reason: string | null, meta: RequestMeta, detail: Record<string, string | number | boolean | null>): Promise<void> {
+  private async record(
+    p: AdminPrincipal,
+    action: string,
+    targetType: string,
+    targetId: string,
+    reason: string | null,
+    meta: RequestMeta,
+    detail: Record<string, string | number | boolean | null>,
+  ): Promise<void> {
     await this.audit.record({
       action,
       outcome: "success",
@@ -56,11 +64,24 @@ export class AdminBilling {
     });
   }
 
-  paypalTransactions() { return { transactions: new PayPalCheckout(this.ctx.billing, this.ctx.gifts).transactions() }; }
+  paypalTransactions() {
+    const provider = this.ctx.billing.provider;
+    const available = provider?.id === "paypal";
+    return {
+      transactions: PayPalCheckout.records(this.ctx.billing).map((t) => ({ ...t, refundable: available && t.refundable })),
+      integration: {
+        available,
+        mode: available ? provider!.mode : null,
+        reason: available ? null : "PayPal is not configured on this server. Historical records remain available; refunds are disabled.",
+      },
+    };
+  }
 
   async refundPayPal(p: AdminPrincipal, id: string, reason: string, meta: RequestMeta) {
     const checkout = new PayPalCheckout(this.ctx.billing, this.ctx.gifts);
-    const result = await checkout.refund(id, p.account.id, reason, () => this.record(p, "billing.paypal.refund_requested", "mojo_gift", id, reason, meta, { provider: "paypal", mode: checkout.provider.mode }));
+    const result = await checkout.refund(id, p.account.id, reason, () =>
+      this.record(p, "billing.paypal.refund_requested", "mojo_gift", id, reason, meta, { provider: "paypal", mode: checkout.provider.mode }),
+    );
     await this.record(p, "billing.paypal.refund_result", "mojo_gift", id, reason, meta, { status: result.status, reference: result.reference });
     return result;
   }
@@ -101,7 +122,11 @@ export class AdminBilling {
     if (setting && expiresAt === undefined) throw new ApiError(400, "bad_request", "Choose when these limits end");
     if (setting && expiresAt === null && p.grant.role !== "super_admin") throw forbidden("Only a super admin may set a limit with no end date");
     if (setting && expiresAt != null && (expiresAt <= t || expiresAt > t + MAX_LIMIT_DAYS * DAY_MS)) throw new ApiError(400, "bad_request", "The end date must be in the next 366 days");
-    const before = Object.fromEntries(limitsOf(this.ctx, orgId).filter((l) => l.source === "workspace").map((l) => [l.key, l.limit]));
+    const before = Object.fromEntries(
+      limitsOf(this.ctx, orgId)
+        .filter((l) => l.source === "workspace")
+        .map((l) => [l.key, l.limit]),
+    );
     // The limits live with the community (possibly MongoDB): recorded once they're set.
     await this.ctx.entitlements.setLimits(orgId, `platform:${p.account.id}`, limits, t, expiresAt ?? null, reason);
     await this.record(p, "org.limits", "org", orgId, reason, meta, {
@@ -154,6 +179,7 @@ export class AdminBilling {
 
   // Billing's rows (SQLite or MongoDB) and the console's audit are separate stores: each change is made, then recorded.
   async createPlan(p: AdminPrincipal, b: { key: string; terms: PlanTerms; reason: string } & PlanMeta, meta: RequestMeta) {
+    if (b.key === "go") throw new ApiError(400, "bad_request", "Go is retired and cannot be recreated.");
     const created = await this.ctx.billing.catalog.create(b.key, b, b.terms, p.account.id, now());
     await this.record(p, "billing.plan_create", "billing_plan", created.id, b.reason, meta, { key: b.key, name: b.name });
     return this.one(created.id);
@@ -178,6 +204,7 @@ export class AdminBilling {
 
   /** Publishes the draft for new subscribers. Existing subscribers keep the version they're on. */
   async publish(p: AdminPrincipal, planId: string, reason: string, meta: RequestMeta) {
+    if (this.ctx.billing.catalog.plan(planId)?.key === "go") throw new ApiError(400, "bad_request", "Go is retired and cannot be published.");
     const provider = this.ctx.billing.provider;
     if (!provider) throw new ApiError(409, "billing_unavailable", this.ctx.billing.unavailableReason ?? "Billing isn't available");
     const { published, retired } = await this.ctx.billing.catalog.publish(planId, provider.id, p.account.id, now());
@@ -239,7 +266,14 @@ export class AdminBilling {
         pastDueSince: s.past_due_since,
         terms: termsOf(v),
       },
-      history: history.map((h) => ({ at: h.at, from: h.from_status, to: h.to_status, planVersion: versionOf(h.plan_version_id), source: h.source, detail: h.detail ? (JSON.parse(h.detail) as Record<string, unknown>) : {} })),
+      history: history.map((h) => ({
+        at: h.at,
+        from: h.from_status,
+        to: h.to_status,
+        planVersion: versionOf(h.plan_version_id),
+        source: h.source,
+        detail: h.detail ? (JSON.parse(h.detail) as Record<string, unknown>) : {},
+      })),
       invoices: invoices.map((i) => ({
         id: i.id,
         providerInvoiceRef: i.provider_invoice_ref,

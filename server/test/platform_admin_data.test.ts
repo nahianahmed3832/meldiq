@@ -136,7 +136,7 @@ describe("organizations", () => {
     expect(AdminOrgDetail.safeParse(detail).success).toBe(true);
     expect(detail.owners).toEqual([{ id: person.userId, username: person.username }]);
     expect(detail.composition.byRole).toEqual({ OWNER: 1 });
-    expect(detail.suspension).toEqual({ supported: false });
+    expect(detail.suspension).toEqual({ supported: true, active: false, suspendedAt: null, until: null });
     expect(detail.limits.map((l: any) => l.key)).toContain("members");
     expect(JSON.stringify(detail)).not.toMatch(/general|announcements/i);
     await as("support_admin").expect(404, "GET", "/admin/v1/orgs/o_missing_org");

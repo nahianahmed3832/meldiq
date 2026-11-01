@@ -1,3 +1,4 @@
+import { VERSION } from "../src/app/server.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { BUILTIN_DECORATIONS } from "../src/modules/accounts/decorations/builtins.generated.js";
 import { UsernameHolds, USERNAME_HOLD_MS } from "../src/modules/accounts/usernameHolds.js";
@@ -48,7 +49,7 @@ describe("settings parity on the default (memory) stores", () => {
 
   it("is advertised in the server's features", async () => {
     const { features, version } = await (await h.client("features")).req("GET", "/v1/server-info");
-    expect(version).toBe("0.68.0");
+    expect(version).toBe(VERSION);
     expect(features).toEqual(expect.arrayContaining(["profile-theme", "shown-badge", "leave-many", "group-add-policy", "suggested-people", "username-holds", "decoration-favorites", "points"]));
   });
 

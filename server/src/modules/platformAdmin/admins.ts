@@ -6,7 +6,7 @@ import type { PlatformAudit } from "./audit.js";
 import type { AdminPrincipal } from "./auth.js";
 import { type Actor, grantAdmin, grantProblem, resetAdminPasskeys, revokeAdmin } from "./bootstrap.js";
 import type { RequestMeta } from "./credentials.js";
-import type { PlatformRole } from "./permissions.js";
+import { effectivePermissions, PERMISSIONS, permissionsOf, type PlatformRole } from "./permissions.js";
 import type { AdminGrantRow, PlatformAdminStore } from "./store.js";
 
 const actorOf = (p: AdminPrincipal, meta: RequestMeta): Actor => ({ accountId: p.account.id, role: p.grant.role, requestId: meta.requestId, network: networkKey(meta.ip) });
@@ -26,7 +26,9 @@ export class AdminAdmins {
   private async entry(g: AdminGrantRow, t: number) {
     const account = await this.ctx.accounts.store.accountById(g.account_id);
     const granter = g.granted_by ? await this.ctx.accounts.store.accountById(g.granted_by) : undefined;
-    const lastSignIn = { at: this.ctx.platform.get<{ at: number }>("platform_audit", { action: { in: ["admin.login", "admin.enrol"] }, outcome: "success", actor_account_id: g.account_id }, [["at", "desc"]])?.at ?? null };
+    const lastSignIn = {
+      at: this.ctx.platform.get<{ at: number }>("platform_audit", { action: { in: ["admin.login", "admin.enrol"] }, outcome: "success", actor_account_id: g.account_id }, [["at", "desc"]])?.at ?? null,
+    };
     const enrolment = this.store.enrolment(g.account_id);
     return {
       accountId: g.account_id,
@@ -44,6 +46,55 @@ export class AdminAdmins {
     };
   }
 
+  permissionView(accountId: string) {
+    const grant = this.store.activeGrant(accountId);
+    if (!grant) throw notFound("No active console admin has that account.");
+    return { role: grant.role, catalog: [...PERMISSIONS], defaults: permissionsOf(grant.role), effective: effectivePermissions(grant), custom: grant.permissions != null };
+  }
+
+  async setPermissions(p: AdminPrincipal, accountId: string, permissions: string[] | null, reason: string, meta: RequestMeta) {
+    const grant = await this.guard(p, "admin.permissions_change", accountId, reason, meta, this.store.activeGrant(accountId)?.role ?? null);
+    if (!grant) throw notFound("No active console admin has that account.");
+    if (grant.role === "super_admin") throw badRequest("Super admin access is fixed. Change their role first.");
+    const defaults = permissionsOf(grant.role);
+    if (permissions?.some((v) => !new Set<string>(defaults).has(v))) throw badRequest("Permissions must be a subset of this role's allowed permissions.");
+    await this.ctx.platform.write((w) => {
+      const before = w.get<AdminGrantRow>("platform_admins", { account_id: accountId });
+      if (!before || before.role !== grant.role || before.revoked_at !== null) throw new ApiError(409, "conflict", "This grant changed. Refresh it.");
+      const value = permissions === null ? null : JSON.stringify([...new Set(permissions)].sort());
+      w.update("platform_admins", { account_id: accountId }, { permissions: value, updated_at: now() });
+      const oldPermissions = effectivePermissions(before);
+      const newPermissions = effectivePermissions({ ...before, permissions: value });
+      for (const permission of defaults) {
+        if (oldPermissions.includes(permission) === newPermissions.includes(permission)) continue;
+        this.audit.append(w, {
+          action: "admin.permission_changed",
+          outcome: "success",
+          actorAccountId: p.account.id,
+          actorRole: p.grant.role,
+          targetType: "admin",
+          targetId: accountId,
+          reason,
+          detail: { permission, before: oldPermissions.includes(permission), after: newPermissions.includes(permission) },
+        });
+      }
+      this.audit.append(w, {
+        action: "admin.permissions_change",
+        outcome: "success",
+        actorAccountId: p.account.id,
+        actorRole: p.grant.role,
+        targetType: "admin",
+        targetId: accountId,
+        reason,
+        requestId: meta.requestId,
+        network: networkKey(meta.ip),
+        detail: { before: before.permissions == null ? "role defaults" : "custom allowlist", after: value === null ? "role defaults" : "custom allowlist", permissionCount: newPermissions.length },
+      });
+    });
+    await this.store.revokeAccountSessions(accountId, "permissions_changed", now());
+    return this.permissionView(accountId);
+  }
+
   async list() {
     const t = now();
     const admins = [];
@@ -59,7 +110,18 @@ export class AdminAdmins {
 
   /** Refuses with [message] (403), recording the attempt. */
   private async deny(p: AdminPrincipal, action: string, target: string, reason: string, meta: RequestMeta, why: string, message: string): Promise<never> {
-    await this.audit.record({ action, outcome: "denied", actorAccountId: p.account.id, actorRole: p.grant.role, targetType: "admin", targetId: target, reason, requestId: meta.requestId, network: networkKey(meta.ip), detail: { why } });
+    await this.audit.record({
+      action,
+      outcome: "denied",
+      actorAccountId: p.account.id,
+      actorRole: p.grant.role,
+      targetType: "admin",
+      targetId: target,
+      reason,
+      requestId: meta.requestId,
+      network: networkKey(meta.ip),
+      detail: { why },
+    });
     throw forbidden(message);
   }
 

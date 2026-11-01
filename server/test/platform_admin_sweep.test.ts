@@ -13,6 +13,16 @@ import { type Harness, startServer } from "./support/harness.js";
 const PUBLIC = ["POST /admin/v1/auth/password", "POST /admin/v1/auth/passkey", "POST /admin/v1/auth/enrol/options", "POST /admin/v1/auth/enrol"];
 const SESSION_ONLY = ["GET /admin/v1/me", "POST /admin/v1/auth/logout", "POST /admin/v1/auth/reauth/options", "POST /admin/v1/auth/reauth"];
 const GUARDED: Record<string, Permission> = {
+  "DELETE /admin/v1/orgs/:orgId": "orgs.delete",
+  "GET /admin/v1/billing/paypal/transactions": "billing.view",
+  "POST /admin/v1/billing/paypal/transactions/:id/refund": "billing.manage",
+  "GET /admin/v1/reports": "reports.view",
+  "GET /admin/v1/reports/assignees": "reports.manage",
+  "GET /admin/v1/reports/:reportId": "reports.view",
+  "PATCH /admin/v1/reports/:reportId": "reports.manage",
+  "GET /admin/v1/admins/:accountId/permissions": "admins.view",
+  "PUT /admin/v1/admins/:accountId/permissions": "admins.manage",
+  "POST /admin/v1/orgs/:orgId/restriction": "orgs.restrict",
   "GET /admin/v1/overview": "overview.view",
   "GET /admin/v1/users": "users.view",
   "GET /admin/v1/users/:userId": "users.view",
@@ -147,8 +157,7 @@ beforeAll(async () => {
 });
 afterAll(async () => h.close());
 
-const adminRoutes = () =>
-  [...h.contracts.routes].filter((r) => / \/admin\/v1\//.test(r) && !r.startsWith("HEAD ") && !r.startsWith("OPTIONS ")).sort();
+const adminRoutes = () => [...h.contracts.routes].filter((r) => / \/admin\/v1\//.test(r) && !r.startsWith("HEAD ") && !r.startsWith("OPTIONS ")).sort();
 
 /** A concrete request for route template [r]: made-up ids, an empty body (so nothing real changes). */
 function request(r: string): [string, string, unknown] {

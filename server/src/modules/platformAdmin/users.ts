@@ -1,4 +1,5 @@
 import type { AppContext } from "../../app/context.js";
+import { orgMemberIds } from "../organizations/index.js";
 import { networkKey } from "../../app/middleware/abuse.js";
 import { ApiError, badRequest, forbidden, notFound } from "../../shared/errors.js";
 import { analytics, utcDay } from "../telemetry/index.js";
@@ -10,7 +11,7 @@ import type { PlatformAudit } from "./audit.js";
 import type { AdminPrincipal } from "./auth.js";
 import type { RequestMeta } from "./credentials.js";
 import { decodeCursor, page } from "./pagination.js";
-import { can } from "./permissions.js";
+import { allowed } from "./permissions.js";
 import type { PlatformAdminStore } from "./store.js";
 
 const EVENTS_SHOWN = 20;
@@ -66,7 +67,20 @@ export class AdminUsers {
     private readonly audit: PlatformAudit,
   ) {}
 
-  async search(p: AdminPrincipal, q: { q?: string; status?: UserStatus; activity?: "active7d" | "inactive30d"; createdFrom?: string; createdTo?: string; cursor?: string; limit: number }) {
+  async search(
+    p: AdminPrincipal,
+    q: {
+      q?: string;
+      plan?: "free" | "plus" | "go";
+      orgId?: string;
+      status?: UserStatus;
+      activity?: "active7d" | "inactive30d";
+      createdFrom?: string;
+      createdTo?: string;
+      cursor?: string;
+      limit: number;
+    },
+  ) {
     const after = decodeCursor(q.cursor);
     let ids: string[] | undefined;
     let notIds: string[] | undefined;
@@ -75,24 +89,35 @@ export class AdminUsers {
     if (q.activity === "inactive30d") notIds = analytics.activeUserIds(this.ctx, utcDay(t - 29 * DAY_MS), utcDay(t), ACTIVITY_FILTER_LIMIT);
     let text = q.q || undefined;
     // An email address finds the person behind that account, for admins who may see addresses.
-    if (text?.includes("@") && can(p.grant.role, "users.view_email")) {
+    if (text?.includes("@") && allowed(p.grant, "users.view_email")) {
       const account = await this.ctx.accounts.store.accountByEmail(text.toLowerCase());
       const found = account?.user_id ? [account.user_id] : [];
       ids = ids ? ids.filter((id) => found.includes(id)) : found;
       text = undefined;
     }
-    const rows = searchUsers(this.ctx.identity, {
+    if (q.orgId) {
+      const members = orgMemberIds(this.ctx.ws, q.orgId);
+      ids = ids ? ids.filter((id) => members.includes(id)) : members;
+    }
+    let rows = searchUsers(this.ctx.identity, {
       q: text,
       status: q.status,
       after,
-      limit: q.limit + 1,
+      limit: q.plan ? ACTIVITY_FILTER_LIMIT + 1 : q.limit + 1,
       ids,
       notIds,
       createdFrom: q.createdFrom ? dayStart(q.createdFrom) : undefined,
       createdTo: q.createdTo ? dayStart(q.createdTo) + DAY_MS : undefined,
     });
+    if (q.plan) {
+      if (rows.length > ACTIVITY_FILTER_LIMIT) throw new ApiError(400, "bad_request", "Narrow the search or registration dates before filtering this many people by plan.");
+      rows = rows.filter((r) => this.ctx.mojo.planOf(r.id, t) === q.plan).slice(0, q.limit + 1);
+    }
     const { rows: shown, nextCursor } = page(rows, q.limit);
-    const extras = userExtras(this.ctx, shown.map((r) => r.id));
+    const extras = userExtras(
+      this.ctx,
+      shown.map((r) => r.id),
+    );
     return { users: shown.map((r) => userView(r, extras.get(r.id))), nextCursor };
   }
 
@@ -105,14 +130,24 @@ export class AdminUsers {
   async detail(p: AdminPrincipal, userId: string, meta: RequestMeta) {
     const u = this.target(userId);
     const account = await this.ctx.accounts.store.accountByUserId(userId);
-    const showEmail = can(p.grant.role, "users.view_email");
+    const showEmail = allowed(p.grant, "users.view_email");
     const t = now();
     const interventions = this.ctx.platform.all<{ at: number; action: string; outcome: string; actor_role: string | null; reason: string | null }>("platform_audit", {
       where: { target_type: "user", target_id: userId, action: { ne: "user.view" } },
       orderBy: [["id", "desc"]],
       limit: EVENTS_SHOWN,
     });
-    await this.audit.record({ action: "user.view", outcome: "success", actorAccountId: p.account.id, actorRole: p.grant.role, targetType: "user", targetId: userId, requestId: meta.requestId, network: networkKey(meta.ip), detail: { email: showEmail && !!account } });
+    await this.audit.record({
+      action: "user.view",
+      outcome: "success",
+      actorAccountId: p.account.id,
+      actorRole: p.grant.role,
+      targetType: "user",
+      targetId: userId,
+      requestId: meta.requestId,
+      network: networkKey(meta.ip),
+      detail: { email: showEmail && !!account },
+    });
     return {
       user: userView(u, userExtras(this.ctx, [userId]).get(userId)),
       account: account
@@ -127,7 +162,14 @@ export class AdminUsers {
           }
         : null,
       devices: userDevices(this.ctx.identity, userId).map((d) => ({ id: d.id, name: d.name, createdAt: d.created_at, lastSeenAt: d.last_seen_at, revokedAt: d.revoked_at })),
-      memberships: membershipsOf(this.ctx.ws, userId).map((m) => ({ orgId: m.org_id, name: m.name, kind: m.kind, role: m.role, joinedAt: m.joined_at, customRoles: m.custom_roles ? m.custom_roles.split(CUSTOM_ROLE_SEPARATOR) : [] })),
+      memberships: membershipsOf(this.ctx.ws, userId).map((m) => ({
+        orgId: m.org_id,
+        name: m.name,
+        kind: m.kind,
+        role: m.role,
+        joinedAt: m.joined_at,
+        customRoles: m.custom_roles ? m.custom_roles.split(CUSTOM_ROLE_SEPARATOR) : [],
+      })),
       platformRole: account ? (this.store.activeGrant(account.id)?.role ?? null) : null,
       securityEvents: securityEvents(this.ctx.ws, account ? [userId, account.id] : [userId], EVENTS_SHOWN),
       interventions: interventions.map((i) => ({ at: i.at, action: i.action, outcome: i.outcome, actorRole: i.actor_role, reason: i.reason })),
@@ -139,7 +181,18 @@ export class AdminUsers {
     const account = await this.ctx.accounts.store.accountByUserId(u.id);
     const why = p.account.user_id === u.id ? "self" : account && this.store.activeGrant(account.id) && p.grant.role !== "super_admin" ? "platform_admin" : null;
     if (why) {
-      await this.audit.record({ action, outcome: "denied", actorAccountId: p.account.id, actorRole: p.grant.role, targetType: "user", targetId: u.id, reason, requestId: meta.requestId, network: networkKey(meta.ip), detail: { why } });
+      await this.audit.record({
+        action,
+        outcome: "denied",
+        actorAccountId: p.account.id,
+        actorRole: p.grant.role,
+        targetType: "user",
+        targetId: u.id,
+        reason,
+        requestId: meta.requestId,
+        network: networkKey(meta.ip),
+        detail: { why },
+      });
       throw forbidden(why === "self" ? "You can't do that to your own account." : "Only a super admin can do that to a platform admin.");
     }
     return account;
@@ -194,7 +247,18 @@ export class AdminUsers {
     const u = this.target(userId);
     const account = await this.guard(p, u, "user.sessions_revoke", reason, meta);
     const ended = await this.endSessions(userId, account, "admin_revoked", now());
-    await this.audit.record({ action: "user.sessions_revoke", outcome: "success", actorAccountId: p.account.id, actorRole: p.grant.role, targetType: "user", targetId: userId, reason, requestId: meta.requestId, network: networkKey(meta.ip), detail: ended });
+    await this.audit.record({
+      action: "user.sessions_revoke",
+      outcome: "success",
+      actorAccountId: p.account.id,
+      actorRole: p.grant.role,
+      targetType: "user",
+      targetId: userId,
+      reason,
+      requestId: meta.requestId,
+      network: networkKey(meta.ip),
+      detail: ended,
+    });
     return ended;
   }
 }

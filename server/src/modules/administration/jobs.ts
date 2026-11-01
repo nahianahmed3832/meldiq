@@ -6,7 +6,7 @@ import { purgeHistory } from "../messaging/history/routes.js";
 import { broadcastCall, type CallRow, endCallRow, evictFromCall, loadCall, scheduleLost } from "../calls/routes.js";
 import { removeFromWorkspace } from "../organizations/orgsRoutes.js";
 import { now } from "../../shared/utilities/util.js";
-import { PlatformAdminStore } from "../platformAdmin/index.js";
+import { PlatformAdminStore, recoverReportWorkflows } from "../platformAdmin/index.js";
 
 export interface CleanupResult {
   queue: number;
@@ -45,6 +45,8 @@ export interface CleanupResult {
   billing: number;
   /** Batch B4: closed reports past their 90 days. */
   reportsPurged: number;
+  /** Interrupted report workflows reconciled and expired orphan workflow notes removed. */
+  reportWorkflows: number;
   /** Expired sign-in flows, webhook delivery ids, channel notifications from apps and old finished jobs. */
   /** Old reminder occurrence records and reminders finished more than 30 days ago. */
   reminders: number;
@@ -104,6 +106,7 @@ export async function runCleanup(ctx: AppContext): Promise<CleanupResult> {
     quotaReservations: ctx.quotas ? await ctx.quotas.expireReservations() : 0,
     billing: ctx.billing ? (await ctx.billing.sweep()) + (ctx.gifts ? await ctx.gifts.sweep() : 0) + (ctx.play ? await ctx.play.reconcile() : 0) : 0,
     reportsPurged: 0,
+    reportWorkflows: 0,
     guestsExpired: 0,
   };
   // Usage gauges (seats, stored bytes, call minutes), at most every ten minutes (docs/USAGE_AND_PLANS.md).
@@ -129,6 +132,10 @@ export async function runCleanup(ctx: AppContext): Promise<CleanupResult> {
   // Reports may live in MongoDB: an unreachable store mustn't stop the rest of retention.
   r.reportsPurged = await (async () => ctx.reports.purgeClosed(t - REPORT_RETENTION_MS))().catch((e) => {
     ctx.log.error({ err: e }, "report retention failed");
+    return 0;
+  });
+  r.reportWorkflows = await recoverReportWorkflows(ctx, t).catch((e) => {
+    ctx.log.error({ errorType: (e as Error).name }, "report workflow recovery failed");
     return 0;
   });
   r.blobsDeleted = await processBlobDeletes(ctx);

@@ -44,7 +44,7 @@ const actorFields = (actor: Actor) => ({ actorAccountId: actor.accountId, actorR
  * unit; a role change then ends the admin's console sessions.
  */
 export async function grantAdmin(store: PlatformAdminStore, audit: PlatformAudit, account: AccountRow | undefined, role: string, actor: Actor, note: string | null): Promise<string | null> {
-  if (!isPlatformRole(role)) throw new Error(`Unknown role. Use one of: super_admin, operations_admin, support_admin, billing_admin, auditor`);
+  if (!isPlatformRole(role)) throw new Error(`Unknown role. Use one of: super_admin, operations_admin, platform_moderator, support_admin, billing_admin, auditor`);
   const problem = grantProblem(account);
   if (problem || !account) throw new Error(problem ?? "No account has that email address.");
   const t = now();
@@ -52,15 +52,19 @@ export async function grantAdmin(store: PlatformAdminStore, audit: PlatformAudit
   const before = await store.platform.write((w) => {
     const prior = w.get<AdminGrantRow>("platform_admins", { account_id: account.id, revoked_at: null });
     store.putGrant(w, account.id, role, actor.accountId, note, t);
-    audit.append(w, {
-      action: prior ? "admin.role_change" : "admin.grant",
-      outcome: "success",
-      ...actorFields(actor),
-      targetType: "admin",
-      targetId: account.id,
-      reason: note,
-      detail: { role, from: prior?.role ?? null, enrolmentIssued: enrol, via: via(actor) },
-    }, t);
+    audit.append(
+      w,
+      {
+        action: prior ? "admin.role_change" : "admin.grant",
+        outcome: "success",
+        ...actorFields(actor),
+        targetType: "admin",
+        targetId: account.id,
+        reason: note,
+        detail: { role, from: prior?.role ?? null, enrolmentIssued: enrol, via: via(actor) },
+      },
+      t,
+    );
     return prior;
   });
   // A role change ends the admin's sessions: the next sign-in carries the new role from the start.

@@ -4,7 +4,7 @@ import { userCounts } from "../accounts/index.js";
 import { healthReport } from "../administration/index.js";
 import { orgCounts } from "../organizations/index.js";
 import type { AdminPrincipal } from "./auth.js";
-import { can } from "./permissions.js";
+import { allowed } from "./permissions.js";
 
 const TREND_DAYS = 30;
 const RECENT_ACTIONS = 10;
@@ -19,10 +19,10 @@ const measured = (c: Check, key: "ok" | "reachable"): boolean | null => (c.avail
  */
 export async function overview(ctx: AppContext, p: AdminPrincipal, version: string) {
   const t = now();
-  const health = can(p.grant.role, "health.view") ? await healthReport(ctx, version) : null;
+  const health = allowed(p.grant, "health.view") ? await healthReport(ctx, version) : null;
   await ctx.usage.snapshot();
   const workspaceBytes = ctx.usage.totals(1).reduce((sum, o) => sum + (o.metrics["storage.bytes"] ?? 0), 0);
-  const recent = can(p.grant.role, "audit.view")
+  const recent = allowed(p.grant, "audit.view")
     ? ctx.platform
         .all<{ at: number; action: string; outcome: string; actor_role: string | null; target_type: string | null }>("platform_audit", { orderBy: [["id", "desc"]], limit: RECENT_ACTIONS })
         .map((r) => ({ at: r.at, action: r.action, outcome: r.outcome, actor_role: r.actor_role, target_type: r.target_type }))
@@ -33,7 +33,16 @@ export async function overview(ctx: AppContext, p: AdminPrincipal, version: stri
     people: userCounts(ctx.identity, t, TREND_DAYS),
     organizations: orgCounts(ctx.ws, t, TREND_DAYS),
     storage: { workspaceBytes, measuredAt: new Date(t).toISOString().slice(0, 10) },
-    requests: health ? { since: health.metrics.since, windowMinutes: health.metrics.window.minutes, requests: health.metrics.window.requests, serverErrors: health.metrics.window.serverErrors, errorRate: health.metrics.window.errorRate, p95Ms: health.metrics.window.p95Ms } : null,
+    requests: health
+      ? {
+          since: health.metrics.since,
+          windowMinutes: health.metrics.window.minutes,
+          requests: health.metrics.window.requests,
+          serverErrors: health.metrics.window.serverErrors,
+          errorRate: health.metrics.window.errorRate,
+          p95Ms: health.metrics.window.p95Ms,
+        }
+      : null,
     health: health
       ? {
           version: health.version,

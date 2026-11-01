@@ -36,16 +36,17 @@ function operation(c: RouteContract): Json {
     c.binary === "response"
       ? { description: "The bytes (or 302 to a storage URL)", content: { "application/octet-stream": { schema: { type: "string", format: "binary" } } } }
       : { description: "OK", content: { "application/json": { schema: schemaOf(c.response, "output") } } };
-  const errors = c.errorFormat === "oauth"
-    ? { default: { description: "Error (RFC 6749 §5.2)", content: { "application/json": { schema: { $ref: "#/components/schemas/OAuthError" } } } } }
-    : c.errors?.length
-    ? {
-        default: {
-          description: `Error. Codes: ${c.errors.join(", ")}`,
-          content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorEnvelope" } } },
-        },
-      }
-    : { default: { $ref: "#/components/responses/Error" } };
+  const errors =
+    c.errorFormat === "oauth"
+      ? { default: { description: "Error (RFC 6749 §5.2)", content: { "application/json": { schema: { $ref: "#/components/schemas/OAuthError" } } } } }
+      : c.errors?.length
+        ? {
+            default: {
+              description: `Error. Codes: ${c.errors.join(", ")}`,
+              content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorEnvelope" } } },
+            },
+          }
+        : { default: { $ref: "#/components/responses/Error" } };
   const op: Json = {
     tags: [c.tag],
     summary: c.summary,
@@ -53,7 +54,12 @@ function operation(c: RouteContract): Json {
     parameters: parameters(c),
     responses: { [ok]: success, ...errors },
   };
-  if (c.auth) op.security = [{ [c.scheme === "bot" ? "bot" : c.scheme === "oauth" ? "oauthToken" : "bearer"]: [] }];
+  if (c.auth) op.security = [{ [c.scheme === "console" ? "consoleSession" : c.scheme === "bot" ? "bot" : c.scheme === "oauth" ? "oauthToken" : "bearer"]: [] }];
+  if (c.scheme === "console") {
+    op.servers = [{ url: "https://admin.meldiq.app" }];
+    (op.parameters as Json[]).push({ name: "X-Meldiq-Admin", in: "header", required: true, schema: { type: "string", const: "1" } });
+    op.description = "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification.";
+  }
   if (c.binary === "request") op.requestBody = { required: true, content: { "application/octet-stream": { schema: { type: "string", format: "binary" } } } };
   else if (c.body) op.requestBody = { required: true, content: { "application/json": { schema: schemaOf(c.body, "input") } } };
   return op;
@@ -79,6 +85,7 @@ export function buildOpenApi(version: string): Json {
     paths,
     components: {
       securitySchemes: {
+        consoleSession: { type: "apiKey", in: "cookie", name: "__Host-mdq_admin", description: "HttpOnly, Secure, SameSite=Strict console session" },
         bearer: { type: "http", scheme: "bearer" },
         // API 0.65.0 batch B: bots send `Authorization: Bot <token>`; apps send their OAuth access token as the bearer.
         bot: { type: "apiKey", in: "header", name: "Authorization", description: "Bot <token>" },

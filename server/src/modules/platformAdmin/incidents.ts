@@ -9,7 +9,7 @@ import type { PlatformAudit } from "./audit.js";
 import type { AdminPrincipal } from "./auth.js";
 import type { RequestMeta } from "./credentials.js";
 import { decodeCursor, page } from "./pagination.js";
-import { can } from "./permissions.js";
+import { allowed } from "./permissions.js";
 import type { PlatformAdminStore } from "./store.js";
 
 type Severity = "sev1" | "sev2" | "sev3" | "sev4";
@@ -134,29 +134,57 @@ export class AdminIncidents {
   }
 
   private record(w: RowWriter, p: AdminPrincipal, action: string, incidentId: string, meta: RequestMeta, detail: Record<string, string | null>): void {
-    this.audit.append(w, { action, outcome: "success", actorAccountId: p.account.id, actorRole: p.grant.role, targetType: "incident", targetId: incidentId, requestId: meta.requestId, network: networkKey(meta.ip), detail });
+    this.audit.append(w, {
+      action,
+      outcome: "success",
+      actorAccountId: p.account.id,
+      actorRole: p.grant.role,
+      targetType: "incident",
+      targetId: incidentId,
+      requestId: meta.requestId,
+      network: networkKey(meta.ip),
+      detail,
+    });
   }
 
   async assignees() {
-    const ids = this.store.grants().filter((g) => g.revoked_at === null && can(g.role, "incidents.manage")).map((g) => g.account_id);
+    const ids = this.store
+      .grants()
+      .filter((g) => g.revoked_at === null && allowed(g, "incidents.manage"))
+      .map((g) => g.account_id);
     const n = await names(this.ctx, ids);
     return { assignees: ids.map((id) => person(n, id)) };
   }
 
   async list(q: { status?: Status | "active"; severity?: Severity; source?: "manual" | "rule"; kind?: Kind; userRef?: string; orgRef?: string; cursor?: string; limit: number }) {
     const where: Where = { ...(STATUS_WHERE[q.status ?? ""] ?? (q.status ? { status: STORED[q.status as Status] } : {})) };
-    for (const [col, v] of [["severity", q.severity], ["source", q.source], ["kind", q.kind], ["user_ref", q.userRef], ["org_ref", q.orgRef]] as const) {
+    for (const [col, v] of [
+      ["severity", q.severity],
+      ["source", q.source],
+      ["kind", q.kind],
+      ["user_ref", q.userRef],
+      ["org_ref", q.orgRef],
+    ] as const) {
       if (v) where[col] = v;
     }
     const after = decodeCursor(q.cursor);
     // Ids compare as text, which the rows language doesn't: rows sharing the cursor's time are filtered here.
     if (after) where.created_at = { lte: after.createdAt };
     const rows = this.ctx.platform
-      .all<IncidentRow>("platform_incidents", { where, orderBy: [["created_at", "desc"], ["id", "desc"]] })
+      .all<IncidentRow>("platform_incidents", {
+        where,
+        orderBy: [
+          ["created_at", "desc"],
+          ["id", "desc"],
+        ],
+      })
       .filter((r) => !after || r.created_at < after.createdAt || r.id < after.id)
       .slice(0, q.limit + 1);
     const { rows: shown, nextCursor } = page(rows, q.limit);
-    const n = await names(this.ctx, shown.flatMap((r) => [r.created_by, r.assignee_account_id]));
+    const n = await names(
+      this.ctx,
+      shown.flatMap((r) => [r.created_by, r.assignee_account_id]),
+    );
     return { incidents: shown.map((r) => view(r, n)), nextCursor };
   }
 
@@ -206,7 +234,7 @@ export class AdminIncidents {
   ) {
     const r = this.row(id);
     const assignee = patch.assigneeAccountId ? this.store.activeGrant(patch.assigneeAccountId) : undefined;
-    if (patch.assigneeAccountId && (!assignee || !can(assignee.role, "incidents.manage"))) throw badRequest("Incidents can only be assigned to an admin who manages incidents.");
+    if (patch.assigneeAccountId && (!assignee || !allowed(assignee, "incidents.manage"))) throw badRequest("Incidents can only be assigned to an admin who manages incidents.");
     const t = now();
     const current = lifecycle(r);
     const next = patch.status ?? current;
@@ -230,7 +258,7 @@ export class AdminIncidents {
     if (changes.length === 0) return this.detail(id);
     const stored = STORED[next];
     // Acknowledged once anyone moves it past "open"; reopening keeps when it was first acknowledged.
-    const acknowledgedAt = next === "open" ? r.acknowledged_at && current === "acknowledged" ? null : r.acknowledged_at : (r.acknowledged_at ?? t);
+    const acknowledgedAt = next === "open" ? (r.acknowledged_at && current === "acknowledged" ? null : r.acknowledged_at) : (r.acknowledged_at ?? t);
     await this.ctx.platform.write((w) => {
       w.update(
         "platform_incidents",

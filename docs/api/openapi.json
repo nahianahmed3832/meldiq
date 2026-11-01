@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Meldiq API",
-    "version": "0.69.0",
+    "version": "0.70.0",
     "description": "The canonical contract of the Meldiq server (docs/architecture/ARCHITECTURE_1_0_PLAN.md §4), generated from src/shared/contracts. Fields are only ever added within a version; clients ignore unknown fields. Routes not listed here exist but aren't documented yet."
   },
   "servers": [
@@ -11,6 +11,9 @@
     }
   ],
   "tags": [
+    {
+      "name": "Central administration"
+    },
     {
       "name": "system"
     },
@@ -160,6 +163,1610 @@
     }
   ],
   "paths": {
+    "/admin/v1/orgs/{orgId}": {
+      "delete": {
+        "tags": [
+          "Central administration"
+        ],
+        "summary": "Super admin and passkey: permanently delete an already suspended, unsubscribed community through the existing idempotent deletion workflow.",
+        "operationId": "deleteAdminV1OrgsOrgId",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          },
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "orgId": {
+                      "type": "string"
+                    },
+                    "members": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "channels": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "files": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "deleted",
+                    "orgId",
+                    "members",
+                    "channels",
+                    "files"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 500
+                  },
+                  "confirmName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  },
+                  "requestId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+                  }
+                },
+                "required": [
+                  "reason",
+                  "confirmName",
+                  "requestId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/v1/reports": {
+      "get": {
+        "tags": [
+          "Central administration"
+        ],
+        "summary": "reports.view: metadata-only report queue with stable keyset pagination.",
+        "operationId": "getAdminV1Reports",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "open",
+                "actioned",
+                "dismissed"
+              ]
+            }
+          },
+          {
+            "name": "orgId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "targetUserId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "reports": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "orgId": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "targetUserId": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "message",
+                              "profile"
+                            ]
+                          },
+                          "messageId": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "open",
+                              "actioned",
+                              "dismissed"
+                            ]
+                          },
+                          "createdAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "handledAt": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "assigneeAccountId": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "priority": {
+                            "type": "string"
+                          },
+                          "appealStatus": {
+                            "type": "string"
+                          },
+                          "syncStatus": {
+                            "type": "string"
+                          },
+                          "intendedStatus": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "version": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "orgId",
+                          "targetUserId",
+                          "reason",
+                          "kind",
+                          "messageId",
+                          "status",
+                          "createdAt",
+                          "handledAt",
+                          "assigneeAccountId",
+                          "priority",
+                          "appealStatus",
+                          "syncStatus",
+                          "intendedStatus",
+                          "version"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "nextCursor": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "reports",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification."
+      }
+    },
+    "/admin/v1/reports/assignees": {
+      "get": {
+        "tags": [
+          "Central administration"
+        ],
+        "summary": "reports.manage: active administrators eligible for report assignment.",
+        "operationId": "getAdminV1ReportsAssignees",
+        "parameters": [
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "assignees": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "accountId": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "accountId",
+                          "name"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "assignees"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification."
+      }
+    },
+    "/admin/v1/reports/{reportId}": {
+      "get": {
+        "tags": [
+          "Central administration"
+        ],
+        "summary": "reports.view: report metadata and latest 100 internal workflow events.",
+        "operationId": "getAdminV1ReportsReportId",
+        "parameters": [
+          {
+            "name": "reportId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{3,64}$"
+            }
+          },
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "orgId": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "targetUserId": {
+                          "type": "string"
+                        },
+                        "reason": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "message",
+                            "profile"
+                          ]
+                        },
+                        "messageId": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "open",
+                            "actioned",
+                            "dismissed"
+                          ]
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "handledAt": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "assigneeAccountId": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "priority": {
+                          "type": "string"
+                        },
+                        "appealStatus": {
+                          "type": "string"
+                        },
+                        "syncStatus": {
+                          "type": "string"
+                        },
+                        "intendedStatus": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "version": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "orgId",
+                        "targetUserId",
+                        "reason",
+                        "kind",
+                        "messageId",
+                        "status",
+                        "createdAt",
+                        "handledAt",
+                        "assigneeAccountId",
+                        "priority",
+                        "appealStatus",
+                        "syncStatus",
+                        "intendedStatus",
+                        "version"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "events": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "at": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "actorAccountId": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "body": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "at",
+                          "actorAccountId",
+                          "kind",
+                          "body"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "report",
+                    "events"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification."
+      },
+      "patch": {
+        "tags": [
+          "Central administration"
+        ],
+        "summary": "reports.manage and passkey: assign, prioritize, note, resolve or record an appeal with optimistic version control.",
+        "operationId": "patchAdminV1ReportsReportId",
+        "parameters": [
+          {
+            "name": "reportId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{3,64}$"
+            }
+          },
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "orgId": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "targetUserId": {
+                          "type": "string"
+                        },
+                        "reason": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "message",
+                            "profile"
+                          ]
+                        },
+                        "messageId": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "open",
+                            "actioned",
+                            "dismissed"
+                          ]
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "handledAt": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "assigneeAccountId": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "priority": {
+                          "type": "string"
+                        },
+                        "appealStatus": {
+                          "type": "string"
+                        },
+                        "syncStatus": {
+                          "type": "string"
+                        },
+                        "intendedStatus": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "version": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "orgId",
+                        "targetUserId",
+                        "reason",
+                        "kind",
+                        "messageId",
+                        "status",
+                        "createdAt",
+                        "handledAt",
+                        "assigneeAccountId",
+                        "priority",
+                        "appealStatus",
+                        "syncStatus",
+                        "intendedStatus",
+                        "version"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "events": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "at": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "actorAccountId": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "body": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "at",
+                          "actorAccountId",
+                          "kind",
+                          "body"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "report",
+                    "events"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "version": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "open",
+                      "actioned",
+                      "dismissed"
+                    ]
+                  },
+                  "assigneeAccountId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 64
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "priority": {
+                    "type": "string",
+                    "enum": [
+                      "low",
+                      "normal",
+                      "high",
+                      "urgent"
+                    ]
+                  },
+                  "appealStatus": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "open",
+                      "upheld",
+                      "overturned"
+                    ]
+                  },
+                  "note": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "version",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/v1/admins/{accountId}/permissions": {
+      "get": {
+        "tags": [
+          "Central administration"
+        ],
+        "summary": "admins.view: role defaults and effective per-admin allowlist.",
+        "operationId": "getAdminV1AdminsAccountIdPermissions",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          },
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "role": {
+                      "type": "string",
+                      "enum": [
+                        "super_admin",
+                        "operations_admin",
+                        "platform_moderator",
+                        "support_admin",
+                        "billing_admin",
+                        "auditor"
+                      ]
+                    },
+                    "catalog": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "defaults": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "effective": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "custom": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "role",
+                    "catalog",
+                    "defaults",
+                    "effective",
+                    "custom"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification."
+      },
+      "put": {
+        "tags": [
+          "Central administration"
+        ],
+        "summary": "admins.manage and passkey: restrict another non-owner grant and revoke its sessions. Null restores role defaults.",
+        "operationId": "putAdminV1AdminsAccountIdPermissions",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          },
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "role": {
+                      "type": "string",
+                      "enum": [
+                        "super_admin",
+                        "operations_admin",
+                        "platform_moderator",
+                        "support_admin",
+                        "billing_admin",
+                        "auditor"
+                      ]
+                    },
+                    "catalog": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "defaults": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "effective": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "custom": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "role",
+                    "catalog",
+                    "defaults",
+                    "effective",
+                    "custom"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "permissions": {
+                    "anyOf": [
+                      {
+                        "maxItems": 100,
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "permissions",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/v1/orgs/{orgId}/restriction": {
+      "post": {
+        "tags": [
+          "Central administration"
+        ],
+        "summary": "orgs.restrict and passkey: suspend or restore shared community authorization without deleting memberships.",
+        "operationId": "postAdminV1OrgsOrgIdRestriction",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          },
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "organization": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "slug": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "team",
+                            "community"
+                          ]
+                        },
+                        "visibility": {
+                          "type": "string"
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "members": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "joinPolicy": {
+                          "type": "string"
+                        },
+                        "updatedAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "invitesPausedUntil": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "dmsPausedUntil": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "guestsAllowed": {
+                          "type": "boolean"
+                        },
+                        "activityAlerts": {
+                          "type": "boolean"
+                        },
+                        "raidAlertAt": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "slug",
+                        "kind",
+                        "visibility",
+                        "createdAt",
+                        "members",
+                        "joinPolicy",
+                        "updatedAt",
+                        "invitesPausedUntil",
+                        "dmsPausedUntil",
+                        "guestsAllowed",
+                        "activityAlerts",
+                        "raidAlertAt"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "owners": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "username": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "username"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "composition": {
+                      "type": "object",
+                      "properties": {
+                        "byRole": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "customRoles": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "bans": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "activeInvites": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "byRole",
+                        "customRoles",
+                        "bans",
+                        "activeInvites"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "channels": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "private": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "total",
+                        "private"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "usage": {
+                      "type": "object",
+                      "properties": {
+                        "days": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "metrics": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": "number"
+                          }
+                        }
+                      },
+                      "required": [
+                        "days",
+                        "metrics"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "limits": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "limit": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "source": {
+                            "type": "string",
+                            "enum": [
+                              "workspace",
+                              "plan",
+                              "server",
+                              "none"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "limit",
+                          "source"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "subscription": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "plan": {
+                              "type": "string"
+                            },
+                            "status": {
+                              "type": "string"
+                            },
+                            "standing": {
+                              "type": "string"
+                            },
+                            "currentPeriodEnd": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "plan",
+                            "status",
+                            "standing",
+                            "currentPeriodEnd"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "suspension": {
+                      "type": "object",
+                      "properties": {
+                        "supported": {
+                          "type": "boolean",
+                          "const": true
+                        },
+                        "active": {
+                          "type": "boolean"
+                        },
+                        "suspendedAt": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "until": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "supported",
+                        "active",
+                        "suspendedAt",
+                        "until"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "organization",
+                    "owners",
+                    "composition",
+                    "channels",
+                    "usage",
+                    "limits",
+                    "subscription",
+                    "suspension"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "suspended": {
+                    "type": "boolean"
+                  },
+                  "until": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "suspended",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/healthz": {
       "get": {
         "tags": [
@@ -66724,7 +68331,17 @@
         ],
         "summary": "Billing administrators: PayPal transactions and refund status.",
         "operationId": "getAdminV1BillingPaypalTransactions",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK",
@@ -66733,6 +68350,40 @@
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "integration": {
+                      "type": "object",
+                      "properties": {
+                        "available": {
+                          "type": "boolean"
+                        },
+                        "reason": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "mode": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "available",
+                        "reason",
+                        "mode"
+                      ],
+                      "additionalProperties": false
+                    },
                     "transactions": {
                       "type": "array",
                       "items": {
@@ -66819,6 +68470,7 @@
                     }
                   },
                   "required": [
+                    "integration",
                     "transactions"
                   ],
                   "additionalProperties": false
@@ -66832,9 +68484,15 @@
         },
         "security": [
           {
-            "bearer": []
+            "consoleSession": []
           }
-        ]
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification."
       }
     },
     "/admin/v1/billing/paypal/transactions/{id}/refund": {
@@ -66854,6 +68512,15 @@
               "minLength": 1,
               "maxLength": 150,
               "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          },
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
             }
           }
         ],
@@ -66894,9 +68561,15 @@
         },
         "security": [
           {
-            "bearer": []
+            "consoleSession": []
           }
         ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification.",
         "requestBody": {
           "required": true,
           "content": {
@@ -75883,6 +77556,12 @@
   },
   "components": {
     "securitySchemes": {
+      "consoleSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "__Host-mdq_admin",
+        "description": "HttpOnly, Secure, SameSite=Strict console session"
+      },
       "bearer": {
         "type": "http",
         "scheme": "bearer"

@@ -6,7 +6,7 @@ import type { AdminAuthService, AdminPrincipal } from "./auth.js";
 import { type AdminConsoleConfig, networkAllowed } from "./config.js";
 import { readCookie, SESSION_COOKIE } from "./cookies.js";
 import type { RequestMeta } from "./credentials.js";
-import { can, type Permission, SENSITIVE } from "./permissions.js";
+import { allowed, type Permission, SENSITIVE } from "./permissions.js";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -64,7 +64,7 @@ export function requirePermission(auth: AdminAuthService, audit: PlatformAudit, 
   return async (req: FastifyRequest) => {
     await session(req);
     const p = principal(req);
-    if (!can(p.grant.role, permission)) {
+    if (!allowed(p.grant, permission)) {
       await audit.record({
         action: "admin.permission",
         outcome: "denied",
