@@ -1,0 +1,8 @@
+{
+  "sourceCommit": "332a44e8c3c6148548605bd0fdbae6a95002a0a1",
+  "archiveSha256": "6c527ac71d49705392e6caa841d8b3e255c0176749b14ebbeb152933787bed90",
+  "baseLiveImage": "griip-internal-messaging-api:0.74.0-social-8078f2bede40",
+  "candidateImage": "griip-internal-messaging-api:0.74.0-atlas-332a44e8",
+  "runtimeMemoryMiB": 768,
+  "runtimeHeapMiB": 384
+}

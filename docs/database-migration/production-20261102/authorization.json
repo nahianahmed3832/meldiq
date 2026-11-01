@@ -1,0 +1,8 @@
+{
+  "recordedAt": "2026-11-02T01:34:15.359716+08:00",
+  "authorization": "User approved the production rollout, schema preparation, backups and maintenance; preserve all original data and recovery options.",
+  "productionRolloutApproved": true,
+  "originalDestructionAuthorized": false,
+  "scope": "online pre-copy, verified final delta and controlled authority switch",
+  "baseline": "1e99c4ae / 0.73.0"
+}

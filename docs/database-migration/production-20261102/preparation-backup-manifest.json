@@ -1,0 +1,44 @@
+{
+  "capturedAt": "20261101T172434Z",
+  "phase": "approved production preparation",
+  "productionWritesStopped": false,
+  "mutuallyConsistentAcrossStores": false,
+  "sqliteIntegrity": "ok",
+  "restored": false,
+  "optionalFederationKey": {
+    "present": false,
+    "federationEnabled": false
+  },
+  "remoteSqliteSnapshot": "/data/backups/database-migration-20261101T172434Z.sqlite",
+  "files": [
+    {
+      "name": "atlas.ejson.gz.age",
+      "bytes": 5423691,
+      "sha256": "731a884bc71215a27a3eedf0a6fe97ea0b9c7669d5db5c9f64292d516cb8194a"
+    },
+    {
+      "name": "sqlite.snapshot.age",
+      "bytes": 76036408,
+      "sha256": "2b1059e5b8cc6d2a54b8b3b5bc89f1944a3cbbccee7fa2dbb9a2e6559255e62a"
+    },
+    {
+      "name": "reports.key.age",
+      "bytes": 244,
+      "sha256": "715ede1faebe866c06319f553360930551972fa4b12df3555b7b19846da976a9"
+    },
+    {
+      "name": "compose.yaml.age",
+      "bytes": 4538,
+      "sha256": "2100ca8145938e61a63517d591d09103d977c3a781f3151d82938c740a1d4f42"
+    },
+    {
+      "name": "deployment.env.age",
+      "bytes": 6256,
+      "sha256": "cc767bec7a7777583398dc41af2c1742748a58062e2d1edcf908cf6f1f65e3d5"
+    }
+  ],
+  "atlasRestoreVerified": true,
+  "atlasRestoredCollections": 78,
+  "atlasRestoredRecords": 49919,
+  "encryptedConfigAndSealingKeyDecryptionVerified": true
+}
