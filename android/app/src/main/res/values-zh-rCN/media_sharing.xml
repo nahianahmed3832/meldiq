@@ -1,0 +1,5 @@
+<resources>
+    <string name="media_sharing_photos">照片</string>
+    <string name="media_sharing_videos">视频</string>
+    <string name="media_sharing_filter_filename">按文件名筛选此页</string>
+</resources>
