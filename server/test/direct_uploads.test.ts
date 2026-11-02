@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import http from "node:http";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { runCleanup } from "../src/modules/administration/jobs.js";
 import { type FakeS3, startFakeS3 } from "./support/fakeS3.js";
 import type { GriipClient } from "./support/griipClient.js";
@@ -178,6 +178,44 @@ describe("direct uploads to S3", () => {
     // Compared by hash: a failing comparison of two 11 MB buffers makes the test runner run out of memory.
     expect(sha(s3.objects.get(`orbit/attachments/${done.id}`)!.body)).toBe(sha(body));
     expect(sha(Buffer.from(await bob.req("GET", `/v1/attachments/${done.id}`)))).toBe(sha(body));
+  });
+
+  it("recovers multipart completion after S3 commits but the metadata write fails", async () => {
+    const body = crypto.randomBytes(6 * MiB + 21);
+    const s = await alice.req("POST", "/v1/attachments/uploads", { conversationId: dm, size: body.length, sha256: sha(body) });
+    const specs = [0, 1].map((i) => {
+      const b = body.subarray(i * s.partSize, (i + 1) * s.partSize);
+      return { n: i + 1, size: b.length, sha256: sha(b), body: b };
+    });
+    const { parts: signed } = await alice.req("POST", `/v1/attachments/uploads/${s.uploadId}/parts`, { parts: specs.map(({ body: _, ...p }) => p) });
+    for (let i = 0; i < specs.length; i++) expect((await put(signed[i].upload, specs[i].body)).status).toBe(200);
+    const { parts } = await alice.req("GET", `/v1/attachments/uploads/${s.uploadId}/parts`);
+    const fail = vi.spyOn(h.ctx.files, "completeUpload").mockRejectedValueOnce(new Error("synthetic metadata interruption"));
+    try {
+      await expectStatus(alice.req("POST", `/v1/attachments/uploads/${s.uploadId}/complete`, { parts }), 500);
+      expect(s3.objects.has(`orbit/attachments/${s.uploadId}`)).toBe(true);
+      expect((await alice.req("POST", `/v1/attachments/uploads/${s.uploadId}/complete`, { parts })).id).toBe(s.uploadId);
+      expect(sha(s3.objects.get(`orbit/attachments/${s.uploadId}`)!.body)).toBe(sha(body));
+    } finally { fail.mockRestore(); }
+  });
+
+  it("rechecks posting permission and entitlements before renewing or completing an upload", async () => {
+    const body = crypto.randomBytes(3000);
+    const s = await alice.req("POST", "/v1/attachments/uploads", { conversationId: dm, size: body.length, sha256: sha(body) });
+    await put(s.upload, body);
+    const permission = vi.spyOn(h.ctx.authz, "canPost").mockReturnValue(false);
+    try {
+      await expectStatus(alice.req("POST", `/v1/attachments/uploads/${s.uploadId}/complete`, {}), 403);
+      expect(await h.ctx.files.attachment(s.uploadId)).toBeNull();
+    } finally { permission.mockRestore(); }
+    const next = await alice.req("POST", "/v1/attachments/uploads", { conversationId: dm, size: body.length, sha256: sha(body) });
+    const entitlement = vi.spyOn(h.ctx.mojo, "uploadBytes").mockReturnValue(1000);
+    try {
+      await expectStatus(alice.req("POST", `/v1/attachments/uploads/${next.uploadId}/url`, {}), 413);
+      expect(await h.ctx.files.upload(next.uploadId)).not.toBeNull();
+      await alice.req("DELETE", `/v1/attachments/uploads/${next.uploadId}`);
+    } finally { entitlement.mockRestore(); }
+    await runCleanup(h.ctx);
   });
 
   it("abandoned uploads expire and their objects and parts are removed; nothing recorded is touched", async () => {

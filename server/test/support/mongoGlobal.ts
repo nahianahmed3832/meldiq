@@ -18,6 +18,7 @@ export async function setup(project: TestProject): Promise<void> {
     instanceOpts: [
       {
         ip: "127.0.0.1",
+        launchTimeout: 60_000,
         args: [
           "--wiredTigerCacheSizeGB",
           "0.25",
