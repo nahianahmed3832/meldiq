@@ -16,6 +16,8 @@ import com.meldiq.android.data.api.ConnState
 import com.meldiq.android.data.api.GriipJson
 import com.meldiq.android.data.api.RealtimeClient
 import com.meldiq.android.data.api.SendMessageReq
+import com.meldiq.android.data.api.SendStoredReq
+import com.meldiq.android.data.api.SendStoredRes
 import com.meldiq.android.data.api.SendMessageRes
 import com.meldiq.android.data.api.ServerEvent
 import com.meldiq.android.data.api.WireKeyWrap
@@ -49,6 +51,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.json.jsonObject
 import java.io.File
 import java.util.UUID
 
@@ -91,6 +94,15 @@ class MessageRepository(
     private val files = AttachmentFiles(attachmentsDir)
     private val keyRequests = CallKeyRequests()
     private val kickCh = Channel<Unit>(Channel.CONFLATED)
+    private val messageSender = MessageSender(
+        postStored = { api.post<SendStoredReq, SendStoredRes>("/v2/messages", it) },
+        supportsStore = { serverHas(ServerFeatures.SERVER_MESSAGES) },
+        postLegacy = { postLegacyMessage(it) },
+    )
+    private val callControls = CallControlSender { cid, id, sentAt, payload ->
+        session.session ?: throw ApiException(0, "not_signed_in", "Sign in before calling")
+        messageSender.send(SendStoredReq(cid, id, "control", sentAt, json.encodeToJsonElement(Payload.serializer(), payload).jsonObject))
+    }
 
     private val _transfer = MutableStateFlow<Map<String, Float>>(emptyMap())
     val transferProgress: StateFlow<Map<String, Float>> = _transfer
@@ -269,6 +281,7 @@ class MessageRepository(
     }
 
     private suspend fun sendControl(cid: String, payload: Payload) {
+        if (CallControlSender.handles(payload)) return callControls.send(cid, payload)
         val id = UUID.randomUUID().toString()
         db.outbox().put(OutboxEntity(id, cid, "control", json.encodeToString(Payload.serializer(), payload), System.currentTimeMillis(), visible = false))
         kick()
@@ -280,34 +293,45 @@ class MessageRepository(
      * Meldiq Web: not kept in the outbox (the next read says it again). False when it wasn't sent.
      */
     private suspend fun sendSelfControl(cid: String, payload: Payload): Boolean {
-        val s = session.session ?: return false
+        session.session ?: return false
         if (!serverHas(ServerFeatures.SELF_CONTROLS)) return false
-        val body = json.encodeToString(Payload.serializer(), payload).toByteArray()
+        return try {
+            messageSender.send(SendStoredReq(
+                cid, UUID.randomUUID().toString(), "control", System.currentTimeMillis(),
+                json.encodeToJsonElement(Payload.serializer(), payload).jsonObject, audience = SELF_AUDIENCE,
+            ))
+            true
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "self-only control not sent: ${e.javaClass.simpleName}")
+            false
+        }
+    }
+
+    /** Compatibility for self-hosted servers that still accept encrypted envelopes. Current servers never need keys. */
+    private suspend fun postLegacyMessage(request: SendStoredReq): Long {
+        val s = session.session ?: throw ApiException(0, "not_signed_in", "Not signed in")
         for (pass in 0..1) {
             try {
-                val recips = directory.ownRecipients(cid, s.userId, s.deviceId, force = pass > 0)
-                val id = UUID.randomUUID().toString()
-                val now = System.currentTimeMillis()
-                val sealed = crypto.seal(EnvelopeHeader(id, cid, s.userId, s.deviceId, now, "control"), body, recips)
-                api.post<SendMessageReq, SendMessageRes>(
-                    "/v1/messages",
-                    SendMessageReq(cid, id, "control", now, sealed.nonce, sealed.ciphertext, sealed.signature, sealed.recipients.map { WireKeyWrap(it.deviceId, it.enc, it.wrappedKey) }, audience = SELF_AUDIENCE),
+                val recips = if (request.audience == SELF_AUDIENCE) {
+                    directory.ownRecipients(request.conversationId, s.userId, s.deviceId, force = pass > 0)
+                } else directory.conversationRecipients(request.conversationId, s.deviceId, force = pass > 0)
+                val sealed = crypto.seal(
+                    EnvelopeHeader(request.messageId, request.conversationId, s.userId, s.deviceId, request.sentAt, request.cls),
+                    request.payload.toString().toByteArray(), recips,
                 )
-                return true
+                return api.post<SendMessageReq, SendMessageRes>("/v1/messages", SendMessageReq(
+                    request.conversationId, request.messageId, request.cls, request.sentAt, sealed.nonce, sealed.ciphertext,
+                    sealed.signature, sealed.recipients.map { WireKeyWrap(it.deviceId, it.enc, it.wrappedKey) },
+                    mentionAll = request.mentionAll, audience = request.audience,
+                )).serverTs
             } catch (e: ApiException) {
-                if (e.status == 409 && e.code == "device_mismatch" && pass == 0) {
-                    directory.invalidate(cid)
-                    continue
-                }
-                return false
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.w(TAG, "self-only control not sent: ${e.javaClass.simpleName}")
-                return false
+                if (e.status != 409 || e.code != "device_mismatch" || pass != 0) throw e
+                directory.invalidate(request.conversationId)
             }
         }
-        return false
+        error("Unreachable envelope retry")
     }
 
     suspend fun retry(id: String) {
@@ -325,7 +349,7 @@ class MessageRepository(
 
     /** Distribute a call's media E2EE key to all member devices through the encrypted channel. */
     suspend fun sendCallKey(cid: String, callId: String, video: Boolean, key: String) {
-        val s = session.session ?: return
+        val s = session.session ?: throw ApiException(0, "not_signed_in", "Sign in before calling")
         db.calls().putKey(CallKeyEntity(callId, cid, key, s.userId, System.currentTimeMillis()))
         sendControl(cid, Payload(type = "call_invite", callId = callId, video = video, e2eeKey = key))
     }
@@ -737,64 +761,43 @@ class MessageRepository(
     }
 
     private suspend fun sendOne(item: OutboxEntity) {
-        val s = session.session ?: return
-        var force = item.attempts > 0
-        for (pass in 0..1) {
-            try {
-                val recips = directory.conversationRecipients(item.conversationId, s.deviceId, force)
-                val now = System.currentTimeMillis()
-                val sentAt = if (now - item.createdAt > 20 * 3600_000L) now else item.createdAt
-                val sealed = crypto.seal(EnvelopeHeader(item.messageId, item.conversationId, s.userId, s.deviceId, sentAt, item.cls), item.payloadJson.toByteArray(), recips)
-                // @everyone asks the server for its attestation, on every attempt (a retry of an accepted message is a duplicate there).
-                val mentionAll = item.cls == "message" && runCatching { json.decodeFromString(Payload.serializer(), item.payloadJson).mentionAll == true }.getOrDefault(false)
-                val res = api.post<SendMessageReq, SendMessageRes>(
-                    "/v1/messages",
-                    SendMessageReq(
-                        item.conversationId, item.messageId, item.cls, sentAt, sealed.nonce, sealed.ciphertext, sealed.signature,
-                        sealed.recipients.map { WireKeyWrap(it.deviceId, it.enc, it.wrappedKey) }, mentionAll = if (mentionAll) true else null,
-                    ),
-                )
-                db.outbox().remove(item.messageId)
-                if (item.visible) db.messages().markSent(item.messageId, res.serverTs)
-                // Batch B3: under slowmode the composer counts down to the next allowed message.
-                if (item.cls == "message") com.meldiq.android.data.model.SlowmodeRules.nextAfterPost(conversations.slowmode.value[item.conversationId], res.serverTs)
-                    ?.let { conversations.slowmodeWait(item.conversationId, it) }
-                return
-            } catch (e: ApiException) {
-                if (e.status == 409 && e.code == "device_mismatch" && pass == 0) {
-                    directory.invalidate(item.conversationId)
-                    force = true
-                    continue
-                }
-                // Batch B3: slowmode isn't a failure. The message waits until the server allows the next one.
-                if (e.status == 429 && e.code == "slowmode") {
-                    val next = com.meldiq.android.data.model.SlowmodeRules.nextFrom(e.details) ?: (System.currentTimeMillis() + SLOWMODE_FALLBACK_MS)
-                    conversations.slowmodeWait(item.conversationId, next)
-                    db.outbox().put(item.copy(nextAttemptAt = next + 250, lastError = e.message))
-                    return
-                }
-                // Batch B6: a message request's limit isn't transient: the message fails with the server's explanation.
-                val transient = (e.isNetwork || e.status >= 500 || e.status == 429 || e.status == 401 || e.code == "decode") && e.code != "request_limit"
-                if (transient && item.attempts < MAX_ATTEMPTS) {
-                    val backoff = BACKOFF.getOrElse(item.attempts) { BACKOFF.last() }
-                    db.outbox().put(item.copy(attempts = item.attempts + 1, nextAttemptAt = System.currentTimeMillis() + backoff, lastError = e.message))
-                } else {
-                    db.outbox().remove(item.messageId)
-                    if (item.visible) db.messages().setStatus(item.messageId, MessageStatus.FAILED, null, e.message)
-                }
-                return
-            } catch (e: IdentityChangedException) {
-                // Paused, not failed: resumes when the user accepts the new key (acceptIdentity), and
-                // is re-checked now and then in case the server goes back to the pinned key.
-                db.outbox().put(item.copy(nextAttemptAt = System.currentTimeMillis() + HELD_RECHECK_MS, lastError = HELD_REASON))
-                if (item.visible) db.messages().setStatus(item.messageId, MessageStatus.HELD, null, "Paused: a security key changed")
-                return
-            } catch (e: Exception) {
-                Log.w(TAG, "send failed: ${e.javaClass.simpleName}")
-                db.outbox().remove(item.messageId)
-                if (item.visible) db.messages().setStatus(item.messageId, MessageStatus.FAILED, null, "Couldn't encrypt this message")
+        session.session ?: return
+        try {
+            val now = System.currentTimeMillis()
+            val sentAt = if (now - item.createdAt > 20 * 3600_000L) now else item.createdAt
+            val payload = json.parseToJsonElement(item.payloadJson).jsonObject
+            val mentionAll = item.cls == "message" && runCatching { json.decodeFromString(Payload.serializer(), item.payloadJson).mentionAll == true }.getOrDefault(false)
+            val serverTs = messageSender.send(SendStoredReq(
+                item.conversationId, item.messageId, item.cls, sentAt, payload, mentionAll = if (mentionAll) true else null,
+            ))
+            db.outbox().remove(item.messageId)
+            if (item.visible) db.messages().markSent(item.messageId, serverTs)
+            if (item.cls == "message") com.meldiq.android.data.model.SlowmodeRules.nextAfterPost(conversations.slowmode.value[item.conversationId], serverTs)
+                ?.let { conversations.slowmodeWait(item.conversationId, it) }
+        } catch (e: ApiException) {
+            if (e.status == 429 && e.code == "slowmode") {
+                val next = com.meldiq.android.data.model.SlowmodeRules.nextFrom(e.details) ?: (System.currentTimeMillis() + SLOWMODE_FALLBACK_MS)
+                conversations.slowmodeWait(item.conversationId, next)
+                db.outbox().put(item.copy(nextAttemptAt = next + 250, lastError = e.message))
                 return
             }
+            val transient = (e.isNetwork || e.status >= 500 || e.status == 429 || e.status == 401 || e.code == "decode") && e.code != "request_limit"
+            if (transient && item.attempts < MAX_ATTEMPTS) {
+                val backoff = BACKOFF.getOrElse(item.attempts) { BACKOFF.last() }
+                db.outbox().put(item.copy(attempts = item.attempts + 1, nextAttemptAt = System.currentTimeMillis() + backoff, lastError = e.message))
+            } else {
+                db.outbox().remove(item.messageId)
+                if (item.visible) db.messages().setStatus(item.messageId, MessageStatus.FAILED, null, e.message)
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: IdentityChangedException) {
+            db.outbox().put(item.copy(nextAttemptAt = System.currentTimeMillis() + HELD_RECHECK_MS, lastError = HELD_REASON))
+            if (item.visible) db.messages().setStatus(item.messageId, MessageStatus.HELD, null, "Paused: a security key changed")
+        } catch (e: Exception) {
+            Log.w(TAG, "send failed: ${e.javaClass.simpleName}")
+            db.outbox().remove(item.messageId)
+            if (item.visible) db.messages().setStatus(item.messageId, MessageStatus.FAILED, null, "Couldn't send this message")
         }
     }
 

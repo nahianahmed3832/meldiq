@@ -128,6 +128,18 @@ class MessageReceiver(
         // Never "succeed" without a session: that would acknowledge (and lose) the item unprocessed.
         val me = myUserId ?: throw ApiException(0, "not_signed_in", "Not signed in yet")
         val myDevice = myDeviceId ?: throw ApiException(0, "not_signed_in", "Not signed in yet")
+        // Current web clients send stored events. Treat their server-authenticated sender as the envelope's sender;
+        // call keys still pass CallKeyVerifier's creator/conversation checks below.
+        if (item.kind == "message") {
+            val e = item.payload.event ?: throw EnvelopeException("malformed stored message")
+            if (e.id != item.messageId || e.conversationId != item.conversationId || e.senderUserId != item.senderUserId) {
+                throw EnvelopeException("stored message identity mismatch")
+            }
+            val payload = json.decodeFromJsonElement(Payload.serializer(), e.payload)
+            val conv = db.conversations().get(e.conversationId) ?: conversations.refreshOne(e.conversationId)
+            val stored = item.copy(payload = item.payload.copy(cls = e.cls, sentAt = e.sentAt, serverTs = e.serverTs, mentionAll = e.mentionAll))
+            return apply(payload, stored, conv, e.senderUserId == me, e.serverTs)
+        }
         if (item.kind == "receipt") {
             if (item.payload.status == "delivered") {
                 val m = db.messages().get(item.messageId) ?: return

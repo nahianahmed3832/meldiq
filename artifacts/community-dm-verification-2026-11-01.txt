@@ -1,0 +1,37 @@
+Community and personal-inbox messaging fix - 2026-11-01
+
+Cause: the compatibility Android branch sent ordinary messages and controls to the retired v1 envelope endpoint, which current servers reject with 426 update_required. Call controls had already been updated separately.
+
+Fix: all outgoing messages and controls now share the current store protocol; legacy self-hosted servers keep their envelope support. An explicit 426 update_required switches an attempted legacy post to the store protocol without changing its id or payload. Other refusals and cancellations retain their meaning.
+
+Compatibility checkout unit tests: {'tests': 84, 'failures': 0, 'errors': 0, 'skipped': 0}
+Current Android checkout unit tests: {'tests': 90, 'failures': 0, 'errors': 0, 'skipped': 0}
+
+Compatibility checkout Android emulator checks:
+com.meldiq.android.MessageInteropTest:....
+com.meldiq.android.CallControlInteropTest:
+com.meldiq.android.CallControlInteropTest:..
+
+Time: 6.864
+
+OK (7 tests)
+
+Current Android checkout Android emulator checks:
+com.meldiq.android.MessageInteropTest:....
+com.meldiq.android.CallControlInteropTest:
+com.meldiq.android.CallControlInteropTest:..
+
+Time: 8.682
+
+OK (7 tests)
+
+Each checkout exercised four message tests: community and DM send/receive/edit/reaction/read round trips, and retry of a previously rejected community and DM message. Retry kept the original id, created one server message, and cleared the stored error. Two call-key checks also ran. The optional real-media test was skipped in this run; its earlier results are in call-interop-verification-2026-11-01.txt.
+
+The API was a throwaway local copy of the current server with encrypted-envelope sends disabled. The peer exchanged the same v2 payloads used by Meldiq Web. No production messages were sent.
+
+Test APK: meldiq-community-dm-fix-test-2026-11-01.apk
+Package: com.meldiq.android.test (Meldiq Test)
+Default server: https://msg.meldiq.app
+SHA256: 31b83d4f7b8adc8b5f9a082c9f104397fd23284b09c870e2de4108574fe6bed5
+
+Requires installing the new Android build. Previously failed messages remain available for manual Retry. APK is debug-signed; Play publication is not included.
