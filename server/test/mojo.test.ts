@@ -65,7 +65,7 @@ function subscription(o: { id: string; price: string; checkout: string; customer
   };
 }
 
-describe("Meldiq Mojo", () => {
+describe("Meldiq Plus", () => {
   let h: Harness;
   const mailer = new MemoryMailer();
   const stripe = new FakeStripe();
@@ -131,7 +131,7 @@ describe("Meldiq Mojo", () => {
       { mailer, billingProvider: provider },
     );
     await publish("go", "price_go", 199);
-    await publish("plus", "price_plus", 399);
+    await publish("plus", "price_plus", 499);
     await publish("spark", "price_spark", 99);
     [free, go, plus, friend] = await Promise.all(["free", "goer", "pluser", "friend"].map((n) => AccountClient.ready(h.baseUrl, mailer, n)));
     orgId = (await free.req("POST", "/v1/orgs", { name: "Spark Lab" })).org.id;
@@ -160,7 +160,7 @@ describe("Meldiq Mojo", () => {
         [2, 5, 200, 200 * MB, 256, ["1080p60"]],
         [3, 8, 500, 1024 * MB, 384, ["1080p60", "1440p30"]],
       ]);
-      expect(c.onSale).toEqual({ mode: "test", go: null, plus: { currency: "USD", amountMinor: 399 }, spark: { currency: "USD", amountMinor: 99 }, gifts: true, botsPlus: null });
+      expect(c.onSale).toEqual({ mode: "test", go: null, plus: { currency: "USD", amountMinor: 499 }, spark: { currency: "USD", amountMinor: 99 }, gifts: true, botsPlus: null });
     });
 
     it("never offers a larger file than the server takes (FILE_MAX_BYTES)", () => {
@@ -331,7 +331,7 @@ describe("Meldiq Mojo", () => {
   });
 
   describe("enforcement", () => {
-    it("applies plan limits once Mojo is on sale (MOJO_ENFORCE=auto), and keeps everyone's old limits until then", async () => {
+    it("applies plan limits once Meldiq Plus is on sale (MOJO_ENFORCE=auto), and keeps everyone's old limits until then", async () => {
       // This server has Stripe and published plans: enforced.
       expect(h.ctx.mojo.enforced()).toBe(true);
       const plain = await startServer({ WORKFLOW_TICK_MS: "0" }, { mailer });
@@ -383,7 +383,7 @@ describe("Meldiq Mojo", () => {
       expect(session.params).toMatchObject({
         mode: "payment",
         client_reference_id: started.giftId,
-        line_items: [{ quantity: 1, price_data: { currency: "usd", unit_amount: 399 * 3 } }],
+        line_items: [{ quantity: 1, price_data: { currency: "usd", unit_amount: 1299 } }],
         success_url: `${WEB_RETURN}?gift=success`,
       });
       expect((await me(friend)).gifts.received).toEqual([]);

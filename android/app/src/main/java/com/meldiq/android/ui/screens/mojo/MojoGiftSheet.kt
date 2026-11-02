@@ -94,7 +94,7 @@ internal fun GiftSheet(
             }
         }
         Label(stringResource(R.string.mojo_gift_plan))
-        Choices(listOf(MojoPlans.GO, MojoPlans.PLUS), plan, { catalog.plan(it)?.name ?: it }) { plan = it }
+        Choices(listOf(MojoPlans.PLUS), plan, { catalog.plan(it)?.name ?: it }) { plan = it }
         Label(stringResource(R.string.mojo_gift_length))
         Choices(months, length, { monthsLabel(it) }) { length = it }
         Label(stringResource(R.string.mojo_gift_note))

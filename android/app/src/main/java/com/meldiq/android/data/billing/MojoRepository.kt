@@ -160,6 +160,17 @@ class MojoRepository(private val backend: MojoBackend, private val play: PlaySto
     /** Records what is about to be bought and answers the sheet's parameters; null (with a notice) when that failed. */
     suspend fun prepare(purchase: MojoPurchase): PlayLaunch? {
         if (state.value.busy != null) return null
+        if (purchase is MojoPurchase.Plan && purchase.planKey == MojoPlans.GO || purchase is MojoPurchase.Gift && purchase.planKey == MojoPlans.GO) return null
+        val plusPurchase = purchase is MojoPurchase.Plan && purchase.planKey == MojoPlans.PLUS || purchase is MojoPurchase.Gift && purchase.planKey == MojoPlans.PLUS
+        if (plusPurchase) {
+            val catalogPrice = state.value.catalog?.plan(MojoPlans.PLUS)?.listPriceMinor
+            val offer = state.value.offers[purchase.productId]
+            val months = if (purchase is MojoPurchase.Gift) purchase.months else PlayProducts.plusMonths(purchase.productId) ?: return null
+            val term = state.value.catalog?.plusTerms?.firstOrNull { it.months == months }
+            val amount = term?.amountMinor ?: if (months == 1) 499 else return null
+            val period = when (months) { 1 -> "P1M"; 3 -> "P3M"; 12 -> "P1Y"; else -> return null }
+            if (catalogPrice != 499 || offer == null || purchase is MojoPurchase.Plan && offer.period != period || offer.currency == "USD" && offer.priceMicros != amount * 10_000L) return null
+        }
         mutable.update { it.copy(busy = purchase.productId, notice = null) }
         val req = when (purchase) {
             is MojoPurchase.Plan -> PlayIntentReq("plan", purchase.productId, replacing = purchase.replacing, planKey = purchase.planKey)

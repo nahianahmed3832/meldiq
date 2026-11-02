@@ -30,6 +30,8 @@ data class PlayOffer(
     val price: String,
     /** ISO 8601 billing period ("P1M") for subscriptions; null for a one-time gift. */
     val period: String?,
+    val currency: String? = null,
+    val priceMicros: Long? = null,
 )
 
 /** What came back from Google Play's purchase sheet. Nothing here grants anything: the server verifies first. */
@@ -160,17 +162,18 @@ class PlayBilling(context: Context) : PlayStore {
         /** The monthly base plan's offer (Meldiq has no intro offers; if Play has several, the base plan is the price). */
         private fun subscriptionOffer(pd: ProductDetails): ProductDetails.SubscriptionOfferDetails? {
             val offers = pd.subscriptionOfferDetails ?: return null
-            return offers.firstOrNull { it.basePlanId == PlayProducts.MONTHLY_BASE_PLAN && it.offerId == null }
-                ?: offers.firstOrNull { it.offerId == null }
+            val months = PlayProducts.plusMonths(pd.productId) ?: 1
+            val period = when (months) { 3 -> "P3M"; 12 -> "P1Y"; else -> "P1M" }
+            return offers.firstOrNull { it.offerId == null && it.pricingPhases.pricingPhaseList.lastOrNull()?.billingPeriod == period }
         }
 
         private fun offerOf(pd: ProductDetails): PlayOffer? {
             subscriptionOffer(pd)?.let { offer ->
                 val phase = offer.pricingPhases.pricingPhaseList.lastOrNull() ?: return null
-                return PlayOffer(pd.productId, phase.formattedPrice, phase.billingPeriod.ifBlank { MONTHLY })
+                return PlayOffer(pd.productId, phase.formattedPrice, phase.billingPeriod.ifBlank { MONTHLY }, phase.priceCurrencyCode, phase.priceAmountMicros)
             }
             val once = pd.oneTimePurchaseOfferDetailsList?.firstOrNull() ?: pd.oneTimePurchaseOfferDetails ?: return null
-            return PlayOffer(pd.productId, once.formattedPrice, null)
+            return PlayOffer(pd.productId, once.formattedPrice, null, once.priceCurrencyCode, once.priceAmountMicros)
         }
 
         private fun purchasesOf(p: Purchase): List<PlayPurchase> = p.products.map {

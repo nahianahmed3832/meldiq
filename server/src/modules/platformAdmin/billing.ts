@@ -169,7 +169,7 @@ export class AdminBilling {
       versions: versions.map((v: VersionRow) => ({
         id: v.id,
         version: v.version,
-        state: v.published_at === null ? ("draft" as const) : v.id === current?.id ? ("current" as const) : ("retired" as const),
+        state: v.published_at === null ? ("draft" as const) : v.retired_at === null && plan.status === "active" ? ("current" as const) : ("retired" as const),
         provider: v.provider,
         terms: termsOf(v),
         createdAt: v.created_at,

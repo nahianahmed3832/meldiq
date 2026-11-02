@@ -52,26 +52,24 @@ export function billingMetrics(rows: RowReader, days: number, t: number) {
   const byStatus = Object.fromEntries(SUBSCRIPTION_STATUSES.map((s) => [s, subs.filter((x) => x.status === s).length])) as Record<SubscriptionStatus, number>;
 
   // Subscriptions granting a plan now, with their terms, for plan distribution and the MRR estimate.
-  const versions = new Map(rows.all<{ id: string; plan_id: string; grace_days: number; interval: "month" | "year"; currency: string; amount_minor: number }>("billing_plan_versions").map((v) => [v.id, v]));
+  const versions = new Map(rows.all<{ id: string; plan_id: string; grace_days: number; billing_frequency: number; interval: "month" | "year"; currency: string; amount_minor: number }>("billing_plan_versions").map((v) => [v.id, v]));
   const plans = new Map(rows.all<{ id: string; key: string; name: string }>("billing_plans").map((p) => [p.id, p]));
   const live = subs.flatMap((s) => {
     const v = versions.get(s.plan_version_id);
     const p = v ? plans.get(v.plan_id) : undefined;
     if (!v || !p || !["trialing", "active", "past_due"].includes(s.status)) return [];
-    return [{ ...s, grace_days: v.grace_days, interval: v.interval, currency: v.currency, amount_minor: v.amount_minor, plan_key: p.key, plan_name: p.name }];
+    return [{ ...s, grace_days: v.grace_days, billing_frequency: v.billing_frequency ?? 1, interval: v.interval, currency: v.currency, amount_minor: v.amount_minor, plan_key: p.key, plan_name: p.name }];
   });
   const granting = live.filter((s) => grantsPlan({ status: s.status, pastDueSince: s.past_due_since, graceDays: s.grace_days }, t));
   const byPlan = new Map<string, { key: string; name: string; subscriptions: number }>();
   for (const s of granting) byPlan.set(s.plan_key, { key: s.plan_key, name: s.plan_name, subscriptions: (byPlan.get(s.plan_key)?.subscriptions ?? 0) + 1 });
   // MRR estimate: paying subscriptions only (not trials), list price, yearly divided by 12 after summing per currency.
-  const monthly = new Map<string, number>();
-  const yearly = new Map<string, number>();
-  for (const s of granting.filter((s) => s.status !== "trialing")) {
-    const bucket = s.interval === "month" ? monthly : yearly;
-    bucket.set(s.currency, (bucket.get(s.currency) ?? 0) + s.amount_minor);
+  const twelfths = new Map<string, number>();
+  for (const s of granting.filter(s => s.status !== "trialing")) {
+    const months = (s.interval === "year" ? 12 : 1) * s.billing_frequency;
+    twelfths.set(s.currency, (twelfths.get(s.currency) ?? 0) + s.amount_minor * 12 / months);
   }
-  const currencies = [...new Set([...monthly.keys(), ...yearly.keys()])].sort();
-  const mrr = currencies.map((currency) => ({ currency, amountMinor: (monthly.get(currency) ?? 0) + Math.floor((yearly.get(currency) ?? 0) / 12) }));
+  const mrr = [...twelfths.keys()].sort().map(currency => ({ currency, amountMinor: Math.floor(twelfths.get(currency)! / 12) }));
 
   const history = rows.all<HistRow>("billing_subscription_history", { orderBy: [["id", "asc"]] });
   const recent = history.filter((h) => h.at >= since);

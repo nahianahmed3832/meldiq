@@ -114,6 +114,7 @@ class AppContainer(
     val expressions = com.meldiq.android.data.repo.ExpressionRepository(app, api, profile.id)
     val federation = com.meldiq.android.data.repo.FederationRepository(api)
     /** Meldiq Mojo: plans, Sparks and gifts bought through Google Play and verified by the server (docs/MOJO_ANDROID.md). */
+    val plusPromotions = com.meldiq.android.data.billing.PlusPromotions(api)
     val mojo = com.meldiq.android.data.billing.MojoRepository(
         com.meldiq.android.data.billing.HttpMojoBackend(api), com.meldiq.android.data.billing.PlayBilling(app), scope,
     ).also { m -> scope.launch { messages.entitlementsChanged.collect { m.refreshEntitlements() } } }

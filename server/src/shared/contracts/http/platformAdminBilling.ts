@@ -19,6 +19,7 @@ export const BILLING_EVENT_STATUS_VALUES = ["received", "processed", "ignored", 
 
 export const zPlanTerms = z.strictObject({
   interval: z.enum(["month", "year"]),
+  billingFrequency: z.number().int().min(1).max(12).optional(),
   currency: zCurrency,
   /** List price per interval in the currency's minor unit (cents for USD). */
   amountMinor: z.number().int().min(0).max(100_000_000_00),
@@ -86,6 +87,7 @@ export const AdminBillingMetricsQuery = z.strictObject({ days: z.coerce.number()
 
 const zTermsView = z.strictObject({
   interval: z.enum(["month", "year"]),
+  billingFrequency: z.number().int().min(1).max(12).optional(),
   currency: z.string(),
   amountMinor: zCount,
   providerPriceRef: z.string().nullable(),

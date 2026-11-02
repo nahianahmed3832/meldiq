@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Meldiq Mojo strings (docs/MOJO_ANDROID.md). Generated from strings_mojo.py. -->
 <resources>
-    <string name="mojo_title">Meldiq Mojo</string>
+    <string name="mojo_title">Meldiq Plus</string>
     <string name="mojo_entry_sub_free">更大的文件、更长的消息、更清晰的屏幕共享</string>
     <string name="mojo_entry_sub_plan">你正在使用 %1$s</string>
-    <string name="mojo_kicker">MELDIQ MOJO</string>
+    <string name="mojo_kicker">MELDIQ PLUS</string>
     <string name="mojo_headline">更多空间，更广覆盖。</string>
     <string name="mojo_headline_accent">更多 Meldiq。</string>
-    <string name="mojo_hero_body">聊天所需的一切都是免费的。Mojo 带来大文件、长消息、清晰的直播和徽章。</string>
+    <string name="mojo_hero_body">聊天所需的一切都是免费的。Meldiq Plus 带来大文件、长消息、清晰的直播和徽章。</string>
     <string name="mojo_on_free">你正在使用免费版</string>
     <string name="mojo_on_plan">你正在使用 %1$s</string>
     <string name="mojo_renews_on">%1$s 续订</string>
@@ -79,7 +79,7 @@
     <string name="mojo_spark_pack_buy">以 %1$s/月 购买</string>
     <string name="mojo_spark_pack_note">每个组合包都是 Google Play 中的月度订阅。你一次只能持有一个组合包：切换会立即生效，Google 会抵扣旧组合包的剩余部分。即使方案结束，额外的 Spark 仍归你所有。</string>
     <string name="mojo_spark_level_cap">服务器最高为等级 3：同一服务器上更多的 Spark 不会增加任何权益。多余的可留给其他服务器。</string>
-    <string name="mojo_gift_title">把 Mojo 送给朋友</string>
+    <string name="mojo_gift_title">把 Meldiq Plus 送给朋友</string>
     <string name="mojo_gift_body">一次付款，直接送到对方账户，并附上你的留言。1 个月、3 个月或 1 年。不会自动续订。</string>
     <string name="mojo_gift_open">赠送</string>
     <string name="mojo_gift_who">送给谁？</string>
@@ -91,7 +91,7 @@
     <string name="mojo_gift_year">1 年</string>
     <string name="mojo_gift_note">添加留言（可选）</string>
     <string name="mojo_gift_buy">以 %1$s 购买礼物</string>
-    <string name="mojo_gift_policy">对方会在 Meldiq 中收到，可随时开始；不会自动续订。如果对方已有免费的 Mojo 时间，礼物会在其结束后接续。</string>
+    <string name="mojo_gift_policy">对方会在 Meldiq 中收到，可随时开始；不会自动续订。如果对方已有免费的 Meldiq Plus 时间，礼物会在其结束后接续。</string>
     <string name="mojo_gift_unavailable">此礼物尚未在 Google Play 上架</string>
     <string name="mojo_notice_confirmed">谢谢！已添加到你的账户。</string>
     <string name="mojo_notice_gift_sent">礼物已付款。你的朋友会在 Meldiq 中收到。</string>
@@ -107,7 +107,7 @@
     <string name="mojo_err_setup">购买功能尚未设置好，请稍后再试。</string>
     <string name="mojo_err_other">Google Play 出现问题，请重试。</string>
     <string name="mojo_loading">正在加载方案…</string>
-    <string name="mojo_unavailable">此服务器暂不提供 Meldiq Mojo。</string>
+    <string name="mojo_unavailable">此服务器暂不提供 Meldiq Plus。</string>
     <string name="mojo_retry">重试</string>
     <string name="mojo_play_missing">Google Play 中尚未开放购买。你仍可以查看每个方案的内容。</string>
     <string name="mojo_why_title">为什么要订阅？</string>
@@ -116,11 +116,11 @@
     <string name="mojo_fine_print">付款由 Google Play 通过你所在国家/地区提供的方式收取；Meldiq 不会看到你的银行卡。订阅每月自动续订，直到你在 Google Play 中取消。</string>
     <string name="mojo_composer_left">还剩 %1$d</string>
     <string name="mojo_composer_over">超出你方案的 %2$s 共 %1$d</string>
-    <string name="mojo_composer_upgrade">查看 Mojo</string>
+    <string name="mojo_composer_upgrade">查看 Meldiq Plus</string>
     <string name="mojo_spark_give">赠送 Spark</string>
     <string name="mojo_spark_pick_server">哪个服务器？</string>
     <string name="mojo_spark_none_free">你的 Spark 已全部赠出。可以收回一个或购买更多。</string>
-    <string name="mojo_spark_none">你还没有 Spark。Mojo Go 含 1 个，Mojo Plus 含 2 个，也可以单独购买。</string>
+    <string name="mojo_spark_none">你还没有 Spark。Legacy Go 含 1 个，Meldiq Plus 含 2 个，也可以单独购买。</string>
     <string name="mojo_spark_free_n">%1$d 个可赠送</string>
     <string name="mojo_spark_paused">已暂停：你持有的 Spark 少于已赠出的数量</string>
     <string name="mojo_spark_left_server">你已离开此服务器</string>
@@ -137,7 +137,7 @@
     <string name="mojo_spark_wont_raise">该服务器已是等级 3：再赠送 Spark 不会增加任何内容。</string>
     <string name="mojo_spark_open">Meldiq Spark</string>
     <string name="mojo_spark_see_plans">获取 Spark</string>
-    <string name="mojo_badge_title">显示我的 Mojo 徽章</string>
+    <string name="mojo_badge_title">显示我的 Meldiq Plus 徽章</string>
     <string name="mojo_badge_sub">隐藏只会影响他人看到的内容。</string>
     <string name="mojo_gifts_received">送给你的礼物</string>
     <string name="mojo_gifts_sent">你送出的礼物</string>

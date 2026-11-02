@@ -220,9 +220,12 @@ export class Subscriptions {
    * skipped ("stale"), so duplicated and out-of-order deliveries settle on the provider's latest state.
    */
   applySnapshot(w: RowWriter, provider: string, snap: SubscriptionSnapshot, providerAt: number, source: string, t: number): ApplyOutcome {
-    const version = (provider === "paypal_card" ? this.catalog.version(snap.priceRef) : this.catalog.byPrice(provider, snap.priceRef)) ?? this.storeVersion?.(provider, snap.priceRef) ?? null;
-    if (!version) throw new BillingEventError("unknown_price", `No published plan version uses the price ${snap.priceRef}`);
     const existing = w.get<SubscriptionRow>("billing_subscriptions", { provider, provider_subscription_ref: snap.ref });
+    const existingPlan = existing && this.catalog.version(existing.plan_version_id);
+    const existingKey = existingPlan && this.catalog.plan(existingPlan.plan_id)?.key;
+    const samePlayProduct = provider === "google_play" && existingPlan && (snap.priceRef === `mojo_${existingKey}` || existingKey === "plus" && ((snap.priceRef === "mojo_plus_quarterly" && existingPlan.interval === "month" && existingPlan.billing_frequency === 3) || (snap.priceRef === "mojo_plus_yearly" && existingPlan.interval === "year")) || existingKey === "spark" && snap.priceRef.startsWith("spark_"));
+    const version = samePlayProduct ? existingPlan : (provider === "paypal_card" ? this.catalog.version(snap.priceRef) : this.catalog.byPrice(provider, snap.priceRef)) ?? this.storeVersion?.(provider, snap.priceRef) ?? null;
+    if (!version) throw new BillingEventError("unknown_price", `No published plan version uses the price ${snap.priceRef}`);
     if (existing) return this.update(w, existing, version.id, snap, providerAt, source, t);
     return this.insert(w, provider, version.id, snap, providerAt, source, t);
   }

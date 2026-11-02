@@ -1,3 +1,4 @@
+import { isOfficialPlus, PLUS_TERMS } from "./pricing.js";
 import { normalizedGiftEmail, type GiftTarget, type GiftDelivery } from "./giftDelivery.js";
 import type { FastifyBaseLogger } from "fastify";
 import type { Rows, RowWriter } from "../../infrastructure/database/rows/index.js";
@@ -90,12 +91,13 @@ export class Gifts implements PaymentEvents {
 
   /** The plan's current price for [months], from the published catalog at the configured provider; null: not on sale. */
   price(planKey: PlanKey, months: number): { currency: string; amountMinor: number } | null {
-    if (planKey === "go") return null;
+    if (planKey !== "plus") return null;
     const provider = this.billing.provider;
     const plan = this.billing.catalog.byKey(planKey);
     const v = plan && plan.public && plan.status === "active" ? this.billing.catalog.current(plan.id) : null;
-    if (!provider || !v || v.provider !== provider.id || v.interval !== "month") return null;
-    return { currency: v.currency, amountMinor: v.amount_minor * months };
+    if (!provider || !v || v.provider !== provider.id || !isOfficialPlus({ currency: v.currency, amountMinor: v.amount_minor, interval: v.interval })) return null;
+    const term = Object.values(PLUS_TERMS).find(p => p.months === months);
+    return term ? { currency: v.currency, amountMinor: term.amountMinor } : null;
   }
 
   /** Starts paying for a gift: the provider's hosted page, priced by the server. */
@@ -114,7 +116,7 @@ export class Gifts implements PaymentEvents {
     const recipientUserId = target.kind === "user" ? target.userId : "";
     const { planKey, note } = this.validate(starter, { ...input, recipientUserId }, target.kind !== "user");
     const price = this.price(planKey, input.months);
-    if (!price) throw new ApiError(409, "billing_unavailable", "Mojo isn't on sale yet");
+    if (!price) throw new ApiError(409, "billing_unavailable", "Meldiq Plus isn't on sale yet");
     const t = this.clock();
     let id = newId("gft");
     await this.rows.write((w) => {
@@ -161,7 +163,7 @@ export class Gifts implements PaymentEvents {
     if (!(GIFT_MONTHS as readonly number[]).includes(input.months)) throw badRequest(`Gifts are for ${GIFT_MONTHS.join(", ")} months`);
     const note = (input.note ?? "").trim();
     if (note.length > GIFT_NOTE_MAX) throw badRequest(`A gift note is up to ${GIFT_NOTE_MAX} characters`);
-    if (!unassigned && input.recipientUserId === starter.userId) throw conflict("Gifts are for friends: get Mojo for yourself from the plans above");
+    if (!unassigned && input.recipientUserId === starter.userId) throw conflict("Gifts are for friends: get Meldiq Plus for yourself from the plans above");
     // An unknown recipient and one the buyer can't give to answer alike: nobody learns who has an account.
     if (!unassigned && !this.deps.canReceive(input.recipientUserId, starter.userId)) throw notFound("That person can't receive gifts");
     return { planKey, note };

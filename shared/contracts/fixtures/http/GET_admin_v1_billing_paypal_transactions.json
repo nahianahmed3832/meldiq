@@ -1,0 +1,8 @@
+{
+  "transactions": [],
+  "integration": {
+    "available": false,
+    "mode": null,
+    "reason": "PayPal is not configured on this server. Historical records remain available; refunds are disabled."
+  }
+}

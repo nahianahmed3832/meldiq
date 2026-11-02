@@ -23,7 +23,7 @@ import { route, type RouteContract } from "../route.js";
 import { z } from "zod/v4";
 
 /** Meldiq Mojo, Meldiq Spark and gifts (docs/MOJO.md). */
-const tag = "Mojo";
+const tag = "Meldiq Plus";
 const Ok = z.strictObject({ ok: z.literal(true) });
 
 export const mojoRoutes: readonly RouteContract[] = [
@@ -65,7 +65,7 @@ export const mojoRoutes: readonly RouteContract[] = [
     method: "POST",
     url: "/v2/mojo/gifts",
     tag,
-    summary: "Buy Mojo Go or Plus for a friend for 1, 3 or 12 months: a hosted one-time payment.",
+    summary: "Buy Legacy Go or Plus for a friend for 1, 3 or 12 months: a hosted one-time payment.",
     auth: true,
     body: GiftBody,
     response: GiftStarted,
@@ -81,7 +81,7 @@ export const mojoRoutes: readonly RouteContract[] = [
     response: GiftRedeemed,
     errors: ["conflict", "device_required", "forbidden", "not_found"],
   }),
-  route({ method: "PUT", url: "/v2/mojo/badge", tag, summary: "Show or hide your Mojo badge (what your plan gives doesn't change).", auth: true, body: BadgeBody, response: BadgeSaved, errors: ["device_required"] }),
+  route({ method: "PUT", url: "/v2/mojo/badge", tag, summary: "Show or hide your Meldiq Plus badge (what your plan gives doesn't change).", auth: true, body: BadgeBody, response: BadgeSaved, errors: ["device_required"] }),
   route({
     method: "GET",
     url: "/v1/orgs/:orgId/sparks",

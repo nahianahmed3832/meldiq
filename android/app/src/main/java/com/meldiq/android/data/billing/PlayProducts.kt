@@ -9,6 +9,10 @@ object PlayProducts {
     /** Auto-renewing subscriptions, each with one monthly base plan. */
     const val MOJO_GO = "mojo_go"
     const val MOJO_PLUS = "mojo_plus"
+    const val MOJO_PLUS_QUARTERLY = "mojo_plus_quarterly"
+    const val MOJO_PLUS_YEARLY = "mojo_plus_yearly"
+    fun plusProduct(months: Int): String? = when (months) { 1 -> MOJO_PLUS; 3 -> MOJO_PLUS_QUARTERLY; 12 -> MOJO_PLUS_YEARLY; else -> null }
+    fun plusMonths(productId: String): Int? = when (productId) { MOJO_PLUS -> 1; MOJO_PLUS_QUARTERLY -> 3; MOJO_PLUS_YEARLY -> 12; else -> null }
     const val MONTHLY_BASE_PLAN = "monthly"
 
     /**
@@ -21,7 +25,7 @@ object PlayProducts {
     val GIFT_MONTHS = listOf(1, 3, 12)
 
     fun gift(planKey: String, months: Int): String? =
-        if (planKey in setOf(MojoPlans.GO, MojoPlans.PLUS) && months in GIFT_MONTHS) "gift_${planKey}_${months}m" else null
+        if (planKey == MojoPlans.PLUS && months in GIFT_MONTHS) "gift_${planKey}_${months}m" else null
 
     fun subscriptionFor(planKey: String): String? = when (planKey) {
         MojoPlans.GO -> MOJO_GO
@@ -31,14 +35,14 @@ object PlayProducts {
 
     fun planFor(productId: String): String? = when (productId) {
         MOJO_GO -> MojoPlans.GO
-        MOJO_PLUS -> MojoPlans.PLUS
+        MOJO_PLUS, MOJO_PLUS_QUARTERLY, MOJO_PLUS_YEARLY -> MojoPlans.PLUS
         else -> null
     }
 
     fun sparkQuantity(productId: String): Int? = SPARK_PACKS.entries.firstOrNull { it.value == productId }?.key
 
-    val SUBSCRIPTIONS: List<String> = listOf(MOJO_GO, MOJO_PLUS) + SPARK_PACKS.values
-    val ONE_TIME: List<String> = listOf(MojoPlans.GO, MojoPlans.PLUS).flatMap { p -> GIFT_MONTHS.mapNotNull { gift(p, it) } }
+    val SUBSCRIPTIONS: List<String> = listOf(MOJO_PLUS, MOJO_PLUS_QUARTERLY, MOJO_PLUS_YEARLY) + SPARK_PACKS.values
+    val ONE_TIME: List<String> = listOf(MojoPlans.PLUS).flatMap { p -> GIFT_MONTHS.mapNotNull { gift(p, it) } }
 
     /** Google Play's own page for managing (and cancelling) a subscription: the documented deep link. */
     fun manageUrl(packageName: String, productId: String?): String =

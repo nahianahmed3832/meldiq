@@ -448,7 +448,7 @@ describe.each([
     });
   });
 
-  it("earns 1.5 times on Mojo Plus", async () => {
+  it("earns 1.5 times on Meldiq Plus", async () => {
     const c = await h.client("ptplus");
     await age(h, c);
     const plan = vi.spyOn(h.ctx.mojo, "planOf").mockReturnValue("plus");

@@ -63,3 +63,5 @@ export type { AdminDeps } from "./dataRoutes.js";
 export type { Permission } from "./permissions.js";
 export { legacyOperatorAllowed, eraseOperationalUserData } from "./operations.js";
 export { runtimePolicy, inRollout } from "./runtimePolicy.js";
+
+export { hasPlatformAdminAccount } from "./audience.js";

@@ -1,4 +1,7 @@
+import { isOfficialPlus, PLUS_TERMS, type PlusTerm, plusTermViews, termOf, PRICING, PRICING_VERSION, PRICING_EFFECTIVE_AT } from "./pricing.js";
+import { PayPalProvider } from "./providers/paypal.js";
 import type { BillingNotifications } from "./notifications.js";
+import { Promotions } from "./upgradePromotions.js";
 import { Commerce } from "./commerce.js";
 import type { CardSubscriptions } from "./cardSubscriptions.js";
 import { SparkPurchases } from "./sparkPurchases.js";
@@ -39,6 +42,7 @@ const audienceOf = (owner: BillingOwner): PlanAudience => (owner.kind === "accou
 export class Billing {
   notifications: BillingNotifications | null = null;
   readonly commerce: Commerce;
+  readonly promotions: Promotions;
   cardSubscriptions: CardSubscriptions | null = null;
   readonly sparkPurchases: SparkPurchases;
   readonly catalog: PlanCatalog;
@@ -65,12 +69,24 @@ export class Billing {
     quotaPlanExists?: QuotaPlanCheck,
   ) {
     this.commerce = new Commerce(this, clock);
+    this.promotions = new Promotions(rows, clock);
     this.provider = config.provider;
     this.unavailableReason = config.unavailableReason;
     this.returnUrl = config.returnUrl;
     this.webReturnUrl = config.webReturnUrl;
     this.catalog = new PlanCatalog(rows, quotaPlanExists);
-    this.subscriptions = new Subscriptions(rows, this.catalog, (w, accountId, kind, resource, t) => this.notifications?.queue(w, accountId, kind, resource, t));
+    if (this.provider instanceof PayPalProvider) this.provider.agreementTerms = (priceRef) => {
+      const version = this.catalog.byPrice("paypal", priceRef);
+      return version && version.currency === "USD" ? version.amount_minor : null;
+    };
+    if (this.provider instanceof PayPalProvider) this.provider.agreementMonths = ref => { const v = this.catalog.byPrice("paypal", ref); return v ? (v.interval === "year" ? 12 : 1) * (v.billing_frequency ?? 1) : null; };
+    this.subscriptions = new Subscriptions(rows, this.catalog, (w, accountId, kind, resource, t) => {
+      this.notifications?.queue(w, accountId, kind, resource, t);
+      if (accountId) {
+        const type = kind === "payment_receipt" ? "conversion" : kind === "renewal_canceled" ? "cancellation" : kind === "payment_refunded" ? "refund" : null;
+        if (type) this.promotions.lifecycleIn(w, accountId, type, resource);
+      }
+    });
     this.webhooks = new BillingWebhooks(rows, config.provider, this.subscriptions, log, clock);
     this.sparkPurchases = new SparkPurchases(this, rows, log, clock);
     this.program = new BillingProgram(rows, config.trials);
@@ -78,7 +94,14 @@ export class Billing {
     this.grants = new Grants(rows, () => this.program.current(), clock);
     this.portalConfiguration = config.portalConfiguration;
     this.webhooks.afterApply = (event, outcome) => {
-      if (outcome.owner) this.changed(outcome.owner);
+      if (outcome.owner) {
+        this.changed(outcome.owner);
+        if (outcome.owner.kind === "account" && outcome.subscriptionId) {
+          const sub = this.subscriptions.get(outcome.subscriptionId);
+          const type = event.kind === "invoice" && event.invoice.status === "paid" ? "conversion" : sub?.cancel_at_period_end || sub?.status === "canceled" ? "cancellation" : null;
+          if (type) void this.promotions.lifecycle(outcome.owner.accountId, type, outcome.subscriptionId).catch(e => this.log.warn({ err: e }, "promotion lifecycle analytics unavailable"));
+        }
+      }
       // The checkout finished but its subscription's own event hasn't arrived (or was lost): read it from the provider.
       if (event.kind === "checkout" && event.checkout.outcome === "completed" && event.checkout.subscriptionRef && !outcome.subscriptionId) {
         void this.reconcileRefs([event.checkout.subscriptionRef]).catch((e) => this.log.warn({ err: e }, "billing reconciliation after checkout failed"));
@@ -123,18 +146,18 @@ export class Billing {
     return this.catalog
       .all()
       .filter((p) => p.key !== "go" && p.key !== "spark" && p.public && p.status === "active" && (audience === null || p.audience === audience))
-      .flatMap((p) => {
-        const v = this.catalog.current(p.id);
-        if (!v || v.provider !== provider.id) return [];
-        return [{ key: p.key, name: p.name, description: p.description, audience: p.audience, interval: v.interval, currency: v.currency, amountMinor: v.amount_minor, trialDays: v.trial_days, graceDays: v.grace_days, limits: parseLimits(v.limits) }];
-      });
+      .flatMap((p) => (p.key === "plus" ? this.catalog.offered(p.id) : [this.catalog.current(p.id)]).flatMap(v => {
+        if (!v || v.provider !== provider.id || p.key === "plus" && !isOfficialPlus({ currency: v.currency, amountMinor: v.amount_minor, interval: v.interval, billingFrequency: v.billing_frequency })) return [];
+        return [{ key: p.key, name: p.key === "plus" ? PRICING.plus.name : p.name, description: p.description, audience: p.audience, interval: v.interval, billingFrequency: v.billing_frequency ?? 1, term: p.key === "plus" ? termOf(v) : null, currency: v.currency, amountMinor: v.amount_minor, trialDays: v.trial_days, graceDays: v.grace_days, limits: parseLimits(v.limits) }];
+      }));
   }
 
   /** The public price list (the website's pricing page): no account needed, nothing about anyone's subscription. */
   publicCatalog() {
     const c = this.grants.config;
     return {
-      available: !!this.provider,
+      pricing: { version: PRICING_VERSION, effectiveAt: PRICING_EFFECTIVE_AT, plans: Object.values(PRICING), plusTerms: plusTermViews(), providerEnvironment: this.provider instanceof PayPalProvider ? this.provider.environment : this.provider?.mode ?? null, paypalProductId: this.provider instanceof PayPalProvider ? this.provider.options.plusProductId ?? null : null, paypalPlanId: this.provider instanceof PayPalProvider ? this.provider.options.plusPlanId : null },
+      available: this.offers(null).length > 0,
       mode: this.provider?.mode ?? null,
       plans: this.offers(null),
       /** The free periods on offer: every account's trial and the invite-link bonus (null while trials are off). */
@@ -171,14 +194,14 @@ export class Billing {
     owner: BillingOwner,
     starter: CheckoutStarter,
     planKey: string,
-    opts: { quantity?: number; returnUrl?: string | null; requestKey?: string } = {},
+    opts: { quantity?: number; returnUrl?: string | null; requestKey?: string; term?: PlusTerm } = {},
   ): Promise<{ checkoutId: string; url: string | null; expiresAt: number }> {
     if (planKey === "spark") throw conflict("Sparks are now one-time purchases. Use the Spark checkout.");
-    if (planKey === "go") throw notFound("Mojo Go is no longer offered. Choose Mojo Plus.");
+    if (planKey === "go") throw notFound("Go is discontinued. Choose Meldiq Plus.");
     const provider = this.requireProvider();
     const plan = this.catalog.byKey(planKey);
-    const version = plan && plan.public && plan.status === "active" && plan.audience === audienceOf(owner) ? this.catalog.current(plan.id) : null;
-    if (!plan || !version || version.provider !== provider.id || !version.provider_price_ref) throw notFound("No such plan");
+    const version = plan && plan.public && plan.status === "active" && plan.audience === audienceOf(owner) ? this.catalog.current(plan.id, opts.term) : null;
+    if (!plan || !version || version.provider !== provider.id || !version.provider_price_ref || planKey === "plus" && !isOfficialPlus({ currency: version.currency, amountMinor: version.amount_minor, interval: version.interval, billingFrequency: version.billing_frequency })) throw notFound("No approved Meldiq Plus offer is available");
     // The Spark add-on is bought by quantity beside the plan (docs/MOJO.md); a plan is always one.
     const addon = isAddonPlanKey(planKey);
     const quantity = addon ? (opts.quantity ?? 1) : 1;
@@ -246,6 +269,7 @@ export class Billing {
       await this.expireAtProvider(provider, session.sessionRef);
       throw conflict("A newer checkout was started. Use that one.");
     }
+    if (owner.kind === "account") await this.promotions.lifecycle(owner.accountId, "checkout_start", id).catch(e => this.log.warn({ err: e }, "promotion checkout analytics unavailable"));
     return { checkoutId: id, url: session.url, expiresAt: t + CHECKOUT_TTL_MS };
   }
 
@@ -377,6 +401,7 @@ export class Billing {
       interval: v.interval,
       currency: v.currency,
       amountMinor: v.amount_minor,
+      billingFrequency: v.billing_frequency ?? 1,
       currentPeriodEnd: s.current_period_end,
       trialEnd: s.trial_end,
       cancelAtPeriodEnd: !!s.cancel_at_period_end,

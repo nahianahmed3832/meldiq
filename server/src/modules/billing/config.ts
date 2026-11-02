@@ -178,9 +178,13 @@ function providerConfig(env: NodeJS.ProcessEnv): Omit<BillingConfig, "trials" | 
     if (plusPlanId && !/^P-[A-Z0-9]+$/.test(plusPlanId)) throw new Error("PAYPAL_PLUS_PLAN_ID must be a PayPal plan ID");
     if (env.PAYPAL_BOTS_PLUS_PLAN_ID && !/^P-[A-Z0-9]+$/.test(env.PAYPAL_BOTS_PLUS_PLAN_ID.trim())) throw new Error("PAYPAL_BOTS_PLUS_PLAN_ID must be a PayPal plan ID");
     if (env.PAYPAL_BOTS_PLUS_PLAN_ID?.trim() && env.PAYPAL_BOTS_PLUS_PLAN_ID.trim() === plusPlanId) throw new Error("Bots+ and Plus must use distinct PayPal product plans");
+    const quarterlyPlanId = env.PAYPAL_PLUS_QUARTERLY_PLAN_ID?.trim() || null;
+    const yearlyPlanId = env.PAYPAL_PLUS_YEARLY_PLAN_ID?.trim() || null;
+    const refs = [plusPlanId, quarterlyPlanId, yearlyPlanId, env.PAYPAL_BOTS_PLUS_PLAN_ID?.trim() || null].filter((x): x is string => !!x);
+    if (refs.some(id => !/^P-[A-Z0-9]+$/.test(id)) || new Set(refs).size !== refs.length) throw new Error("PayPal billing intervals require distinct valid plan IDs");
     const approved = env.PAYPAL_SUBSCRIPTIONS_APPROVED ?? "false";
     if (approved !== "true" && approved !== "false") throw new Error("PAYPAL_SUBSCRIPTIONS_APPROVED must be true or false");
-    return { provider: new PayPalProvider({ cardCapabilities: paypalCardCapabilities(env, environment), environment, clientId, clientSecret, webhookId, merchantId, plusPlanId, subscriptionsApproved: approved === "true", giftsEnabled: environment === "sandbox" || env.PAYPAL_GIFTS_ENABLED === "true", sparksEnabled: environment === "sandbox" || env.PAYPAL_SPARKS_ENABLED === "true", botsPlanId: env.PAYPAL_BOTS_PLUS_PLAN_ID?.trim() || null }), unavailableReason: null, returnUrl: returnUrl(env.BILLING_RETURN_URL, production) };
+    return { provider: new PayPalProvider({ cardCapabilities: paypalCardCapabilities(env, environment), environment, clientId, clientSecret, webhookId, merchantId, plusPlanId, quarterlyPlanId, yearlyPlanId, plusProductId: env.PAYPAL_PLUS_PRODUCT_ID?.trim() || null, subscriptionsApproved: approved === "true", giftsEnabled: environment === "sandbox" || env.PAYPAL_GIFTS_ENABLED === "true", sparksEnabled: environment === "sandbox" || env.PAYPAL_SPARKS_ENABLED === "true", botsPlanId: env.PAYPAL_BOTS_PLUS_PLAN_ID?.trim() || null }), unavailableReason: null, returnUrl: returnUrl(env.BILLING_RETURN_URL, production) };
   }
   if (name === "stripe") {
     const key = (env.STRIPE_SECRET_KEY ?? "").trim();

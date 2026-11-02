@@ -1,3 +1,4 @@
+import { PRICING, PLUS_TERMS, type PlusTerm, termOf, isOfficialPlus } from "./pricing.js";
 import type { Rows, RowWriter } from "../../infrastructure/database/rows/index.js";
 import { ApiError, conflict, notFound } from "../../shared/errors.js";
 import { newId } from "../../shared/utilities/util.js";
@@ -14,6 +15,7 @@ export type PlanAudience = "personal" | "organization";
 export type PlanLimits = Partial<Record<EntitlementKey, number>>;
 
 export interface PlanTerms {
+  billingFrequency?: number;
   interval: "month" | "year";
   currency: string;
   amountMinor: number;
@@ -36,6 +38,7 @@ export interface PlanMeta {
 }
 
 export interface VersionRow {
+  billing_frequency: number;
   id: string;
   plan_id: string;
   version: number;
@@ -98,7 +101,8 @@ export class PlanCatalog {
   ) {}
 
   plan(id: string): PlanRow | null {
-    return this.rows.get<PlanRow>("billing_plans", { id }) ?? null;
+    const row = this.rows.get<PlanRow>("billing_plans", { id });
+    return row ? this.named(row) : null;
   }
 
   versions(planId: string): VersionRow[] {
@@ -110,10 +114,13 @@ export class PlanCatalog {
   }
 
   /** The version new subscribers get: the newest published one that isn't retired, on a plan that's active. */
-  current(planId: string): VersionRow | null {
+  current(planId: string, term?: PlusTerm): VersionRow | null {
     if (this.plan(planId)?.status !== "active") return null;
-    return this.rows.get<VersionRow>("billing_plan_versions", { plan_id: planId, published_at: { ne: null }, retired_at: null }, [["version", "desc"]]) ?? null;
+    const p = this.plan(planId); const cadence = p?.key === "plus" ? PLUS_TERMS[term ?? "monthly"] : null;
+    return this.rows.get<VersionRow>("billing_plan_versions", { plan_id: planId, published_at: { ne: null }, retired_at: null, ...(cadence ? { interval: cadence.interval, billing_frequency: cadence.billingFrequency } : {}) }, [["version", "desc"]]) ?? null;
   }
+
+  offered(planId: string): VersionRow[] { return this.plan(planId)?.status === "active" ? this.rows.all<VersionRow>("billing_plan_versions", { where: { plan_id: planId, published_at: { ne: null }, retired_at: null }, orderBy: [["version", "desc"]] }) : []; }
 
   /** A published version by its provider price: how a provider's subscription finds its terms. */
   byPrice(provider: string, priceRef: string): VersionRow | null {
@@ -121,7 +128,8 @@ export class PlanCatalog {
   }
 
   byKey(key: string): PlanRow | null {
-    return this.rows.get<PlanRow>("billing_plans", { key }) ?? null;
+    const row = this.rows.get<PlanRow>("billing_plans", { key });
+    return row ? this.named(row) : null;
   }
 
   /** Every version of the plan with [key] (the Spark add-on's: its subscriptions sit beside a plan's). */
@@ -130,11 +138,14 @@ export class PlanCatalog {
     return new Set(plan ? this.versions(plan.id).map((v) => v.id) : []);
   }
 
+  private named(row: PlanRow): PlanRow { return { ...row, name: row.key === "plus" ? PRICING.plus.name : row.key === "free" ? PRICING.free.name : row.key === "go" ? "Legacy Go" : row.name }; }
+
   all(): PlanRow[] {
     // Archived plans last, then by name (SQLite's ORDER BY status = 'archived', name).
     return this.rows
       .all<PlanRow>("billing_plans", { orderBy: [["name", "asc"]] })
-      .sort((a, b) => Number(a.status === "archived") - Number(b.status === "archived"));
+      .sort((a, b) => Number(a.status === "archived") - Number(b.status === "archived"))
+      .map(p => this.named(p));
   }
 
   /** How many subscriptions are on each version (any state), for "who keeps these terms". */
@@ -150,6 +161,7 @@ export class PlanCatalog {
   /** A new plan with its first draft. */
   async create(key: string, meta: PlanMeta, terms: PlanTerms, actor: string, t: number): Promise<PlanRow> {
     validateTerms(terms, this.quotaPlanExists);
+    if (!Number.isSafeInteger(terms.billingFrequency ?? 1) || (terms.billingFrequency ?? 1) < 1 || (terms.billingFrequency ?? 1) > 12) throw conflict("Invalid billing frequency");
     const id = newId("pl");
     await this.rows.write((w) => {
       if (w.get("billing_plans", { key })) throw conflict(`A plan with the key "${key}" exists already`);
@@ -164,7 +176,7 @@ export class PlanCatalog {
 
   private insertDraft(w: RowWriter, planId: string, version: number, terms: PlanTerms, actor: string, t: number): void {
     w.insert("billing_plan_versions", {
-      id: newId("pv"), plan_id: planId, version, interval: terms.interval, currency: terms.currency, amount_minor: terms.amountMinor, provider_price_ref: terms.providerPriceRef,
+      id: newId("pv"), plan_id: planId, version, interval: terms.interval, billing_frequency: terms.billingFrequency ?? 1, currency: terms.currency, amount_minor: terms.amountMinor, provider_price_ref: terms.providerPriceRef,
       trial_days: terms.trialDays, grace_days: terms.graceDays, limits: JSON.stringify(terms.limits), notes: terms.notes, quota_plan_id: terms.quotaPlanId ?? null,
       created_by: actor, created_at: t, updated_at: t,
     });
@@ -181,6 +193,7 @@ export class PlanCatalog {
   /** Saves the plan's draft terms, starting a new draft version when every version is published. */
   async saveDraft(planId: string, terms: PlanTerms, actor: string, t: number): Promise<VersionRow> {
     validateTerms(terms, this.quotaPlanExists);
+    if (!Number.isSafeInteger(terms.billingFrequency ?? 1) || (terms.billingFrequency ?? 1) < 1 || (terms.billingFrequency ?? 1) > 12) throw conflict("Invalid billing frequency");
     await this.rows.write((w) => {
       const plan = w.get<PlanRow>("billing_plans", { id: planId });
       if (!plan) throw notFound("No such plan");
@@ -189,7 +202,7 @@ export class PlanCatalog {
       // A published version is never changed (SQLite also refuses it with a trigger): only the draft is edited.
       if (latest && latest.published_at === null) {
         w.update("billing_plan_versions", { id: latest.id }, {
-          interval: terms.interval, currency: terms.currency, amount_minor: terms.amountMinor, provider_price_ref: terms.providerPriceRef, trial_days: terms.trialDays,
+          interval: terms.interval, billing_frequency: terms.billingFrequency ?? 1, currency: terms.currency, amount_minor: terms.amountMinor, provider_price_ref: terms.providerPriceRef, trial_days: terms.trialDays,
           grace_days: terms.graceDays, limits: JSON.stringify(terms.limits), notes: terms.notes, quota_plan_id: terms.quotaPlanId ?? null, updated_at: t,
         });
       } else {
@@ -204,19 +217,21 @@ export class PlanCatalog {
    * offered (its subscribers keep it). Needs the provider's price id, unused by any other published version.
    */
   async publish(planId: string, provider: string, actor: string, t: number): Promise<{ published: VersionRow; retired: VersionRow | null }> {
-    const previous = this.current(planId);
+    const latest = this.versions(planId)[0];
+    const previous = this.current(planId, latest ? termOf(latest) ?? undefined : undefined);
     const draftId = await this.rows.write((w) => {
       const plan = w.get<PlanRow>("billing_plans", { id: planId });
       if (!plan) throw notFound("No such plan");
       if (plan.status === "archived") throw conflict("This plan is archived");
       const draft = w.get<VersionRow>("billing_plan_versions", { plan_id: planId }, [["version", "desc"]]);
       if (!draft || draft.published_at !== null) throw conflict("There's no draft to publish: save new terms first");
+      if (plan.key === "plus" && !isOfficialPlus({ currency: draft.currency, amountMinor: draft.amount_minor, interval: draft.interval, billingFrequency: draft.billing_frequency })) throw conflict("Meldiq Plus must use an approved 1, 3 or 12 month price");
       if (!draft.provider_price_ref) throw conflict("Add the billing provider's price id before publishing");
       if (w.get("billing_plan_versions", { provider, provider_price_ref: draft.provider_price_ref, id: { ne: draft.id } })) {
         throw conflict("Another plan version already uses this provider price id");
       }
       w.update("billing_plan_versions", { id: draft.id }, { provider, published_at: t, published_by: actor, updated_at: t });
-      w.update("billing_plan_versions", { plan_id: planId, published_at: { ne: null }, retired_at: null, id: { ne: draft.id } }, { retired_at: t });
+      w.update("billing_plan_versions", { plan_id: planId, published_at: { ne: null }, retired_at: null, id: { ne: draft.id }, ...(plan.key === "plus" ? { interval: draft.interval, billing_frequency: draft.billing_frequency } : {}) }, { retired_at: t });
       w.update("billing_plans", { id: planId }, { status: "active", updated_at: t });
       return draft.id;
     });
@@ -239,6 +254,7 @@ export class PlanCatalog {
 export function termsOf(v: VersionRow): PlanTerms {
   return {
     interval: v.interval,
+    billingFrequency: v.billing_frequency ?? 1,
     currency: v.currency,
     amountMinor: v.amount_minor,
     providerPriceRef: v.provider_price_ref,

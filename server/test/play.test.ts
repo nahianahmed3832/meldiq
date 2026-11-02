@@ -88,7 +88,7 @@ class QuietStripe implements StripeApi {
   }
 }
 
-describe("Meldiq Mojo on Google Play", () => {
+describe("Meldiq Plus on Google Play", () => {
   let h: Harness;
   const mailer = new MemoryMailer();
   const google = new FakePlay();
@@ -143,7 +143,7 @@ describe("Meldiq Mojo on Google Play", () => {
       { mailer, billingProvider: provider, play },
     );
     // The plans are published once in the catalog (here for Stripe); Google Play sells them under its own product ids.
-    for (const [key, price, amount] of [["go", "price_go", 99], ["plus", "price_plus", 399], ["spark", "price_spark", 99]] as const) {
+    for (const [key, price, amount] of [["go", "price_go", 99], ["plus", "price_plus", 499], ["spark", "price_spark", 99]] as const) {
       const terms = { interval: "month" as const, currency: "USD", amountMinor: amount, providerPriceRef: price, trialDays: 0, graceDays: 0, limits: {}, notes: "" };
       const p = await h.ctx.billing.catalog.create(key, { name: key, description: "", segment: "personal", public: true, audience: "personal" }, terms, "test", Date.now());
       await h.ctx.billing.catalog.publish(p.id, "stripe", "test", Date.now());
@@ -160,7 +160,7 @@ describe("Meldiq Mojo on Google Play", () => {
       await expectStatus(gifter.req("POST", "/v2/mojo/play/intent", { kind: "gift", productId: "gift_go_1m", giftTo: friend.userId }), 404);
     });
 
-    it("grants Mojo Plus only once Google says it's paid, and then acknowledges it", async () => {
+    it("grants Meldiq Plus only once Google says it's paid, and then acknowledges it", async () => {
       plusToken = await buySubscription(buyer, "mojo_plus");
       expect((await planOf(buyer)).plan).toBeNull();
       expect(await verify(buyer, "mojo_plus", plusToken)).toBe("granted");

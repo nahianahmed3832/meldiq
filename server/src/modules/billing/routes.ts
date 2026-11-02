@@ -1,3 +1,4 @@
+import { promotionRoutes } from "./promotionRoutes.js";
 import { CardVault } from "./cardVault.js";
 import { SecretBox } from "../../infrastructure/crypto/secretBox.js";
 import { z } from "zod/v4";
@@ -162,6 +163,8 @@ export default async function billingRoutes(
     };
   };
 
+  promotionRoutes(app, ctx, { preHandler: requireAccountOrDevice }, session);
+
   app.get("/v2/billing/plans", async () => ctx.billing.publicCatalog());
 
   /** The signed-in account, with its trial recorded the first time it's looked at (trials on, from its sign-up time). */
@@ -240,7 +243,7 @@ export default async function billingRoutes(
 
   app.post("/v2/billing/checkout", providerCall, async (req) => {
     const s = session(req);
-    const { planKey, orgId, returnTo } = parse(OwnerCheckoutBody, req.body);
+    const { planKey, orgId, returnTo, term } = parse(OwnerCheckoutBody, req.body);
     const owner = ownerFor(s, orgId);
     // The Spark add-on has its own route (a quantity): this one buys plans.
     if (isAddonPlanKey(planKey)) throw notFound("No such plan");
@@ -248,7 +251,7 @@ export default async function billingRoutes(
       owner,
       await starterFor(s, owner),
       planKey,
-      { returnUrl: ctx.billing.returnTo(returnTo) },
+      { returnUrl: ctx.billing.returnTo(returnTo), term },
     );
     ctx.audit({
       actorId: s.userId ?? s.accountId,
@@ -310,9 +313,9 @@ export default async function billingRoutes(
   app.get("/v2/billing/orders/:id/receipt", authed, async req => { const account = session(req).accountId; await ctx.billing.commerce.refresh(account); return ctx.billing.commerce.receipt(account, parse(PayPalCheckoutParams, req.params).id); });
   const cardSubscriptions = () => { if (!ctx.billing.cardSubscriptions) throw notFound("Card subscriptions unavailable"); return ctx.billing.cardSubscriptions; };
   app.get("/v2/billing/card-subscriptions", authed, async req => ({ subscriptions: cardSubscriptions().list(session(req).accountId) }));
-  app.get("/v2/billing/card-subscriptions/quote", authed, async req => { const input = parse(z.object({ product: z.enum(["plus", "bots_plus"]) }), req.query); const quote = cardSubscriptions().quote(input.product, session(req).accountId); return { consentVersion: quote.consentVersion, amountMinor: quote.amountMinor, currency: quote.currency, firstBillingAt: quote.firstBillingAt }; });
+  app.get("/v2/billing/card-subscriptions/quote", authed, async req => { const input = parse(z.object({ product: z.enum(["plus", "bots_plus"]), term: z.enum(["monthly", "quarterly", "yearly"]).optional() }), req.query); const quote = cardSubscriptions().quote(input.product, session(req).accountId, input.term); return { consentVersion: quote.consentVersion, amountMinor: quote.amountMinor, currency: quote.currency, firstBillingAt: quote.firstBillingAt, intervalMonths: quote.intervalMonths }; });
   app.post("/v2/billing/card-subscriptions", providerCall, async req => {
-    const input = parse(z.strictObject({ product: z.enum(["plus", "bots_plus"]), orgId: z.string().max(150).optional(), paymentMethodId: z.string().min(1).max(150), requestKey: z.uuid(), consentVersion: z.string().max(100), acceptRecurring: z.literal(true) }), req.body);
+    const input = parse(z.strictObject({ product: z.enum(["plus", "bots_plus"]), term: z.enum(["monthly", "quarterly", "yearly"]).optional(), orgId: z.string().max(150).optional(), paymentMethodId: z.string().min(1).max(150), requestKey: z.uuid(), consentVersion: z.string().max(100), acceptRecurring: z.literal(true) }), req.body);
     const s = session(req); const scope = ownerFor(s, input.orgId); await starterFor(s, scope);
     const result = await cardSubscriptions().start({ ...input, accountId: s.accountId, userId: s.userId });
     ctx.audit({ actorId: s.accountId, action: "billing.card.consent_recorded", target: result.id, detail: input.consentVersion }); return result;

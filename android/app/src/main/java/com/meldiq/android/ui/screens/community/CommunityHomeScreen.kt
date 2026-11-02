@@ -127,6 +127,7 @@ fun CommunityHomeScreen(nav: NavHostController) {
     val detail by vm.detail.collectAsStateWithLifecycle()
     val serverChannels by vm.serverChannels.collectAsStateWithLifecycle()
     val conn by container.realtime.state.collectAsStateWithLifecycle()
+    val transfers by container.messages.transferProgress.collectAsStateWithLifecycle()
     val call by container.calls.state.collectAsStateWithLifecycle()
     val liveCalls by container.calls.live.collectAsStateWithLifecycle()
     val settings by container.settings.state.collectAsStateWithLifecycle()
@@ -242,6 +243,9 @@ fun CommunityHomeScreen(nav: NavHostController) {
         )
         Box(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(topStart = 16.dp)).background(c.surface)) {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = barPadding + 16.dp)) {
+                item(key = "optional-plus-support") {
+                    com.meldiq.android.ui.screens.mojo.PlusPromotionHost(nav, safe = loaded != null && orgError == null && conn == com.meldiq.android.data.api.ConnState.Connected && call.phase == CallPhase.Idle && transfers.isEmpty() && sheet == null && editingSection == null && !onboardingOpen && !onboardingPending)
+                }
                 if (org != null && settings.communityColors) item(key = "banner") { CommunityBanner(org.id, org.accent, org.bannerRev) }
                 if (org != null) item(key = "header") {
                     PanelHeader(

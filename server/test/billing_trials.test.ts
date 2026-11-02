@@ -85,13 +85,13 @@ describe("with trials and invite links", () => {
 
   it("preserves legacy Spark terms, offers Plus without reselling the retired subscription, and reports trials", async () => {
     expect(await publishMojoPlans(h.ctx.billing.catalog, "stripe", { go: "price_go", plus: "price_plus", spark: "price_spark" }, "test", Date.now())).toEqual([
-      "Mojo Plus: already published at price_plus",
+      "Meldiq Plus: already published at price_plus",
       "Meldiq Spark: already published at price_spark",
     ]);
     const plans = (await h.app.inject({ method: "GET", url: "/v2/billing/plans" })).json();
     expect(PublicPlans.safeParse(plans).success).toBe(true);
     expect(plans.plans.map((p: any) => [p.key, p.name, p.amountMinor, p.currency, p.interval, p.audience])).toEqual([
-      ["plus", "Mojo Plus", 399, "USD", "month", "personal"],
+      ["plus", "Meldiq Plus", 499, "USD", "month", "personal"],
     ]);
     // Existing monthly Spark references survive the one-time Spark rollout; they are no longer sold as a plan.
     const legacySpark = h.ctx.billing.catalog.byKey("spark")!;
@@ -99,10 +99,10 @@ describe("with trials and invite links", () => {
     expect(plans.trial).toEqual({ planKey: "plus", days: 14, referralDays: 30, referralYearlyCapDays: 90 });
   });
 
-  it("give every new account 14 days of Mojo Plus from sign-up, without a card", async () => {
+  it("give every new account 14 days of Meldiq Plus from sign-up, without a card", async () => {
     const dana = await signedIn("dana");
     const e = await ent(dana);
-    expect(e.personal).toMatchObject({ plan: { key: "plus", name: "Mojo Plus" }, standing: "entitled", renews: false, subscription: null, trial: { source: "signup" } });
+    expect(e.personal).toMatchObject({ plan: { key: "plus", name: "Meldiq Plus" }, standing: "entitled", renews: false, subscription: null, trial: { source: "signup" } });
     const created = (await h.ctx.accounts.store.accountById(dana.accountId))!.created_at;
     expect(e.personal.accessUntil).toBe(created + 14 * DAY);
     // Asking again doesn't restart it.
@@ -179,10 +179,10 @@ describe("with trials and invite links", () => {
 
   it("give the trial's quota plan while it lasts", async () => {
     const qp = "qp_trial";
-    await h.ctx.platform.write((w) => w.insert("quota_plans", { id: qp, name: "Mojo Plus allowances", description: "", created_by: "test", created_at: Date.now() }));
+    await h.ctx.platform.write((w) => w.insert("quota_plans", { id: qp, name: "Meldiq Plus allowances", description: "", created_by: "test", created_at: Date.now() }));
     // A published version never changes: the allowances come with a new version, as an operator would publish it.
     const plan = h.ctx.billing.catalog.byKey("plus")!;
-    await h.ctx.billing.catalog.saveDraft(plan.id, { interval: "month", currency: "USD", amountMinor: 399, providerPriceRef: "price_plus_v2", trialDays: 0, graceDays: 0, limits: {}, notes: "", quotaPlanId: qp }, "test", Date.now());
+    await h.ctx.billing.catalog.saveDraft(plan.id, { interval: "month", currency: "USD", amountMinor: 499, providerPriceRef: "price_plus_v2", trialDays: 0, graceDays: 0, limits: {}, notes: "", quotaPlanId: qp }, "test", Date.now());
     await h.ctx.billing.catalog.publish(plan.id, "stripe", "test", Date.now());
     const c = await AccountClient.ready(h.baseUrl, mailer, "quotaperson");
     await ent(c);
@@ -296,7 +296,7 @@ describe("one-command Stripe setup", () => {
       "createProduct:plus",
       "createProduct:spark",
       "createPrice:meldiq_mojo_go_monthly",
-      "createPrice:meldiq_mojo_plus_monthly",
+      "createPrice:meldiq_plus_499_monthly_v2",
       "createPrice:meldiq_spark_monthly",
       "createPortal",
       "createWebhook",
@@ -305,7 +305,7 @@ describe("one-command Stripe setup", () => {
     // and product there), and Sparks are their own line on invoices.
     expect(new Set(MOJO_PRICES.map((p) => productOf(api, p.lookupKey))).size).toBe(3);
     expect(api.portals[0]!.products).toEqual([
-      { product: productOf(api, "meldiq_mojo_plus_monthly"), prices: [first.prices.plus] },
+      { product: productOf(api, "meldiq_plus_499_monthly_v2"), prices: [first.prices.plus] },
     ]);
     expect(api.calls).toContain("updatePortal");
     const replaced = await stripeSetup(api, { ...opts, replaceWebhook: true });
@@ -313,19 +313,19 @@ describe("one-command Stripe setup", () => {
     expect(api.webhooks).toHaveLength(1);
   });
 
-  it("moves Go and Plus off the one Meldiq Mojo product API 0.60.0 made, keeping their lookup keys, then archives it", async () => {
+  it("moves Go and Plus off the one Meldiq Plus product API 0.60.0 made, keeping their lookup keys, then archives it", async () => {
     // What the first live setup left at Stripe (2026-10-29): both plans' prices on one product, the portal refused.
     const api = new FakeStripeSetup();
     api.products.push({ id: "prod_old_mojo", active: true, metadata: { meldiq: "mojo" } }, { id: "prod_old_spark", active: true, metadata: { meldiq: "spark" } });
     api.prices.push(
       { id: "price_old_go", active: true, unit_amount: 199, currency: "usd", product: "prod_old_mojo", lookup_key: "meldiq_mojo_go_monthly", interval: "month" },
-      { id: "price_old_plus", active: true, unit_amount: 499, currency: "usd", product: "prod_old_mojo", lookup_key: "meldiq_mojo_plus_monthly", interval: "month" },
+      { id: "price_old_plus", active: true, unit_amount: 499, currency: "usd", product: "prod_old_mojo", lookup_key: "meldiq_plus_499_monthly_v2", interval: "month" },
       { id: "price_old_spark", active: true, unit_amount: 99, currency: "usd", product: "prod_old_spark", lookup_key: "meldiq_spark_monthly", interval: "month" },
     );
     const r = await stripeSetup(api, opts);
     expect(r.prices.spark).toBe("price_old_spark");
     expect([r.prices.go, r.prices.plus]).not.toContain("price_old_go");
-    expect(productOf(api, "meldiq_mojo_go_monthly")).not.toBe(productOf(api, "meldiq_mojo_plus_monthly"));
+    expect(productOf(api, "meldiq_mojo_go_monthly")).not.toBe(productOf(api, "meldiq_plus_499_monthly_v2"));
     expect(api.prices.filter((p) => !p.active).map((p) => p.id)).toEqual(["price_old_go", "price_old_plus"]);
     expect(api.products.find((p) => p.id === "prod_old_mojo")!.active).toBe(false);
     expect(r.steps.join("\n")).toMatch(/moved .*price_old_go/);
@@ -350,13 +350,13 @@ describe("one-command Stripe setup", () => {
     api.products.push({ id: "prod_old_mojo", active: true, metadata: { meldiq: "mojo" } });
     api.prices.push(
       { id: "price_old_go", active: true, unit_amount: 99, currency: "usd", product: "prod_old_mojo", lookup_key: "meldiq_mojo_go_monthly", interval: "month" },
-      { id: "price_old_plus", active: true, unit_amount: 399, currency: "usd", product: "prod_old_mojo", lookup_key: "meldiq_mojo_plus_monthly", interval: "month" },
+      { id: "price_old_plus", active: true, unit_amount: 499, currency: "usd", product: "prod_old_mojo", lookup_key: "meldiq_plus_499_monthly_v2", interval: "month" },
     );
     api.subscribed.add("price_old_go");
     const r = await stripeSetup(api, opts);
     expect(api.prices.filter((p) => p.active).map((p) => [p.lookup_key, p.unit_amount])).toEqual([
       ["meldiq_mojo_go_monthly", 199],
-      ["meldiq_mojo_plus_monthly", 399],
+      ["meldiq_plus_499_monthly_v2", 499],
       ["meldiq_spark_monthly", 99],
     ]);
     // Archived, never deleted: Stripe keeps charging the subscriber the old price.

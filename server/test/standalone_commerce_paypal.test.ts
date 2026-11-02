@@ -56,7 +56,7 @@ for (const storage of ["sqlite", "mongodb"] as const) {
     beforeAll(async () => {
       h = await startServer({ MONGODB_DOMAINS: storage === "mongodb" ? "billing" : "" }, { mailer, billingProvider: provider });
       const plan = await h.ctx.billing.catalog.create("bots_plus", { name: "Meldiq Bots+", description: "Premium community bots", segment: "community-bots", public: true, audience: "organization" },
-        { interval: "month", currency: "USD", amountMinor: 399, providerPriceRef: "P-BOTS", trialDays: 0, graceDays: 3, limits: {}, notes: "Separate from personal Mojo Plus" }, "test", Date.now());
+        { interval: "month", currency: "USD", amountMinor: 399, providerPriceRef: "P-BOTS", trialDays: 0, graceDays: 3, limits: {}, notes: "Separate from personal Meldiq Plus" }, "test", Date.now());
       await h.ctx.billing.catalog.publish(plan.id, "paypal", "test", Date.now());
     });
     afterAll(async () => h.close());

@@ -153,7 +153,7 @@
       "name": "federation"
     },
     {
-      "name": "Mojo"
+      "name": "Meldiq Plus"
     },
     {
       "name": "creators"
@@ -3983,6 +3983,14 @@
                       "bots_plus"
                     ]
                   },
+                  "term": {
+                    "type": "string",
+                    "enum": [
+                      "monthly",
+                      "quarterly",
+                      "yearly"
+                    ]
+                  },
                   "orgId": {
                     "type": "string",
                     "minLength": 1,
@@ -4040,6 +4048,19 @@
                 "bots_plus"
               ]
             }
+          },
+          {
+            "name": "term",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "monthly",
+                "quarterly",
+                "yearly"
+              ]
+            }
           }
         ],
         "responses": {
@@ -4061,6 +4082,11 @@
                     },
                     "firstBillingAt": {
                       "type": "number"
+                    },
+                    "intervalMonths": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
                     }
                   },
                   "required": [
@@ -77304,6 +77330,1436 @@
         ]
       }
     },
+    "/v2/billing/reminders/renewal": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "One informational reminder per Plus agreement period within 72 hours of renewal or expiry.",
+        "operationId": "postV2BillingRemindersRenewal",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "notice": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "autoRenew": {
+                              "type": "boolean"
+                            },
+                            "endsAt": {
+                              "type": "number"
+                            },
+                            "amountMinor": {
+                              "type": [
+                                "number",
+                                "null"
+                              ]
+                            },
+                            "currency": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "months": {
+                              "type": [
+                                "number",
+                                "null"
+                              ]
+                            },
+                            "expiresAt": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "autoRenew",
+                            "endsAt",
+                            "amountMinor",
+                            "currency",
+                            "months",
+                            "expiresAt"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "notice"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sessionId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "claim": {
+                    "default": true,
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "sessionId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/billing/promotions/activity": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Record coarse active-session counts after onboarding.",
+        "operationId": "postV2BillingPromotionsActivity",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "recorded": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "recorded"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sessionId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "onboardingComplete": {
+                    "type": "boolean"
+                  },
+                  "active": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "sessionId",
+                  "onboardingComplete",
+                  "active"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/billing/promotions/claim": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Atomically reserve one eligible promotion; backend failure suppresses presentation.",
+        "operationId": "postV2BillingPromotionsClaim",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "promotion": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "campaignId": {
+                              "type": "string"
+                            },
+                            "presentation": {
+                              "type": "string",
+                              "enum": [
+                                "banner",
+                                "card",
+                                "modal"
+                              ]
+                            },
+                            "heading": {
+                              "type": "string"
+                            },
+                            "description": {
+                              "type": "string"
+                            },
+                            "image": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "cta": {
+                              "type": "string"
+                            },
+                            "destination": {
+                              "type": "string",
+                              "const": "/settings/mojo"
+                            },
+                            "amountMinor": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "currency": {
+                              "type": "string",
+                              "const": "USD"
+                            },
+                            "interval": {
+                              "type": "string",
+                              "const": "month"
+                            },
+                            "expiresAt": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "campaignId",
+                            "presentation",
+                            "heading",
+                            "description",
+                            "image",
+                            "cta",
+                            "destination",
+                            "amountMinor",
+                            "currency",
+                            "interval",
+                            "expiresAt"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "promotion"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sessionId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "trigger": {
+                    "type": "string",
+                    "enum": [
+                      "consistent_usage",
+                      "near_limit",
+                      "exclusive_feature",
+                      "subscription_settings",
+                      "explore",
+                      "milestone"
+                    ]
+                  },
+                  "screen": {
+                    "type": "string",
+                    "enum": [
+                      "home",
+                      "subscription_settings"
+                    ]
+                  },
+                  "safe": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "sessionId",
+                  "trigger",
+                  "screen",
+                  "safe"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/billing/promotions/{id}": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Withdraw a promotion after kill switch, opt-out, checkout or upgrade.",
+        "operationId": "getV2BillingPromotionsId",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "active": {
+                      "type": "boolean"
+                    },
+                    "expiresAt": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "active"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/billing/promotions/events": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Idempotent feedback on an owned impression.",
+        "operationId": "postV2BillingPromotionsEvents",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sessionId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "impressionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 150
+                  },
+                  "event": {
+                    "type": "string",
+                    "enum": [
+                      "dismiss",
+                      "snooze",
+                      "click",
+                      "pricing_visit",
+                      "complaint",
+                      "impression"
+                    ]
+                  }
+                },
+                "required": [
+                  "sessionId",
+                  "impressionId",
+                  "event"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/billing/promotions/preference": {
+      "put": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Synchronize an account's promotional opt-out across devices.",
+        "operationId": "putV2BillingPromotionsPreference",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "optOut": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "optOut"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "optOut": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "optOut"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/v1/billing/promotions": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Campaign settings and user-experience guardrail metrics.",
+        "operationId": "getAdminV1BillingPromotions",
+        "parameters": [
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "settings": {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "popupsEnabled": {
+                          "type": "boolean"
+                        },
+                        "campaigns": {
+                          "maxItems": 20,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-z0-9_-]{1,64}$"
+                              },
+                              "name": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 100
+                              },
+                              "active": {
+                                "type": "boolean"
+                              },
+                              "heading": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 120
+                              },
+                              "description": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 600
+                              },
+                              "image": {
+                                "default": null,
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "pattern": "^\\/promotion-assets\\/[a-zA-Z0-9_./-]+$"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "presentation": {
+                                "type": "string",
+                                "enum": [
+                                  "banner",
+                                  "card",
+                                  "modal"
+                                ]
+                              },
+                              "trigger": {
+                                "type": "string",
+                                "enum": [
+                                  "consistent_usage",
+                                  "near_limit",
+                                  "exclusive_feature",
+                                  "subscription_settings",
+                                  "explore",
+                                  "milestone"
+                                ]
+                              },
+                              "minAccountDays": {
+                                "default": 3,
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 365
+                              },
+                              "minSessions": {
+                                "default": 3,
+                                "type": "integer",
+                                "minimum": 3,
+                                "maximum": 100
+                              },
+                              "minActiveDays": {
+                                "default": 2,
+                                "type": "integer",
+                                "minimum": 2,
+                                "maximum": 90
+                              },
+                              "minSessionSeconds": {
+                                "default": 60,
+                                "type": "integer",
+                                "minimum": 60,
+                                "maximum": 3600
+                              },
+                              "maxImpressions": {
+                                "default": 3,
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 3
+                              },
+                              "maxPopups": {
+                                "default": 1,
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 1
+                              },
+                              "gapDays": {
+                                "default": 7,
+                                "type": "integer",
+                                "minimum": 7,
+                                "maximum": 365
+                              },
+                              "dismissalDays": {
+                                "default": 14,
+                                "type": "integer",
+                                "minimum": 14,
+                                "maximum": 365
+                              },
+                              "snoozeDays": {
+                                "default": 30,
+                                "type": "integer",
+                                "minimum": 30,
+                                "maximum": 365
+                              },
+                              "startsAt": {
+                                "default": null,
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "endsAt": {
+                                "default": null,
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "regions": {
+                                "default": [],
+                                "maxItems": 100,
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "pattern": "^[A-Z]{2}$"
+                                }
+                              },
+                              "cta": {
+                                "default": "Get Meldiq Plus",
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 60
+                              },
+                              "destination": {
+                                "default": "/settings/mojo",
+                                "type": "string",
+                                "const": "/settings/mojo"
+                              },
+                              "eligiblePlans": {
+                                "default": [
+                                  "free"
+                                ],
+                                "type": "array",
+                                "prefixItems": [
+                                  {
+                                    "type": "string",
+                                    "const": "free"
+                                  }
+                                ],
+                                "items": false,
+                                "minItems": 1,
+                                "maxItems": 1
+                              },
+                              "experiment": {
+                                "default": null,
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string",
+                                        "maxLength": 64
+                                      },
+                                      "treatmentPercent": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 100
+                                      },
+                                      "treatmentHeading": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 120
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "treatmentPercent",
+                                      "treatmentHeading"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name",
+                              "active",
+                              "heading",
+                              "description",
+                              "image",
+                              "presentation",
+                              "trigger",
+                              "minAccountDays",
+                              "minSessions",
+                              "minActiveDays",
+                              "minSessionSeconds",
+                              "maxImpressions",
+                              "maxPopups",
+                              "gapDays",
+                              "dismissalDays",
+                              "snoozeDays",
+                              "startsAt",
+                              "endsAt",
+                              "regions",
+                              "cta",
+                              "destination",
+                              "eligiblePlans",
+                              "experiment"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "enabled",
+                        "popupsEnabled",
+                        "campaigns"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "revision": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "metrics": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {}
+                    }
+                  },
+                  "required": [
+                    "settings",
+                    "revision",
+                    "metrics"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification."
+      },
+      "put": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Audited, revision-checked campaign configuration; cannot change subscription pricing.",
+        "operationId": "putAdminV1BillingPromotions",
+        "parameters": [
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "settings": {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "popupsEnabled": {
+                          "type": "boolean"
+                        },
+                        "campaigns": {
+                          "maxItems": 20,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-z0-9_-]{1,64}$"
+                              },
+                              "name": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 100
+                              },
+                              "active": {
+                                "type": "boolean"
+                              },
+                              "heading": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 120
+                              },
+                              "description": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 600
+                              },
+                              "image": {
+                                "default": null,
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "pattern": "^\\/promotion-assets\\/[a-zA-Z0-9_./-]+$"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "presentation": {
+                                "type": "string",
+                                "enum": [
+                                  "banner",
+                                  "card",
+                                  "modal"
+                                ]
+                              },
+                              "trigger": {
+                                "type": "string",
+                                "enum": [
+                                  "consistent_usage",
+                                  "near_limit",
+                                  "exclusive_feature",
+                                  "subscription_settings",
+                                  "explore",
+                                  "milestone"
+                                ]
+                              },
+                              "minAccountDays": {
+                                "default": 3,
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 365
+                              },
+                              "minSessions": {
+                                "default": 3,
+                                "type": "integer",
+                                "minimum": 3,
+                                "maximum": 100
+                              },
+                              "minActiveDays": {
+                                "default": 2,
+                                "type": "integer",
+                                "minimum": 2,
+                                "maximum": 90
+                              },
+                              "minSessionSeconds": {
+                                "default": 60,
+                                "type": "integer",
+                                "minimum": 60,
+                                "maximum": 3600
+                              },
+                              "maxImpressions": {
+                                "default": 3,
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 3
+                              },
+                              "maxPopups": {
+                                "default": 1,
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 1
+                              },
+                              "gapDays": {
+                                "default": 7,
+                                "type": "integer",
+                                "minimum": 7,
+                                "maximum": 365
+                              },
+                              "dismissalDays": {
+                                "default": 14,
+                                "type": "integer",
+                                "minimum": 14,
+                                "maximum": 365
+                              },
+                              "snoozeDays": {
+                                "default": 30,
+                                "type": "integer",
+                                "minimum": 30,
+                                "maximum": 365
+                              },
+                              "startsAt": {
+                                "default": null,
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "endsAt": {
+                                "default": null,
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "regions": {
+                                "default": [],
+                                "maxItems": 100,
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "pattern": "^[A-Z]{2}$"
+                                }
+                              },
+                              "cta": {
+                                "default": "Get Meldiq Plus",
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 60
+                              },
+                              "destination": {
+                                "default": "/settings/mojo",
+                                "type": "string",
+                                "const": "/settings/mojo"
+                              },
+                              "eligiblePlans": {
+                                "default": [
+                                  "free"
+                                ],
+                                "type": "array",
+                                "prefixItems": [
+                                  {
+                                    "type": "string",
+                                    "const": "free"
+                                  }
+                                ],
+                                "items": false,
+                                "minItems": 1,
+                                "maxItems": 1
+                              },
+                              "experiment": {
+                                "default": null,
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string",
+                                        "maxLength": 64
+                                      },
+                                      "treatmentPercent": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 100
+                                      },
+                                      "treatmentHeading": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 120
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "treatmentPercent",
+                                      "treatmentHeading"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name",
+                              "active",
+                              "heading",
+                              "description",
+                              "image",
+                              "presentation",
+                              "trigger",
+                              "minAccountDays",
+                              "minSessions",
+                              "minActiveDays",
+                              "minSessionSeconds",
+                              "maxImpressions",
+                              "maxPopups",
+                              "gapDays",
+                              "dismissalDays",
+                              "snoozeDays",
+                              "startsAt",
+                              "endsAt",
+                              "regions",
+                              "cta",
+                              "destination",
+                              "eligiblePlans",
+                              "experiment"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "enabled",
+                        "popupsEnabled",
+                        "campaigns"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "revision": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "metrics": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {}
+                    }
+                  },
+                  "required": [
+                    "settings",
+                    "revision",
+                    "metrics"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "settings": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean"
+                      },
+                      "popupsEnabled": {
+                        "type": "boolean"
+                      },
+                      "campaigns": {
+                        "maxItems": 20,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[a-z0-9_-]{1,64}$"
+                            },
+                            "name": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 100
+                            },
+                            "active": {
+                              "type": "boolean"
+                            },
+                            "heading": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 120
+                            },
+                            "description": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 600
+                            },
+                            "image": {
+                              "default": null,
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "pattern": "^\\/promotion-assets\\/[a-zA-Z0-9_./-]+$"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "presentation": {
+                              "type": "string",
+                              "enum": [
+                                "banner",
+                                "card",
+                                "modal"
+                              ]
+                            },
+                            "trigger": {
+                              "type": "string",
+                              "enum": [
+                                "consistent_usage",
+                                "near_limit",
+                                "exclusive_feature",
+                                "subscription_settings",
+                                "explore",
+                                "milestone"
+                              ]
+                            },
+                            "minAccountDays": {
+                              "default": 3,
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 365
+                            },
+                            "minSessions": {
+                              "default": 3,
+                              "type": "integer",
+                              "minimum": 3,
+                              "maximum": 100
+                            },
+                            "minActiveDays": {
+                              "default": 2,
+                              "type": "integer",
+                              "minimum": 2,
+                              "maximum": 90
+                            },
+                            "minSessionSeconds": {
+                              "default": 60,
+                              "type": "integer",
+                              "minimum": 60,
+                              "maximum": 3600
+                            },
+                            "maxImpressions": {
+                              "default": 3,
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 3
+                            },
+                            "maxPopups": {
+                              "default": 1,
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 1
+                            },
+                            "gapDays": {
+                              "default": 7,
+                              "type": "integer",
+                              "minimum": 7,
+                              "maximum": 365
+                            },
+                            "dismissalDays": {
+                              "default": 14,
+                              "type": "integer",
+                              "minimum": 14,
+                              "maximum": 365
+                            },
+                            "snoozeDays": {
+                              "default": 30,
+                              "type": "integer",
+                              "minimum": 30,
+                              "maximum": 365
+                            },
+                            "startsAt": {
+                              "default": null,
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "endsAt": {
+                              "default": null,
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "regions": {
+                              "default": [],
+                              "maxItems": 100,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "pattern": "^[A-Z]{2}$"
+                              }
+                            },
+                            "cta": {
+                              "default": "Get Meldiq Plus",
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 60
+                            },
+                            "destination": {
+                              "default": "/settings/mojo",
+                              "type": "string",
+                              "const": "/settings/mojo"
+                            },
+                            "eligiblePlans": {
+                              "default": [
+                                "free"
+                              ],
+                              "type": "array",
+                              "prefixItems": [
+                                {
+                                  "type": "string",
+                                  "const": "free"
+                                }
+                              ],
+                              "items": false,
+                              "minItems": 1,
+                              "maxItems": 1
+                            },
+                            "experiment": {
+                              "default": null,
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string",
+                                      "maxLength": 64
+                                    },
+                                    "treatmentPercent": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 100
+                                    },
+                                    "treatmentHeading": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 120
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "treatmentPercent",
+                                    "treatmentHeading"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name",
+                            "active",
+                            "heading",
+                            "description",
+                            "presentation",
+                            "trigger"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "popupsEnabled",
+                      "campaigns"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "revision": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 5,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "settings",
+                  "revision",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/v2/billing/paypal/config": {
       "get": {
         "tags": [
@@ -77492,8 +78948,14 @@
                       "type": "string",
                       "enum": [
                         "month",
+                        "year",
                         "one_time"
                       ]
+                    },
+                    "billingFrequency": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
                     },
                     "expiresAt": {
                       "type": "number"
@@ -77536,6 +78998,14 @@
                       "product": {
                         "type": "string",
                         "const": "plus"
+                      },
+                      "term": {
+                        "type": "string",
+                        "enum": [
+                          "monthly",
+                          "quarterly",
+                          "yearly"
+                        ]
                       },
                       "requestKey": {
                         "type": "string",
@@ -77800,8 +79270,14 @@
                       "type": "string",
                       "enum": [
                         "month",
+                        "year",
                         "one_time"
                       ]
+                    },
+                    "billingFrequency": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
                     },
                     "expiresAt": {
                       "type": "number"
@@ -77923,8 +79399,14 @@
                       "type": "string",
                       "enum": [
                         "month",
+                        "year",
                         "one_time"
                       ]
+                    },
+                    "billingFrequency": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
                     },
                     "expiresAt": {
                       "type": "number"
@@ -78512,6 +79994,153 @@
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "pricing": {
+                      "type": "object",
+                      "properties": {
+                        "version": {
+                          "type": "string"
+                        },
+                        "effectiveAt": {
+                          "type": "number"
+                        },
+                        "plusTerms": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "months": {
+                                "type": "number"
+                              },
+                              "amountMinor": {
+                                "type": "number"
+                              },
+                              "interval": {
+                                "type": "string"
+                              },
+                              "billingFrequency": {
+                                "type": "number"
+                              },
+                              "currency": {
+                                "type": "string",
+                                "const": "USD"
+                              },
+                              "savingsMinor": {
+                                "type": "number"
+                              },
+                              "monthlyEquivalentMinor": {
+                                "type": "number"
+                              },
+                              "savingsPercent": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "months",
+                              "amountMinor",
+                              "interval",
+                              "billingFrequency",
+                              "currency",
+                              "savingsMinor",
+                              "monthlyEquivalentMinor",
+                              "savingsPercent"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "providerEnvironment": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "paypalProductId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "paypalPlanId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "plans": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "enum": [
+                                  "free",
+                                  "plus"
+                                ]
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "currency": {
+                                "type": "string",
+                                "const": "USD"
+                              },
+                              "amountMinor": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "billingInterval": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "const": "month"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "billingFrequency": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "productId": {
+                                "type": "string"
+                              },
+                              "active": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name",
+                              "currency",
+                              "amountMinor",
+                              "billingInterval",
+                              "billingFrequency",
+                              "productId",
+                              "active"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "version",
+                        "effectiveAt",
+                        "plusTerms",
+                        "providerEnvironment",
+                        "paypalProductId",
+                        "paypalPlanId",
+                        "plans"
+                      ],
+                      "additionalProperties": false
+                    },
                     "available": {
                       "type": "boolean"
                     },
@@ -78555,6 +80184,26 @@
                             "enum": [
                               "month",
                               "year"
+                            ]
+                          },
+                          "billingFrequency": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "term": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "monthly",
+                                  "quarterly",
+                                  "yearly"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
                             ]
                           },
                           "currency": {
@@ -78641,6 +80290,7 @@
                     }
                   },
                   "required": [
+                    "pricing",
                     "available",
                     "mode",
                     "plans",
@@ -78818,6 +80468,26 @@
                                   "enum": [
                                     "month",
                                     "year"
+                                  ]
+                                },
+                                "billingFrequency": {
+                                  "type": "integer",
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "term": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "monthly",
+                                        "quarterly",
+                                        "yearly"
+                                      ]
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
                                   ]
                                 },
                                 "currentPeriodEnd": {
@@ -79004,6 +80674,26 @@
                                     "enum": [
                                       "month",
                                       "year"
+                                    ]
+                                  },
+                                  "billingFrequency": {
+                                    "type": "integer",
+                                    "exclusiveMinimum": 0,
+                                    "maximum": 9007199254740991
+                                  },
+                                  "term": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "monthly",
+                                          "quarterly",
+                                          "yearly"
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
                                     ]
                                   },
                                   "currentPeriodEnd": {
@@ -79211,6 +80901,26 @@
                                 "year"
                               ]
                             },
+                            "billingFrequency": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "term": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "monthly",
+                                    "quarterly",
+                                    "yearly"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
                             "currency": {
                               "type": "string"
                             },
@@ -79405,6 +81115,26 @@
                             "enum": [
                               "month",
                               "year"
+                            ]
+                          },
+                          "billingFrequency": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "term": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "monthly",
+                                  "quarterly",
+                                  "yearly"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
                             ]
                           },
                           "currency": {
@@ -79573,6 +81303,26 @@
                                 "year"
                               ]
                             },
+                            "billingFrequency": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "term": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "monthly",
+                                    "quarterly",
+                                    "yearly"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
                             "currency": {
                               "type": "string"
                             },
@@ -79769,6 +81519,26 @@
                               "year"
                             ]
                           },
+                          "billingFrequency": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "term": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "monthly",
+                                  "quarterly",
+                                  "yearly"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
                           "currency": {
                             "type": "string"
                           },
@@ -79919,6 +81689,14 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 40
+                  },
+                  "term": {
+                    "type": "string",
+                    "enum": [
+                      "monthly",
+                      "quarterly",
+                      "yearly"
+                    ]
                   },
                   "orgId": {
                     "type": "string",
@@ -80236,7 +82014,7 @@
     "/v2/mojo/catalog": {
       "get": {
         "tags": [
-          "Mojo"
+          "Meldiq Plus"
         ],
         "summary": "Free, Go and Plus with every limit, Meldiq Spark's levels, gift lengths and what's on sale (public).",
         "operationId": "getV2MojoCatalog",
@@ -80249,6 +82027,76 @@
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "plusTerms": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string",
+                            "enum": [
+                              "monthly",
+                              "quarterly",
+                              "yearly"
+                            ]
+                          },
+                          "months": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "amountMinor": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "currency": {
+                            "type": "string",
+                            "const": "USD"
+                          },
+                          "interval": {
+                            "type": "string",
+                            "enum": [
+                              "month",
+                              "year"
+                            ]
+                          },
+                          "billingFrequency": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "savingsMinor": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "monthlyEquivalentMinor": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "savingsPercent": {
+                            "type": "number"
+                          },
+                          "available": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "months",
+                          "amountMinor",
+                          "currency",
+                          "interval",
+                          "billingFrequency",
+                          "savingsMinor",
+                          "monthlyEquivalentMinor",
+                          "savingsPercent"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
                     "version": {
                       "type": "string"
                     },
@@ -80695,7 +82543,7 @@
     "/v2/mojo/me": {
       "get": {
         "tags": [
-          "Mojo"
+          "Meldiq Plus"
         ],
         "summary": "The signed-in person's plan, perks, Sparks, badge and gifts.",
         "operationId": "getV2MojoMe",
@@ -81224,7 +83072,7 @@
     "/v2/mojo/sparks": {
       "post": {
         "tags": [
-          "Mojo"
+          "Meldiq Plus"
         ],
         "summary": "Give one of your free Sparks to a community you're in.",
         "operationId": "postV2MojoSparks",
@@ -81301,7 +83149,7 @@
     "/v2/mojo/sparks/{id}/move": {
       "post": {
         "tags": [
-          "Mojo"
+          "Meldiq Plus"
         ],
         "summary": "Move one of your Sparks to another community you're in.",
         "operationId": "postV2MojoSparksIdMove",
@@ -81389,7 +83237,7 @@
     "/v2/mojo/sparks/{id}": {
       "delete": {
         "tags": [
-          "Mojo"
+          "Meldiq Plus"
         ],
         "summary": "Take one of your Sparks back.",
         "operationId": "deleteV2MojoSparksId",
@@ -81447,7 +83295,7 @@
     "/v2/mojo/sparks/checkout": {
       "post": {
         "tags": [
-          "Mojo"
+          "Meldiq Plus"
         ],
         "summary": "Buy more Sparks ($0.99 a month each): a hosted checkout. Nothing counts until the provider confirms.",
         "operationId": "postV2MojoSparksCheckout",
@@ -81534,9 +83382,9 @@
     "/v2/mojo/gifts": {
       "post": {
         "tags": [
-          "Mojo"
+          "Meldiq Plus"
         ],
-        "summary": "Buy Mojo Go or Plus for a friend for 1, 3 or 12 months: a hosted one-time payment.",
+        "summary": "Buy Legacy Go or Plus for a friend for 1, 3 or 12 months: a hosted one-time payment.",
         "operationId": "postV2MojoGifts",
         "parameters": [],
         "responses": {
@@ -81657,7 +83505,7 @@
     "/v2/mojo/gifts/{id}/redeem": {
       "post": {
         "tags": [
-          "Mojo"
+          "Meldiq Plus"
         ],
         "summary": "Start a gift you received (its time follows on from free time you already have).",
         "operationId": "postV2MojoGiftsIdRedeem",
@@ -81722,9 +83570,9 @@
     "/v2/mojo/badge": {
       "put": {
         "tags": [
-          "Mojo"
+          "Meldiq Plus"
         ],
-        "summary": "Show or hide your Mojo badge (what your plan gives doesn't change).",
+        "summary": "Show or hide your Meldiq Plus badge (what your plan gives doesn't change).",
         "operationId": "putV2MojoBadge",
         "parameters": [],
         "responses": {
@@ -81787,7 +83635,7 @@
     "/v1/orgs/{orgId}/sparks": {
       "get": {
         "tags": [
-          "Mojo"
+          "Meldiq Plus"
         ],
         "summary": "A community's Spark level, what it gives everyone in it, and your own Sparks there.",
         "operationId": "getV1OrgsOrgIdSparks",
@@ -82042,7 +83890,7 @@
     "/v2/mojo/play/intent": {
       "post": {
         "tags": [
-          "Mojo"
+          "Meldiq Plus"
         ],
         "summary": "Android: record a Google Play purchase about to start (a plan, a Spark pack or a gift) and get what Google's sheet carries.",
         "operationId": "postV2MojoPlayIntent",
@@ -82205,7 +84053,7 @@
     "/v2/mojo/play/verify": {
       "post": {
         "tags": [
-          "Mojo"
+          "Meldiq Plus"
         ],
         "summary": "Android: a Google Play purchase token; the server reads the purchase from Google, applies it and acknowledges it.",
         "operationId": "postV2MojoPlayVerify",
@@ -87981,7 +89829,7 @@
       "status": [
         409
       ],
-      "meaning": "This account has no Meldiq Sparks: Mojo Go includes one, Mojo Plus two, and more can be bought."
+      "meaning": "This account has no Meldiq Sparks: Legacy Go includes one, Meldiq Plus two, and more can be bought."
     },
     "no_free_sparks": {
       "status": [

@@ -62,7 +62,7 @@ export function plansWith(o: PlanOverrides): Record<PlanKey, PlanPerks> {
   return Object.fromEntries(
     PLAN_KEYS.map((k) => {
       const { screen, ...numbers } = o[k] ?? {};
-      return [k, { ...PLAN_PERKS[k], ...numbers, uploadBytes: Math.min(numbers.uploadBytes ?? PLAN_PERKS[k].uploadBytes, PLAN_PERKS.plus.uploadBytes), ...(screen ? { screen: [screen] } : {}) }];
+      return [k, { ...PLAN_PERKS[k], ...numbers, listPriceMinor: k === "plus" ? PLAN_PERKS.plus.listPriceMinor : k === "free" ? 0 : (numbers.listPriceMinor ?? PLAN_PERKS[k].listPriceMinor), uploadBytes: Math.min(numbers.uploadBytes ?? PLAN_PERKS[k].uploadBytes, PLAN_PERKS.plus.uploadBytes), ...(screen ? { screen: [screen] } : {}) }];
     }),
   ) as Record<PlanKey, PlanPerks>;
 }

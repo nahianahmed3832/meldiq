@@ -16,7 +16,7 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class MojoRepositoryTest {
     private val free = Entitlements(personal = PersonalEntitlement())
-    private val plus = Entitlements(personal = PersonalEntitlement(plan = PlanRef("plus", "Mojo Plus"), standing = "entitled"), revision = "2")
+    private val plus = Entitlements(personal = PersonalEntitlement(plan = PlanRef("plus", "Meldiq Plus"), standing = "entitled"), revision = "2")
 
     private class FakeBackend(var ent: Entitlements) : MojoBackend {
         val verified = mutableListOf<PlayVerifyReq>()
@@ -24,7 +24,7 @@ class MojoRepositoryTest {
         var verifyAnswer: (PlayVerifyReq) -> PlayVerifyRes = { PlayVerifyRes("granted") }
         var intentFails: Exception? = null
         var catalogFails = false
-        override suspend fun catalog(): MojoCatalog = if (catalogFails) throw ApiException(404, "not_found", "no") else MojoCatalog(version = "1")
+        override suspend fun catalog(): MojoCatalog = if (catalogFails) throw ApiException(404, "not_found", "no") else MojoCatalog(version = "1", plusTerms = listOf(PlusTerm("monthly",1,499,"USD","month",1), PlusTerm("quarterly",3,1299,"USD","month",3), PlusTerm("yearly",12,4999,"USD","year",1)), plans = listOf(PlanPerks("plus", "Meldiq Plus", listPriceMinor = 499)))
         override suspend fun entitlements(): Entitlements = ent
         override suspend fun intent(req: PlayIntentReq): PlayIntentRes {
             intentFails?.let { throw it }
@@ -40,7 +40,7 @@ class MojoRepositoryTest {
     private class FakePlay : PlayStore {
         override val updates = MutableSharedFlow<PlayUpdate>()
         var owned = listOf<PlayPurchase>()
-        override suspend fun offers() = mapOf("mojo_plus" to PlayOffer("mojo_plus", "$3.99", "P1M"))
+        override suspend fun offers() = mapOf("mojo_plus" to PlayOffer("mojo_plus", "$4.99", "P1M", "USD", 4_990_000), "gift_plus_3m" to PlayOffer("gift_plus_3m", "$12.99", null, "USD", 12_990_000))
         override suspend fun owned() = owned
         override fun launch(activity: Activity, launch: PlayLaunch): PlayError? = null
         override fun close() {}
@@ -53,7 +53,7 @@ class MojoRepositoryTest {
         val r = repo(FakeBackend(free), FakePlay())
         r.refresh()
         assertEquals("1", r.state.value.catalog?.version)
-        assertEquals("$3.99", r.state.value.offers["mojo_plus"]?.price)
+        assertEquals("$4.99", r.state.value.offers["mojo_plus"]?.price)
         assertEquals(false, r.state.value.unavailable)
     }
 
@@ -69,10 +69,11 @@ class MojoRepositoryTest {
     fun `prepare records the intent and carries the server's opaque ids`() = runTest(UnconfinedTestDispatcher()) {
         val b = FakeBackend(free)
         val r = repo(b, FakePlay())
-        val launch = r.prepare(MojoPurchase.Gift("go", 3, "u_friend", "  happy birthday ", "gift_go_3m"))
-        assertEquals(PlayLaunch("gift_go_3m", "acct_tok", "chk_1", null), launch)
-        assertEquals(PlayIntentReq("gift", "gift_go_3m", planKey = "go", giftTo = "u_friend", months = 3, note = "happy birthday"), b.intents.single())
-        assertEquals("gift_go_3m", r.state.value.busy)
+        r.refresh()
+        val launch = r.prepare(MojoPurchase.Gift("plus", 3, "u_friend", "  happy birthday ", "gift_plus_3m"))
+        assertEquals(PlayLaunch("gift_plus_3m", "acct_tok", "chk_1", null), launch)
+        assertEquals(PlayIntentReq("gift", "gift_plus_3m", planKey = "plus", giftTo = "u_friend", months = 3, note = "happy birthday"), b.intents.single())
+        assertEquals("gift_plus_3m", r.state.value.busy)
     }
 
     @Test
@@ -153,10 +154,11 @@ class MojoRepositoryTest {
     fun `an intent the server refuses reads as not set up, a network error as network`() = runTest(UnconfinedTestDispatcher()) {
         val b = FakeBackend(free).apply { intentFails = ApiException(404, "not_found", "no") }
         val r = repo(b, FakePlay())
-        assertNull(r.prepare(MojoPurchase.Plan("go", "mojo_go", null)))
+        r.refresh()
+        assertNull(r.prepare(MojoPurchase.Plan("plus", "mojo_plus", null)))
         assertEquals(MojoNotice.Failed(PlayError.NOT_SET_UP), r.state.value.notice)
         b.intentFails = java.io.IOException("offline")
-        assertNull(r.prepare(MojoPurchase.Plan("go", "mojo_go", null)))
+        assertNull(r.prepare(MojoPurchase.Plan("plus", "mojo_plus", null)))
         assertEquals(MojoNotice.Failed(PlayError.NETWORK), r.state.value.notice)
     }
 }

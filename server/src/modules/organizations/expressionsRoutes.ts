@@ -137,7 +137,7 @@ export default async function expressionRoutes(app: FastifyInstance, ctx: AppCon
       }
       // One pool per person across communities (docs/MOJO.md): Free 20, Mojo Go 50, Mojo Plus 250.
       if (rows.count("community_expressions", { created_by: userId }) >= mine) {
-        throw new ApiError(409, "custom_items_limit", `You can add up to ${mine} custom emoji and stickers on your plan. Mojo raises it.`, { limit: mine });
+        throw new ApiError(409, "custom_items_limit", `You can add up to ${mine} custom emoji and stickers on your plan. Meldiq Plus raises it.`, { limit: mine });
       }
       if (rows.get("community_expressions", { org_id: orgId, kind: q.kind, name: q.name })) throw conflict("That name is taken in this community");
     };

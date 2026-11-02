@@ -28,3 +28,6 @@ export { GiftDelivery, type GiftTarget } from "./giftDelivery.js";
 export { addMonths } from "./gifts.js";
 export { collectibleCommerceAdminRoutes } from "./collectibleCommerce.js";
 export { promotionPage, savePromotion, redeemPromotion, adminGiftPage } from "./promotions.js";
+
+export { PLUS_PRICE_MINOR } from "./pricing.js";
+export { pricingMigrationReport } from "./pricingMigration.js";

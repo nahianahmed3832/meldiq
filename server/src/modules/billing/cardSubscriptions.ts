@@ -1,3 +1,4 @@
+import { PLUS_TERMS, type PlusTerm } from "./pricing.js";
 import { z } from "zod/v4";
 import type { RowWriter } from "../../infrastructure/database/rows/index.js";
 import { conflict, notFound, ApiError } from "../../shared/errors.js";
@@ -24,26 +25,26 @@ export class CardSubscriptions {
   private get(id: string, accountId?: string) { const m = this.billing.rows.get<CardMandate>("billing_card_mandates", { id, ...(accountId ? { account_id: accountId } : {}) }); if (!m) throw notFound("Card subscription not found"); return m; }
   private view(m: CardMandate) { return { id: m.id, orgId: m.org_id, product: m.org_id ? "bots_plus" : "plus", paymentMethodId: m.payment_method_id, status: m.status, currency: m.currency, amountMinor: m.amount_minor, nextBillingAt: m.cancel_at ? null : m.next_billing_at, paidThrough: m.paid_through, cancelAt: m.cancel_at, processing: !!this.billing.rows.get("billing_card_charges", { mandate_id: m.id, status: "processing", lease_until: { gt: this.clock() } }) }; }
   list(accountId: string) { return this.billing.rows.all<CardMandate>("billing_card_mandates", { where: { account_id: accountId }, orderBy: [["created_at", "desc"]], limit: 100 }).map(m => this.view(m)); }
-  quote(product: "plus" | "bots_plus", accountId: string) {
+  quote(product: "plus" | "bots_plus", accountId: string, term: PlusTerm = "monthly") {
     this.enabled();
-    const plan = this.billing.catalog.byKey(product); const v = plan && this.billing.catalog.current(plan.id);
-    if (!plan || plan.status !== "active" || !plan.public || !v || v.provider !== "paypal" || v.interval !== "month" || v.currency !== "USD" || v.amount_minor !== 399) throw conflict("This product is not available for card subscription.");
-    return { version: v, consentVersion: CARD_CONSENT_VERSION, amountMinor: v.amount_minor, currency: v.currency, firstBillingAt: product === "plus" ? Math.max(this.clock(), this.billing.freePeriodEnd({ kind: "account", accountId }) ?? 0) : this.clock() };
+    const plan = this.billing.catalog.byKey(product); const v = plan && this.billing.catalog.current(plan.id, product === "plus" ? term : undefined);
+    if (!plan || plan.status !== "active" || !plan.public || !v || v.provider !== "paypal" || (product === "bots_plus" && v.interval !== "month") || v.currency !== "USD" || v.amount_minor !== (product === "plus" ? PLUS_TERMS[term].amountMinor : 399)) throw conflict("This product is not available for card subscription.");
+    return { version: v, intervalMonths: (v.interval === "year" ? 12 : 1) * (v.billing_frequency ?? 1), consentVersion: CARD_CONSENT_VERSION, amountMinor: v.amount_minor, currency: v.currency, firstBillingAt: product === "plus" ? Math.max(this.clock(), this.billing.freePeriodEnd({ kind: "account", accountId }) ?? 0) : this.clock() };
   }
-  async start(input: { accountId: string; userId: string | null; orgId?: string; product: "plus" | "bots_plus"; paymentMethodId: string; requestKey: string; consentVersion: string }) {
+  async start(input: { accountId: string; userId: string | null; orgId?: string; product: "plus" | "bots_plus"; term?: PlusTerm; paymentMethodId: string; requestKey: string; consentVersion: string }) {
     this.enabled();
     if (input.consentVersion !== CARD_CONSENT_VERSION) throw conflict("Review the current recurring-payment terms before subscribing.");
     if ((input.product === "bots_plus") !== !!input.orgId) throw conflict("Choose a community for Bots+.");
-    const quote = this.quote(input.product, input.accountId); const t = this.clock();
+    const quote = this.quote(input.product, input.accountId, input.term); const t = this.clock();
     const id = await this.billing.rows.write(w => {
       const prior = w.get<CardMandate>("billing_card_mandates", { account_id: input.accountId, consent_request_id: input.requestKey });
-      if (prior) { if (prior.payment_method_id !== input.paymentMethodId || prior.org_id !== (input.orgId ?? null) || prior.consent_version !== input.consentVersion) throw conflict("This request was used for a different subscription."); return prior.id; }
+      if (prior) { if (prior.payment_method_id !== input.paymentMethodId || prior.org_id !== (input.orgId ?? null) || prior.consent_version !== input.consentVersion || prior.plan_version_id !== quote.version.id) throw conflict("This request was used for a different subscription."); return prior.id; }
       // The removal claim and attachment are serialized in the same billing transaction.
       if (!w.get("billing_payment_methods", { id: input.paymentMethodId, account_id: input.accountId, status: "active" })) throw notFound("Payment method not found");
       const scope: BillingOwner = input.orgId ? { kind: "org", orgId: input.orgId } : { kind: "account", accountId: input.accountId };
       if (input.orgId ? this.billing.subscriptions.liveAddonForOwner(scope, w) : this.billing.subscriptions.liveForOwner(scope, w)) throw conflict("Manage the existing subscription before starting another renewal.");
       const id = newId("cm");
-      const m: CardMandate = { id, account_id: input.accountId, org_id: input.orgId ?? null, user_id: input.userId, payment_method_id: input.paymentMethodId, plan_version_id: quote.version.id, status: "pending", currency: quote.currency, amount_minor: quote.amountMinor, interval_months: 1, consent_version: input.consentVersion, consent_at: t, consent_request_id: input.requestKey, billing_anchor_at: quote.firstBillingAt, cycle_index: 0, next_billing_at: quote.firstBillingAt, paid_through: null, cancel_at: null, retry_count: 0, created_at: t, updated_at: t };
+      const m: CardMandate = { id, account_id: input.accountId, org_id: input.orgId ?? null, user_id: input.userId, payment_method_id: input.paymentMethodId, plan_version_id: quote.version.id, status: "pending", currency: quote.currency, amount_minor: quote.amountMinor, interval_months: quote.intervalMonths, consent_version: input.consentVersion, consent_at: t, consent_request_id: input.requestKey, billing_anchor_at: quote.firstBillingAt, cycle_index: 0, next_billing_at: quote.firstBillingAt, paid_through: null, cancel_at: null, retry_count: 0, created_at: t, updated_at: t };
       w.insert("billing_card_mandates", { ...m });
       w.insert("billing_checkouts", { id, owner_kind: scope.kind === "org" ? "org" : "account", org_id: m.org_id, account_id: scope.kind === "account" ? input.accountId : null, user_id: input.userId, started_by_account_id: input.accountId, plan_version_id: quote.version.id, provider, provider_session_ref: id, provider_subscription_ref: id, status: "open", created_at: t, expires_at: quote.firstBillingAt + 86400000, completed_at: null });
       this.snapshot(w, m, "incomplete", null, null, t);
@@ -91,7 +92,7 @@ export class CardSubscriptions {
       const m = w.get<CardMandate>("billing_card_mandates", { id });
       if (!m || m.cancel_at || !["pending", "active", "attention"].includes(m.status) || m.next_billing_at > t) return null;
       let charge = w.get<Charge>("billing_card_charges", { mandate_id: id, period_start: m.next_billing_at });
-      if (!charge) { const c = { id: newId("cc"), mandate_id: id, period_start: m.next_billing_at, period_end: addMonths(m.billing_anchor_at, m.cycle_index + 1), status: "pending", generation: 0, request_started_at: t, provider_order_ref: null, provider_capture_ref: null, amount_minor: m.amount_minor, currency: m.currency, lease_until: null, attempts: 0, next_attempt_at: t, created_at: t, updated_at: t, grant_id: null }; w.insert("billing_card_charges", c); charge = c; }
+      if (!charge) { const c = { id: newId("cc"), mandate_id: id, period_start: m.next_billing_at, period_end: addMonths(m.billing_anchor_at, (m.cycle_index + 1) * m.interval_months), status: "pending", generation: 0, request_started_at: t, provider_order_ref: null, provider_capture_ref: null, amount_minor: m.amount_minor, currency: m.currency, lease_until: null, attempts: 0, next_attempt_at: t, created_at: t, updated_at: t, grant_id: null }; w.insert("billing_card_charges", c); charge = c; }
       if (["paid", "refunded", "reversed", "declined"].includes(charge.status) || charge.next_attempt_at > t || charge.lease_until && charge.lease_until > t) return null;
       if (t - (charge.request_started_at ?? charge.created_at) > RETRY_WINDOW && !charge.provider_order_ref) { w.update("billing_card_charges", { id: charge.id }, { status: "attention" }); w.update("billing_card_mandates", { id }, { status: "attention" }); return null; }
       w.update("billing_card_charges", { id: charge.id }, { status: "processing", lease_until: t + 120000, attempts: charge.attempts + 1, updated_at: t });
@@ -103,7 +104,7 @@ export class CardSubscriptions {
       let orderId = charge.provider_order_ref;
       if (!orderId) {
         const ref = this.vault.reference(m.account_id, m.payment_method_id);
-        const created = z.object({ id: z.string().regex(/^[A-Za-z0-9]+$/) }).parse(await this.vault.provider.api.request("POST", "/v2/checkout/orders", { intent: "CAPTURE", purchase_units: [{ custom_id: charge.id, invoice_id: `${charge.id}-${charge.generation}`, description: m.org_id ? "Meldiq Bots+ monthly renewal" : "Meldiq Plus monthly renewal", amount: { currency_code: charge.currency, value: (charge.amount_minor / 100).toFixed(2) } }], payment_source: { card: { vault_id: ref.token, stored_credential: { payment_initiator: "MERCHANT", payment_type: "RECURRING", usage: "SUBSEQUENT" } } } }, `card-order-${charge.id}-${charge.generation}`));
+        const created = z.object({ id: z.string().regex(/^[A-Za-z0-9]+$/) }).parse(await this.vault.provider.api.request("POST", "/v2/checkout/orders", { intent: "CAPTURE", purchase_units: [{ custom_id: charge.id, invoice_id: `${charge.id}-${charge.generation}`, description: m.org_id ? "Meldiq Bots+ monthly renewal" : "Meldiq Plus renewal", amount: { currency_code: charge.currency, value: (charge.amount_minor / 100).toFixed(2) } }], payment_source: { card: { vault_id: ref.token, stored_credential: { payment_initiator: "MERCHANT", payment_type: "RECURRING", usage: "SUBSEQUENT" } } } }, `card-order-${charge.id}-${charge.generation}`));
         orderId = created.id;
         await this.billing.rows.write(w => w.update("billing_card_charges", { id: charge.id }, { provider_order_ref: orderId }));
       }

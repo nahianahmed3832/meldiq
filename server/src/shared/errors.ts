@@ -89,7 +89,7 @@ export const ERROR_CODES = {
   // Meldiq Mojo (API 0.54.0, docs/MOJO.md).
   // Google Play (API 0.55.0, docs/MOJO_ANDROID.md).
   billed_elsewhere: { status: [409], meaning: "This plan is billed on meldiq.app: change or cancel it there, not in Google Play." },
-  no_sparks: { status: [409], meaning: "This account has no Meldiq Sparks: Mojo Go includes one, Mojo Plus two, and more can be bought." },
+  no_sparks: { status: [409], meaning: "This account has no Meldiq Sparks: Legacy Go includes one, Meldiq Plus two, and more can be bought." },
   no_free_sparks: { status: [409], meaning: "Every Spark this account has is already given to a community." },
   message_too_long: { status: [413], meaning: "The message is longer than the sender's plan allows (characters as people count them), or an older app's encrypted one far larger than it could need." },
   // Server-stored messages (API 0.57.0, docs/SERVER_MESSAGES.md).

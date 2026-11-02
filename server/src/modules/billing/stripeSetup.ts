@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { PRICING } from "./pricing.js";
 import type { PlanCatalog } from "./catalog.js";
 import { STRIPE_WEBHOOK_EVENTS } from "./providers/stripe.js";
 
@@ -23,15 +24,15 @@ import { STRIPE_WEBHOOK_EVENTS } from "./providers/stripe.js";
  */
 export const MOJO_PRICES = [
   // The owner's spec of 2026-10-30 (docs/PLANS.md): Go $1.99 and Plus $4.99 a month. The console can change them.
-  { tier: "go", name: "Mojo Go", lookupKey: "meldiq_mojo_go_monthly", amountMinor: 199, product: "go" },
-  { tier: "plus", name: "Mojo Plus", lookupKey: "meldiq_mojo_plus_monthly", amountMinor: 399, product: "plus" },
+  { tier: "go", name: "Legacy Go", lookupKey: "meldiq_mojo_go_monthly", amountMinor: 199, product: "go" },
+  { tier: "plus", name: PRICING.plus.name, lookupKey: "meldiq_plus_499_monthly_v2", amountMinor: PRICING.plus.amountMinor, product: "plus" },
   // Meldiq Spark (docs/MOJO.md): $0.99 per Spark per month, bought by quantity, on its own product (its own invoice line).
   { tier: "spark", name: "Meldiq Spark", lookupKey: "meldiq_spark_monthly", amountMinor: 99, product: "spark" },
 ] as const;
 
 const PRODUCTS = {
-  go: { name: "Mojo Go", description: "Meldiq Mojo, the Go tier." },
-  plus: { name: "Mojo Plus", description: "Meldiq Mojo, the Plus tier." },
+  go: { name: "Legacy Go", description: "Meldiq Plus, the Go tier." },
+  plus: { name: "Meldiq Plus", description: "Meldiq Plus monthly subscription." },
   spark: { name: "Meldiq Spark", description: "A server boost: each Spark you give a community unlocks more for everyone in it." },
 } as const;
 
@@ -196,11 +197,11 @@ async function setUpCatalog(api: StripeSetupApi, siteUrl: string, amounts: MojoA
   const legacy = await api.findProduct(LEGACY_PRODUCT);
   if (legacy) {
     await api.archiveProduct(legacy.id);
-    steps.push(`product Meldiq Mojo (both plans, API 0.60.0): archived ${legacy.id}`);
+    steps.push(`product Meldiq Plus (both plans, API 0.60.0): archived ${legacy.id}`);
   }
 
   const portal: Stripe.BillingPortal.ConfigurationCreateParams = {
-    business_profile: { headline: "Manage Meldiq Mojo", privacy_policy_url: `${siteUrl}/legal/privacy`, terms_of_service_url: `${siteUrl}/legal/terms` },
+    business_profile: { headline: "Manage Meldiq Plus", privacy_policy_url: `${siteUrl}/legal/privacy`, terms_of_service_url: `${siteUrl}/legal/terms` },
     default_return_url: `${siteUrl}/account/billing`,
     features: {
       customer_update: { enabled: true, allowed_updates: ["email", "name", "address"] },

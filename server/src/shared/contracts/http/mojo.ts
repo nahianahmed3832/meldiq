@@ -1,3 +1,4 @@
+import { PlusTermView } from "./pricing.js";
 import { z } from "zod/v4";
 import { zReturnTo } from "./billing.js";
 import { zCount, zTime } from "./primitives.js";
@@ -38,6 +39,7 @@ export const zSparkLevel = z.strictObject({
 const zPrice = z.strictObject({ currency: z.string(), amountMinor: zCount }).nullable();
 
 export const MojoCatalog = z.strictObject({
+  plusTerms: z.array(PlusTermView).optional(),
   version: z.string(),
   units: z.strictObject({ mb: zCount, gb: zCount }),
   plans: z.array(zPlanPerks),

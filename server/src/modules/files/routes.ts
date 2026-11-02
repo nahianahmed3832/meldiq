@@ -32,7 +32,7 @@ import { refusal, scopesFor } from "../quotas/index.js";
 function uploadLimit(max: number): ApiError {
   if (max >= DEFAULT_FILE_MAX_BYTES) return new ApiError(413, "upload_limit", "Files can be up to 1,024 MB on this server.", { maxBytes: max });
   const label = max >= 1_000_000_000 ? `${+(max / 1_000_000_000).toFixed(1)} GB` : `${Math.round(max / 1_000_000)} MB`;
-  return new ApiError(413, "upload_limit", `Files can be up to ${label} on your plan here. Mojo raises it, and so do a community's Sparks.`, { maxBytes: max });
+  return new ApiError(413, "upload_limit", `Files can be up to ${label} on your plan here. Meldiq Plus raises it, and so do a community's Sparks.`, { maxBytes: max });
 }
 
 export default async function attachmentRoutes(app: FastifyInstance, ctx: AppContext) {
