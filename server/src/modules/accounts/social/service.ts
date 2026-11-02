@@ -11,6 +11,7 @@ import {
   type SocialFlow,
 } from "./store.js";
 import { SupabaseIdentity } from "./supabase.js";
+import { displayName } from "./profile.js";
 
 export const secret = () => crypto.randomBytes(32).toString("base64url");
 export const digest = (value: string) =>
@@ -261,16 +262,13 @@ export class SocialAuth {
           );
         if (await this.ctx.accounts.store.accountByEmail(f.identity!.email))
           throw collision();
-        if (!body.name?.trim())
-          throw new ApiError(
-            400,
-            "social_profile_required",
-            "Choose your Meldiq display name to finish creating your account.",
-          );
         account = await this.ctx.accounts.service.registerExternal(
           {
             email: f.identity!.email,
-            name: body.name.trim(),
+            name:
+              displayName(body.name) ??
+              displayName(f.identity!.displayName) ??
+              "Meldiq member",
             inviteCode: body.inviteCode,
           },
           ip,

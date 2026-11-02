@@ -7,6 +7,7 @@ export interface ExternalIdentity {
   issuer: string;
   subject: string;
   email: string | null;
+  displayName?: string;
 }
 export interface SocialIdentity extends ExternalIdentity {
   id: string;
@@ -122,7 +123,19 @@ export class SocialStore {
       if (this.mongo)
         await this.mongo.db
           .collection("account_social_identities")
-          .insertOne({ _id: i.id as never, ...i }, this.options);
+          .insertOne(
+            {
+              _id: i.id as never,
+              id: i.id,
+              account_id: i.account_id,
+              provider: i.provider,
+              issuer: i.issuer,
+              subject: i.subject,
+              email: i.email,
+              connected_at: i.connected_at,
+            },
+            this.options,
+          );
       else
         this.ctx.db
           .prepare(

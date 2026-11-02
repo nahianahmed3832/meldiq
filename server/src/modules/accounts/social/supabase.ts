@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import { ApiError } from "../../../shared/errors.js";
 import type { SocialConfig, SocialProvider } from "./config.js";
 import type { ExternalIdentity } from "./store.js";
+import { providerDisplayName } from "./profile.js";
 
 const invalid = () =>
   new ApiError(
@@ -218,6 +219,7 @@ export class SupabaseIdentity {
       d.email && (d.email_verified === true || d.email_verified === "true")
         ? d.email.trim().toLowerCase()
         : null;
+    const displayName = providerDisplayName(provider, d);
     return {
       provider,
       issuer:
@@ -228,6 +230,7 @@ export class SupabaseIdentity {
             : "https://discord.com",
       subject: d.sub,
       email,
+      ...(displayName ? { displayName } : {}),
     };
   }
 }

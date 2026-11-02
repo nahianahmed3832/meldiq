@@ -227,23 +227,43 @@ for (const backend of ["sqlite", "mongodb"])
       await h.ctx.accounts.store.deleteAccount(c.accountId);
       expect(await h.ctx.accounts.social.store.find(i)).toBeNull();
     });
-    it("creates a new social account only after explicit profile completion", async () => {
-      const i = identity();
-      const r = await ready(i);
-      expect((await expectStatus(finish(r), 400)).error.code).toBe(
-        "social_profile_required",
+    it.each(["google", "discord", "apple"] as const)(
+      "creates %s accounts with the provider name and no profile form",
+      async (provider) => {
+        const i = { ...identity(provider), displayName: "Provider Person" };
+        const r = await ready(i);
+        const created = await finish(r);
+        expect(created.grant.account.name).toBe("Provider Person");
+        expect(
+          (await h.ctx.accounts.store.accountById(created.grant.account.id))!
+            .password_hash,
+        ).toBe("!social-only");
+      const client = new AccountClient(h.baseUrl, i.email!);
+      client.useSession(created.grant);
+      const enrolled = await client.setUpIdentity();
+      expect(enrolled.username).toMatch(/^providerperson\d{4}$/);
+        const subsequent = await finish(
+          await ready({ ...i, displayName: "Changed Provider Name" }),
+        );
+        expect(subsequent.grant.account.id).toBe(created.grant.account.id);
+        expect(subsequent.grant.account.name).toBe("Provider Person");
+        // Cosmetic metadata stays in the expiring flow, never in the identity ownership record/schema.
+        expect(await h.ctx.accounts.social.store.find(i)).not.toHaveProperty(
+          "displayName",
+        );
+      },
+    );
+    it("uses a nonidentifying default when the provider omits its name", async () => {
+      const created = await finish(await ready(identity()));
+      expect(created.grant.account.name).toBe("Meldiq member");
+    });
+    it("keeps older clients' explicitly chosen name compatible", async () => {
+      const created = await finish(
+        await ready({ ...identity(), displayName: "Provider Person" }),
+        undefined,
+        { name: "Chosen Name" },
       );
-      expect(
-        await h.ctx.accounts.store.accountByEmail(i.email!),
-      ).toBeUndefined();
-      const created = await finish(r, undefined, { name: "New Meldiq Person" });
-      expect(created.grant.account.name).toBe("New Meldiq Person");
-      expect(
-        (await h.ctx.accounts.store.accountById(created.grant.account.id))!
-          .password_hash,
-      ).toBe("!social-only");
-      const subsequent = await finish(await ready(i));
-      expect(subsequent.grant.account.id).toBe(created.grant.account.id);
+      expect(created.grant.account.name).toBe("Chosen Name");
     });
     it("refuses unverified provider email for new accounts", async () => {
       expect(
@@ -400,11 +420,37 @@ for (const backend of ["sqlite", "mongodb"])
         throw new ApiError(401, "totp_required", "Authenticator required");
       };
       try {
-        expect((await expectStatus(finish(login), 401)).error.code).toBe("totp_required");
-        expect((await expectStatus(c.req("POST", "/v2/auth/social/start", {provider: "discord", challenge: digest(secret()), mode: "link"}), 401)).error.code).toBe("totp_required");
-        expect((await expectStatus(c.req("DELETE", "/v2/account/identities/google", {}), 401)).error.code).toBe("totp_required");
-        expect((await h.ctx.accounts.social.store.list(c.accountId)).map(x => x.provider)).toContain("google");
-      } finally { h.ctx.accounts.service.secondFactor = original; }
+        expect((await expectStatus(finish(login), 401)).error.code).toBe(
+          "totp_required",
+        );
+        expect(
+          (
+            await expectStatus(
+              c.req("POST", "/v2/auth/social/start", {
+                provider: "discord",
+                challenge: digest(secret()),
+                mode: "link",
+              }),
+              401,
+            )
+          ).error.code,
+        ).toBe("totp_required");
+        expect(
+          (
+            await expectStatus(
+              c.req("DELETE", "/v2/account/identities/google", {}),
+              401,
+            )
+          ).error.code,
+        ).toBe("totp_required");
+        expect(
+          (await h.ctx.accounts.social.store.list(c.accountId)).map(
+            (x) => x.provider,
+          ),
+        ).toContain("google");
+      } finally {
+        h.ctx.accounts.service.secondFactor = original;
+      }
     });
 
     it("enforces provider ownership and one provider per account in database indexes", async () => {
@@ -412,9 +458,28 @@ for (const backend of ["sqlite", "mongodb"])
       const second = await account();
       const i = identity("discord");
       const store = h.ctx.accounts.social.store;
-      await store.link({...i,id:secret(),account_id:first.accountId,connected_at:Date.now()});
-      await expect(store.link({...i,id:secret(),account_id:second.accountId,connected_at:Date.now()})).rejects.toMatchObject({statusCode:409,code:"identity_conflict"});
-      await expect(store.link({...i,subject:secret(),id:secret(),account_id:first.accountId,connected_at:Date.now()})).rejects.toMatchObject({statusCode:409,code:"identity_conflict"});
+      await store.link({
+        ...i,
+        id: secret(),
+        account_id: first.accountId,
+        connected_at: Date.now(),
+      });
+      await expect(
+        store.link({
+          ...i,
+          id: secret(),
+          account_id: second.accountId,
+          connected_at: Date.now(),
+        }),
+      ).rejects.toMatchObject({ statusCode: 409, code: "identity_conflict" });
+      await expect(
+        store.link({
+          ...i,
+          subject: secret(),
+          id: secret(),
+          account_id: first.accountId,
+          connected_at: Date.now(),
+        }),
+      ).rejects.toMatchObject({ statusCode: 409, code: "identity_conflict" });
     });
-
   });

@@ -58,6 +58,48 @@ const setUser = (patch = {}) => {
   };
 };
 describe("Supabase identity verification", () => {
+  it.each([
+    [
+      "google",
+      { name: "Google Person", full_name: "Legacy Name" },
+      "Google Person",
+    ],
+    [
+      "discord",
+      {
+        full_name: "discordhandle",
+        name: "discordhandle#0",
+        custom_claims: { global_name: "Discord Display Name" },
+      },
+      "Discord Display Name",
+    ],
+    [
+      "discord",
+      { full_name: "discordhandle", custom_claims: { global_name: null } },
+      "discordhandle",
+    ],
+  ] as const)(
+    "reads %s cosmetic names from the selected verified provider identity",
+    async (kind, metadata, expected) => {
+      setUser({
+        user_metadata: { name: "Ignored Broker Name" },
+        identities: [
+          {
+            provider: kind,
+            identity_data: {
+              sub: "selected-subject",
+              email: "verified@example.test",
+              email_verified: true,
+              ...metadata,
+            },
+          },
+        ],
+      });
+      const result = await provider.verify({ access_token: await jwt() }, kind);
+      expect(result.displayName).toBe(expected);
+      expect(result.subject).toBe("selected-subject");
+    },
+  );
   it("validates a signed Supabase JWT and retrieves identity from its authenticated user endpoint", async () => {
     setUser();
     expect(
