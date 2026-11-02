@@ -8,6 +8,10 @@ export interface PostgresConfig {
   projectRef?: string;
   maxConnections?: number;
   ca?: string;
+  /** The compatibility deployment retains its durable per-device queue and existing push path. */
+  deliveryMode?: "legacy" | "supabase";
+  /** Validated private receipt; ordinary staged dependency injection cannot activate production. */
+  productionAcceptance?: {sourceSha256:string;runtimeRevision:string;acceptedAt:string};
 }
 
 /** Explicit per-pool decoding: never silently round money, counters or epoch milliseconds. */

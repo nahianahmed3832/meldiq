@@ -6,7 +6,8 @@ const columns = "id, conversation_id, sender_user_id, sender_device_id, cls, typ
 const visible = "(audience = 'all' OR sender_user_id = $2)";
 
 /** Released event contract in relational columns. Authorization stays in the existing Fastify service.
- * add() commits both the event and recoverable Realtime/push work before returning success.
+ * Native delivery commits recoverable Realtime/push work with the event. The database-only
+ * compatibility release retains the existing durable relay and push path without queuing duplicate fanout.
  */
 export class PostgresMessageStore implements MessageStore {
   readonly backend = "postgres" as const;
@@ -18,7 +19,7 @@ export class PostgresMessageStore implements MessageStore {
     const values = columns.split(", ").map(c => event[c as keyof MessageEvent]);
     const result = await this.db.query(`INSERT INTO meldiq.message_events (${columns}) VALUES (${values.map((_,i)=>`$${i+1}`)}) ON CONFLICT(id) DO NOTHING`, values);
     if (!result.rowCount) return false;
-    if (event.imported_by === null) {
+    if (event.imported_by === null && this.db.config.deliveryMode !== "legacy") {
       const id = randomUUID();
       const topic = event.audience === "self" ? `user:${event.sender_user_id}` : `conversation:${event.conversation_id}`;
       const payload = JSON.stringify({ messageId: event.id, conversationId: event.conversation_id });

@@ -20,6 +20,7 @@ export interface CliRows {
 }
 
 export async function openCliRows(cfg: Config, db: DB): Promise<CliRows> {
+  if (cfg.databaseMode === "supabase") throw new Error("Use the active PostgreSQL operator service; opening a separate legacy store is forbidden");
   const mongo = cfg.mongo ? await openMongo(cfg.mongo, db, undefined, cfg.databaseMode === "atlas") : undefined;
   const ws = await openWorkspaceRows(db, mongo, console);
   const [identity, platform, fed, safety, ephemeral] = await Promise.all(

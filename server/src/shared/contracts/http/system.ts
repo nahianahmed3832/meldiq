@@ -53,6 +53,8 @@ export const Health = z.strictObject({
   /** null: this server doesn't use MongoDB; false answers 503. */
   mongodb: z.boolean().nullable(),
   redis: z.boolean().nullable().optional(),
+  postgres: z.boolean().optional(),
+  databaseMode: z.literal("supabase").optional(),
 });
 
 export const systemRoutes = [

@@ -201,6 +201,16 @@ describe("relational schema and security",()=>{
 });
 
 describe("message durability and outbox recovery",()=>{
+  it("keeps compatibility delivery on its existing relay without accumulating duplicate native jobs",async()=>{
+    const compatible=new MeldiqPostgres({...db.config,deliveryMode:"legacy"});
+    try{
+      const store=new PostgresMessageStore(compatible);
+      expect(await store.add(event("message0001"))).toBe(true);
+      expect(await store.add(event("message0001"))).toBe(false);
+      expect((await store.get("message0001"))?.payload).toBe(event("message0001").payload);
+      expect((await db.query("SELECT count(*) AS n FROM meldiq_private.outbox")).rows[0].n).toBe(0);
+    }finally{await compatible.close();}
+  });
   it("commits one event and one pair of jobs under concurrent duplicate requests",async()=>{
     const added=await Promise.all(Array.from({length:20},()=>messages.add(event("message0001"))));
     expect(added.filter(Boolean)).toHaveLength(1);

@@ -1,4 +1,6 @@
 import { socialConfig, type SocialConfig } from "../modules/accounts/social/config.js";
+import { postgresConfig } from "../infrastructure/database/postgres/config.js";
+import type { PostgresConfig } from "../infrastructure/database/postgres/client.js";
 import { redisConfig, type RedisConfig } from "../infrastructure/redis/config.js";
 import { secretsKey } from "../infrastructure/crypto/secretBox.js";
 import path from "node:path";
@@ -187,7 +189,8 @@ export interface Config {
   /** MongoDB, for the data domains listed in MONGODB_DOMAINS (docs/MONGODB.md); null: everything stays in SQLite. */
   mongo: MongoConfig | null;
   redis?: RedisConfig | null;
-  databaseMode?: "hybrid" | "atlas";
+  databaseMode?: "hybrid" | "atlas" | "supabase";
+  postgres?: PostgresConfig | null;
   /**
    * Platform administrators (PLATFORM_ADMIN_USER_IDS, user ids): the service health, usage and experiments views. Never
    * grants anything inside a community.
@@ -571,6 +574,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const queueTtl = Math.min(int("QUEUE_TTL_SECONDS", SEVEN_DAYS_S), SEVEN_DAYS_S);
   const fileMaxBytes = Math.min(Math.max(int("FILE_MAX_BYTES", DEFAULT_FILE_MAX_BYTES), 1), DEFAULT_FILE_MAX_BYTES);
   const attachmentMaxBytes = int("ATTACHMENT_MAX_BYTES", fileMaxBytes + ENCRYPTION_HEADROOM_BYTES);
+  const mode = databaseMode(env);
   return {
     host: env.HOST ?? "0.0.0.0",
     port: int("PORT", 8080),
@@ -594,8 +598,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     fileMaxBytes,
     socialAuth: socialConfig(env),
     accounts: accountsConfig(env, dataDir, int),
-    databaseMode: databaseMode(env),
-    mongo: mongoConfig(env, productionEnvironment(env) ? "production" : env.APP_ENV?.trim() || env.NODE_ENV?.trim() || "development", int),
+    databaseMode: mode,
+    postgres: postgresConfig(env, productionEnvironment(env)),
+    mongo: mode === "supabase" ? null : mongoConfig(env, productionEnvironment(env) ? "production" : env.APP_ENV?.trim() || env.NODE_ENV?.trim() || "development", int),
     redis: redisConfig(env, productionEnvironment(env)),
     platformAdmins: new Set((env.PLATFORM_ADMIN_USER_IDS ?? "").split(",").map((s) => s.trim()).filter(Boolean)),
     adminConsole: adminConsoleConfig(env, int),
@@ -758,12 +763,13 @@ function s3Credentials(env: NodeJS.ProcessEnv): S3Config["credentials"] {
 }
 
 /** Atlas mode never opens the legacy persistent SQLite file or silently bootstraps migration authority. */
-export function databaseMode(env: NodeJS.ProcessEnv): "hybrid" | "atlas" {
+export function databaseMode(env: NodeJS.ProcessEnv): "hybrid" | "atlas" | "supabase" {
   const mode = env.DATABASE_MODE?.trim() || "hybrid";
-  if (mode !== "hybrid" && mode !== "atlas") throw new Error("DATABASE_MODE must be hybrid or atlas");
+  if (mode !== "hybrid" && mode !== "atlas" && mode !== "supabase") throw new Error("DATABASE_MODE must be hybrid, atlas or supabase");
+  if (mode === "supabase" && productionEnvironment(env) && !env.REDIS_URL) throw new Error("Production Supabase mode requires shared REDIS_URL");
   if (mode === "atlas") {
-    const domains = new Set(env.MONGODB_DOMAINS?.split(",").map(d => d.trim()));
-    if (!env.MONGODB_URI || MONGO_DOMAINS.some(d => !domains.has(d))) throw new Error("DATABASE_MODE=atlas requires MongoDB and every active domain");
+    const domains = new Set(env.MONGODB_DOMAINS?.split(",").map((d) => d.trim()));
+    if (!env.MONGODB_URI || MONGO_DOMAINS.some((d) => !domains.has(d))) throw new Error("DATABASE_MODE=atlas requires MongoDB and every active domain");
     if (productionEnvironment(env) && !env.REDIS_URL) throw new Error("DATABASE_MODE=atlas in production requires shared REDIS_URL");
   }
   return mode;

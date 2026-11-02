@@ -198,7 +198,7 @@ export async function buildApp(
     mongo?: MeldiqMongo;
     /** Injected repository for integration tests and the staged PostgreSQL composition root. */
     files?: FileStore;
-    /** Explicit non-production composition until all migration acceptance gates pass. */
+    /** Explicit PostgreSQL composition; production requires its accepted cutover receipt. */
     postgres?: MeldiqPostgres;
     /** Explicit staging-only JWT/device bridge; production activation remains blocked. */
     supabase?: {projectUrl: string; keys?: JWTVerifyGetKey};
@@ -208,10 +208,20 @@ export async function buildApp(
     contracts?: ContractObserver;
   } = {},
 ): Promise<BuiltApp> {
-  if (opts.postgres && (config.accounts.appEnv === "production" || config.mongo || opts.mongo || opts.db || opts.files)) {
-    throw new Error("Staged PostgreSQL requires a non-production process with no alternate database/store overrides");
+  if (config.databaseMode === "supabase" && !opts.postgres) throw new Error("Supabase mode requires its PostgreSQL runtime; legacy fallback is forbidden");
+  if (opts.supabase && config.accounts.appEnv === "production") throw new Error("Native Supabase Auth activation awaits its separate client and revocation acceptance checks");
+  if (
+    opts.postgres &&
+    ((config.accounts.appEnv === "production" && (config.databaseMode !== "supabase" || opts.postgres.config.environment !== "production" || !opts.postgres.config.productionAcceptance)) ||
+      config.mongo ||
+      opts.mongo ||
+      opts.db ||
+      opts.files)
+  ) {
+    throw new Error("PostgreSQL requires its accepted environment with no alternate database/store overrides");
   }
-  if (opts.supabase && (!opts.postgres || (opts.postgres.config.projectRef && opts.supabase.projectUrl !== `https://${opts.postgres.config.projectRef}.supabase.co`))) throw new Error("Supabase Auth bridge requires its matching staged PostgreSQL runtime");
+  if (opts.supabase && (!opts.postgres || (opts.postgres.config.projectRef && opts.supabase.projectUrl !== `https://${opts.postgres.config.projectRef}.supabase.co`)))
+    throw new Error("Supabase Auth bridge requires its matching staged PostgreSQL runtime");
   const app = Fastify({
     logger:
       opts.logger === false
@@ -706,6 +716,7 @@ export async function buildApp(
       time: now(),
       livekit: !!ctx.livekit,
       mongodb,
+      ...(postgres ? { postgres: true, databaseMode: "supabase" } : {}),
       ...(ctx.redis ? { redis } : {}),
     };
   });

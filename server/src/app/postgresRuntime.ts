@@ -28,14 +28,14 @@ import { NATIVE_TABLES } from "../infrastructure/database/postgres/nativeCatalog
 const asyncDomains = new Set(["files", "preferences", "history", "reports", "relationships", "calls"]);
 const asyncAccountTables = new Set(["account_recovery_codes", "account_recovery_tickets", "account_key_backups", "account_key_unlocks"]);
 
-/** Explicit staging composition. No alternative store fallback and no schema creation on application startup. */
+/** Explicit PostgreSQL composition. No alternative store fallback or startup schema creation. */
 export async function openPostgresRuntime(database: MeldiqPostgres) {
-  if (database.config.environment === "production") throw new Error("Production PostgreSQL activation awaits migration acceptance");
+  if (database.config.environment === "production" && !database.config.productionAcceptance) throw new Error("Production PostgreSQL activation awaits verified cutover acceptance");
   if ((database.config.maxConnections ?? 5) < 2) throw new Error("PostgreSQL runtime needs one writer lease and at least one query connection");
   const endpoint = new URL(database.config.url), local = ["localhost", "127.0.0.1", "[::1]"].includes(endpoint.hostname);
   if (!local) {
     const ref = database.config.projectRef;
-    if (database.config.environment !== "staging" || !ref || !/^[a-z]{20}$/.test(ref)) throw new Error("Remote application runtime requires an explicit staging project reference");
+    if (!["staging", "production"].includes(database.config.environment) || !ref || !/^[a-z]{20}$/.test(ref)) throw new Error("Remote application runtime requires its explicit project reference");
     const matching = endpoint.hostname === `db.${ref}.supabase.co` ||
       (/^aws-\d+-[a-z0-9-]+\.pooler\.supabase\.com$/.test(endpoint.hostname) && decodeURIComponent(endpoint.username).endsWith(`.${ref}`));
     if (!matching) throw new Error("Staging PostgreSQL connection does not match the expected project");
@@ -43,6 +43,10 @@ export async function openPostgresRuntime(database: MeldiqPostgres) {
       (rolsuper OR rolbypassrls OR rolcreaterole OR rolcreatedb OR rolreplication) AS privileged,
       pg_has_role(current_user,'meldiq_api','USAGE') AS api FROM pg_roles WHERE rolname=current_user`)).rows[0];
     if (!role || role.privileged || !role.api) throw new Error("Application runtime requires its restricted meldiq_api login, not an operator role");
+    if (database.config.environment === "production") {
+      const run = await database.query("SELECT 1 FROM meldiq_private.migration_runs WHERE source_sha256=$1 LIMIT 1", [database.config.productionAcceptance!.sourceSha256]);
+      if (!run.rowCount) throw new Error("Production database does not contain the accepted source snapshot");
+    }
   }
   const rows = await PostgresRows.open(database, [...tableSpecs().filter(table => !asyncDomains.has(table.domain) && !asyncAccountTables.has(table.name)),
     ...NATIVE_TABLES.filter(table => table.name === "auth_device_sessions")]);

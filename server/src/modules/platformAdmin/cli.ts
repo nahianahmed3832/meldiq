@@ -38,7 +38,7 @@ function accountsFor(cfg: Config, db: DB, rows: CliRows): Accounts {
   return new Accounts(ctx);
 }
 
-function printEnrolment(code: string | null, email: string): void {
+function printEnrolment(code: string | null, email: string, console: Pick<Console,"log">): void {
   if (!code) {
     console.log(`${email} already has a console passkey: no enrolment code needed.`);
     return;
@@ -47,21 +47,21 @@ function printEnrolment(code: string | null, email: string): void {
   console.log("Shown once, valid 30 minutes. Hand it over in person or on a channel you trust; it isn't stored readable anywhere.");
 }
 
-export async function runPlatformAdminCommand(cmd: string, args: string[], cfg: Config, db: DB, runtime?: AppContext): Promise<number> {
+export async function runPlatformAdminCommand(cmd: string, args: string[], cfg: Config, db: DB, runtime?: AppContext, output: Pick<Console,"log"|"table"|"error"> = console): Promise<number> {
   // Embedded operator/test callers share the active writer instead of opening a competing PostgreSQL cache.
   if (runtime) {
     if (runtime.config !== cfg || runtime.db !== db) throw new Error("Operator context does not match its process configuration");
-    return run(cmd, args, cfg, db, runtime, runtime.accounts);
+    return run(cmd, args, cfg, db, runtime, runtime.accounts, output);
   }
   const rows = await openCliRows(cfg, db);
   try {
-    return await run(cmd, args, cfg, db, rows);
+    return await run(cmd, args, cfg, db, rows, undefined, output);
   } finally {
     await rows.close();
   }
 }
 
-async function run(cmd: string, args: string[], cfg: Config, db: DB, rows: Pick<CliRows, "platform" | "ephemeral">, activeAccounts?: Accounts): Promise<number> {
+async function run(cmd: string, args: string[], cfg: Config, db: DB, rows: Pick<CliRows, "platform" | "ephemeral">, activeAccounts: Accounts | undefined, console: Pick<Console,"log"|"table"|"error">): Promise<number> {
   const store = new PlatformAdminStore(rows.platform, rows.ephemeral);
   const audit = new PlatformAudit(rows.platform);
   if (cmd === "platform-audit-verify") {
@@ -81,7 +81,7 @@ async function run(cmd: string, args: string[], cfg: Config, db: DB, rows: Pick<
   const accounts = activeAccounts ?? accountsFor(cfg, db, rows as CliRows);
   const account = await accounts.store.accountByEmail(email.trim().toLowerCase());
   if (cmd === "platform-admin-grant") {
-    printEnrolment(await grantAdmin(store, audit, account, rest[0], CLI_ACTOR, rest.slice(1).join(" ") || null), email);
+    printEnrolment(await grantAdmin(store, audit, account, rest[0], CLI_ACTOR, rest.slice(1).join(" ") || null), email, console);
     return 0;
   }
   if (!account) throw new Error("No account has that email address.");
@@ -90,6 +90,6 @@ async function run(cmd: string, args: string[], cfg: Config, db: DB, rows: Pick<
     console.log((await revokeAdmin(store, audit, account.id, CLI_ACTOR, reason)) ? `revoked ${email}` : `${email} had no active console role`);
     return 0;
   }
-  printEnrolment(await resetAdminPasskeys(store, audit, account.id, CLI_ACTOR, reason), email);
+  printEnrolment(await resetAdminPasskeys(store, audit, account.id, CLI_ACTOR, reason), email, console);
   return 0;
 }

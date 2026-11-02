@@ -13,7 +13,8 @@ export async function preparePostgresHarness(connection = process.env.MELDIQ_TES
   const administrator = new pg.Pool({connectionString: endpoint.href, max: 1});
   await administrator.query(`CREATE DATABASE "${name}"`);
   endpoint.pathname = `/${name}`;
-  const database = new MeldiqPostgres({url: endpoint.href, environment: "development", maxConnections: 6});
+  const database = new MeldiqPostgres({url: endpoint.href, environment: "development", maxConnections: 6,
+    deliveryMode: process.env.MELDIQ_TEST_PG_DELIVERY_MODE === "legacy" ? "legacy" : undefined});
   const close = async () => {
     await database.close();
     try { await administrator.query(`DROP DATABASE "${name}" WITH (FORCE)`); }
