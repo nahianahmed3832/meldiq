@@ -20,6 +20,9 @@ export interface AttachmentRow {
   expires_at: number;
   /** 1: kept for encrypted history beyond the relay window (POST /v1/attachments/:id/keep). */
   kept: number;
+  pending_message_until?: number | null;
+  message_id?: string | null;
+  sha256?: string | null;
 }
 
 export interface UploadRow {
@@ -73,6 +76,7 @@ export interface FileStore {
   attachment(id: string): Promise<AttachmentRow | null>;
   recordAttachment(row: Omit<AttachmentRow, "kept">): Promise<void>;
   keep(id: string, expiresAt: number): Promise<void>;
+  publish(id: string, messageId: string, expiresAt?: number): Promise<void>;
   /** Stored attachments matching [f]. */
   storedUsage(f: UsageFilter): Promise<Usage>;
   /** Open direct uploads matching [f] (their size counts as if stored). */
@@ -126,12 +130,16 @@ export class SqliteFileStore implements FileStore {
 
   async recordAttachment(r: Omit<AttachmentRow, "kept">): Promise<void> {
     this.db
-      .prepare("INSERT INTO attachments (id, conversation_id, uploader_user_id, size, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)")
-      .run(r.id, r.conversation_id, r.uploader_user_id, r.size, r.created_at, r.expires_at);
+      .prepare("INSERT INTO attachments (id, conversation_id, uploader_user_id, size, created_at, expires_at, pending_message_until, sha256) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+      .run(r.id, r.conversation_id, r.uploader_user_id, r.size, r.created_at, r.expires_at, r.pending_message_until ?? null, r.sha256 ?? null);
   }
 
   async keep(id: string, expiresAt: number): Promise<void> {
-    this.db.prepare("UPDATE attachments SET kept = 1, expires_at = ? WHERE id = ?").run(expiresAt, id);
+    this.db.prepare("UPDATE attachments SET kept = 1, expires_at = ?, pending_message_until = NULL WHERE id = ?").run(expiresAt, id);
+  }
+
+  async publish(id: string, messageId: string, expiresAt?: number): Promise<void> {
+    this.db.prepare("UPDATE attachments SET message_id = COALESCE(message_id, ?), pending_message_until = NULL, expires_at = COALESCE(?, expires_at) WHERE id = ?").run(messageId, expiresAt ?? null, id);
   }
 
   async storedUsage(f: UsageFilter): Promise<Usage> {
@@ -185,14 +193,14 @@ export class SqliteFileStore implements FileStore {
     return this.db.transaction(() => {
       if (this.db.prepare("DELETE FROM attachment_uploads WHERE id = ?").run(id).changes === 0) return false;
       this.db
-        .prepare("INSERT INTO attachments (id, conversation_id, uploader_user_id, size, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)")
-        .run(a.id, a.conversation_id, a.uploader_user_id, a.size, a.created_at, a.expires_at);
+        .prepare("INSERT INTO attachments (id, conversation_id, uploader_user_id, size, created_at, expires_at, pending_message_until, sha256) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+        .run(a.id, a.conversation_id, a.uploader_user_id, a.size, a.created_at, a.expires_at, a.pending_message_until ?? null, a.sha256 ?? null);
       return true;
     })();
   }
 
   async keepAllForever(now: number): Promise<number> {
-    return this.db.prepare("UPDATE attachments SET expires_at = ? WHERE expires_at > ? AND expires_at < ?").run(KEPT_FOREVER, now, KEPT_FOREVER).changes;
+    return this.db.prepare("UPDATE attachments SET expires_at = ? WHERE expires_at > ? AND expires_at < ? AND pending_message_until IS NULL").run(KEPT_FOREVER, now, KEPT_FOREVER).changes;
   }
 
   async purgeExpired(now: number): Promise<string[]> {

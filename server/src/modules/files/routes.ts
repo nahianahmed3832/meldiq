@@ -21,8 +21,8 @@ import { newId, now } from "../../shared/utilities/util.js";
 import { refusal, scopesFor } from "../quotas/index.js";
 
 /**
- * Encrypted attachment relay. Clients encrypt files locally (AES-256-GCM, key travels inside the
- * E2EE message), so the server only ever stores opaque ciphertext. Downloads require membership of
+ * Encrypted attachment bodies (AES-256-GCM); object storage receives opaque ciphertext. Current v2 message payloads
+ * include reference keys readable by the relay, while legacy encrypted envelopes protect those keys. Downloads require membership of
  * the conversation the blob was uploaded to; ids are 128-bit random and never listed.
  *
  * Bytes live in ctx.blobs (the server's disk or S3, docs/STORAGE_AND_DATA.md). An upload is received into a spool
@@ -229,6 +229,7 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
       track(who, reserve, 1);
     });
     let storedSize: number | null = null;
+    let storedHash: string | null = null;
     const tmp = spoolFor(id);
     let size = 0;
     const hash = crypto.createHash("sha256");
@@ -252,7 +253,9 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
         throw badRequest("Upload was interrupted");
       }
       try {
-        await blobs.putFile("attachments", id, tmp, size, hash.digest("hex"));
+        const digest = hash.digest("hex");
+        storedHash = Buffer.from(digest, "hex").toString("base64");
+        await blobs.putFile("attachments", id, tmp, size, digest);
       } catch (e) {
         await fs.promises.rm(tmp, { force: true });
         ctx.log.error({ err: e }, "attachment store write failed");
@@ -271,6 +274,8 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
       size,
       created_at: t,
       expires_at: expiresAt,
+      pending_message_until: cfg.messages.acceptEncrypted ? null : expiresAt,
+      sha256: storedHash,
     });
     ctx.usage?.add(conv.org_id, "files.upload_bytes", size);
     ctx.telemetry?.activity.addTraffic(userId, "files.upload", size, t);
@@ -292,7 +297,7 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
     const { proxy } = parse(AttachmentDownloadQuery, req.query);
     const a = await files.attachment(id);
     // Same 404 for unknown, expired and unauthorised: no oracle for guessing ids.
-    if (!a || a.expires_at <= now() || !ctx.authz.isMember(a.conversation_id, userId)) throw notFound("Attachment not found or expired");
+    if (!a || a.expires_at <= now() || !ctx.authz.isMember(a.conversation_id, userId) || (a.pending_message_until != null && a.uploader_user_id !== userId)) throw notFound("Attachment not found or expired");
     reply.header("cache-control", "private, no-store");
     // Usage (round 7): bytes asked for, whether served here or from S3 (a range counts its own length).
     const orgOf = (ctx.authz.conversation(a.conversation_id)?.org_id ?? null) as string | null;
@@ -383,7 +388,18 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
     const u = await files.upload(id);
     if (!u || u.user_id !== userId) throw notFound("Upload not found");
     if (u.expires_at <= now()) throw new ApiError(410, "upload_expired", "This upload took too long. Start it again.");
-    if (!allowOversized && u.size > encryptedAttachmentBytes(Math.min(effectiveFileMaxBytes(cfg), runtimePolicy(ctx.platform).policy.maxFileBytes))) throw uploadLimit(Math.min(effectiveFileMaxBytes(cfg), runtimePolicy(ctx.platform).policy.maxFileBytes));
+    if (!allowOversized) {
+      requireFeature(ctx.platform, "uploads");
+      const conv = ctx.authz.conversation(u.conversation_id);
+      if (!conv || !ctx.authz.isMember(conv.id, userId) || !ctx.authz.canPost(conv, userId) || !ctx.authz.canAttach(conv, userId)) {
+        await files.abandonUpload(u);
+        await quotaSettle(u.id, null);
+        throw new ApiError(403, "forbidden", "You can't share files in this conversation any more");
+      }
+      const max = Math.min(effectiveFileMaxBytes(cfg), ctx.mojo.uploadBytes(userId, conv.org_id), runtimePolicy(ctx.platform).policy.maxFileBytes);
+      // Refuse new authorizations but leave the owned session available for explicit cancellation.
+      if (u.size > Math.min(cfg.attachmentMaxBytes, encryptedAttachmentBytes(max))) throw uploadLimit(max);
+    }
     return u;
   };
   const storeFailure = (e: unknown, what: string): never => {
@@ -498,43 +514,43 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
     const d = requireDirect();
     const { id } = parse(idParams, req.params);
     const done = await files.attachment(id);
-    if (done && done.uploader_user_id === userId) return { id: done.id, size: done.size, expiresAt: done.expires_at };
+    if (done && done.uploader_user_id === userId && done.expires_at > now() && ctx.authz.isMember(done.conversation_id, userId)) return { id: done.id, size: done.size, expiresAt: done.expires_at };
     const u = await loadUpload(id, userId);
     const body = parse(CompleteBody, req.body ?? {});
     // Membership is checked again: someone removed while uploading can't add a file afterwards.
     const conv = ctx.authz.conversation(u.conversation_id);
-    if (!conv || !ctx.authz.isMember(conv.id, userId) || !ctx.authz.canAttach(conv, userId)) {
+    if (!conv || !ctx.authz.isMember(conv.id, userId) || !ctx.authz.canPost(conv, userId) || !ctx.authz.canAttach(conv, userId)) {
       await files.abandonUpload(u);
       throw new ApiError(403, "forbidden", "You can't post in this conversation any more");
     }
+    let stored = await d.head("attachments", u.id).catch((e) => storeFailure(e, "head"));
+    let composite: string | undefined;
     if (u.multipart_id) {
       const parts = body.parts ?? [];
       const expected = partCount(u);
       if (parts.length !== expected || parts.some((p, i) => p.n !== i + 1)) throw badRequest(`Send all ${expected} parts, in order`);
-      const have = new Map((await d.listParts("attachments", u.id, u.multipart_id).catch((e) => storeFailure(e, "list-parts"))).map((p) => [p.partNumber, p]));
-      for (const p of parts) {
-        const s3 = have.get(p.n);
-        if (!s3 || s3.etag !== p.etag || s3.size !== partSizeOf(u, p.n) || (s3.sha256 && s3.sha256 !== p.sha256)) {
-          throw new ApiError(409, "upload_incomplete", `Part ${p.n} isn't uploaded yet, or differs. Upload it again.`);
+      composite = `${crypto.createHash("sha256").update(Buffer.concat(parts.map((p) => Buffer.from(p.sha256, "base64")))).digest("base64")}-${expected}`;
+      if (!stored) {
+        const have = new Map((await d.listParts("attachments", u.id, u.multipart_id).catch((e) => storeFailure(e, "list-parts"))).map((p) => [p.partNumber, p]));
+        for (const p of parts) {
+          const s3 = have.get(p.n);
+          if (!s3 || s3.etag !== p.etag || s3.size !== partSizeOf(u, p.n) || (s3.sha256 && s3.sha256 !== p.sha256)) {
+            throw new ApiError(409, "upload_incomplete", `Part ${p.n} isn't uploaded yet, or differs. Upload it again.`);
+          }
+        }
+        try {
+          await d.completeMultipart("attachments", u.id, u.multipart_id, parts.map((p) => ({ partNumber: p.n, etag: p.etag, sha256: p.sha256 })));
+        } catch (e) {
+          // Another completion or a lost S3 answer may have committed the object. Verify it before retrying metadata.
+          stored = await d.head("attachments", u.id).catch((e) => storeFailure(e, "head"));
+          if (!stored) return storeFailure(e, "complete-multipart");
         }
       }
-      await d
-        .completeMultipart(
-          "attachments",
-          u.id,
-          u.multipart_id,
-          parts.map((p) => ({
-            partNumber: p.n,
-            etag: p.etag,
-            sha256: p.sha256,
-          })),
-        )
-        .catch((e) => storeFailure(e, "complete-multipart"));
     }
-    const stored = await d.head("attachments", u.id).catch((e) => storeFailure(e, "head"));
+    stored ??= await d.head("attachments", u.id).catch((e) => storeFailure(e, "head"));
     if (!stored) throw new ApiError(409, "not_uploaded", "The file hasn't reached the server's storage yet. Upload it again.");
     // The presigned request already bound size and hash; this catches anything else (a misbehaving store or app).
-    if (stored.size !== u.size || (!u.multipart_id && stored.sha256 !== u.sha256)) {
+    if (stored.size !== u.size || (u.multipart_id ? stored.sha256 !== composite : stored.sha256 !== u.sha256)) {
       await files.abandonUpload(u);
       throw new ApiError(400, "upload_corrupt", "The stored file doesn't match what was announced. Send it again.");
     }
@@ -548,8 +564,12 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
       size: u.size,
       created_at: t,
       expires_at: expiresAt,
+      pending_message_until: cfg.messages.acceptEncrypted ? null : expiresAt,
+      sha256: u.sha256,
     });
     if (!recorded) {
+      const completed = await files.attachment(u.id);
+      if (completed && completed.uploader_user_id === userId) return { id: completed.id, size: completed.size, expiresAt: completed.expires_at };
       await quotaSettle(u.id, null);
       throw new ApiError(410, "upload_expired", "This upload took too long. Start it again.");
     }
@@ -588,8 +608,8 @@ export function removeStalePartials(dir: string): number {
 }
 
 /** When a file uploaded at [t] expires: never while files are kept for good (ATTACHMENT_KEEP_FOREVER), else after the relay window. */
-function expiryOf(cfg: Pick<Config, "attachmentKeepForever" | "attachmentTtlSeconds">, t: number): number {
-  return cfg.attachmentKeepForever ? KEPT_FOREVER : t + cfg.attachmentTtlSeconds * 1000;
+function expiryOf(cfg: Pick<Config, "attachmentKeepForever" | "attachmentTtlSeconds" | "messages">, t: number): number {
+  return cfg.messages.acceptEncrypted && cfg.attachmentKeepForever ? KEPT_FOREVER : t + cfg.attachmentTtlSeconds * 1000;
 }
 
 /**

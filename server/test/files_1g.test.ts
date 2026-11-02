@@ -1,21 +1,27 @@
 import crypto from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DEFAULT_FILE_MAX_BYTES, effectiveFileMaxBytes, loadConfig } from "../src/app/config.js";
+import { LIMIT_BOUNDS, levelsWith, plansWith } from "../src/modules/billing/controls.js";
 import { type FakeS3, startFakeS3 } from "./support/fakeS3.js";
 import type { GriipClient } from "./support/griipClient.js";
 import { expectStatus, type Harness, startServer } from "./support/harness.js";
 
-// The server-wide ceiling is 1024 MB (decimal), with exact encryption overhead allowed on the wire.
+// The server-wide ceiling is exactly 1 GB (decimal), with exact encryption overhead allowed on the wire.
 const MiB = 1024 * 1024;
 const GiB = 1024 * MiB;
-const FILE_MAX = 1024 * 1_000_000;
+const FILE_MAX = 1_000_000_000;
 const creds = { accessKeyId: "AKIDFILES1G", secretAccessKey: "files-1g-test-secret" };
 const anySha = crypto.createHash("sha256").update("x").digest("base64");
 /** Ciphertext size of a file in the chunked format: 16 bytes of tag per started 1 MiB chunk. */
 const encryptedSize = (plain: number) => plain + 16 * Math.max(Math.ceil(plain / MiB), 1);
 
-describe("the 1 GiB limit in configuration", () => {
-  it("defaults to exactly 1024 MB with room for encryption on top", () => {
+describe("the 1 GB limit in configuration", () => {
+  it("bounds admin settings and previously stored plan/level overrides to one decimal GB", () => {
+    expect(LIMIT_BOUNDS.uploadBytes.max).toBe(FILE_MAX);
+    expect(plansWith({ plus: { uploadBytes: 1_100_000_000 } }).plus.uploadBytes).toBe(FILE_MAX);
+    expect(levelsWith({ "3": { uploadBytes: 1_100_000_000 } })[3]!.uploadBytes).toBe(FILE_MAX);
+  });
+  it("defaults to exactly 1 GB with room for encryption on top", () => {
     const c = loadConfig({ DATA_DIR: "/tmp/orbit-config-test", FILE_MAX_BYTES: "2000000000" } as NodeJS.ProcessEnv);
     expect(DEFAULT_FILE_MAX_BYTES).toBe(FILE_MAX);
     expect(c.fileMaxBytes).toBe(FILE_MAX);
@@ -32,7 +38,7 @@ describe("the 1 GiB limit in configuration", () => {
     expect(encryptedSize(advertised)).toBeLessThanOrEqual(c.attachmentMaxBytes);
   });
 
-  it("has no file upload limits other than 1 GiB per file (owner's decision, UI-003)", () => {
+  it("has no file upload limits other than 1 GB per file (owner's decision, UI-003)", () => {
     const c = loadConfig({ DATA_DIR: "/tmp/orbit-config-test" } as NodeJS.ProcessEnv);
     expect(c.fileMaxBytes).toBe(FILE_MAX);
     // 0 means no limit: no daily, stored, total, kept, new-account or hourly upload quotas.
@@ -55,7 +61,7 @@ describe("the 1 GiB limit in configuration", () => {
   });
 });
 
-describe("1 GiB uploads straight to S3", () => {
+describe("1 GB uploads straight to S3", () => {
   let s3: FakeS3;
   let h: Harness;
   let alice: GriipClient, bob: GriipClient, eve: GriipClient;
@@ -90,7 +96,7 @@ describe("1 GiB uploads straight to S3", () => {
     expect(info.minClientApi).toBe(1);
   });
 
-  it("starts a multipart upload for an encrypted 1 GiB file, and refuses one byte over the limit", async () => {
+  it("starts a multipart upload for an encrypted 1 GB file, and refuses one byte over the limit", async () => {
     const size = encryptedSize(FILE_MAX);
     const s = await alice.req("POST", "/v1/attachments/uploads", { conversationId: dm, size, sha256: anySha });
     expect(s.mode).toBe("multipart");

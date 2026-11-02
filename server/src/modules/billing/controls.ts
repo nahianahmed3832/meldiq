@@ -1,7 +1,7 @@
 import type { Rows } from "../../infrastructure/database/rows/index.js";
 import { ApiError } from "../../shared/errors.js";
 import type { MojoEnforce } from "./mojo.js";
-import { CATALOG_VERSION, PLAN_KEYS, PLAN_PERKS, type PlanKey, type PlanPerks, SCREEN_PRESETS, type ScreenPresetId, SPARK_LEVELS, type SparkLevel } from "./perks.js";
+import { CATALOG_VERSION, GB, PLAN_KEYS, PLAN_PERKS, type PlanKey, type PlanPerks, SCREEN_PRESETS, type ScreenPresetId, SPARK_LEVELS, type SparkLevel } from "./perks.js";
 
 /**
  * Meldiq Mojo run from the Platform Admin Console (docs/MOJO.md › Running Mojo from the console): whether plan limits
@@ -23,7 +23,7 @@ export type LevelOverrides = Partial<Record<"1" | "2" | "3", Partial<Record<Leve
 /** Hard bounds on what the console may set, whatever the plan (the server's own limits still apply on top). */
 export const LIMIT_BOUNDS: Readonly<Record<PlanLimitKey | LevelLimitKey, { min: number; max: number }>> = {
   messageChars: { min: 100, max: 20_000 },
-  uploadBytes: { min: 1_000_000, max: PLAN_PERKS.plus.uploadBytes },
+  uploadBytes: { min: 1_000_000, max: GB },
   sparks: { min: 0, max: 100 },
   customItems: { min: 0, max: 5_000 },
   bots: { min: 0, max: 100 },
@@ -62,7 +62,7 @@ export function plansWith(o: PlanOverrides): Record<PlanKey, PlanPerks> {
   return Object.fromEntries(
     PLAN_KEYS.map((k) => {
       const { screen, ...numbers } = o[k] ?? {};
-      return [k, { ...PLAN_PERKS[k], ...numbers, listPriceMinor: k === "plus" ? PLAN_PERKS.plus.listPriceMinor : k === "free" ? 0 : (numbers.listPriceMinor ?? PLAN_PERKS[k].listPriceMinor), uploadBytes: Math.min(numbers.uploadBytes ?? PLAN_PERKS[k].uploadBytes, PLAN_PERKS.plus.uploadBytes), ...(screen ? { screen: [screen] } : {}) }];
+      return [k, { ...PLAN_PERKS[k], ...numbers, listPriceMinor: k === "plus" ? PLAN_PERKS.plus.listPriceMinor : k === "free" ? 0 : (numbers.listPriceMinor ?? PLAN_PERKS[k].listPriceMinor), uploadBytes: Math.min(numbers.uploadBytes ?? PLAN_PERKS[k].uploadBytes, GB), ...(screen ? { screen: [screen] } : {}) }];
     }),
   ) as Record<PlanKey, PlanPerks>;
 }
@@ -77,7 +77,7 @@ const COMPARED = ["messageChars", "uploadBytes", "customItems", "bots", "sparks"
 
 /** The Spark levels with [o] applied over perks.ts (level 0 never changes: it's a server without Sparks). */
 export function levelsWith(o: LevelOverrides): SparkLevel[] {
-  return SPARK_LEVELS.map((l) => (l.level === 0 ? l : { ...l, ...(o[String(l.level) as "1" | "2" | "3"] ?? {}), uploadBytes: Math.min(o[String(l.level) as "1" | "2" | "3"]?.uploadBytes ?? l.uploadBytes!, PLAN_PERKS.plus.uploadBytes) }));
+  return SPARK_LEVELS.map((l) => (l.level === 0 ? l : { ...l, ...(o[String(l.level) as "1" | "2" | "3"] ?? {}), uploadBytes: Math.min(o[String(l.level) as "1" | "2" | "3"]?.uploadBytes ?? l.uploadBytes!, GB) }));
 }
 
 /**

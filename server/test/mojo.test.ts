@@ -151,22 +151,22 @@ describe("Meldiq Plus", () => {
       expect(MojoCatalog.safeParse(c).success).toBe(true);
       expect(c.plans.map((p: any) => [p.key, p.messageChars, p.uploadBytes, p.sparks, p.customItems, p.bots, p.badge, p.check])).toEqual([
         ["free", 2000, 50 * MB, 0, 20, 2, null, false],
-        ["plus", 8000, 1024 * MB, 2, 250, 10, "plus", true],
+        ["plus", 8000, 1000 * MB, 2, 250, 10, "plus", true],
       ]);
       expect(c.spark.levels.map((l: any) => [l.level, l.sparks, l.emojiSlots, l.uploadBytes, l.voiceKbps, l.screen])).toEqual([
         [0, 0, 50, null, 48, []],
         // The owner's thresholds (2026-10-28): 2, 5 and 8 active Sparks in total.
         [1, 2, 100, 50 * MB, 128, ["720p30"]],
         [2, 5, 200, 200 * MB, 256, ["1080p60"]],
-        [3, 8, 500, 1024 * MB, 384, ["1080p60", "1440p30"]],
+        [3, 8, 500, 1000 * MB, 384, ["1080p60", "1440p30"]],
       ]);
       expect(c.onSale).toEqual({ mode: "test", go: null, plus: { currency: "USD", amountMinor: 499 }, spark: { currency: "USD", amountMinor: 99 }, gifts: true, botsPlus: null });
     });
 
     it("never offers a larger file than the server takes (FILE_MAX_BYTES)", () => {
       const capped = new Mojo(h.ctx.billing, h.ctx.billing.rows, { isMember: () => false, enforce: "on", maxUploadBytes: 1_073_741_824 });
-      expect(Object.values(capped.plans()).map((p) => p.uploadBytes)).toEqual([50 * MB, 500 * MB, 1024 * MB]);
-      expect(capped.levels().map((l) => l.uploadBytes)).toEqual([null, 50 * MB, 200 * MB, 1024 * MB]);
+      expect(Object.values(capped.plans()).map((p) => p.uploadBytes)).toEqual([50 * MB, 500 * MB, 1000 * MB]);
+      expect(capped.levels().map((l) => l.uploadBytes)).toEqual([null, 50 * MB, 200 * MB, 1000 * MB]);
       expect(capped.uploadBytes("u_nobody", null)).toBe(50 * MB);
     });
 
@@ -297,7 +297,7 @@ describe("Meldiq Plus", () => {
       for (let i = 0; i < 3; i++) await free.req("POST", "/v2/mojo/sparks", { orgId });
       expect((await sparksOf(free)).level).toBe(2);
       expect(h.ctx.mojo.uploadBytes(free.userId, orgId)).toBe(200 * MB);
-      expect(h.ctx.mojo.uploadBytes(plus.userId, null)).toBe(1024 * MB);
+      expect(h.ctx.mojo.uploadBytes(plus.userId, null)).toBe(1000 * MB);
     });
 
     it("gives everyone in a boosted server its screen shares and voice, never less than their own plan", () => {
