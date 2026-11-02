@@ -9,6 +9,7 @@ import type { PlayConfig } from "../../src/modules/billing/config.js";
 import type { PushDeps } from "../../src/modules/notifications/service.js";
 import type { FileStore } from "../../src/modules/files/store.js";
 import type { MeldiqPostgres } from "../../src/infrastructure/database/postgres/client.js";
+import type { JWTVerifyGetKey } from "jose";
 import { preparePostgresHarness } from "./postgres.js";
 import { type ContractCheck, contractCheck } from "./contracts.js";
 import { GriipClient } from "./griipClient.js";
@@ -33,7 +34,7 @@ let counter = 0;
  */
 export async function startServer(
   env: Record<string, string> = {},
-  opts: { push?: PushDeps; mailer?: Mailer; billingProvider?: BillingProvider; play?: PlayConfig; files?: FileStore; postgres?: MeldiqPostgres } = {},
+  opts: { push?: PushDeps; mailer?: Mailer; billingProvider?: BillingProvider; play?: PlayConfig; files?: FileStore; postgres?: MeldiqPostgres; supabase?: {projectUrl: string; keys?: JWTVerifyGetKey} } = {},
 ): Promise<Harness> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "griip-test-"));
   const config = loadConfig({
@@ -74,7 +75,7 @@ export async function startServer(
   let built: BuiltApp;
   let reportedPostgresFailure = false;
   try {
-    built = await buildApp(config, { logger: false, push: opts.push, mailer: opts.mailer, files: opts.files, postgres: opts.postgres ?? postgresHarness?.database, contracts: contracts.observer,
+    built = await buildApp(config, { logger: false, push: opts.push, mailer: opts.mailer, files: opts.files, postgres: opts.postgres ?? postgresHarness?.database, supabase: opts.supabase, contracts: contracts.observer,
       onUnhandledError: postgresHarness ? error => {
         if (reportedPostgresFailure) return;
         reportedPostgresFailure = true;

@@ -2,6 +2,7 @@ import type { FastifyRequest } from "fastify";
 import type { AppContext } from "../../app/context.js";
 import { ApiError, unauthorized } from "../../shared/errors.js";
 import { now, sha256Hex } from "../../shared/utilities/util.js";
+import type { SupabasePrincipal } from "../../infrastructure/database/postgres/auth.js";
 
 export { revokeUserDevice } from "./routes.js";
 
@@ -14,6 +15,7 @@ export interface AuthInfo {
   deviceId: string;
   /** Set when the token is an Orbit 2.0 access token: the account session it belongs to. */
   sessionId?: string;
+  supabase?: SupabasePrincipal;
 }
 
 declare module "fastify" {
@@ -27,6 +29,7 @@ declare module "fastify" {
  * device. Rejects revoked devices, disabled users and ended sessions.
  */
 export async function authenticateToken(ctx: AppContext, token: string | undefined): Promise<AuthInfo | null> {
+  if (ctx.supabaseAuth && token?.split(".").length === 3) return ctx.supabaseAuth.authenticate(token);
   return authenticateV1Token(ctx, token) ?? (await ctx.accounts?.deviceAuth(token)) ?? null;
 }
 
@@ -51,6 +54,7 @@ export function authenticateRequest(ctx: AppContext, req: FastifyRequest): Promi
  * session, device or account still does at once.
  */
 export async function stillAuthenticated(ctx: AppContext, token: string | undefined, auth: AuthInfo): Promise<boolean> {
+  if (auth.supabase) return await ctx.supabaseAuth?.stillValid(auth) ?? false;
   if (auth.sessionId) return ctx.accounts.sessionStillValid(auth.sessionId, auth.deviceId);
   return authenticateV1Token(ctx, token) !== null;
 }

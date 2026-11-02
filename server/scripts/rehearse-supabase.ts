@@ -69,7 +69,7 @@ try{
   const elapsed=performance.now()-start;samples.sort((a,b)=>a-b);
   report.localRepositoryLoad={requests:count,concurrency:10,errors,errorRate:errors/count,elapsedMilliseconds:elapsed,p50Milliseconds:samples[Math.floor(samples.length*.5)],p95Milliseconds:samples[Math.floor(samples.length*.95)],connectionPool:db.metrics(),processRssBytes:process.memoryUsage().rss,scope:"local PostgreSQL repository only, not HTTP or hosted Realtime"};
   const outbox=new PostgresOutbox(db);let delivered=0;start=performance.now();while(delivered<count){const result=await outbox.runRealtimeOnce();if(!result.claimed)break;delivered+=result.delivered;}
-  report.testRealtimeEnqueue={delivered,elapsedMilliseconds:performance.now()-start,scope:"plain-Postgres realtime.send contract stub; not a hosted socket delivery test"};
+  report.testRealtimeEnqueue={delivered,elapsedMilliseconds:performance.now()-start,scope:"plain-Postgres managed-table INSERT capture contract; not a hosted socket delivery test"};
   report.ok=errors===0&&delivered===count&&report.reconciliationPassed&&report.restoreReconciliationPassed;
 }catch(error){report.ok=false;report.error=error instanceof Error?error.message.slice(0,300):"rehearsal_failed";process.exitCode=1;}
 finally{

@@ -9,6 +9,9 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -44,7 +47,6 @@ class SupabaseAuthClient(
     private val expectedAuthUserId: () -> String?,
 ) {
     private val origin = projectUrl.toHttpUrl()
-    private val json = Json { ignoreUnknownKeys = true }
     private val renewal = Mutex()
     private val client = OkHttpClient.Builder().followRedirects(false).followSslRedirects(false)
         .callTimeout(20, TimeUnit.SECONDS).build()
@@ -66,7 +68,10 @@ class SupabaseAuthClient(
     /** A request queued behind a successful renewal reuses its new access token. */
     suspend fun refresh(rejectedAccessToken: String): SupabaseSession = renewal.withLock {
         val current = vault.load() ?: throw SupabaseAuthException(401)
-        if (current.accessToken != rejectedAccessToken) return@withLock current
+        if (current.accessToken != rejectedAccessToken) {
+            acceptOwner(current)
+            return@withLock current
+        }
         val body = buildJsonObject { put("refresh_token", current.refreshToken) }.toString()
         val session = token("refresh_token", body)
         acceptOwner(session)
@@ -106,7 +111,23 @@ class SupabaseAuthClient(
             val source = response.body?.source() ?: throw SupabaseAuthException(502)
             if (source.request(128 * 1024L + 1)) throw SupabaseAuthException(502)
             val value = source.readUtf8()
-            json.decodeFromString<SupabaseSession>(value)
+            decodeSession(value)
         }
+    }
+
+    companion object {
+        /** GoTrue can return expires_in without the SDK-computed expires_at. Persist a normalized absolute expiry. */
+        internal fun decodeSession(value: String, nowSeconds: Long = System.currentTimeMillis() / 1000): SupabaseSession = try {
+            val data = Json.parseToJsonElement(value).jsonObject
+            fun text(name: String): String = data[name]?.jsonPrimitive?.takeIf { it.isString }?.content ?: throw SupabaseAuthException(502)
+            val expiresAt = data["expires_at"]?.jsonPrimitive?.longOrNull ?: run {
+                val remaining = data["expires_in"]?.jsonPrimitive?.longOrNull ?: throw SupabaseAuthException(502)
+                if (remaining <= 0) throw SupabaseAuthException(502)
+                Math.addExact(nowSeconds, remaining)
+            }
+            if (expiresAt <= 0 || expiresAt > Long.MAX_VALUE / 1000) throw SupabaseAuthException(502)
+            val user = data["user"]?.jsonObject?.get("id")?.jsonPrimitive?.takeIf { it.isString }?.content ?: throw SupabaseAuthException(502)
+            SupabaseSession(text("access_token"), text("refresh_token"), expiresAt, SupabaseUser(user))
+        } catch (_: Exception) { throw SupabaseAuthException(502) }
     }
 }

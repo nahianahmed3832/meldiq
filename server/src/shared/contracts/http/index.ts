@@ -7,6 +7,7 @@ import { socialAuthRoutes } from "./areas/socialAuth.js";
 import { collectibleRoutes } from "./areas/collectibles.js";
 import { leaderboardContracts } from "./leaderboards.js";
 import { messageCollectionRoutes } from "./messageCollections.js";
+import { supabaseAuthRoutes } from "./supabaseAuth.js";
 import { z } from "zod/v4";
 import { ERROR_CODES, type ErrorCode } from "../../errors.js";
 import { adminOperationsRoutes } from "./areas/adminOperations.js";
@@ -43,6 +44,7 @@ export const ErrorEnvelope = z.strictObject({
 
 /** The documented routes. Routes not listed yet are still checked for the error envelope by the test suite. */
 export const ROUTE_CONTRACTS: readonly RouteContract[] = [
+  ...supabaseAuthRoutes,
   ...collectibleRoutes,
   ...paymentMethodRoutes,
   ...commerceRoutes,

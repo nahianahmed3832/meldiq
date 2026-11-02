@@ -42,13 +42,15 @@ export class PostgresOutbox {
     return result.rowCount === 1;
   }
 
-  /** realtime.send and acknowledgment commit together; a failed transaction sends neither. */
+  /** The managed realtime.send helper swallows SQL errors as warnings. Insert directly so a failed send cannot be acknowledged. */
   async publishRealtime(event: OutboxEvent): Promise<boolean> {
     return this.db.transaction(async client => {
-      const current = await client.query(`SELECT sequence FROM meldiq_private.outbox
-        WHERE sequence = $1 AND lease_id = $2 AND lease_until > now() AND delivered_at IS NULL FOR UPDATE`, [event.sequence, event.lease_id]);
+      const current = await client.query<OutboxEvent>(`SELECT * FROM meldiq_private.outbox
+        WHERE sequence = $1 AND lease_id = $2 AND lease_until > now() AND delivered_at IS NULL AND dead_at IS NULL AND destination='realtime' FOR UPDATE`, [event.sequence, event.lease_id]);
       if (!current.rowCount) return false;
-      await client.query("SELECT realtime.send($1::jsonb, $2, $3, true)", [JSON.stringify({ ...event.payload, eventId: event.event_id }), event.event_type, event.topic]);
+      const persisted = current.rows[0];
+      await client.query(`INSERT INTO realtime.messages(id,payload,event,topic,private,extension)
+        VALUES($1,$2::jsonb,$3,$4,true,'broadcast')`, [persisted.event_id, JSON.stringify({ ...persisted.payload, eventId: persisted.event_id }), persisted.event_type, persisted.topic]);
       return this.acknowledge(event);
     });
   }

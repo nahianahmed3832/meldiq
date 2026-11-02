@@ -17,6 +17,10 @@ import { MongoFileStore } from "../modules/files/mongoStore.js";
 import { SqliteFileStore, type FileStore } from "../modules/files/store.js";
 import type { MeldiqPostgres } from "../infrastructure/database/postgres/client.js";
 import { blockLegacySql, openPostgresRuntime } from "./postgresRuntime.js";
+import { SupabaseAccessVerifier } from "../infrastructure/database/postgres/auth.js";
+import { SupabaseDeviceAuth, registerSupabaseIdentity } from "../modules/auth/supabaseIdentity.js";
+import { registerSupabaseTransport } from "../modules/auth/supabaseRoutes.js";
+import type { JWTVerifyGetKey } from "jose";
 import { type ContractObserver, observeContracts } from "./contractObserver.js";
 import websocket from "@fastify/websocket";
 import Fastify, { type FastifyInstance } from "fastify";
@@ -196,6 +200,8 @@ export async function buildApp(
     files?: FileStore;
     /** Explicit non-production composition until all migration acceptance gates pass. */
     postgres?: MeldiqPostgres;
+    /** Explicit staging-only JWT/device bridge; production activation remains blocked. */
+    supabase?: {projectUrl: string; keys?: JWTVerifyGetKey};
     /** Tests only: capture safe call sites of unhandled failures without logging request secrets. */
     onUnhandledError?: (error: unknown) => void;
     /** Tests only: checks routes, answers and frames against the contracts (src/app/contractObserver.ts). */
@@ -205,6 +211,7 @@ export async function buildApp(
   if (opts.postgres && (config.accounts.appEnv === "production" || config.mongo || opts.mongo || opts.db || opts.files)) {
     throw new Error("Staged PostgreSQL requires a non-production process with no alternate database/store overrides");
   }
+  if (opts.supabase && (!opts.postgres || (opts.postgres.config.projectRef && opts.supabase.projectUrl !== `https://${opts.postgres.config.projectRef}.supabase.co`))) throw new Error("Supabase Auth bridge requires its matching staged PostgreSQL runtime");
   const app = Fastify({
     logger:
       opts.logger === false
@@ -267,7 +274,7 @@ export async function buildApp(
   if (runtime) {
     ctx.postgres = runtime;
     app.addHook("onRequest", async (_req, reply) => {
-      if (!runtime.rows.available) return reply.code(503).send({error: {code: "database_unavailable", message: "The database connection is recovering"}});
+      if (!runtime.rows.available) return reply.code(503).send({error: {code: "unavailable", message: "The database connection is recovering"}});
     });
     app.addHook("onSend", async (_req, _reply, payload) => {
       await runtime.rows.settled(); await runtime.relay.settled(); await runtime.files.settled();
@@ -824,6 +831,19 @@ export async function buildApp(
   await app.register(async scope => operationalUserRoutes(scope, ctx));
   await app.register(async scope => collectibleCommerceUserRoutes(scope, ctx));
   await registerPlatformAdmin(app, ctx, VERSION);
+  if (opts.supabase) {
+    const verifier = new SupabaseAccessVerifier(opts.supabase.projectUrl, postgres!.database, opts.supabase.keys);
+    const auth = new SupabaseDeviceAuth(ctx, verifier);
+    ctx.supabaseAuth = auth;
+    await app.register(async scope => {
+      await registerSupabaseIdentity(scope, ctx, auth);
+      await registerSupabaseTransport(scope, {postgres: postgres!.database, verifier, authorizeRealtime: async (principal, id) => {
+        if (!auth.device(principal)) throw new ApiError(403, "device_required", "Authorize this device before connecting");
+        const conversation = ctx.authz.requireMember(id, principal.userId);
+        return {presence: true, typing: ctx.authz.canPost(conversation, principal.userId)};
+      }});
+    });
+  }
   const fed = ctx.federation;
   if (fed) {
     await app.register(async (scope) => federationPeerRoutes(scope, ctx, fed));

@@ -35,7 +35,7 @@ export interface RouteContract {
   /** Error codes this route is documented to answer with (besides the common ones: bad_request, unauthorized, rate_limited). */
   errors?: readonly ErrorCode[];
   /** The route exists only with an optional feature: "federation" when FEDERATION_DOMAIN is set. */
-  requires?: "federation" | "admin_console";
+  requires?: "federation" | "admin_console" | "supabase_staging";
 }
 
 export const route = (c: RouteContract): RouteContract => c;

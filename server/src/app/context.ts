@@ -54,8 +54,11 @@ import type { QuotaEngine } from "../modules/quotas/index.js";
 import type { Billing, Gifts, Mojo, PlayBilling } from "../modules/billing/index.js";
 import type { MeldiqPostgres } from "../infrastructure/database/postgres/client.js";
 import type { PostgresRows } from "../infrastructure/database/rows/postgresRows.js";
+import type { SupabaseDeviceAuth } from "../modules/auth/supabaseIdentity.js";
 
 export interface AppContext {
+  /** Explicit staging-only Auth bridge. Provider JWTs still require a certified, unrevoked device. */
+  supabaseAuth?: SupabaseDeviceAuth;
   db: DB;
   config: Config;
   authz: Authz;

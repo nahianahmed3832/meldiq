@@ -23,6 +23,7 @@ import { PostgresPointsStore } from "../modules/points/postgresStore.js";
 import { PostgresOAuthStore } from "../modules/oauth/postgresStore.js";
 import { PostgresBotStore } from "../modules/bots/postgresStore.js";
 import { PostgresRulesStore } from "../modules/organizations/rules/postgresStore.js";
+import { NATIVE_TABLES } from "../infrastructure/database/postgres/nativeCatalog.js";
 
 const asyncDomains = new Set(["files", "preferences", "history", "reports", "relationships", "calls"]);
 const asyncAccountTables = new Set(["account_recovery_codes", "account_recovery_tickets", "account_key_backups", "account_key_unlocks"]);
@@ -30,6 +31,7 @@ const asyncAccountTables = new Set(["account_recovery_codes", "account_recovery_
 /** Explicit staging composition. No alternative store fallback and no schema creation on application startup. */
 export async function openPostgresRuntime(database: MeldiqPostgres) {
   if (database.config.environment === "production") throw new Error("Production PostgreSQL activation awaits migration acceptance");
+  if ((database.config.maxConnections ?? 5) < 2) throw new Error("PostgreSQL runtime needs one writer lease and at least one query connection");
   const endpoint = new URL(database.config.url), local = ["localhost", "127.0.0.1", "[::1]"].includes(endpoint.hostname);
   if (!local) {
     const ref = database.config.projectRef;
@@ -42,7 +44,8 @@ export async function openPostgresRuntime(database: MeldiqPostgres) {
       pg_has_role(current_user,'meldiq_api','USAGE') AS api FROM pg_roles WHERE rolname=current_user`)).rows[0];
     if (!role || role.privileged || !role.api) throw new Error("Application runtime requires its restricted meldiq_api login, not an operator role");
   }
-  const rows = await PostgresRows.open(database, tableSpecs().filter(table => !asyncDomains.has(table.domain) && !asyncAccountTables.has(table.name)));
+  const rows = await PostgresRows.open(database, [...tableSpecs().filter(table => !asyncDomains.has(table.domain) && !asyncAccountTables.has(table.name)),
+    ...NATIVE_TABLES.filter(table => table.name === "auth_device_sessions")]);
   const files = new PostgresFileStore(database), relay = new PostgresRelayStore(rows);
   const removeGuard = database.installRuntimeGuard(() => rows.assertAvailable());
   return {

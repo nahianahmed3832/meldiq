@@ -5,8 +5,7 @@ import pg from "pg";
 import { MeldiqPostgres } from "../../src/infrastructure/database/postgres/client.js";
 
 /** Fresh, owned loopback database per API harness. Never accepts a hosted/customer URL. */
-export async function preparePostgresHarness() {
-  const connection = process.env.MELDIQ_TEST_PG_URL;
+export async function preparePostgresHarness(connection = process.env.MELDIQ_TEST_PG_URL) {
   if (!connection) return null;
   const endpoint = new URL(connection);
   if (!["localhost", "127.0.0.1", "[::1]"].includes(endpoint.hostname)) throw new Error("API test harness refuses non-loopback PostgreSQL");

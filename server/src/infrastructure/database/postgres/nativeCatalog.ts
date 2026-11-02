@@ -12,6 +12,8 @@ const fields=(text:string,integer="",nullableText="",nullableInteger="",boolean=
 ];
 const table=(name:string,domain:TableSpec["domain"],columns:ColumnSpec[],refs:Record<string,string>={}):TableSpec=>({name,domain,columns:[column("id","TEXT"),...columns],primaryKey:["id"],indexes:[],foreignKeys:Object.entries(refs).map(([name,parent])=>({columns:[name],table:parent,references:["id"],onDelete:"CASCADE"})),autoincrement:false});
 export const NATIVE_TABLES:TableSpec[]=[
+  // New staged Auth policy state, not a source Mongo collection or a second credential store.
+  table("auth_device_sessions","accounts",fields("auth_user_id account_id user_id device_id link_method","password_changed_at bound_at","","revoked_at"),{account_id:"accounts",user_id:"users",device_id:"devices"}),
   table("points_accounts","identity",fields("","balance earned_total level streak updated_at","last_visit_day")),
   table("points_ledger","identity",fields("user_id kind day","amount at","detail"),{user_id:"users"}),
   table("points_days","identity",[...fields("user_id day","earned","","","","","chats reacted replied"),column("minutes","BIGINT[]")],{user_id:"users"}),

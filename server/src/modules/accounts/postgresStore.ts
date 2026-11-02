@@ -115,11 +115,17 @@ export class PostgresAccountStore implements AccountStore {
       const where = {account_id: accountId, revoked_at: null, ...(exceptSessionId ? {id: {ne: exceptSessionId}} : {})};
       const sessions = writer.all<SessionRow>("account_sessions", {where});
       writer.update("account_sessions", where, {revoked_at: at, revoke_reason: reason});
-      return sessions.flatMap(session => session.device_id ? [session.device_id] : []);
+      const bindings = {account_id: accountId, revoked_at: null, ...(exceptSessionId ? {id: {ne: exceptSessionId}} : {})};
+      const bound = this.rows.has("auth_device_sessions") ? writer.all<{device_id: string}>("auth_device_sessions", {where: bindings}) : [];
+      if (this.rows.has("auth_device_sessions")) writer.update("auth_device_sessions", bindings, {revoked_at: at});
+      return [...new Set([...sessions.flatMap(session => session.device_id ? [session.device_id] : []), ...bound.map(session => session.device_id)])];
     });
   }
   async revokeDeviceSessions(deviceId: string, reason: string, at: number): Promise<void> {
-    await this.rows.write(writer => writer.update("account_sessions", {device_id: deviceId, revoked_at: null}, {revoked_at: at, revoke_reason: reason}));
+    await this.rows.write(writer => {
+      writer.update("account_sessions", {device_id: deviceId, revoked_at: null}, {revoked_at: at, revoke_reason: reason});
+      if (this.rows.has("auth_device_sessions")) writer.update("auth_device_sessions", {device_id: deviceId, revoked_at: null}, {revoked_at: at});
+    });
   }
   async activeSessions(accountId: string, at: number): Promise<SessionRow[]> {
     return this.rows.all("account_sessions", {where: {account_id: accountId, revoked_at: null, expires_at: {gt: at}, refresh_expires_at: {gt: at}}, orderBy: [["last_used_at", "desc"]]});

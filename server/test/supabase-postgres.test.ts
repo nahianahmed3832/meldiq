@@ -114,6 +114,8 @@ beforeEach(async () => {
     await db.query("INSERT INTO auth.users(id) VALUES($1)",[uid]);
     await db.query("INSERT INTO auth.sessions(id,user_id) VALUES($1,$2)",[n===1?session:"20000000-0000-4000-8000-000000000002",uid]);
     await db.query("INSERT INTO meldiq_private.auth_links(auth_user_id,account_id,user_id,verified_at,method) VALUES($1,$2,$3,now(),'verified_recovery')",[uid,`account${n}`,`user${n}`]);
+    await db.query("INSERT INTO meldiq.devices(id,user_id,name,signing_key,encryption_key,certificate,created_at) VALUES($1,$2,'Synthetic fixture',$3,$3,'Synthetic certificate',1000)", [`fixture-device-${n}`, `user${n}`, `fixture-public-key-${n}`]);
+    await db.query("INSERT INTO meldiq.auth_device_sessions(id,auth_user_id,account_id,user_id,device_id,link_method,password_changed_at,bound_at) VALUES($1,$2,$3,$4,$5,'existing_mapping',1000,1000)", [n===1?session:"20000000-0000-4000-8000-000000000002", uid, `account${n}`, `user${n}`, `fixture-device-${n}`]);
   }
   await db.query("INSERT INTO meldiq.conversations(id,type,created_by,created_at,updated_at) VALUES('conversation1','DM','user1',1000,1000)");
   await db.query("INSERT INTO meldiq.conversation_members(conversation_id,user_id,role,joined_at) VALUES('conversation1','user1','MEMBER',1000),('conversation1','user2','MEMBER',1000)");
@@ -122,7 +124,7 @@ beforeEach(async () => {
 describe("relational schema and security",()=>{
   it("enforces RLS and denies raw client access on every application and operational table",async()=>{
     const rows=await db.query("SELECT c.relname,c.relrowsecurity,c.relforcerowsecurity,has_table_privilege('authenticated',c.oid,'SELECT,INSERT,UPDATE,DELETE') AS exposed FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('meldiq','meldiq_private') AND c.relkind='r'");
-    expect(rows.rows.length).toBe(285);
+    expect(rows.rows.length).toBe(286);
     expect(rows.rows.every(r=>r.relrowsecurity&&r.relforcerowsecurity&&!r.exposed)).toBe(true);
     await expect(claims(auth1,()=>db.query("SELECT password_hash FROM meldiq.accounts"))).rejects.toMatchObject({code:"42501"});
     await expect(claims(auth1,()=>db.query("UPDATE meldiq.billing_subscriptions SET status='active'"))).rejects.toMatchObject({code:"42501"});
@@ -232,6 +234,39 @@ describe("message durability and outbox recovery",()=>{
     await db.query("UPDATE meldiq_private.outbox SET lease_until=now()-interval '1 second' WHERE sequence=$1",[old.sequence]);
     const [fresh]=await outbox.claim("realtime");expect(fresh.event_id).toBe(old.event_id);expect(fresh.lease_id).not.toBe(old.lease_id);
     expect(await outbox.acknowledge(old)).toBe(false);expect(await outbox.publishRealtime(fresh)).toBe(true);
+  });
+  it("publishes the stored invalidation with the restricted backend's RLS and ignores caller payload substitution", async () => {
+    await messages.add(event("message0001"));
+    const [claimed] = await new PostgresOutbox(db).claim("realtime");
+    const restricted = new MeldiqPostgres({url: endpoint.href, environment: "development", maxConnections: 2});
+    const transaction = restricted.transaction.bind(restricted);
+    restricted.transaction = run => transaction(async client => {await client.query("SET LOCAL ROLE meldiq_api"); return run(client);});
+    try {
+      expect(await new PostgresOutbox(restricted).publishRealtime({...claimed, topic: "user:foreign", payload: {secret: "must not publish"}})).toBe(true);
+      expect((await db.query("SELECT * FROM realtime.test_sent")).rows).toEqual([{private: true, topic: "conversation:conversation1", event: "message.changed",
+        payload: {eventId: claimed.event_id, messageId: "message0001", conversationId: "conversation1"}}]);
+      await expect(restricted.transaction(async client => {await client.query(`INSERT INTO realtime.messages(id,payload,event,topic,private,extension)
+        VALUES($1,$2::jsonb,'message.changed','conversation:conversation1',true,'broadcast')`, [crypto.randomUUID(), JSON.stringify({eventId: crypto.randomUUID(), messageId: "forged", conversationId: "conversation1"})]);})).rejects.toMatchObject({code: "42501"});
+    } finally {await restricted.close();}
+  });
+  it("rolls back broadcast insertion and acknowledgment together when enqueue fails", async () => {
+    await messages.add(event("message0001"));
+    const outbox = new PostgresOutbox(db), [claimed] = await outbox.claim("realtime");
+    await db.query(`CREATE FUNCTION realtime.test_reject() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic enqueue failure'; END $$;
+      CREATE TRIGGER test_reject BEFORE INSERT ON realtime.messages FOR EACH ROW EXECUTE FUNCTION realtime.test_reject();`);
+    try {
+      await expect(outbox.publishRealtime(claimed)).rejects.toMatchObject({code: "P0001"});
+      expect((await db.query("SELECT delivered_at FROM meldiq_private.outbox WHERE sequence=$1", [claimed.sequence])).rows[0].delivered_at).toBeNull();
+      expect((await db.query("SELECT count(*) AS count FROM realtime.test_sent")).rows[0].count).toBe(0);
+    } finally {await db.query("DROP TRIGGER test_reject ON realtime.messages; DROP FUNCTION realtime.test_reject()");}
+    expect(await outbox.publishRealtime(claimed)).toBe(true);
+  });
+  it("never publishes a push-destination claim through Realtime", async () => {
+    await messages.add(event("message0001"));
+    const outbox = new PostgresOutbox(db), [push] = await outbox.claim("push");
+    expect(await outbox.publishRealtime(push)).toBe(false);
+    expect((await db.query("SELECT delivered_at FROM meldiq_private.outbox WHERE sequence=$1", [push.sequence])).rows[0].delivered_at).toBeNull();
+    expect((await db.query("SELECT count(*) AS count FROM realtime.test_sent")).rows[0].count).toBe(0);
   });
   it("dead-letters failed events and replays without overtaking",async()=>{
     await messages.addMany([event("message0001"),event("message0002")]);const outbox=new PostgresOutbox(db,1);const [first]=await outbox.claim("realtime");
@@ -1339,6 +1374,11 @@ describe("PostgreSQL server-earned points and decoration moderation", () => {
 });
 
 describe("PostgreSQL-only staged Fastify composition", () => {
+  it("rejects a pool that would leave no query connection after reserving its writer lease", async () => {
+    const single = new MeldiqPostgres({url: endpoint.href, environment: "development", maxConnections: 1});
+    try {await expect(openPostgresRuntime(single)).rejects.toThrow("at least one query connection");}
+    finally {await single.close();}
+  });
   it("starts with PostgreSQL repositories, persists registered identities/conversations and blocks legacy SQL", async () => {
     const h = await startServer({}, {postgres: db});
     try {
