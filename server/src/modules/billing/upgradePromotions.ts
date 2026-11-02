@@ -96,6 +96,7 @@ export class Promotions {
    this.save(w, p); this.event(w, p, i, body.event);
   }); return { ok: true };
  }
+ preferenceOf(s: Subject) { return { optOut: this.rows.get<PromotionState>("billing_promotion_state", {account_id:s.accountId})?.opt_out === 1 }; }
  async preference(s: Subject, optOut: boolean) {
   await this.rows.write(w => { const existing = w.get<PromotionState>("billing_promotion_state", { account_id: s.accountId }); if (existing && existing.opt_out === (optOut ? 1 : 0)) return; const p = existing ?? blank(s, this.clock()); p.opt_out = optOut ? 1 : 0; this.save(w, p); const i: Impression = { id: "preference", campaignId: "all", sessionId: "preference", type: "banner", at: this.clock(), variant: "control" }; this.event(w, p, i, optOut ? "opt_out" : "opt_in"); }); return { optOut };
  }

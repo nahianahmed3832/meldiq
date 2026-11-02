@@ -31,7 +31,10 @@ describe("authenticated promotion API", () => {
   expect((await alice.req("POST","/v2/billing/promotions/claim",{sessionId:randomUUID(),safe:true,screen:"home",trigger:"consistent_usage"})).promotion).toBeNull();
   await expectStatus(bob.req("POST","/v2/billing/promotions/events",{sessionId,impressionId:p.id,event:"dismiss"}),404);
   await alice.req("POST","/v2/billing/promotions/events",{sessionId,impressionId:p.id,event:"impression"});
-  await alice.req("PUT","/v2/billing/promotions/preference",{optOut:true});expect((await alice.req("GET",`/v2/billing/promotions/${p.id}`)).active).toBe(false);
+  expect((await alice.req("GET","/v2/billing/promotions/preference")).optOut).toBe(false);
+  await alice.req("PUT","/v2/billing/promotions/preference",{optOut:true});
+  expect((await alice.req("GET","/v2/billing/promotions/preference")).optOut).toBe(true);
+  expect((await bob.req("GET","/v2/billing/promotions/preference")).optOut).toBe(false);expect((await alice.req("GET",`/v2/billing/promotions/${p.id}`)).active).toBe(false);
   const state=await admin.browser.req("GET","/admin/v1/billing/promotions");expect(state.body.metrics.impressions).toBe(1);
   expect((await admin.browser.req("PUT","/admin/v1/billing/promotions",{settings:{...state.body.settings,enabled:false},revision:state.body.revision,reason:"Emergency global kill switch test"})).status).toBe(200);
   expect(h.ctx.platform.count("platform_audit",{action:"billing.promotions.configure"})).toBe(2);

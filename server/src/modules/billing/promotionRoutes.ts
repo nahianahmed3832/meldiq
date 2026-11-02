@@ -21,5 +21,6 @@ export function promotionRoutes(app: FastifyInstance, ctx: AppContext, auth: Rou
  app.post("/v2/billing/promotions/claim", options, async req => { const b = parse(ClaimBody, req.body); const s = await subject(req); if (!ctx.billing.offers("personal").some(o => o.key === "plus")) return { promotion: null }; return ctx.billing.promotions.claim(s, b); });
  app.get("/v2/billing/promotions/:id", options, async req => { const { id } = parse(z.object({ id: z.string().min(1).max(150) }), req.params); if (!ctx.billing.offers("personal").some(o => o.key === "plus")) return { active: false }; return ctx.billing.promotions.current(await subject(req), id); });
  app.post("/v2/billing/promotions/events", options, async req => ctx.billing.promotions.feedback(await subject(req), parse(EventBody, req.body)));
+ app.get("/v2/billing/promotions/preference", options, async req => ctx.billing.promotions.preferenceOf(await subject(req)));
  app.put("/v2/billing/promotions/preference", options, async req => ctx.billing.promotions.preference(await subject(req), parse(OptOutBody, req.body).optOut));
 }

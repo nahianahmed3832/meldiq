@@ -77801,6 +77801,43 @@
       }
     },
     "/v2/billing/promotions/preference": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Read the account-wide promotional opt-out preference.",
+        "operationId": "getV2BillingPromotionsPreference",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "optOut": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "optOut"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
       "put": {
         "tags": [
           "Billing"
