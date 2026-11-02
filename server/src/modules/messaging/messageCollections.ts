@@ -6,7 +6,7 @@ import { parse } from "../../shared/validation/index.js";
 import { ApiError } from "../../shared/errors.js";
 import { me, requireAuth } from "../auth/index.js";
 import { eventToWire } from "./serverSend.js";
-import type { MessageEvent } from "./store/messageStore.js";
+import { pageChanges, type MessageEvent } from "./store/messageStore.js";
 import { retrievalMeta, backfillRetrieval } from "./store/retrievalMeta.js";
 
 type Cursor = { serverTs: number; id: string };
@@ -136,9 +136,13 @@ function sqlitePage(ctx: AppContext, cid: string, viewer: string, since: number 
 
 async function changes(ctx: AppContext, cid: string, viewer: string, ids: string[]) {
   if (!ids.length) return [];
-  if (ctx.messages.backend === "mongodb") return (await ctx.mongo!.db.collection("message_events").find({ conversation_id: cid, cls: "control", target: { $in: ids }, ...visible(viewer) }).sort({ server_ts: 1, _id: 1 }).toArray()).map(raw);
-  return ctx.db.prepare(`SELECT * FROM message_events WHERE conversation_id = ? AND cls = 'control' AND target IN (${ids.map(() => "?").join(",")}) AND (audience = 'all' OR sender_user_id = ?) ORDER BY server_ts, id`).all(cid, ...ids, viewer) as MessageEvent[];
+  const reads = await ctx.messages.readReceipts(cid, viewer);
+  const targeted = ctx.messages.backend === "mongodb"
+    ? (await ctx.mongo!.db.collection("message_events").find({ conversation_id: cid, cls: "control", target: { $in: ids }, ...visible(viewer) }).sort({ server_ts: 1, _id: 1 }).toArray()).map(raw)
+    : ctx.db.prepare(`SELECT * FROM message_events WHERE conversation_id = ? AND cls = 'control' AND target IN (${ids.map(() => "?").join(",")}) AND (audience = 'all' OR sender_user_id = ?) ORDER BY server_ts, id`).all(cid, ...ids, viewer) as MessageEvent[];
+  return pageChanges(targeted, reads);
 }
+
 export default async function messageCollections(app: FastifyInstance, ctx: AppContext) {
   app.get<{ Params: { id: string } }>("/v2/conversations/:id/message-collections", { preHandler: requireAuth(ctx) }, async (req) => {
     const { userId } = me(req); const q = parse(CollectionQuery, req.query);
