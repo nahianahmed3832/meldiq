@@ -4,6 +4,7 @@ import { CardVault } from "../modules/billing/cardVault.js";
 import { PayPalProvider } from "../modules/billing/providers/paypal.js";
 import { GiftDelivery } from "../modules/billing/index.js";
 import { SecretBox } from "../infrastructure/crypto/secretBox.js";
+import { CollectibleCommerce, collectibleCommerceUserRoutes } from "../modules/billing/collectibleCommerce.js";
 import socialRoutes from "../modules/accounts/social/routes.js";
 import { RedisInfrastructure } from "../infrastructure/redis/service.js";
 import { CachedPreferenceStore } from "../modules/accounts/preferences/cachedStore.js";
@@ -98,6 +99,7 @@ import discordRoutes from "../modules/organizations/discord/routes.js";
 import roleRoutes from "../modules/organizations/rolesRoutes.js";
 import { Entitlements } from "../modules/administration/entitlements.js";
 import opsRoutes from "../modules/administration/ops/routes.js";
+import { operationalUserRoutes } from "../modules/platformAdmin/operations.js";
 import { platformSetting, registerPlatformAdmin } from "../modules/platformAdmin/index.js";
 import { Telemetry } from "../modules/telemetry/index.js";
 import { QuotaEngine, scopesFor } from "../modules/quotas/index.js";
@@ -154,7 +156,7 @@ import { now } from "../shared/utilities/util.js";
 import wsRoutes from "../modules/realtime/ws.js";
 import { Billing, billingRoutes } from "../modules/billing/index.js";
 
-export const VERSION = "0.75.1";
+export const VERSION = "0.76.0";
 /**
  * The client API this server speaks and the oldest client API it accepts. Clients refuse a server whose
  * minClientApi is newer than theirs; servers from before these fields existed count as API 1.
@@ -449,9 +451,10 @@ export async function buildApp(
     app.log,
   );
   if (ctx.billing.provider instanceof PayPalProvider) ctx.billing.cardSubscriptions = new CardSubscriptions(ctx.billing, new CardVault(ctx.billing.rows, ctx.billing.provider, new SecretBox(config.platformSecretsKey), new URL("/settings/billing", config.billing.webReturnUrl ?? config.billing.siteUrl).href));
+  ctx.collectibleCommerce = new CollectibleCommerce(ctx);
   ctx.billing.webhooks.payments = {
-    applyCheckout: (w, provider, snapshot, t) => ctx.billing.cardSubscriptions?.applyCheckout(w, provider, snapshot, t) ?? ctx.billing.sparkPurchases.applyCheckout(w, provider, snapshot, t) ?? ctx.gifts.applyCheckout(w, provider, snapshot, t),
-    applyPayment: (w, provider, payment, t) => ctx.billing.cardSubscriptions?.applyPayment(w, provider, payment, t) ?? ctx.billing.sparkPurchases.applyPayment(w, provider, payment, t) ?? ctx.gifts.applyPayment(w, provider, payment, t),
+    applyCheckout: (w, provider, snapshot, t) => ctx.collectibleCommerce.applyCheckout(w, provider, snapshot, t) ?? ctx.billing.cardSubscriptions?.applyCheckout(w, provider, snapshot, t) ?? ctx.billing.sparkPurchases.applyCheckout(w, provider, snapshot, t) ?? ctx.gifts.applyCheckout(w, provider, snapshot, t),
+    applyPayment: (w, provider, payment, t) => ctx.collectibleCommerce.applyPayment(w, provider, payment, t) ?? ctx.billing.cardSubscriptions?.applyPayment(w, provider, payment, t) ?? ctx.billing.sparkPurchases.applyPayment(w, provider, payment, t) ?? ctx.gifts.applyPayment(w, provider, payment, t),
   };
   ctx.play = config.billing.play ? new PlayBilling(ctx.billing, ctx.gifts, config.billing.play, app.log) : null;
   ctx.billing.onChange = (owner) => {
@@ -782,6 +785,8 @@ export async function buildApp(
   await app.register(async (scope) => socialRoutes(scope, ctx));
   await app.register(async (scope) => billingRoutes(scope, ctx));
   // The Platform Admin Console's /admin/v1 (only with ADMIN_CONSOLE_ORIGIN set; its own sessions, roles and audit).
+  await app.register(async scope => operationalUserRoutes(scope, ctx));
+  await app.register(async scope => collectibleCommerceUserRoutes(scope, ctx));
   await registerPlatformAdmin(app, ctx, VERSION);
   const fed = ctx.federation;
   if (fed) {
@@ -915,6 +920,7 @@ export function serverFeatures(config: Config, directUploads = false): string[] 
     // API 0.61.0 (docs/PROFILE_DECORATIONS.md): Meldiq's own decorations and reviewed community ones (/v2/decorations).
     "profile-decorations",
     "profile-collectibles",
+    "platform-operations",
     // API 0.64.0 (docs/PROFILE_PINS.md): pins on profiles, Meldiq's for milestones and communities' own; animated community icons and banners.
     "profile-pins",
     "animated-community-images",

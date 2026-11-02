@@ -175,7 +175,7 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
 
   // ───────────── Organisations ─────────────
   app.post("/v1/orgs", auth, async (req) => {
-    requireFeature(ctx.platform, "orgCreation");
+    requireFeature(ctx.platform, "orgCreation", me(req).userId);
     const { userId } = me(req);
     const body = parse(OrgCreateBody, req.body);
     requireStanding(ctx.safety, userId, "create_community");

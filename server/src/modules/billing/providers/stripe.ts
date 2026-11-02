@@ -31,6 +31,7 @@ const META_CHECKOUT = "meldiq_checkout";
 
 /** The Stripe calls this adapter makes (the real one is [stripeApi]). */
 export interface StripeApi {
+  refundPayment?(paymentRef: string, requestKey: string): Promise<{id: string; status: string}>;
   createCustomer(params: Stripe.CustomerCreateParams, idempotencyKey: string): Promise<{ id: string }>;
   createCheckoutSession(params: Stripe.Checkout.SessionCreateParams, idempotencyKey: string): Promise<{ id: string; url: string | null }>;
   expireCheckoutSession(id: string): Promise<void>;
@@ -40,6 +41,7 @@ export interface StripeApi {
 
 export function stripeApi(client: Stripe): StripeApi {
   return {
+    refundPayment: async (paymentRef, requestKey) => { const r = await client.refunds.create({payment_intent:paymentRef},{idempotencyKey:`meldiq-refund-${requestKey}`}); return {id:r.id,status:r.status??"pending"}; },
     createCustomer: (params, idempotencyKey) => client.customers.create(params, { idempotencyKey }),
     createCheckoutSession: (params, idempotencyKey) => client.checkout.sessions.create(params, { idempotencyKey }),
     expireCheckoutSession: async (id) => {
@@ -308,6 +310,8 @@ export class StripeProvider implements BillingProvider {
     );
     return { sessionRef: session.id, url: session.url };
   }
+
+  async refundPayment(paymentRef: string, requestKey: string) { if (!this.api.refundPayment) throw new Error("Refund API unavailable"); return this.api.refundPayment(paymentRef, requestKey); }
 
   async createPortal(input: { customerRef: string; returnUrl: string; configuration?: string | null }): Promise<string> {
     return (await this.api.createPortalSession({ customer: input.customerRef, return_url: input.returnUrl, ...(input.configuration ? { configuration: input.configuration } : {}) })).url;

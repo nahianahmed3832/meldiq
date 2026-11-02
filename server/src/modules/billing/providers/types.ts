@@ -27,6 +27,7 @@ export interface BillingProvider {
    * this provider can't take one-time payments.
    */
   createPaymentCheckout?(input: PaymentCheckoutInput): Promise<{ sessionRef: string; url: string | null }>;
+  refundPayment?(paymentRef: string, requestKey: string): Promise<{id: string; status: string}>;
   /** Creates the provider's customer for an owner (once: the caller stores it and reuses it). */
   createCustomer?(input: { owner: OwnerRef; email: string | null; name: string | null }): Promise<string>;
   /**
@@ -65,7 +66,7 @@ export interface CheckoutInput {
 
 /** A one-time payment the server prices itself (a gift): never an amount a client sent. */
 export interface PaymentCheckoutInput {
-  kind?: "gift" | "spark";
+  kind?: "gift" | "spark" | "collectible";
   reference: string;
   customerRef: string | null;
   owner: OwnerRef;

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Meldiq API",
-    "version": "0.75.0",
+    "version": "0.76.0",
     "description": "The canonical contract of the Meldiq server (docs/architecture/ARCHITECTURE_1_0_PLAN.md §4), generated from src/shared/contracts. Fields are only ever added within a version; clients ignore unknown fields. Routes not listed here exist but aren't documented yet."
   },
   "servers": [
@@ -18,7 +18,10 @@
       "name": "Profile collection admin"
     },
     {
-      "name": "Billing"
+      "name": "Operational controls"
+    },
+    {
+      "name": "Platform operations"
     },
     {
       "name": "Central administration"
@@ -3105,532 +3108,13 @@
         "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification."
       }
     },
-    "/v2/billing/payment-methods": {
+    "/admin/v1/operations/notices": {
       "get": {
         "tags": [
-          "Billing"
+          "Operational controls"
         ],
-        "summary": "Owner-only masked saved card information; never provider token IDs.",
-        "operationId": "getV2BillingPaymentMethods",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "available": {
-                      "type": "boolean"
-                    },
-                    "methods": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "id": {
-                            "type": "string"
-                          },
-                          "brand": {
-                            "type": "string"
-                          },
-                          "lastFour": {
-                            "type": "string",
-                            "pattern": "^\\d{4}$"
-                          },
-                          "expiry": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
-                          "createdAt": {
-                            "type": "number"
-                          }
-                        },
-                        "required": [
-                          "id",
-                          "brand",
-                          "lastFour",
-                          "expiry",
-                          "createdAt"
-                        ],
-                        "additionalProperties": false
-                      }
-                    }
-                  },
-                  "required": [
-                    "available",
-                    "methods"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "default": {
-            "$ref": "#/components/responses/Error"
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/v2/billing/payment-methods/setups": {
-      "post": {
-        "tags": [
-          "Billing"
-        ],
-        "summary": "Create an owner-bound, expiring hosted-card setup.",
-        "operationId": "postV2BillingPaymentMethodsSetups",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "setupToken": {
-                      "type": "string"
-                    },
-                    "expiresAt": {
-                      "type": "number"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "setupToken",
-                    "expiresAt"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "default": {
-            "$ref": "#/components/responses/Error"
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "requestKey": {
-                    "type": "string",
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                  }
-                },
-                "required": [
-                  "requestKey"
-                ],
-                "additionalProperties": false
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v2/billing/payment-methods/setups/{id}/complete": {
-      "post": {
-        "tags": [
-          "Billing"
-        ],
-        "summary": "Verify the stored setup with PayPal and encrypt the saved payment token.",
-        "operationId": "postV2BillingPaymentMethodsSetupsIdComplete",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 150,
-              "pattern": "^[A-Za-z0-9_-]+$"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "brand": {
-                      "type": "string"
-                    },
-                    "lastFour": {
-                      "type": "string",
-                      "pattern": "^\\d{4}$"
-                    },
-                    "expiry": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "createdAt": {
-                      "type": "number"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "brand",
-                    "lastFour",
-                    "expiry",
-                    "createdAt"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "default": {
-            "$ref": "#/components/responses/Error"
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {},
-                "additionalProperties": false
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v2/billing/payment-methods/{id}": {
-      "delete": {
-        "tags": [
-          "Billing"
-        ],
-        "summary": "Remove an owned unused saved payment method.",
-        "operationId": "deleteV2BillingPaymentMethodsId",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 150,
-              "pattern": "^[A-Za-z0-9_-]+$"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "removed": {
-                      "type": "boolean",
-                      "const": true
-                    }
-                  },
-                  "required": [
-                    "removed"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "default": {
-            "$ref": "#/components/responses/Error"
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/v2/billing/orders": {
-      "get": {
-        "tags": [
-          "Billing"
-        ],
-        "summary": "Owned unified purchase history from verified billing records.",
-        "operationId": "getV2BillingOrders",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "orders": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "id": {
-                            "type": "string"
-                          },
-                          "product": {
-                            "type": "string"
-                          },
-                          "subtotalMinor": {
-                            "type": "number"
-                          },
-                          "discountMinor": {
-                            "type": "number"
-                          },
-                          "taxMinor": {
-                            "type": "number"
-                          },
-                          "totalMinor": {
-                            "type": "number"
-                          },
-                          "currency": {
-                            "type": "string"
-                          },
-                          "taxStatus": {
-                            "type": "string"
-                          },
-                          "provider": {
-                            "type": "string"
-                          },
-                          "status": {
-                            "type": "string"
-                          },
-                          "entitlementStatus": {
-                            "type": "string"
-                          },
-                          "createdAt": {
-                            "type": "number"
-                          },
-                          "completedAt": {
-                            "type": [
-                              "number",
-                              "null"
-                            ]
-                          },
-                          "providerReference": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
-                          "refundStatus": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "id",
-                          "product",
-                          "subtotalMinor",
-                          "discountMinor",
-                          "taxMinor",
-                          "totalMinor",
-                          "currency",
-                          "taxStatus",
-                          "provider",
-                          "status",
-                          "entitlementStatus",
-                          "createdAt",
-                          "completedAt",
-                          "providerReference",
-                          "refundStatus"
-                        ],
-                        "additionalProperties": false
-                      }
-                    }
-                  },
-                  "required": [
-                    "orders"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "default": {
-            "$ref": "#/components/responses/Error"
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/v2/billing/orders/{id}/receipt": {
-      "get": {
-        "tags": [
-          "Billing"
-        ],
-        "summary": "Owner-only receipt data, including authoritative payment status.",
-        "operationId": "getV2BillingOrdersIdReceipt",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 150
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "product": {
-                      "type": "string"
-                    },
-                    "subtotalMinor": {
-                      "type": "number"
-                    },
-                    "discountMinor": {
-                      "type": "number"
-                    },
-                    "taxMinor": {
-                      "type": "number"
-                    },
-                    "totalMinor": {
-                      "type": "number"
-                    },
-                    "currency": {
-                      "type": "string"
-                    },
-                    "taxStatus": {
-                      "type": "string"
-                    },
-                    "provider": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "string"
-                    },
-                    "entitlementStatus": {
-                      "type": "string"
-                    },
-                    "createdAt": {
-                      "type": "number"
-                    },
-                    "completedAt": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    },
-                    "providerReference": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "refundStatus": {
-                      "type": "string"
-                    },
-                    "receiptNumber": {
-                      "type": "string"
-                    },
-                    "paid": {
-                      "type": "boolean"
-                    },
-                    "seller": {
-                      "type": "string"
-                    },
-                    "statement": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "product",
-                    "subtotalMinor",
-                    "discountMinor",
-                    "taxMinor",
-                    "totalMinor",
-                    "currency",
-                    "taxStatus",
-                    "provider",
-                    "status",
-                    "entitlementStatus",
-                    "createdAt",
-                    "completedAt",
-                    "providerReference",
-                    "refundStatus",
-                    "receiptNumber",
-                    "paid",
-                    "seller",
-                    "statement"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "default": {
-            "$ref": "#/components/responses/Error"
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/admin/v1/billing/orders": {
-      "get": {
-        "tags": [
-          "Billing"
-        ],
-        "summary": "Billing administrator unified payment ledger.",
-        "operationId": "getAdminV1BillingOrders",
+        "summary": "Bounded announcement directory",
+        "operationId": "getAdminV1OperationsNotices",
         "parameters": [
           {
             "name": "X-Meldiq-Admin",
@@ -3650,7 +3134,7 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "orders": {
+                    "items": {
                       "type": "array",
                       "items": {
                         "type": "object",
@@ -3658,82 +3142,487 @@
                           "id": {
                             "type": "string"
                           },
-                          "product": {
-                            "type": "string"
-                          },
-                          "subtotalMinor": {
-                            "type": "number"
-                          },
-                          "discountMinor": {
-                            "type": "number"
-                          },
-                          "taxMinor": {
-                            "type": "number"
-                          },
-                          "totalMinor": {
-                            "type": "number"
-                          },
-                          "currency": {
-                            "type": "string"
-                          },
-                          "taxStatus": {
-                            "type": "string"
-                          },
-                          "provider": {
-                            "type": "string"
-                          },
-                          "status": {
-                            "type": "string"
-                          },
-                          "entitlementStatus": {
-                            "type": "string"
-                          },
-                          "createdAt": {
-                            "type": "number"
-                          },
-                          "completedAt": {
-                            "type": [
-                              "number",
-                              "null"
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "announcement",
+                              "warning"
                             ]
                           },
-                          "providerReference": {
+                          "title": {
+                            "type": "string"
+                          },
+                          "body": {
+                            "type": "string"
+                          },
+                          "target_user_id": {
                             "type": [
                               "string",
                               "null"
                             ]
                           },
-                          "refundStatus": {
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "draft",
+                              "published",
+                              "withdrawn"
+                            ]
+                          },
+                          "starts_at": {
+                            "type": "number"
+                          },
+                          "ends_at": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "version": {
+                            "type": "number"
+                          },
+                          "created_by": {
                             "type": "string"
                           },
-                          "accountId": {
-                            "type": "string"
+                          "created_at": {
+                            "type": "number"
+                          },
+                          "updated_at": {
+                            "type": "number"
                           }
                         },
                         "required": [
                           "id",
-                          "product",
-                          "subtotalMinor",
-                          "discountMinor",
-                          "taxMinor",
-                          "totalMinor",
-                          "currency",
-                          "taxStatus",
-                          "provider",
+                          "kind",
+                          "title",
+                          "body",
+                          "target_user_id",
                           "status",
-                          "entitlementStatus",
-                          "createdAt",
-                          "completedAt",
-                          "providerReference",
-                          "refundStatus",
-                          "accountId"
+                          "starts_at",
+                          "ends_at",
+                          "version",
+                          "created_by",
+                          "created_at",
+                          "updated_at"
                         ],
                         "additionalProperties": false
                       }
+                    },
+                    "next": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
-                    "orders"
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification."
+      },
+      "post": {
+        "tags": [
+          "Operational controls"
+        ],
+        "summary": "Save an audited announcement draft",
+        "operationId": "postAdminV1OperationsNotices",
+        "parameters": [
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "item": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "announcement",
+                            "warning"
+                          ]
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "body": {
+                          "type": "string"
+                        },
+                        "target_user_id": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "draft",
+                            "published",
+                            "withdrawn"
+                          ]
+                        },
+                        "starts_at": {
+                          "type": "number"
+                        },
+                        "ends_at": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "version": {
+                          "type": "number"
+                        },
+                        "created_by": {
+                          "type": "string"
+                        },
+                        "created_at": {
+                          "type": "number"
+                        },
+                        "updated_at": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "kind",
+                        "title",
+                        "body",
+                        "target_user_id",
+                        "status",
+                        "starts_at",
+                        "ends_at",
+                        "version",
+                        "created_by",
+                        "created_at",
+                        "updated_at"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "item"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 120
+                  },
+                  "body": {
+                    "type": "string",
+                    "minLength": 5,
+                    "maxLength": 4000
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "announcement",
+                      "warning"
+                    ]
+                  },
+                  "targetUserId": {
+                    "default": null,
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9_-]{3,100}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "startsAt": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "endsAt": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "title",
+                  "body",
+                  "kind",
+                  "startsAt",
+                  "endsAt",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/v1/operations/notices/{id}/state": {
+      "post": {
+        "tags": [
+          "Operational controls"
+        ],
+        "summary": "Publish or withdraw using expected revision",
+        "operationId": "postAdminV1OperationsNoticesIdState",
+        "parameters": [
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "item": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "announcement",
+                            "warning"
+                          ]
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "body": {
+                          "type": "string"
+                        },
+                        "target_user_id": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "draft",
+                            "published",
+                            "withdrawn"
+                          ]
+                        },
+                        "starts_at": {
+                          "type": "number"
+                        },
+                        "ends_at": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "version": {
+                          "type": "number"
+                        },
+                        "created_by": {
+                          "type": "string"
+                        },
+                        "created_at": {
+                          "type": "number"
+                        },
+                        "updated_at": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "kind",
+                        "title",
+                        "body",
+                        "target_user_id",
+                        "status",
+                        "starts_at",
+                        "ends_at",
+                        "version",
+                        "created_by",
+                        "created_at",
+                        "updated_at"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "item"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "version": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "published",
+                      "withdrawn"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "version",
+                  "status",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/v1/operations/notices/{id}/receipts": {
+      "get": {
+        "tags": [
+          "Operational controls"
+        ],
+        "summary": "Actual unique read acknowledgements",
+        "operationId": "getAdminV1OperationsNoticesIdReceipts",
+        "parameters": [
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "read": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "read"
                   ],
                   "additionalProperties": false
                 }
@@ -3757,13 +3646,2436 @@
         "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification."
       }
     },
-    "/v2/billing/card-subscriptions": {
+    "/admin/v1/operations/appeals": {
       "get": {
         "tags": [
-          "Billing"
+          "Operational controls"
         ],
-        "summary": "Owned card mandates, masked references only.",
-        "operationId": "getV2BillingCardSubscriptions",
+        "summary": "Bounded appeal queue",
+        "operationId": "getAdminV1OperationsAppeals",
+        "parameters": [
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "user_id": {
+                            "type": "string"
+                          },
+                          "notice_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "subject": {
+                            "type": "string"
+                          },
+                          "body": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "open",
+                              "escalated",
+                              "accepted",
+                              "rejected"
+                            ]
+                          },
+                          "decision": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "assigned_to": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "notified_version": {
+                            "type": "number"
+                          },
+                          "notification_error": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "sync_status": {
+                            "type": "string"
+                          },
+                          "version": {
+                            "type": "number"
+                          },
+                          "created_at": {
+                            "type": "number"
+                          },
+                          "updated_at": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "user_id",
+                          "notice_id",
+                          "subject",
+                          "body",
+                          "status",
+                          "decision",
+                          "assigned_to",
+                          "notified_version",
+                          "notification_error",
+                          "sync_status",
+                          "version",
+                          "created_at",
+                          "updated_at"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "next": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification."
+      }
+    },
+    "/admin/v1/operations/appeals/{id}/decision": {
+      "post": {
+        "tags": [
+          "Operational controls"
+        ],
+        "summary": "Independent appeal decision and canonical warning revocation",
+        "operationId": "postAdminV1OperationsAppealsIdDecision",
+        "parameters": [
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "item": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "user_id": {
+                          "type": "string"
+                        },
+                        "notice_id": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "subject": {
+                          "type": "string"
+                        },
+                        "body": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "open",
+                            "escalated",
+                            "accepted",
+                            "rejected"
+                          ]
+                        },
+                        "decision": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "assigned_to": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "notified_version": {
+                          "type": "number"
+                        },
+                        "notification_error": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "sync_status": {
+                          "type": "string"
+                        },
+                        "version": {
+                          "type": "number"
+                        },
+                        "created_at": {
+                          "type": "number"
+                        },
+                        "updated_at": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "user_id",
+                        "notice_id",
+                        "subject",
+                        "body",
+                        "status",
+                        "decision",
+                        "assigned_to",
+                        "notified_version",
+                        "notification_error",
+                        "sync_status",
+                        "version",
+                        "created_at",
+                        "updated_at"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "item"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "version": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "escalated",
+                      "accepted",
+                      "rejected"
+                    ]
+                  },
+                  "decision": {
+                    "type": "string",
+                    "minLength": 10,
+                    "maxLength": 2000
+                  },
+                  "assigneeAccountId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9_-]{3,100}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "version",
+                  "status",
+                  "decision",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/v1/operations/promotions": {
+      "get": {
+        "tags": [
+          "Operational controls"
+        ],
+        "summary": "Versioned Plus promotion directory",
+        "operationId": "getAdminV1OperationsPromotions",
+        "parameters": [
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "product": {
+                            "type": "string"
+                          },
+                          "discount_percent": {
+                            "type": "number"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "months": {
+                            "type": "number"
+                          },
+                          "max_redemptions": {
+                            "type": "number"
+                          },
+                          "redeemed": {
+                            "type": "number"
+                          },
+                          "enabled": {
+                            "type": "number"
+                          },
+                          "starts_at": {
+                            "type": "number"
+                          },
+                          "ends_at": {
+                            "type": "number"
+                          },
+                          "version": {
+                            "type": "number"
+                          },
+                          "created_at": {
+                            "type": "number"
+                          },
+                          "updated_at": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "product",
+                          "discount_percent",
+                          "code",
+                          "title",
+                          "months",
+                          "max_redemptions",
+                          "redeemed",
+                          "enabled",
+                          "starts_at",
+                          "ends_at",
+                          "version",
+                          "created_at",
+                          "updated_at"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "next": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification."
+      },
+      "put": {
+        "tags": [
+          "Operational controls"
+        ],
+        "summary": "Create or change validated promotion availability",
+        "operationId": "putAdminV1OperationsPromotions",
+        "parameters": [
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "item": {
+                      "type": "object",
+                      "properties": {
+                        "product": {
+                          "type": "string"
+                        },
+                        "discount_percent": {
+                          "type": "number"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "months": {
+                          "type": "number"
+                        },
+                        "max_redemptions": {
+                          "type": "number"
+                        },
+                        "redeemed": {
+                          "type": "number"
+                        },
+                        "enabled": {
+                          "type": "number"
+                        },
+                        "starts_at": {
+                          "type": "number"
+                        },
+                        "ends_at": {
+                          "type": "number"
+                        },
+                        "version": {
+                          "type": "number"
+                        },
+                        "created_at": {
+                          "type": "number"
+                        },
+                        "updated_at": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "product",
+                        "discount_percent",
+                        "code",
+                        "title",
+                        "months",
+                        "max_redemptions",
+                        "redeemed",
+                        "enabled",
+                        "starts_at",
+                        "ends_at",
+                        "version",
+                        "created_at",
+                        "updated_at"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "item"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "product": {
+                    "default": "plus_time",
+                    "type": "string",
+                    "enum": [
+                      "plus_time",
+                      "collectible_discount"
+                    ]
+                  },
+                  "discountPercent": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 90
+                  },
+                  "code": {
+                    "type": "string",
+                    "pattern": "^[A-Z0-9-]{4,32}$"
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 120
+                  },
+                  "months": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 12
+                  },
+                  "maxRedemptions": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100000
+                  },
+                  "startsAt": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "endsAt": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "version": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "code",
+                  "title",
+                  "months",
+                  "maxRedemptions",
+                  "startsAt",
+                  "endsAt",
+                  "enabled",
+                  "version",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/v1/operations/policy": {
+      "get": {
+        "tags": [
+          "Operational controls"
+        ],
+        "summary": "Authoritative stable cohorts and upload policy",
+        "operationId": "getAdminV1OperationsPolicy",
+        "parameters": [
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "version": {
+                      "type": "number"
+                    },
+                    "policy": {
+                      "type": "object",
+                      "properties": {
+                        "calls": {
+                          "type": "object",
+                          "properties": {
+                            "percent": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 100
+                            },
+                            "seed": {
+                              "type": "string",
+                              "pattern": "^[a-zA-Z0-9_-]{4,64}$"
+                            },
+                            "allowUsers": {
+                              "maxItems": 100,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9_-]{3,100}$"
+                              }
+                            },
+                            "denyUsers": {
+                              "maxItems": 100,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9_-]{3,100}$"
+                              }
+                            }
+                          },
+                          "required": [
+                            "percent",
+                            "seed",
+                            "allowUsers",
+                            "denyUsers"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "uploads": {
+                          "type": "object",
+                          "properties": {
+                            "percent": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 100
+                            },
+                            "seed": {
+                              "type": "string",
+                              "pattern": "^[a-zA-Z0-9_-]{4,64}$"
+                            },
+                            "allowUsers": {
+                              "maxItems": 100,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9_-]{3,100}$"
+                              }
+                            },
+                            "denyUsers": {
+                              "maxItems": 100,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9_-]{3,100}$"
+                              }
+                            }
+                          },
+                          "required": [
+                            "percent",
+                            "seed",
+                            "allowUsers",
+                            "denyUsers"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "orgCreation": {
+                          "type": "object",
+                          "properties": {
+                            "percent": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 100
+                            },
+                            "seed": {
+                              "type": "string",
+                              "pattern": "^[a-zA-Z0-9_-]{4,64}$"
+                            },
+                            "allowUsers": {
+                              "maxItems": 100,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9_-]{3,100}$"
+                              }
+                            },
+                            "denyUsers": {
+                              "maxItems": 100,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9_-]{3,100}$"
+                              }
+                            }
+                          },
+                          "required": [
+                            "percent",
+                            "seed",
+                            "allowUsers",
+                            "denyUsers"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "fileRetentionDays": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 3650
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "reportRetentionDays": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 30,
+                              "maximum": 3650
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "maxFileBytes": {
+                          "type": "integer",
+                          "minimum": 1000000,
+                          "maximum": 1024000000
+                        },
+                        "uploadStartsPerHour": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 1000
+                        }
+                      },
+                      "required": [
+                        "calls",
+                        "uploads",
+                        "orgCreation",
+                        "fileRetentionDays",
+                        "reportRetentionDays",
+                        "maxFileBytes",
+                        "uploadStartsPerHour"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "updatedAt": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "version",
+                    "policy",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification."
+      },
+      "put": {
+        "tags": [
+          "Operational controls"
+        ],
+        "summary": "Atomically store and audit a versioned runtime policy",
+        "operationId": "putAdminV1OperationsPolicy",
+        "parameters": [
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "version": {
+                      "type": "number"
+                    },
+                    "policy": {
+                      "type": "object",
+                      "properties": {
+                        "calls": {
+                          "type": "object",
+                          "properties": {
+                            "percent": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 100
+                            },
+                            "seed": {
+                              "type": "string",
+                              "pattern": "^[a-zA-Z0-9_-]{4,64}$"
+                            },
+                            "allowUsers": {
+                              "maxItems": 100,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9_-]{3,100}$"
+                              }
+                            },
+                            "denyUsers": {
+                              "maxItems": 100,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9_-]{3,100}$"
+                              }
+                            }
+                          },
+                          "required": [
+                            "percent",
+                            "seed",
+                            "allowUsers",
+                            "denyUsers"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "uploads": {
+                          "type": "object",
+                          "properties": {
+                            "percent": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 100
+                            },
+                            "seed": {
+                              "type": "string",
+                              "pattern": "^[a-zA-Z0-9_-]{4,64}$"
+                            },
+                            "allowUsers": {
+                              "maxItems": 100,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9_-]{3,100}$"
+                              }
+                            },
+                            "denyUsers": {
+                              "maxItems": 100,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9_-]{3,100}$"
+                              }
+                            }
+                          },
+                          "required": [
+                            "percent",
+                            "seed",
+                            "allowUsers",
+                            "denyUsers"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "orgCreation": {
+                          "type": "object",
+                          "properties": {
+                            "percent": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 100
+                            },
+                            "seed": {
+                              "type": "string",
+                              "pattern": "^[a-zA-Z0-9_-]{4,64}$"
+                            },
+                            "allowUsers": {
+                              "maxItems": 100,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9_-]{3,100}$"
+                              }
+                            },
+                            "denyUsers": {
+                              "maxItems": 100,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9_-]{3,100}$"
+                              }
+                            }
+                          },
+                          "required": [
+                            "percent",
+                            "seed",
+                            "allowUsers",
+                            "denyUsers"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "fileRetentionDays": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 3650
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "reportRetentionDays": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 30,
+                              "maximum": 3650
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "maxFileBytes": {
+                          "type": "integer",
+                          "minimum": 1000000,
+                          "maximum": 1024000000
+                        },
+                        "uploadStartsPerHour": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 1000
+                        }
+                      },
+                      "required": [
+                        "calls",
+                        "uploads",
+                        "orgCreation",
+                        "fileRetentionDays",
+                        "reportRetentionDays",
+                        "maxFileBytes",
+                        "uploadStartsPerHour"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "updatedAt": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "version",
+                    "policy",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "version": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "policy": {
+                    "type": "object",
+                    "properties": {
+                      "calls": {
+                        "type": "object",
+                        "properties": {
+                          "percent": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100
+                          },
+                          "seed": {
+                            "type": "string",
+                            "pattern": "^[a-zA-Z0-9_-]{4,64}$"
+                          },
+                          "allowUsers": {
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "pattern": "^[A-Za-z0-9_-]{3,100}$"
+                            }
+                          },
+                          "denyUsers": {
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "pattern": "^[A-Za-z0-9_-]{3,100}$"
+                            }
+                          }
+                        },
+                        "required": [
+                          "percent",
+                          "seed",
+                          "allowUsers",
+                          "denyUsers"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "uploads": {
+                        "type": "object",
+                        "properties": {
+                          "percent": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100
+                          },
+                          "seed": {
+                            "type": "string",
+                            "pattern": "^[a-zA-Z0-9_-]{4,64}$"
+                          },
+                          "allowUsers": {
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "pattern": "^[A-Za-z0-9_-]{3,100}$"
+                            }
+                          },
+                          "denyUsers": {
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "pattern": "^[A-Za-z0-9_-]{3,100}$"
+                            }
+                          }
+                        },
+                        "required": [
+                          "percent",
+                          "seed",
+                          "allowUsers",
+                          "denyUsers"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "orgCreation": {
+                        "type": "object",
+                        "properties": {
+                          "percent": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100
+                          },
+                          "seed": {
+                            "type": "string",
+                            "pattern": "^[a-zA-Z0-9_-]{4,64}$"
+                          },
+                          "allowUsers": {
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "pattern": "^[A-Za-z0-9_-]{3,100}$"
+                            }
+                          },
+                          "denyUsers": {
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "pattern": "^[A-Za-z0-9_-]{3,100}$"
+                            }
+                          }
+                        },
+                        "required": [
+                          "percent",
+                          "seed",
+                          "allowUsers",
+                          "denyUsers"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "fileRetentionDays": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 3650
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "reportRetentionDays": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 30,
+                            "maximum": 3650
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "maxFileBytes": {
+                        "type": "integer",
+                        "minimum": 1000000,
+                        "maximum": 1024000000
+                      },
+                      "uploadStartsPerHour": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 1000
+                      }
+                    },
+                    "required": [
+                      "calls",
+                      "uploads",
+                      "orgCreation",
+                      "fileRetentionDays",
+                      "reportRetentionDays",
+                      "maxFileBytes",
+                      "uploadStartsPerHour"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "version",
+                  "policy",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/v1/operations/policy/history": {
+      "get": {
+        "tags": [
+          "Operational controls"
+        ],
+        "summary": "Stored complete policy revisions for rollback",
+        "operationId": "getAdminV1OperationsPolicyHistory",
+        "parameters": [
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "version": {
+                            "type": "number"
+                          },
+                          "policy": {
+                            "type": "object",
+                            "properties": {
+                              "calls": {
+                                "type": "object",
+                                "properties": {
+                                  "percent": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 100
+                                  },
+                                  "seed": {
+                                    "type": "string",
+                                    "pattern": "^[a-zA-Z0-9_-]{4,64}$"
+                                  },
+                                  "allowUsers": {
+                                    "maxItems": 100,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "pattern": "^[A-Za-z0-9_-]{3,100}$"
+                                    }
+                                  },
+                                  "denyUsers": {
+                                    "maxItems": 100,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "pattern": "^[A-Za-z0-9_-]{3,100}$"
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "percent",
+                                  "seed",
+                                  "allowUsers",
+                                  "denyUsers"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "uploads": {
+                                "type": "object",
+                                "properties": {
+                                  "percent": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 100
+                                  },
+                                  "seed": {
+                                    "type": "string",
+                                    "pattern": "^[a-zA-Z0-9_-]{4,64}$"
+                                  },
+                                  "allowUsers": {
+                                    "maxItems": 100,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "pattern": "^[A-Za-z0-9_-]{3,100}$"
+                                    }
+                                  },
+                                  "denyUsers": {
+                                    "maxItems": 100,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "pattern": "^[A-Za-z0-9_-]{3,100}$"
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "percent",
+                                  "seed",
+                                  "allowUsers",
+                                  "denyUsers"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "orgCreation": {
+                                "type": "object",
+                                "properties": {
+                                  "percent": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 100
+                                  },
+                                  "seed": {
+                                    "type": "string",
+                                    "pattern": "^[a-zA-Z0-9_-]{4,64}$"
+                                  },
+                                  "allowUsers": {
+                                    "maxItems": 100,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "pattern": "^[A-Za-z0-9_-]{3,100}$"
+                                    }
+                                  },
+                                  "denyUsers": {
+                                    "maxItems": 100,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "pattern": "^[A-Za-z0-9_-]{3,100}$"
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "percent",
+                                  "seed",
+                                  "allowUsers",
+                                  "denyUsers"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "fileRetentionDays": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 3650
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "reportRetentionDays": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 30,
+                                    "maximum": 3650
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "maxFileBytes": {
+                                "type": "integer",
+                                "minimum": 1000000,
+                                "maximum": 1024000000
+                              },
+                              "uploadStartsPerHour": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 1000
+                              }
+                            },
+                            "required": [
+                              "calls",
+                              "uploads",
+                              "orgCreation",
+                              "fileRetentionDays",
+                              "reportRetentionDays",
+                              "maxFileBytes",
+                              "uploadStartsPerHour"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "updatedAt": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "version",
+                          "policy",
+                          "updatedAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "next": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification."
+      }
+    },
+    "/admin/v1/operations/operators": {
+      "get": {
+        "tags": [
+          "Operational controls"
+        ],
+        "summary": "Legacy operator ceiling and current console reductions",
+        "operationId": "getAdminV1OperationsOperators",
+        "parameters": [
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "userId": {
+                            "type": "string"
+                          },
+                          "configured": {
+                            "type": "boolean"
+                          },
+                          "denied": {
+                            "type": "boolean"
+                          },
+                          "consoleAccountId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "consoleRole": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "consoleRevoked": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "userId",
+                          "configured",
+                          "denied",
+                          "consoleAccountId",
+                          "consoleRole",
+                          "consoleRevoked"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "next": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification."
+      }
+    },
+    "/admin/v1/operations/operators/{id}": {
+      "put": {
+        "tags": [
+          "Operational controls"
+        ],
+        "summary": "Reduce environment allowlisted legacy access",
+        "operationId": "putAdminV1OperationsOperatorsId",
+        "parameters": [
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification."
+      }
+    },
+    "/admin/v1/operations/ownership": {
+      "get": {
+        "tags": [
+          "Operational controls"
+        ],
+        "summary": "Bounded owner-approval workflow directory",
+        "operationId": "getAdminV1OperationsOwnership",
+        "parameters": [
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "org_id": {
+                            "type": "string"
+                          },
+                          "owner_user_id": {
+                            "type": "string"
+                          },
+                          "target_user_id": {
+                            "type": "string"
+                          },
+                          "requested_by": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "created_at": {
+                            "type": "number"
+                          },
+                          "expires_at": {
+                            "type": "number"
+                          },
+                          "completed_at": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "org_id",
+                          "owner_user_id",
+                          "target_user_id",
+                          "requested_by",
+                          "reason",
+                          "status",
+                          "created_at",
+                          "expires_at",
+                          "completed_at"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "next": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification."
+      },
+      "post": {
+        "tags": [
+          "Operational controls"
+        ],
+        "summary": "Request existing-owner approval; never grants staff ownership",
+        "operationId": "postAdminV1OperationsOwnership",
+        "parameters": [
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "item": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "org_id": {
+                          "type": "string"
+                        },
+                        "owner_user_id": {
+                          "type": "string"
+                        },
+                        "target_user_id": {
+                          "type": "string"
+                        },
+                        "requested_by": {
+                          "type": "string"
+                        },
+                        "reason": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "created_at": {
+                          "type": "number"
+                        },
+                        "expires_at": {
+                          "type": "number"
+                        },
+                        "completed_at": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "org_id",
+                        "owner_user_id",
+                        "target_user_id",
+                        "requested_by",
+                        "reason",
+                        "status",
+                        "created_at",
+                        "expires_at",
+                        "completed_at"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "item"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification."
+      }
+    },
+    "/admin/v1/operations/orders": {
+      "get": {
+        "tags": [
+          "Operational controls"
+        ],
+        "summary": "Verified collectible payments and durable fulfillment state",
+        "operationId": "getAdminV1OperationsOrders",
+        "parameters": [
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "account_id": {
+                            "type": "string"
+                          },
+                          "user_id": {
+                            "type": "string"
+                          },
+                          "item_id": {
+                            "type": "string"
+                          },
+                          "item_version": {
+                            "type": "number"
+                          },
+                          "original_amount_minor": {
+                            "type": "number"
+                          },
+                          "promotion_code": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "amount_minor": {
+                            "type": "number"
+                          },
+                          "currency": {
+                            "type": "string"
+                          },
+                          "provider": {
+                            "type": "string"
+                          },
+                          "session_ref": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "checkout_url": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "payment_ref": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "sync_status": {
+                            "type": "string"
+                          },
+                          "request_key": {
+                            "type": "string"
+                          },
+                          "created_at": {
+                            "type": "number"
+                          },
+                          "updated_at": {
+                            "type": "number"
+                          },
+                          "expires_at": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "account_id",
+                          "user_id",
+                          "item_id",
+                          "item_version",
+                          "original_amount_minor",
+                          "promotion_code",
+                          "amount_minor",
+                          "currency",
+                          "provider",
+                          "session_ref",
+                          "checkout_url",
+                          "payment_ref",
+                          "status",
+                          "sync_status",
+                          "request_key",
+                          "created_at",
+                          "updated_at",
+                          "expires_at"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "next": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "capability": {
+                      "type": "object",
+                      "properties": {
+                        "checkout": {
+                          "type": "boolean"
+                        },
+                        "refund": {
+                          "type": "boolean"
+                        },
+                        "provider": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "mode": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "checkout",
+                        "refund",
+                        "provider",
+                        "mode"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "capability"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification."
+      }
+    },
+    "/admin/v1/operations/orders/{id}/refund": {
+      "post": {
+        "tags": [
+          "Operational controls"
+        ],
+        "summary": "Audited idempotent provider refund",
+        "operationId": "postAdminV1OperationsOrdersIdRefund",
+        "parameters": [
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "reference": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "reference"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification."
+      }
+    },
+    "/admin/v1/operations/orders/reconcile": {
+      "post": {
+        "tags": [
+          "Operational controls"
+        ],
+        "summary": "Retry durable collectible fulfillment",
+        "operationId": "postAdminV1OperationsOrdersReconcile",
+        "parameters": [
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification."
+      }
+    },
+    "/admin/v1/operations/warnings": {
+      "get": {
+        "tags": [
+          "Operational controls"
+        ],
+        "summary": "Canonical account standing and bounded warning history",
+        "operationId": "getAdminV1OperationsWarnings",
+        "parameters": [
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "standing": {
+                      "type": "object",
+                      "properties": {
+                        "level": {
+                          "type": "string"
+                        },
+                        "warnings": {
+                          "type": "array",
+                          "items": {}
+                        }
+                      },
+                      "required": [
+                        "level",
+                        "warnings"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "user_id": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "created_at": {
+                            "type": "number"
+                          },
+                          "expires_at": {
+                            "type": "number"
+                          },
+                          "revoked_at": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "user_id",
+                          "reason",
+                          "created_at",
+                          "expires_at",
+                          "revoked_at"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "standing",
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification."
+      },
+      "post": {
+        "tags": [
+          "Operational controls"
+        ],
+        "summary": "Issue idempotent canonical standing warning with fresh MFA",
+        "operationId": "postAdminV1OperationsWarnings",
+        "parameters": [
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "standing": {
+                      "type": "object",
+                      "properties": {
+                        "level": {
+                          "type": "string"
+                        },
+                        "warnings": {
+                          "type": "array",
+                          "items": {}
+                        }
+                      },
+                      "required": [
+                        "level",
+                        "warnings"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "standing"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification."
+      }
+    },
+    "/admin/v1/operations/warnings/{id}/revoke": {
+      "post": {
+        "tags": [
+          "Operational controls"
+        ],
+        "summary": "Lift an audited standing warning",
+        "operationId": "postAdminV1OperationsWarningsIdRevoke",
+        "parameters": [
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification."
+      }
+    },
+    "/v2/platform/notices": {
+      "get": {
+        "tags": [
+          "Platform operations"
+        ],
+        "summary": "Active global or own notices; excludes other recipients",
+        "operationId": "getV2PlatformNotices",
         "parameters": [],
         "responses": {
           "200": {
@@ -3773,84 +6085,224 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "subscriptions": {
+                    "items": {
                       "type": "array",
                       "items": {
                         "type": "object",
                         "properties": {
                           "id": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 150
-                          },
-                          "orgId": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
-                          "product": {
-                            "type": "string",
-                            "enum": [
-                              "plus",
-                              "bots_plus"
-                            ]
-                          },
-                          "paymentMethodId": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 150
-                          },
-                          "status": {
                             "type": "string"
                           },
-                          "currency": {
+                          "title": {
                             "type": "string"
                           },
-                          "amountMinor": {
+                          "body": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "startsAt": {
                             "type": "number"
                           },
-                          "nextBillingAt": {
+                          "endsAt": {
                             "type": [
                               "number",
                               "null"
                             ]
                           },
-                          "paidThrough": {
-                            "type": [
-                              "number",
-                              "null"
-                            ]
-                          },
-                          "cancelAt": {
-                            "type": [
-                              "number",
-                              "null"
-                            ]
-                          },
-                          "processing": {
+                          "read": {
                             "type": "boolean"
                           }
                         },
                         "required": [
                           "id",
-                          "orgId",
-                          "product",
-                          "paymentMethodId",
-                          "status",
-                          "currency",
-                          "amountMinor",
-                          "nextBillingAt",
-                          "paidThrough",
-                          "cancelAt",
-                          "processing"
+                          "title",
+                          "body",
+                          "kind",
+                          "startsAt",
+                          "endsAt",
+                          "read"
                         ],
                         "additionalProperties": false
                       }
+                    },
+                    "next": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
-                    "subscriptions"
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/platform/notices/{id}/read": {
+      "post": {
+        "tags": [
+          "Platform operations"
+        ],
+        "summary": "Idempotent own notice acknowledgement",
+        "operationId": "postV2PlatformNoticesIdRead",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/platform/appeals": {
+      "get": {
+        "tags": [
+          "Platform operations"
+        ],
+        "summary": "Own appeal history and decisions",
+        "operationId": "getV2PlatformAppeals",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "user_id": {
+                            "type": "string"
+                          },
+                          "notice_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "subject": {
+                            "type": "string"
+                          },
+                          "body": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "open",
+                              "escalated",
+                              "accepted",
+                              "rejected"
+                            ]
+                          },
+                          "decision": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "assigned_to": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "notified_version": {
+                            "type": "number"
+                          },
+                          "notification_error": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "sync_status": {
+                            "type": "string"
+                          },
+                          "version": {
+                            "type": "number"
+                          },
+                          "created_at": {
+                            "type": "number"
+                          },
+                          "updated_at": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "user_id",
+                          "notice_id",
+                          "subject",
+                          "body",
+                          "status",
+                          "decision",
+                          "assigned_to",
+                          "notified_version",
+                          "notification_error",
+                          "sync_status",
+                          "version",
+                          "created_at",
+                          "updated_at"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "next": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items"
                   ],
                   "additionalProperties": false
                 }
@@ -3869,10 +6321,10 @@
       },
       "post": {
         "tags": [
-          "Billing"
+          "Platform operations"
         ],
-        "summary": "Create an owner-bound recurring card mandate with explicit consent; no raw card data.",
-        "operationId": "postV2BillingCardSubscriptions",
+        "summary": "Submit an own warning or account appeal",
+        "operationId": "postV2PlatformAppeals",
         "parameters": [],
         "responses": {
           "200": {
@@ -3882,72 +6334,91 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "id": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 150
-                    },
-                    "orgId": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "product": {
-                      "type": "string",
-                      "enum": [
-                        "plus",
-                        "bots_plus"
-                      ]
-                    },
-                    "paymentMethodId": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 150
-                    },
-                    "status": {
-                      "type": "string"
-                    },
-                    "currency": {
-                      "type": "string"
-                    },
-                    "amountMinor": {
-                      "type": "number"
-                    },
-                    "nextBillingAt": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    },
-                    "paidThrough": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    },
-                    "cancelAt": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    },
-                    "processing": {
-                      "type": "boolean"
+                    "item": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "user_id": {
+                          "type": "string"
+                        },
+                        "notice_id": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "subject": {
+                          "type": "string"
+                        },
+                        "body": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "open",
+                            "escalated",
+                            "accepted",
+                            "rejected"
+                          ]
+                        },
+                        "decision": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "assigned_to": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "notified_version": {
+                          "type": "number"
+                        },
+                        "notification_error": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "sync_status": {
+                          "type": "string"
+                        },
+                        "version": {
+                          "type": "number"
+                        },
+                        "created_at": {
+                          "type": "number"
+                        },
+                        "updated_at": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "user_id",
+                        "notice_id",
+                        "subject",
+                        "body",
+                        "status",
+                        "decision",
+                        "assigned_to",
+                        "notified_version",
+                        "notification_error",
+                        "sync_status",
+                        "version",
+                        "created_at",
+                        "updated_at"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "required": [
-                    "id",
-                    "orgId",
-                    "product",
-                    "paymentMethodId",
-                    "status",
-                    "currency",
-                    "amountMinor",
-                    "nextBillingAt",
-                    "paidThrough",
-                    "cancelAt",
-                    "processing"
+                    "item"
                   ],
                   "additionalProperties": false
                 }
@@ -3970,43 +6441,32 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "product": {
-                    "type": "string",
-                    "enum": [
-                      "plus",
-                      "bots_plus"
+                  "noticeId": {
+                    "default": null,
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9_-]{3,100}$"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
-                  "orgId": {
+                  "subject": {
                     "type": "string",
-                    "minLength": 1,
-                    "maxLength": 150
+                    "minLength": 3,
+                    "maxLength": 120
                   },
-                  "paymentMethodId": {
+                  "body": {
                     "type": "string",
-                    "minLength": 1,
-                    "maxLength": 150
-                  },
-                  "requestKey": {
-                    "type": "string",
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                  },
-                  "consentVersion": {
-                    "type": "string",
-                    "maxLength": 100
-                  },
-                  "acceptRecurring": {
-                    "type": "boolean",
-                    "const": true
+                    "minLength": 10,
+                    "maxLength": 4000
                   }
                 },
                 "required": [
-                  "product",
-                  "paymentMethodId",
-                  "requestKey",
-                  "consentVersion",
-                  "acceptRecurring"
+                  "subject",
+                  "body"
                 ],
                 "additionalProperties": false
               }
@@ -4015,27 +6475,14 @@
         }
       }
     },
-    "/v2/billing/card-subscriptions/quote": {
+    "/v2/platform/features": {
       "get": {
         "tags": [
-          "Billing"
+          "Platform operations"
         ],
-        "summary": "Server-priced recurring card terms and required consent version.",
-        "operationId": "getV2BillingCardSubscriptionsQuote",
-        "parameters": [
-          {
-            "name": "product",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "plus",
-                "bots_plus"
-              ]
-            }
-          }
-        ],
+        "summary": "Effective server evaluated feature cohorts",
+        "operationId": "getV2PlatformFeatures",
+        "parameters": [],
         "responses": {
           "200": {
             "description": "OK",
@@ -4044,24 +6491,33 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "consentVersion": {
-                      "type": "string"
-                    },
-                    "amountMinor": {
+                    "version": {
                       "type": "number"
                     },
-                    "currency": {
-                      "type": "string"
-                    },
-                    "firstBillingAt": {
-                      "type": "number"
+                    "features": {
+                      "type": "object",
+                      "properties": {
+                        "calls": {
+                          "type": "boolean"
+                        },
+                        "uploads": {
+                          "type": "boolean"
+                        },
+                        "orgCreation": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "calls",
+                        "uploads",
+                        "orgCreation"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "required": [
-                    "consentVersion",
-                    "amountMinor",
-                    "currency",
-                    "firstBillingAt"
+                    "version",
+                    "features"
                   ],
                   "additionalProperties": false
                 }
@@ -4079,25 +6535,14 @@
         ]
       }
     },
-    "/v2/billing/card-subscriptions/{id}/cancel": {
+    "/v2/platform/promotions/redeem": {
       "post": {
         "tags": [
-          "Billing"
+          "Platform operations"
         ],
-        "summary": "Stop future card renewal claims while retaining verified paid time.",
-        "operationId": "postV2BillingCardSubscriptionsIdCancel",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 150
-            }
-          }
-        ],
+        "summary": "Atomically redeem a real Plus entitlement once",
+        "operationId": "postV2PlatformPromotionsRedeem",
+        "parameters": [],
         "responses": {
           "200": {
             "description": "OK",
@@ -4106,72 +6551,17 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "id": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 150
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
                     },
-                    "orgId": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "product": {
-                      "type": "string",
-                      "enum": [
-                        "plus",
-                        "bots_plus"
-                      ]
-                    },
-                    "paymentMethodId": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 150
-                    },
-                    "status": {
+                    "grantId": {
                       "type": "string"
-                    },
-                    "currency": {
-                      "type": "string"
-                    },
-                    "amountMinor": {
-                      "type": "number"
-                    },
-                    "nextBillingAt": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    },
-                    "paidThrough": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    },
-                    "cancelAt": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    },
-                    "processing": {
-                      "type": "boolean"
                     }
                   },
                   "required": [
-                    "id",
-                    "orgId",
-                    "product",
-                    "paymentMethodId",
-                    "status",
-                    "currency",
-                    "amountMinor",
-                    "nextBillingAt",
-                    "paidThrough",
-                    "cancelAt",
-                    "processing"
+                    "ok",
+                    "grantId"
                   ],
                   "additionalProperties": false
                 }
@@ -4186,178 +6576,17 @@
           {
             "bearer": []
           }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "confirm": {
-                    "type": "boolean",
-                    "const": true
-                  }
-                },
-                "required": [
-                  "confirm"
-                ],
-                "additionalProperties": false
-              }
-            }
-          }
-        }
+        ]
       }
     },
-    "/v2/billing/card-subscriptions/{id}/payment-method": {
-      "put": {
-        "tags": [
-          "Billing"
-        ],
-        "summary": "Choose an owned active payment method for subsequent renewals.",
-        "operationId": "putV2BillingCardSubscriptionsIdPaymentMethod",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 150
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 150
-                    },
-                    "orgId": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "product": {
-                      "type": "string",
-                      "enum": [
-                        "plus",
-                        "bots_plus"
-                      ]
-                    },
-                    "paymentMethodId": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 150
-                    },
-                    "status": {
-                      "type": "string"
-                    },
-                    "currency": {
-                      "type": "string"
-                    },
-                    "amountMinor": {
-                      "type": "number"
-                    },
-                    "nextBillingAt": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    },
-                    "paidThrough": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    },
-                    "cancelAt": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    },
-                    "processing": {
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "orgId",
-                    "product",
-                    "paymentMethodId",
-                    "status",
-                    "currency",
-                    "amountMinor",
-                    "nextBillingAt",
-                    "paidThrough",
-                    "cancelAt",
-                    "processing"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "default": {
-            "$ref": "#/components/responses/Error"
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "paymentMethodId": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 150
-                  }
-                },
-                "required": [
-                  "paymentMethodId"
-                ],
-                "additionalProperties": false
-              }
-            }
-          }
-        }
-      }
-    },
-    "/admin/v1/billing/gift-deliveries": {
+    "/v2/platform/ownership": {
       "get": {
         "tags": [
-          "Billing"
+          "Platform operations"
         ],
-        "summary": "Billing administrator gift history; no redeemable secrets.",
-        "operationId": "getAdminV1BillingGiftDeliveries",
-        "parameters": [
-          {
-            "name": "X-Meldiq-Admin",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "const": "1"
-            }
-          }
-        ],
+        "summary": "Pending requests that the caller owns",
+        "operationId": "getV2PlatformOwnership",
+        "parameters": [],
         "responses": {
           "200": {
             "description": "OK",
@@ -4366,7 +6595,7 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "gifts": {
+                    "items": {
                       "type": "array",
                       "items": {
                         "type": "object",
@@ -4374,96 +6603,61 @@
                           "id": {
                             "type": "string"
                           },
-                          "buyerAccountId": {
+                          "org_id": {
                             "type": "string"
                           },
-                          "recipientUserId": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
-                          "recipientKind": {
-                            "type": "string",
-                            "enum": [
-                              "user",
-                              "email",
-                              "link"
-                            ]
-                          },
-                          "recipientEmail": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
-                          "product": {
+                          "owner_user_id": {
                             "type": "string"
                           },
-                          "months": {
-                            "type": "number"
+                          "target_user_id": {
+                            "type": "string"
+                          },
+                          "requested_by": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string"
                           },
                           "status": {
                             "type": "string"
                           },
-                          "amountMinor": {
+                          "created_at": {
                             "type": "number"
                           },
-                          "currency": {
-                            "type": "string"
-                          },
-                          "providerRef": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
-                          "deliveryStatus": {
-                            "type": "string"
-                          },
-                          "createdAt": {
+                          "expires_at": {
                             "type": "number"
                           },
-                          "paidAt": {
+                          "completed_at": {
                             "type": [
                               "number",
                               "null"
                             ]
-                          },
-                          "redeemedAt": {
-                            "type": [
-                              "number",
-                              "null"
-                            ]
-                          },
-                          "credited": {
-                            "type": "boolean"
                           }
                         },
                         "required": [
                           "id",
-                          "buyerAccountId",
-                          "recipientUserId",
-                          "recipientKind",
-                          "recipientEmail",
-                          "product",
-                          "months",
+                          "org_id",
+                          "owner_user_id",
+                          "target_user_id",
+                          "requested_by",
+                          "reason",
                           "status",
-                          "amountMinor",
-                          "currency",
-                          "providerRef",
-                          "deliveryStatus",
-                          "createdAt",
-                          "paidAt",
-                          "redeemedAt",
-                          "credited"
+                          "created_at",
+                          "expires_at",
+                          "completed_at"
                         ],
                         "additionalProperties": false
                       }
+                    },
+                    "next": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
-                    "gifts"
+                    "items"
                   ],
                   "additionalProperties": false
                 }
@@ -4476,46 +6670,19 @@
         },
         "security": [
           {
-            "consoleSession": []
+            "bearer": []
           }
-        ],
-        "servers": [
-          {
-            "url": "https://admin.meldiq.app"
-          }
-        ],
-        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification."
+        ]
       }
     },
-    "/admin/v1/billing/gifts/{id}/resend": {
+    "/v2/platform/ownership/{id}/approve": {
       "post": {
         "tags": [
-          "Billing"
+          "Platform operations"
         ],
-        "summary": "Audited administrator gift resend.",
-        "operationId": "postAdminV1BillingGiftsIdResend",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 150,
-              "pattern": "^[A-Za-z0-9_-]+$"
-            }
-          },
-          {
-            "name": "X-Meldiq-Admin",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "const": "1"
-            }
-          }
-        ],
+        "summary": "Owner-confirmed member transfer through existing role rules",
+        "operationId": "postV2PlatformOwnershipIdApprove",
+        "parameters": [],
         "responses": {
           "200": {
             "description": "OK",
@@ -4524,375 +6691,13 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "completed": {
+                    "ok": {
                       "type": "boolean",
                       "const": true
                     }
                   },
                   "required": [
-                    "completed"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "default": {
-            "$ref": "#/components/responses/Error"
-          }
-        },
-        "security": [
-          {
-            "consoleSession": []
-          }
-        ],
-        "servers": [
-          {
-            "url": "https://admin.meldiq.app"
-          }
-        ],
-        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification.",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "reason": {
-                    "type": "string",
-                    "minLength": 8,
-                    "maxLength": 500
-                  }
-                },
-                "required": [
-                  "reason"
-                ],
-                "additionalProperties": false
-              }
-            }
-          }
-        }
-      }
-    },
-    "/admin/v1/billing/gifts/{id}/revoke": {
-      "post": {
-        "tags": [
-          "Billing"
-        ],
-        "summary": "Audited administrator gift revoke.",
-        "operationId": "postAdminV1BillingGiftsIdRevoke",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 150,
-              "pattern": "^[A-Za-z0-9_-]+$"
-            }
-          },
-          {
-            "name": "X-Meldiq-Admin",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "const": "1"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "completed": {
-                      "type": "boolean",
-                      "const": true
-                    }
-                  },
-                  "required": [
-                    "completed"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "default": {
-            "$ref": "#/components/responses/Error"
-          }
-        },
-        "security": [
-          {
-            "consoleSession": []
-          }
-        ],
-        "servers": [
-          {
-            "url": "https://admin.meldiq.app"
-          }
-        ],
-        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification.",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "reason": {
-                    "type": "string",
-                    "minLength": 8,
-                    "maxLength": 500
-                  }
-                },
-                "required": [
-                  "reason"
-                ],
-                "additionalProperties": false
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v2/billing/gifts": {
-      "get": {
-        "tags": [
-          "Billing"
-        ],
-        "summary": "Gifts sent and received; no redeemable tokens.",
-        "operationId": "getV2BillingGifts",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "sent": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "id": {
-                            "type": "string"
-                          },
-                          "product": {
-                            "type": "string"
-                          },
-                          "months": {
-                            "type": "integer",
-                            "minimum": -9007199254740991,
-                            "maximum": 9007199254740991
-                          },
-                          "note": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
-                          "status": {
-                            "type": "string"
-                          },
-                          "currency": {
-                            "type": "string"
-                          },
-                          "amountMinor": {
-                            "type": "integer",
-                            "minimum": -9007199254740991,
-                            "maximum": 9007199254740991
-                          },
-                          "sender": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
-                          "recipientUserId": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
-                          "recipientKind": {
-                            "type": "string",
-                            "enum": [
-                              "user",
-                              "email",
-                              "link"
-                            ]
-                          },
-                          "recipientEmail": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
-                          "createdAt": {
-                            "type": "number"
-                          },
-                          "paidAt": {
-                            "type": [
-                              "number",
-                              "null"
-                            ]
-                          },
-                          "redeemedAt": {
-                            "type": [
-                              "number",
-                              "null"
-                            ]
-                          },
-                          "expiresAt": {
-                            "type": [
-                              "number",
-                              "null"
-                            ]
-                          },
-                          "credited": {
-                            "type": "boolean"
-                          }
-                        },
-                        "required": [
-                          "id",
-                          "product",
-                          "months",
-                          "note",
-                          "status",
-                          "currency",
-                          "amountMinor",
-                          "sender",
-                          "recipientUserId",
-                          "recipientKind",
-                          "recipientEmail",
-                          "createdAt",
-                          "paidAt",
-                          "redeemedAt",
-                          "expiresAt",
-                          "credited"
-                        ],
-                        "additionalProperties": false
-                      }
-                    },
-                    "received": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "id": {
-                            "type": "string"
-                          },
-                          "product": {
-                            "type": "string"
-                          },
-                          "months": {
-                            "type": "integer",
-                            "minimum": -9007199254740991,
-                            "maximum": 9007199254740991
-                          },
-                          "note": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
-                          "status": {
-                            "type": "string"
-                          },
-                          "currency": {
-                            "type": "string"
-                          },
-                          "amountMinor": {
-                            "type": "integer",
-                            "minimum": -9007199254740991,
-                            "maximum": 9007199254740991
-                          },
-                          "sender": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
-                          "recipientUserId": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
-                          "recipientKind": {
-                            "type": "string",
-                            "enum": [
-                              "user",
-                              "email",
-                              "link"
-                            ]
-                          },
-                          "recipientEmail": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
-                          "createdAt": {
-                            "type": "number"
-                          },
-                          "paidAt": {
-                            "type": [
-                              "number",
-                              "null"
-                            ]
-                          },
-                          "redeemedAt": {
-                            "type": [
-                              "number",
-                              "null"
-                            ]
-                          },
-                          "expiresAt": {
-                            "type": [
-                              "number",
-                              "null"
-                            ]
-                          },
-                          "credited": {
-                            "type": "boolean"
-                          }
-                        },
-                        "required": [
-                          "id",
-                          "product",
-                          "months",
-                          "note",
-                          "status",
-                          "currency",
-                          "amountMinor",
-                          "sender",
-                          "recipientUserId",
-                          "recipientKind",
-                          "recipientEmail",
-                          "createdAt",
-                          "paidAt",
-                          "redeemedAt",
-                          "expiresAt",
-                          "credited"
-                        ],
-                        "additionalProperties": false
-                      }
-                    }
-                  },
-                  "required": [
-                    "sent",
-                    "received"
+                    "ok"
                   ],
                   "additionalProperties": false
                 }
@@ -4910,13 +6715,130 @@
         ]
       }
     },
-    "/v2/billing/gifts/preview": {
+    "/v2/collectible-purchases": {
+      "get": {
+        "tags": [
+          "Platform operations"
+        ],
+        "summary": "Own frozen orders and provider capability",
+        "operationId": "getV2CollectiblePurchases",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "itemId": {
+                            "type": "string"
+                          },
+                          "amountMinor": {
+                            "type": "number"
+                          },
+                          "currency": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "fulfillment": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "expiresAt": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "itemId",
+                          "amountMinor",
+                          "currency",
+                          "status",
+                          "fulfillment",
+                          "url",
+                          "expiresAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "next": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "capability": {
+                      "type": "object",
+                      "properties": {
+                        "checkout": {
+                          "type": "boolean"
+                        },
+                        "refund": {
+                          "type": "boolean"
+                        },
+                        "provider": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "mode": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "checkout",
+                        "refund",
+                        "provider",
+                        "mode"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "capability"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
       "post": {
         "tags": [
-          "Billing"
+          "Platform operations"
         ],
-        "summary": "View a paid gift using its secret link; the token is never put in a server URL.",
-        "operationId": "postV2BillingGiftsPreview",
+        "summary": "Server-priced hosted payment; does not grant ownership",
+        "operationId": "postV2CollectiblePurchases",
         "parameters": [],
         "responses": {
           "200": {
@@ -4929,259 +6851,38 @@
                     "id": {
                       "type": "string"
                     },
-                    "product": {
+                    "itemId": {
                       "type": "string"
                     },
-                    "months": {
+                    "amountMinor": {
                       "type": "number"
                     },
-                    "note": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "sender": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
+                    "currency": {
+                      "type": "string"
                     },
                     "status": {
                       "type": "string"
                     },
-                    "requiresVerifiedEmail": {
-                      "type": "boolean"
-                    },
-                    "expiresAt": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "product",
-                    "months",
-                    "note",
-                    "sender",
-                    "status",
-                    "requiresVerifiedEmail",
-                    "expiresAt"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "default": {
-            "$ref": "#/components/responses/Error"
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "token": {
-                    "type": "string",
-                    "pattern": "^[A-Za-z0-9_-]{43}$"
-                  }
-                },
-                "required": [
-                  "token"
-                ],
-                "additionalProperties": false
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v2/billing/gifts/redeem": {
-      "post": {
-        "tags": [
-          "Billing"
-        ],
-        "summary": "Atomically redeem an owned recipient gift link or queue credit behind an active renewal.",
-        "operationId": "postV2BillingGiftsRedeem",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "credited": {
-                      "type": "boolean"
-                    },
-                    "startsAt": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    },
-                    "endsAt": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "credited",
-                    "startsAt",
-                    "endsAt"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "default": {
-            "$ref": "#/components/responses/Error"
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "token": {
-                    "type": "string",
-                    "pattern": "^[A-Za-z0-9_-]{43}$"
-                  }
-                },
-                "required": [
-                  "token"
-                ],
-                "additionalProperties": false
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v2/billing/gifts/{id}/redeem": {
-      "post": {
-        "tags": [
-          "Billing"
-        ],
-        "summary": "Claim an in-app gift for the authenticated recipient.",
-        "operationId": "postV2BillingGiftsIdRedeem",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 150,
-              "pattern": "^[A-Za-z0-9_-]+$"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "credited": {
-                      "type": "boolean"
-                    },
-                    "startsAt": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    },
-                    "endsAt": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "credited",
-                    "startsAt",
-                    "endsAt"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "default": {
-            "$ref": "#/components/responses/Error"
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/v2/billing/gifts/{id}/link": {
-      "post": {
-        "tags": [
-          "Billing"
-        ],
-        "summary": "Buyer creates a new gift link, replacing previous links; only a token hash is persisted.",
-        "operationId": "postV2BillingGiftsIdLink",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 150,
-              "pattern": "^[A-Za-z0-9_-]+$"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "giftId": {
+                    "fulfillment": {
                       "type": "string"
                     },
                     "url": {
-                      "type": "string"
-                    },
-                    "expiresAt": {
                       "type": [
-                        "number",
+                        "string",
                         "null"
                       ]
+                    },
+                    "expiresAt": {
+                      "type": "number"
                     }
                   },
                   "required": [
-                    "giftId",
+                    "id",
+                    "itemId",
+                    "amountMinor",
+                    "currency",
+                    "status",
+                    "fulfillment",
                     "url",
                     "expiresAt"
                   ],
@@ -5201,26 +6902,14 @@
         ]
       }
     },
-    "/v2/billing/gifts/{id}/resend": {
+    "/v2/collectible-purchases/{id}/confirm": {
       "post": {
         "tags": [
-          "Billing"
+          "Platform operations"
         ],
-        "summary": "Queue a fresh recipient email for an owned unclaimed gift.",
-        "operationId": "postV2BillingGiftsIdResend",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 150,
-              "pattern": "^[A-Za-z0-9_-]+$"
-            }
-          }
-        ],
+        "summary": "Verify provider capture and reconcile the owned purchase",
+        "operationId": "postV2CollectiblePurchasesIdConfirm",
+        "parameters": [],
         "responses": {
           "200": {
             "description": "OK",
@@ -5229,13 +6918,43 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "queued": {
-                      "type": "boolean",
-                      "const": true
+                    "id": {
+                      "type": "string"
+                    },
+                    "itemId": {
+                      "type": "string"
+                    },
+                    "amountMinor": {
+                      "type": "number"
+                    },
+                    "currency": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "fulfillment": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "expiresAt": {
+                      "type": "number"
                     }
                   },
                   "required": [
-                    "queued"
+                    "id",
+                    "itemId",
+                    "amountMinor",
+                    "currency",
+                    "status",
+                    "fulfillment",
+                    "url",
+                    "expiresAt"
                   ],
                   "additionalProperties": false
                 }
@@ -5251,6 +6970,83 @@
             "bearer": []
           }
         ]
+      }
+    },
+    "/v2/platform/appeals/email/start": {
+      "post": {
+        "tags": [
+          "Platform operations"
+        ],
+        "summary": "Nonenumerating email appeal proof, including suspended accounts",
+        "operationId": "postV2PlatformAppealsEmailStart",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "challengeId": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "challengeId",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v2/platform/appeals/email/complete": {
+      "post": {
+        "tags": [
+          "Platform operations"
+        ],
+        "summary": "Single-use email proof submits an appeal; cannot sign in",
+        "operationId": "postV2PlatformAppealsEmailComplete",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "const": "open"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "status"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
       }
     },
     "/admin/v1/orgs/{orgId}": {

@@ -1,3 +1,4 @@
+import type { CollectibleCommerce } from "../modules/billing/collectibleCommerce.js";
 import type { RedisInfrastructure } from "../infrastructure/redis/service.js";
 import type { FastifyBaseLogger, FastifyRequest } from "fastify";
 import type { FileStore } from "../modules/files/store.js";
@@ -160,6 +161,7 @@ export interface AppContext {
   quotas: QuotaEngine;
   /** Plans, subscriptions, invoices and provider webhooks (modules/billing, docs/BILLING.md). */
   billing: Billing;
+  collectibleCommerce: CollectibleCommerce;
   /** Meldiq Mojo's perks, Meldiq Spark levels and badges (modules/billing/mojo.ts, docs/MOJO.md). */
   mojo: Mojo;
   /** Gifts of Meldiq Mojo (modules/billing/gifts.ts). */

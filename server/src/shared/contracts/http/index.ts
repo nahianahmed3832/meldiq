@@ -2,6 +2,7 @@ import { commerceRoutes } from "./commerce.js";
 import { cardSubscriptionRoutes } from "./cardSubscriptions.js";
 import { giftRoutes } from "./gifts.js";
 import { paymentMethodRoutes } from "./paymentMethods.js";
+import { operationalControlRoutes } from "./areas/operationalControls.js";
 import { socialAuthRoutes } from "./areas/socialAuth.js";
 import { collectibleRoutes } from "./areas/collectibles.js";
 import { leaderboardContracts } from "./leaderboards.js";
@@ -47,6 +48,7 @@ export const ROUTE_CONTRACTS: readonly RouteContract[] = [
   ...commerceRoutes,
   ...cardSubscriptionRoutes,
   ...giftRoutes,
+  ...operationalControlRoutes,
   ...adminOperationsRoutes,
   ...systemRoutes,
   ...messagingRoutes,

@@ -194,7 +194,9 @@ export class CollectionService {
               "collectible_unavailable",
               "This decoration is not available",
             );
-          if (!w.get(INVENTORY, { user_id: userId, decoration_id: id }))
+          const ownership=w.get<Inventory>(INVENTORY,{user_id:userId,decoration_id:id});
+          if (ownership?.acquisition_source.startsWith("purchase:")) { const order=this.ctx.billing.rows.get<{status:string}>("collectible_orders",{id:ownership.acquisition_source.slice(9),user_id:userId}); if(order?.status!=="paid") throw new ApiError(403,"not_owned","This payment no longer grants ownership"); }
+          if (!ownership)
             throw new ApiError(
               403,
               "not_owned",

@@ -7,6 +7,8 @@ export const PLATFORM_ROLES = ["super_admin", "operations_admin", "platform_mode
 export type PlatformRole = (typeof PLATFORM_ROLES)[number];
 
 export const PERMISSIONS = [
+  "announcements.manage",
+  "orgs.ownership.request",
   "reports.view",
   "reports.manage",
   "orgs.delete",
@@ -62,6 +64,8 @@ export type Permission = (typeof PERMISSIONS)[number];
 /** Actions that need a passkey check in the last few minutes and a written reason (ADMIN_REAUTH_MINUTES). */
 export const SENSITIVE: ReadonlySet<Permission> = new Set([
   "collectibles.manage",
+  "announcements.manage",
+  "orgs.ownership.request",
   "creators.review",
   "orgs.delete",
   "reports.manage",
@@ -118,6 +122,7 @@ const GRANTS: Readonly<Record<PlatformRole, ReadonlySet<Permission>>> = {
     "incidents.manage",
   ]),
   operations_admin: new Set<Permission>([
+    "announcements.manage",
     "overview.view",
     "users.view",
     "users.sessions.revoke",

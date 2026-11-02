@@ -46,6 +46,7 @@ export class AdminInfrastructure {
     const routes = [...m.routes].sort((a, b) => b.serverErrors - a.serverErrors || (b.p95Ms ?? 0) - (a.p95Ms ?? 0) || b.count - a.count);
     const notable = [...routes.filter((r) => r.serverErrors > 0 || (r.p95Ms ?? 0) >= SLOW_MS), ...routes].filter((r, i, all) => all.indexOf(r) === i).slice(0, ROUTES_SHOWN);
     const infrastructure = checks(h, this.ctx.config.databaseMode === "atlas");
+    if(this.ctx.livekit && typeof this.ctx.livekit.health === "function") { const v=await this.ctx.livekit.health(); const i=infrastructure.findIndex(c=>c.id==="livekit"); infrastructure[i]={id:"livekit",label:"Calls (LiveKit)",status:v.reachable?"ok":"failing",detail:v.reachable?`${v.rooms} active rooms; ${v.participants} connected participants; checked ${new Date(v.checkedAt).toISOString()}`:`Media control API unreachable; checked ${new Date(v.checkedAt).toISOString()}`}; }
     if (this.ctx.redis) {
       const redis = await this.ctx.redis.diagnostics();
       infrastructure.push({ id: "redis", label: "Redis", status: redis.ready ? "ok" : "failing", detail: redis.usedMemoryBytes === null ? null : `${Math.round(redis.usedMemoryBytes / 1_048_576)} MB; ${redis.metrics.hits} cache hits, ${redis.metrics.misses} misses` });

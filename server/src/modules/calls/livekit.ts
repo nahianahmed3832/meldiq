@@ -14,6 +14,12 @@ export class LiveKitService {
     this.receiver = new WebhookReceiver(cfg.apiKey, cfg.apiSecret);
   }
 
+  async health() {
+    const checkedAt=Date.now();
+    try { const rooms=await withTimeout(this.rooms.listRooms(),3000); return {reachable:true,rooms:rooms.length,participants:rooms.reduce((n,r)=>n+r.numParticipants,0),checkedAt,errorKind:null}; }
+    catch { return {reachable:false,rooms:null,participants:null,checkedAt,errorKind:"unreachable"}; }
+  }
+
   get publicUrl(): string {
     return this.cfg.publicUrl;
   }

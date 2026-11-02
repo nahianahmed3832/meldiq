@@ -1,3 +1,4 @@
+import { runtimePolicy } from "../platformAdmin/runtimePolicy.js";
 import { requireFeature } from "../../app/platformControls.js";
 import crypto from "node:crypto";
 import { AsyncLock } from "../../shared/utilities/lock.js";
@@ -57,7 +58,7 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
     newAccounts: 0,
   };
   // Uploads started per person per hour, finished or not (docs/ABUSE_CONTROLS.md › Uploads).
-  const starts = new SlidingWindow(abuse.uploadStartsPerHour, HOUR_MS);
+  const starts = new SlidingWindow(1000, HOUR_MS);
   /** A new-account allowance, never above the general one (0: no separate allowance; a general 0 means no limit). */
   const newAccountCap = (limit: number, general: number) => (limit > 0 ? (general > 0 ? Math.min(limit, general) : limit) : general);
   /** Whether [used] bytes pass a quota of [limit] bytes; 0 means no limit (the default since UI-003). */
@@ -111,8 +112,9 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
 
   /** Admits one more upload start this hour, or refuses with when to try again. */
   const admitStart = (userId: string, reply: { header: (k: string, v: string) => unknown }) => {
-    if (starts.allows(userId)) return;
-    reply.header("retry-after", String(Math.ceil(starts.retryAfterMs(userId) / 1000)));
+    const max = Math.min(abuse.uploadStartsPerHour || 1000, runtimePolicy(ctx.platform).policy.uploadStartsPerHour);
+    if (starts.allows(userId, now(), max)) return;
+    reply.header("retry-after", String(Math.ceil(starts.retryAfterMs(userId, now(), max) / 1000)));
     throw new ApiError(429, "too_many_uploads", "You've started a lot of uploads in the last hour. Try again later.");
   };
 
@@ -192,7 +194,7 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
   };
 
   app.post("/v1/attachments", auth, async (req, reply) => {
-    requireFeature(ctx.platform, "uploads");
+    requireFeature(ctx.platform, "uploads", me(req).userId);
     const { userId } = me(req);
     const { conversationId } = parse(ConversationQuery, req.query);
     const conv = ctx.authz.requireMember(conversationId, userId);
@@ -205,7 +207,7 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
     if (declared !== null && (!Number.isSafeInteger(declared) || declared <= 0)) throw badRequest("Expected a non-empty body");
     if (declared !== null && declared > cfg.attachmentMaxBytes) throw new ApiError(413, "too_large", "Attachment is too large");
     // The person's plan, or the community's Spark level, sets the largest file (docs/MOJO.md), within the server's own.
-    const plainMax = Math.min(effectiveFileMaxBytes(cfg), ctx.mojo.uploadBytes(userId, conv.org_id));
+    const plainMax = Math.min(Math.min(effectiveFileMaxBytes(cfg), runtimePolicy(ctx.platform).policy.maxFileBytes), ctx.mojo.uploadBytes(userId, conv.org_id));
     const planMax = Math.min(cfg.attachmentMaxBytes, encryptedAttachmentBytes(plainMax));
     if (declared !== null && declared > planMax) throw uploadLimit(plainMax);
 
@@ -261,7 +263,7 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
       track(who, reserve, -1);
       await quotaSettle(id, storedSize);
     }
-    const expiresAt = expiryOf(cfg, t);
+    const expiresAt = fileExpiry(ctx, t);
     await files.recordAttachment({
       id,
       conversation_id: conv.id,
@@ -381,7 +383,7 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
     const u = await files.upload(id);
     if (!u || u.user_id !== userId) throw notFound("Upload not found");
     if (u.expires_at <= now()) throw new ApiError(410, "upload_expired", "This upload took too long. Start it again.");
-    if (!allowOversized && u.size > encryptedAttachmentBytes(effectiveFileMaxBytes(cfg))) throw uploadLimit(effectiveFileMaxBytes(cfg));
+    if (!allowOversized && u.size > encryptedAttachmentBytes(Math.min(effectiveFileMaxBytes(cfg), runtimePolicy(ctx.platform).policy.maxFileBytes))) throw uploadLimit(Math.min(effectiveFileMaxBytes(cfg), runtimePolicy(ctx.platform).policy.maxFileBytes));
     return u;
   };
   const storeFailure = (e: unknown, what: string): never => {
@@ -390,7 +392,7 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
   };
 
   app.post("/v1/attachments/uploads", auth, async (req, reply) => {
-    requireFeature(ctx.platform, "uploads");
+    requireFeature(ctx.platform, "uploads", me(req).userId);
     const { userId, deviceId } = me(req);
     const d = requireDirect();
     const body = parse(UploadStartBody, req.body);
@@ -399,7 +401,7 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
     if (!ctx.authz.canAttach(conv, userId)) throw new ApiError(403, "forbidden", "You can't share files in this channel");
     if (body.size > cfg.attachmentMaxBytes) throw new ApiError(413, "too_large", "Attachment is too large");
     // Direct uploads are bound to this size (each part's URL to its exact length): the plan's limit holds at S3 too.
-    const plainMax = Math.min(effectiveFileMaxBytes(cfg), ctx.mojo.uploadBytes(userId, conv.org_id));
+    const plainMax = Math.min(Math.min(effectiveFileMaxBytes(cfg), runtimePolicy(ctx.platform).policy.maxFileBytes), ctx.mojo.uploadBytes(userId, conv.org_id));
     const planMax = Math.min(cfg.attachmentMaxBytes, encryptedAttachmentBytes(plainMax));
     if (body.size > planMax) throw uploadLimit(plainMax);
     admitStart(userId, reply);
@@ -537,7 +539,7 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
       throw new ApiError(400, "upload_corrupt", "The stored file doesn't match what was announced. Send it again.");
     }
     const t = now();
-    const expiresAt = expiryOf(cfg, t);
+    const expiresAt = fileExpiry(ctx, t);
     // Exactly one of this and the expiry job wins: the attachment exists only if this upload session was still open.
     const recorded = await files.completeUpload(u.id, {
       id: u.id,
@@ -666,3 +668,5 @@ export async function processAbandonedUploads(ctx: AppContext, limit = 200): Pro
   }
   return done;
 }
+
+export function fileExpiry(ctx: Pick<AppContext,"platform"|"config">, t:number):number {const days=runtimePolicy(ctx.platform).policy.fileRetentionDays;return days===null?expiryOf(ctx.config,t):days===0?KEPT_FOREVER:t+days*86400000;}

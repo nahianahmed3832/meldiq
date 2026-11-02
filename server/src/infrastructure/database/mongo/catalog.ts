@@ -45,6 +45,7 @@ export const EXCLUDED_TABLES: Readonly<Record<string, string>> = {
  * everything moving to MongoDB they live there like the rest, and are copied at the switch so nobody is signed out.
  */
 export const EPHEMERAL_TABLES: Readonly<Record<string, string>> = {
+  platform_appeal_challenges: "email appeal proofs, valid for 15 minutes; no login authority",
   auth_challenges: "sign-in nonces, valid for 2 minutes",
   pairing_requests: "device pairing in progress (10 minutes), carries sealed identity material for the new device",
   sessions: "v1 session token hashes (7 days)",
@@ -245,6 +246,13 @@ export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
   federation_outbox: "federation",
   federation_peers: "federation",
   // The Platform Admin Console (migration 046): grants, console passkeys, the append-only audit and incidents.
+  platform_notices: "platform",
+  platform_notice_receipts: "platform",
+  platform_appeals: "platform",
+  platform_ownership_requests: "platform",
+  billing_promotions: "billing",
+  billing_promotion_redemptions: "billing",
+  collectible_orders: "billing",
   platform_report_cases: "platform",
   platform_report_events: "platform",
   platform_admins: "platform",

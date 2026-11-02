@@ -1,6 +1,7 @@
 import type { z } from "zod/v4";
 import type { RowReader } from "../infrastructure/database/rows/index.js";
 import { CONTROL_SCHEMAS } from "../shared/contracts/http/platformAdminInsights.js";
+import { inRollout } from "../modules/platformAdmin/runtimePolicy.js";
 import { ApiError } from "../shared/errors.js";
 
 /**
@@ -77,6 +78,6 @@ export type Feature = keyof ControlValue<"features">;
 const FEATURE_WORDS: Record<Feature, string> = { calls: "Calls are", uploads: "File uploads are", orgCreation: "Creating communities and teams is" };
 
 /** Throws 503 feature_disabled while an operator has switched [feature] off. */
-export function requireFeature(platform: RowReader, feature: Feature): void {
-  if (!readControl(platform, "features")[feature]) throw new ApiError(503, "feature_disabled", `${FEATURE_WORDS[feature]} switched off for now. Try again later.`);
+export function requireFeature(platform: RowReader, feature: Feature, userId?: string): void {
+  if (!readControl(platform, "features")[feature] || !inRollout(platform, feature, userId)) throw new ApiError(503, "feature_disabled", `${FEATURE_WORDS[feature]} switched off for now. Try again later.`);
 }

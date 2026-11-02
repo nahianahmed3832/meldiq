@@ -1,3 +1,4 @@
+import { runtimePolicy } from "../platformAdmin/runtimePolicy.js";
 import type { AppContext } from "../../app/context.js";
 import { REPORT_RETENTION_MS } from "../organizations/reports/routes.js";
 import { expireDirectUploads, processAbandonedUploads, processBlobDeletes, purgeExpiredAttachments } from "../files/routes.js";
@@ -130,7 +131,7 @@ export async function runCleanup(ctx: AppContext): Promise<CleanupResult> {
   r.callRecordsPruned = await ctx.calls.pruneEnded(callCutoff);
   r.auditPruned = await ctx.ws.write((w) => w.delete("audit_log", { at: { lte: t - ctx.config.auditRetentionDays * 86_400_000 } }));
   // Reports may live in MongoDB: an unreachable store mustn't stop the rest of retention.
-  r.reportsPurged = await (async () => ctx.reports.purgeClosed(t - REPORT_RETENTION_MS))().catch((e) => {
+  r.reportsPurged = await (async () => ctx.reports.purgeClosed(t - (runtimePolicy(ctx.platform).policy.reportRetentionDays === null ? REPORT_RETENTION_MS : runtimePolicy(ctx.platform).policy.reportRetentionDays! * 86400000)))().catch((e) => {
     ctx.log.error({ err: e }, "report retention failed");
     return 0;
   });

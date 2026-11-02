@@ -44,14 +44,14 @@ export class SlidingWindow {
   }
 
   /** Whether another event is allowed now (0 means no limit). Doesn't count it. */
-  allows(key: string, t = now()): boolean {
-    return this.max === 0 || this.recent(key, t).length < this.max;
+  allows(key: string, t = now(), max = this.max): boolean {
+    return max === 0 || this.recent(key, t).length < max;
   }
 
   /** Milliseconds until the oldest counted event leaves the window (0 when another is allowed). */
-  retryAfterMs(key: string, t = now()): number {
+  retryAfterMs(key: string, t = now(), max = this.max): number {
     const list = this.recent(key, t);
-    if (this.max === 0 || list.length < this.max) return 0;
+    if (max === 0 || list.length < max) return 0;
     return Math.max(list[0] + this.windowMs - t, 0);
   }
 

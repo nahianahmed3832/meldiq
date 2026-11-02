@@ -1,3 +1,5 @@
+import { legacyOperatorAllowed } from "../../platformAdmin/operations.js";
+import type { Permission } from "../../platformAdmin/permissions.js";
 import type { FastifyInstance } from "fastify";
 import { type AppContext } from "../../../app/context.js";
 import { me, requireAuth } from "../../auth/index.js";
@@ -15,32 +17,32 @@ import { healthReport } from "./health.js";
  */
 export default async function opsRoutes(app: FastifyInstance, ctx: AppContext, version: string) {
   const auth = { preHandler: requireAuth(ctx) };
-  const requirePlatformAdmin = (userId: string) => {
-    if (!ctx.config.platformAdmins.has(userId)) throw forbidden("Only platform administrators can do that");
+  const requirePlatformAdmin = async (userId: string, permission: Permission = "health.view") => {
+    if (!await legacyOperatorAllowed(ctx,userId,permission)) throw forbidden("Only platform administrators can do that");
   };
   /** A workspace's own limits, as stored (expired ones included). */
   const ownLimits = (orgId: string) =>
     ctx.ws.all<{ key: string; limit_value: number }>("org_entitlements", { where: { org_id: orgId } }).map((r) => ({ key: r.key, limit: r.limit_value }));
 
   /** Whether the caller is a platform admin (the app shows Service health then). Moved here from the removed apps API. */
-  app.get("/v1/platform/me", auth, async (req) => ({ platformAdmin: ctx.config.platformAdmins.has(me(req).userId) }));
+  app.get("/v1/platform/me", auth, async (req) => ({ platformAdmin: await legacyOperatorAllowed(ctx,me(req).userId,"health.view") }));
 
   app.get("/v1/admin/health", auth, async (req) => {
-    requirePlatformAdmin(me(req).userId);
+    await requirePlatformAdmin(me(req).userId);
     return { health: await healthReport(ctx, version) };
   });
 
   // ───────────── Connector register (docs/CONNECTORS.md) ─────────────
   /** Every outside service with its measured state and the setting names still missing (never values). */
   app.get("/v1/admin/connectors", auth, async (req) => {
-    requirePlatformAdmin(me(req).userId);
+    await requirePlatformAdmin(me(req).userId);
     return { connectors: await connectorReport(ctx), checkable: CHECKS };
   });
 
   /** A check that sends nothing to anyone and costs nothing (sign in to SMTP, list storage, FCM token, Mongo ping). */
   app.post("/v1/admin/connectors/:id/check", auth, async (req) => {
     const userId = me(req).userId;
-    requirePlatformAdmin(userId);
+    await requirePlatformAdmin(userId,"connectors.check");
     const { id } = parse(ConnectorParams, req.params);
     const result = await checkConnector(ctx, id);
     ctx.audit({ actorId: userId, action: "connector.check", target: id, detail: result.ok ? "ok" : result.errorKind });
@@ -50,7 +52,7 @@ export default async function opsRoutes(app: FastifyInstance, ctx: AppContext, v
   // ───────────── Usage and limits across workspaces (round 7 slice C7, docs/USAGE_AND_PLANS.md) ─────────────
   /** Every workspace with its size and measured usage over [days]: counts only, no content or member names. */
   app.get("/v1/admin/usage", auth, async (req) => {
-    requirePlatformAdmin(me(req).userId);
+    await requirePlatformAdmin(me(req).userId);
     const { days } = parse(UsageQuery, req.query);
     await ctx.usage.snapshot();
     const totals = new Map(ctx.usage.totals(days).map((r) => [r.orgId, r.metrics]));
@@ -67,7 +69,8 @@ export default async function opsRoutes(app: FastifyInstance, ctx: AppContext, v
   /** A workspace's own limits; null clears one (the server-wide limit, if any, applies again). Audited. */
   app.put("/v1/admin/orgs/:orgId/limits", auth, async (req) => {
     const actor = me(req).userId;
-    requirePlatformAdmin(actor);
+    await requirePlatformAdmin(actor,"entitlements.edit");
+    throw forbidden("Use the Platform Admin Console to change limits with fresh passkey verification.");
     const { orgId } = parse(LimitsParams, req.params);
     if (!ctx.ws.get("orgs", { id: orgId })) throw notFound("Workspace not found");
     const { limits } = parse(LimitsBody, req.body);

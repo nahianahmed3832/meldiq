@@ -1,3 +1,4 @@
+import { collectibleCommerceAdminRoutes } from "../billing/collectibleCommerce.js";
 import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../../app/context.js";
 import { PlatformAudit } from "./audit.js";
@@ -12,6 +13,7 @@ import adminCreatorRoutes from "./creators.js";
 import adminBotsPlusRoutes from "./botsPlus.js";
 import adminDiscoveryRoutes from "./discovery.js";
 import moderationRoutes from "./moderation.js";
+import operationsAdminRoutes from "./operations.js";
 import { gate } from "./guards.js";
 import { PlatformAdminStore } from "./store.js";
 
@@ -39,6 +41,8 @@ export async function registerPlatformAdmin(app: FastifyInstance, ctx: AppContex
     const deps = { ctx, auth, audit, store, version };
     await adminDataRoutes(scope, deps);
     await moderationRoutes(scope, deps);
+    await operationsAdminRoutes(scope, deps);
+    await collectibleCommerceAdminRoutes(scope, deps);
     await adminOpsRoutes(scope, deps);
     await adminInsightsRoutes(scope, deps);
     await adminDecorationRoutes(scope, deps);

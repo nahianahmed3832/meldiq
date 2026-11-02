@@ -1,3 +1,4 @@
+import { legacyOperatorAllowed } from "../../platformAdmin/operations.js";
 import type { FastifyInstance } from "fastify";
 import { type AppContext } from "../../../app/context.js";
 import { me, requireAuth } from "../../auth/index.js";
@@ -59,7 +60,7 @@ export default async function experimentRoutes(app: FastifyInstance, ctx: AppCon
 
   app.get("/v1/admin/experiments", auth, async (req) => {
     const { userId } = me(req);
-    if (!isPlatformAdmin(userId)) throw forbidden("Only platform administrators can do that");
+    if (!await legacyOperatorAllowed(ctx,userId,"analytics.view")) throw forbidden("Only platform administrators can do that");
     const q = parse(ExperimentReportQuery, req.query);
     const from = new Date(Date.now() - (q.days - 1) * DAY_MS).toISOString().slice(0, 10);
     const totals = new Map<string, { experiment: string; variant: string; event: string; count: number; valueCount: number; valueSum: number }>();
