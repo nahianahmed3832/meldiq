@@ -1,0 +1,28 @@
+Android / web calling fix - 2026-11-01
+
+Changes: v2 call-key compatibility in the older checkout; immediate call controls with visible failures; HTTP queue recovery; call setup survives UI dismissal; meeting microphone permission.
+
+Workspace checkout: {'tests': 78, 'failures': 0, 'errors': 0, 'skipped': 0}
+Current 0.7.1 checkout: {'tests': 78, 'failures': 0, 'errors': 0, 'skipped': 0}
+
+Workspace emulator/browser tests:
+com.meldiq.android.CallControlInteropTest:...
+
+Time: 30.827
+
+OK (3 tests)
+
+Current app emulator/browser tests:
+com.meldiq.android.CallControlInteropTest:...
+
+Time: 30.369
+
+OK (3 tests)
+
+Test APK: meldiq-0.7.1-call-interop-fix-test-2026-11-01.apk
+Package: com.meldiq.android.test (Meldiq Test)
+Default API: https://msg.meldiq.app
+SHA256: bc69727e73dea41d33cc7249926308ee4b4a2b95ecb2035ec8cf14adb4074ae8
+
+Media tests used the actual Android SDK and the web app LiveKitSession/encryption worker, with local LiveKit and a throwaway API. Both sides verified encrypted audio/video for a call and voice-room meeting. The meeting setup continued after its UI coroutine was cancelled.
+No production service was changed. The APK is debug-signed and installs beside the Play app. No physical phone was connected; Play publication/signing is not included.

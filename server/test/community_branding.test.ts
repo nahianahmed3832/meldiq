@@ -73,7 +73,15 @@ describe("community branding", () => {
     const card = (await outsider.req("GET", "/v1/communities/discover?q=Brand%20Lab")).communities.find((c: { id: string }) => c.id === orgId);
     expect(card).toMatchObject({ accent: "#22d3ee", bannerRev: expect.any(Number) });
     expect((await outsider.req("GET", `/v1/orgs/${orgId}/banner`)).length).toBeGreaterThan(0);
+    const icon = jpeg(2000);
+    await owner.req("PUT", `/v1/orgs/${orgId}/photo`, undefined, icon);
+    expect(Buffer.compare(await outsider.req("GET", `/v1/orgs/${orgId}/photo`), icon)).toBe(0);
+    expect((await fetch(`${h.baseUrl}/v1/orgs/${orgId}/photo`)).status).toBe(401);
+    await owner.req("PATCH", `/v1/orgs/${orgId}`, { visibility: "private" });
+    await expectStatus(outsider.req("GET", `/v1/orgs/${orgId}/photo`), 404);
+    await owner.req("PATCH", `/v1/orgs/${orgId}`, { visibility: "public" });
     expect((await outsider.req("GET", `/v1/communities/${orgId}/preview`)).community).toMatchObject({ accent: "#22d3ee" });
+    await owner.req("DELETE", `/v1/orgs/${orgId}/photo`);
   });
 
   it("comes with an invitation: in the app's preview and on the public invite page, with the banner", async () => {

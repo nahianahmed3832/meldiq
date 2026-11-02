@@ -38,7 +38,7 @@ interface ProgramRow {
 }
 
 /** The terms a console form starts from when neither the console nor the environment has set the program. */
-export const PROGRAM_DEFAULTS: Omit<ProgramSettings, "enabled" | "startsAt"> = { planKey: "plus", days: 14, referralDays: 30, referralCapDays: 90, claimWindowDays: 7 };
+export const PROGRAM_DEFAULTS: Omit<ProgramSettings, "enabled" | "startsAt"> = { planKey: "plus", days: 0, referralDays: 30, referralCapDays: 90, claimWindowDays: 7 };
 
 export function settingsOfEnvironment(env: TrialConfig | null): ProgramSettings {
   return env ? { enabled: true, ...env } : { enabled: false, startsAt: null, ...PROGRAM_DEFAULTS };

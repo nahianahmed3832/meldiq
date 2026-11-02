@@ -134,6 +134,7 @@ private fun MeetingSheet(m: MeetingDto, zone: String, onChanged: (MeetingDto) ->
     val container = LocalContainer.current
     val c = Griip.colors
     val ctx = LocalContext.current
+    val permission = com.meldiq.android.ui.screens.calls.rememberCallPermission()
     val scope = rememberCoroutineScope()
     var error by remember { mutableStateOf<String?>(null) }
     fun call(block: suspend () -> MeetingDto) = scope.launch { runCatching { block() }.onSuccess(onChanged).onFailure { error = it.friendly() } }
@@ -155,8 +156,10 @@ private fun MeetingSheet(m: MeetingDto, zone: String, onChanged: (MeetingDto) ->
             Spacer(Modifier.height(8.dp))
             m.room?.let { room ->
                 PillButton(stringResource(R.string.mtg_join), {
-                    onDismiss()
-                    scope.launch { runCatching { container.calls.startCall(room.id, false) } }
+                    permission(false) {
+                        container.scope.launch { container.calls.startCall(room.id, false) }
+                        onDismiss()
+                    }
                 }, Modifier.fillMaxWidth(), height = 48.dp)
             }
             PillButton(stringResource(R.string.mtg_add_calendar), {
