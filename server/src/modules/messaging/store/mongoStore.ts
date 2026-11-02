@@ -83,11 +83,11 @@ export class MongoMessageStore implements MessageStore {
       )
       .sort({ server_ts: 1, _id: 1 })
       .toArray();
-    return pageChanges(docs.map(toEvent), await this.othersReads(conversationId, viewer));
+    return pageChanges(docs.map(toEvent), await this.readReceipts(conversationId, viewer));
   }
 
   /** Each other member's newest read receipt in [conversationId] (receipts are sent with rising upTo). */
-  private async othersReads(conversationId: string, viewer: string): Promise<MessageEvent[]> {
+  async readReceipts(conversationId: string, viewer: string): Promise<MessageEvent[]> {
     const docs = await this.col
       .aggregate<EventDoc>(
         [
