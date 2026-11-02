@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { RolesOverview } from "../src/shared/contracts/http/roles.js";
 import type { GriipClient } from "./support/griipClient.js";
@@ -17,7 +18,7 @@ const say = (c: GriipClient, conv: string, payload: Record<string, unknown>) => 
 const change = (c: GriipClient, conv: string, payload: Record<string, unknown>) => c.send(conv, payload, "control", nextId("ctl"));
 const code = (e: { error: { code: string } }) => e.error.code;
 const refused = async (p: Promise<unknown>, status: number) => code(await expectStatus(p, status));
-const voiceNote = { id: "att_voice_1", name: "voice.ogg", mime: "audio/ogg", size: 1000, key: "k", nonce: "n", sha256: "s", voice: true };
+
 
 describe.each([
   ["memory", {}],
@@ -31,6 +32,14 @@ describe.each([
   const give = (roleId: string, c: GriipClient) => owner.req("PUT", `/v1/roles/${roleId}/members/${c.userId}`);
   const channel = async (body: Record<string, unknown>) => (await owner.req("POST", `/v1/orgs/${orgId}/channels`, body)).channel;
   const view = async (c: GriipClient, conv: string) => (await c.req("GET", `/v1/conversations/${conv}`)).conversation;
+  // Content permissions are checked against a completed, valid encrypted upload.
+  const upload = async (c: GriipClient, cid: string, voice = false) => {
+    const key = crypto.randomBytes(32), nonce = crypto.randomBytes(12), plain = crypto.randomBytes(300);
+    const cipher = crypto.createCipheriv("aes-256-gcm", key, nonce);
+    const bytes = Buffer.concat([cipher.update(plain), cipher.final(), cipher.getAuthTag()]);
+    const { id } = await c.req("POST", `/v1/attachments?conversationId=${cid}`, undefined, bytes);
+    return { id, name: voice ? "voice.ogg" : "photo.jpg", mime: voice ? "audio/ogg" : "image/jpeg", size: plain.length, key: key.toString("base64"), nonce: nonce.toString("base64"), sha256: crypto.createHash("sha256").update(bytes).digest("base64"), voice };
+  };
 
   beforeAll(async () => {
     h = await startServer({ ...env, MENTION_ALL_MEMBER_LIMIT: "2" });
@@ -92,6 +101,7 @@ describe.each([
     await change(owner, general, { type: "reaction", target: posted.messageId, emoji: "🎉", add: true });
     await change(member, general, { type: "reaction", target: posted.messageId, emoji: "🎉", add: true });
     await change(member, general, { type: "reaction", target: posted.messageId, emoji: "🎉", add: false });
+    const voiceNote = await upload(member, general, true);
     expect(await refused(say(member, general, { attachments: [voiceNote] }), 403)).toBe("voice_messages_not_allowed");
     await say(member, general, { attachments: [{ ...voiceNote, voice: false, name: "photo.jpg", mime: "image/jpeg" }] });
     const elsewhere = { id: "e1", orgId: "o_somewhere_else", name: "wave", sha256: "x", animated: false };
@@ -233,17 +243,17 @@ describe.each([
     const words = await channel({ name: "words", textOnly: true });
     expect((await view(member, words.id)).options).toEqual({ textOnly: true, noGifs: false, stage: false, readOnly: false, posterRoleIds: [] });
     expect((await view(member, words.id)).canAttach).toBe(false);
-    const photo = { ...voiceNote, voice: false, name: "p.jpg", mime: "image/jpeg" };
+    const photo = await upload(mod, words.id);
+    await say(mod, words.id, { attachments: [photo] });
     expect(await refused(say(member, words.id, { attachments: [photo] }), 403)).toBe("text_only_channel");
     expect(await refused(say(member, words.id, { sticker: { pack: "p", id: "s" } }), 403)).toBe("text_only_channel");
-    await say(mod, words.id, { attachments: [photo] });
     await say(member, words.id, { text: "just words" });
     const calm = await channel({ name: "calm" });
     await owner.req("PATCH", `/v1/conversations/${calm.id}`, { noGifs: true });
     const gif = { provider: "tenor", id: "g1", url: "https://media.tenor.com/abc/cat.gif", width: 200, height: 200 };
     expect(await refused(say(member, calm.id, { text: gif.url, gif }), 403)).toBe("gifs_not_allowed");
     expect(await refused(say(member, calm.id, { text: "look https://giphy.com/gifs/cat" }), 403)).toBe("gifs_not_allowed");
-    await say(member, calm.id, { attachments: [photo] });
+    await say(member, calm.id, { attachments: [await upload(member, calm.id)] });
     await say(mod, calm.id, { text: gif.url, gif });
     expect(await refused(member.req("PATCH", `/v1/conversations/${calm.id}`, { noGifs: false }), 403)).toBe("forbidden");
     expect(await refused(owner.req("PATCH", `/v1/conversations/${calm.id}`, { stage: true }), 400)).toBe("bad_request");

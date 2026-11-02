@@ -1,4 +1,4 @@
-import { messageAttachments, retainMessageAttachments } from "../files/messageAttachments.js";
+import { messageAttachments, retainMessageAttachments } from "../files/index.js";
 import type { FastifyBaseLogger } from "fastify";
 import { MAX_PAYLOAD_BYTES, type SendMessage, type StoredEvent } from "../../shared/contracts/http/serverMessages.js";
 import type { AppContext } from "../../app/context.js";
