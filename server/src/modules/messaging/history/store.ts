@@ -39,7 +39,7 @@ export type HistoryPut = { seq: number; items: number; bytes: number } | "accoun
  * times and the per-account write order.
  */
 export interface HistoryStore {
-  readonly backend: "sqlite" | "mongodb";
+  readonly backend: "sqlite" | "mongodb" | "postgres";
   account(userId: string): Promise<HistoryAccount | null>;
   /**
    * Adds or replaces [items] (already de-duplicated by tag, last copy wins), all or nothing: refused whole when the

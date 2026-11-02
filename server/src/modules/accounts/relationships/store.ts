@@ -41,7 +41,7 @@ export function pairOf(x: string, y: string): { pair: string; a: string; b: stri
 
 /** Where relationships live: SQLite, or MongoDB when MONGODB_DOMAINS includes "relationships" (src/mongo/relationships.ts). */
 export interface RelationshipStore {
-  readonly backend: "sqlite" | "mongodb";
+  readonly backend: "sqlite" | "mongodb" | "postgres";
   connection(x: string, y: string): Promise<ConnectionRow | null>;
   /** Every connection and pending request [userId] is part of. */
   connectionsOf(userId: string): Promise<ConnectionRow[]>;

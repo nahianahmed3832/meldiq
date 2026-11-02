@@ -34,9 +34,15 @@ const checks = (sql: string): string[] => {
   return result;
 };
 const catalog = tables.map(t => ({ ...t, checks: checks((db.prepare("SELECT sql FROM sqlite_master WHERE name = ?").get(t.name) as { sql: string }).sql) }));
-const sourceCommit = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+const sourceCommit = execFileSync("git", ["rev-parse", process.env.MELDIQ_SOURCE_BASE ?? "HEAD"], { encoding: "utf8" }).trim();
+const additive = process.argv.includes("--additive");
+const catalogPath = path.join(root,"supabase/generated/source-catalog.json");
+const previous = additive ? JSON.parse(fs.readFileSync(catalogPath,"utf8")) as {tables:typeof catalog} : null;
+if(previous)for(const old of previous.tables){const current=catalog.find(t=>t.name===old.name);if(!current||JSON.stringify(current)!==JSON.stringify(old))throw new Error(`Existing relation changed and requires a reviewed ALTER migration: ${old.name}`);}
+const selected=previous?catalog.filter(t=>!previous.tables.some(old=>old.name===t.name)):catalog;
+if(additive&&!selected.length){db.close();console.log(JSON.stringify({upToDate:true,tables:catalog.length}));process.exit(0);}
 const manifest = { sourceCommit, sourceSchema: db.prepare("SELECT max(version) AS version FROM schema_migrations").get(), tables: catalog };
-const lines = [
+const lines = additive ? ["-- Additive release relations from " + sourceCommit + "; prior migrations remain immutable."] : [
   "-- Generated from release " + sourceCommit + "; do not edit by hand.",
   "-- Epoch-millisecond columns preserve the released UTC/API contract. New operational time columns use timestamptz.",
   "CREATE SCHEMA meldiq;",
@@ -46,7 +52,7 @@ const lines = [
   "GRANT USAGE ON SCHEMA meldiq, meldiq_private TO meldiq_api;",
   "ALTER DEFAULT PRIVILEGES IN SCHEMA meldiq, meldiq_private REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;",
 ];
-for (const t of catalog) {
+for (const t of selected) {
   const cols = t.columns.map(c => {
     let def = "";
     if (c.default !== undefined) {
@@ -69,14 +75,17 @@ for (const t of catalog) {
     `GRANT SELECT, INSERT, UPDATE, DELETE ON meldiq.${q(t.name)} TO meldiq_api;`,
     `CREATE POLICY trusted_backend ON meldiq.${q(t.name)} FOR ALL TO meldiq_api USING (true) WITH CHECK (true);`);
 }
-for (const t of catalog) for (const [i, fk] of t.foreignKeys.entries()) {
+for (const t of selected) for (const [i, fk] of t.foreignKeys.entries()) {
   if (!catalog.some(p => p.name === fk.table)) throw new Error(`Unmapped FK ${t.name} -> ${fk.table}`);
   lines.push(`ALTER TABLE meldiq.${q(t.name)} ADD CONSTRAINT ${q(ident(`${t.name}_fk_${i}`))} FOREIGN KEY (${fk.columns.map(q).join(", ")}) REFERENCES meldiq.${q(fk.table)} (${fk.references.map(q).join(", ")}) ON DELETE ${fk.onDelete} DEFERRABLE INITIALLY DEFERRED;`);
 }
 const dir = path.join(root, "supabase");
 fs.mkdirSync(path.join(dir, "generated"), { recursive: true });
+const migration=path.join(dir,"migrations",additive?"20261102000600_administration_relations.sql":"20261102000100_release_relations.sql");
+const sql=lines.join("\n")+"\n";
+if(fs.existsSync(migration)&&fs.readFileSync(migration,"utf8")!==sql)throw new Error("Applied migration is immutable; create a new migration version");
+fs.writeFileSync(migration,sql);
 fs.writeFileSync(path.join(dir, "generated", "source-catalog.json"), JSON.stringify(manifest, null, 2) + "\n");
-fs.writeFileSync(path.join(dir, "migrations", "20261102000100_release_relations.sql"), lines.join("\n") + "\n");
 const types = catalog.map(t => `  ${q(t.name)}: {\n${t.columns.map(c => `    ${q(c.name)}: ${c.type === "TEXT" ? "string" : c.type === "BLOB" ? "Uint8Array" : "number"}${!c.notNull && !t.primaryKey.includes(c.name) ? " | null" : ""};`).join("\n")}\n  };`).join("\n");
 fs.writeFileSync(path.join(dir, "generated", "database.types.ts"), `// Generated from ${sourceCommit}; wire epoch timestamps are UTC milliseconds.\nexport interface MeldiqRows {\n${types}\n}\n`);
 db.close();

@@ -7,6 +7,7 @@ import type { Mailer } from "../../src/infrastructure/mail/mailer.js";
 import type { BillingProvider } from "../../src/modules/billing/providers/types.js";
 import type { PlayConfig } from "../../src/modules/billing/config.js";
 import type { PushDeps } from "../../src/modules/notifications/service.js";
+import type { FileStore } from "../../src/modules/files/store.js";
 import { type ContractCheck, contractCheck } from "./contracts.js";
 import { GriipClient } from "./griipClient.js";
 import { dropTestDatabase, testMongoEnv } from "./mongo.js";
@@ -30,7 +31,7 @@ let counter = 0;
  */
 export async function startServer(
   env: Record<string, string> = {},
-  opts: { push?: PushDeps; mailer?: Mailer; billingProvider?: BillingProvider; play?: PlayConfig } = {},
+  opts: { push?: PushDeps; mailer?: Mailer; billingProvider?: BillingProvider; play?: PlayConfig; files?: FileStore } = {},
 ): Promise<Harness> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "griip-test-"));
   const config = loadConfig({
@@ -67,7 +68,7 @@ export async function startServer(
   // Google Play with a fake Developer API and test signing keys (test/play.test.ts).
   if (opts.play) config.billing = { ...config.billing, play: opts.play };
   const contracts = contractCheck();
-  const built = await buildApp(config, { logger: false, push: opts.push, mailer: opts.mailer, contracts: contracts.observer });
+  const built = await buildApp(config, { logger: false, push: opts.push, mailer: opts.mailer, files: opts.files, contracts: contracts.observer });
   await built.app.listen({ host: "127.0.0.1", port: 0 });
   const addr = built.app.server.address();
   const port = typeof addr === "object" && addr ? addr.port : 0;

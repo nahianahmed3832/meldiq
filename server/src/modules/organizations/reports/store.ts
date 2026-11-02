@@ -38,7 +38,7 @@ export interface AdminReportQuery {
 
 export interface ReportStore {
   adminList(q: AdminReportQuery): Promise<ReportRow[]>;
-  readonly backend: "sqlite" | "mongodb";
+  readonly backend: "sqlite" | "mongodb" | "postgres";
   create(r: ReportRow): Promise<void>;
   get(id: string): Promise<ReportRow | null>;
   /** An open or closed report [reporterId] already made about [messageId] (reporting twice returns the first). */

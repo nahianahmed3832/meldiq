@@ -9,7 +9,7 @@ export type PrefsWrite = { ok: true; doc: StoredPrefs } | { ok: false; current: 
  * MONGODB_DOMAINS. Async so both look the same to the routes.
  */
 export interface PreferenceStore {
-  readonly backend: "sqlite" | "mongodb";
+  readonly backend: "sqlite" | "mongodb" | "postgres";
   get(userId: string, workspaceId: string): Promise<StoredPrefs | null>;
   /**
    * Writes [prefs] only if the stored revision is still [baseRev] (0: nothing stored yet). Revisions only go up, so two

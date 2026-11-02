@@ -14,7 +14,7 @@ import { readSiteDetails } from "./siteDetails.js";
 import { MongoRelayStore } from "../modules/messaging/relay/mongoStore.js";
 import { SqliteRelayStore } from "../modules/messaging/relay/store.js";
 import { MongoFileStore } from "../modules/files/mongoStore.js";
-import { SqliteFileStore } from "../modules/files/store.js";
+import { SqliteFileStore, type FileStore } from "../modules/files/store.js";
 import { type ContractObserver, observeContracts } from "./contractObserver.js";
 import websocket from "@fastify/websocket";
 import Fastify, { type FastifyInstance } from "fastify";
@@ -190,6 +190,8 @@ export async function buildApp(
     push?: PushDeps;
     mailer?: Mailer;
     mongo?: MeldiqMongo;
+    /** Injected repository for integration tests and the staged PostgreSQL composition root. */
+    files?: FileStore;
     /** Tests only: checks routes, answers and frames against the contracts (src/app/contractObserver.ts). */
     contracts?: ContractObserver;
   } = {},
@@ -307,7 +309,14 @@ export async function buildApp(
       ctx.hub.sendToUser(event.userId, { t: "prefs.updated", workspaceId: event.workspaceId, rev: Number(event.rev) });
     } catch { /* malformed transient metadata is ignored */ }
   });
-  ctx.files = ctx.mongo?.owns("files") ? new MongoFileStore(ctx.mongo, app.log) : new SqliteFileStore(db);
+  ctx.files = opts.files ?? (ctx.mongo?.owns("files") ? new MongoFileStore(ctx.mongo, app.log) : new SqliteFileStore(db));
+  if (ctx.files.backend === "postgres") {
+    app.addHook("onSend", async (_req, _reply, payload) => {
+      await ctx.files.settled();
+      return payload;
+    });
+    app.addHook("onClose", async () => ctx.files.settled());
+  }
   if (opts.contracts) {
     const observer = opts.contracts;
     ctx.hub.observe = (e) => observer.frame(e);

@@ -15,7 +15,7 @@ export interface StoredActivity {
  * lapsed yet.
  */
 export interface ActivityStore {
-  readonly backend: "memory" | "mongodb";
+  readonly backend: "memory" | "mongodb" | "postgres";
   /** Activities that haven't lapsed at [at]. */
   live(at: number): Promise<StoredActivity[]>;
   put(entry: StoredActivity): Promise<void>;

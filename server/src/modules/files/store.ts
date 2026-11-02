@@ -69,7 +69,7 @@ export interface Usage {
 export const KEPT_FOREVER = 253_402_300_799_000;
 
 export interface FileStore {
-  readonly backend: "sqlite" | "mongodb";
+  readonly backend: "sqlite" | "mongodb" | "postgres";
   attachment(id: string): Promise<AttachmentRow | null>;
   recordAttachment(row: Omit<AttachmentRow, "kept">): Promise<void>;
   keep(id: string, expiresAt: number): Promise<void>;

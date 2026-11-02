@@ -14,6 +14,23 @@ import type { MessageEvent } from "../src/modules/messaging/store/messageStore.j
 import { PostgresOutbox } from "../src/infrastructure/database/postgres/outbox.js";
 import { SupabaseAccessVerifier } from "../src/infrastructure/database/postgres/auth.js";
 import { PostgresDocuments } from "../src/infrastructure/database/postgres/documents.js";
+import { PostgresFileStore } from "../src/modules/files/postgresStore.js";
+import { KEPT_FOREVER, type UploadRow } from "../src/modules/files/store.js";
+import { startFakeS3 } from "./support/fakeS3.js";
+import { expectStatus, startServer } from "./support/harness.js";
+import { processBlobDeletes } from "../src/modules/files/routes.js";
+import { PostgresPreferenceStore } from "../src/modules/accounts/preferences/postgresStore.js";
+import { zNavPrefs } from "../src/modules/accounts/preferences/schema.js";
+import { PostgresActivityStore } from "../src/modules/accounts/activity/postgresStore.js";
+import { PostgresUsernameHoldStore } from "../src/modules/accounts/postgresUsernameHoldStore.js";
+import { PostgresHistoryStore } from "../src/modules/messaging/history/postgresStore.js";
+import { PostgresRelationshipStore } from "../src/modules/accounts/relationships/postgresStore.js";
+import { pairOf } from "../src/modules/accounts/relationships/store.js";
+import { PostgresReportStore } from "../src/modules/organizations/reports/postgresStore.js";
+import type { ReportRow } from "../src/modules/organizations/reports/store.js";
+import { PostgresRecoveryStore } from "../src/modules/accounts/postgresRecoveryStore.js";
+import { RECOVERY_TICKET_GRACE_MS } from "../src/modules/accounts/recoveryStore.js";
+import { PostgresKeyBackupStore } from "../src/modules/accounts/postgresKeyBackupStore.js";
 import type { ProgramApplication } from "../src/modules/accounts/creators/service.js";
 import { TypedPostgresImporter, digest, validateRow, dependencyOrder } from "../src/infrastructure/database/postgres/migration.js";
 
@@ -69,7 +86,7 @@ beforeEach(async () => {
 describe("relational schema and security",()=>{
   it("enforces RLS and denies raw client access on every application and operational table",async()=>{
     const rows=await db.query("SELECT c.relname,c.relrowsecurity,c.relforcerowsecurity,has_table_privilege('authenticated',c.oid,'SELECT,INSERT,UPDATE,DELETE') AS exposed FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('meldiq','meldiq_private') AND c.relkind='r'");
-    expect(rows.rows.length).toBe(276);
+    expect(rows.rows.length).toBe(284);
     expect(rows.rows.every(r=>r.relrowsecurity&&r.relforcerowsecurity&&!r.exposed)).toBe(true);
     await expect(claims(auth1,()=>db.query("SELECT password_hash FROM meldiq.accounts"))).rejects.toMatchObject({code:"42501"});
     await expect(claims(auth1,()=>db.query("UPDATE meldiq.billing_subscriptions SET status='active'"))).rejects.toMatchObject({code:"42501"});
@@ -257,7 +274,7 @@ describe("repeatable migration and record-level reconciliation",()=>{
   it("orders every relational dependency and refuses incomplete plans",()=>{
     const ordered=dependencyOrder(tableSpecs()),seen=new Set<string>();
     for(const t of ordered){expect(t.foreignKeys.every(f=>seen.has(f.table))).toBe(true);seen.add(t.name);}
-    expect(ordered).toHaveLength(246);
+    expect(ordered).toHaveLength(254);
     expect(()=>dependencyOrder([tableSpecs().find(t=>t.name==="org_members")!])).toThrow("dependency");
   });
   it("refuses imports while the synchronous runtime writer is active",async()=>{
@@ -307,5 +324,456 @@ describe("normalized native keyed stores",()=>{
     expect(await store.find({userId:"user1"},{newestBy:"createdAt",limit:10})).toHaveLength(1);
     expect(await store.count({userId:"user1"})).toBe(1);
     const takes=await Promise.all([store.take(app.id),store.take(app.id)]);expect(takes.filter(Boolean)).toHaveLength(1);
+  });
+});
+
+describe("PostgreSQL attachment metadata and durable S3 cleanup", () => {
+  const upload = (id: string, extra: Partial<UploadRow> = {}): UploadRow => ({
+    id, user_id: "user1", device_id: "device1", conversation_id: "conversation1", size: 1_025_048_576,
+    sha256: "synthetic-checksum", multipart_id: "original-s3-multipart-id", part_size: 8_388_608,
+    created_at: 1000, expires_at: 2000, ...extra,
+  });
+  const attachment = (id: string) => ({ id, conversation_id: "conversation1", uploader_user_id: "user1", size: 1_025_048_576, created_at: 1500, expires_at: 5000 });
+
+  it("retains exact ciphertext size and multipart IDs without moving object contents", async () => {
+    const files = new PostgresFileStore(db), row = upload("large");
+    await files.startUpload(row);
+    expect(await files.upload(row.id)).toEqual(row);
+    await files.setMultipart(row.id, "same-bucket-new-multipart-id");
+    expect((await files.upload(row.id))?.multipart_id).toBe("same-bucket-new-multipart-id");
+    expect(await files.pendingUsage({uploaders: ["user1"], conversations: ["conversation1"], liveAt: 1999})).toEqual({count: 1, bytes: 1_025_048_576});
+    expect(await files.completeUpload(row.id, attachment(row.id))).toBe(true);
+    expect(await files.completeUpload(row.id, attachment(row.id))).toBe(false);
+    expect(await files.upload(row.id)).toBeNull();
+    expect(await new PostgresFileStore(db).attachment(row.id)).toEqual({...attachment(row.id), kept: 0});
+    expect(await files.attachmentIdsIn(["conversation1"])).toEqual([row.id]);
+    expect(await files.knows(row.id)).toBe(true);
+    expect(await files.knows("missing")).toBe(false);
+  });
+  it("rolls back removal when attachment insertion fails", async () => {
+    const files = new PostgresFileStore(db), row = upload("duplicate");
+    await files.startUpload(row);
+    await files.recordAttachment(attachment(row.id));
+    await expect(files.completeUpload(row.id, attachment(row.id))).rejects.toMatchObject({code: "23505"});
+    expect(await files.upload(row.id)).toEqual(row);
+    await expect(files.completeUpload(row.id, attachment("different-id"))).rejects.toThrow("retain its upload ID");
+    expect(await files.upload(row.id)).toEqual(row);
+  });
+  it("allows exactly one of simultaneous completion and expiry, with recoverable cleanup", async () => {
+    const files = new PostgresFileStore(db);
+    for (let n = 0; n < 12; n++) {
+      const id = `race-${n}`;
+      await files.startUpload(upload(id));
+      const [completed, expired] = await Promise.all([files.completeUpload(id, attachment(id)), files.expireUploads(2000)]);
+      expect(Number(completed) + expired).toBe(1);
+      expect(await files.upload(id)).toBeNull();
+      const cleanup = (await files.dueAbandoned(0, 100)).some(row => row.id === id);
+      expect(cleanup).toBe(!completed);
+      expect((await files.attachment(id)) !== null).toBe(completed);
+    }
+  });
+  it("ignores stale cancellation after completion and takes multipart state from the database", async () => {
+    const files = new PostgresFileStore(db), row = upload("cancel");
+    await files.startUpload(row);
+    await files.setMultipart(row.id, "authoritative-multipart-id");
+    await files.abandonUpload({...row, multipart_id: "stale-multipart-id"});
+    expect(await files.dueAbandoned(0, 10)).toEqual([{id: row.id, multipart_id: "authoritative-multipart-id", attempts: 0}]);
+    await files.startUpload(upload("completed"));
+    await files.completeUpload("completed", attachment("completed"));
+    await files.abandonUpload(upload("completed"));
+    expect((await files.dueAbandoned(0, 10)).map(row => row.id)).toEqual([row.id]);
+    expect(await files.attachment("completed")).not.toBeNull();
+  });
+  it("preserves usage filters, retry state, and extended retention", async () => {
+    const files = new PostgresFileStore(db);
+    await files.recordAttachment(attachment("kept"));
+    await files.recordAttachment({...attachment("expired"), size: 12, expires_at: 1500});
+    await files.keep("kept", 9000);
+    await files.keep("kept", 6000);
+    expect((await files.attachment("kept"))?.expires_at).toBe(9000);
+    expect(await files.storedUsage({uploaders: ["user1"], conversations: ["conversation1"], createdAfter: 1499, liveAt: 1500, kept: true})).toEqual({count: 1, bytes: 1_025_048_576});
+    expect(await files.storedUsage({uploaders: []})).toEqual({count: 0, bytes: 0});
+    expect(await files.pendingUsage({conversations: []})).toEqual({count: 0, bytes: 0});
+    expect(await files.keepAllForever(1500)).toBe(1);
+    expect((await files.attachment("kept"))?.expires_at).toBe(KEPT_FOREVER);
+    expect(await files.purgeExpired(1500)).toEqual(["expired"]);
+    await files.blobDeleteRetry("attachments", "expired", 3, 4000);
+    await files.enqueueBlobDelete("attachments", "expired");
+    expect(await files.dueBlobDeletes(3999, 10)).toEqual([]);
+    expect(await new PostgresFileStore(db).dueBlobDeletes(4000, 10)).toEqual([{kind: "attachments", blob_id: "expired", attempts: 3}]);
+    await files.blobDeleteDone("attachments", "expired");
+    expect(await files.dueBlobDeletes(4000, 10)).toEqual([]);
+  });
+  it("atomically forgets conversation metadata and keeps cleanup durable across store restarts", async () => {
+    const files = new PostgresFileStore(db);
+    await files.recordAttachment(attachment("stored"));
+    await files.startUpload(upload("unfinished"));
+    await db.query("INSERT INTO meldiq.conversations(id,type,created_by,created_at,updated_at) VALUES('other','DM','user2',1000,1000)");
+    await files.startUpload(upload("other-conversation", {conversation_id: "other", user_id: "user2"}));
+    files.forgetConversation("conversation1");
+    files.queueBlobDelete("profile-photos", "existing-photo-key");
+    await files.settled();
+    const restarted = new PostgresFileStore(db);
+    expect(await restarted.attachment("stored")).toBeNull();
+    expect(await restarted.upload("unfinished")).toBeNull();
+    expect(await restarted.upload("other-conversation")).not.toBeNull();
+    expect(await restarted.dueBlobDeletes(0, 10)).toEqual([{kind: "attachments", blob_id: "stored", attempts: 0}, {kind: "profile-photos", blob_id: "existing-photo-key", attempts: 0}]);
+    expect(await restarted.dueAbandoned(0, 10)).toEqual([{id: "unfinished", multipart_id: "original-s3-multipart-id", attempts: 0}]);
+    await restarted.abandonedRetry("unfinished", 2, 3000);
+    expect(await restarted.dueAbandoned(2999, 10)).toEqual([]);
+    expect(await restarted.dueAbandoned(3000, 10)).toEqual([{id: "unfinished", multipart_id: "original-s3-multipart-id", attempts: 2}]);
+    await restarted.abandonedDone("unfinished");
+    restarted.forgetUploader("user2");
+    await restarted.settled();
+    expect(await restarted.upload("other-conversation")).toBeNull();
+    expect(await restarted.dueAbandoned(0, 10)).toHaveLength(1);
+  });
+  it("keeps metadata and cleanup in the caller's database transaction", async () => {
+    const files = new PostgresFileStore(db);
+    await files.recordAttachment(attachment("rollback"));
+    await expect(db.transaction(async () => {
+      await files.forgetConversationAsync("conversation1");
+      throw new Error("service failed");
+    })).rejects.toThrow("service failed");
+    expect(await files.attachment("rollback")).not.toBeNull();
+    expect(await files.dueBlobDeletes(0, 10)).toEqual([]);
+    // Fault injection: a denied queue must roll back the metadata removal, rather than orphan the object.
+    await expect(db.transaction(async () => {
+      await db.query("REVOKE INSERT ON meldiq.pending_blob_deletes FROM meldiq_api");
+      await db.query("SET LOCAL ROLE meldiq_api");
+      await files.purgeExpired(5000);
+    })).rejects.toMatchObject({code: "42501"});
+    expect(await files.attachment("rollback")).not.toBeNull();
+  });
+  it("reports deferred cleanup failure instead of acknowledging successful persistence", async () => {
+    const files = new PostgresFileStore(db);
+    // Database check rejects this impossible blob kind. No raw query error reaches a logger.
+    files.queueBlobDelete("invalid" as "attachments", "test-key");
+    await expect(files.settled()).rejects.toThrow("cleanup was not persisted");
+    expect(await files.dueBlobDeletes(0, 10)).toEqual([]);
+    await expect(files.dueBlobDeletes(0, -1)).rejects.toThrow("Cleanup limit");
+  });
+  it("queues cleanup during foreign-key cascades without relying on process-local callbacks", async () => {
+    const files = new PostgresFileStore(db);
+    await files.recordAttachment(attachment("parent-deleted"));
+    await files.startUpload(upload("upload-parent-deleted"));
+    await db.transaction(async () => {
+      await db.query("SET LOCAL ROLE meldiq_api");
+      await db.query("DELETE FROM meldiq.conversations WHERE id='conversation1'");
+    });
+    expect(await files.attachment("parent-deleted")).toBeNull();
+    expect(await files.upload("upload-parent-deleted")).toBeNull();
+    expect(await files.dueBlobDeletes(0, 10)).toEqual([{kind: "attachments", blob_id: "parent-deleted", attempts: 0}]);
+    expect(await files.dueAbandoned(0, 10)).toEqual([{id: "upload-parent-deleted", multipart_id: "original-s3-multipart-id", attempts: 0}]);
+  });
+  it("does not queue a live attachment when a deferred upload deletion becomes a completed file", async () => {
+    const files = new PostgresFileStore(db);
+    await files.startUpload(upload("complete-transaction"));
+    await db.transaction(async () => {
+      await db.query("SET LOCAL ROLE meldiq_api");
+      expect(await files.completeUpload("complete-transaction", attachment("complete-transaction"))).toBe(true);
+    });
+    expect(await files.dueAbandoned(0, 10)).toEqual([]);
+    expect(await files.dueBlobDeletes(0, 10)).toEqual([]);
+    await db.transaction(async () => {
+      await db.query("DELETE FROM meldiq.attachments WHERE id='complete-transaction'");
+      await files.recordAttachment(attachment("complete-transaction"));
+    });
+    expect(await files.dueBlobDeletes(0, 10)).toEqual([]);
+  });
+});
+
+describe("Fastify attachment routes with PostgreSQL metadata and SigV4 S3 transport", () => {
+  it("preserves upload limits, private downloads, multipart cancellation and failed-upload cleanup", async () => {
+    const s3 = await startFakeS3("migration-fixture", "eu-central-1", {accessKeyId: "SYNTHETIC", secretAccessKey: "synthetic-secret"});
+    const files = new PostgresFileStore(db);
+    const h = await startServer({STORAGE_BACKEND: "s3", S3_BUCKET: "migration-fixture", S3_REGION: "eu-central-1", S3_ENDPOINT: s3.url,
+      S3_FORCE_PATH_STYLE: "true", S3_ACCESS_KEY_ID: "SYNTHETIC", S3_SECRET_ACCESS_KEY: "synthetic-secret"}, {files});
+    try {
+      const alice = await h.client("pgfilesalice"), bob = await h.client("pgfilesbob"), eve = await h.client("pgfileseve");
+      const dm = (await alice.req("POST", "/v1/conversations/dm", {userId: bob.userId})).conversation.id;
+      // This test isolates the metadata repository. The other domains still use the legacy test harness;
+      // mirror only synthetic FK parents, without representing this as a complete PostgreSQL application run.
+      for (const userId of [alice.userId, bob.userId, eve.userId]) await db.query(
+        "INSERT INTO meldiq.users(id,username,display_name,identity_key,avatar_color,created_at,updated_at) VALUES($1,$1,$1,$1,1,1000,1000)", [userId]);
+      await db.query("INSERT INTO meldiq.conversations(id,type,created_by,created_at,updated_at) VALUES($1,'DM',$2,1000,1000)", [dm, alice.userId]);
+      const body = Buffer.from("synthetic encrypted attachment bytes");
+      const sha256 = crypto.createHash("sha256").update(body).digest("base64");
+      const started = await alice.req("POST", "/v1/attachments/uploads", {conversationId: dm, size: body.length, sha256});
+      expect(started.mode).toBe("single");
+      expect((await fetch(started.upload.url, {method: "PUT", headers: started.upload.headers, body})).status).toBe(200);
+      const completed = await alice.req("POST", `/v1/attachments/uploads/${started.uploadId}/complete`, {});
+      expect(completed.size).toBe(body.length);
+      expect((await files.attachment(started.uploadId))?.uploader_user_id).toBe(alice.userId);
+      expect(await alice.req("POST", `/v1/attachments/uploads/${started.uploadId}/complete`, {})).toEqual(completed);
+      await expectStatus(eve.req("GET", `/v1/attachments/${started.uploadId}`), 404);
+      const download = await fetch(`${h.baseUrl}/v1/attachments/${started.uploadId}?proxy=1`, {headers: {authorization: `Bearer ${bob.token}`}});
+      expect(download.status).toBe(200);
+      expect(download.headers.get("cache-control")).toBe("private, no-store");
+      expect(Buffer.from(await download.arrayBuffer())).toEqual(body);
+      const memberLink = await fetch(`${h.baseUrl}/v1/attachments/${started.uploadId}`, {headers: {authorization: `Bearer ${bob.token}`}, redirect: "manual"});
+      expect(memberLink.status).toBe(302);
+      const location = memberLink.headers.get("location")!;
+      expect(location).toContain("X-Amz-Signature");
+      expect(Buffer.from(await (await fetch(location)).arrayBuffer())).toEqual(body);
+
+      const plaintextMax = 1_024_000_000, encryptedMax = plaintextMax + 16 * Math.ceil(plaintextMax / 1_048_576);
+      const large = await alice.req("POST", "/v1/attachments/uploads", {conversationId: dm, size: encryptedMax, sha256});
+      expect(large.mode).toBe("multipart");
+      expect((await files.upload(large.uploadId))?.size).toBe(encryptedMax);
+      await expectStatus(alice.req("POST", "/v1/attachments/uploads", {conversationId: dm, size: encryptedMax + 1, sha256}), 413);
+      await expectStatus(bob.req("GET", `/v1/attachments/uploads/${large.uploadId}/parts`), 404);
+      await alice.req("DELETE", `/v1/attachments/uploads/${large.uploadId}`);
+      expect(s3.uploads.size).toBe(0);
+      expect(await files.upload(large.uploadId)).toBeNull();
+      // An uploaded object that never completed is removed by the same durable retry job after expiry.
+      const abandoned = await alice.req("POST", "/v1/attachments/uploads", {conversationId: dm, size: body.length, sha256});
+      expect((await fetch(abandoned.upload.url, {method: "PUT", headers: abandoned.upload.headers, body})).status).toBe(200);
+      await files.expireUploads(Number.MAX_SAFE_INTEGER);
+      const { processAbandonedUploads } = await import("../src/modules/files/routes.js");
+      await processAbandonedUploads(h.ctx);
+      expect((await files.dueAbandoned(Date.now(), 10)).length).toBe(0);
+      expect(s3.objects.size).toBe(1);
+      await files.forgetConversationAsync(dm);
+      expect(await processBlobDeletes(h.ctx)).toBe(1);
+      expect(s3.objects.size).toBe(0);
+    } finally {
+      await h.close();
+      await s3.close();
+    }
+  });
+});
+
+describe("PostgreSQL preferences, activity and username reservations", () => {
+  it("resolves competing first writes and updates without losing a device's revision", async () => {
+    const preferences = new PostgresPreferenceStore(db), prefs = zNavPrefs.parse({starred: ["conversation1"], saved: []});
+    const first = await Promise.all([preferences.put("user1", "personal", prefs, 0, 1000), preferences.put("user1", "personal", zNavPrefs.parse({}), 0, 1001)]);
+    expect(first.filter(result => result.ok)).toHaveLength(1);
+    expect(first.filter(result => !result.ok).every(result => result.current?.rev === 1)).toBe(true);
+    const second = await Promise.all([preferences.put("user1", "personal", prefs, 1, 1002), preferences.put("user1", "personal", prefs, 1, 1003)]);
+    expect(second.filter(result => result.ok)).toHaveLength(1);
+    expect((await new PostgresPreferenceStore(db).get("user1", "personal"))?.rev).toBe(2);
+    expect(await preferences.put("user2", "personal", prefs, 4, 1000)).toEqual({ok: false, current: null});
+    await expect(preferences.put("user1", "personal", prefs, Number.MAX_SAFE_INTEGER, 1000)).rejects.toThrow("revision");
+  });
+  it("keeps saved preferences isolated per owner/workspace and tolerates malformed historical JSON", async () => {
+    const preferences = new PostgresPreferenceStore(db), prefs = zNavPrefs.parse({});
+    await preferences.put("user1", "workspace", prefs, 0, 1000);
+    await preferences.put("user2", "workspace", prefs, 0, 1000);
+    await preferences.put("user1", "personal", prefs, 0, 1000);
+    await db.query("UPDATE meldiq.nav_preferences SET doc='malformed historical JSON' WHERE user_id='user1' AND workspace_id='personal'");
+    expect((await preferences.get("user1", "personal"))?.prefs).toEqual(prefs);
+    await preferences.deleteForMember("user1", "workspace");
+    expect(await preferences.get("user1", "workspace")).toBeNull();
+    expect(await preferences.get("user2", "workspace")).not.toBeNull();
+    await preferences.deleteForWorkspace("workspace");
+    expect(await preferences.get("user2", "workspace")).toBeNull();
+    await preferences.deleteForUser("user1");
+    expect(await preferences.get("user1", "personal")).toBeNull();
+  });
+  it("restores live activities after restart and expires them at the exact boundary", async () => {
+    const activities = new PostgresActivityStore(db);
+    const entry = {userId: "user1", activity: {kind: "playing" as const, name: "Synthetic game", startedAt: 1000}, updatedAt: 1500, expiresAt: 2000};
+    await activities.put(entry);
+    expect(await new PostgresActivityStore(db).live(1999)).toEqual([entry]);
+    expect(await activities.live(2000)).toEqual([]);
+    await activities.put({...entry, expiresAt: 3000});
+    await activities.removeLapsed(2000);
+    expect(await activities.live(2000)).toHaveLength(1);
+    await activities.removeLapsed(3000);
+    expect(await activities.live(0)).toEqual([]);
+    await activities.put(entry);
+    await activities.remove(entry.userId);
+    expect(await activities.live(0)).toEqual([]);
+  });
+  it("persists username holds, replacement, owner removal and expiry without a second durable database", async () => {
+    const holds = new PostgresUsernameHoldStore(db), hold = {username: "reserved", userId: "user1", createdAt: 1000, expiresAt: 2000};
+    await holds.put(hold);
+    expect(await new PostgresUsernameHoldStore(db).live(1999)).toEqual([hold]);
+    expect(await holds.live(2000)).toEqual([]);
+    await holds.put({...hold, userId: "user2", expiresAt: 3000});
+    await holds.deleteForUser("user1");
+    expect((await holds.live(2000))[0].userId).toBe("user2");
+    await holds.removeExpired(3000);
+    expect(await holds.live(0)).toEqual([]);
+    await holds.put(hold);
+    await holds.remove(hold.username);
+    expect(await holds.live(0)).toEqual([]);
+  });
+});
+
+describe("PostgreSQL opaque encrypted history", () => {
+  const limits = {maxItems: 1000, maxBytes: 1_000_000, maxTotalBytes: 0};
+  const item = (tag: string, body: Buffer | null = Buffer.from([0, 255, 127, 0, 80])) => ({tag, conv: "opaque-conversation-tag", ts: 1000, body});
+  it("keeps ciphertext and per-account cursors stable across restart, updates and tombstones", async () => {
+    const history = new PostgresHistoryStore(db), first = item("opaque-tag");
+    expect(await history.put("user1", [first, item("empty", Buffer.alloc(0))], limits, 1000)).toEqual({seq: 2, items: 2, bytes: 5});
+    expect(await history.put("user1", [item("opaque-tag", null)], limits, 1100)).toEqual({seq: 3, items: 1, bytes: 0});
+    const restarted = new PostgresHistoryStore(db);
+    expect(await restarted.account("user1")).toEqual({next_seq: 4, items: 1, bytes: 0});
+    expect(await restarted.items("user1", 0, 10)).toEqual([
+      {tag: "empty", conv_tag: first.conv, seq: 2, ts: 1000, body: Buffer.alloc(0)},
+      {tag: first.tag, conv_tag: first.conv, seq: 3, ts: 1000, body: null},
+    ]);
+    expect(await restarted.items("user2", 0, 10)).toEqual([]);
+    expect(await restarted.purgeTombstones(1099)).toBe(0);
+    expect(await restarted.purgeTombstones(1100)).toBe(1);
+    expect(await restarted.put("user1", [first], limits, 1200)).toEqual({seq: 4, items: 2, bytes: 5});
+    expect((await restarted.items("user1", 3, 10))[0].body).toEqual(first.body);
+  });
+  it("serializes competing writes before checking per-account limits", async () => {
+    const history = new PostgresHistoryStore(db), small = {...limits, maxItems: 1};
+    const results = await Promise.all([history.put("user1", [item("a")], small, 1000), history.put("user1", [item("b")], small, 1000)]);
+    expect(results.filter(result => result === "account")).toHaveLength(1);
+    expect((await history.items("user1", 0, 10))).toHaveLength(1);
+    expect(await history.account("user1")).toEqual({next_seq: 2, items: 1, bytes: 5});
+    expect(await history.put("user1", [item("over-byte-limit", Buffer.alloc(6))], {...limits, maxBytes: 4}, 1001)).toBe("account");
+    expect(await history.account("user1")).toEqual({next_seq: 2, items: 1, bytes: 5});
+  });
+  it("serializes global quota growth across different accounts and still permits shrinking", async () => {
+    const history = new PostgresHistoryStore(db), capped = {...limits, maxTotalBytes: 5};
+    const results = await Promise.all([history.put("user1", [item("a")], capped, 1000), history.put("user2", [item("b")], capped, 1000)]);
+    expect(results.filter(result => result === "server")).toHaveLength(1);
+    const winner = results[0] === "server" ? "user2" : "user1", tag = winner === "user1" ? "a" : "b";
+    expect(await history.put(winner, [item(tag, null)], {...capped, maxTotalBytes: 1}, 1001)).toEqual({seq: 2, items: 0, bytes: 0});
+    expect(await history.put(winner === "user1" ? "user2" : "user1", [item("new")], capped, 1002)).toEqual({seq: 1, items: 1, bytes: 5});
+  });
+  it("rolls back all SQL batches and cursor totals after a failed identity constraint", async () => {
+    const history = new PostgresHistoryStore(db), plan = Array.from({length: 205}, (_, n) => item(`opaque-${n}`));
+    await expect(history.put("missing-owner", plan, limits, 1000)).rejects.toMatchObject({code: "23503"});
+    expect(await history.items("missing-owner", 0, 1000)).toEqual([]);
+    expect(await history.account("missing-owner")).toBeNull();
+    expect(await history.put("user1", plan, limits, 1000)).toEqual({seq: 205, items: 205, bytes: 1025});
+    const concurrent = await Promise.all([history.put("user1", [item("opaque-0")], limits, 1001), history.put("user1", [item("opaque-0")], limits, 1002)]);
+    expect(concurrent.map(result => typeof result === "object" ? result.seq : result).sort()).toEqual([206, 207]);
+    expect(await history.account("user1")).toEqual({next_seq: 208, items: 205, bytes: 1025});
+    await expect(history.put("user1", [item("duplicate"), item("duplicate")], limits, 1000)).rejects.toThrow("deduplicated");
+    expect(await history.deleteForUser("user1")).toBe(205);
+    expect(await history.account("user1")).toBeNull();
+    expect(await history.items("user1", 0, 1000)).toEqual([]);
+  });
+});
+
+describe("PostgreSQL relationships and moderation repositories", () => {
+  it("preserves unordered pair ownership, request idempotency and concurrent sent counters", async () => {
+    const relationships = new PostgresRelationshipStore(db);
+    const pair = {...pairOf("user2", "user1"), state: "pending" as const, requested_by: "user1", created_at: 1000, accepted_at: null};
+    await relationships.putConnection(pair);
+    expect(await relationships.connection("user2", "user1")).toEqual(pair);
+    await relationships.putConnection({...pair, state: "accepted", accepted_at: 1100});
+    expect((await relationships.connectionsOf("user1"))[0].state).toBe("accepted");
+    const request = {conversation_id: "conversation1", recipient: "user2", sender: "user1", state: "pending" as const, sent: 0, created_at: 1000, answered_at: null};
+    await relationships.createRequest(request);
+    await relationships.createRequest({...request, sender: "user2"});
+    expect(await relationships.request("conversation1")).toEqual(request);
+    expect((await Promise.all(Array.from({length: 20}, () => relationships.countSent("conversation1")))).sort((a, b) => a - b)).toEqual(Array.from({length: 20}, (_, n) => n + 1));
+    expect((await relationships.requestsFor("user2", "pending"))[0].sent).toBe(20);
+    expect(await relationships.requestsIn([])).toEqual([]);
+    expect(await relationships.requestsIn(["conversation1"])).toHaveLength(1);
+    expect(await relationships.countStartedSince("user1", 1000)).toBe(2);
+    expect(await relationships.countStartedSince("user1", 1001)).toBe(0);
+    await relationships.declineRequest("conversation1", 1200);
+    expect((await relationships.requestsFor("user2", "declined"))[0].answered_at).toBe(1200);
+    await relationships.putSettings("user1", {dm_policy: "connections", request_policy: "nobody"}, 1200);
+    expect(await relationships.settings("user1")).toEqual({dm_policy: "connections", request_policy: "nobody"});
+    expect(await relationships.settings("user2")).toBeNull();
+    await relationships.deleteForUser("user1");
+    expect(await relationships.connection("user1", "user2")).toBeNull();
+    expect(await relationships.request("conversation1")).toBeNull();
+    expect(await relationships.settings("user1")).toBeNull();
+  });
+  it("rejects invalid relationship state and preserves transaction rollback", async () => {
+    const relationships = new PostgresRelationshipStore(db);
+    const pair = {...pairOf("user1", "user2"), state: "pending" as const, requested_by: "user1", created_at: 1000, accepted_at: null};
+    await expect(relationships.putConnection({...pair, pair: "forged"})).rejects.toThrow("connection pair");
+    await expect(db.transaction(async () => {
+      await relationships.putConnection(pair);
+      await relationships.putSettings("user1", {dm_policy: "forged" as "everyone", request_policy: "nobody"}, 1000);
+    })).rejects.toMatchObject({code: "23514"});
+    expect(await relationships.connectionsOf("user1")).toEqual([]);
+    expect(await relationships.deleteConnection("user1", "user2")).toBe(false);
+    expect(await relationships.countSent("missing")).toBe(0);
+  });
+  const report = (id: string, overrides: Partial<ReportRow> = {}): ReportRow => ({id, org_id: null, reporter_id: "user1", target_user_id: "user2",
+    conversation_id: "conversation1", message_id: "synthetic-message", reason: "spam", note: null, content: "sealed-ciphertext-fixture", status: "open",
+    handled_by: null, handled_note: null, created_at: 1000, handled_at: null, ...overrides});
+  it("preserves sealed reports, operator queues, tie pagination and reopen/retention behavior", async () => {
+    const reports = new PostgresReportStore(db);
+    await reports.create(report("report-a"));
+    await reports.create(report("report-b"));
+    expect(await new PostgresReportStore(db).get("report-a")).toEqual(report("report-a"));
+    expect(await reports.byReporterMessage("user1", "synthetic-message")).not.toBeNull();
+    expect(await reports.countSince("user1", 1000)).toBe(2);
+    expect(await reports.countOpen(null)).toBe(2);
+    expect((await reports.list(null, false, 10)).map(row => row.id)).toEqual(["report-b", "report-a"]);
+    const page = await reports.adminList({status: "open", targetUserId: "user2", q: "spam", limit: 1});
+    expect(page.map(row => row.id)).toEqual(["report-b"]);
+    expect((await reports.adminList({after: {createdAt: 1000, id: "report-b"}, limit: 10})).map(row => row.id)).toEqual(["report-a"]);
+    expect(await reports.adminList({q: "' OR 1=1 --", limit: 10})).toEqual([]);
+    expect((await reports.setStatus("report-b", "actioned", "user1", "reviewed", 2000))?.handled_by).toBe("user1");
+    expect(await reports.countOpen(null)).toBe(1);
+    expect((await reports.list(null, true, 10)).map(row => row.id)).toEqual(["report-b"]);
+    expect(await reports.purgeClosed(2000)).toBe(0);
+    expect((await reports.setStatus("report-b", "open", "user1", "ignored", 2100))?.handled_at).toBeNull();
+    expect(await reports.purgeClosed(3000)).toBe(0);
+    await reports.setStatus("report-a", "dismissed", "user1", null, 2000);
+    expect(await reports.purgeClosed(2001)).toBe(1);
+    expect(await reports.get("report-a")).toBeNull();
+    expect(await reports.deleteForUser("user2")).toBe(1);
+    expect(await reports.setStatus("missing", "actioned", "user1", null, 2000)).toBeNull();
+  });
+});
+
+describe("PostgreSQL recovery and sealed key material", () => {
+  it("replaces an entire recovery set atomically and permits only one use of each hash", async () => {
+    const recovery = new PostgresRecoveryStore(db);
+    const code = (id: string) => ({id, account_id: "account1", code_hash: `synthetic-hash-${id}`, created_at: 1000, used_at: null});
+    await recovery.replaceCodes("account1", [code("old")]);
+    await expect(recovery.replaceCodes("account1", [code("duplicate"), code("duplicate")])).rejects.toMatchObject({code: "23505"});
+    expect(await recovery.codes("account1")).toEqual([code("old")]);
+    const won = await Promise.all([recovery.useCode("account1", code("old").code_hash, 1100), recovery.useCode("account1", code("old").code_hash, 1100)]);
+    expect(won.filter(Boolean)).toHaveLength(1);
+    expect(await recovery.useCode("account2", code("old").code_hash, 1100)).toBe(false);
+    await Promise.all([recovery.replaceCodes("account1", [code("generation-a1"), code("generation-a2")]), recovery.replaceCodes("account1", [code("generation-b1"), code("generation-b2")])]);
+    const ids = (await recovery.codes("account1")).map(row => row.id);
+    expect(ids.length).toBe(2);
+    expect(ids.every(id => id.startsWith("generation-a")) || ids.every(id => id.startsWith("generation-b"))).toBe(true);
+    expect(await recovery.deleteCodes("account1")).toBe(2);
+  });
+  it("enforces one-use ticket expiry and preserves the audit retention grace", async () => {
+    const recovery = new PostgresRecoveryStore(db);
+    const ticket = {ticket_hash: "synthetic-ticket", account_id: "account1", new_email: "fixture@example.invalid", email_code_hash: "synthetic-email-code-hash",
+      attempts: 0, created_at: 1000, expires_at: 2000, used_at: null};
+    await recovery.insertTicket(ticket);
+    await Promise.all(Array.from({length: 10}, () => recovery.countTicketAttempt(ticket.ticket_hash)));
+    expect((await new PostgresRecoveryStore(db).ticket(ticket.ticket_hash))?.attempts).toBe(10);
+    expect(await recovery.useTicket(ticket.ticket_hash, 2000)).toBe(false);
+    expect((await Promise.all([recovery.useTicket(ticket.ticket_hash, 1999), recovery.useTicket(ticket.ticket_hash, 1999)])).filter(Boolean)).toHaveLength(1);
+    expect(await recovery.purgeExpired(RECOVERY_TICKET_GRACE_MS + 1999)).toBe(0);
+    expect(await recovery.purgeExpired(RECOVERY_TICKET_GRACE_MS + 2000)).toBe(1);
+    expect(await recovery.ticket(ticket.ticket_hash)).toBeUndefined();
+  });
+  it("copies sealed backups exactly, retains original creation time and atomically consumes unlocks", async () => {
+    const keys = new PostgresKeyBackupStore(db);
+    const backup = {account_id: "account1", identity_key: "synthetic-identity", password_changed_at: 1000, version: 1, iterations: 600000,
+      salt: "sealed-salt", nonce: "sealed-nonce", ciphertext: "opaque-ciphertext", created_at: 1000, updated_at: 1000};
+    await keys.putBackup(backup);
+    expect(await new PostgresKeyBackupStore(db).backup("account1")).toEqual(backup);
+    await keys.putBackup({...backup, ciphertext: "replacement-ciphertext", created_at: 2000, updated_at: 2000});
+    expect(await keys.backup("account1")).toEqual({...backup, ciphertext: "replacement-ciphertext", updated_at: 2000});
+    await keys.putUnlock({account_id: "account1", session_id: "synthetic-session", code_hash: "hash1", attempts: 0, created_at: 1000, expires_at: 2000});
+    await keys.countUnlockAttempt("account1");
+    expect((await keys.unlock("account1"))?.attempts).toBe(1);
+    await keys.putUnlock({account_id: "account1", session_id: "new-session", code_hash: "hash2", attempts: 99, created_at: 1100, expires_at: 2100});
+    expect((await keys.unlock("account1"))?.attempts).toBe(0);
+    expect(await keys.useUnlock("account1", "hash1")).toBe(false);
+    expect((await Promise.all([keys.useUnlock("account1", "hash2"), keys.useUnlock("account1", "hash2")])).filter(Boolean)).toHaveLength(1);
+    expect(await keys.backup("account2")).toBeUndefined();
+    await keys.putUnlock({account_id: "account1", session_id: "synthetic-session", code_hash: "hash3", attempts: 0, created_at: 1000, expires_at: 2000});
+    expect(await keys.purgeExpired(1999)).toBe(0);
+    expect(await keys.purgeExpired(2000)).toBe(1);
+    await keys.deleteForAccount("account1");
+    expect(await keys.backup("account1")).toBeUndefined();
+    expect(await keys.deleteBackup("account1")).toBe(false);
   });
 });

@@ -13,7 +13,7 @@ export interface UsernameHold {
  * path (usernames are checked synchronously at sign-up).
  */
 export interface UsernameHoldStore {
-  readonly backend: "memory" | "mongodb";
+  readonly backend: "memory" | "mongodb" | "postgres";
   /** Holds still in force at [at]. */
   live(at: number): Promise<UsernameHold[]>;
   /** Holds [username] for its user, replacing any earlier hold of the same name. */
