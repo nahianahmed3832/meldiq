@@ -56,6 +56,12 @@ describe.each([
     expect(readsIn(around).map((c) => c.payload.upTo)).toEqual([sent[2].serverTs]);
     const ts = around.changes.map((c: { serverTs: number }) => c.serverTs);
     expect(ts).toEqual([...ts].sort((a, b) => a - b));
+    // The web uses collection pages for its main timeline, files, pins and threads.
+    const collection = await alice.req("GET", `/v2/conversations/${dm}/message-collections?kind=main&limit=2`);
+    expect(readsIn(collection)).toEqual([expect.objectContaining({ senderUserId: bob.userId, payload: { type: "read", upTo: sent[2].serverTs } })]);
+    const cursor = collection.nextCursor;
+    const collectionOlder = await alice.req("GET", `/v2/conversations/${dm}/message-collections?kind=main&limit=2&before=${cursor.serverTs}&beforeId=${cursor.id}`);
+    expect(readsIn(collectionOlder)).toEqual(readsIn(collection));
     // Bob sees Alice's receipt, not his own.
     const forBob = await bob.req("GET", `/v2/conversations/${dm}/messages?limit=2`);
     expect(readsIn(forBob)).toEqual([expect.objectContaining({ senderUserId: alice.userId, payload: { type: "read", upTo: fromBob.serverTs } })]);
