@@ -60,7 +60,6 @@ export const ERROR_CODES = {
   fresh_auth_required: { status: [403], meaning: "Confirm your password or sign in again." },
   identity_conflict: { status: [409], meaning: "Provider identity is already connected." },
   provider_email_required: { status: [400], meaning: "Provider did not supply a verified email." },
-  social_profile_required: { status: [400], meaning: "Display name required to create an account." },
   last_login_method: { status: [409], meaning: "Another login method must remain." },
   external_identity_invalid: { status: [401], meaning: "Provider identity verification failed." },
   provider_unavailable: { status: [503], meaning: "Provider is temporarily unavailable." },

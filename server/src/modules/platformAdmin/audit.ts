@@ -61,6 +61,8 @@ export class PlatformAudit {
   /** [platform]: the platform domain's rows, which hold platform_audit. */
   constructor(private readonly platform: Rows) {}
 
+  async recordOnce(key:string,e:AuditEntry):Promise<void>{await this.platform.write(w=>{if(w.get("platform_settings",{key}))return;this.append(w,e);w.insert("platform_settings",{key,value:"true",updated_by:"payment-provider",updated_at:now()});});}
+
   /** Appends [e] in its own unit; resolves once it is durable. */
   record(e: AuditEntry, t = now()): Promise<AuditRow> {
     return this.platform.write((w) => this.append(w, e, t));

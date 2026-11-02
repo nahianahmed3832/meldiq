@@ -24,3 +24,7 @@ export { isAddonPlanKey } from "./perks.js";
 export { PayPalCheckout } from "./paypalCheckout.js";
 
 export { GiftDelivery, type GiftTarget } from "./giftDelivery.js";
+
+export { addMonths } from "./gifts.js";
+export { collectibleCommerceAdminRoutes } from "./collectibleCommerce.js";
+export { promotionPage, savePromotion, redeemPromotion, adminGiftPage } from "./promotions.js";

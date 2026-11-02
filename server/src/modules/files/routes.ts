@@ -1,4 +1,4 @@
-import { runtimePolicy } from "../platformAdmin/runtimePolicy.js";
+import { runtimePolicy } from "../platformAdmin/index.js";
 import { requireFeature } from "../../app/platformControls.js";
 import crypto from "node:crypto";
 import { AsyncLock } from "../../shared/utilities/lock.js";

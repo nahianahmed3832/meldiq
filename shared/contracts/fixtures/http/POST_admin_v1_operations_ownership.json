@@ -1,0 +1,15 @@
+{
+  "item": {
+    "id": "ownreq_DgzJ-5BunHkstrxUoKaXDw",
+    "org_id": "o_2cqlpNGdQEGCIQIwCe3oSA",
+    "owner_user_id": "u_lcLEBdGWjvKjvMWr1lNUww",
+    "target_user_id": "u_5b40blJc4KcTFmYeTxjnkA",
+    "requested_by": "acc_KdUz6B26qUoe1SfBaeFsJg",
+    "approved_name": null,
+    "reason": "Request verified owner consent",
+    "status": "pending",
+    "created_at": 1793589686081,
+    "expires_at": 1794194486081,
+    "completed_at": null
+  }
+}

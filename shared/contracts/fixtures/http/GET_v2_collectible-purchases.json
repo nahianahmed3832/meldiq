@@ -1,0 +1,30 @@
+{
+  "capability": {
+    "checkout": true,
+    "refund": true,
+    "provider": "stripe",
+    "mode": "test"
+  },
+  "items": [
+    {
+      "id": "colpay_yMsTFzDp4W0yqSip50_KuQ",
+      "itemId": "paid-control-item",
+      "amountMinor": 499,
+      "currency": "USD",
+      "status": "paid",
+      "fulfillment": "complete",
+      "url": null,
+      "expiresAt": 1793676086118
+    },
+    {
+      "id": "colpay_ZJA0wMKdTtYaRVQBsYqeaQ",
+      "itemId": "paid-control-item",
+      "amountMinor": 499,
+      "currency": "USD",
+      "status": "refunded",
+      "fulfillment": "complete",
+      "url": null,
+      "expiresAt": 1793676085949
+    }
+  ]
+}

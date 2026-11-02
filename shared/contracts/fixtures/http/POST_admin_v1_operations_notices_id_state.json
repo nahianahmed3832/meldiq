@@ -1,0 +1,16 @@
+{
+  "item": {
+    "id": "notice_uGHGXCDdnkvYOdBX-g0AAA",
+    "kind": "announcement",
+    "title": "Operations notice",
+    "body": "A scheduled service announcement",
+    "target_user_id": "u_lcLEBdGWjvKjvMWr1lNUww",
+    "status": "published",
+    "starts_at": 1793589684853,
+    "ends_at": 1793676085853,
+    "version": 2,
+    "created_by": "acc_KdUz6B26qUoe1SfBaeFsJg",
+    "created_at": 1793589685859,
+    "updated_at": 1793589685869
+  }
+}

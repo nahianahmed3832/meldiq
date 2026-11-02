@@ -1,0 +1,28 @@
+{
+  "version": 0,
+  "policy": {
+    "calls": {
+      "percent": 100,
+      "seed": "meldiq-v1",
+      "allowUsers": [],
+      "denyUsers": []
+    },
+    "uploads": {
+      "percent": 100,
+      "seed": "meldiq-v1",
+      "allowUsers": [],
+      "denyUsers": []
+    },
+    "orgCreation": {
+      "percent": 100,
+      "seed": "meldiq-v1",
+      "allowUsers": [],
+      "denyUsers": []
+    },
+    "fileRetentionDays": null,
+    "reportRetentionDays": null,
+    "maxFileBytes": 1024000000,
+    "uploadStartsPerHour": 1000
+  },
+  "updatedAt": null
+}

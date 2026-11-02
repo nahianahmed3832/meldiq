@@ -1,3 +1,4 @@
+import { fulfillCollectiblePayment } from "../accounts/index.js";
 import { z } from "zod/v4";
 import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../../app/context.js";
@@ -22,19 +23,19 @@ import {
   available,
   INVENTORY,
   applySlot,
-} from "../accounts/collectibles/service.js";
-import { styleOf } from "../accounts/profileMedia.js";
+} from "../accounts/index.js";
+import { styleOf } from "../accounts/index.js";
 import {
   announceProfileChange,
   announceOwnSettingsChange,
-} from "../accounts/profileEvents.js";
+} from "../accounts/index.js";
 import { me, requireAuth } from "../auth/index.js";
 import { PayPalProvider } from "./providers/paypal.js";
 import type { CheckoutSnapshot, PaymentSnapshot } from "./providers/types.js";
 import type { ApplyOutcome } from "./subscriptions.js";
-import type { AdminDeps } from "../platformAdmin/dataRoutes.js";
-import { principal, requirePermission } from "../platformAdmin/guards.js";
-import { PlatformAudit } from "../platformAdmin/audit.js";
+import type { AdminDeps } from "../platformAdmin/index.js";
+import { principal, requirePermission } from "../platformAdmin/index.js";
+import { PlatformAudit } from "../platformAdmin/index.js";
 type Purchase = z.infer<typeof Order>;
 export class CollectibleCommerce {
   private syncing = false;
@@ -42,6 +43,7 @@ export class CollectibleCommerce {
   get(id: string) {
     return this.ctx.billing.rows.get<Purchase>("collectible_orders", { id });
   }
+  isPaid(id:string,userId:string){return this.ctx.billing.rows.get<{status:string}>("collectible_orders",{id,user_id:userId})?.status === "paid";}
   capability() {
     const p = this.ctx.billing.provider;
     return {
@@ -95,10 +97,7 @@ export class CollectibleCommerce {
         return;
       }
       if (
-        this.ctx.identity.get(INVENTORY, {
-          user_id: userId,
-          decoration_id: itemId,
-        })
+        service.inventory(userId).some(item=>item.decoration_id===itemId)
       )
         throw conflict("You already own this item");
       if (
@@ -274,7 +273,7 @@ export class CollectibleCommerce {
     return {
       result: "applied",
       subscriptionId: null,
-      owner: { kind: "account", accountId: r.account_id },
+      owner: r.account_id ? { kind: "account", accountId: r.account_id } : null,
     };
   }
   applyPayment(
@@ -317,7 +316,7 @@ export class CollectibleCommerce {
     return {
       result: "applied",
       subscriptionId: null,
-      owner: { kind: "account", accountId: r.account_id },
+      owner: r.account_id ? { kind: "account", accountId: r.account_id } : null,
     };
   }
   /** The billing row is a durable outbox. Replaying after any crash repairs identity and its completion audit. */
@@ -336,105 +335,8 @@ export class CollectibleCommerce {
       for (const row of rows) {
         const r = this.get(row.id)!;
         const source = "purchase:" + r.id;
-        await this.ctx.identity.write((w) => {
-          if (r.status === "paid") {
-            if (!w.get("users", { id: r.user_id })) return;
-            if (
-              !w.get(INVENTORY, {
-                user_id: r.user_id,
-                decoration_id: r.item_id,
-              })
-            ) {
-              w.insert(INVENTORY, {
-                user_id: r.user_id,
-                decoration_id: r.item_id,
-                acquisition_source: source,
-                acquired_at: now(),
-                is_favorite: 0,
-              });
-              const previous = w.get<{ id: string }>(
-                "profile_collectible_transactions",
-                { user_id: r.user_id, decoration_id: r.item_id },
-              );
-              const receipt = {
-                transaction_type: "purchase",
-                price: r.amount_minor,
-                currency: r.currency,
-                payment_reference: r.payment_ref,
-                created_at: now(),
-              };
-              if (previous)
-                w.update(
-                  "profile_collectible_transactions",
-                  { id: previous.id },
-                  receipt,
-                );
-              else
-                w.insert("profile_collectible_transactions", {
-                  id: r.id,
-                  user_id: r.user_id,
-                  decoration_id: r.item_id,
-                  ...receipt,
-                });
-            }
-          } else {
-            const removed = w.delete(INVENTORY, {
-              user_id: r.user_id,
-              decoration_id: r.item_id,
-              acquisition_source: source,
-            });
-            if (removed) {
-              const u = w.get<{ profile_style: string | null }>("users", {
-                id: r.user_id,
-              });
-              if (u) {
-                let style = styleOf(u);
-                for (const look of style.collectibles ?? [])
-                  if (look.id === r.item_id)
-                    style = applySlot(style, look.category, null);
-                w.update(
-                  "users",
-                  { id: r.user_id },
-                  { profile_style: JSON.stringify(style), updated_at: now() },
-                );
-              }
-              w.update(
-                "profile_collectible_transactions",
-                {
-                  user_id: r.user_id,
-                  decoration_id: r.item_id,
-                  payment_reference: r.payment_ref,
-                },
-                { transaction_type: r.status },
-              );
-            }
-          }
-        });
-        await this.ctx.platform.write((w) => {
-          if (
-            !w.get("platform_settings", {
-              key: `collectible.fulfilled.${r.id}.${r.status}`,
-            })
-          ) {
-            new PlatformAudit(this.ctx.platform).append(w, {
-              action: "collectible.payment_" + r.status,
-              outcome: "success",
-              targetType: "collectible_order",
-              targetId: r.id,
-              detail: {
-                userId: r.user_id,
-                itemId: r.item_id,
-                amountMinor: r.amount_minor,
-              },
-            });
-            w.insert("platform_settings", {
-              key: `collectible.fulfilled.${r.id}.${r.status}`,
-              value: "true",
-              updated_by: "payment-provider",
-              updated_at: now(),
-            });
-          }
-        });
+        await fulfillCollectiblePayment(this.ctx,r);
+        await new PlatformAudit(this.ctx.platform).recordOnce(`collectible.fulfilled.${r.id}.${r.status}`,{action:"collectible.payment_"+r.status,outcome:"success",targetType:"collectible_order",targetId:r.id,detail:{userId:r.user_id,itemId:r.item_id,amountMinor:r.amount_minor}});
         await this.ctx.billing.rows.write((w) => {
           const current = w.get<Purchase>("collectible_orders", { id: r.id });
           if (current?.status === r.status)
@@ -444,18 +346,34 @@ export class CollectibleCommerce {
               { sync_status: "complete", updated_at: now() },
             );
         });
-        announceProfileChange(this.ctx, r.user_id);
-        announceOwnSettingsChange(this.ctx, r.user_id);
+        if (r.user_id) {
+          announceProfileChange(this.ctx, r.user_id);
+          announceOwnSettingsChange(this.ctx, r.user_id);
+        }
       }
     } finally {
       this.syncing = false;
     }
   }
+  async anonymizeBuyer(accountId: string) {
+    await this.ctx.billing.rows.write((w) => {
+      w.update(
+        "collectible_orders",
+        { account_id: accountId },
+        { account_id: null, user_id: null, checkout_url: null },
+      );
+      w.delete("billing_promotion_redemptions", { account_id: accountId });
+    });
+  }
   async confirm(userId: string, id: string) {
     const r = this.get(id);
     if (!r || r.user_id !== userId) throw notFound();
     const p = this.ctx.billing.provider;
-    if (p instanceof PayPalProvider && r.session_ref) {
+    if (
+      p instanceof PayPalProvider &&
+      r.session_ref &&
+      r.status === "pending"
+    ) {
       const s = await p.captureOrder(r.session_ref, {
         reference: r.id,
         amountMinor: r.amount_minor,

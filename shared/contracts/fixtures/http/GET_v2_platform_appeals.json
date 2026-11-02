@@ -1,0 +1,22 @@
+{
+  "items": [
+    {
+      "id": "appeal_7zEJpU3q7KtMEO6PIW4V0w",
+      "user_id": "u_lcLEBdGWjvKjvMWr1lNUww",
+      "notice_id": "warn_ops-warning-once",
+      "subject": "Review this warning",
+      "body": "Please review the warning with the additional context",
+      "status": "accepted",
+      "decision": "The warning is overturned after review",
+      "assigned_to": null,
+      "notified_version": 3,
+      "notification_error": null,
+      "delivery_pending": 0,
+      "next_delivery_at": 0,
+      "sync_status": "complete",
+      "version": 3,
+      "created_at": 1793589685904,
+      "updated_at": 1793589685914
+    }
+  ]
+}

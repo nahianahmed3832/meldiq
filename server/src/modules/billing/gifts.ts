@@ -277,7 +277,7 @@ export class Gifts implements PaymentEvents {
     return this.rows.write(w => {
       const gift = w.get<GiftRow>("mojo_gifts", { id: giftId });
       const sub = this.billing.subscriptions.liveForOwner({ kind: "account", accountId: recipient.accountId }, w);
-      if (gift && this.delivery?.get(gift.id) && sub && !sub.cancel_at_period_end) throw conflict("Open Gifts in Meldiq Web to redeem this gift as credit without changing your current renewal.");
+      if (gift && gift.recipient_user_id === recipient.userId && this.delivery?.get(gift.id) && sub && !sub.cancel_at_period_end) throw conflict("Open Gifts in Meldiq Web to redeem this gift as credit without changing your current renewal.");
       return this.redeemIn(w, recipient, gift, this.clock());
     });
   }

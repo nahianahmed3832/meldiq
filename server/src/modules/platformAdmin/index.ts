@@ -1,4 +1,4 @@
-import { collectibleCommerceAdminRoutes } from "../billing/collectibleCommerce.js";
+import { collectibleCommerceAdminRoutes } from "../billing/index.js";
 import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../../app/context.js";
 import { PlatformAudit } from "./audit.js";
@@ -57,3 +57,9 @@ export async function registerPlatformAdmin(app: FastifyInstance, ctx: AppContex
 export { recoverReportWorkflows } from "./reportRecovery.js";
 
 export { validateAuditChain } from "./auditValidation.js";
+
+export { principal, requirePermission, metaOf } from "./guards.js";
+export type { AdminDeps } from "./dataRoutes.js";
+export type { Permission } from "./permissions.js";
+export { legacyOperatorAllowed, eraseOperationalUserData } from "./operations.js";
+export { runtimePolicy, inRollout } from "./runtimePolicy.js";

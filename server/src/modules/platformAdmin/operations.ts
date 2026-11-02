@@ -1,6 +1,9 @@
+import { userSummary, warningRecord, standingWarnings, issueStandingWarning } from "../accounts/index.js";
+import { promotionPage, savePromotion, redeemPromotion } from "../billing/index.js";
+import { orgRecord, applyOwnershipApproval } from "../organizations/index.js";
 import { readControl } from "../../app/platformControls.js";
-import { addMonths } from "../billing/gifts.js";
-import { standingOf, revokeWarning } from "../accounts/standing.js";
+import { addMonths } from "../billing/index.js";
+import { standingOf, revokeWarning } from "../accounts/index.js";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod/v4";
 import type { AppContext } from "../../app/context.js";
@@ -32,7 +35,7 @@ import { allowed } from "./permissions.js";
 import { metaOf, principal, requirePermission } from "./guards.js";
 import { runtimePolicy, inRollout } from "./runtimePolicy.js";
 import { PlatformAudit } from "./audit.js";
-import { notifyOrg } from "../organizations/orgsRoutes.js";
+import { notifyOrg } from "../organizations/index.js";
 
 type NoticeRow = {
   id: string;
@@ -161,7 +164,7 @@ export default async function operationsAdminRoutes(
         throw badRequest("Use account-standing warnings for moderation");
       if (
         x.targetUserId &&
-        !d.ctx.identity.get("users", { id: x.targetUserId })
+        !userSummary(d.ctx.identity,x.targetUserId)
       )
         throw notFound("Recipient not found");
       const id = newId("notice"),
@@ -251,11 +254,7 @@ export default async function operationsAdminRoutes(
       const { userId } = parse(z.object({ userId: OpsId }), req.query);
       return {
         standing: standingOf(d.ctx.safety, userId),
-        items: d.ctx.safety.all("account_warnings", {
-          where: { user_id: userId },
-          orderBy: [["created_at", "desc"]],
-          limit: 100,
-        }),
+        items: standingWarnings(d.ctx.safety,userId),
       };
     },
   );
@@ -273,7 +272,7 @@ export default async function operationsAdminRoutes(
         }),
         req.body,
       );
-      if (!d.ctx.identity.get("users", { id: x.userId }))
+      if (!userSummary(d.ctx.identity,x.userId))
         throw notFound("User not found");
       if (x.userId === principal(req).account.user_id)
         throw forbidden("Another moderator must handle your account");
@@ -284,26 +283,7 @@ export default async function operationsAdminRoutes(
           days: x.days,
         }),
       );
-      await d.ctx.safety.write((w) => {
-        const old = w.get<{ user_id: string; reason: string }>(
-          "account_warnings",
-          { id },
-        );
-        if (old) {
-          if (old.user_id !== x.userId || old.reason !== x.message)
-            throw conflict("This request key was used for a different warning");
-          return;
-        }
-        w.insert("account_warnings", {
-          id,
-          user_id: x.userId,
-          reason: x.message,
-          created_by: principal(req).account.id,
-          created_at: now(),
-          expires_at: now() + x.days * 86400000,
-          revoked_at: null,
-        });
-      });
+      await issueStandingWarning(d.ctx.safety,{id,userId:x.userId,message:x.message,days:x.days,actor:principal(req).account.id});
       await d.audit.record(
         audit(req, "warning.created", id, x.reason, { userId: x.userId }),
       );
@@ -316,7 +296,7 @@ export default async function operationsAdminRoutes(
     async (req) => {
       const { id } = parse(params, req.params),
         { reason } = parse(reasonBody, req.body);
-      if (!d.ctx.safety.get("account_warnings", { id })) throw notFound();
+      if (!warningRecord(d.ctx.safety,id)) throw notFound();
       await d.audit.record(audit(req, "warning.revoke_requested", id, reason));
       await revokeWarning(d.ctx.safety, id);
       await d.audit.record(audit(req, "warning.revoked", id, reason));
@@ -345,9 +325,7 @@ export default async function operationsAdminRoutes(
           throw forbidden("Another moderator must handle your appeal");
         if (
           a.notice_id &&
-          d.ctx.safety.get<{ created_by: string }>("account_warnings", {
-            id: a.notice_id,
-          })?.created_by === p.account.id &&
+          warningRecord(d.ctx.safety,a.notice_id)?.created_by === p.account.id &&
           x.status !== "escalated"
         )
           throw forbidden(
@@ -381,71 +359,8 @@ export default async function operationsAdminRoutes(
       return { item: d.ctx.platform.get("platform_appeals", { id }) };
     },
   );
-  app.get(
-    "/admin/v1/operations/promotions",
-    needs("billing.view"),
-    async (req) => {
-      const q = parse(OpsQuery, req.query);
-      const rows = d.ctx.billing.rows.all<{ code: string }>(
-        "billing_promotions",
-        {
-          where: q.after ? { code: { gt: q.after } } : {},
-          orderBy: [["code", "asc"]],
-          limit: q.limit + 1,
-        },
-      );
-      return {
-        items: rows.slice(0, q.limit),
-        next: rows.length > q.limit ? rows[q.limit - 1].code : null,
-      };
-    },
-  );
-  app.put(
-    "/admin/v1/operations/promotions",
-    needs("billing.manage"),
-    async (req) => {
-      const x = parse(PromotionBody, req.body);
-      await d.audit.record(
-        audit(req, "promotion.save_requested", x.code, x.reason),
-      );
-      await d.ctx.billing.rows.write((w) => {
-        const old = w.get<PromotionRow>("billing_promotions", { code: x.code });
-        if ((old?.version ?? 0) !== x.version)
-          throw conflict("This promotion changed; refresh it");
-        if (
-          old &&
-          (old.months !== x.months ||
-            old.product !== x.product ||
-            old.discount_percent !== x.discountPercent ||
-            x.maxRedemptions < old.redeemed)
-        )
-          throw badRequest(
-            "Existing terms are immutable and the cap must include prior redemptions",
-          );
-        const v = {
-          product: x.product,
-          discount_percent: x.discountPercent,
-          title: x.title,
-          months: x.months,
-          max_redemptions: x.maxRedemptions,
-          enabled: x.enabled ? 1 : 0,
-          starts_at: x.startsAt,
-          ends_at: x.endsAt,
-          version: x.version + 1,
-          updated_at: now(),
-        };
-        w.upsert(
-          "billing_promotions",
-          { code: x.code, ...v, redeemed: 0, created_at: now() },
-          v,
-        );
-      });
-      await d.audit.record(audit(req, "promotion.saved", x.code, x.reason));
-      return {
-        item: d.ctx.billing.rows.get("billing_promotions", { code: x.code }),
-      };
-    },
-  );
+  app.get("/admin/v1/operations/promotions",needs("billing.view"),async req=>promotionPage(d.ctx,req.query));
+  app.put("/admin/v1/operations/promotions",needs("billing.manage"),async req=>{const x=parse(PromotionBody,req.body);await d.audit.record(audit(req,"promotion.save_requested",x.code,x.reason));const item=await savePromotion(d.ctx,x);await d.audit.record(audit(req,"promotion.saved",x.code,x.reason));return {item};});
   app.get("/admin/v1/operations/policy", needs("settings.view"), async () =>
     runtimePolicy(d.ctx.platform),
   );
@@ -590,7 +505,7 @@ export default async function operationsAdminRoutes(
         }),
         req.body,
       );
-      const org = d.ctx.ws.get<{ name: string }>("orgs", { id: x.orgId });
+      const org = orgRecord(d.ctx.ws,x.orgId);
       if (!org) throw notFound();
       if (org.name !== x.confirmName)
         throw badRequest("Type the exact community name");
@@ -829,9 +744,7 @@ export async function operationalUserRoutes(
     const id = newId("appeal");
     await ctx.platform.write((w) => {
       if (x.noticeId) {
-        const n = ctx.safety.get<{ user_id: string }>("account_warnings", {
-          id: x.noticeId,
-        });
+        const n = warningRecord(ctx.safety,x.noticeId);
         if (!n || n.user_id !== u) throw notFound("Warning not found");
         if (
           w.get("platform_appeals", {
@@ -882,81 +795,7 @@ export async function operationalUserRoutes(
     ),
     version: runtimePolicy(ctx.platform).version,
   }));
-  app.post("/v2/platform/promotions/redeem", auth, async (req) => {
-    const { code } = parse(
-      z.strictObject({
-        code: z
-          .string()
-          .trim()
-          .toUpperCase()
-          .regex(/^[A-Z0-9-]{4,32}$/),
-      }),
-      req.body,
-    );
-    const u = me(req).userId,
-      a = await ctx.accounts.store.accountByUserId(u);
-    if (!a)
-      throw forbidden("Sign in with your Meldiq account to redeem a promotion");
-    const t = now();
-    let grantId = "";
-    await ctx.billing.rows.write((w) => {
-      const old = w.get<{ grant_id: string }>("billing_promotion_redemptions", {
-        code,
-        account_id: a.id,
-      });
-      if (old) {
-        grantId = old.grant_id;
-        return;
-      }
-      const p = w.get<PromotionRow>("billing_promotions", { code });
-      if (
-        !p ||
-        p.product !== "plus_time" ||
-        !p.enabled ||
-        p.starts_at > t ||
-        p.ends_at <= t ||
-        p.redeemed >= p.max_redemptions
-      )
-        throw conflict("This promotion is unavailable");
-      grantId = newId("grt");
-      const current = ctx.billing.grants.active(a.id, t);
-      const subscription = ctx.billing.subscriptions.liveForOwner({
-        kind: "account",
-        accountId: a.id,
-      });
-      const starts = Math.max(
-        t,
-        current?.ends_at ?? t,
-        subscription?.current_period_end ?? t,
-      );
-      w.insert("billing_grants", {
-        id: grantId,
-        account_id: a.id,
-        user_id: u,
-        plan_key: "plus",
-        source: "operator",
-        reference: `promotion:${code}`,
-        once_key: `promotion:${code}:${a.id}`,
-        starts_at: starts,
-        ends_at: addMonths(starts, p.months),
-        created_at: t,
-      });
-      w.insert("billing_promotion_redemptions", {
-        code,
-        account_id: a.id,
-        user_id: u,
-        grant_id: grantId,
-        redeemed_at: t,
-      });
-      w.update(
-        "billing_promotions",
-        { code },
-        { redeemed: p.redeemed + 1, updated_at: t },
-      );
-    });
-    ctx.billing.onChange?.({ kind: "account", accountId: a.id });
-    return { ok: true, grantId };
-  });
+  app.post("/v2/platform/promotions/redeem",auth,async req=>{const {code}=parse(z.strictObject({code:z.string().trim().toUpperCase().regex(/^[A-Z0-9-]{4,32}$/)}),req.body);return redeemPromotion(ctx,me(req).userId,code);});
   app.get("/v2/platform/ownership", auth, async (req) => ({
     items: ctx.platform.all("platform_ownership_requests", {
       where: {
@@ -985,7 +824,7 @@ export async function operationalUserRoutes(
       throw conflict("This request is no longer pending");
     if (ctx.authz.platformSuspended(r.org_id))
       throw forbidden("This community is suspended");
-    const org = ctx.ws.get<{ name: string }>("orgs", { id: r.org_id });
+    const org = orgRecord(ctx.ws,r.org_id);
     if (!org || org.name !== confirmName)
       throw badRequest("Type the exact community name");
     if (ctx.authz.orgRole(r.org_id, me(req).userId) !== "OWNER")
@@ -1112,37 +951,7 @@ export async function settleOwnershipRequests(ctx: AppContext, id?: string) {
       limit: 50,
     });
     for (const r of rows) {
-      let valid = true;
-      await ctx.ws.write((w) => {
-        const owner = ctx.authz.orgRole(r.org_id, r.owner_user_id),
-          target = ctx.authz.orgRole(r.org_id, r.target_user_id);
-        if (owner === "ADMIN" && target === "OWNER") return;
-        const org = w.get<{ name: string }>("orgs", { id: r.org_id });
-        if (
-          !org ||
-          org.name !== r.approved_name ||
-          owner !== "OWNER" ||
-          !target ||
-          target === "GUEST" ||
-          target === "OWNER" ||
-          ctx.authz.platformSuspended(r.org_id) ||
-          r.expires_at <= now()
-        ) {
-          valid = false;
-          return;
-        }
-        w.update(
-          "org_members",
-          { org_id: r.org_id, user_id: r.target_user_id },
-          { role: "OWNER" },
-        );
-        w.update(
-          "org_members",
-          { org_id: r.org_id, user_id: r.owner_user_id },
-          { role: "ADMIN" },
-        );
-        ctx.authz.autoJoinScope(w, r.org_id, r.target_user_id, now());
-      });
+      const valid=await applyOwnershipApproval(ctx,r);
       await ctx.platform.write((w) => {
         if (
           w.get<{ status: string }>("platform_ownership_requests", { id: r.id })
@@ -1168,3 +977,5 @@ export async function settleOwnershipRequests(ctx: AppContext, id?: string) {
     ownershipActive.delete(ctx);
   }
 }
+
+export async function eraseOperationalUserData(ctx:AppContext,userId:string,accountId?:string){await ctx.platform.write(w=>{w.delete("platform_notices",{target_user_id:userId});w.delete("platform_notice_receipts",{user_id:userId});w.delete("platform_appeals",{user_id:userId});w.delete("platform_ownership_requests",{$or:[{owner_user_id:userId},{target_user_id:userId}]});});if(accountId)await ctx.ephemeral.write(w=>w.delete("platform_appeal_challenges",{account_id:accountId}));}

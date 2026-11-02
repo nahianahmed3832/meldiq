@@ -1,0 +1,90 @@
+{
+  "items": [
+    {
+      "version": 3,
+      "policy": {
+        "calls": {
+          "percent": 100,
+          "seed": "meldiq-v1",
+          "allowUsers": [],
+          "denyUsers": []
+        },
+        "uploads": {
+          "percent": 100,
+          "seed": "meldiq-v1",
+          "allowUsers": [],
+          "denyUsers": []
+        },
+        "orgCreation": {
+          "percent": 100,
+          "seed": "meldiq-v1",
+          "allowUsers": [],
+          "denyUsers": []
+        },
+        "fileRetentionDays": 30,
+        "reportRetentionDays": 90,
+        "maxFileBytes": 1000000,
+        "uploadStartsPerHour": 1000
+      },
+      "updatedAt": 1793589686106
+    },
+    {
+      "version": 2,
+      "policy": {
+        "calls": {
+          "percent": 100,
+          "seed": "meldiq-v1",
+          "allowUsers": [],
+          "denyUsers": []
+        },
+        "uploads": {
+          "percent": 100,
+          "seed": "meldiq-v1",
+          "allowUsers": [],
+          "denyUsers": []
+        },
+        "orgCreation": {
+          "percent": 100,
+          "seed": "meldiq-v1",
+          "allowUsers": [],
+          "denyUsers": []
+        },
+        "fileRetentionDays": null,
+        "reportRetentionDays": null,
+        "maxFileBytes": 1024000000,
+        "uploadStartsPerHour": 1000
+      },
+      "updatedAt": 1793589685939
+    },
+    {
+      "version": 1,
+      "policy": {
+        "calls": {
+          "percent": 0,
+          "seed": "meldiq-v1",
+          "allowUsers": [],
+          "denyUsers": []
+        },
+        "uploads": {
+          "percent": 100,
+          "seed": "meldiq-v1",
+          "allowUsers": [],
+          "denyUsers": []
+        },
+        "orgCreation": {
+          "percent": 0,
+          "seed": "meldiq-v1",
+          "allowUsers": [
+            "u_lcLEBdGWjvKjvMWr1lNUww"
+          ],
+          "denyUsers": []
+        },
+        "fileRetentionDays": null,
+        "reportRetentionDays": null,
+        "maxFileBytes": 1024000000,
+        "uploadStartsPerHour": 1000
+      },
+      "updatedAt": 1793589685931
+    }
+  ]
+}

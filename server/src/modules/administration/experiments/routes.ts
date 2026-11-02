@@ -1,4 +1,4 @@
-import { legacyOperatorAllowed } from "../../platformAdmin/operations.js";
+import { legacyOperatorAllowed } from "../../platformAdmin/index.js";
 import type { FastifyInstance } from "fastify";
 import { type AppContext } from "../../../app/context.js";
 import { me, requireAuth } from "../../auth/index.js";

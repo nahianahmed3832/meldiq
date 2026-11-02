@@ -185,3 +185,8 @@ export { ASSET_MAX, processAsset, serveAsset } from "./collectibles/assets.js";
 export { createCollectibleUpload, completeCollectibleUpload } from "./collectibles/uploads.js";
 export { readBody as readProfileMediaBody } from "./profileMediaRoutes.js";
 
+
+export { available, INVENTORY, applySlot } from "./collectibles/service.js";
+export { announceOwnSettingsChange } from "./profileEvents.js";
+export { standingOf, revokeWarning, warningRecord, standingWarnings, issueStandingWarning } from "./standing.js";
+export { fulfillCollectiblePayment } from "./collectibles/payments.js";

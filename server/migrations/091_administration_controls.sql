@@ -35,7 +35,7 @@ CREATE TABLE billing_promotion_redemptions (
  redeemed_at INTEGER NOT NULL, state TEXT NOT NULL DEFAULT 'redeemed', PRIMARY KEY(code, account_id)
 );
 CREATE TABLE collectible_orders (
- id TEXT PRIMARY KEY, account_id TEXT NOT NULL, user_id TEXT NOT NULL, item_id TEXT NOT NULL,
+ id TEXT PRIMARY KEY, account_id TEXT, user_id TEXT, item_id TEXT NOT NULL,
  item_version INTEGER NOT NULL, amount_minor INTEGER NOT NULL, original_amount_minor INTEGER NOT NULL, promotion_code TEXT, currency TEXT NOT NULL,
  provider TEXT NOT NULL, session_ref TEXT, checkout_url TEXT, payment_ref TEXT,
  status TEXT NOT NULL DEFAULT 'pending', sync_status TEXT NOT NULL DEFAULT 'pending',

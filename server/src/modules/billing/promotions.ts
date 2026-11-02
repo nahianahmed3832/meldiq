@@ -1,0 +1,20 @@
+import { z } from "zod/v4";
+import type { AppContext } from "../../app/context.js";
+import { OpsQuery, PromotionBody } from "../../shared/contracts/http/operations.js";
+import { parse } from "../../shared/validation/index.js";
+import { now,newId } from "../../shared/utilities/util.js";
+import { badRequest,conflict,forbidden } from "../../shared/errors.js";
+import { addMonths, type GiftRow } from "./gifts.js";
+type PromotionRow={code:string;product:string;discount_percent:number;enabled:number;starts_at:number;ends_at:number;months:number;redeemed:number;max_redemptions:number;version:number};
+export const adminGiftPage=(ctx:AppContext)=>{const rows=ctx.billing.rows;return rows.all<GiftRow>("mojo_gifts",{orderBy:[["created_at","desc"]],limit:100}).map(g => ({
+      id: g.id, buyerAccountId: g.buyer_account_id, recipientUserId: g.recipient_user_id || null,
+      recipientKind: ctx.gifts.delivery?.get(g.id)?.recipient_kind ?? "user", recipientEmail: ctx.gifts.delivery?.maskedRecipient(g.id) ?? null,
+      product: g.plan_key, months: g.months, status: ctx.gifts.delivery?.state(g) ?? g.status,
+      amountMinor: g.amount_minor, currency: g.currency, providerRef: g.provider_payment_ref,
+      deliveryStatus: ctx.gifts.delivery?.get(g.id)?.delivery_status ?? "legacy", createdAt: g.created_at, paidAt: g.paid_at, redeemedAt: g.redeemed_at,
+      credited: rows.get<{ status: string }>("mojo_gift_credits", { gift_id: g.id })?.status === "waiting",
+    }));}
+
+export function promotionPage(ctx:AppContext,query:unknown){const q=parse(OpsQuery,query);const rows=ctx.billing.rows.all<PromotionRow>("billing_promotions",{where:q.after?{code:{gt:q.after}}:{},orderBy:[["code","asc"]],limit:q.limit+1});return {items:rows.slice(0,q.limit),next:rows.length>q.limit?rows[q.limit-1].code:null};}
+export async function savePromotion(ctx:AppContext,x:z.infer<typeof PromotionBody>){await ctx.billing.rows.write(w=>{const old=w.get<PromotionRow>("billing_promotions",{code:x.code});if((old?.version??0)!==x.version)throw conflict("This promotion changed; refresh it");if(old&&(old.months!==x.months||old.product!==x.product||old.discount_percent!==x.discountPercent||x.maxRedemptions<old.redeemed))throw badRequest("Existing terms are immutable and the cap must include prior redemptions");const v={product:x.product,discount_percent:x.discountPercent,title:x.title,months:x.months,max_redemptions:x.maxRedemptions,enabled:x.enabled?1:0,starts_at:x.startsAt,ends_at:x.endsAt,version:x.version+1,updated_at:now()};w.upsert("billing_promotions",{code:x.code,...v,redeemed:0,created_at:now()},v);});return ctx.billing.rows.get("billing_promotions",{code:x.code});}
+export async function redeemPromotion(ctx:AppContext,userId:string,code:string){const a=await ctx.accounts.store.accountByUserId(userId);if(!a)throw forbidden("Sign in with your Meldiq account to redeem a promotion");const t=now();let grantId="";await ctx.billing.rows.write(w=>{const old=w.get<{grant_id:string}>("billing_promotion_redemptions",{code,account_id:a.id});if(old){grantId=old.grant_id;return;}const p=w.get<PromotionRow>("billing_promotions",{code});if(!p||p.product!=="plus_time"||!p.enabled||p.starts_at>t||p.ends_at<=t||p.redeemed>=p.max_redemptions)throw conflict("This promotion is unavailable");grantId=newId("grt");const current=ctx.billing.grants.active(a.id,t);const subscription=ctx.billing.subscriptions.liveForOwner({kind:"account",accountId:a.id});const starts=Math.max(t,current?.ends_at??t,subscription?.current_period_end??t);w.insert("billing_grants",{id:grantId,account_id:a.id,user_id:userId,plan_key:"plus",source:"operator",reference:`promotion:${code}`,once_key:`promotion:${code}:${a.id}`,starts_at:starts,ends_at:addMonths(starts,p.months),created_at:t});w.insert("billing_promotion_redemptions",{code,account_id:a.id,user_id:userId,grant_id:grantId,redeemed_at:t});w.update("billing_promotions",{code},{redeemed:p.redeemed+1,updated_at:t});});ctx.billing.onChange?.({kind:"account",accountId:a.id});return {ok:true,grantId};}

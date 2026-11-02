@@ -1,4 +1,4 @@
-import { runtimePolicy } from "../platformAdmin/runtimePolicy.js";
+import { runtimePolicy } from "../platformAdmin/index.js";
 import type { AppContext } from "../../app/context.js";
 import { REPORT_RETENTION_MS } from "../organizations/reports/routes.js";
 import { expireDirectUploads, processAbandonedUploads, processBlobDeletes, purgeExpiredAttachments } from "../files/routes.js";

@@ -1,0 +1,8 @@
+{
+  "features": {
+    "calls": false,
+    "uploads": true,
+    "orgCreation": false
+  },
+  "version": 1
+}

@@ -17,6 +17,7 @@ import {
 const EXPECTED: Record<string, string[]> = {
   super_admin: [...PERMISSIONS],
   operations_admin: [
+    "announcements.manage",
     "overview.view",
     "users.view",
     "users.sessions.revoke",

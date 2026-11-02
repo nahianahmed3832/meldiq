@@ -131,8 +131,8 @@ export const PolicyView = z.object({
 });
 export const Order = z.object({
   id: z.string(),
-  account_id: z.string(),
-  user_id: z.string(),
+  account_id: z.string().nullable(),
+  user_id: z.string().nullable(),
   item_id: z.string(),
   item_version: z.number(),
   original_amount_minor: z.number(),

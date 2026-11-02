@@ -1,0 +1,17 @@
+{
+  "item": {
+    "code": "CONTROLSPROMO",
+    "title": "Launch promotion",
+    "product": "plus_time",
+    "discount_percent": 0,
+    "months": 1,
+    "max_redemptions": 1,
+    "redeemed": 0,
+    "enabled": 1,
+    "starts_at": 1793589684917,
+    "ends_at": 1793676085917,
+    "version": 1,
+    "created_at": 1793589685918,
+    "updated_at": 1793589685918
+  }
+}

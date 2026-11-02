@@ -18,6 +18,10 @@ import {
 } from "../src/modules/accounts/standing.js";
 import { legacyOperatorAllowed } from "../src/modules/platformAdmin/operations.js";
 import { PlatformAudit } from "../src/modules/platformAdmin/audit.js";
+import { testMongoEnv } from "./support/mongo.js";
+import { mongoConfig } from "../src/infrastructure/database/mongo/config.js";
+import { openMongo } from "../src/infrastructure/database/mongo/index.js";
+import { openDatabase } from "../src/infrastructure/database/db.js";
 const SECRET = "whsec_opsTestSecret01234567890123456789";
 class Payments implements StripeApi {
   sessions: { id: string; params: Stripe.Checkout.SessionCreateParams }[] = [];
@@ -53,6 +57,19 @@ describe("connected operational controls", () => {
     payments = new Payments();
   let noticeId: string, warningId: string, appealId: string, orderId: string;
   beforeAll(async () => {
+    const mongoEnv = process.env.MELDIQ_TEST_MONGO_DOMAINS ? testMongoEnv({}) : {};
+    if (process.env.MELDIQ_TEST_MONGO_DOMAINS) {
+      // Bootstrap the disposable, empty domains through the normal authority checks,
+      // then exercise the stricter production startup against verified markers.
+      const db = openDatabase(":memory:");
+      try {
+        const config = mongoConfig(mongoEnv, "development", (_name, fallback) => fallback)!;
+        const mongo = await openMongo(config, db);
+        await mongo.close();
+      } finally {
+        db.close();
+      }
+    }
     const provider = new StripeProvider({
       secretKey: "sk_test_meldiqmojofaketestkey0123456789",
       webhookSecret: SECRET,
@@ -61,6 +78,8 @@ describe("connected operational controls", () => {
     });
     h = await startServer(
       {
+        ...mongoEnv,
+        DATABASE_MODE: process.env.MELDIQ_TEST_MONGO_DOMAINS ? "atlas" : "hybrid",
         ADMIN_CONSOLE_ORIGIN: ADMIN_ORIGIN,
         BILLING_PROVIDER: "stripe",
         STRIPE_SECRET_KEY: "sk_test_meldiqmojofaketestkey0123456789",
@@ -826,6 +845,51 @@ describe("connected operational controls", () => {
     expect(
       mailer.sent.some((x) => x.to === "unknown-control-test@example.test"),
     ).toBe(false);
+  });
+  it("removes operational personal data on account deletion while retaining anonymous financial history", async () => {
+    const c = await AccountClient.ready(h.baseUrl, mailer, "controlsdelete");
+    const request = await c.req("POST", "/v2/platform/appeals", {
+      noticeId: null,
+      subject: "Deletion privacy",
+      body: "This user supplied appeal must be removed",
+    });
+    const order = await c.req("POST", "/v2/collectible-purchases", {
+      itemId: "paid-control-item",
+      requestKey: "deleted-person-checkout",
+    });
+    await c.req("DELETE", "/v2/account", {
+      password: c.password,
+      confirmEmail: c.email,
+    });
+    expect(
+      h.ctx.platform.get("platform_appeals", { id: request.item.id }),
+    ).toBeUndefined();
+    expect(h.ctx.collectibleCommerce.get(order.id)).toMatchObject({
+      account_id: null,
+      user_id: null,
+      checkout_url: null,
+    });
+    expect(
+      h.ctx.identity.count("profile_collectible_inventory", {
+        user_id: c.userId,
+      }),
+    ).toBe(0);
+  });
+  it("serves typed private purchase and owner-request views without exposing other users", async () => {
+    const history = await person.req("GET", "/v2/collectible-purchases");
+    expect(history.items.every((r: any) => typeof r.id === "string")).toBe(
+      true,
+    );
+    expect(
+      (await person.req("GET", "/v2/platform/ownership")).items,
+    ).toBeInstanceOf(Array);
+    const orders = await admin.browser.expect(
+      200,
+      "GET",
+      "/admin/v1/operations/orders",
+    );
+    expect(orders.capability.provider).toBe("stripe");
+    expect(orders.items.length).toBeGreaterThan(0);
   });
   it("retains a valid platform audit chain through all operational changes", () => {
     expect(new PlatformAudit(h.ctx.platform).verify().brokenAt).toBeNull();

@@ -1,0 +1,10 @@
+{
+  "id": "colpay_ZJA0wMKdTtYaRVQBsYqeaQ",
+  "itemId": "paid-control-item",
+  "amountMinor": 499,
+  "currency": "USD",
+  "status": "pending",
+  "fulfillment": "pending",
+  "url": "https://checkout.stripe.test/cs_ops_1",
+  "expiresAt": 1793676085949
+}
