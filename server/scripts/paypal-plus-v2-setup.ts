@@ -26,7 +26,7 @@ if (!process.argv.includes("--execute")) {
  const key = (kind: string) => createHash("sha256").update(`${client}:${environment}:${PRICING_VERSION}:${kind === "product" ? "product" : `${term}:${kind}`}`).digest("hex").slice(0, 36);
  // Explicit v2 resource variables avoid treating the old 3.99 id as the new offer. No PATCH/update-pricing API exists here.
  let productId = process.env.PAYPAL_PLUS_V2_PRODUCT_ID;
- if (!productId) productId = (await api.request("POST", "/v1/catalogs/products", { name: PRICING.plus.name, description: "Monthly Meldiq Plus subscription", type: "SERVICE", category: "SOFTWARE" }, key("product")) as { id: string }).id;
+ if (!productId) productId = (await api.request("POST", "/v1/catalogs/products", { name: PRICING.plus.name, description: "Meldiq Plus recurring subscription", type: "SERVICE", category: "SOFTWARE" }, key("product")) as { id: string }).id;
  const product = await api.request("GET", `/v1/catalogs/products/${productId}`) as { id: string; name: string };
  if (product.name !== PRICING.plus.name || product.id !== productId) throw new Error("Product branding mismatch");
  let planId = process.env[term === "monthly" ? "PAYPAL_PLUS_V2_PLAN_ID" : term === "quarterly" ? "PAYPAL_PLUS_V2_QUARTERLY_PLAN_ID" : "PAYPAL_PLUS_V2_YEARLY_PLAN_ID"];

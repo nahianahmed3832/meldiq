@@ -82016,7 +82016,7 @@
         "tags": [
           "Meldiq Plus"
         ],
-        "summary": "Free, Go and Plus with every limit, Meldiq Spark's levels, gift lengths and what's on sale (public).",
+        "summary": "Free and Meldiq Plus with every limit, approved billing intervals, Meldiq Spark levels and gift lengths (public). Legacy Go is not offered.",
         "operationId": "getV2MojoCatalog",
         "parameters": [],
         "responses": {

@@ -27,7 +27,7 @@ const tag = "Meldiq Plus";
 const Ok = z.strictObject({ ok: z.literal(true) });
 
 export const mojoRoutes: readonly RouteContract[] = [
-  route({ method: "GET", url: "/v2/mojo/catalog", tag, summary: "Free, Go and Plus with every limit, Meldiq Spark's levels, gift lengths and what's on sale (public).", auth: false, response: MojoCatalog }),
+  route({ method: "GET", url: "/v2/mojo/catalog", tag, summary: "Free and Meldiq Plus with every limit, approved billing intervals, Meldiq Spark levels and gift lengths (public). Legacy Go is not offered.", auth: false, response: MojoCatalog }),
   route({ method: "GET", url: "/v2/mojo/me", tag, summary: "The signed-in person's plan, perks, Sparks, badge and gifts.", auth: true, response: MojoMe, errors: ["device_required"] }),
   route({
     method: "POST",

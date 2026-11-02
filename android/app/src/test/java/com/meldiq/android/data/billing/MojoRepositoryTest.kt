@@ -40,13 +40,37 @@ class MojoRepositoryTest {
     private class FakePlay : PlayStore {
         override val updates = MutableSharedFlow<PlayUpdate>()
         var owned = listOf<PlayPurchase>()
-        override suspend fun offers() = mapOf("mojo_plus" to PlayOffer("mojo_plus", "$4.99", "P1M", "USD", 4_990_000), "gift_plus_3m" to PlayOffer("gift_plus_3m", "$12.99", null, "USD", 12_990_000))
+        var prices = mapOf("mojo_plus" to PlayOffer("mojo_plus", "$4.99", "P1M", "USD", 4_990_000), "mojo_plus_quarterly" to PlayOffer("mojo_plus_quarterly", "$12.99", "P3M", "USD", 12_990_000), "mojo_plus_yearly" to PlayOffer("mojo_plus_yearly", "$49.99", "P1Y", "USD", 49_990_000), "gift_plus_3m" to PlayOffer("gift_plus_3m", "$12.99", null, "USD", 12_990_000))
+        override suspend fun offers() = prices
         override suspend fun owned() = owned
         override fun launch(activity: Activity, launch: PlayLaunch): PlayError? = null
         override fun close() {}
     }
 
     private fun TestScope.repo(backend: FakeBackend, play: FakePlay) = MojoRepository(backend, play, backgroundScope)
+
+    @Test
+    fun `approved recurring terms use their native product and exact USD store price`() = runTest(UnconfinedTestDispatcher()) {
+        for (product in listOf("mojo_plus", "mojo_plus_quarterly", "mojo_plus_yearly")) {
+            val b = FakeBackend(free)
+            val r = repo(b, FakePlay())
+            r.refresh()
+            assertEquals(product, r.prepare(MojoPurchase.Plan("plus", product, null))?.productId)
+            assertEquals(product, b.intents.single().productId)
+        }
+    }
+
+    @Test
+    fun `a mismatched store price or cadence cannot start a quarterly subscription`() = runTest(UnconfinedTestDispatcher()) {
+        for (offer in listOf(PlayOffer("mojo_plus_quarterly", "$14.97", "P3M", "USD", 14_970_000), PlayOffer("mojo_plus_quarterly", "$12.99", "P1M", "USD", 12_990_000))) {
+            val b = FakeBackend(free)
+            val store = FakePlay().apply { prices = prices + (offer.productId to offer) }
+            val r = repo(b, store)
+            r.refresh()
+            assertNull(r.prepare(MojoPurchase.Plan("plus", offer.productId, null)))
+            assertTrue(b.intents.isEmpty())
+        }
+    }
 
     @Test
     fun `refresh loads the catalog, entitlements and Google's offers`() = runTest(UnconfinedTestDispatcher()) {

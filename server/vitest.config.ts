@@ -8,7 +8,8 @@ export default defineConfig({
   test: {
     include: ["test/**/*.test.ts"],
     testTimeout: mongo ? 60000 : 20000,
-    hookTimeout: mongo ? 90000 : 20000,
+    // Some suites exercise MongoDB explicitly even without the global domain override.
+    hookTimeout: 90000,
     pool: "forks",
     // A local MongoDB replica set for the MongoDB tests (test/support/mongoGlobal.ts).
     globalSetup: ["test/support/mongoGlobal.ts"],
