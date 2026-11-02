@@ -89267,6 +89267,7 @@
               "code": {
                 "type": "string",
                 "enum": [
+                  "social_profile_required",
                   "account_link_required",
                   "social_state_invalid",
                   "social_flow_expired",
@@ -89619,6 +89620,12 @@
     }
   },
   "x-error-codes": {
+    "social_profile_required": {
+      "status": [
+        400
+      ],
+      "meaning": "Display name required to create an account."
+    },
     "account_link_required": {
       "status": [
         409
