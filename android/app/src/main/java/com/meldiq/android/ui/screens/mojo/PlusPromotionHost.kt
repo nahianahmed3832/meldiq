@@ -58,7 +58,7 @@ fun PlusPromotionHost(nav: NavHostController, safe: Boolean) {
     LaunchedEffect(p?.id) { if (p != null) runCatching { container.plusPromotions.feedback(p.id, "impression") }.onFailure { if (it is CancellationException) throw it; promotion = null } }
     LaunchedEffect(p?.expiresAt) { if (p != null) { delay((p.expiresAt - System.currentTimeMillis()).coerceAtLeast(0)); promotion = null } }
     if (!canPromote || p == null) return
-    val action: (String) -> Unit = { event -> promotion = null; scope.launch { runCatching { container.plusPromotions.feedback(p.id, event) } }; if (event == "click") nav.navigate(Routes.MOJO) }
+    val action: (String) -> Unit = { event -> promotion = null; scope.launch { runCatching { container.plusPromotions.feedback(p.id, event); if (event == "click") container.plusPromotions.feedback(p.id, "pricing_visit") } }; if (event == "click") nav.navigate(Routes.MOJO) }
     val content: @Composable () -> Unit = {
         Column(Modifier.fillMaxWidth().background(Griip.colors.surface, RoundedCornerShape(20.dp))) {
             Column(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF6C3B31), Color(0xFF42285F))), RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)).padding(20.dp)) {
