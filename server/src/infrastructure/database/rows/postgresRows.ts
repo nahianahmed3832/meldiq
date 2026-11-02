@@ -25,7 +25,7 @@ export class PostgresRows extends MemoryRows {
 
   static async open(postgres: MeldiqPostgres, specs: TableSpec[]): Promise<PostgresRows> {
     if (new URL(postgres.config.url).port === "6543") throw new Error("PostgresRows needs a direct or session pool connection");
-    const lease = await postgres.pool.connect();
+    const lease = await postgres.connect();
     const rows = new PostgresRows(postgres, specs, lease);
     try {
       const result = await lease.query("SELECT pg_try_advisory_lock(hashtextextended('meldiq-rows-writer', 0)) AS locked");

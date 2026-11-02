@@ -28,28 +28,47 @@ export const safeTypes = {
 export class MeldiqPostgres {
   readonly pool: pg.Pool;
   private readonly context = new AsyncLocalStorage<PoolClient>();
+  private readonly initialized = new WeakSet<PoolClient>();
   private runtimeGuard?: () => void;
 
   constructor(readonly config: PostgresConfig) {
     const url = new URL(config.url);
     if (!["postgres:", "postgresql:"].includes(url.protocol)) throw new Error("PostgreSQL URL required");
     const local = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+    if(url.port==="6543")throw new Error("Meldiq requires a direct or session-pool connection, not a transaction pool");
     if (config.environment === "production" && local) throw new Error("Production cannot use a development database");
     if ([...url.searchParams.keys()].some(k => /^ssl/i.test(k))) throw new Error("Configure TLS through the trusted CA setting, not URL overrides");
     const max = config.maxConnections ?? 5;
     if (!Number.isInteger(max) || max < 1 || max > 20) throw new Error("Connection pool must be between 1 and 20");
     this.pool = new pg.Pool({ connectionString: url.href, max, min: 0, idleTimeoutMillis: 30_000,
       connectionTimeoutMillis: 5_000, statement_timeout: 15_000, idle_in_transaction_session_timeout: 30_000,
-      application_name: `meldiq-${config.environment}`, options: "-c timezone=UTC",
+      application_name: `meldiq-${config.environment}`, options: "-c timezone=UTC -c extra_float_digits=3",
       ssl: local ? false : { rejectUnauthorized: true, ...(config.ca ? { ca: config.ca } : {}) }, types: safeTypes });
     // No raw driver errors: connection errors can contain infrastructure details.
     this.pool.on("error", () => { this.connectionErrors++; });
   }
   connectionErrors = 0;
 
+  /** Session poolers can override startup parameters (the hosted pool defaults float precision to0).
+   * Explicitly initialize each physical lease before exposing any rows, including cached Rows bootstrap.
+   */
+  async connect(): Promise<PoolClient> {
+    this.runtimeGuard?.();
+    const client=await this.pool.connect();
+    if(!this.initialized.has(client)) {
+      try { await client.query("SET timezone='UTC'; SET extra_float_digits=3"); this.initialized.add(client); }
+      catch(error) { client.release(true); throw error; }
+    }
+    return client;
+  }
+
   async query<R extends QueryResultRow = QueryResultRow>(sql: string, values: unknown[] = []) {
     this.runtimeGuard?.();
-    return (this.context.getStore() ?? this.pool).query<R>(sql, values);
+    const current=this.context.getStore();
+    if(current)return current.query<R>(sql,values);
+    const client=await this.connect();
+    try { return await client.query<R>(sql,values); }
+    finally { client.release(); }
   }
 
   /** No automatic callback retries: callers may have performed non-transactional external work. */
@@ -57,7 +76,7 @@ export class MeldiqPostgres {
     this.runtimeGuard?.();
     const current = this.context.getStore();
     if (current) throw new Error("Nested PostgreSQL transactions require an explicit service boundary");
-    const client = await this.pool.connect();
+    const client = await this.connect();
     let discard = false;
     try {
       await client.query("BEGIN");

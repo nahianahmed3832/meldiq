@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { postgresTableSpecs as tableSpecs } from "../src/infrastructure/database/postgres/nativeCatalog.js";
 import { MeldiqPostgres } from "../src/infrastructure/database/postgres/client.js";
 import { dependencyOrder, digest, TypedPostgresImporter, tableCounts, type MigrationRun } from "../src/infrastructure/database/postgres/migration.js";
+import { assertSyntheticStagingDatabase } from "../src/infrastructure/database/postgres/sourceSnapshot.js";
 
 /** Reads a private, frozen normalized NDJSON snapshot. Does not connect to a live legacy writer. */
 async function main() {
@@ -19,7 +20,8 @@ async function main() {
   if(expected==="sgowwdmnavcsofzlgggm") throw new Error("Existing production social-auth project is not a staging destination");
   if(environment==="staging"&&local) throw new Error("Staging must identify the hosted staging project");
   const manifest=JSON.parse(fs.readFileSync(path.join(snapshot,"manifest.json"),"utf8")) as MigrationRun & {frozen:boolean;synthetic:boolean;tables:{name:string;sha256:string;count:number}[];excludedCollections:{name:string;reason:string}[]};
-  if(!manifest.frozen || !manifest.synthetic) throw new Error("This staging release accepts frozen synthetic snapshots only");
+  const real = !manifest.synthetic;
+  if(!manifest.frozen || (real && (!process.argv.includes("--real-data-rehearsal") || (manifest as any).realDataSnapshot !== true || (manifest as any).purpose !== "staging-rehearsal" || (manifest as any).sourceWritesFrozen !== false || !local && expected !== "bkvlxbsnzqkhbifawcww"))) throw new Error("Explicit immutable real-data rehearsal or frozen synthetic snapshot required");
   if(digest(JSON.stringify(manifest.tables))!==manifest.sourceSha256) throw new Error("Snapshot manifest fingerprint mismatch");
   const specs=dependencyOrder(tableSpecs());
   if(digest(JSON.stringify(tableSpecs()))!==manifest.catalogSha256) throw new Error("Snapshot and runtime catalogs differ");
@@ -33,6 +35,18 @@ async function main() {
   }
   const db=new MeldiqPostgres({url:url.href,environment,ca:process.env.SUPABASE_DB_CA_FILE?fs.readFileSync(process.env.SUPABASE_DB_CA_FILE,"utf8"):undefined,maxConnections:2});
   try {
+    if(!real&&environment==="staging")await assertSyntheticStagingDatabase(db);
+    if(real) {
+      const previous = await db.query("SELECT source_sha256,catalog_sha256 FROM meldiq_private.migration_runs WHERE id=$1",[manifest.id]);
+      if(!previous.rowCount) {
+        const counts = await tableCounts(db,specs);
+        if([...counts.values()].some(count=>count!==0)) throw new Error("Real-data rehearsal requires empty application tables; never mix customer and synthetic records");
+      }
+      if(!local) {
+        const receipt=JSON.parse(fs.readFileSync(path.join(snapshot,"local-validation.json"),"utf8"));
+        if(receipt.ok!==true||receipt.sourceSha256!==manifest.sourceSha256||receipt.catalogSha256!==manifest.catalogSha256||receipt.allRecordHashesMatch!==true) throw new Error("Exact successful local real-data rehearsal required before hosted import");
+      }
+    }
     const importer=new TypedPostgresImporter(db);await importer.start({...manifest,environment});
     const sourceCounts=new Map<string,number>();
     for(const spec of specs) {
@@ -50,12 +64,18 @@ async function main() {
       if(source!==destination)throw new Error(`Count discrepancy for ${spec.name}`);
       console.log(JSON.stringify({table:spec.name,source,destination,reconciled:true}));
     }
+    if(real) for(const [name,value] of Object.entries((manifest as any).counters??{})) {
+      const spec=specs.find(table=>table.name===name);
+      if(!spec||!(spec.autoincrement||!spec.primaryKey.length)||!Number.isSafeInteger(value)||Number(value)<0) throw new Error("Unmapped source counter");
+      await db.query("INSERT INTO meldiq_private.row_counters(table_name,value) VALUES($1,$2) ON CONFLICT(table_name) DO UPDATE SET value=greatest(row_counters.value,excluded.value)",[name,value]);
+    }
   } finally {await db.close();}
 }
 main().catch((error: unknown)=>{
   const code=error && typeof error==='object' && 'code' in error && /^[A-Z0-9_]{5,40}$/.test(String(error.code)) ? String(error.code) : 'migration_stopped';
   const message=error instanceof Error && /^Migration discrepancy table=[a-z_]+ keyDigest=[0-9a-f]+ sourceDigest=[0-9a-f]+ destinationDigest=(?:[0-9a-f]+|missing)$/.test(error.message) ? error.message : 'Import stopped; verify snapshot, environment, constraints and checkpoints';
   const directory=process.argv[2];
-  if(directory && fs.existsSync(directory))fs.appendFileSync(path.join(directory,'errors.ndjson'),JSON.stringify({time:new Date().toISOString(),code,message})+'\n',{mode:0o600});
+  const metadata=Object.fromEntries(['table','constraint'].flatMap(key=>{const value=error&&typeof error==='object'&&key in error?String((error as any)[key]):'';return /^[a-z][a-z0-9_]{0,62}$/.test(value)?[[key,value]]:[];}));
+  if(directory && fs.existsSync(directory))fs.appendFileSync(path.join(directory,'errors.ndjson'),JSON.stringify({time:new Date().toISOString(),code,message,...metadata})+'\n',{mode:0o600});
   console.error(JSON.stringify({code,message}));process.exitCode=1;
 });

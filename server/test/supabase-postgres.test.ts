@@ -56,6 +56,7 @@ import type { PointsEntry } from "../src/modules/points/store.js";
 import { openPostgresRuntime } from "../src/app/postgresRuntime.js";
 import type { ProgramApplication } from "../src/modules/accounts/creators/service.js";
 import { TypedPostgresImporter, digest, validateRow, dependencyOrder } from "../src/infrastructure/database/postgres/migration.js";
+import { assertSyntheticStagingDatabase } from "../src/infrastructure/database/postgres/sourceSnapshot.js";
 
 const root = process.env.MELDIQ_SUPABASE_WEB_ROOT ?? path.resolve(process.cwd(), "../../meldiq_web");
 const connection = process.env.MELDIQ_PG_TEST_URL;
@@ -122,9 +123,18 @@ beforeEach(async () => {
 });
 
 describe("relational schema and security",()=>{
+  it("protects customer rehearsals from synthetic imports and API smoke startup",async()=>{
+    await assertSyntheticStagingDatabase(db);
+    await db.query("UPDATE meldiq.accounts SET email='customer@private.test' WHERE id='account1'");
+    await expect(assertSyntheticStagingDatabase(db)).rejects.toThrow("protected");
+    await db.query("UPDATE meldiq.accounts SET email='fixture1@example.invalid' WHERE id='account1'");
+    await db.query("COMMENT ON SCHEMA meldiq IS 'Meldiq customer-data rehearsal: synthetic guard test'");
+    try{await expect(assertSyntheticStagingDatabase(db)).rejects.toThrow("protected");}
+    finally{await db.query("COMMENT ON SCHEMA meldiq IS NULL");}
+  });
   it("enforces RLS and denies raw client access on every application and operational table",async()=>{
     const rows=await db.query("SELECT c.relname,c.relrowsecurity,c.relforcerowsecurity,has_table_privilege('authenticated',c.oid,'SELECT,INSERT,UPDATE,DELETE') AS exposed FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('meldiq','meldiq_private') AND c.relkind='r'");
-    expect(rows.rows.length).toBe(286);
+    expect(rows.rows.length).toBe(289);
     expect(rows.rows.every(r=>r.relrowsecurity&&r.relforcerowsecurity&&!r.exposed)).toBe(true);
     await expect(claims(auth1,()=>db.query("SELECT password_hash FROM meldiq.accounts"))).rejects.toMatchObject({code:"42501"});
     await expect(claims(auth1,()=>db.query("UPDATE meldiq.billing_subscriptions SET status='active'"))).rejects.toMatchObject({code:"42501"});
@@ -141,7 +151,7 @@ describe("relational schema and security",()=>{
       VALUES('synthetic-price','synthetic-plan',1,'month','USD',1250,'user1',1000,1000,1000)`);
     await expect(db.query("UPDATE meldiq.platform_audit SET reason='changed' WHERE id=1")).rejects.toMatchObject({code: "23514"});
     await expect(db.query("DELETE FROM meldiq.platform_audit WHERE id=1")).rejects.toMatchObject({code: "23514"});
-    for (const change of ["amount_minor=1", "provider='changed'", "quota_plan_id='changed'", "limits='changed'", "currency='EUR'"]) {
+    for (const change of ["amount_minor=1", "provider='changed'", "quota_plan_id='changed'", "limits='changed'", "currency='EUR'", "billing_frequency=3"]) {
       await expect(db.query(`UPDATE meldiq.billing_plan_versions SET ${change} WHERE id='synthetic-price'`)).rejects.toMatchObject({code: "23514"});
     }
     await db.query("UPDATE meldiq.billing_plan_versions SET notes='Retired offer',retired_at=2000 WHERE id='synthetic-price'");
@@ -308,6 +318,21 @@ describe("PostgresRows compatibility",()=>{
     await expect(db.query("SELECT 9007199254740993::bigint")).rejects.toThrow("safe range");
     expect(()=>new MeldiqPostgres({url:"postgresql://x@y.example/db?sslmode=no-verify",environment:"staging"})).toThrow("TLS");
     expect(()=>new MeldiqPostgres({url:endpoint.href,environment:"production"})).toThrow("development database");
+    expect(()=>new MeldiqPostgres({url:"postgresql://x@y.example:6543/db",environment:"staging"})).toThrow("session-pool");
+  });
+  it("overrides pooler float truncation on every new lease before reading rows",async()=>{
+    const candidate=new MeldiqPostgres({url:endpoint.href,environment:"development",maxConnections:1});
+    // Emulate the hosted pool's server-session default, which ignores startup float precision.
+    candidate.pool.on("connect",client=>{void client.query("SET extra_float_digits=0");});
+    try {
+      for(let pass=0;pass<2;pass++){
+        const lease=await candidate.connect();
+        try {
+          const result=(await lease.query("SELECT current_setting('extra_float_digits') AS precision,1.2345678901234567::double precision AS value")).rows[0];
+          expect(result.precision).toBe("3");expect(result.value).toBe(1.2345678901234567);
+        }finally{lease.release(true);}
+      }
+    }finally{await candidate.close();}
   });
 });
 
@@ -372,8 +397,19 @@ describe("repeatable migration and record-level reconciliation",()=>{
   it("orders every relational dependency and refuses incomplete plans",()=>{
     const ordered=dependencyOrder(tableSpecs()),seen=new Set<string>();
     for(const t of ordered){expect(t.foreignKeys.every(f=>seen.has(f.table))).toBe(true);seen.add(t.name);}
-    expect(ordered).toHaveLength(254);
+    expect(ordered).toHaveLength(257);
     expect(()=>dependencyOrder([tableSpecs().find(t=>t.name==="org_members")!])).toThrow("dependency");
+  });
+  it("preserves empty and nested JSONB arrays through import and resume",async()=>{
+    const importer=new TypedPostgresImporter(db),r=run();await importer.start(r);
+    const botSpec=postgresTableSpecs().find(table=>table.name==="bots")!;
+    const row={id:"user1",owner_id:"user2",token_hash:"synthetic_bot_hash",created_at:123,token_rotated_at:123,public:false,commands:[]};
+    await importer.batch(r.id,botSpec,0,[row]);
+    expect((await db.query("SELECT commands FROM meldiq.bots WHERE id='user1'")).rows[0].commands).toEqual([]);
+    await importer.batch(r.id,botSpec,0,[row]);
+    const nested={...row,id:"user2",token_hash:"synthetic_bot_hash_two",commands:[{name:"test",options:[{kind:"text",choices:[]}]}]};
+    await importer.batch(r.id,botSpec,1,[nested]);
+    expect((await db.query("SELECT commands FROM meldiq.bots WHERE id='user2'")).rows[0].commands).toEqual(nested.commands);
   });
   it("refuses imports while the synchronous runtime writer is active",async()=>{
     const importer=new TypedPostgresImporter(db),r=run();await importer.start(r);
@@ -444,7 +480,7 @@ describe("PostgreSQL attachment metadata and durable S3 cleanup", () => {
     expect(await files.completeUpload(row.id, attachment(row.id))).toBe(true);
     expect(await files.completeUpload(row.id, attachment(row.id))).toBe(false);
     expect(await files.upload(row.id)).toBeNull();
-    expect(await new PostgresFileStore(db).attachment(row.id)).toEqual({...attachment(row.id), kept: 0});
+    expect(await new PostgresFileStore(db).attachment(row.id)).toEqual({...attachment(row.id), kept: 0, pending_message_until: null, message_id: null, sha256: null});
     expect(await files.attachmentIdsIn(["conversation1"])).toEqual([row.id]);
     expect(await files.knows(row.id)).toBe(true);
     expect(await files.knows("missing")).toBe(false);

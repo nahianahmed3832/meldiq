@@ -36,9 +36,10 @@ const checks = (sql: string): string[] => {
 const catalog = tables.map(t => ({ ...t, checks: checks((db.prepare("SELECT sql FROM sqlite_master WHERE name = ?").get(t.name) as { sql: string }).sql) }));
 const sourceCommit = execFileSync("git", ["rev-parse", process.env.MELDIQ_SOURCE_BASE ?? "HEAD"], { encoding: "utf8" }).trim();
 const additive = process.argv.includes("--additive");
+const catalogOnly = process.argv.includes("--catalog-only");
 const catalogPath = path.join(root,"supabase/generated/source-catalog.json");
 const previous = additive ? JSON.parse(fs.readFileSync(catalogPath,"utf8")) as {tables:typeof catalog} : null;
-if(previous)for(const old of previous.tables){const current=catalog.find(t=>t.name===old.name);if(!current||JSON.stringify(current)!==JSON.stringify(old))throw new Error(`Existing relation changed and requires a reviewed ALTER migration: ${old.name}`);}
+if(previous&&!catalogOnly)for(const old of previous.tables){const current=catalog.find(t=>t.name===old.name);if(!current||JSON.stringify(current)!==JSON.stringify(old))throw new Error(`Existing relation changed and requires a reviewed ALTER migration: ${old.name}`);}
 const selected=previous?catalog.filter(t=>!previous.tables.some(old=>old.name===t.name)):catalog;
 if(additive&&!selected.length){db.close();console.log(JSON.stringify({upToDate:true,tables:catalog.length}));process.exit(0);}
 const manifest = { sourceCommit, sourceSchema: db.prepare("SELECT max(version) AS version FROM schema_migrations").get(), tables: catalog };
@@ -83,8 +84,13 @@ const dir = path.join(root, "supabase");
 fs.mkdirSync(path.join(dir, "generated"), { recursive: true });
 const migration=path.join(dir,"migrations",additive?"20261102000600_administration_relations.sql":"20261102000100_release_relations.sql");
 const sql=lines.join("\n")+"\n";
-if(fs.existsSync(migration)&&fs.readFileSync(migration,"utf8")!==sql)throw new Error("Applied migration is immutable; create a new migration version");
-fs.writeFileSync(migration,sql);
+if(catalogOnly) {
+  const applied=fs.readdirSync(path.join(dir,"migrations")).filter(file=>file.endsWith(".sql")).map(file=>fs.readFileSync(path.join(dir,"migrations",file),"utf8")).join("\n");
+  for(const table of catalog)if(!applied.includes(`CREATE TABLE meldiq.${q(table.name)}`)||!applied.includes(`ALTER TABLE meldiq.${q(table.name)} FORCE ROW LEVEL SECURITY;`))throw new Error(`Write the explicit secured migration for ${table.name} first`);
+} else {
+  if(fs.existsSync(migration)&&fs.readFileSync(migration,"utf8")!==sql)throw new Error("Applied migration is immutable; create a new migration version");
+  fs.writeFileSync(migration,sql);
+}
 fs.writeFileSync(path.join(dir, "generated", "source-catalog.json"), JSON.stringify(manifest, null, 2) + "\n");
 const types = catalog.map(t => `  ${q(t.name)}: {\n${t.columns.map(c => `    ${q(c.name)}: ${c.type === "TEXT" ? "string" : c.type === "BLOB" ? "Uint8Array" : "number"}${!c.notNull && !t.primaryKey.includes(c.name) ? " | null" : ""};`).join("\n")}\n  };`).join("\n");
 fs.writeFileSync(path.join(dir, "generated", "database.types.ts"), `// Generated from ${sourceCommit}; wire epoch timestamps are UTC milliseconds.\nexport interface MeldiqRows {\n${types}\n}\n`);

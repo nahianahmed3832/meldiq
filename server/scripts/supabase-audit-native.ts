@@ -34,10 +34,11 @@ const reviewedTriggerHashes: Record<string, string> = {
   billing_plan_versions_frozen: "48fe826bbac385eea8258d0ed3f1198df530be70da034f0b92986ae77013473a",
   platform_audit_no_delete: "7b8296518543acd1fbae19ab296120a19080d6b79709a36fa0c7f35fadc4750f",
   platform_audit_no_update: "934c7eea2c2f87667eb728b9f9b2050f62d8cf8b951de93618712fe08bdc1e14",
+  billing_plan_frequency_frozen: "17a2cc415039011ba9f8549b65cbbaf9bcb8accf0ca224b55a34a29ba6dadb13",
 };
 const sourceTriggers = (source.prepare("SELECT name,sql FROM sqlite_master WHERE type='trigger' ORDER BY name").all() as {name: string; sql: string}[]).map(trigger => {
   const sha256 = crypto.createHash("sha256").update(trigger.sql).digest("hex");
-  return {name: trigger.name, sha256, preservedBy: reviewedTriggerHashes[trigger.name] === sha256 ? "20261102001000_immutable_audit_and_prices.sql" : null};
+  return {name: trigger.name, sha256, preservedBy: reviewedTriggerHashes[trigger.name] === sha256 ? trigger.name === "billing_plan_frequency_frozen" ? "20261103001300_current_production_fields.sql" : "20261102001000_immutable_audit_and_prices.sql" : null};
 });
 source.close();
 const unreviewedTriggers = sourceTriggers.filter(trigger => !trigger.preservedBy);

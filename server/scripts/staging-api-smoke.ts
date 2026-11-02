@@ -11,6 +11,7 @@ import { AccountClient, MemoryMailer } from "../test/support/accounts.js";
 import {sign} from "../test/support/griipClient.js";
 import {supabaseDeviceProof} from "../src/modules/auth/supabaseIdentity.js";
 import {PostgresOutbox, type OutboxEvent} from "../src/infrastructure/database/postgres/outbox.js";
+import {assertSyntheticStagingDatabase} from "../src/infrastructure/database/postgres/sourceSnapshot.js";
 
 const project = "bkvlxbsnzqkhbifawcww";
 const filename = process.argv[2] ?? path.join(os.homedir(), ".local/share/meldiq-supabase/staging-runtime.env");
@@ -107,6 +108,7 @@ async function jwtRequest(person: AccountClient, method: "POST" | "DELETE", rout
   return response.json();
 }
 try {
+  await assertSyntheticStagingDatabase(db);
   const initial = await start();
   report.startupMs = initial.duration;
   requireCheck(!built!.ctx.mongo && built!.ctx.accounts.store.backend === "postgres" && built!.ctx.messages.backend === "postgres");

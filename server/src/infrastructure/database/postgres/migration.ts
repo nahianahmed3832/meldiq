@@ -88,7 +88,10 @@ export class TypedPostgresImporter {
       let inserted=0;
       if(rows.length) {
         if(rows.length*columns.length>60000)throw new Error("Migration batch exceeds parameter budget");
-        const values=rows.flatMap(row=>columns.map(c=>row[c]));
+        // node-postgres encodes JS arrays as PostgreSQL arrays. JSONB arrays need explicit JSON encoding,
+        // including [] (otherwise the valid PostgreSQL array literal {} becomes a JSON object).
+        const jsonColumns=new Set(spec.columns.filter(column=>column.type==="JSONB").map(column=>column.name));
+        const values=rows.flatMap(row=>columns.map(c=>jsonColumns.has(c)&&row[c]!==null?JSON.stringify(row[c]):row[c]));
         const groups=rows.map((_,n)=>`(${columns.map((_,i)=>`$${n*columns.length+i+1}`).join(",")})`).join(",");
         const result=await this.db.query(`INSERT INTO meldiq.${q(spec.name)} (${columns.map(q)}) VALUES ${groups} ON CONFLICT DO NOTHING`,values);
         inserted=result.rowCount??0;
@@ -105,8 +108,15 @@ export class TypedPostgresImporter {
     if(!rows.length)return;
     const keyOf=(row:Row)=>JSON.stringify(pk.map(c=>row[c]));
     const values=rows.flatMap(row=>pk.map(c=>row[c]));
-    const groups=rows.map((_,n)=>`(${pk.map((_,i)=>`$${n*pk.length+i+1}`).join(",")})`).join(",");
-    const result=await this.db.query(`SELECT * FROM meldiq.${q(spec.name)} WHERE (${pk.map(q)}) IN (${groups})`,values);
+    const casts:Record<string,string>={TEXT:"text",INTEGER:"bigint",REAL:"double precision",BLOB:"bytea",BOOLEAN:"boolean"};
+    const groups=rows.map((_,n)=>`(${pk.map((column,i)=>{
+      const type=column==="rowid"?"bigint":casts[spec.columns.find(item=>item.name===column)!.type];
+      if(!type)throw new Error("Unsupported migration key type");
+      return `$${n*pk.length+i+1}::${type}`;
+    }).join(",")})`).join(",");
+    // A VALUES join permits hash/merge/index joins for large composite-key batches; tuple IN expands into
+    // thousands of OR branches and becomes disproportionately expensive during a full rehearsal.
+    const result=await this.db.query(`WITH requested(${pk.map(q)}) AS (VALUES ${groups}) SELECT t.* FROM meldiq.${q(spec.name)} t JOIN requested r ON ${pk.map(column=>`t.${q(column)}=r.${q(column)}`).join(" AND ")}`,values);
     const foundByKey=new Map(result.rows.map(row=>[keyOf(row),row]));
     for(const row of rows) {
       const found=foundByKey.get(keyOf(row));
