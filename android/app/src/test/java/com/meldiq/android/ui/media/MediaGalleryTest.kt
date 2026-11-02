@@ -57,6 +57,17 @@ class MediaGalleryTest {
     }
 
     @Test
+    fun collectionPageCanFilterPhotosVideosAndFilenamesWithoutChangingOriginalRefs() {
+        val photo = ref("p", "image/jpeg", "Summer.JPG")
+        val video = ref("v", "video/mp4", "Summer.mp4")
+        assertTrue(MediaGallery.matches(photo, MediaKind.Image, " summer "))
+        assertFalse(MediaGallery.matches(video, MediaKind.Image, "Summer"))
+        assertTrue(MediaGallery.matches(video, MediaKind.Video, ".MP4"))
+        assertTrue(MediaGallery.matches(photo, null, ""))
+        assertFalse(MediaGallery.matches(photo, null, "winter"))
+    }
+
+    @Test
     fun savedFilesGetSafeNamesWithTheRightExtension() {
         assertEquals("holiday.jpg", MediaGallery.safeName("holiday.jpg", "image/jpeg"))
         assertEquals("holiday.jpeg", MediaGallery.safeName("holiday.jpeg", "image/jpeg"))

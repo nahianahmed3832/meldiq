@@ -1,0 +1,106 @@
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:generateDebugBuildConfig UP-TO-DATE
+> Task :app:checkDebugAarMetadata UP-TO-DATE
+> Task :app:processDebugNavigationResources UP-TO-DATE
+> Task :app:compileDebugNavigationResources UP-TO-DATE
+> Task :app:generateDebugResValues UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths UP-TO-DATE
+> Task :app:generateDebugResources UP-TO-DATE
+> Task :app:mergeDebugResources UP-TO-DATE
+> Task :app:packageDebugResources UP-TO-DATE
+> Task :app:parseDebugLocalResources UP-TO-DATE
+> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :app:processDebugMainManifest UP-TO-DATE
+> Task :app:processDebugManifest UP-TO-DATE
+> Task :app:processDebugManifestForPackage UP-TO-DATE
+> Task :app:processDebugResources UP-TO-DATE
+> Task :app:kspDebugKotlin UP-TO-DATE
+> Task :app:compileDebugKotlin
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/main/java/com/meldiq/android/call/CallManager.kt:771:9 'when' is exhaustive so 'else' is redundant here.
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/main/java/com/meldiq/android/media/MediaPrep.kt:247:79 'constructor(vararg p0: EditedMediaItem): EditedMediaItemSequence.Builder' is deprecated. Deprecated in Java.
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/main/java/com/meldiq/android/media/OneShotLocation.kt:50:30 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/main/java/com/meldiq/android/ui/LinkOpener.kt:60:32 'val Icons.Outlined.OpenInNew: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Outlined.OpenInNew.
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/main/java/com/meldiq/android/ui/components/LiveIndicators.kt:78:51 'val Icons.Rounded.ScreenShare: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.ScreenShare.
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/main/java/com/meldiq/android/ui/screens/calls/CallControls.kt:82:48 'val Icons.Rounded.StopScreenShare: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.StopScreenShare.
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/main/java/com/meldiq/android/ui/screens/calls/CallControls.kt:82:83 'val Icons.Rounded.ScreenShare: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.ScreenShare.
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/main/java/com/meldiq/android/ui/screens/calls/CallOverlay.kt:635:36 'val Icons.Rounded.ScreenShare: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.ScreenShare.
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/main/java/com/meldiq/android/ui/screens/calls/ShareSheet.kt:46:57 'val Icons.Rounded.Article: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.Article.
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/main/java/com/meldiq/android/ui/screens/calls/ShareSheet.kt:53:48 'val Icons.Rounded.VolumeUp: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.VolumeUp.
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/main/java/com/meldiq/android/ui/screens/community/CommunityPanel.kt:109:32 'val Icons.Rounded.KeyboardArrowRight: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.KeyboardArrowRight.
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/main/java/com/meldiq/android/ui/screens/community/CommunityPanel.kt:153:43 'val Icons.Rounded.KeyboardArrowRight: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.KeyboardArrowRight.
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/main/java/com/meldiq/android/ui/screens/conversation/MediaCards.kt:91:47 'val Icons.Rounded.QueueMusic: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.QueueMusic.
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/main/java/com/meldiq/android/ui/screens/profile/PrivacyScreen.kt:69:47 'val Icons.Outlined.ShortText: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Outlined.ShortText.
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/main/java/com/meldiq/android/ui/screens/profile/SettingsScreens.kt:551:40 'val Icons.Outlined.Logout: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Outlined.Logout.
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/main/java/com/meldiq/android/ui/screens/workspace/CommunitySheets.kt:120:52 'val Icons.Outlined.DriveFileMove: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Outlined.DriveFileMove.
+
+> Task :app:javaPreCompileDebug FROM-CACHE
+> Task :app:compileDebugJavaWithJavac
+> Task :app:bundleDebugClassesToRuntimeJar
+> Task :app:bundleDebugClassesToCompileJar
+> Task :app:kspDebugUnitTestKotlin
+
+> Task :app:compileDebugUnitTestKotlin
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/test/java/com/meldiq/android/data/repo/KeyDirectoryTest.kt:191:19 Redundant creation of Json format. Creating instances for each usage can be slow.
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/test/java/com/meldiq/android/data/repo/WakeFetchTest.kt:42:32 This declaration needs opt-in. Its usage should be marked with '@kotlinx.coroutines.ExperimentalCoroutinesApi' or '@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)'
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/test/java/com/meldiq/android/data/repo/WakeFetchTest.kt:50:9 This declaration needs opt-in. Its usage should be marked with '@kotlinx.coroutines.ExperimentalCoroutinesApi' or '@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)'
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/test/java/com/meldiq/android/data/repo/WakeFetchTest.kt:55:9 This declaration needs opt-in. Its usage should be marked with '@kotlinx.coroutines.ExperimentalCoroutinesApi' or '@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)'
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/test/java/com/meldiq/android/data/repo/WakeFetchTest.kt:58:9 This declaration needs opt-in. Its usage should be marked with '@kotlinx.coroutines.ExperimentalCoroutinesApi' or '@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)'
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/test/java/com/meldiq/android/data/repo/WakeFetchTest.kt:70:9 This declaration needs opt-in. Its usage should be marked with '@kotlinx.coroutines.ExperimentalCoroutinesApi' or '@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)'
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/test/java/com/meldiq/android/data/repo/WakeFetchTest.kt:72:9 This declaration needs opt-in. Its usage should be marked with '@kotlinx.coroutines.ExperimentalCoroutinesApi' or '@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)'
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/test/java/com/meldiq/android/data/repo/WakeFetchTest.kt:75:9 This declaration needs opt-in. Its usage should be marked with '@kotlinx.coroutines.ExperimentalCoroutinesApi' or '@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)'
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/test/java/com/meldiq/android/data/repo/WakeFetchTest.kt:85:9 This declaration needs opt-in. Its usage should be marked with '@kotlinx.coroutines.ExperimentalCoroutinesApi' or '@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)'
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/test/java/com/meldiq/android/data/repo/WakeFetchTest.kt:86:9 This declaration needs opt-in. Its usage should be marked with '@kotlinx.coroutines.ExperimentalCoroutinesApi' or '@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)'
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/test/java/com/meldiq/android/data/repo/WakeFetchTest.kt:94:9 This declaration needs opt-in. Its usage should be marked with '@kotlinx.coroutines.ExperimentalCoroutinesApi' or '@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)'
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/test/java/com/meldiq/android/data/repo/WakeFetchTest.kt:96:9 This declaration needs opt-in. Its usage should be marked with '@kotlinx.coroutines.ExperimentalCoroutinesApi' or '@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)'
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/test/java/com/meldiq/android/data/repo/WakeFetchTest.kt:97:9 This declaration needs opt-in. Its usage should be marked with '@kotlinx.coroutines.ExperimentalCoroutinesApi' or '@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)'
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/test/java/com/meldiq/android/data/repo/WakeFetchTest.kt:108:9 This declaration needs opt-in. Its usage should be marked with '@kotlinx.coroutines.ExperimentalCoroutinesApi' or '@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)'
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/test/java/com/meldiq/android/data/repo/WakeFetchTest.kt:120:9 This declaration needs opt-in. Its usage should be marked with '@kotlinx.coroutines.ExperimentalCoroutinesApi' or '@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)'
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/test/java/com/meldiq/android/data/repo/WakeFetchTest.kt:123:9 This declaration needs opt-in. Its usage should be marked with '@kotlinx.coroutines.ExperimentalCoroutinesApi' or '@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)'
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/test/java/com/meldiq/android/data/repo/WakeFetchTest.kt:135:9 This declaration needs opt-in. Its usage should be marked with '@kotlinx.coroutines.ExperimentalCoroutinesApi' or '@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)'
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/test/java/com/meldiq/android/data/repo/WakeFetchTest.kt:139:9 This declaration needs opt-in. Its usage should be marked with '@kotlinx.coroutines.ExperimentalCoroutinesApi' or '@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)'
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/test/java/com/meldiq/android/data/repo/WakeFetchTest.kt:142:9 This declaration needs opt-in. Its usage should be marked with '@kotlinx.coroutines.ExperimentalCoroutinesApi' or '@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)'
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/test/java/com/meldiq/android/data/repo/WakeFetchTest.kt:152:9 This declaration needs opt-in. Its usage should be marked with '@kotlinx.coroutines.ExperimentalCoroutinesApi' or '@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)'
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/test/java/com/meldiq/android/data/repo/WakeFetchTest.kt:157:9 This declaration needs opt-in. Its usage should be marked with '@kotlinx.coroutines.ExperimentalCoroutinesApi' or '@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)'
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/test/java/com/meldiq/android/data/repo/WakeFetchTest.kt:160:9 This declaration needs opt-in. Its usage should be marked with '@kotlinx.coroutines.ExperimentalCoroutinesApi' or '@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)'
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/test/java/com/meldiq/android/data/repo/WakeFetchTest.kt:169:9 This declaration needs opt-in. Its usage should be marked with '@kotlinx.coroutines.ExperimentalCoroutinesApi' or '@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)'
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/test/java/com/meldiq/android/data/repo/WakeFetchTest.kt:172:9 This declaration needs opt-in. Its usage should be marked with '@kotlinx.coroutines.ExperimentalCoroutinesApi' or '@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)'
+w: file:///Volumes/code_files/meldiq_android_media_release/android/app/src/test/java/com/meldiq/android/data/repo/WakeFetchTest.kt:183:9 This declaration needs opt-in. Its usage should be marked with '@kotlinx.coroutines.ExperimentalCoroutinesApi' or '@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)'
+
+> Task :app:preDebugUnitTestBuild UP-TO-DATE
+> Task :app:javaPreCompileDebugUnitTest FROM-CACHE
+> Task :app:compileDebugUnitTestJavaWithJavac NO-SOURCE
+> Task :app:processDebugJavaRes
+> Task :app:processDebugUnitTestJavaRes
+
+> Task :app:testDebugUnitTest
+
+ContractFixturesTest > theAppDecodesEveryFixtureItUses FAILED
+    java.lang.AssertionError at ContractFixturesTest.kt:333
+
+ContractFixturesTest > strictDecodingOnlyFailsWhereAlreadyKnown FAILED
+    java.lang.AssertionError at ContractFixturesTest.kt:348
+
+RealtimeCodecTest > every frame the app sends matches the server's ClientEvent schema FAILED
+    java.util.NoSuchElementException at RealtimeCodecTest.kt:32
+
+RealtimeCodecTest > every frame the server can send has a typed event FAILED
+    java.util.NoSuchElementException at RealtimeCodecTest.kt:32
+
+787 tests completed, 4 failed
+
+> Task :app:testDebugUnitTest FAILED
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:testDebugUnitTest'.
+> There were failing tests. See the report at: file:///Volumes/code_files/meldiq_android_media_release/android/app/build/reports/tests/testDebugUnitTest/index.html
+
+* Try:
+> Run with --scan to get full insights.
+
+BUILD FAILED in 4m 15s
+28 actionable tasks: 9 executed, 2 from cache, 17 up-to-date

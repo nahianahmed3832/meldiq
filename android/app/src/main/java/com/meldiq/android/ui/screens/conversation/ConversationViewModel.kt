@@ -642,7 +642,11 @@ class ConversationViewModel(val c: AppContainer, val conversationId: String, val
     init {
         viewModelScope.launch { runCatching { c.conversations.refreshOne(conversationId) }; loadMentionMembers() }
         viewModelScope.launch { runCatching { memberIds.value = c.directory.conversationMemberIds(conversationId) } }
-        viewModelScope.launch { maxFile.value = c.messages.maxAttachmentBytes() }
+        viewModelScope.launch {
+            try { maxFile.value = c.messages.maxAttachmentBytes(conversationId) }
+            catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (_: Exception) { /* Keep the cached display ceiling; send preflight checks again. */ }
+        }
         // Call history: entries for calls that rang or ended while this phone was offline.
         viewModelScope.launch { runCatching { c.messages.syncCalls(conversationId) } }
         viewModelScope.launch {

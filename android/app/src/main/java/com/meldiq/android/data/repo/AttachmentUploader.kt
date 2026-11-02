@@ -16,6 +16,8 @@ import com.meldiq.android.data.api.PartsReq
 import com.meldiq.android.data.api.PresignedRequestDto
 import com.meldiq.android.data.api.StoredPartsRes
 import com.meldiq.android.data.api.UploadUrlRes
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -29,7 +31,26 @@ import java.security.MessageDigest
  * that are older, get the original upload (POST /v1/attachments). Either way the result is the same attachment id.
  * Unit-tested in `AttachmentUploaderTest`.
  */
-class AttachmentUploader(private val api: ApiClient, private val features: ServerFeatures?) {
+class AttachmentUploader(private val api: ApiClient, private val features: ServerFeatures?, private val checkpointDir: File? = null) {
+    @kotlinx.serialization.Serializable
+    private data class Checkpoint(val start: DirectUploadRes, val completed: List<CompletedPart>? = null)
+    private val checkpoints = java.util.concurrent.ConcurrentHashMap<String, Checkpoint>()
+    private fun checkpointKey(cid: String, sha: String, size: Long) = MessageDigest.getInstance("SHA-256").digest("$cid:$sha:$size".toByteArray()).joinToString("") { "%02x".format(it) }
+    private fun load(key: String): Checkpoint? = (checkpoints[key] ?: checkpointDir?.resolve(key)?.takeIf { it.isFile }?.let {
+        runCatching { com.meldiq.android.data.api.GriipJson.decodeFromString(Checkpoint.serializer(), it.readText()) }.getOrNull()
+    })?.takeIf { it.start.expiresAt > System.currentTimeMillis() }
+    private fun save(key: String, checkpoint: Checkpoint) {
+        checkpoints[key] = checkpoint
+        checkpointDir?.let { dir ->
+            dir.mkdirs()
+            dir.listFiles()?.filter { it.isFile && it.lastModified() < System.currentTimeMillis() - 7 * 86_400_000L }?.forEach { it.delete() }
+            val temp = File(dir, "$key.part")
+            temp.writeText(com.meldiq.android.data.api.GriipJson.encodeToString(Checkpoint.serializer(), checkpoint.copy(start = checkpoint.start.copy(upload = null))))
+            if (!temp.renameTo(File(dir, key))) throw java.io.IOException("Couldn't save upload progress")
+        }
+    }
+    private fun drop(key: String) { checkpoints.remove(key); checkpointDir?.resolve(key)?.delete() }
+
 
     /** [sha256] is the base64 SHA-256 of the whole encrypted [file], as it goes into the attachment reference. */
     suspend fun upload(cid: String, file: File, sha256: String, onProgress: (Float) -> Unit): AttachmentUploadRes {
@@ -45,16 +66,24 @@ class AttachmentUploader(private val api: ApiClient, private val features: Serve
         return TransferRetry.run { api.uploadFile("/v1/attachments?conversationId=$cid", file, onProgress) }
     }
 
-    private suspend fun direct(cid: String, file: File, sha256: String, onProgress: (Float) -> Unit): AttachmentUploadRes {
+    private suspend fun direct(cid: String, file: File, sha256: String, onProgress: (Float) -> Unit, resume: Boolean = true): AttachmentUploadRes {
         val size = file.length()
-        val start = TransferRetry.run { api.post<DirectUploadReq, DirectUploadRes>("/v1/attachments/uploads", DirectUploadReq(cid, size, sha256)) }
+        val key = checkpointKey(cid, sha256, size)
+        val previous = if (resume) load(key) else null
+        val start = previous?.start ?: TransferRetry.run { api.post<DirectUploadReq, DirectUploadRes>("/v1/attachments/uploads", DirectUploadReq(cid, size, sha256)) }
+        save(key, previous ?: Checkpoint(start))
         val base = "/v1/attachments/uploads/${start.uploadId}"
         try {
-            val parts = if (start.mode == "multipart") multipart(base, file, start, onProgress) else {
-                single(base, file, start.upload ?: throw ApiException(0, "decode", "Unexpected server response"), onProgress)
+            if (previous != null && start.mode == "single") {
+                try { return api.post<CompleteUploadReq, AttachmentUploadRes>("$base/complete", CompleteUploadReq(null)) }
+                catch (e: ApiException) { if (e.code != "not_uploaded") throw e }
+            }
+            val parts = previous?.completed ?: if (start.mode == "multipart") multipart(base, file, start, onProgress) else {
+                single(base, file, start.upload ?: refreshUrl(base), onProgress)
                 null
             }
-            return TransferRetry.run {
+            save(key, Checkpoint(start, parts))
+            val result = TransferRetry.run {
                 try {
                     api.post<CompleteUploadReq, AttachmentUploadRes>("$base/complete", CompleteUploadReq(parts))
                 } catch (e: ApiException) {
@@ -64,9 +93,19 @@ class AttachmentUploader(private val api: ApiClient, private val features: Serve
                     api.post<CompleteUploadReq, AttachmentUploadRes>("$base/complete", CompleteUploadReq(null))
                 }
             }
+            // Keep the completed id until the session expires: a process death before Room saves the result can retry it.
+            return result
         } catch (e: Exception) {
-            // Gave up: whatever reached the store is removed now rather than when the upload expires.
-            if (e !is kotlin.coroutines.cancellation.CancellationException) runCatching { api.delete<OkRes>(base) }
+            if (previous != null && e is ApiException && (e.status == 404 || e.status == 410)) {
+                drop(key)
+                return direct(cid, file, sha256, onProgress, resume = false)
+            }
+            // Transient failures retain the same ciphertext/session; explicit cancellation abandons it.
+            if (e is ApiException && TransferRetry.isTransient(e)) throw e
+            drop(key)
+            withContext(NonCancellable) {
+                withTimeoutOrNull(5_000) { runCatching { api.delete<OkRes>(base) } }
+            }
             throw e
         }
     }
@@ -99,6 +138,9 @@ class AttachmentUploader(private val api: ApiClient, private val features: Serve
         val partSize = start.partSize ?: throw ApiException(0, "decode", "Unexpected server response")
         val count = start.partCount ?: throw ApiException(0, "decode", "Unexpected server response")
         val total = file.length()
+        if (partSize <= 0 || count !in 1..10000 || count.toLong() != (total + partSize - 1) / partSize) {
+            throw ApiException(0, "decode", "The server returned an invalid multipart layout")
+        }
         val specs = withContext(Dispatchers.IO) {
             (1..count).map { n ->
                 val offset = (n - 1) * partSize
@@ -111,7 +153,7 @@ class AttachmentUploader(private val api: ApiClient, private val features: Serve
         // After an interruption, what the store already has (matching size and hash) needn't be sent again.
         runCatching { api.get<StoredPartsRes>("$base/parts").parts }.getOrNull()?.forEach { p ->
             val spec = specs.getOrNull(p.n - 1)
-            if (spec != null && p.size == spec.size && (p.sha256 == null || p.sha256 == spec.sha256)) {
+            if (spec != null && p.size == spec.size && p.sha256 == spec.sha256) {
                 done[p.n] = CompletedPart(p.n, p.etag, spec.sha256)
                 sentBefore += spec.size
             }

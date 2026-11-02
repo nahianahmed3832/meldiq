@@ -73,7 +73,7 @@ fun AlbumGrid(items: List<AttachmentRef>, transfer: Float?, localFile: (Attachme
                 row.forEach { i ->
                     val tileWidth = if (row.size == 1) width else (width - gap) / 2
                     val last = r == rows.lastIndex && i == row.last()
-                    AlbumTile(items[i], tileWidth, if (row.size == 1) 150.dp else 128.dp, transfer, localFile(items[i]), if (last) overflow else 0, onOpen)
+                    AlbumTile(items[i], tileWidth, if (row.size == 1) 150.dp else 128.dp, transfer, localFile(items[i]) ?: items[i].thumbnail?.asAttachment()?.let(localFile), if (last) overflow else 0, onOpen, localFile(items[i]) == null && items[i].thumbnail?.asAttachment()?.let(localFile) != null)
                 }
             }
         }
@@ -81,14 +81,14 @@ fun AlbumGrid(items: List<AttachmentRef>, transfer: Float?, localFile: (Attachme
 }
 
 @Composable
-private fun AlbumTile(a: AttachmentRef, w: Dp, h: Dp, transfer: Float?, local: File?, more: Int, onOpen: (AttachmentRef) -> Unit) {
+private fun AlbumTile(a: AttachmentRef, w: Dp, h: Dp, transfer: Float?, local: File?, more: Int, onOpen: (AttachmentRef) -> Unit, isThumbnail: Boolean = false) {
     val c = Griip.colors
     val kind = MediaGallery.visualKind(a)
     val pending = a.id == AttachmentFiles.PENDING
     val bitmap by produceState<ImageBitmap?>(null, local?.path, local?.length()) {
         value = when {
             local == null || !local.exists() -> null
-            kind == MediaKind.Video -> MediaExport.videoFrame(local, 512)?.asImageBitmap()
+            kind == MediaKind.Video && !isThumbnail -> MediaExport.videoFrame(local, 512)?.asImageBitmap()
             else -> MediaExport.decode(local, 512)?.asImageBitmap()
         }
     }

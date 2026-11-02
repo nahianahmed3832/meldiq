@@ -61,7 +61,7 @@ data class Settings(
     /** Download received photos automatically: never, on Wi-Fi, or always. Files and videos are always tapped first. */
     val autoDownload: AutoDownload = AutoDownload.WIFI,
     /** The quality a photo or video send starts at (Settings › Chats); each send can still change it. */
-    val photoQuality: AttachmentPolicy.Quality = AttachmentPolicy.Quality.STANDARD,
+    val photoQuality: AttachmentPolicy.Quality = AttachmentPolicy.Quality.ORIGINAL,
     val videoQuality: AttachmentPolicy.Quality = AttachmentPolicy.Quality.ORIGINAL,
     val previewMode: PreviewMode = PreviewMode.ALL,
     val hourFormat: HourFormat = HourFormat.AUTO,
@@ -136,7 +136,7 @@ class SettingsStore(
         setupDismissed = prefs.getBoolean("setupDismissed", false),
         introSeen = prefs.getBoolean("introSeen", false),
         autoDownload = runCatching { AutoDownload.valueOf(prefs.getString("autoDownload", null)!!) }.getOrDefault(AutoDownload.WIFI),
-        photoQuality = runCatching { AttachmentPolicy.Quality.valueOf(prefs.getString("photoQuality", null)!!) }.getOrDefault(AttachmentPolicy.Quality.STANDARD),
+        photoQuality = runCatching { AttachmentPolicy.Quality.valueOf(prefs.getString("photoQuality", null)!!) }.getOrDefault(AttachmentPolicy.Quality.ORIGINAL),
         videoQuality = runCatching { AttachmentPolicy.Quality.valueOf(prefs.getString("videoQuality", null)!!) }.getOrDefault(AttachmentPolicy.Quality.ORIGINAL),
         previewMode = runCatching { PreviewMode.valueOf(prefs.getString("previewMode", null)!!) }.getOrDefault(PreviewMode.ALL),
         hourFormat = runCatching { HourFormat.valueOf(prefs.getString("hourFormat", null)!!) }.getOrDefault(HourFormat.AUTO),

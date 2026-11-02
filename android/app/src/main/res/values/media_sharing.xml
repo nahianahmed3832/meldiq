@@ -1,0 +1,5 @@
+<resources>
+    <string name="media_sharing_photos">Photos</string>
+    <string name="media_sharing_videos">Videos</string>
+    <string name="media_sharing_filter_filename">Filter this page by filename</string>
+</resources>

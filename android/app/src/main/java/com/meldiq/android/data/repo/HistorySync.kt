@@ -194,7 +194,7 @@ class HistorySync(
                         val refs = MessageColumns.attachments(m)
                         if (!HistoryCodec.uploadable(m, refs)) null
                         else {
-                            if (keep && m.sortTs > System.currentTimeMillis() - 7 * 86_400_000L) keepIds[e.key] = refs.map { it.id }.filter { it != "pending" }
+                            if (keep && m.sortTs > System.currentTimeMillis() - 7 * 86_400_000L) keepIds[e.key] = refs.flatMap { listOfNotNull(it.id, it.thumbnail?.asAttachment()?.id) }.filter { it != "pending" }
                             HistoryRecord(message = HistoryCodec.forUpload(m))
                         }
                     }

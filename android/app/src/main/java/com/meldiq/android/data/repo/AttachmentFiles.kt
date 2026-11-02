@@ -28,7 +28,7 @@ class AttachmentFiles(private val dir: File) {
      */
     fun deleteFor(messageId: String, refs: List<AttachmentRef>): Int {
         var deleted = 0
-        for (r in refs) {
+        for (r in refs.flatMap { ref -> listOfNotNull(ref, ref.thumbnail?.asAttachment()) }) {
             val names = buildSet {
                 add(fileFor(r.id, r.name).name)
                 add(fileFor(messageId, r.name).name)

@@ -250,10 +250,17 @@ internal fun LazyListScope.mediaGrid(items: List<DetailsRules.Item<AttachmentRef
 @Composable
 private fun MediaTile(a: AttachmentRef, local: File?, modifier: Modifier, onOpen: () -> Unit) {
     val c = Griip.colors
+    val repository = com.meldiq.android.ui.LocalContainer.current.messages
     val kind = MediaGallery.kindOf(a)
-    val bitmap by produceState<ImageBitmap?>(null, local?.path) {
+    val bitmap by produceState<ImageBitmap?>(null, a.id, a.thumbnail?.id, local?.path) {
+        // Only the optional small preview is fetched for an older collection item; the original waits for a tap.
+        val thumbnail = if (local == null) a.thumbnail?.asAttachment() else null
+        val preview = try { thumbnail?.let { repository.localAttachment(it) ?: repository.downloadAttachment(it) } }
+        catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (_: Exception) { null }
         value = withContext(Dispatchers.IO) {
             when {
+                preview != null -> MediaExport.decode(preview, 360)?.asImageBitmap()
                 local == null -> null
                 kind == MediaKind.Image -> MediaExport.decode(local, 360)?.asImageBitmap()
                 kind == MediaKind.Video -> MediaExport.videoFrame(local, 360)?.asImageBitmap()
@@ -363,6 +370,8 @@ internal fun ConversationDetailsList(
     val channel = cv.type == "CHANNEL"
     val tabs = DetailsRules.tabs(cv.type, forum = cv.format == "forum")
     var tabName by rememberSaveable(cv.id) { mutableStateOf(tabs.first().name) }
+    var attachmentQuery by rememberSaveable(cv.id) { mutableStateOf("") }
+    var mediaFilter by rememberSaveable(cv.id) { mutableStateOf("all") }
     val tab = DetailsRules.Tab.valueOf(tabName)
     val withFiles by remember(cv.id) { container.messages.observeWithFiles(cv.id, SHARED_SHOWN) }.collectAsStateWithLifecycle(emptyList())
     val withLinks by remember(cv.id) { container.messages.observeWithLinks(cv.id, SHARED_SHOWN) }.collectAsStateWithLifecycle(emptyList())
@@ -442,14 +451,28 @@ internal fun ConversationDetailsList(
                 memberItems(members)
                 // A channel's AI agents under its people, with the AI badge (API 0.40.0, as Meldiq Web).
             }
-            DetailsRules.Tab.MEDIA -> mediaGrid(media, { container.messages.localAttachment(it) }, open)
+            DetailsRules.Tab.MEDIA -> {
+                item(key = "media-filter") {
+                    com.meldiq.android.ui.components.ChipRow {
+                        PillChip(stringResource(R.string.filter_all), mediaFilter == "all", { mediaFilter = "all" })
+                        PillChip(stringResource(R.string.media_sharing_photos), mediaFilter == "photos", { mediaFilter = "photos" })
+                        PillChip(stringResource(R.string.media_sharing_videos), mediaFilter == "videos", { mediaFilter = "videos" })
+                    }
+                    com.meldiq.android.ui.components.SearchPill(attachmentQuery, { attachmentQuery = it }, stringResource(R.string.media_sharing_filter_filename), Modifier.padding(horizontal = Space.gutter, vertical = 6.dp))
+                }
+                val kind = when (mediaFilter) { "photos" -> MediaKind.Image; "videos" -> MediaKind.Video; else -> null }
+                mediaGrid(media.filter { MediaGallery.matches(it.value, kind, attachmentQuery) }, { container.messages.localAttachment(it) }, open)
+            }
             DetailsRules.Tab.PINS -> pinRows(pinned, senderName, preview, open)
             DetailsRules.Tab.THREADS -> threadRows(
                 threads, threadQuery, { threadQuery = it }, senderName = { r -> senderName(r.senderId) },
                 onOpen = { root -> nav.navigate(com.meldiq.android.ui.Routes.conversation(cv.id, root)) },
             )
             DetailsRules.Tab.LINKS -> linkRows(links, senderName, openLink)
-            DetailsRules.Tab.FILES -> fileRows(files, senderName, open)
+            DetailsRules.Tab.FILES -> {
+                item(key = "files-filter") { com.meldiq.android.ui.components.SearchPill(attachmentQuery, { attachmentQuery = it }, stringResource(R.string.media_sharing_filter_filename), Modifier.padding(horizontal = Space.gutter, vertical = 6.dp)) }
+                fileRows(files.filter { MediaGallery.matches(it.value, null, attachmentQuery) }, senderName, open)
+            }
         }
         if (channel) {
             // Batch B14b: the truthful security details stay one tap away, without a padlock in every header.
