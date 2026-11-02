@@ -53,7 +53,6 @@ const FEDERATION_ERROR_CODES = {
 } as const satisfies Record<string, ErrorSpec>;
 
 export const ERROR_CODES = {
-  social_profile_required: { status: [400], meaning: "Display name required to create an account." },
 
   account_link_required: { status: [409], meaning: "Sign in to the existing account and explicitly connect the provider." },
   social_state_invalid: { status: [400], meaning: "OAuth state is missing or invalid." },
