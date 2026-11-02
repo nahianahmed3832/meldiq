@@ -129,6 +129,7 @@ export interface CheckoutSnapshot {
   /** One-time payments: whether the money is in (a completed bank payment can still be on its way), and its reference. */
   paid?: boolean;
   paymentRef?: string | null;
+  captureStatus?: string | null;
   currency?: string;
   amountMinor?: number;
 }

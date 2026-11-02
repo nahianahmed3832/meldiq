@@ -1,3 +1,4 @@
+import type { BillingNotice } from "./notifications.js";
 import type { RowReader, Rows, RowWriter, Where } from "../../infrastructure/database/rows/index.js";
 import { newId } from "../../shared/utilities/util.js";
 import { type PlanCatalog, type PlanLimits, parseLimits, type VersionRow } from "./catalog.js";
@@ -83,6 +84,7 @@ export class Subscriptions {
   constructor(
     private readonly rows: Rows,
     private readonly catalog: PlanCatalog,
+    private readonly notice?: (w: RowWriter, accountId: string | null, kind: BillingNotice, resource: string, t: number) => void,
   ) {}
 
   get(id: string): SubscriptionRow | null {
@@ -145,14 +147,14 @@ export class Subscriptions {
 
   standingOf(s: SubscriptionRow, t: number): Standing {
     const v = this.catalog.version(s.plan_version_id);
-    if (s.provider === "paypal" && s.status === "active" && (s.current_period_end === null || s.current_period_end <= t)) return "not_entitled";
+    if (["paypal", "paypal_card"].includes(s.provider) && s.status === "active" && (s.current_period_end === null || s.current_period_end <= t)) return "not_entitled";
     return standing({ status: s.status, pastDueSince: s.past_due_since, graceDays: v?.grace_days ?? 0 }, t);
   }
 
   /** Whether [s] grants its plan (or its Sparks) at [t]: paid for, trialing, or a failing payment within its grace days. */
   grants(s: SubscriptionRow, t: number): boolean {
     const v = this.catalog.version(s.plan_version_id);
-    if (s.provider === "paypal" && s.status === "active" && (s.current_period_end === null || s.current_period_end <= t)) return false;
+    if (["paypal", "paypal_card"].includes(s.provider) && s.status === "active" && (s.current_period_end === null || s.current_period_end <= t)) return false;
     return !!v && grantsPlan({ status: s.status, pastDueSince: s.past_due_since, graceDays: v.grace_days }, t);
   }
 
@@ -218,7 +220,7 @@ export class Subscriptions {
    * skipped ("stale"), so duplicated and out-of-order deliveries settle on the provider's latest state.
    */
   applySnapshot(w: RowWriter, provider: string, snap: SubscriptionSnapshot, providerAt: number, source: string, t: number): ApplyOutcome {
-    const version = this.catalog.byPrice(provider, snap.priceRef) ?? this.storeVersion?.(provider, snap.priceRef) ?? null;
+    const version = (provider === "paypal_card" ? this.catalog.version(snap.priceRef) : this.catalog.byPrice(provider, snap.priceRef)) ?? this.storeVersion?.(provider, snap.priceRef) ?? null;
     if (!version) throw new BillingEventError("unknown_price", `No published plan version uses the price ${snap.priceRef}`);
     const existing = w.get<SubscriptionRow>("billing_subscriptions", { provider, provider_subscription_ref: snap.ref });
     if (existing) return this.update(w, existing, version.id, snap, providerAt, source, t);
@@ -280,6 +282,7 @@ export class Subscriptions {
       current_period_end: snap.currentPeriodEnd, trial_end: snap.trialEnd, cancel_at_period_end: snap.cancelAtPeriodEnd ? 1 : 0, canceled_at: snap.canceledAt,
       past_due_since: pastDueSince, provider_updated_at: providerAt, updated_at: t, quantity,
     });
+    if (!s.cancel_at_period_end && snap.cancelAtPeriodEnd) this.notice?.(w, s.billing_account_id ?? s.account_id, "renewal_canceled", s.id, t);
     const changed: Record<string, unknown> = {};
     if (versionId !== s.plan_version_id) changed.planVersion = { from: s.plan_version_id, to: versionId };
     if (!!s.cancel_at_period_end !== snap.cancelAtPeriodEnd) changed.cancelAtPeriodEnd = snap.cancelAtPeriodEnd;
@@ -327,6 +330,8 @@ export class Subscriptions {
         issued_at: inv.issuedAt, ...fields,
       });
     }
+    if (inv.status === "paid") this.notice?.(w, sub.billing_account_id ?? sub.account_id, "payment_receipt", inv.ref, providerAt);
+    if (inv.status === "payment_failed") this.notice?.(w, sub.billing_account_id ?? sub.account_id, "payment_failed", inv.ref, providerAt);
     return { result: "applied", subscriptionId: sub.id, owner };
   }
 

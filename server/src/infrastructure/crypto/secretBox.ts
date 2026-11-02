@@ -32,6 +32,11 @@ export class SecretBox {
     return this.key;
   }
 
+  /** Stable private lookup keys, separated by purpose. The secret key is never exposed to callers. */
+  fingerprint(plain: string, purpose: string): string {
+    return crypto.createHmac("sha256", this.need()).update(purpose).update("\0").update(plain).digest("hex");
+  }
+
   seal(plain: string, boundTo: string): string {
     const iv = crypto.randomBytes(IV_BYTES);
     const cipher = crypto.createCipheriv("aes-256-gcm", this.need(), iv);

@@ -1,3 +1,4 @@
+import { paypalCardCapabilities } from "./providers/paypalCapabilities.js";
 import { readFileSync } from "node:fs";
 import { type GooglePlayApi, GoogleJwks, HttpGooglePlayApi, type JwksSource, type ServiceAccountKey } from "./providers/googlePlay.js";
 import { PayPalProvider } from "./providers/paypal.js";
@@ -179,7 +180,7 @@ function providerConfig(env: NodeJS.ProcessEnv): Omit<BillingConfig, "trials" | 
     if (env.PAYPAL_BOTS_PLUS_PLAN_ID?.trim() && env.PAYPAL_BOTS_PLUS_PLAN_ID.trim() === plusPlanId) throw new Error("Bots+ and Plus must use distinct PayPal product plans");
     const approved = env.PAYPAL_SUBSCRIPTIONS_APPROVED ?? "false";
     if (approved !== "true" && approved !== "false") throw new Error("PAYPAL_SUBSCRIPTIONS_APPROVED must be true or false");
-    return { provider: new PayPalProvider({ environment, clientId, clientSecret, webhookId, merchantId, plusPlanId, subscriptionsApproved: approved === "true", giftsEnabled: environment === "sandbox" || env.PAYPAL_GIFTS_ENABLED === "true", sparksEnabled: environment === "sandbox" || env.PAYPAL_SPARKS_ENABLED === "true", botsPlanId: env.PAYPAL_BOTS_PLUS_PLAN_ID?.trim() || null }), unavailableReason: null, returnUrl: returnUrl(env.BILLING_RETURN_URL, production) };
+    return { provider: new PayPalProvider({ cardCapabilities: paypalCardCapabilities(env, environment), environment, clientId, clientSecret, webhookId, merchantId, plusPlanId, subscriptionsApproved: approved === "true", giftsEnabled: environment === "sandbox" || env.PAYPAL_GIFTS_ENABLED === "true", sparksEnabled: environment === "sandbox" || env.PAYPAL_SPARKS_ENABLED === "true", botsPlanId: env.PAYPAL_BOTS_PLUS_PLAN_ID?.trim() || null }), unavailableReason: null, returnUrl: returnUrl(env.BILLING_RETURN_URL, production) };
   }
   if (name === "stripe") {
     const key = (env.STRIPE_SECRET_KEY ?? "").trim();

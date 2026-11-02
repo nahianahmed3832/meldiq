@@ -1,3 +1,6 @@
+import type { BillingNotifications } from "./notifications.js";
+import { Commerce } from "./commerce.js";
+import type { CardSubscriptions } from "./cardSubscriptions.js";
 import { SparkPurchases } from "./sparkPurchases.js";
 import type { FastifyBaseLogger } from "fastify";
 import type { Rows } from "../../infrastructure/database/rows/index.js";
@@ -34,6 +37,9 @@ const audienceOf = (owner: BillingOwner): PlanAudience => (owner.kind === "accou
 
 /** The billing module's one entry point (ctx.billing): catalog, subscriptions, webhooks, checkout and the portal. */
 export class Billing {
+  notifications: BillingNotifications | null = null;
+  readonly commerce: Commerce;
+  cardSubscriptions: CardSubscriptions | null = null;
   readonly sparkPurchases: SparkPurchases;
   readonly catalog: PlanCatalog;
   readonly subscriptions: Subscriptions;
@@ -58,12 +64,13 @@ export class Billing {
     private readonly clock: () => number = Date.now,
     quotaPlanExists?: QuotaPlanCheck,
   ) {
+    this.commerce = new Commerce(this, clock);
     this.provider = config.provider;
     this.unavailableReason = config.unavailableReason;
     this.returnUrl = config.returnUrl;
     this.webReturnUrl = config.webReturnUrl;
     this.catalog = new PlanCatalog(rows, quotaPlanExists);
-    this.subscriptions = new Subscriptions(rows, this.catalog);
+    this.subscriptions = new Subscriptions(rows, this.catalog, (w, accountId, kind, resource, t) => this.notifications?.queue(w, accountId, kind, resource, t));
     this.webhooks = new BillingWebhooks(rows, config.provider, this.subscriptions, log, clock);
     this.sparkPurchases = new SparkPurchases(this, rows, log, clock);
     this.program = new BillingProgram(rows, config.trials);
@@ -106,7 +113,7 @@ export class Billing {
       const rows = this.rows.all<{ provider_subscription_ref: string }>("billing_subscriptions", { where: { provider: "paypal", status: { notIn: ["canceled", "incomplete_expired"] } }, orderBy: [["updated_at", "asc"]], limit: 50 });
       await this.reconcileRefs(rows.map((r) => r.provider_subscription_ref));
     }
-    return (await this.webhooks.retryDue()) + expired;
+    return (await this.webhooks.retryDue()) + expired + (await this.cardSubscriptions?.vault.sweep() ?? 0) + (await this.cardSubscriptions?.sweep() ?? 0) + (await this.notifications?.sweep() ?? 0);
   }
 
   /** Plans that can be bought now (public, active, current at the configured provider), for one audience or all. */

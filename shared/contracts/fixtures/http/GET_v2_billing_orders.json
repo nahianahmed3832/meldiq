@@ -1,0 +1,21 @@
+{
+  "orders": [
+    {
+      "id": "ord_E_sq4i_BFDGHZKj21bftbw",
+      "product": "Plus gift · 3 months",
+      "subtotalMinor": 1197,
+      "discountMinor": 0,
+      "taxMinor": 0,
+      "totalMinor": 1197,
+      "currency": "USD",
+      "taxStatus": "not_collected",
+      "provider": "paypal",
+      "status": "redeemed",
+      "entitlementStatus": "gift_available_or_redeemed",
+      "createdAt": 1793564258504,
+      "completedAt": 1793564258527,
+      "providerReference": "CAPTUREORDER2",
+      "refundStatus": "none"
+    }
+  ]
+}

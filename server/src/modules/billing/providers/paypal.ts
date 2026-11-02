@@ -1,3 +1,4 @@
+import type { PayPalCardCapabilities } from "./paypalCapabilities.js";
 import { z } from "zod/v4";
 import { ApiError } from "../../../shared/errors.js";
 import { addMonths } from "../gifts.js";
@@ -34,7 +35,15 @@ const capture = z.object({
     .object({ total_refunded_amount: money.optional() })
     .optional(),
 });
+/** A client success callback cannot override an explicit issuer authentication failure. */
+export function assertCardAuthentication(card: unknown): void {
+  const auth = z.object({ authentication_result: z.object({ authentication_status: z.string().optional(), three_d_secure: z.object({ authentication_status: z.string().optional() }).optional() }).optional() }).safeParse(card);
+  if (!auth.success) return;
+  const status = auth.data.authentication_result?.three_d_secure?.authentication_status ?? auth.data.authentication_result?.authentication_status;
+  if (status === "N" || status === "R") throw new ApiError(409, "billing_unavailable", "The bank did not authenticate this card payment. Choose another card or complete bank verification.");
+}
 const order = z.object({
+  payment_source: z.object({ card: z.unknown().optional() }).optional(),
   id: ref,
   status: z.string(),
   links,
@@ -87,6 +96,7 @@ const subscription = z.object({
 });
 
 export interface PayPalOptions {
+  cardCapabilities?: PayPalCardCapabilities;
   environment?: PayPalEnvironment;
   giftsEnabled?: boolean;
   sparksEnabled?: boolean;
@@ -145,6 +155,7 @@ export class PayPalProvider implements BillingProvider {
       sparks: this.supportsSparkPurchases,
       botsPlus: this.options.subscriptionsApproved && !!this.options.botsPlanId,
       cards: false as const,
+      advancedCards: this.options.cardCapabilities ?? { oneTime: false, vault: false, recurring: false, merchantCountry: null, productionApproved: false, reason: "Embedded card checkout is not enabled." },
     };
   }
 
@@ -274,17 +285,11 @@ export class PayPalProvider implements BillingProvider {
               },
             },
           ],
-          payment_source: {
-            paypal: {
-              experience_context: {
-                brand_name: "Meldiq",
-                shipping_preference: "NO_SHIPPING",
-                user_action: "PAY_NOW",
-                return_url: input.successUrl,
-                cancel_url: input.cancelUrl,
-              },
-            },
-          },
+          ...(this.options.cardCapabilities?.oneTime ? {} : {
+            payment_source: { paypal: { experience_context: {
+              brand_name: "Meldiq", shipping_preference: "NO_SHIPPING", user_action: "PAY_NOW", return_url: input.successUrl, cancel_url: input.cancelUrl,
+            } } },
+          }),
         },
         `create-${input.reference}`,
       ),
@@ -337,6 +342,7 @@ export class PayPalProvider implements BillingProvider {
       await this.api.request("GET", `/v2/checkout/orders/${id}`),
     );
     if (o.id !== id) throw new Error("Unexpected PayPal order");
+    if (o.payment_source?.card) assertCardAuthentication(o.payment_source.card);
     const unit = this.checkOrder(o, expected?.reference, expected?.amountMinor);
     const captures = unit.payments?.captures ?? [];
     const paid =
@@ -360,6 +366,7 @@ export class PayPalProvider implements BillingProvider {
       mode: "payment",
       paid,
       paymentRef: captures[0]?.id ?? null,
+      captureStatus: captures[0]?.status ?? null,
       currency: "USD",
       amountMinor: cents(unit.amount.value),
     };
@@ -367,7 +374,7 @@ export class PayPalProvider implements BillingProvider {
 
   async captureOrder(
     id: string,
-    expected: { reference: string; amountMinor: number },
+    expected: { reference: string; amountMinor: number; requestKey?: string },
   ): Promise<CheckoutSnapshot> {
     const before = await this.readOrder(id, expected);
     if (before.paid) return before;
@@ -377,7 +384,7 @@ export class PayPalProvider implements BillingProvider {
         "POST",
         `/v2/checkout/orders/${id}/capture`,
         {},
-        `capture-${expected.reference}`,
+        expected.requestKey ?? `capture-${expected.reference}`,
       );
     } catch {
       /* An ambiguous network result is resolved by the authoritative read below. */

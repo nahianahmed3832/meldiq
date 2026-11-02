@@ -86,6 +86,29 @@ export class AdminBilling {
     return result;
   }
 
+  gifts() {
+    const rows = this.ctx.billing.rows;
+    return { gifts: rows.all<import("../billing/gifts.js").GiftRow>("mojo_gifts", { orderBy: [["created_at", "desc"]], limit: 100 }).map(g => ({
+      id: g.id, buyerAccountId: g.buyer_account_id, recipientUserId: g.recipient_user_id || null,
+      recipientKind: this.ctx.gifts.delivery?.get(g.id)?.recipient_kind ?? "user", recipientEmail: this.ctx.gifts.delivery?.maskedRecipient(g.id) ?? null,
+      product: g.plan_key, months: g.months, status: this.ctx.gifts.delivery?.state(g) ?? g.status,
+      amountMinor: g.amount_minor, currency: g.currency, providerRef: g.provider_payment_ref,
+      deliveryStatus: this.ctx.gifts.delivery?.get(g.id)?.delivery_status ?? "legacy", createdAt: g.created_at, paidAt: g.paid_at, redeemedAt: g.redeemed_at,
+      credited: rows.get<{ status: string }>("mojo_gift_credits", { gift_id: g.id })?.status === "waiting",
+    })) };
+  }
+
+  async giftAction(p: AdminPrincipal, id: string, action: "resend" | "revoke", reason: string, meta: RequestMeta) {
+    if (!this.ctx.gifts.delivery) throw notFound("Gift delivery is unavailable");
+    const gift = this.ctx.gifts.get(id);
+    if (!gift) throw notFound("Gift not found");
+    await this.record(p, `billing.gift.${action}_requested`, "mojo_gift", id, reason, meta, {});
+    if (action === "resend") await this.ctx.gifts.delivery.resend(gift.buyer_account_id, id);
+    else await this.ctx.gifts.delivery.revoke(id, p.account.id);
+    await this.record(p, `billing.gift.${action}_completed`, "mojo_gift", id, reason, meta, {});
+    return { completed: true as const };
+  }
+
   setup() {
     const provider = this.ctx.billing.provider;
     return {

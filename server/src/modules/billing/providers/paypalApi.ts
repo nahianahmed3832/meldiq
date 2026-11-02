@@ -75,7 +75,7 @@ export class HttpPayPalApi implements PayPalApi {
     body?: unknown,
     requestId?: string,
   ): Promise<unknown> {
-    if (!/^\/v[12]\/[A-Za-z0-9_/?=.&%-]+$/.test(path) || path.includes(".."))
+    if (!/^\/v[123]\/[A-Za-z0-9_/?=.&%-]+$/.test(path) || path.includes(".."))
       throw unavailable();
     try {
       const res = await fetch(`${this.origin}${path}`, {

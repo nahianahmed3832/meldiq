@@ -38,7 +38,7 @@ export class PayPalCheckout {
       | { product: "plus"; requestKey: string }
       | { product: "bots_plus"; orgId: string; requestKey: string }
       | { product: "spark"; quantity: number; requestKey: string }
-      | { product: "gift"; requestKey: string; recipientUserId: string; months: number; note: string },
+      | { product: "gift"; requestKey: string; recipientUserId?: string; recipient?: import("./giftDelivery.js").GiftTarget; months: number; note: string },
   ) {
     if (input.product === "spark") {
       const result = await this.billing.sparkPurchases.start(starter, input.quantity, this.billing.returnTo("web"), input.requestKey);

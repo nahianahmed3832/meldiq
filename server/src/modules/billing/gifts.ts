@@ -1,3 +1,4 @@
+import { normalizedGiftEmail, type GiftTarget, type GiftDelivery } from "./giftDelivery.js";
 import type { FastifyBaseLogger } from "fastify";
 import type { Rows, RowWriter } from "../../infrastructure/database/rows/index.js";
 import { ApiError, badRequest, conflict, forbidden, notFound } from "../../shared/errors.js";
@@ -69,6 +70,7 @@ export interface GiftDeps {
   canReceive: (recipientUserId: string, buyerUserId: string | null) => boolean;
   /** Told when a gift's state changes for its recipient (realtime notice). */
   notify: (recipientUserId: string) => void;
+  delivery?: GiftDelivery;
 }
 
 export class Gifts implements PaymentEvents {
@@ -79,6 +81,8 @@ export class Gifts implements PaymentEvents {
     private readonly log: FastifyBaseLogger,
     private readonly clock: () => number = Date.now,
   ) {}
+
+  get delivery() { return this.deps.delivery; }
 
   get(id: string): GiftRow | null {
     return this.rows.get<GiftRow>("mojo_gifts", { id }) ?? null;
@@ -97,13 +101,18 @@ export class Gifts implements PaymentEvents {
   /** Starts paying for a gift: the provider's hosted page, priced by the server. */
   async start(
     starter: CheckoutStarter & { accountId: string },
-    input: { recipientUserId: string; planKey: string; months: number; note?: string | null },
+    input: { recipientUserId?: string; recipient?: GiftTarget; planKey: string; months: number; note?: string | null },
     returnUrl: string | null,
     requestKey?: string,
   ): Promise<{ giftId: string; url: string | null; expiresAt: number }> {
     const provider = this.billing.requireProvider();
     if (!provider.createPaymentCheckout || provider.supportsOneTimePurchases === false) throw new ApiError(409, "billing_unavailable", "Gifts can't be bought with this payment provider");
-    const { planKey, note } = this.validate(starter, input);
+    const target: GiftTarget = input.recipient ?? { kind: "user", userId: input.recipientUserId ?? "" };
+    if (target.kind !== "user" && !this.delivery) throw new ApiError(409, "billing_unavailable", "Gift links and email delivery are not configured.");
+    const deliveryTarget = this.delivery?.validate(target) ?? target;
+    if (deliveryTarget.kind === "email" && starter.email && normalizedGiftEmail(starter.email) === deliveryTarget.email) throw conflict("Gifts are for someone else.");
+    const recipientUserId = target.kind === "user" ? target.userId : "";
+    const { planKey, note } = this.validate(starter, { ...input, recipientUserId }, target.kind !== "user");
     const price = this.price(planKey, input.months);
     if (!price) throw new ApiError(409, "billing_unavailable", "Mojo isn't on sale yet");
     const t = this.clock();
@@ -112,16 +121,17 @@ export class Gifts implements PaymentEvents {
       if (requestKey) {
         const existing = w.get<GiftRow>("mojo_gifts", { provider: provider.id, buyer_account_id: starter.accountId, request_key: requestKey });
         if (existing) {
-          if (existing.recipient_user_id !== input.recipientUserId || existing.months !== input.months || existing.plan_key !== planKey || existing.note !== (note || null)) throw conflict("This purchase request was already used for another gift");
+          if (existing.recipient_user_id !== recipientUserId || this.delivery && !this.delivery.matches(w.get("mojo_gift_deliveries", { gift_id: existing.id }) ?? null, deliveryTarget) || existing.months !== input.months || existing.plan_key !== planKey || existing.note !== (note || null)) throw conflict("This purchase request was already used for another gift");
           id = existing.id;
           return;
         }
       }
       w.insert("mojo_gifts", {
-        id, buyer_account_id: starter.accountId, buyer_user_id: starter.userId, recipient_user_id: input.recipientUserId, plan_key: planKey, months: input.months,
+        id, buyer_account_id: starter.accountId, buyer_user_id: starter.userId, recipient_user_id: recipientUserId, plan_key: planKey, months: input.months,
         currency: price.currency, amount_minor: price.amountMinor, note: note || null, status: "pending", provider: provider.id, provider_session_ref: null,
         provider_payment_ref: null, grant_id: null, created_at: t, expires_at: t + CHECKOUT_TTL_MS, paid_at: null, redeemed_at: null, updated_at: t, ...(requestKey ? { request_key: requestKey } : {}),
       });
+      this.delivery?.prepare(w, id, deliveryTarget, t);
     });
     const existing = this.get(id)!;
     if (existing.provider_session_ref) return { giftId: id, url: null, expiresAt: existing.expires_at };
@@ -145,15 +155,15 @@ export class Gifts implements PaymentEvents {
     return { giftId: id, url: session.url, expiresAt: t + CHECKOUT_TTL_MS };
   }
 
-  private validate(starter: { userId: string | null }, input: { recipientUserId: string; planKey: string; months: number; note?: string | null }): { planKey: "go" | "plus"; note: string } {
+  private validate(starter: { userId: string | null }, input: { recipientUserId: string; planKey: string; months: number; note?: string | null }, unassigned = false): { planKey: "go" | "plus"; note: string } {
     if (!isPlanKey(input.planKey) || input.planKey === "free" || input.planKey === "go") throw notFound("No such plan");
     const planKey = input.planKey;
     if (!(GIFT_MONTHS as readonly number[]).includes(input.months)) throw badRequest(`Gifts are for ${GIFT_MONTHS.join(", ")} months`);
     const note = (input.note ?? "").trim();
     if (note.length > GIFT_NOTE_MAX) throw badRequest(`A gift note is up to ${GIFT_NOTE_MAX} characters`);
-    if (input.recipientUserId === starter.userId) throw conflict("Gifts are for friends: get Mojo for yourself from the plans above");
+    if (!unassigned && input.recipientUserId === starter.userId) throw conflict("Gifts are for friends: get Mojo for yourself from the plans above");
     // An unknown recipient and one the buyer can't give to answer alike: nobody learns who has an account.
-    if (!this.deps.canReceive(input.recipientUserId, starter.userId)) throw notFound("That person can't receive gifts");
+    if (!unassigned && !this.deps.canReceive(input.recipientUserId, starter.userId)) throw notFound("That person can't receive gifts");
     return { planKey, note };
   }
 
@@ -193,6 +203,8 @@ export class Gifts implements PaymentEvents {
       // A completed checkout paid by a delayed method is paid only at its async_payment_succeeded event.
       if (!snap.paid || g.status !== "pending") return { result: g.status === "pending" ? "stale" : "applied", subscriptionId: null, owner };
       w.update("mojo_gifts", { id: g.id }, { status: "paid", paid_at: t, provider_payment_ref: snap.paymentRef ?? null, updated_at: t });
+      this.delivery?.paid(w, g, t);
+      this.billing.notifications?.queue(w, g.buyer_account_id, "payment_receipt", g.id, t);
       this.afterCommit(g.recipient_user_id);
       return { result: "applied", subscriptionId: null, owner };
     }
@@ -213,6 +225,7 @@ export class Gifts implements PaymentEvents {
     const reversed = provider === "paypal" && p.state === "reversed";
     if ((g.status === "paid" || g.status === "redeemed" || provider === "paypal" && (g.status === "pending" || g.status === "refunded")) && (p.state === "refunded" || reversed)) {
       w.update("mojo_gifts", { id: g.id }, { status: "refunded", provider_payment_ref: p.paymentRef, updated_at: t });
+      if (p.state === "refunded") this.billing.notifications?.queue(w, g.buyer_account_id, "payment_refunded", g.id, t);
       if (reversed && g.grant_id) {
         const grant = w.get<{ starts_at: number }>("billing_grants", { id: g.grant_id });
         if (grant) {
@@ -228,6 +241,7 @@ export class Gifts implements PaymentEvents {
 
   private afterCommit(recipientUserId: string): void {
     // After the unit commits (a notice for a change that rolled back would only cause a needless refresh).
+    if (!recipientUserId) return;
     queueMicrotask(() => {
       try {
         this.deps.notify(recipientUserId);
@@ -241,19 +255,64 @@ export class Gifts implements PaymentEvents {
    * The recipient starts a paid gift: a free period of its plan, following on from any free period of the same or a
    * higher plan they have. Once only.
    */
+  private redeemIn(w: RowWriter, recipient: { accountId: string; userId: string }, g: GiftRow | undefined, t: number, idempotent = false): { startsAt: number; endsAt: number } {
+    if (!g || g.recipient_user_id !== recipient.userId) throw notFound("Gift not found");
+    this.delivery?.check(w, g.id, t);
+    if (g.status === "redeemed") {
+      const prior = g.grant_id && w.get<{ starts_at: number; ends_at: number }>("billing_grants", { id: g.grant_id, account_id: recipient.accountId });
+      if (prior && idempotent) return { startsAt: prior.starts_at, endsAt: prior.ends_at };
+      throw conflict("This gift is already started");
+    }
+    if (g.status !== "paid") throw forbidden(g.status === "refunded" ? "This gift was refunded" : "This gift isn't paid for");
+    const sameOrHigher = (["go", "plus"] as const).filter(k => PLAN_RANK[k] >= PLAN_RANK[g.plan_key]);
+    const subscription = this.billing.subscriptions.liveForOwner({ kind: "account", accountId: recipient.accountId }, w);
+    const startsAt = Math.max(t, this.billing.grants.latestEnd(recipient.accountId, sameOrHigher, t, w) ?? t, subscription?.current_period_end ?? t);
+    const endsAt = addMonths(startsAt, g.months);
+    const grantId = this.billing.grants.addGift(w, { accountId: recipient.accountId, userId: recipient.userId, planKey: g.plan_key, giftId: g.id, startsAt, endsAt });
+    w.update("mojo_gifts", { id: g.id }, { status: "redeemed", redeemed_at: t, grant_id: grantId, updated_at: t });
+    return { startsAt, endsAt };
+  }
+
   async redeem(recipient: { accountId: string; userId: string }, giftId: string): Promise<{ startsAt: number; endsAt: number }> {
-    const t = this.clock();
-    return this.rows.write((w) => {
-      const g = w.get<GiftRow>("mojo_gifts", { id: giftId });
-      if (!g || g.recipient_user_id !== recipient.userId) throw notFound("Gift not found");
-      if (g.status === "redeemed") throw conflict("This gift is already started");
-      if (g.status !== "paid") throw forbidden(g.status === "refunded" ? "This gift was refunded" : "This gift isn't paid for");
-      const sameOrHigher = (["go", "plus"] as const).filter((k) => PLAN_RANK[k] >= PLAN_RANK[g.plan_key]);
-      const startsAt = Math.max(t, this.billing.grants.latestEnd(recipient.accountId, sameOrHigher, t, w) ?? t);
-      const endsAt = addMonths(startsAt, g.months);
-      const grantId = this.billing.grants.addGift(w, { accountId: recipient.accountId, userId: recipient.userId, planKey: g.plan_key, giftId: g.id, startsAt, endsAt });
-      w.update("mojo_gifts", { id: g.id }, { status: "redeemed", redeemed_at: t, grant_id: grantId, updated_at: t });
-      return { startsAt, endsAt };
+    return this.rows.write(w => {
+      const gift = w.get<GiftRow>("mojo_gifts", { id: giftId });
+      const sub = this.billing.subscriptions.liveForOwner({ kind: "account", accountId: recipient.accountId }, w);
+      if (gift && this.delivery?.get(gift.id) && sub && !sub.cancel_at_period_end) throw conflict("Open Gifts in Meldiq Web to redeem this gift as credit without changing your current renewal.");
+      return this.redeemIn(w, recipient, gift, this.clock());
+    });
+  }
+
+  async redeemToken(recipient: { accountId: string; userId: string; verifiedEmail: string | null }, token: string) {
+    if (!this.delivery) throw notFound("Gift links are unavailable");
+    return this.rows.write(w => this.claimIn(w, recipient, this.delivery!.authorize(w, token, recipient)));
+  }
+
+  private claimIn(w: RowWriter, recipient: { accountId: string; userId: string }, gift: GiftRow) {
+    if (gift.recipient_user_id !== recipient.userId) throw notFound("Gift not found");
+    this.delivery?.check(w, gift.id, this.clock());
+    this.billing.notifications?.queue(w, recipient.accountId, "gift_redeemed", gift.id, this.clock());
+    const credit = w.get<{ status: string }>("mojo_gift_credits", { gift_id: gift.id, account_id: recipient.accountId });
+    if (credit?.status === "waiting" && gift.status === "redeemed") return { credited: true, startsAt: null, endsAt: null };
+    if (gift.status === "redeemed" && gift.grant_id) return { credited: false, ...this.redeemIn(w, recipient, gift, this.clock(), true) };
+    const sub = this.billing.subscriptions.liveForOwner({ kind: "account", accountId: recipient.accountId }, w);
+    if (sub && this.billing.subscriptions.awaitingApproval(sub)) throw conflict("Your current checkout is still awaiting approval. Finish it or let it expire before redeeming this gift; your gift has not been consumed.");
+    if (sub && !sub.cancel_at_period_end) {
+      if (gift.status !== "paid") throw conflict("This gift is no longer available.");
+      w.insert("mojo_gift_credits", { gift_id: gift.id, account_id: recipient.accountId, user_id: recipient.userId, status: "waiting", next_check_at: sub.current_period_end ?? this.clock() + 3600000, created_at: this.clock(), applied_at: null, grant_id: null });
+      w.update("mojo_gifts", { id: gift.id }, { status: "redeemed", redeemed_at: this.clock(), updated_at: this.clock() });
+      return { credited: true, startsAt: null, endsAt: null };
+    }
+    return { credited: false, ...this.redeemIn(w, recipient, gift, this.clock(), true) };
+  }
+
+  async claim(recipient: { accountId: string; userId: string; verifiedEmail?: string | null }, giftId: string) {
+    return this.rows.write(w => {
+      let gift = w.get<GiftRow>("mojo_gifts", { id: giftId });
+      if (!gift || gift.buyer_account_id === recipient.accountId) throw notFound("Gift not found");
+      const delivery = w.get<import("./giftDelivery.js").GiftDeliveryRow>("mojo_gift_deliveries", { gift_id: gift.id });
+      if (delivery?.recipient_kind === "email") gift = this.delivery!.authorizeRecipient(w, gift, delivery, { ...recipient, verifiedEmail: recipient.verifiedEmail ?? null });
+      if (gift.recipient_user_id !== recipient.userId) throw notFound("Gift not found");
+      return this.claimIn(w, recipient, gift);
     });
   }
 
@@ -266,10 +325,28 @@ export class Gifts implements PaymentEvents {
     return { received, sent };
   }
 
-  /** Closes unpaid gift checkouts past their time (the cleanup job). */
+  /** Durable email delivery and queued gift credit, alongside the existing checkout cleanup. */
   async sweep(): Promise<number> {
-    const due = { status: "pending", expires_at: { lte: this.clock() } };
-    if (!this.rows.get("mojo_gifts", due)) return 0;
-    return this.rows.write((w) => w.update("mojo_gifts", due, { status: "expired", updated_at: this.clock() }));
+    const t = this.clock();
+    const due = { status: "pending", expires_at: { lte: t } };
+    const expired = this.rows.get("mojo_gifts", due) ? await this.rows.write(w => w.update("mojo_gifts", due, { status: "expired", updated_at: t })) : 0;
+    const credits = this.rows.all<{ gift_id: string; account_id: string; user_id: string }>("mojo_gift_credits", { where: { status: "waiting", next_check_at: { lte: t } }, orderBy: [["next_check_at", "asc"]], limit: 100 });
+    let applied = 0;
+    for (const credit of credits) {
+      const changed = await this.rows.write(w => {
+        if (!w.get("mojo_gift_credits", { gift_id: credit.gift_id, status: "waiting" })) return false;
+        const gift = w.get<GiftRow>("mojo_gifts", { id: credit.gift_id });
+        if (!gift || gift.status !== "redeemed" || this.delivery?.get(gift.id)?.revoked_at) { w.update("mojo_gift_credits", { gift_id: credit.gift_id }, { status: "revoked" }); return false; }
+        const sub = this.billing.subscriptions.liveForOwner({ kind: "account", accountId: credit.account_id }, w);
+        if (sub && (!sub.cancel_at_period_end || sub.current_period_end && sub.current_period_end > t)) { w.update("mojo_gift_credits", { gift_id: gift.id }, { next_check_at: Math.max(t + 3600000, sub.current_period_end ?? t) }); return false; }
+        const start = Math.max(t, this.billing.grants.latestEnd(credit.account_id, [gift.plan_key], t, w) ?? t);
+        const grantId = this.billing.grants.addGift(w, { accountId: credit.account_id, userId: credit.user_id, planKey: gift.plan_key, giftId: gift.id, startsAt: start, endsAt: addMonths(start, gift.months) });
+        w.update("mojo_gifts", { id: gift.id }, { grant_id: grantId, updated_at: t });
+        w.update("mojo_gift_credits", { gift_id: gift.id, status: "waiting" }, { status: "applied", applied_at: t, grant_id: grantId });
+        return true;
+      });
+      if (changed) { applied++; this.billing.changed({ kind: "account", accountId: credit.account_id }); }
+    }
+    return expired + applied + (await this.delivery?.sweep() ?? 0);
   }
 }

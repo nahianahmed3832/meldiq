@@ -13,7 +13,8 @@ export const PayPalCheckoutBody = z.discriminatedUnion("product", [
   z.strictObject({
     product: z.literal("gift"),
     requestKey: z.uuid(),
-    recipientUserId: id,
+    recipientUserId: id.optional(),
+    recipient: z.discriminatedUnion("kind", [z.strictObject({ kind: z.literal("user"), userId: id }), z.strictObject({ kind: z.literal("email"), email: z.email().max(254) }), z.strictObject({ kind: z.literal("link") })]).optional(),
     months: z.union([z.literal(1), z.literal(3), z.literal(12)]),
     note: z.string().max(500).default(""),
   }),
@@ -25,6 +26,7 @@ export const PayPalConfig = z.strictObject({
   billingStartAt: z.number().nullable().optional(),
   subscriptions: z.boolean(),
   cards: z.literal(false),
+  advancedCards: z.object({ oneTime: z.boolean(), vault: z.boolean(), recurring: z.boolean(), merchantCountry: z.string().nullable(), productionApproved: z.boolean(), reason: z.string().nullable() }).optional(),
   sparks: z.boolean().optional(),
   botsPlus: z.boolean().optional(),
 });

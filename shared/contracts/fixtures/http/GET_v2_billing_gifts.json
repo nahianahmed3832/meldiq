@@ -1,0 +1,41 @@
+{
+  "sent": [],
+  "received": [
+    {
+      "id": "gft_NTXqzY8667O5xX1rwP0nVA",
+      "product": "plus",
+      "months": 3,
+      "note": "Happy birthday",
+      "status": "redeemed",
+      "currency": "USD",
+      "amountMinor": 1197,
+      "sender": "giftbuyer5a06eb53",
+      "recipientUserId": "u_RFFMcrDW9mHfbjxaXYrx0A",
+      "recipientKind": "link",
+      "createdAt": 1793564258504,
+      "paidAt": 1793564258527,
+      "redeemedAt": 1793564258559,
+      "expiresAt": 1825100258527,
+      "credited": false,
+      "recipientEmail": null
+    },
+    {
+      "id": "gft_TIkJvchxD2INysXiwSQLow",
+      "product": "plus",
+      "months": 3,
+      "note": "Happy birthday",
+      "status": "delivered",
+      "currency": "USD",
+      "amountMinor": 1197,
+      "sender": "giftbuyerf5b8bd3c",
+      "recipientUserId": null,
+      "recipientKind": "email",
+      "createdAt": 1793564258709,
+      "paidAt": 1793564258712,
+      "redeemedAt": null,
+      "expiresAt": 1825100258712,
+      "credited": false,
+      "recipientEmail": null
+    }
+  ]
+}

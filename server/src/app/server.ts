@@ -1,3 +1,9 @@
+import { BillingNotifications } from "../modules/billing/notifications.js";
+import { CardSubscriptions } from "../modules/billing/cardSubscriptions.js";
+import { CardVault } from "../modules/billing/cardVault.js";
+import { PayPalProvider } from "../modules/billing/providers/paypal.js";
+import { GiftDelivery } from "../modules/billing/index.js";
+import { SecretBox } from "../infrastructure/crypto/secretBox.js";
 import socialRoutes from "../modules/accounts/social/routes.js";
 import { RedisInfrastructure } from "../infrastructure/redis/service.js";
 import { CachedPreferenceStore } from "../modules/accounts/preferences/cachedStore.js";
@@ -423,10 +429,12 @@ export async function buildApp(
       }),
     maxUploadBytes: effectiveFileMaxBytes(config),
   });
+  ctx.billing.notifications = new BillingNotifications(ctx.billing.rows, ctx.accounts.mailer, id => ctx.accounts.store.accountById(id), config.billing.webReturnUrl ?? config.billing.siteUrl);
   ctx.gifts = new Gifts(
     ctx.billing,
     ctx.billing.rows,
     {
+      delivery: new GiftDelivery(ctx.billing.rows, new SecretBox(config.platformSecretsKey), ctx.accounts.mailer, config.billing.webReturnUrl ?? config.billing.siteUrl),
       // A local, enabled person who hasn't blocked the buyer (nor been blocked by them): the same answer for anyone else.
       canReceive: (recipient, buyer) => {
         const u = availableUser(ctx, recipient);
@@ -440,9 +448,10 @@ export async function buildApp(
     },
     app.log,
   );
+  if (ctx.billing.provider instanceof PayPalProvider) ctx.billing.cardSubscriptions = new CardSubscriptions(ctx.billing, new CardVault(ctx.billing.rows, ctx.billing.provider, new SecretBox(config.platformSecretsKey), new URL("/settings/billing", config.billing.webReturnUrl ?? config.billing.siteUrl).href));
   ctx.billing.webhooks.payments = {
-    applyCheckout: (w, provider, snapshot, t) => ctx.billing.sparkPurchases.applyCheckout(w, provider, snapshot, t) ?? ctx.gifts.applyCheckout(w, provider, snapshot, t),
-    applyPayment: (w, provider, payment, t) => ctx.billing.sparkPurchases.applyPayment(w, provider, payment, t) ?? ctx.gifts.applyPayment(w, provider, payment, t),
+    applyCheckout: (w, provider, snapshot, t) => ctx.billing.cardSubscriptions?.applyCheckout(w, provider, snapshot, t) ?? ctx.billing.sparkPurchases.applyCheckout(w, provider, snapshot, t) ?? ctx.gifts.applyCheckout(w, provider, snapshot, t),
+    applyPayment: (w, provider, payment, t) => ctx.billing.cardSubscriptions?.applyPayment(w, provider, payment, t) ?? ctx.billing.sparkPurchases.applyPayment(w, provider, payment, t) ?? ctx.gifts.applyPayment(w, provider, payment, t),
   };
   ctx.play = config.billing.play ? new PlayBilling(ctx.billing, ctx.gifts, config.billing.play, app.log) : null;
   ctx.billing.onChange = (owner) => {

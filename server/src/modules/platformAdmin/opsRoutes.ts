@@ -99,6 +99,10 @@ export default async function adminOpsRoutes(app: FastifyInstance, d: AdminDeps)
   app.post("/admin/v1/billing/subscriptions/:subscriptionId/resync", needs("billing.manage"), async (req) =>
     billing.resync(principal(req), parse(AdminSubscriptionParams, req.params).subscriptionId, parse(AdminReasonBody, req.body).reason, metaOf(req)),
   );
+  app.get("/admin/v1/billing/orders", needs("billing.view"), async () => { await d.ctx.billing.commerce.refresh(); return { orders: d.ctx.billing.commerce.admin() }; });
+  app.get("/admin/v1/billing/gift-deliveries", needs("billing.view"), async () => billing.gifts());
+  app.post("/admin/v1/billing/gifts/:id/resend", needs("billing.manage"), async req => billing.giftAction(principal(req), parse(PayPalCheckoutParams, req.params).id, "resend", parse(AdminReasonBody, req.body).reason, metaOf(req)));
+  app.post("/admin/v1/billing/gifts/:id/revoke", needs("billing.manage"), async req => billing.giftAction(principal(req), parse(PayPalCheckoutParams, req.params).id, "revoke", parse(AdminReasonBody, req.body).reason, metaOf(req)));
   app.get("/admin/v1/billing/paypal/transactions", needs("billing.view"), async () => billing.paypalTransactions());
   app.post("/admin/v1/billing/paypal/transactions/:id/refund", { ...needs("billing.manage"), config: { rateLimit: { max: 5, timeWindow: "1 minute" } } }, async (req) => {
     const body = parse(PayPalRefundBody, req.body);

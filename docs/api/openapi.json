@@ -18,6 +18,9 @@
       "name": "Profile collection admin"
     },
     {
+      "name": "Billing"
+    },
+    {
       "name": "Central administration"
     },
     {
@@ -142,9 +145,6 @@
     },
     {
       "name": "federation"
-    },
-    {
-      "name": "Billing"
     },
     {
       "name": "Mojo"
@@ -3103,6 +3103,2154 @@
           }
         ],
         "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification."
+      }
+    },
+    "/v2/billing/payment-methods": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Owner-only masked saved card information; never provider token IDs.",
+        "operationId": "getV2BillingPaymentMethods",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "available": {
+                      "type": "boolean"
+                    },
+                    "methods": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "brand": {
+                            "type": "string"
+                          },
+                          "lastFour": {
+                            "type": "string",
+                            "pattern": "^\\d{4}$"
+                          },
+                          "expiry": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "createdAt": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "brand",
+                          "lastFour",
+                          "expiry",
+                          "createdAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "available",
+                    "methods"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/billing/payment-methods/setups": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Create an owner-bound, expiring hosted-card setup.",
+        "operationId": "postV2BillingPaymentMethodsSetups",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "setupToken": {
+                      "type": "string"
+                    },
+                    "expiresAt": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "setupToken",
+                    "expiresAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "requestKey": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  }
+                },
+                "required": [
+                  "requestKey"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/billing/payment-methods/setups/{id}/complete": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Verify the stored setup with PayPal and encrypt the saved payment token.",
+        "operationId": "postV2BillingPaymentMethodsSetupsIdComplete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "brand": {
+                      "type": "string"
+                    },
+                    "lastFour": {
+                      "type": "string",
+                      "pattern": "^\\d{4}$"
+                    },
+                    "expiry": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "brand",
+                    "lastFour",
+                    "expiry",
+                    "createdAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/billing/payment-methods/{id}": {
+      "delete": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Remove an owned unused saved payment method.",
+        "operationId": "deleteV2BillingPaymentMethodsId",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "removed": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "removed"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/billing/orders": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Owned unified purchase history from verified billing records.",
+        "operationId": "getV2BillingOrders",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "orders": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "product": {
+                            "type": "string"
+                          },
+                          "subtotalMinor": {
+                            "type": "number"
+                          },
+                          "discountMinor": {
+                            "type": "number"
+                          },
+                          "taxMinor": {
+                            "type": "number"
+                          },
+                          "totalMinor": {
+                            "type": "number"
+                          },
+                          "currency": {
+                            "type": "string"
+                          },
+                          "taxStatus": {
+                            "type": "string"
+                          },
+                          "provider": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "entitlementStatus": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "number"
+                          },
+                          "completedAt": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "providerReference": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "refundStatus": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "product",
+                          "subtotalMinor",
+                          "discountMinor",
+                          "taxMinor",
+                          "totalMinor",
+                          "currency",
+                          "taxStatus",
+                          "provider",
+                          "status",
+                          "entitlementStatus",
+                          "createdAt",
+                          "completedAt",
+                          "providerReference",
+                          "refundStatus"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "orders"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/billing/orders/{id}/receipt": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Owner-only receipt data, including authoritative payment status.",
+        "operationId": "getV2BillingOrdersIdReceipt",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "product": {
+                      "type": "string"
+                    },
+                    "subtotalMinor": {
+                      "type": "number"
+                    },
+                    "discountMinor": {
+                      "type": "number"
+                    },
+                    "taxMinor": {
+                      "type": "number"
+                    },
+                    "totalMinor": {
+                      "type": "number"
+                    },
+                    "currency": {
+                      "type": "string"
+                    },
+                    "taxStatus": {
+                      "type": "string"
+                    },
+                    "provider": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "entitlementStatus": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "number"
+                    },
+                    "completedAt": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "providerReference": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "refundStatus": {
+                      "type": "string"
+                    },
+                    "receiptNumber": {
+                      "type": "string"
+                    },
+                    "paid": {
+                      "type": "boolean"
+                    },
+                    "seller": {
+                      "type": "string"
+                    },
+                    "statement": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "product",
+                    "subtotalMinor",
+                    "discountMinor",
+                    "taxMinor",
+                    "totalMinor",
+                    "currency",
+                    "taxStatus",
+                    "provider",
+                    "status",
+                    "entitlementStatus",
+                    "createdAt",
+                    "completedAt",
+                    "providerReference",
+                    "refundStatus",
+                    "receiptNumber",
+                    "paid",
+                    "seller",
+                    "statement"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/admin/v1/billing/orders": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Billing administrator unified payment ledger.",
+        "operationId": "getAdminV1BillingOrders",
+        "parameters": [
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "orders": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "product": {
+                            "type": "string"
+                          },
+                          "subtotalMinor": {
+                            "type": "number"
+                          },
+                          "discountMinor": {
+                            "type": "number"
+                          },
+                          "taxMinor": {
+                            "type": "number"
+                          },
+                          "totalMinor": {
+                            "type": "number"
+                          },
+                          "currency": {
+                            "type": "string"
+                          },
+                          "taxStatus": {
+                            "type": "string"
+                          },
+                          "provider": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "entitlementStatus": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "number"
+                          },
+                          "completedAt": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "providerReference": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "refundStatus": {
+                            "type": "string"
+                          },
+                          "accountId": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "product",
+                          "subtotalMinor",
+                          "discountMinor",
+                          "taxMinor",
+                          "totalMinor",
+                          "currency",
+                          "taxStatus",
+                          "provider",
+                          "status",
+                          "entitlementStatus",
+                          "createdAt",
+                          "completedAt",
+                          "providerReference",
+                          "refundStatus",
+                          "accountId"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "orders"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification."
+      }
+    },
+    "/v2/billing/card-subscriptions": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Owned card mandates, masked references only.",
+        "operationId": "getV2BillingCardSubscriptions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "subscriptions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 150
+                          },
+                          "orgId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "product": {
+                            "type": "string",
+                            "enum": [
+                              "plus",
+                              "bots_plus"
+                            ]
+                          },
+                          "paymentMethodId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 150
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "currency": {
+                            "type": "string"
+                          },
+                          "amountMinor": {
+                            "type": "number"
+                          },
+                          "nextBillingAt": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "paidThrough": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "cancelAt": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "processing": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "orgId",
+                          "product",
+                          "paymentMethodId",
+                          "status",
+                          "currency",
+                          "amountMinor",
+                          "nextBillingAt",
+                          "paidThrough",
+                          "cancelAt",
+                          "processing"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "subscriptions"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Create an owner-bound recurring card mandate with explicit consent; no raw card data.",
+        "operationId": "postV2BillingCardSubscriptions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 150
+                    },
+                    "orgId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "product": {
+                      "type": "string",
+                      "enum": [
+                        "plus",
+                        "bots_plus"
+                      ]
+                    },
+                    "paymentMethodId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 150
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "currency": {
+                      "type": "string"
+                    },
+                    "amountMinor": {
+                      "type": "number"
+                    },
+                    "nextBillingAt": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "paidThrough": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "cancelAt": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "processing": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "orgId",
+                    "product",
+                    "paymentMethodId",
+                    "status",
+                    "currency",
+                    "amountMinor",
+                    "nextBillingAt",
+                    "paidThrough",
+                    "cancelAt",
+                    "processing"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "product": {
+                    "type": "string",
+                    "enum": [
+                      "plus",
+                      "bots_plus"
+                    ]
+                  },
+                  "orgId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 150
+                  },
+                  "paymentMethodId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 150
+                  },
+                  "requestKey": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "consentVersion": {
+                    "type": "string",
+                    "maxLength": 100
+                  },
+                  "acceptRecurring": {
+                    "type": "boolean",
+                    "const": true
+                  }
+                },
+                "required": [
+                  "product",
+                  "paymentMethodId",
+                  "requestKey",
+                  "consentVersion",
+                  "acceptRecurring"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/billing/card-subscriptions/quote": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Server-priced recurring card terms and required consent version.",
+        "operationId": "getV2BillingCardSubscriptionsQuote",
+        "parameters": [
+          {
+            "name": "product",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "plus",
+                "bots_plus"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "consentVersion": {
+                      "type": "string"
+                    },
+                    "amountMinor": {
+                      "type": "number"
+                    },
+                    "currency": {
+                      "type": "string"
+                    },
+                    "firstBillingAt": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "consentVersion",
+                    "amountMinor",
+                    "currency",
+                    "firstBillingAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/billing/card-subscriptions/{id}/cancel": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Stop future card renewal claims while retaining verified paid time.",
+        "operationId": "postV2BillingCardSubscriptionsIdCancel",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 150
+                    },
+                    "orgId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "product": {
+                      "type": "string",
+                      "enum": [
+                        "plus",
+                        "bots_plus"
+                      ]
+                    },
+                    "paymentMethodId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 150
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "currency": {
+                      "type": "string"
+                    },
+                    "amountMinor": {
+                      "type": "number"
+                    },
+                    "nextBillingAt": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "paidThrough": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "cancelAt": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "processing": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "orgId",
+                    "product",
+                    "paymentMethodId",
+                    "status",
+                    "currency",
+                    "amountMinor",
+                    "nextBillingAt",
+                    "paidThrough",
+                    "cancelAt",
+                    "processing"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "confirm": {
+                    "type": "boolean",
+                    "const": true
+                  }
+                },
+                "required": [
+                  "confirm"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/billing/card-subscriptions/{id}/payment-method": {
+      "put": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Choose an owned active payment method for subsequent renewals.",
+        "operationId": "putV2BillingCardSubscriptionsIdPaymentMethod",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 150
+                    },
+                    "orgId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "product": {
+                      "type": "string",
+                      "enum": [
+                        "plus",
+                        "bots_plus"
+                      ]
+                    },
+                    "paymentMethodId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 150
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "currency": {
+                      "type": "string"
+                    },
+                    "amountMinor": {
+                      "type": "number"
+                    },
+                    "nextBillingAt": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "paidThrough": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "cancelAt": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "processing": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "orgId",
+                    "product",
+                    "paymentMethodId",
+                    "status",
+                    "currency",
+                    "amountMinor",
+                    "nextBillingAt",
+                    "paidThrough",
+                    "cancelAt",
+                    "processing"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "paymentMethodId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 150
+                  }
+                },
+                "required": [
+                  "paymentMethodId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/v1/billing/gift-deliveries": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Billing administrator gift history; no redeemable secrets.",
+        "operationId": "getAdminV1BillingGiftDeliveries",
+        "parameters": [
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "gifts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "buyerAccountId": {
+                            "type": "string"
+                          },
+                          "recipientUserId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "recipientKind": {
+                            "type": "string",
+                            "enum": [
+                              "user",
+                              "email",
+                              "link"
+                            ]
+                          },
+                          "recipientEmail": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "product": {
+                            "type": "string"
+                          },
+                          "months": {
+                            "type": "number"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "amountMinor": {
+                            "type": "number"
+                          },
+                          "currency": {
+                            "type": "string"
+                          },
+                          "providerRef": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "deliveryStatus": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "number"
+                          },
+                          "paidAt": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "redeemedAt": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "credited": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "buyerAccountId",
+                          "recipientUserId",
+                          "recipientKind",
+                          "recipientEmail",
+                          "product",
+                          "months",
+                          "status",
+                          "amountMinor",
+                          "currency",
+                          "providerRef",
+                          "deliveryStatus",
+                          "createdAt",
+                          "paidAt",
+                          "redeemedAt",
+                          "credited"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "gifts"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification."
+      }
+    },
+    "/admin/v1/billing/gifts/{id}/resend": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Audited administrator gift resend.",
+        "operationId": "postAdminV1BillingGiftsIdResend",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          },
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "completed": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "completed"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/v1/billing/gifts/{id}/revoke": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Audited administrator gift revoke.",
+        "operationId": "postAdminV1BillingGiftsIdRevoke",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          },
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "completed": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "completed"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/billing/gifts": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Gifts sent and received; no redeemable tokens.",
+        "operationId": "getV2BillingGifts",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sent": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "product": {
+                            "type": "string"
+                          },
+                          "months": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "note": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "currency": {
+                            "type": "string"
+                          },
+                          "amountMinor": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "sender": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "recipientUserId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "recipientKind": {
+                            "type": "string",
+                            "enum": [
+                              "user",
+                              "email",
+                              "link"
+                            ]
+                          },
+                          "recipientEmail": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "createdAt": {
+                            "type": "number"
+                          },
+                          "paidAt": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "redeemedAt": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "expiresAt": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "credited": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "product",
+                          "months",
+                          "note",
+                          "status",
+                          "currency",
+                          "amountMinor",
+                          "sender",
+                          "recipientUserId",
+                          "recipientKind",
+                          "recipientEmail",
+                          "createdAt",
+                          "paidAt",
+                          "redeemedAt",
+                          "expiresAt",
+                          "credited"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "received": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "product": {
+                            "type": "string"
+                          },
+                          "months": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "note": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "currency": {
+                            "type": "string"
+                          },
+                          "amountMinor": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "sender": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "recipientUserId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "recipientKind": {
+                            "type": "string",
+                            "enum": [
+                              "user",
+                              "email",
+                              "link"
+                            ]
+                          },
+                          "recipientEmail": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "createdAt": {
+                            "type": "number"
+                          },
+                          "paidAt": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "redeemedAt": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "expiresAt": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "credited": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "product",
+                          "months",
+                          "note",
+                          "status",
+                          "currency",
+                          "amountMinor",
+                          "sender",
+                          "recipientUserId",
+                          "recipientKind",
+                          "recipientEmail",
+                          "createdAt",
+                          "paidAt",
+                          "redeemedAt",
+                          "expiresAt",
+                          "credited"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "sent",
+                    "received"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/billing/gifts/preview": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "View a paid gift using its secret link; the token is never put in a server URL.",
+        "operationId": "postV2BillingGiftsPreview",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "product": {
+                      "type": "string"
+                    },
+                    "months": {
+                      "type": "number"
+                    },
+                    "note": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "sender": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "requiresVerifiedEmail": {
+                      "type": "boolean"
+                    },
+                    "expiresAt": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "product",
+                    "months",
+                    "note",
+                    "sender",
+                    "status",
+                    "requiresVerifiedEmail",
+                    "expiresAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{43}$"
+                  }
+                },
+                "required": [
+                  "token"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/billing/gifts/redeem": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Atomically redeem an owned recipient gift link or queue credit behind an active renewal.",
+        "operationId": "postV2BillingGiftsRedeem",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "credited": {
+                      "type": "boolean"
+                    },
+                    "startsAt": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "endsAt": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "credited",
+                    "startsAt",
+                    "endsAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{43}$"
+                  }
+                },
+                "required": [
+                  "token"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/billing/gifts/{id}/redeem": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Claim an in-app gift for the authenticated recipient.",
+        "operationId": "postV2BillingGiftsIdRedeem",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "credited": {
+                      "type": "boolean"
+                    },
+                    "startsAt": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "endsAt": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "credited",
+                    "startsAt",
+                    "endsAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/billing/gifts/{id}/link": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Buyer creates a new gift link, replacing previous links; only a token hash is persisted.",
+        "operationId": "postV2BillingGiftsIdLink",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "giftId": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "type": "string"
+                    },
+                    "expiresAt": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "giftId",
+                    "url",
+                    "expiresAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/billing/gifts/{id}/resend": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Queue a fresh recipient email for an owned unclaimed gift.",
+        "operationId": "postV2BillingGiftsIdResend",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "queued": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "queued"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
       }
     },
     "/admin/v1/orgs/{orgId}": {
@@ -71246,6 +73394,44 @@
                       "type": "boolean",
                       "const": false
                     },
+                    "advancedCards": {
+                      "type": "object",
+                      "properties": {
+                        "oneTime": {
+                          "type": "boolean"
+                        },
+                        "vault": {
+                          "type": "boolean"
+                        },
+                        "recurring": {
+                          "type": "boolean"
+                        },
+                        "merchantCountry": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "productionApproved": {
+                          "type": "boolean"
+                        },
+                        "reason": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "oneTime",
+                        "vault",
+                        "recurring",
+                        "merchantCountry",
+                        "productionApproved",
+                        "reason"
+                      ],
+                      "additionalProperties": false
+                    },
                     "sparks": {
                       "type": "boolean"
                     },
@@ -71479,6 +73665,63 @@
                         "maxLength": 150,
                         "pattern": "^[A-Za-z0-9_-]+$"
                       },
+                      "recipient": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "user"
+                              },
+                              "userId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 150,
+                                "pattern": "^[A-Za-z0-9_-]+$"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "userId"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "email"
+                              },
+                              "email": {
+                                "type": "string",
+                                "maxLength": 254,
+                                "format": "email",
+                                "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "email"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "link"
+                              }
+                            },
+                            "required": [
+                              "kind"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      },
                       "months": {
                         "anyOf": [
                           {
@@ -71504,7 +73747,6 @@
                     "required": [
                       "product",
                       "requestKey",
-                      "recipientUserId",
                       "months"
                     ],
                     "additionalProperties": false

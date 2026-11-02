@@ -1,3 +1,6 @@
+import { CardVault } from "./cardVault.js";
+import { SecretBox } from "../../infrastructure/crypto/secretBox.js";
+import { z } from "zod/v4";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { AppContext } from "../../app/context.js";
 import {
@@ -280,6 +283,93 @@ export default async function billingRoutes(
   });
 
   const paypal = () => new PayPalCheckout(ctx.billing, ctx.gifts);
+  const cards = () => {
+    const returnUrl = ctx.billing.returnTo("web");
+    if (!returnUrl) throw notFound("Card checkout is not configured");
+    return new CardVault(ctx.billing.rows, paypal().provider, new SecretBox(ctx.config.platformSecretsKey), returnUrl);
+  };
+  app.get("/v2/billing/payment-methods", authed, async req => ({ methods: cards().list(session(req).accountId), available: !!paypal().provider.options.cardCapabilities?.vault }));
+  app.post("/v2/billing/payment-methods/setups", providerCall, async req => {
+    const input = parse(z.strictObject({ requestKey: z.uuid() }), req.body);
+    return cards().start(session(req).accountId, input.requestKey);
+  });
+  app.post("/v2/billing/payment-methods/setups/:id/complete", providerCall, async req => {
+    parse(z.strictObject({}), req.body ?? {});
+    const result = await cards().complete(session(req).accountId, parse(PayPalCheckoutParams, req.params).id);
+    ctx.audit({ actorId: session(req).accountId, action: "billing.card.saved", target: result.id });
+    return result;
+  });
+  app.delete("/v2/billing/payment-methods/:id", providerCall, async req => {
+    const id = parse(PayPalCheckoutParams, req.params).id;
+    const result = await cards().remove(session(req).accountId, id);
+    ctx.audit({ actorId: session(req).accountId, action: "billing.card.removed", target: id });
+    return result;
+  });
+
+  app.get("/v2/billing/orders", authed, async req => { const id = session(req).accountId; await ctx.billing.commerce.refresh(id); return { orders: ctx.billing.commerce.list(id) }; });
+  app.get("/v2/billing/orders/:id/receipt", authed, async req => { const account = session(req).accountId; await ctx.billing.commerce.refresh(account); return ctx.billing.commerce.receipt(account, parse(PayPalCheckoutParams, req.params).id); });
+  const cardSubscriptions = () => { if (!ctx.billing.cardSubscriptions) throw notFound("Card subscriptions unavailable"); return ctx.billing.cardSubscriptions; };
+  app.get("/v2/billing/card-subscriptions", authed, async req => ({ subscriptions: cardSubscriptions().list(session(req).accountId) }));
+  app.get("/v2/billing/card-subscriptions/quote", authed, async req => { const input = parse(z.object({ product: z.enum(["plus", "bots_plus"]) }), req.query); const quote = cardSubscriptions().quote(input.product, session(req).accountId); return { consentVersion: quote.consentVersion, amountMinor: quote.amountMinor, currency: quote.currency, firstBillingAt: quote.firstBillingAt }; });
+  app.post("/v2/billing/card-subscriptions", providerCall, async req => {
+    const input = parse(z.strictObject({ product: z.enum(["plus", "bots_plus"]), orgId: z.string().max(150).optional(), paymentMethodId: z.string().min(1).max(150), requestKey: z.uuid(), consentVersion: z.string().max(100), acceptRecurring: z.literal(true) }), req.body);
+    const s = session(req); const scope = ownerFor(s, input.orgId); await starterFor(s, scope);
+    const result = await cardSubscriptions().start({ ...input, accountId: s.accountId, userId: s.userId });
+    ctx.audit({ actorId: s.accountId, action: "billing.card.consent_recorded", target: result.id, detail: input.consentVersion }); return result;
+  });
+  app.post("/v2/billing/card-subscriptions/:id/cancel", providerCall, async req => { const id = parse(PayPalCheckoutParams, req.params).id; parse(z.strictObject({ confirm: z.literal(true) }), req.body); const result = await cardSubscriptions().cancel(session(req).accountId, id); ctx.audit({ actorId: session(req).accountId, action: "billing.card.cancelled", target: id }); return result; });
+  app.put("/v2/billing/card-subscriptions/:id/payment-method", providerCall, async req => { const id = parse(PayPalCheckoutParams, req.params).id; const input = parse(z.strictObject({ paymentMethodId: z.string().min(1).max(150) }), req.body); const result = await cardSubscriptions().updateMethod(session(req).accountId, id, input.paymentMethodId); ctx.audit({ actorId: session(req).accountId, action: "billing.card.method_updated", target: id }); return result; });
+  const giftDelivery = () => { if (!ctx.gifts.delivery) throw notFound("Gift delivery is unavailable"); return ctx.gifts.delivery; };
+  const giftView = (gift: import("./gifts.js").GiftRow) => {
+    const d = ctx.gifts.delivery?.get(gift.id);
+    const credit = ctx.billing.rows.get<{ status: string }>("mojo_gift_credits", { gift_id: gift.id });
+    return { id: gift.id, product: gift.plan_key, months: gift.months, note: gift.note, status: ctx.gifts.delivery?.state(gift) ?? gift.status, currency: gift.currency, amountMinor: gift.amount_minor, sender: gift.buyer_user_id ? ctx.userNames([gift.buyer_user_id]).get(gift.buyer_user_id) ?? null : null, recipientUserId: gift.recipient_user_id || null, recipientKind: d?.recipient_kind ?? "user", recipientEmail: ctx.gifts.delivery?.maskedRecipient(gift.id) ?? null, createdAt: gift.created_at, paidAt: gift.paid_at, redeemedAt: gift.redeemed_at, expiresAt: d?.redemption_expires_at ?? null, credited: credit?.status === "waiting" };
+  };
+  app.get("/v2/billing/gifts", authed, async req => {
+    const s = session(req);
+    const account = await ctx.accounts.store.accountById(s.accountId);
+    const sent = ctx.billing.rows.all<import("./gifts.js").GiftRow>("mojo_gifts", { where: { buyer_account_id: s.accountId }, orderBy: [["created_at", "desc"]], limit: 100 });
+    const received = s.userId ? ctx.billing.rows.all<import("./gifts.js").GiftRow>("mojo_gifts", { where: { recipient_user_id: s.userId, status: { in: ["paid", "redeemed", "refunded"] } }, orderBy: [["created_at", "desc"]], limit: 100 }) : [];
+    if (account?.email_verified_at) for (const id of giftDelivery().receivedForEmail(account.email)) { const gift = ctx.gifts.get(id); if (gift && ["paid", "redeemed"].includes(gift.status) && !received.some(g => g.id === gift.id)) received.push(gift); }
+    return { sent: sent.map(giftView), received: received.map(g => { const { recipientEmail: _email, ...safe } = giftView(g); return { ...safe, recipientEmail: null }; }) };
+  });
+  app.post("/v2/billing/gifts/preview", { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async req => {
+    const { token } = parse(z.strictObject({ token: z.string().regex(/^[A-Za-z0-9_-]{43}$/) }), req.body);
+    const { gift, delivery } = giftDelivery().find(token);
+    return { id: gift.id, product: gift.plan_key, months: gift.months, note: gift.note, sender: gift.buyer_user_id ? ctx.userNames([gift.buyer_user_id]).get(gift.buyer_user_id) ?? null : null, status: gift.status, requiresVerifiedEmail: delivery.recipient_kind === "email", expiresAt: delivery.redemption_expires_at };
+  });
+  app.post("/v2/billing/gifts/redeem", providerCall, async req => {
+    const s = session(req);
+    if (!s.userId) throw forbidden("Finish setting up your Meldiq profile before redeeming a gift.");
+    const { token } = parse(z.strictObject({ token: z.string().regex(/^[A-Za-z0-9_-]{43}$/) }), req.body);
+    const account = await ctx.accounts.store.accountById(s.accountId);
+    const result = await ctx.gifts.redeemToken({ accountId: s.accountId, userId: s.userId, verifiedEmail: account?.email_verified_at ? account.email : null }, token);
+    ctx.audit({ actorId: s.accountId, action: "billing.gift.redeemed", target: giftDelivery().find(token).gift.id });
+    ctx.billing.changed({ kind: "account", accountId: s.accountId });
+    return result;
+  });
+  app.post("/v2/billing/gifts/:id/redeem", providerCall, async req => {
+    const s = session(req);
+    if (!s.userId) throw forbidden("Finish setting up your Meldiq profile before redeeming a gift.");
+    const id = parse(PayPalCheckoutParams, req.params).id;
+    const account = await ctx.accounts.store.accountById(s.accountId);
+    const result = await ctx.gifts.claim({ accountId: s.accountId, userId: s.userId, verifiedEmail: account?.email_verified_at ? account.email : null }, id);
+    ctx.audit({ actorId: s.accountId, action: "billing.gift.redeemed", target: id });
+    ctx.billing.changed({ kind: "account", accountId: s.accountId });
+    return result;
+  });
+  app.post("/v2/billing/gifts/:id/link", providerCall, async req => {
+    const id = parse(PayPalCheckoutParams, req.params).id;
+    const result = await giftDelivery().share(session(req).accountId, id);
+    ctx.audit({ actorId: session(req).accountId, action: "billing.gift.link_rotated", target: id });
+    return result;
+  });
+  app.post("/v2/billing/gifts/:id/resend", providerCall, async req => {
+    const id = parse(PayPalCheckoutParams, req.params).id;
+    const result = await giftDelivery().resend(session(req).accountId, id);
+    ctx.audit({ actorId: session(req).accountId, action: "billing.gift.resend_requested", target: id });
+    return result;
+  });
   app.get("/v2/billing/paypal/config", authed, async (req) => {
     await accountWithTrial(session(req));
     return { ...paypal().provider.publicConfig(), billingStartAt: ctx.billing.freePeriodEnd({ kind: "account", accountId: session(req).accountId }) };

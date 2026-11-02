@@ -92,6 +92,7 @@ export class SparkPurchases implements PaymentEvents {
     if (snap.outcome === "completed" && snap.paid && snap.paymentRef) {
       // Refunds dominate out-of-order capture events. No callback or browser redirect can grant slots.
       if (purchase.status !== "refunded") w.update("spark_purchases", { id: purchase.id }, { status: "paid", paid_at: purchase.paid_at ?? t, provider_payment_ref: snap.paymentRef, updated_at: t });
+      if (purchase.status !== "refunded") this.billing.notifications?.queue(w, purchase.buyer_account_id, "payment_receipt", purchase.id, t);
     } else if (snap.outcome !== "completed" && purchase.status === "pending") {
       w.update("spark_purchases", { id: purchase.id }, { status: snap.outcome === "expired" ? "expired" : "failed", updated_at: t });
     }

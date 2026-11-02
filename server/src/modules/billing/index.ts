@@ -23,3 +23,4 @@ export { isAddonPlanKey } from "./perks.js";
 
 export { PayPalCheckout } from "./paypalCheckout.js";
 
+export { GiftDelivery, type GiftTarget } from "./giftDelivery.js";

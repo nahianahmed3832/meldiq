@@ -329,6 +329,7 @@ describe("PayPal through authenticated billing APIs", () => {
         ...env,
         ADMIN_CONSOLE_ORIGIN: ADMIN_ORIGIN,
         WORKFLOW_TICK_MS: "0",
+        PLATFORM_SECRETS_KEY: "ab".repeat(32),
         MOJO_ENFORCEMENT: "true",
       },
       { mailer, billingProvider: provider },
@@ -376,6 +377,7 @@ describe("PayPal through authenticated billing APIs", () => {
       sparks: true,
       botsPlus: false,
       cards: false,
+      advancedCards: expect.objectContaining({ oneTime: false, vault: false, recurring: false }),
     });
     expect(JSON.stringify(c)).not.toContain(env.PAYPAL_CLIENT_SECRET);
     expect(
@@ -411,6 +413,80 @@ describe("PayPal through authenticated billing APIs", () => {
       }),
     ).toHaveLength(1);
     await expectStatus(gift(alice, { requestKey, months: 1 }), 409);
+  });
+  it("binds private gift links to verified payment, rotates secrets and atomically grants once", async () => {
+    const buyer = await AccountClient.ready(h.baseUrl, mailer, `giftbuyer${randomUUID().slice(0,8)}`);
+    const g = await gift(buyer, { recipientUserId: undefined, recipient: { kind: "link" } });
+    await expectStatus(buyer.req("POST", `/v2/billing/gifts/${g.id}/link`, {}), 403);
+    api.orders.get(g.providerRef).status = "APPROVED";
+    await buyer.req("POST", `/v2/billing/paypal/checkouts/${g.id}/confirm`, {});
+    await expectStatus(bob.req("POST", `/v2/billing/gifts/${g.id}/link`, {}), 404);
+    const deadline = h.ctx.gifts.delivery!.get(g.id)!.redemption_expires_at;
+    await h.ctx.billing.rows.write(w => h.ctx.gifts.delivery!.paid(w, h.ctx.gifts.get(g.id)!, Date.now() + 5000));
+    expect(h.ctx.gifts.delivery!.get(g.id)!.redemption_expires_at).toBe(deadline);
+    const old = await buyer.req("POST", `/v2/billing/gifts/${g.id}/link`, {});
+    const current = await buyer.req("POST", `/v2/billing/gifts/${g.id}/link`, {});
+    const token = new URLSearchParams(new URL(current.url).hash.slice(1)).get("gift")!;
+    const oldToken = new URLSearchParams(new URL(old.url).hash.slice(1)).get("gift")!;
+    expect(current.url).not.toContain("?gift");
+    expect(JSON.stringify(h.ctx.billing.rows.get("mojo_gift_deliveries", { gift_id: g.id }))).not.toContain(token);
+    await expectStatus(bob.req("POST", "/v2/billing/gifts/preview", { token: oldToken }), 404);
+    await expectStatus(buyer.req("POST", "/v2/billing/gifts/redeem", { token }), 403);
+    const [a, b] = await Promise.all([bob.req("POST", "/v2/billing/gifts/redeem", { token }), bob.req("POST", "/v2/billing/gifts/redeem", { token })]);
+    expect(a).toEqual(b);
+    expect(a.credited).toBe(false);
+    expect(h.ctx.billing.rows.count("billing_grants", { reference: g.id, source: "gift" })).toBe(1);
+    const orders = await buyer.req("GET", "/v2/billing/orders");
+    const order = orders.orders.find((o: any) => o.product.includes("gift"));
+    expect(order.totalMinor).toBe(1197);
+    expect((await buyer.req("GET", `/v2/billing/orders/${order.id}/receipt`)).paid).toBe(true);
+    await expectStatus(bob.req("GET", `/v2/billing/orders/${order.id}/receipt`), 404);
+    const other = await AccountClient.ready(h.baseUrl, mailer, "giftintruder");
+    await expectStatus(other.req("POST", "/v2/billing/gifts/redeem", { token }), 403);
+  });
+  it("encrypts email recipients, delivers only verified gifts and requires the matching verified account", async () => {
+    const account = await h.ctx.accounts.store.accountById(bob.accountId);
+    const buyer = await AccountClient.ready(h.baseUrl, mailer, `giftbuyer${randomUUID().slice(0,8)}`);
+    const g = await gift(buyer, { recipientUserId: undefined, recipient: { kind: "email", email: account!.email } });
+    const stored = h.ctx.billing.rows.get<any>("mojo_gift_deliveries", { gift_id: g.id });
+    expect(stored.recipient_email_encrypted).not.toContain(account!.email);
+    expect(h.ctx.billing.rows.count("billing_notification_jobs", { gift_id: g.id })).toBe(0);
+    api.orders.get(g.providerRef).status = "APPROVED";
+    await buyer.req("POST", `/v2/billing/paypal/checkouts/${g.id}/confirm`, {});
+    expect(h.ctx.billing.rows.count("billing_notification_jobs", { gift_id: g.id })).toBe(1);
+    await h.ctx.gifts.delivery!.sweep();
+    expect(h.ctx.billing.rows.get("billing_notification_jobs", { gift_id: g.id })).toMatchObject({ status: "sent" });
+    expect((await bob.req("GET", "/v2/billing/gifts")).received.some((x: any) => x.id === g.id)).toBe(true);
+    await expectStatus(buyer.req("POST", `/v2/billing/gifts/${g.id}/redeem`, {}), 404);
+    const result = await bob.req("POST", `/v2/billing/gifts/${g.id}/redeem`, {});
+    expect(result.credited).toBe(false);
+    expect(h.ctx.billing.rows.count("billing_grants", { reference: g.id, source: "gift" })).toBe(1);
+  });
+  it("queues gift credit behind an active renewal without changing its mandate or paid time", async () => {
+    const recipient = await AccountClient.ready(h.baseUrl, mailer, "giftcreditreceiver");
+    const buyer = await AccountClient.ready(h.baseUrl, mailer, "giftcreditbuyer");
+    const p = await recipient.req("POST", "/v2/billing/paypal/checkouts", { product: "plus", requestKey: randomUUID() });
+    api.activate(p.providerRef);
+    await recipient.req("POST", `/v2/billing/paypal/checkouts/${p.id}/confirm`, {});
+    const before = h.ctx.billing.subscriptions.liveForOwner({ kind: "account", accountId: recipient.accountId })!;
+    const g = await gift(buyer, { recipientUserId: undefined, recipient: { kind: "link" } });
+    api.orders.get(g.providerRef).status = "APPROVED";
+    await buyer.req("POST", `/v2/billing/paypal/checkouts/${g.id}/confirm`, {});
+    const link = await buyer.req("POST", `/v2/billing/gifts/${g.id}/link`, {});
+    const token = new URLSearchParams(new URL(link.url).hash.slice(1)).get("gift")!;
+    const result = await recipient.req("POST", "/v2/billing/gifts/redeem", { token });
+    expect(result).toEqual({ credited: true, startsAt: null, endsAt: null });
+    expect(h.ctx.billing.subscriptions.get(before.id)).toEqual(before);
+    await h.ctx.gifts.sweep();
+    expect(h.ctx.billing.rows.count("billing_grants", { source: "gift", reference: g.id })).toBe(0);
+    await recipient.req("POST", "/v2/billing/paypal/cancel", { confirm: true, subscriptionId: before.id });
+    await h.ctx.gifts.sweep();
+    expect(h.ctx.billing.rows.count("billing_grants", { source: "gift", reference: g.id })).toBe(0);
+    await h.ctx.billing.rows.write(w => w.update("billing_subscriptions", { id: before.id }, { current_period_end: Date.now() - 1 }));
+    await h.ctx.billing.rows.write(w => w.update("mojo_gift_credits", { gift_id: g.id }, { next_check_at: 0 }));
+    await Promise.all([h.ctx.gifts.sweep(), h.ctx.gifts.sweep()]);
+    expect(h.ctx.billing.rows.count("billing_grants", { source: "gift", reference: g.id })).toBe(1);
+    expect(await recipient.req("POST", "/v2/billing/gifts/redeem", { token })).toMatchObject({ credited: false, endsAt: expect.any(Number) });
   });
   it("does not grant a gift on approval, GET, cancellation or a declined capture", async () => {
     const g = await gift();
