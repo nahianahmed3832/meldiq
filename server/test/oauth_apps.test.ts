@@ -254,5 +254,8 @@ function suite(name: string, env: Record<string, string>) {
   });
 }
 
-suite("Log in with Meldiq on the default (memory) stores", {});
-suite("Log in with Meldiq on MongoDB", { MONGODB_DOMAINS: "preferences,reports,relationships,history,accounts,files,relay,billing" });
+if (process.env.MELDIQ_TEST_PG_URL) suite("Log in with Meldiq on PostgreSQL", {});
+else {
+  suite("Log in with Meldiq on the default (memory) stores", {});
+  suite("Log in with Meldiq on MongoDB", { MONGODB_DOMAINS: "preferences,reports,relationships,history,accounts,files,relay,billing" });
+}

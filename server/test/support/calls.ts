@@ -11,6 +11,13 @@ const inMongo = (ctx: AppContext) => ctx.calls.backend === "mongodb";
 
 /** Moves a call [ms] into the past: when it started and was answered, and when its devices joined. */
 export async function backdateCall(ctx: AppContext, callId: string, ms: number): Promise<void> {
+  if (ctx.postgres) {
+    await ctx.postgres.database.transaction(async () => {
+      await ctx.postgres!.database.query("UPDATE meldiq.calls SET created_at=created_at-$1,answered_at=answered_at-$1 WHERE id=$2", [ms, callId]);
+      await ctx.postgres!.database.query("UPDATE meldiq.call_participants SET joined_at=joined_at-$1 WHERE call_id=$2", [ms, callId]);
+    });
+    return;
+  }
   if (inMongo(ctx)) {
     const db = ctx.mongo!.db;
     const back = (field: string) => ({ $cond: [{ $eq: [`$${field}`, null] }, null, { $subtract: [`$${field}`, ms] }] });
@@ -24,6 +31,7 @@ export async function backdateCall(ctx: AppContext, callId: string, ms: number):
 
 /** Every call's id, wherever calls live. */
 export async function allCallIds(ctx: AppContext): Promise<string[]> {
+  if (ctx.postgres) return (await ctx.postgres.database.query<{id: string}>("SELECT id FROM meldiq.calls")).rows.map(row => row.id);
   if (inMongo(ctx)) return (await ctx.mongo!.db.collection("calls").find({}, { projection: { _id: 1 } }).toArray()).map((d) => String(d._id));
   return (ctx.db.prepare("SELECT id FROM calls").all() as { id: string }[]).map((c) => c.id);
 }

@@ -26,7 +26,7 @@ async function hook(h: Harness, path: string, body: unknown): Promise<{ status: 
   return { status: res.status, json: await res.json() };
 }
 
-describe.each([
+describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
   ["sqlite", {}],
   ["mongodb", { MONGODB_DOMAINS: WORKSPACE_IN_MONGO }],
 ] as const)("channel webhooks with communities in %s", (backend, env) => {

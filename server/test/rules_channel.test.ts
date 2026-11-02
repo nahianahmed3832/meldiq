@@ -23,7 +23,7 @@ const react = (c: GriipClient, conv: string, target: string) => c.send(conv, { t
 const read = (c: GriipClient, conv: string, upTo: number) => c.send(conv, { type: "read", upTo }, "control", `d_rules_${++n}_${Date.now()}`);
 const code = (e: { error: { code: string } }) => e.error.code;
 
-describe.each([
+describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
   ["memory", {}],
   ["mongodb", { MONGODB_DOMAINS: PRODUCTION_DOMAINS }],
 ] as const)("rules channel kept in %s", (backend, env) => {

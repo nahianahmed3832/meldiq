@@ -1,5 +1,6 @@
 import type { Collection, Document, Filter, IndexSpecification } from "mongodb";
 import { isDuplicateKey, type MeldiqMongo } from "./mongo/client.js";
+import type { MeldiqPostgres } from "./postgres/client.js";
 
 /**
  * A small keyed document store for new, self-contained data (API 0.65.0 batch B: creator applications, linked
@@ -215,7 +216,12 @@ export class MongoDocuments<T extends Keyed> implements DocumentStore<T> {
 }
 
 /** The store a feature uses: MongoDB whenever the server has one, memory otherwise. Indexes are made before first use. */
-export async function openDocuments<T extends Keyed>(mongo: MeldiqMongo | null | undefined, collection: string, indexes: readonly DocumentIndex[] = []): Promise<DocumentStore<T>> {
+export async function openDocuments<T extends Keyed>(mongo: MeldiqMongo | null | undefined, collection: string, indexes: readonly DocumentIndex[] = [], postgres?: MeldiqPostgres): Promise<DocumentStore<T>> {
+  if (postgres) {
+    if (mongo) throw new Error("A document store cannot have two authoritative databases");
+    const {PostgresDocuments} = await import("./postgres/documents.js");
+    return new PostgresDocuments<T>(postgres, collection);
+  }
   if (!mongo) return new MemoryDocuments<T>();
   const store = new MongoDocuments<T>(mongo, collection, indexes);
   await store.ensureIndexes();

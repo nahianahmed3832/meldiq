@@ -52,7 +52,7 @@ describe("the PNG parser", () => {
 /** Production's MongoDB domains: submissions then live in MongoDB (new data goes there whenever the server has one). */
 const PRODUCTION_DOMAINS = "preferences,reports,relationships,history,accounts,files,relay,billing";
 
-describe.each([
+describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
   ["memory", {}],
   ["mongodb", { MONGODB_DOMAINS: PRODUCTION_DOMAINS }],
 ] as const)("kept in %s", (backend, env) => {

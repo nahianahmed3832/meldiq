@@ -35,7 +35,7 @@ async function cli(cmd: string, ...args: string[]): Promise<{ code: number; out:
   const table = vi.spyOn(console, "table").mockImplementation((t) => void lines.push(JSON.stringify(t)));
   try {
     // As admin.js does: a refusal is printed and exits 1.
-    const code = await runPlatformAdminCommand(cmd, args, h.ctx.config, h.ctx.db).catch((e: Error) => {
+    const code = await runPlatformAdminCommand(cmd, args, h.ctx.config, h.ctx.db, h.ctx.postgres ? h.ctx : undefined).catch((e: Error) => {
       lines.push(e.message);
       return 1;
     });
@@ -290,6 +290,20 @@ describe("the platform audit", () => {
     expect(consoleAudit(h).verify().brokenAt).toBeNull();
     expect((await cli("platform-audit-verify")).code).toBe(0);
     const target = h.ctx.platform.all<{ id: number }>("platform_audit", { orderBy: [["id", "asc"]], limit: 3 })[2]!.id;
+    if (h.ctx.postgres) {
+      // A privileged operator tampers with this owned loopback fixture; the live runtime still reads its shared writer.
+      const before = h.ctx.platform.get<{outcome: string; reason: string | null}>("platform_audit", {id: target})!;
+      await h.ctx.postgres.database.query("ALTER TABLE meldiq.platform_audit DISABLE TRIGGER platform_audit_no_update");
+      try {
+        await h.ctx.platform.write(writer => writer.update("platform_audit", {id: target}, {outcome: "success", reason: "nothing to see"}));
+        expect(consoleAudit(h).verify().brokenAt).toBe(target);
+        expect((await cli("platform-audit-verify")).code).toBe(1);
+      } finally {
+        await h.ctx.platform.write(writer => writer.update("platform_audit", {id: target}, {outcome: before.outcome, reason: before.reason}));
+        await h.ctx.postgres.database.query("ALTER TABLE meldiq.platform_audit ENABLE TRIGGER platform_audit_no_update");
+      }
+      return;
+    }
     if (h.ctx.platform.backend === "mongodb") {
       // Edited in MongoDB behind the server's back: the CLI reads the collection and finds the break.
       const audit = h.ctx.mongo!.db.collection<{ _id: number; outcome: string; reason: string | null }>("platform_audit");

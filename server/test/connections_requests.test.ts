@@ -34,7 +34,7 @@ describe("who may message you", () => {
   it("advertises the features and starts from the defaults", async () => {
     expect((await ann.req("GET", "/v1/server-info")).features).toEqual(expect.arrayContaining(["connections", "message-requests"]));
     expect(await cat.req("GET", "/v1/users/me/messaging")).toEqual({ dmPolicy: "communities", requestPolicy: "everyone", groupAddPolicy: "everyone", suggestable: true });
-    expect(h.ctx.relationships.backend).toBe(process.env.MELDIQ_TEST_MONGO_DOMAINS?.includes("relationships") ? "mongodb" : "sqlite");
+    expect(h.ctx.relationships.backend).toBe(process.env.MELDIQ_TEST_PG_URL ? "postgres" : process.env.MELDIQ_TEST_MONGO_DOMAINS?.includes("relationships") ? "mongodb" : "sqlite");
   });
 
   it("opens a DM directly between people who share a community", async () => {

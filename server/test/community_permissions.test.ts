@@ -19,7 +19,7 @@ const code = (e: { error: { code: string } }) => e.error.code;
 const refused = async (p: Promise<unknown>, status: number) => code(await expectStatus(p, status));
 const voiceNote = { id: "att_voice_1", name: "voice.ogg", mime: "audio/ogg", size: 1000, key: "k", nonce: "n", sha256: "s", voice: true };
 
-describe.each([
+describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
   ["memory", {}],
   ["mongodb", { MONGODB_DOMAINS: MONGO_DOMAINS }],
 ] as const)("community permissions kept in %s", (_backend, env) => {

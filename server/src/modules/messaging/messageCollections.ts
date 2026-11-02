@@ -8,10 +8,13 @@ import { me, requireAuth } from "../auth/index.js";
 import { eventToWire } from "./serverSend.js";
 import type { MessageEvent } from "./store/messageStore.js";
 import { retrievalMeta, backfillRetrieval } from "./store/retrievalMeta.js";
+import { postgresCollectionPage } from "./store/postgresCollections.js";
 
 type Cursor = { serverTs: number; id: string };
-type Thread = { rootId: string; replyCount: number; lastReplyTs: number };
-type Page = { messages: MessageEvent[]; context: MessageEvent[]; threads: Thread[]; more: boolean; nextCursor: Cursor | null };
+export type CollectionThread = { rootId: string; replyCount: number; lastReplyTs: number };
+export type CollectionPage = { messages: MessageEvent[]; context: MessageEvent[]; threads: CollectionThread[]; more: boolean; nextCursor: Cursor | null };
+type Thread = CollectionThread;
+type Page = CollectionPage;
 const ready = new WeakMap<AppContext, Promise<void>>();
 
 /** Bounded, idempotent backfill. New inserts already carry these fields; no payloads or control state are rewritten. */
@@ -42,7 +45,7 @@ const raw = (doc: any): MessageEvent => {
 async function mongoPage(ctx: AppContext, cid: string, viewer: string, since: number | null, q: CollectionQuery): Promise<Page> {
   await metadataReady(ctx);
   const col: Collection<Document> = ctx.mongo!.db.collection("message_events");
-  const base: Document = { conversation_id: cid, cls: "message", "_retrieval.valid": true, ...(since == null ? {} : { server_ts: { $gte: since } }) };
+  const base: Document = { conversation_id: cid, cls: "message", ...visible(viewer), "_retrieval.valid": true, ...(since == null ? {} : { server_ts: { $gte: since } }) };
   if (q.kind === "threads") {
     const rows = await col.aggregate<any>([
       { $match: { ...base, "_retrieval.root": { $ne: null } } }, ...notDeleted(cid, viewer),
@@ -50,7 +53,7 @@ async function mongoPage(ctx: AppContext, cid: string, viewer: string, since: nu
       { $match: beforeFilter(q, "lastReplyTs") }, { $sort: { lastReplyTs: -1, _id: -1 } }, { $limit: q.limit + 1 },
     ], { allowDiskUse: true, maxTimeMS: 15_000 }).toArray();
     const selected = rows.slice(0, q.limit);
-    const messages = (await Promise.all(selected.map((r) => ctx.messages.get(r._id)))).filter((m): m is MessageEvent => !!m && m.conversation_id === cid && m.cls === "message" && (since == null || m.server_ts >= since));
+    const messages = (await Promise.all(selected.map((r) => ctx.messages.get(r._id)))).filter((m): m is MessageEvent => !!m && m.conversation_id === cid && m.cls === "message" && (m.audience === "all" || m.sender_user_id === viewer) && (since == null || m.server_ts >= since));
     const threads = selected.map((r) => ({ rootId: r._id as string, replyCount: r.replyCount as number, lastReplyTs: r.lastReplyTs as number }));
     const last = threads.at(-1); const more = rows.length > q.limit;
     return { messages, context: [], threads, more, nextCursor: more && last ? { serverTs: last.lastReplyTs, id: last.rootId } : null };
@@ -72,7 +75,7 @@ async function mongoPage(ctx: AppContext, cid: string, viewer: string, since: nu
   let rows: MessageEvent[]; let more: boolean;
   if (q.around) {
     const anchor = await ctx.messages.get(q.around);
-    if (!anchor || anchor.conversation_id !== cid || anchor.cls !== "message" || retrievalMeta(anchor).root !== (q.root ?? null) || (since != null && anchor.server_ts < since)) throw new ApiError(404, "not_found", "That reply isn't in this thread");
+    if (!anchor || anchor.conversation_id !== cid || anchor.cls !== "message" || (anchor.audience !== "all" && anchor.sender_user_id !== viewer) || retrievalMeta(anchor).root !== (q.root ?? null) || (since != null && anchor.server_ts < since)) throw new ApiError(404, "not_found", "That reply isn't in this thread");
     const half = Math.ceil(q.limit / 2);
     const older = await run({ $or: [{ server_ts: { $lt: anchor.server_ts } }, { server_ts: anchor.server_ts, _id: { $lt: anchor.id } }] }, -1, half + 1);
     const newer = await run({ $or: [{ server_ts: { $gt: anchor.server_ts } }, { server_ts: anchor.server_ts, _id: { $gt: anchor.id } }] }, 1, half);
@@ -80,18 +83,18 @@ async function mongoPage(ctx: AppContext, cid: string, viewer: string, since: nu
     rows = [...newer.reverse(), anchor, ...older.slice(0, half)]; more = older.length > half;
   } else { const found = await run(beforeFilter(q), -1, q.limit + 1); rows = found.slice(0, q.limit); more = found.length > q.limit; }
   const root = q.root ? await ctx.messages.get(q.root) : null;
-  const context = root && root.conversation_id === cid && root.cls === "message" && (since == null || root.server_ts >= since) ? [root] : [];
+  const context = root && root.conversation_id === cid && root.cls === "message" && (root.audience === "all" || root.sender_user_id === viewer) && (since == null || root.server_ts >= since) ? [root] : [];
   const last = rows.at(-1);
   return { messages: rows, context, threads: [], more, nextCursor: more && last ? { serverTs: last.server_ts, id: last.id } : null };
 }
 
 function sqlitePage(ctx: AppContext, cid: string, viewer: string, since: number | null, q: CollectionQuery): Page {
-  const args: unknown[] = [cid, since ?? 0];
+  const args: unknown[] = [cid, since ?? 0, viewer];
   const json = "CASE WHEN json_valid(m.payload) THEN m.payload ELSE '{}' END";
   const visibility = `(c.audience = 'all' OR c.sender_user_id = ?)`;
   const alive = (alias: string) => `NOT EXISTS (SELECT 1 FROM message_events c WHERE c.conversation_id = ${alias}.conversation_id AND c.cls = 'control' AND c.type = 'delete' AND c.target = ${alias}.id AND ${visibility})`;
   const rootField = `CASE WHEN json_type(${json}, '$.threadRoot') = 'text' AND length(json_extract(${json}, '$.threadRoot')) BETWEEN 8 AND 64 AND json_extract(${json}, '$.threadRoot') NOT GLOB '*[^A-Za-z0-9_-]*' THEN json_extract(${json}, '$.threadRoot') ELSE NULL END`;
-  const base = `m.conversation_id = ? AND m.cls = 'message' AND m.server_ts >= ? AND json_type(${json}) = 'object'`;
+  const base = `m.conversation_id = ? AND m.cls = 'message' AND m.server_ts >= ? AND (m.audience='all' OR m.sender_user_id=?) AND json_valid(m.payload) AND json_type(${json}) = 'object'`;
   if (q.kind === "threads") {
     const params = [...args, viewer];
     let having = "";
@@ -101,8 +104,8 @@ function sqlitePage(ctx: AppContext, cid: string, viewer: string, since: number 
       WHERE ${base} AND ${rootField} IS NOT NULL AND ${alive("m")}
       GROUP BY rootId ${having} ORDER BY lastReplyTs DESC, rootId DESC LIMIT ?`).all(...params) as Thread[];
     const threads = rows.slice(0, q.limit); const more = rows.length > q.limit; const last = threads.at(-1);
-    const get = ctx.db.prepare("SELECT * FROM message_events WHERE id = ? AND conversation_id = ? AND cls = 'message' AND server_ts >= ?");
-    const messages = threads.flatMap((t) => { const m = get.get(t.rootId, cid, since ?? 0) as MessageEvent | undefined; return m ? [m] : []; });
+    const get = ctx.db.prepare("SELECT * FROM message_events WHERE id = ? AND conversation_id = ? AND cls = 'message' AND server_ts >= ? AND (audience='all' OR sender_user_id=?)");
+    const messages = threads.flatMap((t) => { const m = get.get(t.rootId, cid, since ?? 0, viewer) as MessageEvent | undefined; return m ? [m] : []; });
     return { messages, context: [], threads, more, nextCursor: more && last ? { serverTs: last.lastReplyTs, id: last.rootId } : null };
   }
   let where = base;
@@ -120,7 +123,7 @@ function sqlitePage(ctx: AppContext, cid: string, viewer: string, since: number 
   let messages: MessageEvent[], more: boolean;
   if (q.around) {
     const anchor = ctx.db.prepare("SELECT * FROM message_events WHERE id = ? AND conversation_id = ? AND cls = 'message' AND server_ts >= ?").get(q.around, cid, since ?? 0) as MessageEvent | undefined;
-    if (!anchor || retrievalMeta(anchor).root !== (q.root ?? null)) throw new ApiError(404, "not_found", "That reply isn't in this thread");
+    if (!anchor || (anchor.audience !== "all" && anchor.sender_user_id !== viewer) || retrievalMeta(anchor).root !== (q.root ?? null)) throw new ApiError(404, "not_found", "That reply isn't in this thread");
     const half = Math.ceil(q.limit / 2); const values = [anchor.server_ts, anchor.server_ts, anchor.id];
     const older = run(" AND (m.server_ts < ? OR (m.server_ts = ? AND m.id < ?))", values, "DESC", half + 1);
     const newer = run(" AND (m.server_ts > ? OR (m.server_ts = ? AND m.id > ?))", values, "ASC", half);
@@ -131,11 +134,12 @@ function sqlitePage(ctx: AppContext, cid: string, viewer: string, since: number 
   }
   const root = q.root ? ctx.db.prepare("SELECT * FROM message_events WHERE id = ? AND conversation_id = ? AND cls = 'message' AND server_ts >= ?").get(q.root, cid, since ?? 0) as MessageEvent | undefined : undefined;
   const last = messages.at(-1);
-  return { messages, context: root ? [root] : [], threads: [], more, nextCursor: more && last ? { serverTs: last.server_ts, id: last.id } : null };
+  return { messages, context: root && (root.audience === "all" || root.sender_user_id === viewer) ? [root] : [], threads: [], more, nextCursor: more && last ? { serverTs: last.server_ts, id: last.id } : null };
 }
 
 async function changes(ctx: AppContext, cid: string, viewer: string, ids: string[]) {
   if (!ids.length) return [];
+  if (ctx.postgres) return (await ctx.postgres.database.query<MessageEvent>("SELECT * FROM meldiq.message_events WHERE conversation_id=$1 AND cls='control' AND target=ANY($2::text[]) AND (audience='all' OR sender_user_id=$3) ORDER BY server_ts,id", [cid, ids, viewer])).rows;
   if (ctx.messages.backend === "mongodb") return (await ctx.mongo!.db.collection("message_events").find({ conversation_id: cid, cls: "control", target: { $in: ids }, ...visible(viewer) }).sort({ server_ts: 1, _id: 1 }).toArray()).map(raw);
   return ctx.db.prepare(`SELECT * FROM message_events WHERE conversation_id = ? AND cls = 'control' AND target IN (${ids.map(() => "?").join(",")}) AND (audience = 'all' OR sender_user_id = ?) ORDER BY server_ts, id`).all(cid, ...ids, viewer) as MessageEvent[];
 }
@@ -143,7 +147,7 @@ export default async function messageCollections(app: FastifyInstance, ctx: AppC
   app.get<{ Params: { id: string } }>("/v2/conversations/:id/message-collections", { preHandler: requireAuth(ctx) }, async (req) => {
     const { userId } = me(req); const q = parse(CollectionQuery, req.query);
     const conv = ctx.authz.requireMember(req.params.id, userId); const since = ctx.authz.historySince(conv, userId);
-    const page = ctx.messages.backend === "mongodb" ? await mongoPage(ctx, conv.id, userId, since, q) : sqlitePage(ctx, conv.id, userId, since, q);
+    const page = ctx.postgres ? await postgresCollectionPage(ctx, conv.id, userId, since, q) : ctx.messages.backend === "mongodb" ? await mongoPage(ctx, conv.id, userId, since, q) : sqlitePage(ctx, conv.id, userId, since, q);
     const edits = await changes(ctx, conv.id, userId, [...new Set([...page.messages, ...page.context].map((e) => e.id))]);
     return { ...page, historySince: since, messages: page.messages.map(eventToWire), context: page.context.map(eventToWire), changes: edits.map(eventToWire) };
   });

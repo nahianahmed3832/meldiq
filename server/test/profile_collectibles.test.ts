@@ -17,7 +17,7 @@ import {
 import { styleOf } from "../src/modules/accounts/profileMedia.js";
 const ALL =
   "preferences,reports,relationships,history,accounts,files,relay,billing,platform,federation,calls,workspace,conversations,safety,ephemeral,identity";
-describe.each([
+describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
   ["sqlite", {}],
   ["mongodb", { MONGODB_DOMAINS: ALL }],
 ] as const)("profile collection (%s)", (_backend, env) => {

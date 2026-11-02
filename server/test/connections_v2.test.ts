@@ -143,7 +143,7 @@ describe("the outbound client", () => {
 
 const PRODUCTION_DOMAINS = "preferences,reports,relationships,history,accounts,files,relay,billing";
 
-describe.each([
+describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
   ["memory", {}],
   ["mongodb", { MONGODB_DOMAINS: PRODUCTION_DOMAINS }],
 ] as const)("linked accounts, kept in %s", (backend, env) => {

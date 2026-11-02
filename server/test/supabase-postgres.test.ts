@@ -53,6 +53,7 @@ import { PostgresPinStore } from "../src/modules/accounts/pins/postgresStore.js"
 import { PostgresPointsStore } from "../src/modules/points/postgresStore.js";
 import { PostgresDecorationStore } from "../src/modules/accounts/decorations/postgresStore.js";
 import type { PointsEntry } from "../src/modules/points/store.js";
+import { openPostgresRuntime } from "../src/app/postgresRuntime.js";
 import type { ProgramApplication } from "../src/modules/accounts/creators/service.js";
 import { TypedPostgresImporter, digest, validateRow, dependencyOrder } from "../src/infrastructure/database/postgres/migration.js";
 
@@ -99,7 +100,10 @@ beforeEach(async () => {
   // Row deletion retains all FK/trigger enforcement; flush deferred cleanup, then remove its synthetic queue work.
   await db.transaction(async () => {
     await db.query("SET CONSTRAINTS ALL DEFERRED");
+    // This freshly owned loopback test database deliberately resets immutable audit fixtures as its administrator.
+    await db.query("ALTER TABLE meldiq.platform_audit DISABLE TRIGGER platform_audit_no_delete");
     await db.query(tables.rows.map(t => `DELETE FROM "${t.schema}"."${t.name}";`).join("\n"));
+    await db.query("ALTER TABLE meldiq.platform_audit ENABLE TRIGGER platform_audit_no_delete");
     await db.query("SET CONSTRAINTS ALL IMMEDIATE");
     await db.query("DELETE FROM meldiq.pending_blob_deletes; DELETE FROM meldiq.abandoned_uploads; DELETE FROM realtime.test_sent; DELETE FROM realtime.messages;");
   });
@@ -127,6 +131,19 @@ describe("relational schema and security",()=>{
   it("permits the trusted API role without granting bypassrls",async()=>{
     const role=await db.query("SELECT rolbypassrls FROM pg_roles WHERE rolname='meldiq_api'"); expect(role.rows[0].rolbypassrls).toBe(false);
     await db.transaction(async()=>{await db.query("SET LOCAL ROLE meldiq_api");expect((await db.query("SELECT count(*) AS n FROM meldiq.users")).rows[0].n).toBe(2);});
+  });
+  it("keeps platform audit append-only and published financial terms immutable", async () => {
+    await db.query("INSERT INTO meldiq.platform_audit(id,at,action,outcome,prev_hash,hash) VALUES(1,1000,'synthetic','success','previous','hash')");
+    await db.query("INSERT INTO meldiq.billing_plans(id,key,name,status,created_by,created_at,updated_at) VALUES('synthetic-plan','synthetic-plan','Synthetic','active','user1',1000,1000)");
+    await db.query(`INSERT INTO meldiq.billing_plan_versions(id,plan_id,version,interval,currency,amount_minor,created_by,created_at,updated_at,published_at)
+      VALUES('synthetic-price','synthetic-plan',1,'month','USD',1250,'user1',1000,1000,1000)`);
+    await expect(db.query("UPDATE meldiq.platform_audit SET reason='changed' WHERE id=1")).rejects.toMatchObject({code: "23514"});
+    await expect(db.query("DELETE FROM meldiq.platform_audit WHERE id=1")).rejects.toMatchObject({code: "23514"});
+    for (const change of ["amount_minor=1", "provider='changed'", "quota_plan_id='changed'", "limits='changed'", "currency='EUR'"]) {
+      await expect(db.query(`UPDATE meldiq.billing_plan_versions SET ${change} WHERE id='synthetic-price'`)).rejects.toMatchObject({code: "23514"});
+    }
+    await db.query("UPDATE meldiq.billing_plan_versions SET notes='Retired offer',retired_at=2000 WHERE id='synthetic-price'");
+    expect((await db.query("SELECT amount_minor FROM meldiq.billing_plan_versions WHERE id='synthetic-price'")).rows[0].amount_minor).toBe(1250);
   });
   it("preserves foreign keys and check constraints",async()=>{
     await expect(db.query("INSERT INTO meldiq.conversation_members(conversation_id,user_id,role,joined_at) VALUES('missing','user1','MEMBER',1)")).rejects.toMatchObject({code:"23503"});
@@ -226,6 +243,20 @@ describe("message durability and outbox recovery",()=>{
 });
 
 describe("PostgresRows compatibility",()=>{
+  it("loads multiple cursor pages and keeps durable counters ahead of retained rows", async () => {
+    await db.query(`INSERT INTO meldiq.users(id,username,display_name,identity_key,avatar_color,created_at,updated_at)
+      SELECT 'paged-user-'||n,'paged-user-'||n,'Synthetic fixture','paged-key-'||n,1,1000,1000 FROM generate_series(1,1001) n`);
+    await db.query("INSERT INTO meldiq.audit_log(id,at,action) SELECT n,1000,'synthetic' FROM generate_series(1,501) n");
+    await db.query("INSERT INTO meldiq_private.row_counters(table_name,value) VALUES('audit_log',5000)");
+    const rows = await PostgresRows.open(db, tableSpecs());
+    try {
+      expect(rows.count("users")).toBe(1003);
+      expect(rows.get("users", {id: "paged-user-1001"})).toMatchObject({identity_key: "paged-key-1001"});
+      expect(rows.count("audit_log")).toBe(501);
+      const saved = await rows.write(writer => writer.insert("audit_log", {at: 1001, action: "next synthetic"}));
+      expect(saved.id).toBe(5001);
+    } finally { await rows.close(); }
+  });
   it("persists synchronous units, enforces one writer, survives a restart and rolls back rejected changes",async()=>{
     const rows=await PostgresRows.open(db,tableSpecs());
     try {
@@ -1304,5 +1335,40 @@ describe("PostgreSQL server-earned points and decoration moderation", () => {
     expect((await decorations.page("approved", null, 10)).items).toHaveLength(1);
     expect(await decorations.byCreator("user2")).toEqual([]);
     await decorations.remove(decoration.id); expect(await decorations.get(decoration.id)).toBeNull();
+  });
+});
+
+describe("PostgreSQL-only staged Fastify composition", () => {
+  it("starts with PostgreSQL repositories, persists registered identities/conversations and blocks legacy SQL", async () => {
+    const h = await startServer({}, {postgres: db});
+    try {
+      expect(h.ctx.mongo).toBeUndefined();
+      expect(h.ctx.accounts.store.backend).toBe("postgres");
+      expect(h.ctx.files.backend).toBe("postgres");
+      expect(h.ctx.messages.backend).toBe("postgres");
+      expect(h.ctx.billing.rows).toBe(h.ctx.identity);
+      const health = await h.app.inject({method: "GET", url: "/healthz"});
+      expect(health.statusCode).toBe(200);
+      const alice = await h.client("pgruntimealice"), bob = await h.client("pgruntimebob");
+      const conversation = (await alice.req("POST", "/v1/conversations/dm", {userId: bob.userId})).conversation;
+      expect((await db.query("SELECT id FROM meldiq.users WHERE id=$1", [alice.userId])).rowCount).toBe(1);
+      expect((await db.query("SELECT id FROM meldiq.conversations WHERE id=$1", [conversation.id])).rowCount).toBe(1);
+      expect(h.ctx.postgres?.legacySqlAttempts).toBe(0);
+      expect(() => h.ctx.db.prepare("SELECT * FROM users")).toThrow("Legacy SQL access");
+      expect(h.ctx.postgres?.legacySqlAttempts).toBe(1);
+    } finally { await h.close(); }
+  });
+  it("rejects cached authorization and native queries after losing its writer session", async () => {
+    const runtime = await openPostgresRuntime(db);
+    try {
+      const lease = (await db.query<{pid: number}>(`SELECT pid FROM pg_locks WHERE locktype='advisory' AND mode='ExclusiveLock'
+        AND database=(SELECT oid FROM pg_database WHERE datname=current_database()) AND granted`)).rows;
+      expect(lease).toHaveLength(1);
+      await admin.query("SELECT pg_terminate_backend($1)", [lease[0].pid]);
+      await expect.poll(() => runtime.rows.available, {timeout: 2000}).toBe(false);
+      expect(() => runtime.rows.get("users", {id: "user1"})).toThrow("lease is unavailable");
+      await expect(runtime.files.attachment("anything")).rejects.toThrow("lease is unavailable");
+    } finally { await runtime.close(); }
+    expect((await db.query("SELECT 1 AS value")).rows[0].value).toBe(1);
   });
 });

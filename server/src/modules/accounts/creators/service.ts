@@ -74,14 +74,14 @@ export const proofBlob = (id: string) => `creator-proof-${id}`;
 const pendingPerUser = [{ name: "user_pending", keys: { user_id: 1 } as Record<string, 1>, unique: true, partial: { status: "pending" } }];
 
 /** Opens the stores: MongoDB whenever the server has one (creator_verifications, creator_program, creator_posts), memory otherwise. */
-export async function openCreatorStores(ctx: Pick<AppContext, "mongo">): Promise<CreatorStores> {
+export async function openCreatorStores(ctx: Pick<AppContext, "mongo" | "postgres">): Promise<CreatorStores> {
   return {
-    verifications: await openDocuments<Verification>(ctx.mongo, "creator_verifications", [...pendingPerUser, { name: "status_created", keys: { status: 1, created_at: -1 } }]),
-    program: await openDocuments<ProgramApplication>(ctx.mongo, "creator_program", [...pendingPerUser, { name: "status_created", keys: { status: 1, created_at: -1 } }]),
+    verifications: await openDocuments<Verification>(ctx.mongo, "creator_verifications", [...pendingPerUser, { name: "status_created", keys: { status: 1, created_at: -1 } }], ctx.postgres?.database),
+    program: await openDocuments<ProgramApplication>(ctx.mongo, "creator_program", [...pendingPerUser, { name: "status_created", keys: { status: 1, created_at: -1 } }], ctx.postgres?.database),
     posts: await openDocuments<CreatorPostDoc>(ctx.mongo, "creator_posts", [
       { name: "user_url", keys: { user_id: 1, url: 1 }, unique: true },
       { name: "counted_created", keys: { counted: 1, created_at: -1 } },
-    ]),
+    ], ctx.postgres?.database),
   };
 }
 

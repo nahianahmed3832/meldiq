@@ -52,7 +52,7 @@ describe("the name rule", () => {
 /** Production's MongoDB domains: the new data then lives in MongoDB (new data goes there whenever the server has one). */
 const PRODUCTION_DOMAINS = "preferences,reports,relationships,history,accounts,files,relay,billing";
 
-describe.each([
+describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
   ["memory", {}],
   ["mongodb", { MONGODB_DOMAINS: PRODUCTION_DOMAINS }],
 ] as const)("creators, kept in %s", (backend, env) => {

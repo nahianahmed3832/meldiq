@@ -10,8 +10,9 @@ import { digest, secret } from "../src/modules/accounts/social/service.js";
 import type { ExternalIdentity } from "../src/modules/accounts/social/store.js";
 import { canonical, sign } from "./support/griipClient.js";
 import { ApiError } from "../src/shared/errors.js";
+import { accountRows } from "./support/accountRows.js";
 
-for (const backend of ["sqlite", "mongodb"])
+for (const backend of process.env.MELDIQ_TEST_PG_URL ? ["postgres"] : ["sqlite", "mongodb"])
   describe(`social auth: ${backend}`, () => {
     let h: Harness;
     const mailer = new MemoryMailer();
@@ -377,7 +378,8 @@ for (const backend of ["sqlite", "mongodb"])
     it("requires fresh authentication for old sessions without rotating or deleting existing tokens", async () => {
       const c = await account();
       const store = h.ctx.accounts.store as any;
-      if (backend === "sqlite")
+      if (backend === "postgres") await accountRows(h).setSession(c.sessionId, {created_at: Date.now() - 600_000});
+      else if (backend === "sqlite")
         h.ctx.db
           .prepare("UPDATE account_sessions SET created_at = ? WHERE id = ?")
           .run(Date.now() - 600_000, c.sessionId);

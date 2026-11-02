@@ -8,6 +8,8 @@ import type { BillingProvider } from "../../src/modules/billing/providers/types.
 import type { PlayConfig } from "../../src/modules/billing/config.js";
 import type { PushDeps } from "../../src/modules/notifications/service.js";
 import type { FileStore } from "../../src/modules/files/store.js";
+import type { MeldiqPostgres } from "../../src/infrastructure/database/postgres/client.js";
+import { preparePostgresHarness } from "./postgres.js";
 import { type ContractCheck, contractCheck } from "./contracts.js";
 import { GriipClient } from "./griipClient.js";
 import { dropTestDatabase, testMongoEnv } from "./mongo.js";
@@ -31,7 +33,7 @@ let counter = 0;
  */
 export async function startServer(
   env: Record<string, string> = {},
-  opts: { push?: PushDeps; mailer?: Mailer; billingProvider?: BillingProvider; play?: PlayConfig; files?: FileStore } = {},
+  opts: { push?: PushDeps; mailer?: Mailer; billingProvider?: BillingProvider; play?: PlayConfig; files?: FileStore; postgres?: MeldiqPostgres } = {},
 ): Promise<Harness> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "griip-test-"));
   const config = loadConfig({
@@ -68,7 +70,23 @@ export async function startServer(
   // Google Play with a fake Developer API and test signing keys (test/play.test.ts).
   if (opts.play) config.billing = { ...config.billing, play: opts.play };
   const contracts = contractCheck();
-  const built = await buildApp(config, { logger: false, push: opts.push, mailer: opts.mailer, files: opts.files, contracts: contracts.observer });
+  const postgresHarness = opts.postgres ? null : await preparePostgresHarness();
+  let built: BuiltApp;
+  let reportedPostgresFailure = false;
+  try {
+    built = await buildApp(config, { logger: false, push: opts.push, mailer: opts.mailer, files: opts.files, postgres: opts.postgres ?? postgresHarness?.database, contracts: contracts.observer,
+      onUnhandledError: postgresHarness ? error => {
+        if (reportedPostgresFailure) return;
+        reportedPostgresFailure = true;
+        const frames = error instanceof Error ? error.stack?.split("\n").slice(1, 9).join("\n") : "unknown call site";
+        process.stderr.write(`PostgreSQL API parity failure call sites (no request values):\n${frames}\n`);
+      } : undefined,
+    });
+  } catch (error) {
+    await postgresHarness?.close();
+    fs.rmSync(dir, {recursive: true, force: true});
+    throw error;
+  }
   await built.app.listen({ host: "127.0.0.1", port: 0 });
   const addr = built.app.server.address();
   const port = typeof addr === "object" && addr ? addr.port : 0;
@@ -97,6 +115,7 @@ export async function startServer(
       await closing;
       if (built.ctx.mongo) await dropTestDatabase(built.ctx.config.mongo!);
       built.ctx.db.close();
+      await postgresHarness?.close();
       fs.rmSync(dir, { recursive: true, force: true });
       contracts.finish();
     },

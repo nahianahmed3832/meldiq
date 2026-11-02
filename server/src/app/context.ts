@@ -52,6 +52,8 @@ import type { BlobStore } from "../infrastructure/storage/index.js";
 import type { Telemetry } from "../modules/telemetry/index.js";
 import type { QuotaEngine } from "../modules/quotas/index.js";
 import type { Billing, Gifts, Mojo, PlayBilling } from "../modules/billing/index.js";
+import type { MeldiqPostgres } from "../infrastructure/database/postgres/client.js";
+import type { PostgresRows } from "../infrastructure/database/rows/postgresRows.js";
 
 export interface AppContext {
   db: DB;
@@ -144,6 +146,8 @@ export interface AppContext {
   ephemeral: Rows;
   /** Present when MONGODB_URI is set: the domains in MONGODB_DOMAINS live there (docs/MONGODB.md). */
   mongo?: MeldiqMongo;
+  /** Staged PostgreSQL composition. One writer is shared by synchronous account/authorization domains. */
+  postgres?: {database: MeldiqPostgres; rows: PostgresRows};
   redis?: RedisInfrastructure;
   /** Plan-based limits (src/entitlements.ts, docs/PLANS.md): none by default. */
   entitlements: Entitlements;

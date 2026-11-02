@@ -1,8 +1,9 @@
-import type { PoolClient } from "pg";
+import type { PoolClient, QueryResult } from "pg";
 import { MemoryRows, type PersistedChanges } from "./memory.js";
 import type { TableSpec } from "../mongo/catalog.js";
 import type { MeldiqPostgres } from "../postgres/client.js";
 import { identifier as q } from "../postgres/client.js";
+import type { Query, Row, Where } from "./types.js";
 
 /** Transitional synchronous repository API, one database writer enforced by a session advisory lock.
  * This preserves existing business rules while individual repositories move to indexed asynchronous SQL.
@@ -11,7 +12,16 @@ import { identifier as q } from "../postgres/client.js";
 export class PostgresRows extends MemoryRows {
   readonly backend = "postgres" as const;
   private closed = false;
-  private constructor(private readonly postgres: MeldiqPostgres, specs: TableSpec[], private readonly lease: PoolClient) { super(specs); }
+  private failed = false;
+  private constructor(private readonly postgres: MeldiqPostgres, specs: TableSpec[], private readonly lease: PoolClient) {
+    super(specs);
+    lease.on("error", () => { this.failed = true; });
+  }
+  get available(): boolean { return !this.closed && !this.failed; }
+  assertAvailable(): void { if (!this.available) throw new Error("PostgreSQL repository lease is unavailable; restart the runtime to reload authorization"); }
+  override get<R = Row>(table: string, where: Where, orderBy?: Query["orderBy"]): R | undefined { this.assertAvailable(); return super.get(table, where, orderBy); }
+  override all<R = Row>(table: string, query: Query = {}): R[] { this.assertAvailable(); return super.all(table, query); }
+  override count(table: string, where?: Where): number { this.assertAvailable(); return super.count(table, where); }
 
   static async open(postgres: MeldiqPostgres, specs: TableSpec[]): Promise<PostgresRows> {
     if (new URL(postgres.config.url).port === "6543") throw new Error("PostgresRows needs a direct or session pool connection");
@@ -22,16 +32,25 @@ export class PostgresRows extends MemoryRows {
       if (!result.rows[0].locked) throw new Error("Another synchronous repository writer is active");
       // The lease is the write connection too: losing it prevents writes, and therefore stale-cache commits.
       await lease.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
-      for (const spec of specs) {
-        await lease.query(`DECLARE loading NO SCROLL CURSOR FOR SELECT * FROM meldiq.${q(spec.name)}`);
-        while (true) {
-          const batch = await lease.query("FETCH FORWARD 500 FROM loading");
-          if (!batch.rowCount) break;
-          for (const row of batch.rows) rows.load(spec.name, row, spec.primaryKey.length ? undefined : row.rowid);
+      const counters = await lease.query<{table_name: string; value: number}>("SELECT table_name,value FROM meldiq_private.row_counters");
+      for (const counter of counters.rows) if (specs.some(spec => spec.name === counter.table_name)) rows.bumpCounter(counter.table_name, counter.value);
+      // Amortize hosted round trips while bounding each received group to eight 500-row pages.
+      // All cursors and counters use the same repeatable-read snapshot and writer lease.
+      for (let start = 0; start < specs.length; start += 8) {
+        const group = specs.slice(start, start + 8);
+        const initial = await lease.query(group.map((spec, i) =>
+          `DECLARE loading_${i} NO SCROLL CURSOR FOR SELECT * FROM meldiq.${q(spec.name)}; FETCH FORWARD 500 FROM loading_${i};`
+        ).join("\n")) as unknown as QueryResult<Row>[];
+        if (!Array.isArray(initial) || initial.length !== group.length * 2) throw new Error("Unexpected PostgreSQL bootstrap response");
+        for (const [i, spec] of group.entries()) {
+          let batch = initial[i * 2 + 1];
+          while (true) {
+            for (const row of batch.rows) rows.load(spec.name, row, spec.primaryKey.length ? undefined : row.rowid as number);
+            if (batch.rows.length < 500) break;
+            batch = await lease.query<Row>(`FETCH FORWARD 500 FROM loading_${i}`);
+          }
         }
-        await lease.query("CLOSE loading");
-        const counter = await lease.query("SELECT value FROM meldiq_private.row_counters WHERE table_name = $1", [spec.name]);
-        if (counter.rowCount) rows.bumpCounter(spec.name, counter.rows[0].value);
+        await lease.query(group.map((_, i) => `CLOSE loading_${i};`).join("\n"));
       }
       await lease.query("COMMIT");
       return rows;
@@ -39,7 +58,7 @@ export class PostgresRows extends MemoryRows {
   }
 
   protected async persist({ changes, counters }: PersistedChanges): Promise<void> {
-    if (this.closed) throw new Error("PostgreSQL rows are closed");
+    this.assertAvailable();
     await this.lease.query("BEGIN");
     try {
       for (const change of changes) {

@@ -72,8 +72,8 @@ export class LinkedAccountsService {
   }
 
   static async open(ctx: AppContext): Promise<LinkedAccountsService> {
-    const accounts = await openDocuments<LinkedAccount>(ctx.mongo, "linked_accounts", [{ name: "user_id", keys: { user_id: 1 } }]);
-    const starts = await openDocuments<PendingStart>(ctx.mongo, "linked_account_starts", [{ name: "expires_at", keys: { expires_at: 1 } }]);
+    const accounts = await openDocuments<LinkedAccount>(ctx.mongo, "linked_accounts", [{ name: "user_id", keys: { user_id: 1 } }], ctx.postgres?.database);
+    const starts = await openDocuments<PendingStart>(ctx.mongo, "linked_account_starts", [{ name: "expires_at", keys: { expires_at: 1 } }], ctx.postgres?.database);
     return new LinkedAccountsService(ctx, accounts, starts);
   }
 

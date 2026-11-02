@@ -15,6 +15,8 @@ import { MongoRelayStore } from "../modules/messaging/relay/mongoStore.js";
 import { SqliteRelayStore } from "../modules/messaging/relay/store.js";
 import { MongoFileStore } from "../modules/files/mongoStore.js";
 import { SqliteFileStore, type FileStore } from "../modules/files/store.js";
+import type { MeldiqPostgres } from "../infrastructure/database/postgres/client.js";
+import { blockLegacySql, openPostgresRuntime } from "./postgresRuntime.js";
 import { type ContractObserver, observeContracts } from "./contractObserver.js";
 import websocket from "@fastify/websocket";
 import Fastify, { type FastifyInstance } from "fastify";
@@ -192,10 +194,17 @@ export async function buildApp(
     mongo?: MeldiqMongo;
     /** Injected repository for integration tests and the staged PostgreSQL composition root. */
     files?: FileStore;
+    /** Explicit non-production composition until all migration acceptance gates pass. */
+    postgres?: MeldiqPostgres;
+    /** Tests only: capture safe call sites of unhandled failures without logging request secrets. */
+    onUnhandledError?: (error: unknown) => void;
     /** Tests only: checks routes, answers and frames against the contracts (src/app/contractObserver.ts). */
     contracts?: ContractObserver;
   } = {},
 ): Promise<BuiltApp> {
+  if (opts.postgres && (config.accounts.appEnv === "production" || config.mongo || opts.mongo || opts.db || opts.files)) {
+    throw new Error("Staged PostgreSQL requires a non-production process with no alternate database/store overrides");
+  }
   const app = Fastify({
     logger:
       opts.logger === false
@@ -223,7 +232,12 @@ export async function buildApp(
   });
   if (opts.contracts) observeContracts(app, opts.contracts);
 
-  const db = opts.db ?? openDatabase(config.databaseMode === "atlas" ? ":memory:" : config.databasePath);
+  const legacyDb = opts.db ?? openDatabase(opts.postgres || config.databaseMode === "atlas" ? ":memory:" : config.databasePath);
+  let postgres: Awaited<ReturnType<typeof openPostgresRuntime>> | undefined;
+  try {
+  postgres = opts.postgres ? await openPostgresRuntime(opts.postgres) : undefined;
+  const runtime = postgres;
+  const db = runtime ? blockLegacySql(legacyDb, () => { runtime.legacySqlAttempts++; }) : legacyDb;
   // `accounts` needs the finished context; it is set right below, before any route can run.
   const ctx = {
     db,
@@ -250,6 +264,17 @@ export async function buildApp(
       ctx.officialBots?.noteAudit(e);
     },
   } as AppContext;
+  if (runtime) {
+    ctx.postgres = runtime;
+    app.addHook("onRequest", async (_req, reply) => {
+      if (!runtime.rows.available) return reply.code(503).send({error: {code: "database_unavailable", message: "The database connection is recovering"}});
+    });
+    app.addHook("onSend", async (_req, _reply, payload) => {
+      await runtime.rows.settled(); await runtime.relay.settled(); await runtime.files.settled();
+      return payload;
+    });
+    app.addHook("onClose", async () => runtime.close());
+  }
   // MongoDB holds the domains in MONGODB_DOMAINS; it refuses to start if that would split a domain between stores.
   if (config.mongo) {
     const mongo = opts.mongo ?? (await openMongo(config.mongo, db, app.log, config.databaseMode === "atlas"));
@@ -269,13 +294,13 @@ export async function buildApp(
     app.addHook("onClose", async () => ctx.redis?.close());
   }
   // Communities and conversations: authorisation reads them synchronously, wherever they live.
-  ctx.ws = await openWorkspaceRows(db, ctx.mongo, app.log);
+  ctx.ws = postgres?.rows ?? await openWorkspaceRows(db, ctx.mongo, app.log);
   ctx.authz = new Authz(ctx.ws);
-  ctx.identity = await openDomainRows(db, "identity", ctx.mongo, app.log);
-  ctx.platform = await openDomainRows(db, "platform", ctx.mongo, app.log);
-  ctx.fed = await openDomainRows(db, "federation", ctx.mongo, app.log);
-  ctx.safety = await openDomainRows(db, "safety", ctx.mongo, app.log);
-  ctx.ephemeral = await openDomainRows(db, "ephemeral", ctx.mongo, app.log);
+  ctx.identity = postgres?.rows ?? await openDomainRows(db, "identity", ctx.mongo, app.log);
+  ctx.platform = postgres?.rows ?? await openDomainRows(db, "platform", ctx.mongo, app.log);
+  ctx.fed = postgres?.rows ?? await openDomainRows(db, "federation", ctx.mongo, app.log);
+  ctx.safety = postgres?.rows ?? await openDomainRows(db, "safety", ctx.mongo, app.log);
+  ctx.ephemeral = postgres?.rows ?? await openDomainRows(db, "ephemeral", ctx.mongo, app.log);
   // Registered after the MongoDB client's own hook, so it runs before it (onClose hooks run last-in first-out): the rows
   // stop following other processes' writes while the client is still open.
   app.addHook("onClose", async () => {
@@ -299,7 +324,7 @@ export async function buildApp(
       return payload;
     });
   }
-  ctx.relay = ctx.mongo?.owns("relay") ? new MongoRelayStore(ctx.mongo, db, app.log) : new SqliteRelayStore(db);
+  ctx.relay = postgres?.relay ?? (ctx.mongo?.owns("relay") ? new MongoRelayStore(ctx.mongo, db, app.log) : new SqliteRelayStore(db));
   ctx.hub = new Hub(ctx.relay, config.abuse.wsMaxSocketsPerDevice, config.presence);
   if (ctx.redis) await ctx.redis.subscribe("preferences", (data) => {
     if (data.length > 8192) return;
@@ -309,7 +334,7 @@ export async function buildApp(
       ctx.hub.sendToUser(event.userId, { t: "prefs.updated", workspaceId: event.workspaceId, rev: Number(event.rev) });
     } catch { /* malformed transient metadata is ignored */ }
   });
-  ctx.files = opts.files ?? (ctx.mongo?.owns("files") ? new MongoFileStore(ctx.mongo, app.log) : new SqliteFileStore(db));
+  ctx.files = postgres?.files ?? opts.files ?? (ctx.mongo?.owns("files") ? new MongoFileStore(ctx.mongo, app.log) : new SqliteFileStore(db));
   if (ctx.files.backend === "postgres") {
     app.addHook("onSend", async (_req, _reply, payload) => {
       await ctx.files.settled();
@@ -321,41 +346,41 @@ export async function buildApp(
     const observer = opts.contracts;
     ctx.hub.observe = (e) => observer.frame(e);
   }
-  ctx.accounts = new Accounts(ctx, { mailer: opts.mailer });
-  ctx.prefs = ctx.mongo?.owns("preferences") ? new MongoPreferenceStore(ctx.mongo) : new SqlitePreferenceStore(db);
+  ctx.accounts = new Accounts(ctx, { mailer: opts.mailer, ...(postgres ? {store: postgres.accounts, recoveryStore: postgres.recovery, keyBackupStore: postgres.keys} : {}) });
+  ctx.prefs = postgres?.preferences ?? (ctx.mongo?.owns("preferences") ? new MongoPreferenceStore(ctx.mongo) : new SqlitePreferenceStore(db));
   if (ctx.redis) ctx.prefs = new CachedPreferenceStore(ctx.prefs, ctx.redis);
-  ctx.history = ctx.mongo?.owns("history") ? new MongoHistoryStore(ctx.mongo) : new SqliteHistoryStore(db);
+  ctx.history = postgres?.history ?? (ctx.mongo?.owns("history") ? new MongoHistoryStore(ctx.mongo) : new SqliteHistoryStore(db));
   // Server-stored messages live with message history (the "history" domain).
-  ctx.messages = ctx.mongo?.owns("history") ? new MongoMessageStore(ctx.mongo) : new SqliteMessageStore(db);
-  ctx.reports = ctx.mongo?.owns("reports") ? new MongoReportStore(ctx.mongo) : new SqliteReportStore(db);
-  ctx.relationships = ctx.mongo?.owns("relationships") ? new MongoRelationshipStore(ctx.mongo) : new SqliteRelationshipStore(db);
-  ctx.calls = ctx.mongo?.owns("calls") ? new MongoCallStore(ctx.mongo) : new SqliteCallStore(db);
+  ctx.messages = postgres?.messages ?? (ctx.mongo?.owns("history") ? new MongoMessageStore(ctx.mongo) : new SqliteMessageStore(db));
+  ctx.reports = postgres?.reports ?? (ctx.mongo?.owns("reports") ? new MongoReportStore(ctx.mongo) : new SqliteReportStore(db));
+  ctx.relationships = postgres?.relationships ?? (ctx.mongo?.owns("relationships") ? new MongoRelationshipStore(ctx.mongo) : new SqliteRelationshipStore(db));
+  ctx.calls = postgres?.calls ?? (ctx.mongo?.owns("calls") ? new MongoCallStore(ctx.mongo) : new SqliteCallStore(db));
   // API 0.56.0: new data, so MongoDB whenever the server has one (no domain to migrate).
-  const activityStore = ctx.mongo ? new MongoActivityStore(ctx.mongo) : new MemoryActivityStore();
+  const activityStore = postgres?.activity ?? (ctx.mongo ? new MongoActivityStore(ctx.mongo) : new MemoryActivityStore());
   if (activityStore instanceof MongoActivityStore) await activityStore.ensureIndexes();
   ctx.activity = new ActivityService(activityStore, app.log);
   ctx.activity.onChange = (userId) => announceActivity(ctx, userId);
   await ctx.activity.start();
   app.addHook("onClose", async () => ctx.activity.stop());
   // API 0.61.0: profile decorations people send in (docs/PROFILE_DECORATIONS.md), new data, so MongoDB whenever there is one.
-  const decorationStore = ctx.mongo ? new MongoDecorationStore(ctx.mongo) : new MemoryDecorationStore();
+  const decorationStore = postgres?.decorations ?? (ctx.mongo ? new MongoDecorationStore(ctx.mongo) : new MemoryDecorationStore());
   if (decorationStore instanceof MongoDecorationStore) await decorationStore.ensureIndexes();
   // API 0.65.0 (docs/SETTINGS_PARITY_API.md): favourites, privacy choices, username holds and points are new data too.
-  const favoriteStore = ctx.mongo ? new MongoFavoriteStore(ctx.mongo) : new MemoryFavoriteStore();
+  const favoriteStore = postgres?.favorites ?? (ctx.mongo ? new MongoFavoriteStore(ctx.mongo) : new MemoryFavoriteStore());
   if (favoriteStore instanceof MongoFavoriteStore) await favoriteStore.ensureIndexes();
   ctx.decorations = new DecorationService(ctx, decorationStore, favoriteStore);
   await ctx.decorations.load();
   // API 0.64.0: community pins (docs/PROFILE_PINS.md), new data, so MongoDB whenever there is one.
-  const pinStore = ctx.mongo ? new MongoPinStore(ctx.mongo) : new MemoryPinStore();
+  const pinStore = postgres?.pins ?? (ctx.mongo ? new MongoPinStore(ctx.mongo) : new MemoryPinStore());
   if (pinStore instanceof MongoPinStore) await pinStore.ensureIndexes();
   ctx.pins = new PinService(ctx, pinStore);
   await ctx.pins.load();
-  ctx.privacyChoices = ctx.mongo ? new MongoPrivacyStore(ctx.mongo) : new MemoryPrivacyStore();
-  const holdStore = ctx.mongo ? new MongoUsernameHoldStore(ctx.mongo) : new MemoryUsernameHoldStore();
+  ctx.privacyChoices = postgres?.privacy ?? (ctx.mongo ? new MongoPrivacyStore(ctx.mongo) : new MemoryPrivacyStore());
+  const holdStore = postgres?.holds ?? (ctx.mongo ? new MongoUsernameHoldStore(ctx.mongo) : new MemoryUsernameHoldStore());
   if (holdStore instanceof MongoUsernameHoldStore) await holdStore.ensureIndexes();
   ctx.usernames = new UsernameHolds(holdStore);
   await ctx.usernames.load();
-  const pointsStore = ctx.mongo ? new MongoPointsStore(ctx.mongo) : new MemoryPointsStore();
+  const pointsStore = postgres?.points ?? (ctx.mongo ? new MongoPointsStore(ctx.mongo) : new MemoryPointsStore());
   if (pointsStore instanceof MongoPointsStore) await pointsStore.ensureIndexes();
   ctx.points = new PointsService(ctx, pointsStore);
   await ctx.points.load();
@@ -364,14 +389,14 @@ export async function buildApp(
   await ctx.creators.load();
   ctx.linkedAccounts = await LinkedAccountsService.open(ctx);
   // API 0.65.0 batch B (docs/SETTINGS_PARITY_API.md): "Log in with Meldiq" apps and bots, new data too.
-  const oauthStore = ctx.mongo ? new MongoOAuthStore(ctx.mongo) : new MemoryOAuthStore();
+  const oauthStore = postgres?.oauth ?? (ctx.mongo ? new MongoOAuthStore(ctx.mongo) : new MemoryOAuthStore());
   if (oauthStore instanceof MongoOAuthStore) await oauthStore.ensureIndexes();
   ctx.oauth = new OAuthService(ctx, oauthStore);
-  const botStore = ctx.mongo ? new MongoBotStore(ctx.mongo) : new MemoryBotStore();
+  const botStore = postgres?.bots ?? (ctx.mongo ? new MongoBotStore(ctx.mongo) : new MemoryBotStore());
   if (botStore instanceof MongoBotStore) await botStore.ensureIndexes();
   ctx.bots = new BotService(ctx, botStore);
   // API 0.65.0 (docs/SETTINGS_PARITY_API.md): rules channels, the rules and who agreed to them, new data too.
-  const rulesStore = ctx.mongo ? new MongoRulesStore(ctx.mongo) : new MemoryRulesStore();
+  const rulesStore = postgres?.rules ?? (ctx.mongo ? new MongoRulesStore(ctx.mongo) : new MemoryRulesStore());
   if (rulesStore instanceof MongoRulesStore) await rulesStore.ensureIndexes();
   ctx.communityRules = new CommunityRules(ctx, rulesStore, config.communityRules);
   await ctx.communityRules.load();
@@ -417,7 +442,7 @@ export async function buildApp(
   ctx.botDirectory = new BotDirectory(ctx, config.discovery.botDirectory);
   ctx.reportSealer = ReportSealer.load(process.env, config.dataDir);
   // Billing (plans, subscriptions, Meldiq Spark, gifts): rows in SQLite, or MongoDB when MONGODB_DOMAINS includes it.
-  ctx.billing = new Billing(await openBillingRows(db, ctx.mongo, app.log), config.billing, app.log, Date.now, (id) => ctx.quotas.planExists(id));
+  ctx.billing = new Billing(postgres?.rows ?? await openBillingRows(db, ctx.mongo, app.log), config.billing, app.log, Date.now, (id) => ctx.quotas.planExists(id));
   if (ctx.billing.rows.backend === "mongodb") {
     app.addHook("onSend", async (_req, _reply, payload) => {
       await ctx.billing.rows.settled();
@@ -650,6 +675,7 @@ export async function buildApp(
         error: { code: "bad_request", message: (err as Error).message },
       });
     }
+    opts.onUnhandledError?.(err);
     req.log.error({ err }, "unhandled error");
     return reply.code(500).send({
       error: {
@@ -660,7 +686,8 @@ export async function buildApp(
   });
 
   app.get("/healthz", { config: { rateLimit: false } }, async (_req, reply) => {
-    db.prepare("SELECT 1").get();
+    if (postgres) await postgres.database.query("SELECT 1");
+    else db.prepare("SELECT 1").get();
     // MongoDB, when the server uses it: unreachable means the domains it holds can't be served.
     const mongodb = ctx.mongo ? await ctx.mongo.ping() : null;
     const redis = ctx.redis ? await ctx.redis.ping() : null;
@@ -803,6 +830,14 @@ export async function buildApp(
     await app.register(async (scope) => federationClientRoutes(scope, ctx, fed));
   }
   return { app, ctx };
+  } catch (error) {
+    if (opts.postgres) {
+      await app.close().catch(() => undefined);
+      await postgres?.close().catch(() => undefined);
+      legacyDb.close();
+    }
+    throw error;
+  }
 }
 
 /** Feature names in /v1/server-info (2026-10-17 onwards). */

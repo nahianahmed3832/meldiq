@@ -16,7 +16,7 @@ const code = (e: { error: { code: string } }) => e.error.code;
 let n = 0;
 const nextId = (what: string) => `${what}_rr_${++n}_${Date.now()}`;
 
-describe.each([
+describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
   ["sqlite", {}],
   ["mongodb", { MONGODB_DOMAINS: WORKSPACE_IN_MONGO }],
 ] as const)("reaction roles with communities in %s", (_backend, env) => {

@@ -47,7 +47,12 @@ function printEnrolment(code: string | null, email: string): void {
   console.log("Shown once, valid 30 minutes. Hand it over in person or on a channel you trust; it isn't stored readable anywhere.");
 }
 
-export async function runPlatformAdminCommand(cmd: string, args: string[], cfg: Config, db: DB): Promise<number> {
+export async function runPlatformAdminCommand(cmd: string, args: string[], cfg: Config, db: DB, runtime?: AppContext): Promise<number> {
+  // Embedded operator/test callers share the active writer instead of opening a competing PostgreSQL cache.
+  if (runtime) {
+    if (runtime.config !== cfg || runtime.db !== db) throw new Error("Operator context does not match its process configuration");
+    return run(cmd, args, cfg, db, runtime, runtime.accounts);
+  }
   const rows = await openCliRows(cfg, db);
   try {
     return await run(cmd, args, cfg, db, rows);
@@ -56,7 +61,7 @@ export async function runPlatformAdminCommand(cmd: string, args: string[], cfg: 
   }
 }
 
-async function run(cmd: string, args: string[], cfg: Config, db: DB, rows: CliRows): Promise<number> {
+async function run(cmd: string, args: string[], cfg: Config, db: DB, rows: Pick<CliRows, "platform" | "ephemeral">, activeAccounts?: Accounts): Promise<number> {
   const store = new PlatformAdminStore(rows.platform, rows.ephemeral);
   const audit = new PlatformAudit(rows.platform);
   if (cmd === "platform-audit-verify") {
@@ -73,7 +78,7 @@ async function run(cmd: string, args: string[], cfg: Config, db: DB, rows: CliRo
     console.error(USAGE[cmd]);
     return 2;
   }
-  const accounts = accountsFor(cfg, db, rows);
+  const accounts = activeAccounts ?? accountsFor(cfg, db, rows as CliRows);
   const account = await accounts.store.accountByEmail(email.trim().toLowerCase());
   if (cmd === "platform-admin-grant") {
     printEnrolment(await grantAdmin(store, audit, account, rest[0], CLI_ACTOR, rest.slice(1).join(" ") || null), email);

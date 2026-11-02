@@ -4,6 +4,8 @@ import pg, { type PoolClient, type QueryResultRow } from "pg";
 export interface PostgresConfig {
   url: string;
   environment: "development" | "staging" | "production";
+  /** Required by the staged application bootstrap for remote project identity checks. */
+  projectRef?: string;
   maxConnections?: number;
   ca?: string;
 }
@@ -26,6 +28,7 @@ export const safeTypes = {
 export class MeldiqPostgres {
   readonly pool: pg.Pool;
   private readonly context = new AsyncLocalStorage<PoolClient>();
+  private runtimeGuard?: () => void;
 
   constructor(readonly config: PostgresConfig) {
     const url = new URL(config.url);
@@ -45,11 +48,13 @@ export class MeldiqPostgres {
   connectionErrors = 0;
 
   async query<R extends QueryResultRow = QueryResultRow>(sql: string, values: unknown[] = []) {
+    this.runtimeGuard?.();
     return (this.context.getStore() ?? this.pool).query<R>(sql, values);
   }
 
   /** No automatic callback retries: callers may have performed non-transactional external work. */
   async transaction<T>(run: (client: PoolClient) => Promise<T>): Promise<T> {
+    this.runtimeGuard?.();
     const current = this.context.getStore();
     if (current) throw new Error("Nested PostgreSQL transactions require an explicit service boundary");
     const client = await this.pool.connect();
@@ -74,6 +79,11 @@ export class MeldiqPostgres {
   }
 
   metrics() { return { total: this.pool.totalCount, idle: this.pool.idleCount, waiting: this.pool.waitingCount, errors: this.connectionErrors }; }
+  installRuntimeGuard(guard: () => void): () => void {
+    if (this.runtimeGuard) throw new Error("A PostgreSQL application runtime is already attached");
+    this.runtimeGuard = guard;
+    return () => { if (this.runtimeGuard === guard) this.runtimeGuard = undefined; };
+  }
   async close() { await this.pool.end(); }
 }
 

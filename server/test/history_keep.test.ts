@@ -49,7 +49,8 @@ describe("encrypted message history", () => {
     after = await alice.req("GET", `/v1/history/items?after=${after.next}`);
     expect(after.items[0]).toMatchObject({ tag: t1, body: null });
     // Deletion markers are pruned after HISTORY_TOMBSTONE_DAYS (aged in whichever store holds history).
-    if (h.ctx.history.backend === "mongodb") await h.ctx.mongo!.db.collection("history_items").updateMany({ body: null }, { $set: { updated_at: 0 } });
+    if (h.ctx.postgres) await h.ctx.postgres.database.query("UPDATE meldiq.history_items SET updated_at = 0 WHERE body IS NULL");
+    else if (h.ctx.history.backend === "mongodb") await h.ctx.mongo!.db.collection("history_items").updateMany({ body: null }, { $set: { updated_at: 0 } });
     else h.ctx.db.prepare("UPDATE history_items SET updated_at = 0 WHERE body IS NULL").run();
     expect((await runCleanup(h.ctx)).historyTombstones).toBeGreaterThanOrEqual(1);
   });

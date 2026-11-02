@@ -46,7 +46,7 @@ const age = (h: Harness, c: GriipClient, days = 2) =>
 const quest = (view: PointsView, id: string) =>
   view.quests.find((q) => q.id === id)!;
 
-describe.each([
+describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
   ["memory", {}],
   ["mongodb", { MONGODB_DOMAINS: PRODUCTION_DOMAINS }],
 ] as const)("points kept in %s", (backend, env) => {

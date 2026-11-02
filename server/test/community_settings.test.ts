@@ -20,7 +20,7 @@ const read = (c: GriipClient, conv: string, upTo: number) => c.send(conv, { type
 const code = (e: { error: { code: string } }) => e.error.code;
 const QUESTIONS = { enabled: true, prompts: [{ title: "What brings you here?", required: true, options: [{ title: "Games" }, { title: "Art" }] }] };
 
-describe.each([
+describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
   ["sqlite", {}],
   ["mongodb", { MONGODB_DOMAINS: `${PRODUCTION_DOMAINS},workspace,conversations,calls` }],
 ] as const)("community settings kept in %s", (backend, env) => {

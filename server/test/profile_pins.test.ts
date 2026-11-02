@@ -49,7 +49,7 @@ type Pin = {
   community?: { id: string; name: string };
 };
 
-describe.each([
+describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
   ["memory", {}],
   ["mongodb", { MONGODB_DOMAINS: PRODUCTION_DOMAINS }],
 ] as const)("kept in %s", (backend, env) => {

@@ -72,7 +72,7 @@ describe("Wordy's game", () => {
   });
 });
 
-describe.each([
+describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
   ["sqlite", {}],
   ["mongodb", { MONGODB_DOMAINS: WORKSPACE_IN_MONGO }],
 ] as const)("official bots that play, in %s", (_backend, env) => {

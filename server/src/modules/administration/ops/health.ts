@@ -76,9 +76,17 @@ export async function storageCheck(ctx: AppContext): Promise<HealthReport["check
 
 export async function healthReport(ctx: AppContext, version: string): Promise<HealthReport> {
   const t = now();
-  const { db } = ctx;
-  const pageCount = (db.prepare("PRAGMA page_count").get() as { page_count: number }).page_count;
-  const pageSize = (db.prepare("PRAGMA page_size").get() as { page_size: number }).page_size;
+  let database: HealthReport["checks"]["database"];
+  if (ctx.postgres) {
+    try {
+      const result = await withTimeout(ctx.postgres.database.query<{size: number}>("SELECT pg_database_size(current_database()) AS size"), 3000);
+      database = {available: true, ok: true, sizeBytes: result.rows[0].size};
+    } catch {database = {available: false, reason: "database measurement unavailable"};}
+  } else {
+    const pageCount = (ctx.db.prepare("PRAGMA page_count").get() as {page_count: number}).page_count;
+    const pageSize = (ctx.db.prepare("PRAGMA page_size").get() as {page_size: number}).page_size;
+    database = {available: true, ok: true, sizeBytes: pageCount * pageSize};
+  }
   const relay = await ctx.relay.stats();
   const oldest = relay.oldestCreatedAt;
   const mem = process.memoryUsage();
@@ -88,7 +96,7 @@ export async function healthReport(ctx: AppContext, version: string): Promise<He
     generatedAt: t,
     uptimeSeconds: Math.round((Date.now() - started) / 1000),
     checks: {
-      database: { available: true, ok: true, sizeBytes: pageCount * pageSize },
+      database,
       mongodb: ctx.mongo ? { available: true, ok: await ctx.mongo.ping() } : { available: false, reason: "not configured" },
       livekit: { available: true, configured: !!ctx.livekit },
       storage: await storageCheck(ctx),

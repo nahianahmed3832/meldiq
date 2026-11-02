@@ -16,7 +16,7 @@ const STARTUP_MS = 120_000;
 const code = (e: { error: { code: string } }) => e.error.code;
 const about = "Someone keeps sending me spam in DMs";
 
-describe.each([
+describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
   ["sqlite", {}],
   ["mongodb", { MONGODB_DOMAINS: WORKSPACE_IN_MONGO }],
 ] as const)("tickets with communities in %s", (_backend, env) => {

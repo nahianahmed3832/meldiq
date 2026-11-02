@@ -4,7 +4,7 @@ import { fromBase32, stepAt, totpCode } from "../src/modules/accounts/totp.js";
 import { AccountClient, MemoryMailer, PASSWORD } from "./support/accounts.js";
 import { expectStatus, type Harness, startServer } from "./support/harness.js";
 
-for (const backend of ["sqlite", "mongodb"] as const) {
+for (const backend of process.env.MELDIQ_TEST_PG_URL ? ["postgres"] : ["sqlite", "mongodb"] as const) {
   describe(`one second factor for sign-in and key recovery (${backend})`, () => {
     let h: Harness;
     const mailer = new MemoryMailer();
