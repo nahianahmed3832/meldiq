@@ -13,6 +13,9 @@ import { type Harness, startServer } from "./support/harness.js";
 const PUBLIC = ["POST /admin/v1/auth/password", "POST /admin/v1/auth/passkey", "POST /admin/v1/auth/enrol/options", "POST /admin/v1/auth/enrol"];
 const SESSION_ONLY = ["GET /admin/v1/me", "POST /admin/v1/auth/logout", "POST /admin/v1/auth/reauth/options", "POST /admin/v1/auth/reauth"];
 const GUARDED: Record<string, Permission> = {
+  "GET /admin/v1/billing/promotions": "billing.view",
+  "PUT /admin/v1/billing/promotions": "billing.manage",
+  "GET /admin/v1/billing/pricing-migration": "billing.view",
   "GET /admin/v1/billing/gift-deliveries": "billing.view",
   "GET /admin/v1/billing/orders": "billing.view",
   "POST /admin/v1/billing/gifts/:id/resend": "billing.manage",

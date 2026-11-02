@@ -1,3 +1,4 @@
+import { PLUS_PRICE_MINOR, PLUS_TERMS, type PlusTerm } from "./pricing.js";
 import type { SparkPurchaseRow } from "./sparkPurchases.js";
 import { ApiError, conflict, notFound } from "../../shared/errors.js";
 import type { GiftRow, Gifts } from "./gifts.js";
@@ -35,7 +36,7 @@ export class PayPalCheckout {
   async start(
     starter: CheckoutStarter & { accountId: string },
     input:
-      | { product: "plus"; requestKey: string }
+      | { product: "plus"; requestKey: string; term?: PlusTerm }
       | { product: "bots_plus"; orgId: string; requestKey: string }
       | { product: "spark"; quantity: number; requestKey: string }
       | { product: "gift"; requestKey: string; recipientUserId?: string; recipient?: import("./giftDelivery.js").GiftTarget; months: number; note: string },
@@ -46,17 +47,18 @@ export class PayPalCheckout {
     }
     const price = input.product === "bots_plus"
       ? this.billing.offers("organization").find((offer) => offer.key === "bots_plus" && offer.interval === "month")
-      : this.gifts.price("plus", 1);
-    if (!price || price.currency !== "USD" || price.amountMinor !== 399) throw new ApiError(409, "billing_unavailable", "Publish the selected product at USD 3.99/month before checkout.");
+      : input.product === "plus" ? this.billing.offers("personal").find(o => o.key === "plus" && o.term === (input.term ?? "monthly")) : this.gifts.price("plus", 1);
+    if (!price || price.currency !== "USD" || price.amountMinor !== (input.product === "bots_plus" ? 399 : input.product === "plus" ? PLUS_TERMS[input.term ?? "monthly"].amountMinor : PLUS_PRICE_MINOR)) throw new ApiError(409, "billing_unavailable", "Publish the selected product at its approved monthly price before checkout.");
     let id: string;
     if (input.product === "plus" || input.product === "bots_plus") {
       const owner = input.product === "bots_plus" ? { kind: "org" as const, orgId: input.orgId } : { kind: "account" as const, accountId: starter.accountId };
       const pending = input.product === "bots_plus" ? this.billing.subscriptions.liveAddonForOwner(owner) : this.billing.subscriptions.liveForOwner(owner);
       if (pending?.provider === "paypal" && pending.status === "incomplete" && pending.checkout_id) {
+        if (input.product === "plus") { const v = this.billing.catalog.version(pending.plan_version_id)!; const desired = PLUS_TERMS[input.term ?? "monthly"]; if (v.interval !== desired.interval || (v.billing_frequency ?? 1) !== desired.billingFrequency) throw conflict("Review or cancel your pending subscription before choosing another billing interval."); }
         const resumed = await this.confirm(starter.accountId, pending.checkout_id, false);
         if (resumed.status !== "incomplete_expired") return resumed;
       }
-      const result = await this.billing.startOwnerCheckout(owner, starter, input.product, { returnUrl: this.billing.returnTo("web"), requestKey: input.requestKey });
+      const result = await this.billing.startOwnerCheckout(owner, starter, input.product, { returnUrl: this.billing.returnTo("web"), requestKey: input.requestKey, ...(input.product === "plus" ? { term: input.term } : {}) });
       id = result.checkoutId;
     } else {
       const result = await this.gifts.start(starter, { ...input, planKey: "plus" }, this.billing.returnTo("web"), input.requestKey);
@@ -113,7 +115,8 @@ export class PayPalCheckout {
       confirmed: !!sub && this.billing.subscriptions.grants(sub, Date.now()),
       currency: "USD" as const,
       amountMinor: this.billing.catalog.version(c.plan_version_id)!.amount_minor,
-      interval: "month" as const,
+      interval: this.billing.catalog.version(c.plan_version_id)!.interval,
+      billingFrequency: this.billing.catalog.version(c.plan_version_id)!.billing_frequency ?? 1,
       expiresAt: c.expires_at,
     };
   }

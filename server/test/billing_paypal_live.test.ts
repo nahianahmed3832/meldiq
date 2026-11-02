@@ -24,7 +24,7 @@ it("schedules the server-owned free period without a trial cycle or unpaid entit
   const now = Date.now(), start = now + 7 * 86400000;
   let created: any;
   const api = { request: vi.fn(async (method: string, path: string, body?: unknown) => {
-    if (path === "/v1/billing/plans/P-TEST") return { id: "P-TEST", status: "ACTIVE", billing_cycles: [{ tenure_type: "REGULAR", total_cycles: 0, frequency: { interval_unit: "MONTH", interval_count: 1 }, pricing_scheme: { fixed_price: { currency_code: "USD", value: "3.99" } } }] };
+    if (path === "/v1/billing/plans/P-TEST") return { id: "P-TEST", status: "ACTIVE", billing_cycles: [{ tenure_type: "REGULAR", total_cycles: 0, frequency: { interval_unit: "MONTH", interval_count: 1 }, pricing_scheme: { fixed_price: { currency_code: "USD", value: "4.99" } } }] };
     if (method === "POST") { created = body; return { ...created, id: "I-FUTURE", plan_id: "P-TEST", status: "APPROVAL_PENDING", links: [{ rel: "approve", href: "https://www.paypal.com/checkoutnow?token=TEST" }] }; }
     return { ...created, id: "I-FUTURE", status: "ACTIVE", links: [] };
   }) };
@@ -34,7 +34,7 @@ it("schedules the server-owned free period without a trial cycle or unpaid entit
   expect(created).not.toHaveProperty("plan");
   expect(await provider.fetchSubscription("I-FUTURE")).toMatchObject({ approvalConfirmed: true, status: "incomplete", currentPeriodEnd: null, trialEnd: start });
   expect(provider.supportsOneTimePurchases).toBe(false);
-  await expect(provider.createPaymentCheckout({ reference: "gift_fake", customerRef: null, owner: { kind: "account", id: "acc_fake" }, currency: "USD", amountMinor: 399, productName: "Gift", successUrl: "https://meldiq.test", cancelUrl: "https://meldiq.test" })).rejects.toThrow(/not enabled/);
+  await expect(provider.createPaymentCheckout({ reference: "gift_fake", customerRef: null, owner: { kind: "account", id: "acc_fake" }, currency: "USD", amountMinor: 499, productName: "Gift", successUrl: "https://meldiq.test", cancelUrl: "https://meldiq.test" })).rejects.toThrow(/not enabled/);
 });
 
 it("rejects Sandbox webhook certificates in live mode before verification traffic", async () => {

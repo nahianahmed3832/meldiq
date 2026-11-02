@@ -1,0 +1,70 @@
+{
+  "settings": {
+    "enabled": true,
+    "popupsEnabled": true,
+    "campaigns": [
+      {
+        "id": "open-internet-plus",
+        "name": "Support an open internet",
+        "active": true,
+        "heading": "Help keep Meldiq running",
+        "description": "We believe communication and sharing should remain accessible. Your Meldiq Plus subscription helps support the infrastructure, bandwidth, storage, and development behind an independent community platform.",
+        "image": null,
+        "presentation": "banner",
+        "trigger": "consistent_usage",
+        "minAccountDays": 3,
+        "minSessions": 3,
+        "minActiveDays": 2,
+        "minSessionSeconds": 60,
+        "maxImpressions": 3,
+        "maxPopups": 1,
+        "gapDays": 7,
+        "dismissalDays": 14,
+        "snoozeDays": 30,
+        "startsAt": null,
+        "endsAt": null,
+        "regions": [],
+        "cta": "Get Meldiq Plus",
+        "destination": "/settings/mojo",
+        "eligiblePlans": [
+          "free"
+        ],
+        "experiment": null
+      }
+    ]
+  },
+  "revision": 1,
+  "metrics": {
+    "windowDays": 30,
+    "impressions": 1,
+    "dismissals": 0,
+    "clicks": 0,
+    "conversions": 0,
+    "snoozes": 0,
+    "optOuts": 1,
+    "complaints": 0,
+    "checkoutStarts": 0,
+    "checkoutAbandonment": 0,
+    "pricingVisits": 0,
+    "cancellations": 0,
+    "refunds": 0,
+    "dismissalRate": 0,
+    "conversionRate": 0,
+    "repeatedDismissals": 0,
+    "banners": 1,
+    "cards": 0,
+    "popups": 0,
+    "variants": [
+      {
+        "variant": "control",
+        "impressions": 1,
+        "conversions": 0
+      },
+      {
+        "variant": "treatment",
+        "impressions": 0,
+        "conversions": 0
+      }
+    ]
+  }
+}

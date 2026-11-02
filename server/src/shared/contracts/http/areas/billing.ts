@@ -1,3 +1,5 @@
+import { z } from "zod/v4";
+import { ActivityBody, ClaimBody, EventBody, OptOutBody, PromotionClaim, PromotionCurrent, PromotionId, PromotionAdminBody, PromotionAdminResult } from "../promotions.js";
 import {
   PayPalConfig,
   PayPalCheckoutBody,
@@ -33,6 +35,15 @@ import { route, type RouteContract } from "../route.js";
 const tag = "Billing";
 
 export const billingRoutes: readonly RouteContract[] = [
+ route({ method: "POST", url: "/v2/billing/reminders/renewal", tag, summary: "One informational reminder per Plus agreement period within 72 hours of renewal or expiry.", auth: true, body: z.strictObject({sessionId:z.string().uuid(),claim:z.boolean().default(true)}), response: z.strictObject({notice:z.object({id:z.string(),autoRenew:z.boolean(),endsAt:z.number(),amountMinor:z.number().nullable(),currency:z.string().nullable(),months:z.number().nullable(),expiresAt:z.number()}).nullable()}) }),
+  route({ method: "POST", url: "/v2/billing/promotions/activity", tag, summary: "Record coarse active-session counts after onboarding.", auth: true, body: ActivityBody, response: z.strictObject({ recorded: z.boolean() }) }),
+  route({ method: "POST", url: "/v2/billing/promotions/claim", tag, summary: "Atomically reserve one eligible promotion; backend failure suppresses presentation.", auth: true, body: ClaimBody, response: PromotionClaim }),
+  route({ method: "GET", url: "/v2/billing/promotions/:id", tag, summary: "Withdraw a promotion after kill switch, opt-out, checkout or upgrade.", auth: true, params: PromotionId, response: PromotionCurrent }),
+  route({ method: "POST", url: "/v2/billing/promotions/events", tag, summary: "Idempotent feedback on an owned impression.", auth: true, body: EventBody, response: z.strictObject({ ok: z.literal(true) }) }),
+  route({ method: "GET", url: "/v2/billing/promotions/preference", tag, summary: "Read the account-wide promotional opt-out preference.", auth: true, response: OptOutBody }),
+  route({ method: "PUT", url: "/v2/billing/promotions/preference", tag, summary: "Synchronize an account's promotional opt-out across devices.", auth: true, body: OptOutBody, response: OptOutBody }),
+  route({ method: "GET", url: "/admin/v1/billing/promotions", tag, scheme: "console", requires: "admin_console", summary: "Campaign settings and user-experience guardrail metrics.", auth: true, response: PromotionAdminResult }),
+  route({ method: "PUT", url: "/admin/v1/billing/promotions", tag, scheme: "console", requires: "admin_console", summary: "Audited, revision-checked campaign configuration; cannot change subscription pricing.", auth: true, body: PromotionAdminBody, response: PromotionAdminResult }),
   route({ method: "GET", url: "/v2/billing/paypal/config", tag, summary: "Public Sandbox SDK configuration (no credentials or tokens).", auth: true, response: PayPalConfig }),
   route({
     method: "POST",

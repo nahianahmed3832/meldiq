@@ -1,0 +1,2 @@
+import { z } from "zod/v4";
+export const PlusTermView = z.object({ key: z.enum(["monthly", "quarterly", "yearly"]), months: z.number().int().positive(), amountMinor: z.number().int().positive(), currency: z.literal("USD"), interval: z.enum(["month", "year"]), billingFrequency: z.number().int().positive(), savingsMinor: z.number().int().nonnegative(), monthlyEquivalentMinor: z.number().int(), savingsPercent: z.number(), available: z.boolean().optional() });

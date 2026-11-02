@@ -1,3 +1,4 @@
+import { PLUS_PRICE_MINOR } from "../billing/index.js";
 import type { AppContext } from "../../app/context.js";
 import { searchUsers } from "../accounts/index.js";
 import { networkKey } from "../../app/middleware/abuse.js";
@@ -338,7 +339,8 @@ export class AdminMojo {
   private publishedPrices() {
     const of = (key: string) => {
       const plan = this.ctx.billing.catalog.byKey(key);
-      return (plan && this.ctx.billing.catalog.current(plan.id)?.amount_minor) ?? null;
+      const version = plan && this.ctx.billing.catalog.current(plan.id);
+      return key === "plus" && version?.amount_minor !== PLUS_PRICE_MINOR ? null : version?.amount_minor ?? null;
     };
     return { go: of("go"), plus: of("plus"), spark: of("spark") };
   }
@@ -350,6 +352,7 @@ export class AdminMojo {
    * clients show changes with it. Without a provider only the list price changes. Audited with before and after.
    */
   async setPrices(p: AdminPrincipal, b: { go: number; plus: number; reason: string }, meta: RequestMeta) {
+    if (b.plus !== PLUS_PRICE_MINOR) throw new ApiError(400, "bad_request", "Meldiq Plus is fixed at USD 4.99 monthly.");
     const controls = this.ctx.billing.mojoControls;
     const before = controls.state();
     const listBefore = plansWith(before.plans);
@@ -366,7 +369,7 @@ export class AdminMojo {
         prices = result.prices;
         steps.push(...result.steps);
       } catch (e) {
-        this.ctx.log.error({ err: e }, "admin: changing Mojo prices at the provider failed");
+        this.ctx.log.error({ err: e }, "admin: changing Meldiq Plus prices at the provider failed");
         throw new ApiError(503, "unavailable", "The payment provider couldn't change the prices. Nothing in Meldiq changed; try again.");
       }
       const grace = readSiteDetails(this.ctx.platform).policies.failedPaymentGraceDays ?? 0;

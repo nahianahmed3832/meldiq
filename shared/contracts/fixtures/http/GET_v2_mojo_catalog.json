@@ -1,5 +1,5 @@
 {
-  "version": "2026-11-01.2",
+  "version": "2026-11-02.plus-499",
   "units": {
     "mb": 1000000,
     "gb": 1000000000
@@ -7,7 +7,7 @@
   "plans": [
     {
       "key": "free",
-      "name": "Free",
+      "name": "Meldiq Free",
       "listPriceMinor": 0,
       "messageChars": 2000,
       "uploadBytes": 50000000,
@@ -23,8 +23,8 @@
     },
     {
       "key": "plus",
-      "name": "Mojo Plus",
-      "listPriceMinor": 399,
+      "name": "Meldiq Plus",
+      "listPriceMinor": 499,
       "messageChars": 8000,
       "uploadBytes": 1024000000,
       "screen": [
@@ -146,7 +146,7 @@
     "go": null,
     "plus": {
       "currency": "USD",
-      "amountMinor": 399
+      "amountMinor": 499
     },
     "spark": {
       "currency": "USD",
@@ -154,5 +154,43 @@
     },
     "botsPlus": null,
     "gifts": true
-  }
+  },
+  "plusTerms": [
+    {
+      "key": "monthly",
+      "months": 1,
+      "amountMinor": 499,
+      "interval": "month",
+      "billingFrequency": 1,
+      "currency": "USD",
+      "savingsMinor": 0,
+      "monthlyEquivalentMinor": 499,
+      "savingsPercent": 0.0,
+      "available": true
+    },
+    {
+      "key": "quarterly",
+      "months": 3,
+      "amountMinor": 1299,
+      "interval": "month",
+      "billingFrequency": 3,
+      "currency": "USD",
+      "savingsMinor": 198,
+      "monthlyEquivalentMinor": 433,
+      "savingsPercent": 13.23,
+      "available": false
+    },
+    {
+      "key": "yearly",
+      "months": 12,
+      "amountMinor": 4999,
+      "interval": "year",
+      "billingFrequency": 1,
+      "currency": "USD",
+      "savingsMinor": 989,
+      "monthlyEquivalentMinor": 417,
+      "savingsPercent": 16.52,
+      "available": false
+    }
+  ]
 }

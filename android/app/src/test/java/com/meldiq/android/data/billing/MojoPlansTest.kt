@@ -58,7 +58,7 @@ class MojoPlansTest {
         val e = ent("go", provider = "google_play")
         assertEquals(PlanAction.Buy(upgrade = true, replacing = "mojo_go"), MojoPlans.action("plus", e, true))
         assertEquals(PlanAction.CancelInPlay, MojoPlans.action("free", e, true))
-        assertEquals(PlanAction.Buy(upgrade = false, replacing = "mojo_plus"), MojoPlans.action("go", ent("plus", provider = "google_play"), true))
+        assertEquals(PlanAction.Unavailable, MojoPlans.action("go", ent("plus", provider = "google_play"), true))
     }
 
     @Test
@@ -72,7 +72,7 @@ class MojoPlansTest {
     fun `a trial or gift without a subscription can be followed by a purchase`() {
         val e = ent("plus")
         assertEquals(PlanAction.Included, MojoPlans.action("free", e, true))
-        assertEquals(PlanAction.Buy(upgrade = false, replacing = null), MojoPlans.action("go", e, true))
+        assertEquals(PlanAction.Unavailable, MojoPlans.action("go", e, true))
     }
 
     @Test
@@ -126,7 +126,7 @@ class MojoPlansTest {
         assertNull(PlayProducts.gift("free", 1))
         assertEquals("go", PlayProducts.planFor("mojo_go"))
         assertEquals(3, PlayProducts.sparkQuantity("spark_3"))
-        assertEquals(6, PlayProducts.ONE_TIME.size)
+        assertEquals(3, PlayProducts.ONE_TIME.size)
         assertEquals(
             "https://play.google.com/store/account/subscriptions?sku=mojo_plus&package=com.meldiq.android",
             PlayProducts.manageUrl("com.meldiq.android", "mojo_plus"),

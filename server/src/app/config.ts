@@ -16,10 +16,8 @@ import { type LinkedAccountsConfig, linkedAccountsConfig } from "../modules/link
 
 const SEVEN_DAYS_S = 7 * 24 * 3600;
 const MiB = 1024 * 1024;
-/**
- * Server-wide ceiling: 1024 MB (decimal), before encryption. Applies immediately to every plan and Spark level.
- */
-export const DEFAULT_FILE_MAX_BYTES = 1024 * 1_000_000;
+/** Absolute plaintext ceiling: 1 GB in decimal bytes, regardless of a configured plan's larger legacy value. */
+export const DEFAULT_FILE_MAX_BYTES = 1_000_000_000;
 /** Room for encryption overhead on top of the file limit: the chunked format adds 16 bytes per 1 MiB chunk. */
 const ENCRYPTION_HEADROOM_BYTES = MiB;
 

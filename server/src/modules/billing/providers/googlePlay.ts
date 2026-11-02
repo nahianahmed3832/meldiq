@@ -13,13 +13,15 @@ export const PLAY_PROVIDER = "google_play";
 
 /** What each Play Console product is (the ids the owner creates; the Android app uses the same, PlayProducts.kt). */
 export type PlayProduct =
-  | { kind: "plan"; planKey: "go" | "plus" }
+  | { kind: "plan"; planKey: "go" | "plus"; term?: "monthly" | "quarterly" | "yearly" }
   | { kind: "spark"; quantity: number }
   | { kind: "gift"; planKey: "go" | "plus"; months: 1 | 3 | 12 };
 
 export const PLAY_PRODUCTS: Readonly<Record<string, PlayProduct>> = {
   mojo_go: { kind: "plan", planKey: "go" },
-  mojo_plus: { kind: "plan", planKey: "plus" },
+  mojo_plus: { kind: "plan", planKey: "plus", term: "monthly" },
+  mojo_plus_quarterly: { kind: "plan", planKey: "plus", term: "quarterly" },
+  mojo_plus_yearly: { kind: "plan", planKey: "plus", term: "yearly" },
   // Google Play can't sell one subscription in a chosen quantity: each Spark pack is its own product, and a person
   // switches between packs (a plan change) rather than holding several.
   spark_1: { kind: "spark", quantity: 1 },

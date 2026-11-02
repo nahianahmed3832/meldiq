@@ -133,8 +133,8 @@ describe("keeping files for history", () => {
 });
 
 describe("keeping every file for good (ATTACHMENT_KEEP_FOREVER, the default since API 0.66.0)", () => {
-  it("never expires a new upload, keeps files stored before the setting, and keeps what the retention job sees", async () => {
-    const s = await startServer({});
+  it("preserves legacy encrypted-relay retention, files stored before the setting, and explicit history keep", async () => {
+    const s = await startServer({ MESSAGES_ACCEPT_ENCRYPTED: "true" });
     try {
       const x = await s.client("forevera");
       const y = await s.client("foreverb");

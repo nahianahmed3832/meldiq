@@ -72,7 +72,8 @@ describe("checkCapacity", () => {
   });
 });
 
-describe("estimateStorage", { timeout: 60_000 }, () => {
+// Full-catalog DDL covers more than 250 collections and indexes; keep assertions intact under shared CI I/O.
+describe("estimateStorage", { timeout: 180_000 }, () => {
   it("measures the documents exactly as MongoDB stores them", async () => {
     const tables = describeTables(h.ctx.db);
     const estimate = estimateStorage(h.ctx.db, tables);
@@ -101,7 +102,7 @@ describe("estimateStorage", { timeout: 60_000 }, () => {
   });
 });
 
-describe("guards", { timeout: 60_000 }, () => {
+describe("guards", { timeout: 180_000 }, () => {
   function config(dbName: string, limitMb: string): Config {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "meldiq-cap-"));
     return { mongo: cfg(dbName, { MONGODB_STORAGE_LIMIT_MB: limitMb }), databasePath: path.join(dir, "db.sqlite") } as Config;

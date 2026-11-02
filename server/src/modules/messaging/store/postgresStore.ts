@@ -54,11 +54,13 @@ export class PostgresMessageStore implements MessageStore {
     if (!messages.length) return [];
     const targeted = (await this.db.query<MessageEvent>(`SELECT ${columns} FROM meldiq.message_events WHERE conversation_id=$1 AND ${visible}
       AND cls='control' AND target=ANY($3::text[]) ORDER BY server_ts,id`, [conversationId,viewer,messages.map(m=>m.id)])).rows;
-    const reads = (await this.db.query<MessageEvent>(`SELECT ${columns} FROM (
+    return pageChanges(targeted,await this.readReceipts(conversationId,viewer));
+  }
+  async readReceipts(conversationId: string, viewer: string): Promise<MessageEvent[]> {
+    return (await this.db.query<MessageEvent>(`SELECT ${columns} FROM (
       SELECT DISTINCT ON(sender_user_id) * FROM meldiq.message_events WHERE conversation_id=$1 AND sender_user_id<>$2
       AND cls='control' AND type='read' AND audience='all' ORDER BY sender_user_id,server_ts DESC,id DESC
       ) latest ORDER BY server_ts DESC,id DESC LIMIT $3`, [conversationId,viewer,PAGE_READERS])).rows;
-    return pageChanges(targeted,reads);
   }
   async search(ids: readonly string[], query: string, limit: number): Promise<MessageEvent[]> {
     if (!ids.length || !query.trim()) return [];

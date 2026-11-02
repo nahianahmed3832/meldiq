@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { badRequest } from "../errors.js";
+import { withinJsonBudget } from "./jsonBudget.js";
 
 /**
- * Anything with Zod's safeParse: routes and shared contracts use the patched Zod 4 runtime and produce the same
- * bounded 400 response here.
+ * Anything with Zod's safeParse: route and shared-contract schemas produce the same 400 here.
  */
 export interface Schema<T> {
   safeParse(data: unknown):
@@ -13,6 +13,7 @@ export interface Schema<T> {
 
 /** Request validation shared by every route: the parsed value, or a 400 listing what's wrong (docs/architecture/ARCHITECTURE_1_0_PLAN.md §4). */
 export function parse<T>(schema: Schema<T>, data: unknown): T {
+  if (!withinJsonBudget(data)) throw badRequest("Request structure is too complex to validate safely");
   const r = schema.safeParse(data);
   if (!r.success) {
     throw badRequest(

@@ -32,7 +32,7 @@ describe("card renewal lifecycle with isolated provider boundary", () => {
  const provider = new PayPalProvider({ environment: "sandbox", clientId: "test", clientSecret: "private", webhookId: "hook", merchantId: "MERCHANT", plusPlanId: "P-PLUS", subscriptionsApproved: true, api, cardCapabilities: { oneTime: true, vault: true, recurring: true, merchantCountry: "CN", productionApproved: false, reason: null } });
  beforeAll(async () => {
   h = await startServer({ PLATFORM_SECRETS_KEY: secretKey.toString("hex"), WORKFLOW_TICK_MS: "0" }, { mailer, billingProvider: provider });
-  const v = await h.ctx.billing.catalog.create("plus", { name: "Plus", description: "Plus", segment: "personal", public: true, audience: "personal" }, { interval: "month", currency: "USD", amountMinor: 399, providerPriceRef: "P-PLUS", trialDays: 0, graceDays: 3, limits: {}, notes: "" }, "test", now);
+  const v = await h.ctx.billing.catalog.create("plus", { name: "Plus", description: "Plus", segment: "personal", public: true, audience: "personal" }, { interval: "month", currency: "USD", amountMinor: 499, providerPriceRef: "P-PLUS", trialDays: 0, graceDays: 3, limits: {}, notes: "" }, "test", now);
   await h.ctx.billing.catalog.publish(v.id, "paypal", "test", now);
   service = new CardSubscriptions(h.ctx.billing, new CardVault(h.ctx.billing.rows, provider, new SecretBox(secretKey), "https://example.com/settings/billing", () => now), () => now);
   h.ctx.billing.cardSubscriptions = service;

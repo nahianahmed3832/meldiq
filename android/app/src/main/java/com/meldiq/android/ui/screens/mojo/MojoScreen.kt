@@ -59,13 +59,19 @@ fun MojoScreen(nav: NavHostController) {
     val scope = rememberCoroutineScope()
     val ctx = LocalContext.current
     var giftOpen by remember { mutableStateOf(false) }
+    var plusPurchase by remember { mutableStateOf<MojoPurchase.Plan?>(null) }
 
     LaunchedEffect(Unit) { mojo.refresh() }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { scope.launch { mojo.reconcile() } }
 
-    fun buy(purchase: MojoPurchase) {
+    fun launchPurchase(purchase: MojoPurchase) {
         val activity = ctx.findActivity() ?: return
         scope.launch { mojo.prepare(purchase)?.let { mojo.launch(activity, it) } }
+    }
+
+    fun buy(purchase: MojoPurchase) {
+        if (purchase is MojoPurchase.Plan && purchase.planKey == MojoPlans.PLUS) plusPurchase = purchase
+        else launchPurchase(purchase)
     }
 
     fun openPlay(productId: String?) {
@@ -117,6 +123,7 @@ fun MojoScreen(nav: NavHostController) {
             )
         }
     }
+    plusPurchase?.let { purchase -> if (catalog != null) PlusBillingSheet(catalog, state.offers, state.busy != null, onBuy = { product -> plusPurchase = null; launchPurchase(purchase.copy(productId = product)) }, onDismiss = { plusPurchase = null }) }
     if (giftOpen && catalog != null) {
         GiftSheet(catalog, state.offers, me = container.session.session?.userId, busy = state.busy != null, onBuy = { buy(it); giftOpen = false }, onDismiss = { giftOpen = false })
     }

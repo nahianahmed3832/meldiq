@@ -4,7 +4,7 @@ import { indexesFor, type TableSpec, tableSpecs, validatorFor } from "./catalog.
 import { type MongoConfig, type MongoDomain } from "./config.js";
 
 /** Bumped whenever the collections' validators or indexes change; recorded in orbit_meta. */
-export const MONGO_SCHEMA_VERSION = 7;
+export const MONGO_SCHEMA_VERSION = 10;
 export const META_COLLECTION = "orbit_meta";
 
 export interface Logger {
@@ -73,6 +73,10 @@ export class MeldiqMongo {
     await Promise.all(Array.from({ length: Math.min(4, tables.length) }, async () => {
       while (next < tables.length) {
         const t = tables[next++];
+        // Idempotent metadata backfill: historical monthly/yearly agreements always had frequency one.
+        // Run before tightening the validator; no prices, references or agreement dates are changed.
+        if (t.name === "billing_plan_versions" && existing.has(t.name) && t.columns.some(c => c.name === "billing_frequency"))
+          await this.db.collection(t.name).updateMany({ billing_frequency: { $exists: false } }, { $set: { billing_frequency: 1 } });
         const validator = validatorFor(t);
         const options = existing.get(t.name);
         if (!options) await this.db.createCollection(t.name, { validator, validationLevel: "strict", validationAction: "error" });

@@ -43,7 +43,11 @@ export class MongoFileStore implements FileStore {
   }
 
   async keep(id: string, expiresAt: number): Promise<void> {
-    await this.attachments.updateOne({ _id: id }, { $set: { kept: 1, expires_at: expiresAt } });
+    await this.attachments.updateOne({ _id: id }, { $set: { kept: 1, expires_at: expiresAt, pending_message_until: null } });
+  }
+
+  async publish(id: string, messageId: string, expiresAt?: number): Promise<void> {
+    await this.attachments.updateOne({ _id: id }, [{ $set: { message_id: { $ifNull: ["$message_id", messageId] }, pending_message_until: null, ...(expiresAt !== undefined ? { expires_at: expiresAt } : {}) } }]);
   }
 
   async storedUsage(f: UsageFilter): Promise<Usage> {
@@ -98,7 +102,7 @@ export class MongoFileStore implements FileStore {
   }
 
   async keepAllForever(now: number): Promise<number> {
-    return (await this.attachments.updateMany({ expires_at: { $gt: now, $lt: KEPT_FOREVER } }, { $set: { expires_at: KEPT_FOREVER } })).modifiedCount;
+    return (await this.attachments.updateMany({ expires_at: { $gt: now, $lt: KEPT_FOREVER }, pending_message_until: null }, { $set: { expires_at: KEPT_FOREVER } })).modifiedCount;
   }
 
   async purgeExpired(now: number): Promise<string[]> {

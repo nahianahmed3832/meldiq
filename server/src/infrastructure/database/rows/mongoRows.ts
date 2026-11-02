@@ -202,7 +202,11 @@ export class MongoRows extends MemoryRows {
       if (row) {
         const withRowid = spec.primaryKey.length ? row : { ...row, rowid: Number(key.slice(2)) };
         const doc = toDocument(spec, withRowid);
-        list.push({ replaceOne: { filter: { _id: doc._id as never }, replacement: doc, upsert: true } });
+        if (table === "billing_promotion_state" || table === "billing_promotion_settings") {
+          const before = this.state(table).rows.get(key);
+          if (before) list.push({ replaceOne: { filter: { _id: doc._id as never, revision: before.revision }, replacement: doc, upsert: false } });
+          else list.push({ insertOne: { document: doc } });
+        } else list.push({ replaceOne: { filter: { _id: doc._id as never }, replacement: doc, upsert: true } });
       } else {
         const before = this.state(table).rows.get(key);
         if (!before) continue; // inserted and deleted in the same unit
@@ -214,7 +218,11 @@ export class MongoRows extends MemoryRows {
       const session = this.mongo.session();
       const lsid = session?.id?.id;
       if (lsid) this.ownSessions.add(lsid.toString("hex"));
-      for (const [table, list] of ops) if (list.length) await this.mongo.db.collection<Document>(table).bulkWrite(list, { ordered: true, session });
+      for (const [table, list] of ops) if (list.length) {
+        const result = await this.mongo.db.collection<Document>(table).bulkWrite(list, { ordered: true, session });
+        if ((table === "billing_promotion_state" || table === "billing_promotion_settings") && result.matchedCount + result.insertedCount !== list.length)
+          throw new Error("Promotion state changed concurrently; suppress this presentation and retry after synchronization");
+      }
       for (const [table, last] of counters) {
         if (!this.specs.get(table)!.autoincrement) continue;
         await this.mongo.db

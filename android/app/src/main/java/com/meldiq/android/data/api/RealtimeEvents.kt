@@ -81,6 +81,9 @@ sealed interface ServerEvent {
     @Serializable data class MeetingUpdated(val orgId: String, val meetingId: String? = null, val startsAt: Long? = null) : ServerEvent
     @Serializable data class MeetingSoon(val orgId: String? = null, val meetingId: String, val startsAt: Long? = null) : ServerEvent
 
+    /** Typed compatibility with the server’s private, ephemeral bot response. */
+    @Serializable data class InteractionReply(val interactionId: String, val conversationId: String, val botId: String, val command: String, val content: String, val at: Long) : ServerEvent
+
     /** A frame this app version doesn't know (a newer server). Ignored. */
     data class Unknown(val t: String) : ServerEvent
 }
@@ -116,6 +119,7 @@ object RealtimeCodec {
     private val wire = Json(GriipJson) { classDiscriminator = "t" }
 
     private val serializers: Map<String, KSerializer<out ServerEvent>> = mapOf(
+        "interaction.reply" to ServerEvent.InteractionReply.serializer(),
         "hello" to ServerEvent.Hello.serializer(),
         "pong" to ServerEvent.Pong.serializer(),
         "queue" to ServerEvent.Queue.serializer(),

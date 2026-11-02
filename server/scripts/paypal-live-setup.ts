@@ -1,3 +1,4 @@
+throw new Error("This setup is retired. Use paypal-plus-v2-setup.ts to prepare a new versioned $4.99 plan. Existing agreements must not be repriced.");
 /** Explicit operator setup. Never approves/captures a payment or changes an existing customer's subscription.
  * node --env-file=/private/paypal-live.env --import tsx scripts/paypal-live-setup.ts --live --env-file=/private/paypal-live.env
  */

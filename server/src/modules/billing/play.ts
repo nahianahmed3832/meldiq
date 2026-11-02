@@ -1,5 +1,6 @@
 import type { FastifyBaseLogger } from "fastify";
 import { ApiError, badRequest, conflict, notFound } from "../../shared/errors.js";
+import { isOfficialPlus } from "./pricing.js";
 import { newId } from "../../shared/utilities/util.js";
 import type { VersionRow } from "./catalog.js";
 import type { PlayConfig } from "./config.js";
@@ -97,7 +98,7 @@ export class PlayBilling {
     if (!p || p.kind === "gift") return null;
     const plan = this.billing.catalog.byKey(p.kind === "plan" ? p.planKey : SPARK_PLAN_KEY);
     if (!plan) return null;
-    return this.billing.catalog.current(plan.id) ?? this.billing.catalog.versions(plan.id).find((v) => v.published_at !== null) ?? null;
+    return this.billing.catalog.current(plan.id, p.kind === "plan" ? p.term : undefined) ?? this.billing.catalog.versions(plan.id).find((v) => v.published_at !== null && (p.kind !== "plan" || !p.term || v.interval === (p.term === "yearly" ? "year" : "month") && (v.billing_frequency ?? 1) === (p.term === "quarterly" ? 3 : 1))) ?? null;
   }
 
   /** Whether Mojo Go or Plus can be bought on Google Play (their plans are published in the catalog). */
@@ -108,7 +109,8 @@ export class PlayBilling {
   /** Records what the person is about to buy on Google Play and answers what the app passes to Google's sheet. */
   async intent(starter: { accountId: string; userId: string | null }, input: PlayIntentInput): Promise<{ reference: string; accountToken: string }> {
     const product = playProduct(input.productId);
-    if (!product || (product.kind !== "spark" && product.planKey === "go")) throw notFound("Mojo Go is no longer offered. Choose Mojo Plus.");
+    if (!product || (product.kind !== "spark" && product.planKey === "go")) throw notFound("Legacy Go is no longer offered. Choose Meldiq Plus.");
+    if (product.kind === "plan" && product.planKey === "plus") { const v = this.versionFor(input.productId); if (!v || !isOfficialPlus({ currency: v.currency, amountMinor: v.amount_minor, interval: v.interval, billingFrequency: v.billing_frequency })) throw notFound("This Plus billing interval is not available yet"); }
     if (product.kind !== input.kind) throw badRequest(`${input.productId} isn't a ${input.kind}`);
     const reference =
       product.kind === "gift"
@@ -120,7 +122,7 @@ export class PlayBilling {
   private async startCheckout(owner: BillingOwner & { kind: "account" }, starter: { userId: string | null }, productId: string, product: PlayProduct, replacing: string | null): Promise<string> {
     const version = this.versionFor(productId);
     const plan = version ? this.billing.catalog.plan(version.plan_id) : null;
-    if (!version || !plan || plan.audience !== "personal") throw new ApiError(409, "billing_unavailable", "Mojo isn't on sale yet");
+    if (!version || !plan || plan.audience !== "personal") throw new ApiError(409, "billing_unavailable", "Meldiq Plus isn't on sale yet");
     const live = product.kind === "spark" ? this.billing.subscriptions.liveAddonForOwner(owner) : this.billing.subscriptions.liveForOwner(owner);
     if (live && live.provider !== PLAY_PROVIDER) throw new ApiError(409, "billed_elsewhere", "This is billed on meldiq.app: change it there");
     if (live && !replacing) throw conflict("You have this on Google Play already: change it there instead");

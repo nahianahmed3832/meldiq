@@ -65,7 +65,7 @@ function subscription(o: { id: string; price: string; checkout: string; customer
   };
 }
 
-describe("Meldiq Mojo", () => {
+describe("Meldiq Plus", () => {
   let h: Harness;
   const mailer = new MemoryMailer();
   const stripe = new FakeStripe();
@@ -131,7 +131,7 @@ describe("Meldiq Mojo", () => {
       { mailer, billingProvider: provider },
     );
     await publish("go", "price_go", 199);
-    await publish("plus", "price_plus", 399);
+    await publish("plus", "price_plus", 499);
     await publish("spark", "price_spark", 99);
     [free, go, plus, friend] = await Promise.all(["free", "goer", "pluser", "friend"].map((n) => AccountClient.ready(h.baseUrl, mailer, n)));
     orgId = (await free.req("POST", "/v1/orgs", { name: "Spark Lab" })).org.id;
@@ -151,22 +151,22 @@ describe("Meldiq Mojo", () => {
       expect(MojoCatalog.safeParse(c).success).toBe(true);
       expect(c.plans.map((p: any) => [p.key, p.messageChars, p.uploadBytes, p.sparks, p.customItems, p.bots, p.badge, p.check])).toEqual([
         ["free", 2000, 50 * MB, 0, 20, 2, null, false],
-        ["plus", 8000, 1024 * MB, 2, 250, 10, "plus", true],
+        ["plus", 8000, 1000 * MB, 2, 250, 10, "plus", true],
       ]);
       expect(c.spark.levels.map((l: any) => [l.level, l.sparks, l.emojiSlots, l.uploadBytes, l.voiceKbps, l.screen])).toEqual([
         [0, 0, 50, null, 48, []],
         // The owner's thresholds (2026-10-28): 2, 5 and 8 active Sparks in total.
         [1, 2, 100, 50 * MB, 128, ["720p30"]],
         [2, 5, 200, 200 * MB, 256, ["1080p60"]],
-        [3, 8, 500, 1024 * MB, 384, ["1080p60", "1440p30"]],
+        [3, 8, 500, 1000 * MB, 384, ["1080p60", "1440p30"]],
       ]);
-      expect(c.onSale).toEqual({ mode: "test", go: null, plus: { currency: "USD", amountMinor: 399 }, spark: { currency: "USD", amountMinor: 99 }, gifts: true, botsPlus: null });
+      expect(c.onSale).toEqual({ mode: "test", go: null, plus: { currency: "USD", amountMinor: 499 }, spark: { currency: "USD", amountMinor: 99 }, gifts: true, botsPlus: null });
     });
 
     it("never offers a larger file than the server takes (FILE_MAX_BYTES)", () => {
       const capped = new Mojo(h.ctx.billing, h.ctx.billing.rows, { isMember: () => false, enforce: "on", maxUploadBytes: 1_073_741_824 });
-      expect(Object.values(capped.plans()).map((p) => p.uploadBytes)).toEqual([50 * MB, 500 * MB, 1024 * MB]);
-      expect(capped.levels().map((l) => l.uploadBytes)).toEqual([null, 50 * MB, 200 * MB, 1024 * MB]);
+      expect(Object.values(capped.plans()).map((p) => p.uploadBytes)).toEqual([50 * MB, 500 * MB, 1000 * MB]);
+      expect(capped.levels().map((l) => l.uploadBytes)).toEqual([null, 50 * MB, 200 * MB, 1000 * MB]);
       expect(capped.uploadBytes("u_nobody", null)).toBe(50 * MB);
     });
 
@@ -297,7 +297,7 @@ describe("Meldiq Mojo", () => {
       for (let i = 0; i < 3; i++) await free.req("POST", "/v2/mojo/sparks", { orgId });
       expect((await sparksOf(free)).level).toBe(2);
       expect(h.ctx.mojo.uploadBytes(free.userId, orgId)).toBe(200 * MB);
-      expect(h.ctx.mojo.uploadBytes(plus.userId, null)).toBe(1024 * MB);
+      expect(h.ctx.mojo.uploadBytes(plus.userId, null)).toBe(1000 * MB);
     });
 
     it("gives everyone in a boosted server its screen shares and voice, never less than their own plan", () => {
@@ -331,7 +331,7 @@ describe("Meldiq Mojo", () => {
   });
 
   describe("enforcement", () => {
-    it("applies plan limits once Mojo is on sale (MOJO_ENFORCE=auto), and keeps everyone's old limits until then", async () => {
+    it("applies plan limits once Meldiq Plus is on sale (MOJO_ENFORCE=auto), and keeps everyone's old limits until then", async () => {
       // This server has Stripe and published plans: enforced.
       expect(h.ctx.mojo.enforced()).toBe(true);
       const plain = await startServer({ WORKFLOW_TICK_MS: "0" }, { mailer });
@@ -383,7 +383,7 @@ describe("Meldiq Mojo", () => {
       expect(session.params).toMatchObject({
         mode: "payment",
         client_reference_id: started.giftId,
-        line_items: [{ quantity: 1, price_data: { currency: "usd", unit_amount: 399 * 3 } }],
+        line_items: [{ quantity: 1, price_data: { currency: "usd", unit_amount: 1299 } }],
         success_url: `${WEB_RETURN}?gift=success`,
       });
       expect((await me(friend)).gifts.received).toEqual([]);

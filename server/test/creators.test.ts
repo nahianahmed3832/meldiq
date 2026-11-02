@@ -211,12 +211,12 @@ describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
       const page = await support.browser.expect(200, "GET", "/admin/v1/creators/posts");
       expect(AdminCreatorPostsPage.safeParse(page).success).toBe(true);
       expect(page.posts.map((p: { id: string }) => p.id)).toContain(post.id);
-      const reviewed = await support.browser.expect(200, "POST", `/admin/v1/creators/posts/${post.id}/review`, { counted: true, rewardNote: "One month of Mojo Go" });
+      const reviewed = await support.browser.expect(200, "POST", `/admin/v1/creators/posts/${post.id}/review`, { counted: true, rewardNote: "One month of Legacy Go" });
       expect(AdminCreatorPostReviewed.safeParse(reviewed).success).toBe(true);
       expect((await support.browser.expect(200, "GET", "/admin/v1/creators/posts?status=counted")).posts.map((p: { id: string }) => p.id)).toContain(post.id);
 
       const mine = await ada.req("GET", "/v2/creators/posts");
-      expect(mine.posts[0]).toMatchObject({ id: post.id, counted: true, rewardNote: "One month of Mojo Go" });
+      expect(mine.posts[0]).toMatchObject({ id: post.id, counted: true, rewardNote: "One month of Legacy Go" });
       expect((await ada.req("GET", "/v2/creators/program")).posts[0].counted).toBe(true);
     });
 

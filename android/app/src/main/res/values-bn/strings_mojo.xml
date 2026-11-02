@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Meldiq Mojo strings (docs/MOJO_ANDROID.md). Generated from strings_mojo.py. -->
 <resources>
-    <string name="mojo_title">Meldiq Mojo</string>
+    <string name="mojo_title">Meldiq Plus</string>
     <string name="mojo_entry_sub_free">বড় ফাইল, লম্বা মেসেজ, আরও পরিষ্কার স্ক্রিন শেয়ার</string>
     <string name="mojo_entry_sub_plan">আপনি %1$s-এ আছেন</string>
-    <string name="mojo_kicker">MELDIQ MOJO</string>
+    <string name="mojo_kicker">MELDIQ PLUS</string>
     <string name="mojo_headline">আরও জায়গা। আরও দূরে।</string>
     <string name="mojo_headline_accent">আরও Meldiq।</string>
-    <string name="mojo_hero_body">কথা বলার জন্য যা দরকার সব ফ্রি। Mojo হলো বড় ফাইল, লম্বা মেসেজ, পরিষ্কার স্ট্রিম আর ব্যাজের জন্য।</string>
+    <string name="mojo_hero_body">কথা বলার জন্য যা দরকার সব ফ্রি। Meldiq Plus হলো বড় ফাইল, লম্বা মেসেজ, পরিষ্কার স্ট্রিম আর ব্যাজের জন্য।</string>
     <string name="mojo_on_free">আপনি ফ্রি প্ল্যানে আছেন</string>
     <string name="mojo_on_plan">আপনি %1$s-এ আছেন</string>
     <string name="mojo_renews_on">%1$s তারিখে নবায়ন হবে</string>
@@ -79,7 +79,7 @@
     <string name="mojo_spark_pack_buy">%1$s/মাস দিয়ে কিনুন</string>
     <string name="mojo_spark_pack_note">প্রতিটি প্যাক Google Play-তে একটি মাসিক সাবস্ক্রিপশন। একবারে একটি প্যাকই রাখা যায়: বদলালে সাথে সাথে বদলায়, আর পুরোনোটির বাকি অংশ Google ক্রেডিট দেয়। প্ল্যান শেষ হলেও বাড়তি Spark আপনারই থাকবে।</string>
     <string name="mojo_spark_level_cap">সার্ভার সর্বোচ্চ লেভেল ৩ পর্যন্ত যায়: এক সার্ভারে আরও Spark দিলে কিছু বাড়ে না। বাড়তিগুলো অন্য সার্ভারের জন্য রাখুন।</string>
-    <string name="mojo_gift_title">বন্ধুকে Mojo উপহার দিন</string>
+    <string name="mojo_gift_title">বন্ধুকে Meldiq Plus উপহার দিন</string>
     <string name="mojo_gift_body">একবার পেমেন্ট, সরাসরি তাদের অ্যাকাউন্টে, আপনার একটি নোটসহ। ১ মাস, ৩ মাস বা ১ বছর। কখনো নবায়ন হয় না।</string>
     <string name="mojo_gift_open">উপহার দিন</string>
     <string name="mojo_gift_who">কার জন্য?</string>
@@ -91,7 +91,7 @@
     <string name="mojo_gift_year">১ বছর</string>
     <string name="mojo_gift_note">একটি নোট যোগ করুন (ঐচ্ছিক)</string>
     <string name="mojo_gift_buy">%1$s দিয়ে উপহার কিনুন</string>
-    <string name="mojo_gift_policy">তারা Meldiq-এ এটি পাবেন এবং যখন খুশি শুরু করবেন; কখনো নবায়ন হয় না। তাদের আগে থেকে ফ্রি Mojo সময় থাকলে, সেটি শেষ হওয়ার পর উপহার শুরু হবে।</string>
+    <string name="mojo_gift_policy">তারা Meldiq-এ এটি পাবেন এবং যখন খুশি শুরু করবেন; কখনো নবায়ন হয় না। তাদের আগে থেকে ফ্রি Meldiq Plus সময় থাকলে, সেটি শেষ হওয়ার পর উপহার শুরু হবে।</string>
     <string name="mojo_gift_unavailable">এই উপহারটি এখনো Google Play-তে বিক্রি হচ্ছে না</string>
     <string name="mojo_notice_confirmed">ধন্যবাদ! এখন এটি আপনার অ্যাকাউন্টে আছে।</string>
     <string name="mojo_notice_gift_sent">উপহারের পেমেন্ট হয়েছে। আপনার বন্ধু Meldiq-এ এটি পাবেন।</string>
@@ -107,7 +107,7 @@
     <string name="mojo_err_setup">কেনাকাটা এখনো চালু হয়নি। পরে আবার চেষ্টা করুন।</string>
     <string name="mojo_err_other">Google Play-তে কোনো সমস্যা হয়েছে। আবার চেষ্টা করুন।</string>
     <string name="mojo_loading">প্ল্যান লোড হচ্ছে…</string>
-    <string name="mojo_unavailable">এই সার্ভারে এখনো Meldiq Mojo নেই।</string>
+    <string name="mojo_unavailable">এই সার্ভারে এখনো Meldiq Plus নেই।</string>
     <string name="mojo_retry">আবার চেষ্টা করুন</string>
     <string name="mojo_play_missing">Google Play-তে এখনো কেনা চালু হয়নি। প্রতিটি প্ল্যানে কী আছে তা দেখতে পারেন।</string>
     <string name="mojo_why_title">সাবস্ক্রিপশন কেন?</string>
@@ -116,11 +116,11 @@
     <string name="mojo_fine_print">পেমেন্ট নেয় Google Play, আপনার দেশে যে পদ্ধতিগুলো আছে সেগুলো দিয়ে; Meldiq কখনো আপনার কার্ড দেখে না। Google Play-তে বাতিল না করা পর্যন্ত সাবস্ক্রিপশন প্রতি মাসে নবায়ন হয়।</string>
     <string name="mojo_composer_left">বাকি %1$d</string>
     <string name="mojo_composer_over">আপনার প্ল্যানের %2$s থেকে %1$d বেশি</string>
-    <string name="mojo_composer_upgrade">Mojo দেখুন</string>
+    <string name="mojo_composer_upgrade">Meldiq Plus দেখুন</string>
     <string name="mojo_spark_give">একটি Spark দিন</string>
     <string name="mojo_spark_pick_server">কোন সার্ভার?</string>
     <string name="mojo_spark_none_free">আপনার সব Spark দেওয়া হয়ে গেছে। একটি ফিরিয়ে নিন বা আরও নিন।</string>
-    <string name="mojo_spark_none">আপনার এখনো কোনো Spark নেই। Mojo Go-তে ১টি আর Mojo Plus-এ ২টি থাকে, অথবা আলাদা করে নিন।</string>
+    <string name="mojo_spark_none">আপনার এখনো কোনো Spark নেই। Legacy Go-তে ১টি আর Meldiq Plus-এ ২টি থাকে, অথবা আলাদা করে নিন।</string>
     <string name="mojo_spark_free_n">%1$dটি দেওয়ার জন্য তৈরি</string>
     <string name="mojo_spark_paused">বিরতিতে: আপনি যত Spark দিয়েছেন তার চেয়ে কম আছে</string>
     <string name="mojo_spark_left_server">আপনি এই সার্ভার ছেড়েছেন</string>
@@ -137,7 +137,7 @@
     <string name="mojo_spark_wont_raise">এই সার্ভার ইতিমধ্যে লেভেল ৩-এ: আরেকটি Spark এখানে কিছু যোগ করবে না।</string>
     <string name="mojo_spark_open">Meldiq Spark</string>
     <string name="mojo_spark_see_plans">Spark নিন</string>
-    <string name="mojo_badge_title">আমার Mojo ব্যাজ দেখান</string>
+    <string name="mojo_badge_title">আমার Meldiq Plus ব্যাজ দেখান</string>
     <string name="mojo_badge_sub">লুকালে শুধু অন্যরা কী দেখেন তা বদলায়।</string>
     <string name="mojo_gifts_received">আপনার জন্য উপহার</string>
     <string name="mojo_gifts_sent">আপনার পাঠানো উপহার</string>

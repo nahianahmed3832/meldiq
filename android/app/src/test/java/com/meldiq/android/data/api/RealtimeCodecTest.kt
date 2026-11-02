@@ -29,11 +29,11 @@ class RealtimeCodecTest {
         ?: error("docs/api/realtime.schema.json not found above ${File("").absolutePath}")
 
     private fun variants(union: String): List<JsonObject> =
-        schema.getValue("\$defs").jsonObject.getValue(union).jsonObject.getValue("anyOf").jsonArray.flatMap(::flatten)
+        schema.getValue("\$defs").jsonObject.getValue(union).jsonObject.let { (it["oneOf"] ?: it.getValue("anyOf")).jsonArray.flatMap(::flatten) }
 
     private fun flatten(e: JsonElement): List<JsonObject> {
         val o = e.jsonObject
-        return o["anyOf"]?.jsonArray?.flatMap(::flatten) ?: listOf(o)
+        return (o["oneOf"] ?: o["anyOf"])?.jsonArray?.flatMap(::flatten) ?: listOf(o)
     }
 
     private fun typeOf(variant: JsonObject): String =

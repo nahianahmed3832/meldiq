@@ -358,8 +358,10 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
   app.get("/v1/orgs/:orgId/photo", auth, async (req, reply) => {
     const { userId } = me(req);
     const { orgId } = parse(OrgParams, req.params);
-    authz.requireOrgMember(orgId, userId);
-    const rev = orgRow(orgId).photo_rev as number | null;
+    const org = ws.get<{ visibility: string; photo_rev: number | null }>("orgs", { id: orgId });
+    // Discovery previews use the same signed-in public-community access as banners.
+    if (!org || (org.visibility !== "public" && !authz.orgRole(orgId, userId)) || authz.isBanned(orgId, userId)) throw notFound("No photo");
+    const rev = org.photo_rev;
     const stream = rev ? await ctx.blobs.get("profile-photos", photoBlobId(orgId, rev)) : null;
     if (!stream) throw notFound("No photo");
     const { type, body } = await withImageType(stream);

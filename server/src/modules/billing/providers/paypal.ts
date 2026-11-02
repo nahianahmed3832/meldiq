@@ -1,3 +1,4 @@
+import { PLUS_TERMS, type PlusTerm } from "../pricing.js";
 import type { PayPalCardCapabilities } from "./paypalCapabilities.js";
 import { z } from "zod/v4";
 import { ApiError } from "../../../shared/errors.js";
@@ -101,6 +102,9 @@ export interface PayPalOptions {
   giftsEnabled?: boolean;
   sparksEnabled?: boolean;
   botsPlanId?: string | null;
+  plusProductId?: string | null;
+  quarterlyPlanId?: string | null;
+  yearlyPlanId?: string | null;
   clientId: string;
   clientSecret: string;
   webhookId: string;
@@ -133,6 +137,19 @@ export class PayPalProvider implements BillingProvider {
   readonly supportsSparkPurchases: boolean;
   readonly api: PayPalApi;
   private readonly clock: () => number;
+  /** Bound to immutable published catalog versions; never infer legacy amounts from the new price. */
+  agreementTerms: (priceRef: string) => number | null = () => null;
+  agreementMonths: (priceRef: string) => number | null = () => null;
+  plusPlanId(term: PlusTerm = "monthly"): string | null { return term === "quarterly" ? this.options.quarterlyPlanId ?? null : term === "yearly" ? this.options.yearlyPlanId ?? null : this.options.plusPlanId; }
+  private plusTerm(priceRef: string): PlusTerm | null { return (["monthly", "quarterly", "yearly"] as const).find(k => this.plusPlanId(k) === priceRef) ?? null; }
+  private periodMonths(ref: string) { const key = this.plusTerm(ref); return this.agreementMonths(ref) ?? (key ? PLUS_TERMS[key].months : 1); }
+  private agreementAmount(priceRef: string): number {
+    const amount = this.agreementTerms(priceRef);
+    if (amount !== null) return amount;
+    const term = this.plusTerm(priceRef); if (term) return PLUS_TERMS[term].amountMinor;
+    if (priceRef === this.options.botsPlanId) return 399; // historical agreements only
+    throw new Error("Unknown PayPal agreement plan");
+  }
   constructor(readonly options: PayPalOptions) {
     this.environment = options.environment ?? "sandbox";
     this.mode = this.environment === "live" ? "live" : "test";
@@ -151,7 +168,7 @@ export class PayPalProvider implements BillingProvider {
       environment: this.environment,
       clientId: this.options.clientId,
       subscriptions:
-        this.options.subscriptionsApproved && (!!this.options.plusPlanId || !!this.options.botsPlanId),
+        this.options.subscriptionsApproved && (!!this.options.plusPlanId || !!this.options.quarterlyPlanId || !!this.options.yearlyPlanId || !!this.options.botsPlanId),
       sparks: this.supportsSparkPurchases,
       botsPlus: this.options.subscriptionsApproved && !!this.options.botsPlanId,
       cards: false as const,
@@ -161,6 +178,8 @@ export class PayPalProvider implements BillingProvider {
 
   /** Reject a misconfigured remote plan before asking any buyer to approve it. No price overrides or trials. */
   private async verifyRecurringPlan(planId: string | null): Promise<void> {
+    const key = planId ? this.plusTerm(planId) : null;
+    const expected = key ? PLUS_TERMS[key] : { amountMinor: 399, interval: "month", billingFrequency: 1 };
     if (!this.options.subscriptionsApproved || !planId)
       throw new ApiError(
         409,
@@ -170,6 +189,7 @@ export class PayPalProvider implements BillingProvider {
     const plan = z
       .object({
         id: ref,
+        product_id: ref.optional(),
         status: z.literal("ACTIVE"),
         quantity_supported: z.boolean().optional(),
         billing_cycles: z
@@ -178,13 +198,13 @@ export class PayPalProvider implements BillingProvider {
               tenure_type: z.literal("REGULAR"),
               total_cycles: z.literal(0),
               frequency: z.object({
-                interval_unit: z.literal("MONTH"),
-                interval_count: z.literal(1),
+                interval_unit: z.enum(["MONTH", "YEAR"]),
+                interval_count: z.number().int().positive(),
               }),
               pricing_scheme: z.object({
                 fixed_price: z.object({
                   currency_code: z.literal("USD"),
-                  value: z.literal("3.99"),
+                  value: z.string(),
                 }),
               }),
             }),
@@ -203,6 +223,10 @@ export class PayPalProvider implements BillingProvider {
       );
     if (
       plan.id !== planId ||
+      cents(plan.billing_cycles[0]!.pricing_scheme.fixed_price.value) !== expected.amountMinor ||
+      plan.billing_cycles[0]!.frequency.interval_unit !== expected.interval.toUpperCase() ||
+      plan.billing_cycles[0]!.frequency.interval_count !== expected.billingFrequency ||
+      (key !== null && this.options.plusProductId != null && plan.product_id !== this.options.plusProductId) ||
       plan.quantity_supported ||
       (plan.payment_preferences?.setup_fee &&
         cents(plan.payment_preferences.setup_fee.value) !== 0) ||
@@ -211,16 +235,16 @@ export class PayPalProvider implements BillingProvider {
       throw new ApiError(
         409,
         "billing_unavailable",
-        "The PayPal plan does not match Meldiq USD 3.99/month pricing.",
+        "The PayPal plan does not match Meldiq Plus USD 4.99/month pricing.",
       );
   }
 
-  verifyPlusPlan(): Promise<void> { return this.verifyRecurringPlan(this.options.plusPlanId); }
+  verifyPlusPlan(term: PlusTerm = "monthly"): Promise<void> { return this.verifyRecurringPlan(this.plusPlanId(term)); }
   verifyBotsPlan(): Promise<void> { return this.verifyRecurringPlan(this.options.botsPlanId ?? null); }
 
   async createCheckout(input: CheckoutInput) {
     if (
-      ![this.options.plusPlanId, this.options.botsPlanId].includes(input.priceRef) ||
+      ![this.options.plusPlanId, this.options.quarterlyPlanId, this.options.yearlyPlanId, this.options.botsPlanId].includes(input.priceRef) ||
       (input.priceRef === this.options.botsPlanId ? input.owner.kind !== "org" : input.owner.kind !== "account") ||
       (input.quantity && input.quantity !== 1) ||
       input.trialDays
@@ -399,14 +423,14 @@ export class PayPalProvider implements BillingProvider {
     );
     if (
       s.id !== id ||
-      ![this.options.plusPlanId, this.options.botsPlanId].includes(s.plan_id) ||
+      this.agreementAmount(s.plan_id) <= 0 ||
       s.plan_overridden ||
       (s.quantity && s.quantity !== "1")
     )
       throw new Error("Unexpected PayPal subscription terms");
     const info = s.billing_info;
     const paidAt = at(info?.last_payment?.time);
-    if (info?.last_payment && cents(info.last_payment.amount.value) !== 399)
+    if (info?.last_payment && cents(info.last_payment.amount.value) !== this.agreementAmount(s.plan_id))
       throw new Error("Unexpected PayPal subscription payment");
     const anchor = at(s.start_time);
     const completedCycles = info?.cycle_executions?.find(
@@ -414,7 +438,7 @@ export class PayPalProvider implements BillingProvider {
     )?.cycles_completed;
     const cycleEnd =
       anchor !== null && completedCycles
-        ? addMonths(anchor, completedCycles)
+        ? addMonths(anchor, completedCycles * this.periodMonths(s.plan_id))
         : null;
     const nextBilling = at(info?.next_billing_time);
     const paidUntil =
@@ -424,7 +448,7 @@ export class PayPalProvider implements BillingProvider {
           ? nextBilling
           : cycleEnd !== null && Number.isFinite(cycleEnd)
             ? cycleEnd
-            : addMonths(paidAt, 1);
+            : addMonths(paidAt, this.periodMonths(s.plan_id));
     const now = this.clock();
     const canceled = s.status === "CANCELLED";
     let status: SubscriptionStatus = "incomplete";
@@ -603,7 +627,7 @@ export class PayPalProvider implements BillingProvider {
         .parse(event.resource);
       const sub = await this.fetchSubscription(sale.billing_agreement_id);
       const amount = cents(sale.amount.total);
-      if (amount !== 399) throw new Error("Unexpected PayPal renewal amount");
+      if (amount !== this.agreementAmount(sub.priceRef)) throw new Error("Unexpected PayPal renewal amount");
       return {
         ...base,
         kind: "batch",

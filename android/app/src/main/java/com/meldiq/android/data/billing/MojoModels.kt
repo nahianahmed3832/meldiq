@@ -9,6 +9,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class MojoCatalog(
     val version: String = "",
+    val plusTerms: List<PlusTerm> = emptyList(),
     val plans: List<PlanPerks> = emptyList(),
     val screenPresets: List<ScreenPreset> = emptyList(),
     val spark: SparkCatalog = SparkCatalog(),
@@ -235,3 +236,6 @@ data class PlayVerifyReq(val productId: String, val purchaseToken: String)
 /** `granted`, `pending` (Google hasn't been paid yet), `already_linked` (another account owns this purchase) or `invalid`. */
 @Serializable
 data class PlayVerifyRes(val status: String, val entitlements: Entitlements? = null)
+
+/** Server-approved terms; localized charge and savings are calculated from Google Play's actual prices. */
+@Serializable data class PlusTerm(val key: String, val months: Int, val amountMinor: Int, val currency: String, val interval: String, val billingFrequency: Int, val savingsMinor: Int = 0, val monthlyEquivalentMinor: Int = 0, val savingsPercent: Double = 0.0)

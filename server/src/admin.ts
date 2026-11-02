@@ -1,3 +1,4 @@
+import { PLUS_TERMS, type PlusTerm } from "./modules/billing/pricing.js";
 import { seedCollectionArtwork } from "./modules/accounts/collectibles/seedAssets.js";
 import { collectibleBlobIsReferenced } from "./modules/accounts/collectibles/assetReferences.js";
 /**
@@ -477,30 +478,33 @@ switch (cmd) {
   case "billing-paypal-plus": {
     const provider = cfg.billing.provider;
     if (!(provider instanceof PayPalProvider) || !rest.includes("--publish")) throw new Error("Configured PayPal provider and --publish required");
-    await provider.verifyPlusPlan();
+    const term = (rest.find(x => x.startsWith("--term="))?.slice(7) ?? "monthly") as PlusTerm;
+    if (!(term in PLUS_TERMS)) throw new Error("Choose monthly, quarterly or yearly");
+    const approved = PLUS_TERMS[term];
+    await provider.verifyPlusPlan(term);
     const mongo = cfg.mongo ? await openMongo(cfg.mongo, db, undefined, cfg.databaseMode === "atlas") : undefined;
     const rows = await openBillingRows(db, mongo, console);
     const platform = await openDomainRows(db, "platform", mongo, console);
     try {
       const catalog = new PlanCatalog(rows);
       let plan = catalog.byKey("plus");
-      const current = plan && catalog.current(plan.id);
-      if (current?.provider === "paypal" && current.provider_price_ref === provider.options.plusPlanId) {
+      const current = plan && catalog.current(plan.id, term);
+      if (current?.provider === "paypal" && current.amount_minor === approved.amountMinor && current.provider_price_ref === provider.plusPlanId(term)) {
         console.log("Plus already published");
         break;
       }
       const terms = {
-        ...(current ? termsOf(current) : { limits: {}, quotaPlanId: null, notes: "", graceDays: readSiteDetails(platform).policies.failedPaymentGraceDays ?? 0 }),
-        interval: "month" as const, currency: "USD", amountMinor: 399, providerPriceRef: provider.options.plusPlanId!, trialDays: 0,
+        ...((current ?? (plan && catalog.current(plan.id))) ? termsOf((current ?? catalog.current(plan!.id))!) : { limits: {}, quotaPlanId: null, notes: "", graceDays: readSiteDetails(platform).policies.failedPaymentGraceDays ?? 0 }),
+        interval: approved.interval, billingFrequency: approved.billingFrequency, currency: "USD", amountMinor: approved.amountMinor, providerPriceRef: provider.plusPlanId(term)!, trialDays: 0,
       };
-      if (!plan) plan = await catalog.create("plus", { name: "Mojo Plus", description: "", segment: "personal", public: true, audience: "personal" }, terms, "cli", now());
+      if (!plan) plan = await catalog.create("plus", { name: "Meldiq Plus", description: "", segment: "personal", public: true, audience: "personal" }, terms, "cli", now());
       else {
         if (!plan.public || plan.audience !== "personal" || plan.status === "archived") throw new Error("Existing Plus plan is not publicly purchasable");
         await catalog.saveDraft(plan.id, terms, "cli", now());
       }
       const result = await catalog.publish(plan.id, "paypal", "cli", now());
-      await new PlatformAudit(platform).record({ action: "billing.paypal.plus.publish", outcome: "success", actorRole: "operator", targetType: "billing_plan", targetId: plan.id, reason: "Owner authorized live Plus sales", detail: { mode: provider.mode, amountMinor: 399, currency: "USD", version: result.published.version } });
-      console.log("Published Plus USD 3.99/month; existing grants and other plans preserved");
+      await new PlatformAudit(platform).record({ action: "billing.paypal.plus.publish", outcome: "success", actorRole: "operator", targetType: "billing_plan", targetId: plan.id, reason: "Owner authorized live Plus sales", detail: { mode: provider.mode, amountMinor: approved.amountMinor, currency: "USD", version: result.published.version } });
+      console.log(`Published Meldiq Plus ${term}: ${approved.amountMinor} USD cents per ${approved.months} months; existing agreements preserved`);
     } finally {
       await rows.settled(); await rows.close(); await platform.settled(); await platform.close(); await mongo?.close();
     }

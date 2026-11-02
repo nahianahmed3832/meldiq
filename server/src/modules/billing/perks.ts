@@ -7,7 +7,8 @@
  *
  * Plan numbers: the owner's Free/Go/Plus spec of 2026-10-30 (docs/PLANS.md), replacing those of 2026-10-28.
  */
-export const CATALOG_VERSION = "2026-11-01.2";
+import { PRICING, PRICING_VERSION } from "./pricing.js";
+export const CATALOG_VERSION = PRICING_VERSION;
 
 export const PLAN_KEYS = ["free", "go", "plus"] as const;
 export type PlanKey = (typeof PLAN_KEYS)[number];
@@ -72,15 +73,15 @@ export interface PlanPerks {
 
 export const PLAN_PERKS: Readonly<Record<PlanKey, PlanPerks>> = {
   free: {
-    key: "free", name: "Free", listPriceMinor: 0, messageChars: 2000, uploadBytes: 50 * MB, screen: ["720p60"], sparks: 0, badge: null, check: false,
+    key: "free", name: PRICING.free.name, listPriceMinor: PRICING.free.amountMinor, messageChars: 2000, uploadBytes: 50 * MB, screen: ["720p60"], sparks: 0, badge: null, check: false,
     customItems: 20, bots: 2, botReview: "regular",
   },
   go: {
-    key: "go", name: "Mojo Go", listPriceMinor: 199, messageChars: 4000, uploadBytes: 500 * MB, screen: ["1080p60"], sparks: 1, badge: "go", check: false,
+    key: "go", name: "Legacy Go", listPriceMinor: 199, messageChars: 4000, uploadBytes: 500 * MB, screen: ["1080p60"], sparks: 1, badge: "go", check: false,
     customItems: 50, bots: 4, botReview: "regular",
   },
   plus: {
-    key: "plus", name: "Mojo Plus", listPriceMinor: 399, messageChars: 8000, uploadBytes: 1024 * MB, screen: ["1440p60"], sparks: 2, badge: "plus", check: true,
+    key: "plus", name: PRICING.plus.name, listPriceMinor: PRICING.plus.amountMinor, messageChars: 8000, uploadBytes: 1024 * MB, screen: ["1440p60"], sparks: 2, badge: "plus", check: true,
     customItems: 250, bots: 10, botReview: "priority",
   },
 };

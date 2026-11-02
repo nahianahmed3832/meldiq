@@ -1,3 +1,5 @@
+import { pricingMigrationReport } from "../billing/index.js";
+import { PromotionAdminBody } from "../../shared/contracts/http/promotions.js";
 import type { FastifyInstance } from "fastify";
 import {
   AdminAccountParams,
@@ -73,6 +75,16 @@ export default async function adminOpsRoutes(app: FastifyInstance, d: AdminDeps)
   });
 
   // ── Billing: catalog, subscriptions, provider events, figures (docs/BILLING.md) ──
+  app.get("/admin/v1/billing/pricing-migration", needs("billing.view"), async () => pricingMigrationReport(d.ctx.billing));
+  app.get("/admin/v1/billing/promotions", needs("billing.view"), async () => ({ ...d.ctx.billing.promotions.settings(), metrics: d.ctx.billing.promotions.metrics() }));
+  app.put("/admin/v1/billing/promotions", { ...needs("billing.manage"), config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async req => {
+    const b = parse(PromotionAdminBody, req.body);
+    const p = principal(req);
+    const result = await d.ctx.billing.promotions.configure(b.settings, b.revision, p.account.id);
+    await d.audit.record({ actorAccountId: p.account.id, actorRole: p.grant.role, action: "billing.promotions.configure", outcome: "success", targetType: "promotion_settings", targetId: "1", reason: b.reason, requestId: String(req.id), detail: { enabled: b.settings.enabled, popupsEnabled: b.settings.popupsEnabled, revision: result.revision } });
+    return { ...result, metrics: d.ctx.billing.promotions.metrics() };
+  });
+
   app.get("/admin/v1/billing/metrics", needs("billing.view"), async (req) => billing.metrics(parse(AdminBillingMetricsQuery, req.query).days));
   app.get("/admin/v1/billing/plans", needs("billing.view"), async () => billing.plans());
   app.post("/admin/v1/billing/plans", needs("billing.manage"), async (req) => billing.createPlan(principal(req), parse(AdminPlanCreate, req.body), metaOf(req)));

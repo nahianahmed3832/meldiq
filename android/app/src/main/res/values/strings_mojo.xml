@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Meldiq Mojo strings (docs/MOJO_ANDROID.md). Generated from strings_mojo.py. -->
 <resources>
-    <string name="mojo_title">Meldiq Mojo</string>
+    <string name="mojo_title">Meldiq Plus</string>
     <string name="mojo_entry_sub_free">Bigger files, longer messages, sharper screen share</string>
     <string name="mojo_entry_sub_plan">You\'re on %1$s</string>
-    <string name="mojo_kicker">MELDIQ MOJO</string>
+    <string name="mojo_kicker">MELDIQ PLUS</string>
     <string name="mojo_headline">More room. More reach.</string>
     <string name="mojo_headline_accent">More Meldiq.</string>
-    <string name="mojo_hero_body">Everything you need to talk is free. Mojo is for the big files, the long messages, the sharp streams and the badge.</string>
+    <string name="mojo_hero_body">Everything you need to talk is free. Meldiq Plus is for the big files, the long messages, the sharp streams and the badge.</string>
     <string name="mojo_on_free">You\'re on Free</string>
     <string name="mojo_on_plan">You\'re on %1$s</string>
     <string name="mojo_renews_on">Renews %1$s</string>
@@ -79,7 +79,7 @@
     <string name="mojo_spark_pack_buy">Buy for %1$s/month</string>
     <string name="mojo_spark_pack_note">Each pack is a monthly subscription in Google Play. You hold one pack at a time: switching changes it at once, and Google credits what\'s left of the old one. Extra Sparks stay yours if your plan ends.</string>
     <string name="mojo_spark_level_cap">Servers top out at Level 3: more Sparks on one server don\'t add anything. Keep extras for other servers.</string>
-    <string name="mojo_gift_title">Gift Mojo to a friend</string>
+    <string name="mojo_gift_title">Gift Meldiq Plus to a friend</string>
     <string name="mojo_gift_body">One payment, straight onto their account, with a note from you. 1 month, 3 months or a year. It never renews.</string>
     <string name="mojo_gift_open">Gift</string>
     <string name="mojo_gift_who">Who is it for?</string>
@@ -91,7 +91,7 @@
     <string name="mojo_gift_year">1 year</string>
     <string name="mojo_gift_note">Add a note (optional)</string>
     <string name="mojo_gift_buy">Buy gift for %1$s</string>
-    <string name="mojo_gift_policy">They\'ll find it in Meldiq and start it whenever they like; it never renews. If they already have free Mojo time, the gift follows on after it.</string>
+    <string name="mojo_gift_policy">They\'ll find it in Meldiq and start it whenever they like; it never renews. If they already have free Meldiq Plus time, the gift follows on after it.</string>
     <string name="mojo_gift_unavailable">This gift isn\'t on sale in Google Play yet</string>
     <string name="mojo_notice_confirmed">Thank you! It\'s on your account now.</string>
     <string name="mojo_notice_gift_sent">Gift paid. Your friend will find it in Meldiq.</string>
@@ -107,7 +107,7 @@
     <string name="mojo_err_setup">Purchases aren\'t set up yet. Please try again later.</string>
     <string name="mojo_err_other">Something went wrong with Google Play. Please try again.</string>
     <string name="mojo_loading">Loading plans…</string>
-    <string name="mojo_unavailable">Meldiq Mojo isn\'t available on this server yet.</string>
+    <string name="mojo_unavailable">Meldiq Plus isn\'t available on this server yet.</string>
     <string name="mojo_retry">Try again</string>
     <string name="mojo_play_missing">Purchases aren\'t open in Google Play yet. You can still see what each plan includes.</string>
     <string name="mojo_why_title">Why subscriptions?</string>
@@ -116,11 +116,11 @@
     <string name="mojo_fine_print">Payment is taken by Google Play with the methods it offers in your country; Meldiq never sees your card. Subscriptions renew every month until you cancel in Google Play.</string>
     <string name="mojo_composer_left">%1$d left</string>
     <string name="mojo_composer_over">%1$d over your plan\'s %2$s</string>
-    <string name="mojo_composer_upgrade">See Mojo</string>
+    <string name="mojo_composer_upgrade">See Meldiq Plus</string>
     <string name="mojo_spark_give">Give a Spark</string>
     <string name="mojo_spark_pick_server">Which server?</string>
     <string name="mojo_spark_none_free">All your Sparks are given. Take one back or get more.</string>
-    <string name="mojo_spark_none">You don\'t have any Sparks yet. Mojo Go includes 1 and Mojo Plus 2, or get them on their own.</string>
+    <string name="mojo_spark_none">You don\'t have any Sparks yet. Legacy Go includes 1 and Meldiq Plus 2, or get them on their own.</string>
     <string name="mojo_spark_free_n">%1$d ready to give</string>
     <string name="mojo_spark_paused">Paused: you have fewer Sparks than you\'ve given</string>
     <string name="mojo_spark_left_server">You left this server</string>
@@ -137,7 +137,7 @@
     <string name="mojo_spark_wont_raise">This server is already at Level 3: another Spark won\'t add anything here.</string>
     <string name="mojo_spark_open">Meldiq Spark</string>
     <string name="mojo_spark_see_plans">Get Sparks</string>
-    <string name="mojo_badge_title">Show my Mojo badge</string>
+    <string name="mojo_badge_title">Show my Meldiq Plus badge</string>
     <string name="mojo_badge_sub">Hiding it changes only what others see.</string>
     <string name="mojo_gifts_received">Gifts for you</string>
     <string name="mojo_gifts_sent">Gifts you sent</string>

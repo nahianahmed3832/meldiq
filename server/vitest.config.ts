@@ -10,7 +10,8 @@ export default defineConfig({
     include: ["test/**/*.test.ts"],
     exclude: ["test/supabase*.test.ts"], // Dedicated PostgreSQL harness: npm run test:supabase
     testTimeout: database ? 60000 : 20000,
-    hookTimeout: database ? 90000 : 20000,
+    // Some suites exercise MongoDB explicitly even without the global domain override.
+    hookTimeout: 90000,
     pool: "forks",
     // A local MongoDB replica set for the MongoDB tests (test/support/mongoGlobal.ts).
     globalSetup: process.env.MELDIQ_TEST_PG_URL ? [] : ["test/support/mongoGlobal.ts"],

@@ -39,7 +39,7 @@ class FakePayPal implements PayPalApi {
   subs = new Map<string, any>();
   keys = new Map<string, any>();
   denyCapture = false;
-  planPrice = "3.99";
+  planPrice = "4.99";
   missingSubscriptions = new Set<string>();
   blockedSubscriptions = new Set<string>();
   async request(
@@ -164,7 +164,7 @@ class FakePayPal implements PayPalApi {
     s.status = "ACTIVE";
     s.billing_info = {
       last_payment: {
-        amount: { currency_code: "USD", value: "3.99" },
+        amount: { currency_code: "USD", value: "4.99" },
         time: new Date(NOW).toISOString(),
       },
       next_billing_time: new Date(NOW + 31 * 86400000).toISOString(),
@@ -216,11 +216,11 @@ describe("PayPal Sandbox configuration", () => {
     );
   });
   it("uses exact minor-unit parsing", () => {
-    expect(cents("3.99")).toBe(399);
+    expect(cents("4.99")).toBe(499);
     expect(cents("11.97")).toBe(1197);
     expect(cents("0.0")).toBe(0);
     expect(cents("3.9")).toBe(390);
-    expect(() => cents("3.999")).toThrow();
+    expect(() => cents("4.999")).toThrow();
     expect(() => cents("NaN")).toThrow();
   });
   it("gates subscriptions and verifies the real plan price, currency and billing interval", async () => {
@@ -240,7 +240,7 @@ describe("PayPal Sandbox configuration", () => {
       subscriptionsApproved: true,
     });
     await p.verifyPlusPlan();
-    api.planPrice = "4.99";
+    api.planPrice = "3.99";
     await expect(p.verifyPlusPlan()).rejects.toThrow();
   });
 });
@@ -255,7 +255,7 @@ it("keeps the provider's monthly anchor through short months when cancellation o
     start_time: "2026-01-31T12:00:00Z",
     billing_info: {
       last_payment: {
-        amount: { currency_code: "USD", value: "3.99" },
+        amount: { currency_code: "USD", value: "4.99" },
         time: "2026-02-28T12:00:00Z",
       },
       cycle_executions: [{ tenure_type: "REGULAR", cycles_completed: 2 }],
@@ -337,7 +337,7 @@ describe("PayPal through authenticated billing APIs", () => {
     const p = await h.ctx.billing.catalog.create(
       "plus",
       {
-        name: "Mojo Plus",
+        name: "Meldiq Plus",
         description: "Existing Plus",
         segment: "personal",
         public: true,
@@ -346,7 +346,7 @@ describe("PayPal through authenticated billing APIs", () => {
       {
         interval: "month",
         currency: "USD",
-        amountMinor: 399,
+        amountMinor: 499,
         providerPriceRef: PLAN,
         trialDays: 0,
         graceDays: 3,
@@ -405,7 +405,7 @@ describe("PayPal through authenticated billing APIs", () => {
       gift(alice, { requestKey }),
     ]);
     expect(a.id).toBe(b.id);
-    expect(a.amountMinor).toBe(1197);
+    expect(a.amountMinor).toBe(1299);
     expect(a.confirmed).toBe(false);
     expect(
       h.ctx.billing.rows.all("mojo_gifts", {
@@ -438,7 +438,7 @@ describe("PayPal through authenticated billing APIs", () => {
     expect(h.ctx.billing.rows.count("billing_grants", { reference: g.id, source: "gift" })).toBe(1);
     const orders = await buyer.req("GET", "/v2/billing/orders");
     const order = orders.orders.find((o: any) => o.product.includes("gift"));
-    expect(order.totalMinor).toBe(1197);
+    expect(order.totalMinor).toBe(1299);
     expect((await buyer.req("GET", `/v2/billing/orders/${order.id}/receipt`)).paid).toBe(true);
     await expectStatus(bob.req("GET", `/v2/billing/orders/${order.id}/receipt`), 404);
     const other = await AccountClient.ready(h.baseUrl, mailer, "giftintruder");
@@ -790,14 +790,14 @@ describe("PayPal through authenticated billing APIs", () => {
     const renewal = event("PAYMENT.SALE.COMPLETED", {
       id: "SALETEST",
       billing_agreement_id: remote.id,
-      amount: { currency: "USD", total: "3.99" },
+      amount: { currency: "USD", total: "4.99" },
       create_time: new Date().toISOString(),
     });
     expect((await deliver(renewal)).json().status).toBe("processed");
     expect(
       (await user.req("GET", "/v2/billing/paypal/history")).transactions[0],
     ).toMatchObject({
-      amountMinor: 399,
+      amountMinor: 499,
       providerRef: "SALETEST",
       status: "paid",
     });
@@ -808,7 +808,7 @@ describe("PayPal through authenticated billing APIs", () => {
       subscriptionRef: remote.id,
       customerRef: null,
       currency: "USD",
-      amountMinor: 399,
+      amountMinor: 499,
       affectedMinor: 100,
       state: "partially_refunded",
     };
@@ -857,8 +857,8 @@ describe("PayPal through authenticated billing APIs", () => {
             subscriptionRef: remote.id,
             status: "paid",
             currency: "USD",
-            amountDueMinor: 399,
-            amountPaidMinor: 399,
+            amountDueMinor: 499,
+            amountPaidMinor: 499,
             amountRefundedMinor: 0,
             taxMinor: null,
             periodStart: NOW,

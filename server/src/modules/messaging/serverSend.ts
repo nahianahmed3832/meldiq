@@ -1,3 +1,4 @@
+import { messageAttachments, retainMessageAttachments } from "../files/index.js";
 import type { FastifyBaseLogger } from "fastify";
 import { MAX_PAYLOAD_BYTES, type SendMessage, type StoredEvent } from "../../shared/contracts/http/serverMessages.js";
 import type { AppContext } from "../../app/context.js";
@@ -82,10 +83,18 @@ export async function sendServerMessage(ctx: AppContext, sender: Sender, m: Send
     const prior = await ctx.messages.get(m.messageId);
     if (!prior) return null;
     if (prior.sender_user_id !== userId || prior.conversation_id !== conv.id) throw conflict("Message id collision");
+    const priorFiles = (JSON.parse(prior.payload) as { attachments?: { id: string; thumbnail?: { id: string } }[] }).attachments;
+    if (Array.isArray(priorFiles)) {
+      const ids = priorFiles.flatMap((ref) => ref.thumbnail ? [ref.id, ref.thumbnail.id] : [ref.id]);
+      await retainMessageAttachments(ctx, ids, m.messageId).catch((err) => log.warn({ err }, "attachment publication retry failed"));
+    }
     return { messageId: m.messageId, serverTs: prior.server_ts, duplicate: true };
   };
   const earlier = await retry();
   if (earlier) return earlier;
+
+  const attachmentIds = (m.cls === "message" || type === "edit")
+    ? await messageAttachments(ctx, userId, conv.id, conv.org_id, m.payload.attachments) : [];
 
   // A change to a message: only to one in this conversation, and edits, deletions and closing a poll only by its sender.
   // Community parity A1: a channel's moderators also delete other people's messages.
@@ -169,6 +178,7 @@ export async function sendServerMessage(ctx: AppContext, sender: Sender, m: Send
   // Controls (reactions, read markers, call keys) don't wake a sleeping phone; messages do, unless it's a request's.
   for (const row of queued) ctx.hub.pushQueued(row.recipient_device_id, [row], { wake: m.cls === "message" && !quietFor.has(ownerOf.get(row.recipient_device_id) ?? "") });
   if (request?.state === "pending" && m.cls === "message") await ctx.relationships.countSent(conv.id);
+  await retainMessageAttachments(ctx, attachmentIds, m.messageId).catch((err) => log.warn({ err }, "attachment retention will be retried by history keep"));
   // Posting tools: a reaction may give or take a reaction role, a deleted message takes its reaction roles with it.
   // Like points, this never fails a message that was accepted.
   if (m.cls === "control" && conv.org_id) {

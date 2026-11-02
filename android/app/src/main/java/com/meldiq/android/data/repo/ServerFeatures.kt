@@ -46,6 +46,7 @@ class ServerFeatures(private val api: ApiClient, private val clock: () -> Long =
     }
 
     companion object {
+        const val SERVER_MESSAGES = "server-messages"
         const val PROFILES = "profiles"
         const val PROFILE_PHOTOS = "profile-photos"
         const val HISTORY = "history"

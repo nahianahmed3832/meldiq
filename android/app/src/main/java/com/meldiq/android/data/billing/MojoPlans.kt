@@ -47,6 +47,7 @@ object MojoPlans {
         val current = currentKey(e)
         val billedBy = billedBy(e)
         if (target == current) return PlanAction.Current
+        if (target == GO) return PlanAction.Unavailable
         if (billedBy != null && billedBy != PROVIDER_PLAY) return PlanAction.ManagedElsewhere
         if (target == FREE) return if (billedBy == PROVIDER_PLAY) PlanAction.CancelInPlay else PlanAction.Included
         if (!offerAvailable) return PlanAction.Unavailable

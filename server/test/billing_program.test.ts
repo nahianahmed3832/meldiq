@@ -14,7 +14,7 @@ import { expectStatus, type Harness, startServer } from "./support/harness.js";
  * Running Mojo from the console). Billing stays off (BILLING_PROVIDER unset), as in production today.
  */
 const DAY = 86_400_000;
-const REASON = "Launch of the Meldiq Mojo trial program";
+const REASON = "Launch of the Meldiq Plus trial program";
 
 describe("billing_grants in MongoDB", () => {
   it("keeps its columns, so its collection validator never needs collMod (production's database user can't run it)", () => {
@@ -67,7 +67,7 @@ describe("the trial program in the console", () => {
 
   it("follows the environment until an operator saves it: off here, so nobody gets a trial", async () => {
     const p = await program();
-    expect(p).toMatchObject({ source: "environment", live: false, settings: { enabled: false, planKey: "plus", days: 14, referralDays: 30, referralCapDays: 90, claimWindowDays: 7 } });
+    expect(p).toMatchObject({ source: "environment", live: false, settings: { enabled: false, planKey: "plus", days: 0, referralDays: 30, referralCapDays: 90, claimWindowDays: 7 } });
     expect(p.plans.map((x: any) => x.key)).toEqual(["plus"]);
     expect((await h.app.inject({ method: "GET", url: "/v2/billing/plans" })).json().trial).toBeNull();
     const early = await signedIn("earlybird");
@@ -107,7 +107,7 @@ describe("the trial program in the console", () => {
     // The account that signed up while the program was off gets its 14 days from the launch, not from its sign-up.
     const early = await signedIn("earlybird2");
     const e = await ent(early);
-    expect(e.personal).toMatchObject({ plan: { key: "plus", name: "Mojo Plus" }, trial: { source: "signup" } });
+    expect(e.personal).toMatchObject({ plan: { key: "plus", name: "Meldiq Plus" }, trial: { source: "signup" } });
     expect(e.personal.accessUntil).toBeGreaterThanOrEqual(p.settings.startsAt + 14 * DAY);
   });
 
@@ -199,18 +199,18 @@ describe("the trial program in the console", () => {
     await as("billing_admin").expect(200, "PUT", "/admin/v1/billing/program", { useEnvironment: true, reason: "Back to the server's settings" });
   });
 
-  describe("Mojo's enforcement and limits", () => {
+  describe("Meldiq Plus's enforcement and limits", () => {
     const controls = async () => {
       const c = await as("billing_admin").expect(200, "GET", "/admin/v1/billing/mojo");
       expect(AdminMojoControls.safeParse(c).success).toBe(true);
       return c;
     };
-    const save = (body: Record<string, unknown>) => as("billing_admin").req("PUT", "/admin/v1/billing/mojo", { enforce: null, plans: {}, levels: {}, reason: "Testing Mojo's limits in the console", ...body });
+    const save = (body: Record<string, unknown>) => as("billing_admin").req("PUT", "/admin/v1/billing/mojo", { enforce: null, plans: {}, levels: {}, reason: "Testing Meldiq Plus's limits in the console", ...body });
 
     it("start from the built-in numbers, not enforced while nothing is on sale", async () => {
       const c = await controls();
       expect(c).toMatchObject({ enforced: false, enforce: { console: null, environment: "auto", effective: "auto" }, overrides: { plans: {}, levels: {} }, updatedBy: null });
-      expect(c.plans.map((p: any) => [p.key, p.messageChars, p.listPriceMinor])).toEqual([["free", 2000, 0], ["go", 4000, 199], ["plus", 8000, 399]]);
+      expect(c.plans.map((p: any) => [p.key, p.messageChars, p.listPriceMinor])).toEqual([["free", 2000, 0], ["go", 4000, 199], ["plus", 8000, 499]]);
       expect(c.prices).toMatchObject({ providerSync: false, bounds: { min: 50, max: 9999 } });
       expect(h.ctx.mojo.limitsOf("u_nobody")).toBeNull();
     });
@@ -237,7 +237,7 @@ describe("the trial program in the console", () => {
       expect((await save({ plans: { go: { uploadBytes: 9_000_000_000 } } })).status).toBe(400);
       expect((await save({ levels: { "2": { sparks: 1 } } })).status).toBe(400);
       expect((await save({ plans: { go: { name: "Cheap" } } })).status).toBe(400);
-      expect((await as("support_admin").req("PUT", "/admin/v1/billing/mojo", { enforce: "off", plans: {}, levels: {}, reason: "Testing Mojo's limits in the console" })).status).toBe(403);
+      expect((await as("support_admin").req("PUT", "/admin/v1/billing/mojo", { enforce: "off", plans: {}, levels: {}, reason: "Testing Meldiq Plus's limits in the console" })).status).toBe(403);
       expect((await controls()).enforce.console).toBe("on");
     });
 
@@ -261,16 +261,17 @@ describe("the trial program in the console", () => {
       expect((await put({ go: 299, plus: 249 })).status).toBe(400); // Plus must cost more than Go
       expect((await put({ go: 10, plus: 499 })).status).toBe(400); // below Stripe's smallest charge
       expect((await put({ go: 299, plus: 699 }, "support_admin")).status).toBe(403);
-      const r = await put({ go: 299, plus: 699 });
+      expect((await put({ go: 299, plus: 699 })).status).toBe(400);
+      const r = await put({ go: 299, plus: 499 });
       expect(r.status).toBe(200);
       expect(AdminMojoPricesResult.safeParse(r.body).success).toBe(true);
       expect(r.body.steps).toEqual(["no payment provider: only the list price changed"]);
-      expect(r.body.plans.map((p: any) => p.listPriceMinor)).toEqual([0, 299, 699]);
+      expect(r.body.plans.map((p: any) => p.listPriceMinor)).toEqual([0, 299, 499]);
       const catalog = (await h.app.inject({ method: "GET", url: "/v2/mojo/catalog" })).json();
-      expect(catalog.plans.map((p: any) => p.listPriceMinor)).toEqual([0, 699]);
+      expect(catalog.plans.map((p: any) => p.listPriceMinor)).toEqual([0, 499]);
       const audit = h.ctx.db.prepare("SELECT reason, detail FROM platform_audit WHERE action = 'mojo.prices_update' ORDER BY id DESC LIMIT 1").get() as any;
       expect(audit.reason).toBe("Owner's plan prices for launch");
-      expect(JSON.parse(audit.detail)).toMatchObject({ goBefore: 199, goAfter: 299, plusBefore: 399, plusAfter: 699, provider: "none" });
+      expect(JSON.parse(audit.detail)).toMatchObject({ goBefore: 199, goAfter: 299, plusBefore: 499, plusAfter: 499, provider: "none" });
       // Saving the limits keeps the prices: they change only here.
       expect((await save({ enforce: "on", plans: { go: { bots: 5 } } })).body.plans.find((p: any) => p.key === "go").listPriceMinor).toBe(299);
       await put({ go: 199, plus: 499 });

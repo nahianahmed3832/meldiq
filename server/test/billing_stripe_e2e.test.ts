@@ -24,8 +24,8 @@ const SLOW = 180_000;
 const HOUR_S = 3600;
 // Prices this test reuses at Stripe, never the real Mojo prices (lookup keys meldiq_mojo_*).
 const E2E_PRICES = [
-  { key: "go", lookupKey: "meldiq_e2e_go_monthly", amountMinor: 99, name: "Mojo Go (e2e test)" },
-  { key: "plus", lookupKey: "meldiq_e2e_plus_monthly", amountMinor: 399, name: "Mojo Plus (e2e test)" },
+  { key: "go", lookupKey: "meldiq_e2e_go_monthly", amountMinor: 99, name: "Legacy Go (e2e test)" },
+  { key: "plus", lookupKey: "meldiq_e2e_plus_monthly", amountMinor: 399, name: "Meldiq Plus (e2e test)" },
   { key: "spark", lookupKey: "meldiq_e2e_spark_monthly", amountMinor: 99, name: "Meldiq Spark (e2e test)" },
 ] as const;
 
@@ -159,12 +159,12 @@ describe.skipIf(!KEY)("Stripe test mode end to end (stripe listen)", () => {
     await h?.close();
   }, SLOW);
 
-  describe("a Mojo Go subscription", () => {
+  describe("a Legacy Go subscription", () => {
     let checkoutId: string;
     let subRef: string;
     let card: string;
 
-    it("opens a real Checkout Session at the catalog's price, tied to our checkout id, returning to the web Mojo page", async () => {
+    it("opens a real Checkout Session at the catalog's price, tied to our checkout id, returning to the web Meldiq Plus page", async () => {
       const first = await alice.req("POST", "/v2/billing/checkout", { planKey: "go", returnTo: "web" });
       const again = await alice.req("POST", "/v2/billing/checkout", { planKey: "go", returnTo: "web" });
       checkoutId = again.checkoutId;
@@ -180,7 +180,7 @@ describe.skipIf(!KEY)("Stripe test mode end to end (stripe listen)", () => {
       expect((await entitlements(alice)).personal.plan).toBeNull();
     }, SLOW);
 
-    it("grants Mojo Go once Stripe's signed events arrive, and records the first invoice", async () => {
+    it("grants Legacy Go once Stripe's signed events arrive, and records the first invoice", async () => {
       const subscribed = await subscribeLikeCheckout(alice, checkoutId, prices.go);
       subRef = subscribed.sub.id;
       card = subscribed.card;

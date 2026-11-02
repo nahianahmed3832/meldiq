@@ -494,6 +494,29 @@ describe("PostgreSQL attachment metadata and durable S3 cleanup", () => {
     await expect(files.completeUpload(row.id, attachment("different-id"))).rejects.toThrow("retain its upload ID");
     expect(await files.upload(row.id)).toEqual(row);
   });
+  it("keeps unsent uploads temporary and preserves their digest across completion and publication", async () => {
+    const files=new PostgresFileStore(db),row=upload("pending-publication");
+    const stored={...attachment(row.id),pending_message_until:5000,sha256:"synthetic-content-digest"};
+    await files.startUpload(row);expect(await files.completeUpload(row.id,stored)).toBe(true);
+    expect(await files.attachment(row.id)).toMatchObject({pending_message_until:5000,message_id:null,sha256:stored.sha256,expires_at:5000});
+    expect(await files.keepAllForever(1500)).toBe(0);
+    await files.publish(row.id,"original-message",9000);
+    await files.publish(row.id,"reshared-message",6000);
+    expect(await files.attachment(row.id)).toMatchObject({pending_message_until:null,message_id:"original-message",sha256:stored.sha256,expires_at:9000});
+    expect(await files.keepAllForever(1500)).toBe(1);
+    expect((await files.attachment(row.id))?.expires_at).toBe(KEPT_FOREVER);
+    expect(await files.dueAbandoned(0,10)).toEqual([]);
+  });
+  it("expires unpublished objects and lets explicit keep end their temporary state",async()=>{
+    const files=new PostgresFileStore(db);
+    await files.recordAttachment({...attachment("never-sent"),pending_message_until:5000,sha256:"kept-digest"});
+    await files.recordAttachment({...attachment("explicitly-kept"),pending_message_until:5000,sha256:"other-digest"});
+    await files.keep("explicitly-kept",9000);
+    expect((await files.attachment("explicitly-kept"))?.pending_message_until).toBeNull();
+    expect(await files.purgeExpired(5000)).toEqual(["never-sent"]);
+    expect(await files.attachment("explicitly-kept")).toMatchObject({kept:1,expires_at:9000,sha256:"other-digest"});
+    expect(await files.dueBlobDeletes(0,10)).toEqual([{kind:"attachments",blob_id:"never-sent",attempts:0}]);
+  });
   it("allows exactly one of simultaneous completion and expiry, with recoverable cleanup", async () => {
     const files = new PostgresFileStore(db);
     for (let n = 0; n < 12; n++) {
@@ -652,7 +675,7 @@ describe("Fastify attachment routes with PostgreSQL metadata and SigV4 S3 transp
       expect(location).toContain("X-Amz-Signature");
       expect(Buffer.from(await (await fetch(location)).arrayBuffer())).toEqual(body);
 
-      const plaintextMax = 1_024_000_000, encryptedMax = plaintextMax + 16 * Math.ceil(plaintextMax / 1_048_576);
+      const plaintextMax = 1_000_000_000, encryptedMax = plaintextMax + 16 * Math.ceil(plaintextMax / 1_048_576);
       const large = await alice.req("POST", "/v1/attachments/uploads", {conversationId: dm, size: encryptedMax, sha256});
       expect(large.mode).toBe("multipart");
       expect((await files.upload(large.uploadId))?.size).toBe(encryptedMax);

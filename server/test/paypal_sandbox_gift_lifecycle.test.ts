@@ -18,13 +18,13 @@ it.skipIf(process.env.MELDIQ_RUN_PAYPAL_SANDBOX_LIFECYCLE !== "1")("captures a r
  let capture: string | null = null;
  let orderRef: string | null = null;
  try {
-  const v = await h.ctx.billing.catalog.create("plus", { name: "Meldiq Plus", description: "Isolated Sandbox only", segment: "personal", public: true, audience: "personal" }, { interval: "month", currency: "USD", amountMinor: 399, providerPriceRef: "P-SANDBOX-TEST-ONE-TIME", trialDays: 0, graceDays: 0, limits: {}, notes: "Sandbox lifecycle verification" }, "sandbox-test", Date.now());
+  const v = await h.ctx.billing.catalog.create("plus", { name: "Meldiq Plus", description: "Isolated Sandbox only", segment: "personal", public: true, audience: "personal" }, { interval: "month", currency: "USD", amountMinor: 499, providerPriceRef: "P-SANDBOX-TEST-ONE-TIME", trialDays: 0, graceDays: 0, limits: {}, notes: "Sandbox lifecycle verification" }, "sandbox-test", Date.now());
   await h.ctx.billing.catalog.publish(v.id, "paypal", "sandbox-test", Date.now());
   const buyer = await AccountClient.ready(h.baseUrl, mailer, `sandboxbuyer${randomBytes(3).toString("hex")}`);
   const recipient = await AccountClient.ready(h.baseUrl, mailer, `sandboxfriend${randomBytes(3).toString("hex")}`);
   const purchase = await buyer.req("POST", "/v2/billing/paypal/checkouts", { product: "gift", recipient: { kind: "link" }, months: 1, note: "Sandbox lifecycle verification", requestKey: randomUUID() });
   orderRef = purchase.providerRef;
-  expect(purchase.amountMinor).toBe(399); expect(purchase.confirmed).toBe(false);
+  expect(purchase.amountMinor).toBe(499); expect(purchase.confirmed).toBe(false);
   await provider.api.request("POST", `/v2/checkout/orders/${purchase.providerRef}/confirm-payment-source`, { payment_source: { card: { vault_id: fixture.token, stored_credential: { payment_initiator: "CUSTOMER", payment_type: "UNSCHEDULED", usage: "SUBSEQUENT" } } } }, `sandbox-gift-approve-${purchase.id}`);
   const paid = await buyer.req("POST", `/v2/billing/paypal/checkouts/${purchase.id}/confirm`, {});
   expect(paid.confirmed).toBe(true);
@@ -37,7 +37,7 @@ it.skipIf(process.env.MELDIQ_RUN_PAYPAL_SANDBOX_LIFECYCLE !== "1")("captures a r
   expect(a).toEqual(b); expect(a.credited).toBe(false); expect(a.endsAt).toBeGreaterThan(Date.now());
   expect(h.ctx.billing.rows.count("billing_grants", { source: "gift", reference: purchase.id })).toBe(1);
   const orders = await buyer.req("GET", "/v2/billing/orders");
-  expect(orders.orders.some((order: { totalMinor: number; status: string }) => order.totalMinor === 399 && order.status === "redeemed")).toBe(true);
+  expect(orders.orders.some((order: { totalMinor: number; status: string }) => order.totalMinor === 499 && order.status === "redeemed")).toBe(true);
  } finally {
   if (!capture && orderRef) { try { const snapshot = await provider.readOrder(orderRef); if (snapshot.paid) capture = snapshot.paymentRef ?? null; } catch { /* Keep original test refusal; no unverified refund is attempted. */ } }
   if (capture) { const refund = await provider.refundCapture(capture, `sandbox-gift-cleanup-${capture}`); expect(refund.status).toBe("COMPLETED"); }

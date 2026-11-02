@@ -75,7 +75,7 @@ function currentViolations(): string[] {
  * modules belong to administration, which keeps them for `admin retired-data`.
  */
 const TABLE_OWNERS: Readonly<Record<string, string>> = {
-  ...owned("billing", "spark_purchases billing_card_setups billing_payment_methods billing_card_mandates billing_card_charges billing_card_charge_attempts billing_commerce_orders billing_coupons billing_coupon_uses mojo_gift_deliveries billing_notification_jobs mojo_gift_credits billing_promotions billing_promotion_redemptions collectible_orders"),
+  ...owned("billing", "spark_purchases billing_card_setups billing_payment_methods billing_card_mandates billing_card_charges billing_card_charge_attempts billing_commerce_orders billing_promotion_settings billing_promotion_state billing_promotion_events billing_coupons billing_coupon_uses mojo_gift_deliveries billing_notification_jobs mojo_gift_credits billing_promotions billing_promotion_redemptions collectible_orders"),
   ...owned("platformAdmin","platform_notices platform_notice_receipts platform_appeals platform_ownership_requests platform_appeal_challenges"),
   ...owned("auth", "auth_challenges sessions pairing_requests"),
   ...owned(

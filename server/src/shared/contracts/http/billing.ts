@@ -27,6 +27,8 @@ export const OrgBilling = z.strictObject({
       /** entitled | grace (payment failed, plan still applies) | grace_ended | not_entitled */
       standing: z.string(),
       interval: z.enum(["month", "year"]),
+  billingFrequency: z.number().int().positive().optional(),
+  term: z.enum(["monthly", "quarterly", "yearly"]).nullable().optional(),
       currency: z.string(),
       amountMinor: zCount,
       currentPeriodEnd: zTime.nullable(),
@@ -54,6 +56,8 @@ export const OrgBilling = z.strictObject({
       name: z.string(),
       description: z.string(),
       interval: z.enum(["month", "year"]),
+  billingFrequency: z.number().int().positive().optional(),
+  term: z.enum(["monthly", "quarterly", "yearly"]).nullable().optional(),
       currency: z.string(),
       amountMinor: zCount,
       trialDays: zCount,
@@ -74,7 +78,7 @@ const zOrgId = z.string().min(3).max(64).regex(/^[A-Za-z0-9_-]+$/);
 /** Where the provider's page sends the person back: the web app ("web") or the website ("site", the default). */
 export const zReturnTo = z.enum(["web", "site"]);
 export const OwnerBody = z.strictObject({ orgId: zOrgId.optional(), returnTo: zReturnTo.optional() });
-export const OwnerCheckoutBody = z.strictObject({ planKey: z.string().trim().min(1).max(40), orgId: zOrgId.optional(), returnTo: zReturnTo.optional() });
+export const OwnerCheckoutBody = z.strictObject({ planKey: z.string().trim().min(1).max(40), term: z.enum(["monthly", "quarterly", "yearly"]).optional(), orgId: zOrgId.optional(), returnTo: zReturnTo.optional() });
 export const BillingOrgParams = z.strictObject({ orgId: zOrgId });
 
 export const zOffer = z.strictObject({
@@ -83,6 +87,8 @@ export const zOffer = z.strictObject({
   description: z.string(),
   audience: zAudience,
   interval: z.enum(["month", "year"]),
+  billingFrequency: z.number().int().positive().optional(),
+  term: z.enum(["monthly", "quarterly", "yearly"]).nullable().optional(),
   currency: z.string(),
   /** The list price per interval in the currency's minor unit, before any tax the provider adds. */
   amountMinor: zCount,
@@ -94,6 +100,7 @@ export const zOffer = z.strictObject({
 
 /** The public price list (no account needed). Empty while no provider or plan is configured. */
 export const PublicPlans = z.strictObject({
+  pricing: z.strictObject({ version: z.string(), effectiveAt: z.number(), plusTerms: z.array(z.object({ key: z.string(), months: z.number(), amountMinor: z.number(), interval: z.string(), billingFrequency: z.number(), currency: z.literal("USD"), savingsMinor: z.number(), monthlyEquivalentMinor: z.number(), savingsPercent: z.number() })), providerEnvironment: z.string().nullable(), paypalProductId: z.string().nullable(), paypalPlanId: z.string().nullable(), plans: z.array(z.strictObject({ id: z.enum(["free", "plus"]), name: z.string(), currency: z.literal("USD"), amountMinor: z.number().int().nonnegative(), billingInterval: z.literal("month").nullable(), billingFrequency: z.number().int(), productId: z.string(), active: z.boolean() })) }),
   available: z.boolean(),
   mode: z.enum(["test", "live"]).nullable(),
   plans: z.array(zOffer),
@@ -149,6 +156,8 @@ const zGrant = {
       status: z.string(),
       provider: z.string(),
       interval: z.enum(["month", "year"]),
+  billingFrequency: z.number().int().positive().optional(),
+  term: z.enum(["monthly", "quarterly", "yearly"]).nullable().optional(),
       currentPeriodEnd: zTime.nullable(),
       trialEnd: zTime.nullable(),
       cancelAtPeriodEnd: z.boolean(),

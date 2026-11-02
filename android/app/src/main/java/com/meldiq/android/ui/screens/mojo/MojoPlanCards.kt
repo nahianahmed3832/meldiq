@@ -133,7 +133,7 @@ internal fun PlanCards(
 ) {
     Column(Modifier.padding(horizontal = Space.gutter), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(stringResource(R.string.mojo_plans), style = Griip.type.title, color = Griip.colors.textPrimary, modifier = Modifier.semantics { heading() })
-        catalog.plans.filter { isPaid(it.key) }.sortedByDescending { MojoPlans.rank(it.key) }.forEach { plan ->
+        catalog.plans.filter { it.key == MojoPlans.PLUS }.sortedByDescending { MojoPlans.rank(it.key) }.forEach { plan ->
             val productId = PlayProducts.subscriptionFor(plan.key)
             val offer = productId?.let { offers[it] }
             PlanCard(catalog, plan, offer, MojoPlans.action(plan.key, e, offer != null), busy = busy, inTrial = e?.personal?.trial != null) { action ->
@@ -279,7 +279,7 @@ internal fun BenefitCards(catalog: MojoCatalog) {
 @Composable
 internal fun CompareTable(catalog: MojoCatalog, offers: Map<String, PlayOffer>) {
     val c = Griip.colors
-    val plans = catalog.plans.sortedBy { MojoPlans.rank(it.key) }
+    val plans = catalog.plans.filter { it.key != MojoPlans.GO }.sortedBy { MojoPlans.rank(it.key) }
     if (plans.isEmpty()) return
     val rows: List<Pair<String, List<String>>> = listOf(
         stringResource(R.string.mojo_row_chars) to plans.map { "%,d".format(it.messageChars) },

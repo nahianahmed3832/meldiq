@@ -1,3 +1,4 @@
+throw new Error("This setup is retired. Use paypal-plus-v2-setup.ts to prepare a new versioned $4.99 plan. Existing agreements must not be repriced.");
 /** Run explicitly with node --env-file=.env.paypal.sandbox --import tsx scripts/paypal-sandbox-setup.ts.
  * Creates Sandbox resources only. Never prints credentials, access tokens or payer details. */
 import { readFileSync, writeFileSync, chmodSync } from "node:fs";

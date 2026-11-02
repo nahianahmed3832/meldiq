@@ -109,7 +109,7 @@ class MessageSignals(
             is ServerEvent.OrgReports, is ServerEvent.OrgApplications, is ServerEvent.OrgApplication, is ServerEvent.OrgAlert -> Unit
             // The socket's own bookkeeping, and frames from a newer server.
             is ServerEvent.EntitlementsChanged -> _entitlementsChanged.tryEmit(Unit)
-            is ServerEvent.Hello, is ServerEvent.Pong, is ServerEvent.Unknown -> Unit
+            is ServerEvent.Hello, is ServerEvent.Pong, is ServerEvent.Unknown, is ServerEvent.InteractionReply -> Unit
         }
     }
 }

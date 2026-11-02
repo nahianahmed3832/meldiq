@@ -2,7 +2,7 @@ import type { MeldiqPostgres } from "../../infrastructure/database/postgres/clie
 import type { BlobKind } from "../../infrastructure/storage/index.js";
 import { type Abandoned, type AttachmentRow, type FileStore, KEPT_FOREVER, type PendingBlobDelete, type UploadRow, type Usage, type UsageFilter } from "./store.js";
 
-const attachmentColumns = "id,conversation_id,uploader_user_id,size,created_at,expires_at";
+const attachmentColumns = "id,conversation_id,uploader_user_id,size,created_at,expires_at,pending_message_until,message_id,sha256";
 const uploadColumns = "id,user_id,device_id,conversation_id,size,sha256,multipart_id,part_size,created_at,expires_at";
 
 /** Metadata only. Blob keys, signed URLs, multipart verification and limits stay in the existing S3 service.
@@ -20,11 +20,14 @@ export class PostgresFileStore implements FileStore {
     return (await this.db.query<AttachmentRow>("SELECT * FROM meldiq.attachments WHERE id=$1", [id])).rows[0] ?? null;
   }
   async recordAttachment(row: Omit<AttachmentRow, "kept">): Promise<void> {
-    await this.db.query(`INSERT INTO meldiq.attachments (${attachmentColumns}) VALUES ($1,$2,$3,$4,$5,$6)`, attachmentValues(row));
+    await this.db.query(`INSERT INTO meldiq.attachments (${attachmentColumns}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, attachmentValues(row));
   }
   async keep(id: string, expiresAt: number): Promise<void> {
     // Concurrent retention requests cannot shorten an already extended lifetime.
-    await this.db.query("UPDATE meldiq.attachments SET kept=1,expires_at=greatest(expires_at,$2) WHERE id=$1", [id, expiresAt]);
+    await this.db.query("UPDATE meldiq.attachments SET kept=1,expires_at=greatest(expires_at,$2),pending_message_until=NULL WHERE id=$1", [id, expiresAt]);
+  }
+  async publish(id: string, messageId: string, expiresAt?: number): Promise<void> {
+    await this.db.query("UPDATE meldiq.attachments SET message_id=coalesce(message_id,$2),pending_message_until=NULL,expires_at=greatest(expires_at,coalesce($3::bigint,expires_at)) WHERE id=$1", [id,messageId,expiresAt??null]);
   }
   async storedUsage(filter: UsageFilter): Promise<Usage> {
     return this.usage("attachments", filter, "uploader_user_id");
@@ -75,11 +78,11 @@ export class PostgresFileStore implements FileStore {
   async completeUpload(id: string, attachment: Omit<AttachmentRow, "kept">): Promise<boolean> {
     if (id !== attachment.id) throw new Error("Attachment must retain its upload ID");
     const result = await this.db.query(`WITH removed AS (DELETE FROM meldiq.attachment_uploads WHERE id=$1 RETURNING id)
-      INSERT INTO meldiq.attachments (${attachmentColumns}) SELECT $1,$2,$3,$4,$5,$6 FROM removed`, attachmentValues(attachment));
+      INSERT INTO meldiq.attachments (${attachmentColumns}) SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9 FROM removed`, attachmentValues(attachment));
     return result.rowCount === 1;
   }
   async keepAllForever(now: number): Promise<number> {
-    return (await this.db.query("UPDATE meldiq.attachments SET expires_at=$1 WHERE expires_at>$2 AND expires_at<$1", [KEPT_FOREVER, now])).rowCount ?? 0;
+    return (await this.db.query("UPDATE meldiq.attachments SET expires_at=$1 WHERE expires_at>$2 AND expires_at<$1 AND pending_message_until IS NULL", [KEPT_FOREVER, now])).rowCount ?? 0;
   }
   async purgeExpired(now: number): Promise<string[]> {
     const result = await this.db.query<{id: string}>(`WITH removed AS (
@@ -164,7 +167,7 @@ export class PostgresFileStore implements FileStore {
 }
 
 function attachmentValues(row: Omit<AttachmentRow, "kept">): unknown[] {
-  return attachmentColumns.split(",").map(column => row[column as keyof typeof row]);
+  return attachmentColumns.split(",").map(column => row[column as keyof typeof row] ?? null);
 }
 function checkedLimit(limit: number): number {
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 5000) throw new Error("Cleanup limit must be between 1 and 5000");

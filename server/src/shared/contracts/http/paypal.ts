@@ -7,7 +7,7 @@ const id = z
   .regex(/^[A-Za-z0-9_-]+$/);
 export const PayPalCheckoutParams = z.strictObject({ id });
 export const PayPalCheckoutBody = z.discriminatedUnion("product", [
-  z.strictObject({ product: z.literal("plus"), requestKey: z.uuid() }),
+  z.strictObject({ product: z.literal("plus"), term: z.enum(["monthly", "quarterly", "yearly"]).optional(), requestKey: z.uuid() }),
   z.strictObject({ product: z.literal("spark"), quantity: z.number().int().min(1).max(20).default(1), requestKey: z.uuid() }),
   z.strictObject({ product: z.literal("bots_plus"), orgId: id, requestKey: z.uuid() }),
   z.strictObject({
@@ -41,7 +41,8 @@ export const PayPalCheckoutView = z.strictObject({
   approved: z.boolean().optional(),
   currency: z.literal("USD"),
   amountMinor: z.number().int().nonnegative(),
-  interval: z.enum(["month", "one_time"]),
+  interval: z.enum(["month", "year", "one_time"]),
+  billingFrequency: z.number().int().positive().optional(),
   expiresAt: z.number(),
 });
 export const PayPalCancelBody = z.strictObject({ confirm: z.literal(true), subscriptionId: id.optional() });

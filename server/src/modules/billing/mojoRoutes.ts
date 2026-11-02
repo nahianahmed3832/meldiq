@@ -1,3 +1,4 @@
+import { plusTermViews } from "./pricing.js";
 import type { FastifyInstance, FastifyRequest, RouteShorthandOptions } from "fastify";
 import type { AppContext } from "../../app/context.js";
 import { BadgeBody, GiftBody, GiftParams, PlayIntentBody, PlayVerifyBody, SparkAssignBody, SparkCheckoutBody, SparkParams } from "../../shared/contracts/http/mojo.js";
@@ -49,19 +50,20 @@ export function mojoRoutes(app: FastifyInstance, ctx: AppContext, h: MojoRouteHe
 
   app.get("/v2/mojo/catalog", async () => {
     const price = (key: string) => {
-      const o = ctx.billing.offers("personal").find((p) => p.key === key && p.interval === "month");
+      const o = ctx.billing.offers("personal").find((p) => p.key === key && p.interval === "month" && p.billingFrequency === 1);
       return o ? { currency: o.currency, amountMinor: o.amountMinor } : null;
     };
     return {
       ...catalogView(ctx.mojo.plans(), ctx.mojo.levels(), ctx.billing.mojoControls.version()),
+      plusTerms: plusTermViews().map(term => ({ ...term, available: ctx.billing.offers("personal").some(o => o.key === "plus" && o.term === term.key) })),
       enforced: ctx.mojo.enforced(),
       onSale: {
         mode: ctx.billing.provider?.mode ?? null,
-        go: price("go"),
+        go: null,
         plus: price("plus"),
         spark: ctx.billing.sparkPurchases.available() ? { currency: "USD", amountMinor: 99 } : null,
         botsPlus: (() => { const offer = ctx.billing.offers("organization").find((offer) => offer.key === "bots_plus"); return offer ? { currency: offer.currency, amountMinor: offer.amountMinor } : null; })(),
-        gifts: ctx.billing.provider?.supportsOneTimePurchases !== false && !!ctx.billing.provider?.createPaymentCheckout && (price("go") !== null || price("plus") !== null),
+        gifts: ctx.billing.provider?.supportsOneTimePurchases !== false && !!ctx.billing.provider?.createPaymentCheckout && price("plus") !== null,
       },
     };
   });

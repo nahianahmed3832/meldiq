@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "billed_elsewhere",
+    "message": "This is billed on meldiq.app: change it there"
+  }
+}

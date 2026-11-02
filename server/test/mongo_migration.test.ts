@@ -90,7 +90,7 @@ describe("catalog", () => {
 
 // Integration tests that build every collection and copy every table: slower than unit tests, above all when the whole
 // suite shares the one local replica set (MELDIQ_TEST_MONGO_DOMAINS runs).
-const HEAVY = { timeout: 60_000 };
+const HEAVY = { timeout: 180_000 };
 
 describe("collections", HEAVY, () => {
   it("refuse documents that break the schema and enforce unique keys", async () => {

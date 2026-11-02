@@ -76,6 +76,8 @@ export interface MessageStore {
    * message's reactions hold.
    */
   changesTo(conversationId: string, targetId: string, type: string): Promise<MessageEvent[]>;
+  /** Other members’ public read markers, reused by every history/collection page. */
+  readReceipts(conversationId: string, viewer: string): Promise<MessageEvent[]>;
   /** Community parity A1: whether a message after [since] replies in the thread of [rootId] (the thread exists). */
   threadHasReplies(conversationId: string, rootId: string, since: number): Promise<boolean>;
   /** Every event of a deleted conversation. */
@@ -164,7 +166,7 @@ export class SqliteMessageStore implements MessageStore {
       )
       .all(conversationId, before ?? Number.MAX_SAFE_INTEGER, before ?? Number.MAX_SAFE_INTEGER, beforeId ?? '', limit + 1) as MessageEvent[];
     const messages = rows.slice(0, limit);
-    return { messages, changes: this.changesFor(conversationId, viewer, messages), more: rows.length > limit };
+    return { messages, changes: await this.changesFor(conversationId, viewer, messages), more: rows.length > limit };
   }
 
   async around(conversationId: string, viewer: string, messageId: string, limit: number): Promise<HistoryPage | null> {
@@ -177,10 +179,10 @@ export class SqliteMessageStore implements MessageStore {
       .prepare(`SELECT ${COLUMNS} FROM message_events WHERE conversation_id = ? AND cls = 'message' AND (server_ts > ? OR (server_ts = ? AND id > ?)) ORDER BY server_ts, id LIMIT ?`)
       .all(conversationId, at.server_ts, at.server_ts, at.id, limit) as MessageEvent[];
     const messages = [...newer.reverse(), at, ...older.slice(0, limit)];
-    return { messages, changes: this.changesFor(conversationId, viewer, messages), more: older.length > limit };
+    return { messages, changes: await this.changesFor(conversationId, viewer, messages), more: older.length > limit };
   }
 
-  private changesFor(conversationId: string, viewer: string, messages: MessageEvent[]): MessageEvent[] {
+  private async changesFor(conversationId: string, viewer: string, messages: MessageEvent[]): Promise<MessageEvent[]> {
     if (!messages.length) return [];
     const ids = messages.map((m) => m.id);
     const targeted = this.db
@@ -189,11 +191,11 @@ export class SqliteMessageStore implements MessageStore {
            AND (audience = 'all' OR sender_user_id = ?) ORDER BY server_ts, id`,
       )
       .all(conversationId, ...ids, viewer) as MessageEvent[];
-    return pageChanges(targeted, this.othersReads(conversationId, viewer));
+    return pageChanges(targeted, await this.readReceipts(conversationId, viewer));
   }
 
   /** Each other member's newest read receipt in [conversationId] (receipts are sent with rising upTo). */
-  private othersReads(conversationId: string, viewer: string): MessageEvent[] {
+  async readReceipts(conversationId: string, viewer: string): Promise<MessageEvent[]> {
     return this.db
       .prepare(
         `SELECT ${COLUMNS} FROM (
