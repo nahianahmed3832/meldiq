@@ -12,7 +12,7 @@ export interface PrivacyChoices {
  * beside messaging_settings rather than in it, so that table and its MongoDB validator stay as they are.
  */
 export interface PrivacyStore {
-  readonly backend: "memory" | "mongodb";
+  readonly backend: "memory" | "mongodb" | "postgres";
   /** The person's own choices, or null when they never chose (defaults apply: rules.ts privacyChoicesOf). */
   get(userId: string): Promise<PrivacyChoices | null>;
   /** The choices of those of [userIds] who made any. */

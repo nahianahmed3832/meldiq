@@ -72,7 +72,9 @@ export interface Rotation {
  * Taking a code and rotating a refresh token are single conditional updates, so neither can succeed twice.
  */
 export interface OAuthStore {
-  readonly backend: "memory" | "mongodb";
+  readonly backend: "memory" | "mongodb" | "postgres";
+  /** PostgreSQL code exchange/refresh, including durable replay revocation, is one transaction. */
+  transaction?<T>(run: () => Promise<T>): Promise<T>;
   appsOf(ownerId: string): Promise<OAuthApp[]>;
   app(id: string): Promise<OAuthApp | null>;
   appsByIds(ids: readonly string[]): Promise<OAuthApp[]>;

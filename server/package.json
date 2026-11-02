@@ -23,7 +23,8 @@
     "test:supabase": "vitest run --config vitest.supabase.config.ts",
     "supabase:schema": "tsx scripts/supabase-schema.ts",
     "supabase:native-schema": "tsx scripts/supabase-native-schema.ts",
-    "supabase:rehearse": "tsx scripts/rehearse-supabase.ts"
+    "supabase:rehearse": "tsx scripts/rehearse-supabase.ts",
+    "supabase:audit": "tsx scripts/supabase-audit-native.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1144.0",

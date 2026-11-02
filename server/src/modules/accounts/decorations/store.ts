@@ -31,7 +31,7 @@ export interface DecorationPage {
  * MONGODB_URI). DecorationService keeps an in-memory copy of the approved ones for the request path.
  */
 export interface DecorationStore {
-  readonly backend: "memory" | "mongodb";
+  readonly backend: "memory" | "mongodb" | "postgres";
   insert(d: StoredDecoration): Promise<void>;
   get(id: string): Promise<StoredDecoration | null>;
   /** Every approved decoration (loaded at start). */

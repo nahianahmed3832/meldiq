@@ -25,7 +25,7 @@ export interface StoredAward {
  * MONGODB_URI). PinService keeps an in-memory copy of everything for the request path (profiles are built synchronously).
  */
 export interface PinStore {
-  readonly backend: "memory" | "mongodb";
+  readonly backend: "memory" | "mongodb" | "postgres";
   pins(): Promise<StoredPin[]>;
   awards(): Promise<StoredAward[]>;
   insertPin(p: StoredPin): Promise<void>;

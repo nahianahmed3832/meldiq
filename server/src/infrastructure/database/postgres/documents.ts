@@ -29,7 +29,7 @@ export class PostgresDocuments<T extends Keyed> implements DocumentStore<T>{
   }
   async count(match:Match<T>){const values:unknown[]=[];const where=this.predicate(match,values);return(await this.db.query(`SELECT count(*) AS n FROM meldiq.${q(this.collection)} WHERE ${where}`,values)).rows[0].n as number;}
   async update(id:string,where:Match<T>,change:Partial<T>):Promise<T|null>{
-    const fields=this.values(change).filter(([k])=>k!=="id");if(!fields.length)return this.get(id);
+    const fields=this.values(change).filter(([k])=>k!=="id");if(!fields.length)return(await this.find({...where,id} as Match<T>,{limit:1}))[0]??null;
     const values:unknown[]=fields.map(([,v])=>v),predicate=this.predicate({...where,id} as Match<T>,values);
     const result=await this.db.query(`UPDATE meldiq.${q(this.collection)} SET ${fields.map(([k],i)=>`${this.field(k)}=$${i+1}`)} WHERE ${predicate} RETURNING *`,values);
     return result.rows[0]?this.decode(result.rows[0]):null;

@@ -62,6 +62,11 @@ export class PostgresRows extends MemoryRows {
     } catch (error) { await this.lease.query("ROLLBACK").catch(() => undefined); throw error; }
   }
 
+  /** Account/identity operations share this writer and commit together, including nested synchronous business units. */
+  transaction<T>(run: () => Promise<T>): Promise<T> {
+    return this.writeAsync(() => run());
+  }
+
   override async close() {
     await this.settled();
     if (this.closed) return;

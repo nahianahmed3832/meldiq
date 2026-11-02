@@ -4,7 +4,7 @@
  * (Meldiq's own and community ones); one taken down stays listed until its owner unstars it.
  */
 export interface FavoriteStore {
-  readonly backend: "memory" | "mongodb";
+  readonly backend: "memory" | "mongodb" | "postgres";
   /** [userId]'s favourites, newest first. */
   list(userId: string): Promise<string[]>;
   count(userId: string): Promise<number>;

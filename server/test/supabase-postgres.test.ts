@@ -31,6 +31,28 @@ import type { ReportRow } from "../src/modules/organizations/reports/store.js";
 import { PostgresRecoveryStore } from "../src/modules/accounts/postgresRecoveryStore.js";
 import { RECOVERY_TICKET_GRACE_MS } from "../src/modules/accounts/recoveryStore.js";
 import { PostgresKeyBackupStore } from "../src/modules/accounts/postgresKeyBackupStore.js";
+import { PostgresAccountStore } from "../src/modules/accounts/postgresStore.js";
+import type { AccountRow, SessionRow } from "../src/modules/accounts/store.js";
+import { SocialStore, type SocialFlow } from "../src/modules/accounts/social/store.js";
+import type { AppContext } from "../src/app/context.js";
+import { PostgresRelayStore } from "../src/modules/messaging/relay/postgresStore.js";
+import type { QueueInsert, Submission } from "../src/modules/messaging/relay/store.js";
+import { PostgresCallStore } from "../src/modules/calls/postgresStore.js";
+import type { CallRow } from "../src/modules/calls/store.js";
+import { postgresTableSpecs } from "../src/infrastructure/database/postgres/nativeCatalog.js";
+import { PostgresPrivacyStore } from "../src/modules/accounts/relationships/postgresPrivacyStore.js";
+import { PostgresFavoriteStore } from "../src/modules/accounts/decorations/postgresFavoritesStore.js";
+import { PostgresOAuthStore } from "../src/modules/oauth/postgresStore.js";
+import { OAuthService } from "../src/modules/oauth/service.js";
+import { token as oauthToken } from "../src/modules/oauth/flow.js";
+import { secretHash } from "../src/shared/utilities/secrets.js";
+import type { OAuthApp } from "../src/modules/oauth/store.js";
+import { PostgresBotStore } from "../src/modules/bots/postgresStore.js";
+import { PostgresRulesStore } from "../src/modules/organizations/rules/postgresStore.js";
+import { PostgresPinStore } from "../src/modules/accounts/pins/postgresStore.js";
+import { PostgresPointsStore } from "../src/modules/points/postgresStore.js";
+import { PostgresDecorationStore } from "../src/modules/accounts/decorations/postgresStore.js";
+import type { PointsEntry } from "../src/modules/points/store.js";
 import type { ProgramApplication } from "../src/modules/accounts/creators/service.js";
 import { TypedPostgresImporter, digest, validateRow, dependencyOrder } from "../src/infrastructure/database/postgres/migration.js";
 
@@ -47,6 +69,7 @@ let messages: PostgresMessageStore;
 const auth1 = "10000000-0000-4000-8000-000000000001";
 const auth2 = "10000000-0000-4000-8000-000000000002";
 const session = "20000000-0000-4000-8000-000000000001";
+const deletionOrder = new Map(dependencyOrder(postgresTableSpecs()).reverse().map((table, index) => [table.name, index]));
 
 async function claims<T>(uid: string, run: () => Promise<T>) { return db.asUser(uid,uid===auth1?session:"20000000-0000-4000-8000-000000000002",run); }
 function event(id: string, extra: Partial<MessageEvent> = {}): MessageEvent {
@@ -69,8 +92,17 @@ afterAll(async () => {
 });
 beforeEach(async () => {
   const tables = await db.query<{schema:string;name:string}>("SELECT schemaname AS schema,tablename AS name FROM pg_tables WHERE schemaname IN ('meldiq','meldiq_private','auth')");
-  await db.query(`TRUNCATE ${tables.rows.map(t=>`"${t.schema}"."${t.name}"`).join(",")} RESTART IDENTITY CASCADE`);
-  await db.query("TRUNCATE realtime.test_sent");
+  const schemaOrder: Record<string, number> = {meldiq_private: 0, meldiq: 1, auth: 2};
+  tables.rows.sort((a, b) => schemaOrder[a.schema] - schemaOrder[b.schema] || (deletionOrder.get(a.name) ?? 0) - (deletionOrder.get(b.name) ?? 0) || a.name.localeCompare(b.name));
+  // These are small synthetic fixtures in a freshly created loopback database. Truncating 284 relations for
+  // every test rewrites thousands of physical files and dominated the suite under concurrent workstation load.
+  // Row deletion retains all FK/trigger enforcement; flush deferred cleanup, then remove its synthetic queue work.
+  await db.transaction(async () => {
+    await db.query("SET CONSTRAINTS ALL DEFERRED");
+    await db.query(tables.rows.map(t => `DELETE FROM "${t.schema}"."${t.name}";`).join("\n"));
+    await db.query("SET CONSTRAINTS ALL IMMEDIATE");
+    await db.query("DELETE FROM meldiq.pending_blob_deletes; DELETE FROM meldiq.abandoned_uploads; DELETE FROM realtime.test_sent; DELETE FROM realtime.messages;");
+  });
   for (let n=1;n<=2;n++) {
     await db.query(`INSERT INTO meldiq.users(id,username,display_name,identity_key,avatar_color,created_at,updated_at) VALUES($1,$1,$1,$1,1,1000,1000)`,[`user${n}`]);
     await db.query("INSERT INTO meldiq.accounts(id,email,name,password_hash,password_changed_at,user_id,created_at,updated_at) VALUES($1,$2,$1,'!synthetic-fixture',1000,$3,1000,1000)",[`account${n}`,`fixture${n}@example.invalid`,`user${n}`]);
@@ -86,7 +118,7 @@ beforeEach(async () => {
 describe("relational schema and security",()=>{
   it("enforces RLS and denies raw client access on every application and operational table",async()=>{
     const rows=await db.query("SELECT c.relname,c.relrowsecurity,c.relforcerowsecurity,has_table_privilege('authenticated',c.oid,'SELECT,INSERT,UPDATE,DELETE') AS exposed FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('meldiq','meldiq_private') AND c.relkind='r'");
-    expect(rows.rows.length).toBe(284);
+    expect(rows.rows.length).toBe(285);
     expect(rows.rows.every(r=>r.relrowsecurity&&r.relforcerowsecurity&&!r.exposed)).toBe(true);
     await expect(claims(auth1,()=>db.query("SELECT password_hash FROM meldiq.accounts"))).rejects.toMatchObject({code:"42501"});
     await expect(claims(auth1,()=>db.query("UPDATE meldiq.billing_subscriptions SET status='active'"))).rejects.toMatchObject({code:"42501"});
@@ -317,6 +349,7 @@ describe("normalized native keyed stores",()=>{
     const store=new PostgresDocuments<ProgramApplication>(db,"creator_program");
     const app:ProgramApplication={id:"application1",userId:"user1",status:"pending",reason:null,createdAt:1000,reviewedAt:null,reviewedBy:null};
     await store.insert(app);expect(await store.get(app.id)).toEqual(app);
+    expect(await store.update(app.id,{status:"approved"},{})).toBeNull();
     await expect(store.insert({...app,id:"application2"})).rejects.toThrow("Duplicate");
     expect(await store.update(app.id,{status:"approved"},{status:"rejected"})).toBeNull();
     const wins=await Promise.all([store.update(app.id,{status:"pending"},{status:"approved"}),store.update(app.id,{status:"pending"},{status:"rejected"})]);
@@ -775,5 +808,501 @@ describe("PostgreSQL recovery and sealed key material", () => {
     await keys.deleteForAccount("account1");
     expect(await keys.backup("account1")).toBeUndefined();
     expect(await keys.deleteBackup("account1")).toBe(false);
+  });
+});
+
+describe("PostgreSQL account and identity transactions", () => {
+  const sessionRow = (id: string, accountId = "account1"): SessionRow => ({id, account_id: accountId, device_id: null, label: "Synthetic test",
+    access_hash: `access-${id}`, access_expires_at: 5000, refresh_hash: `refresh-${id}`, previous_refresh_hash: null, previous_refresh_answer: null,
+    refresh_expires_at: 10000, expires_at: 10000, created_at: 1000, refreshed_at: 1000, last_used_at: 1000, revoked_at: null, revoke_reason: null});
+  const accountRow = (id: string): AccountRow => ({id, email: `${id}@example.invalid`, name: id, password_hash: "!synthetic", password_changed_at: 1000,
+    email_verified_at: null, user_id: null, legacy_linked_at: null, selected_workspace_id: null, admitted_via: null, created_at: 1000, updated_at: 1000, disabled_at: null});
+  it("isolates staged changes across awaits and rolls them back before a competing writer proceeds", async () => {
+    const rows = await PostgresRows.open(db, tableSpecs()), accounts = new PostgresAccountStore(rows);
+    let start!: () => void, release!: () => void;
+    const started = new Promise<void>(resolve => { start = resolve; }), gate = new Promise<void>(resolve => { release = resolve; });
+    try {
+      const transaction = accounts.transaction(async () => {
+        await accounts.updateAccount("account1", {name: "uncommitted"}, 2000);
+        expect((await accounts.accountById("account1"))?.name).toBe("uncommitted");
+        start(); await gate;
+        throw new Error("abort account transaction");
+      });
+      const failed = expect(transaction).rejects.toThrow("abort account transaction");
+      await started;
+      expect((await accounts.accountById("account1"))?.name).toBe("account1");
+      expect((await db.query("SELECT name FROM meldiq.accounts WHERE id='account1'")).rows[0].name).toBe("account1");
+      let competingDone = false;
+      const competing = accounts.updateAccount("account1", {name: "committed competitor"}, 2001).then(() => { competingDone = true; });
+      await Promise.resolve(); expect(competingDone).toBe(false);
+      release(); await failed; await competing;
+      expect((await accounts.accountById("account1"))?.name).toBe("committed competitor");
+      expect((await db.query("SELECT name FROM meldiq.accounts WHERE id='account1'")).rows[0].name).toBe("committed competitor");
+    } finally { release(); await rows.close(); }
+  });
+  it("discards both account and identity overlays after a real PostgreSQL constraint failure", async () => {
+    const rows = await PostgresRows.open(db, tableSpecs()), accounts = new PostgresAccountStore(rows);
+    try {
+      await expect(accounts.transaction(async () => {
+        await accounts.updateAccount("account1", {name: "must roll back"}, 2000);
+        await rows.write(writer => writer.update("users", {id: "user1"}, {kind: "invalid-kind"}));
+      })).rejects.toMatchObject({code: "23514"});
+      expect((await accounts.accountById("account1"))?.name).toBe("account1");
+      expect(rows.get<{kind: string}>("users", {id: "user1"})?.kind).toBe("person");
+      expect((await db.query("SELECT name FROM meldiq.accounts WHERE id='account1'")).rows[0].name).toBe("account1");
+      await accounts.transaction(async () => {
+        await accounts.updateAccount("account1", {name: "outer"}, 2000);
+        await expect(accounts.transaction(async () => {
+          await accounts.updateAccount("account1", {name: "inner rollback"}, 2001);
+          throw new Error("nested abort");
+        })).rejects.toThrow("nested abort");
+        expect((await accounts.accountById("account1"))?.name).toBe("outer");
+      });
+      expect((await accounts.accountById("account1"))?.name).toBe("outer");
+    } finally { await rows.close(); }
+  });
+  it("consumes an invite and creates its account together, retaining the invite on a duplicate email", async () => {
+    await db.query("INSERT INTO meldiq.registration_invites(id,code_hash,code_hint,note,max_uses,uses,created_at,expires_at,revoked_at,purpose) VALUES('invite','hash','hint','Synthetic',1,0,1000,5000,NULL,'account')");
+    const rows = await PostgresRows.open(db, tableSpecs()), accounts = new PostgresAccountStore(rows);
+    const admission = {take: (writer: import("../src/infrastructure/database/rows/types.js").RowWriter) => {
+      const invite = writer.get<{uses: number}>("registration_invites", {id: "invite"})!;
+      if (invite.uses >= 1) throw new Error("Invite already used");
+      writer.update("registration_invites", {id: "invite"}, {uses: invite.uses + 1}); return "invite";
+    }, undo: () => { throw new Error("Compensation must never be needed"); }};
+    try {
+      expect(await accounts.createAccount({...accountRow("duplicate"), email: "FIXTURE1@example.invalid"}, admission)).toBeNull();
+      expect((await db.query("SELECT uses FROM meldiq.registration_invites WHERE id='invite'")).rows[0].uses).toBe(0);
+      expect((await accounts.createAccount(accountRow("fresh"), admission))?.admitted_via).toBe("invite");
+      expect((await db.query("SELECT uses FROM meldiq.registration_invites WHERE id='invite'")).rows[0].uses).toBe(1);
+      expect((await accounts.accountByEmail("FRESH@example.invalid"))?.id).toBe("fresh");
+      expect(await accounts.changeVerifiedEmail("fresh", "fixture1@example.invalid", 2000)).toBe(false);
+      expect((await accounts.accountById("fresh"))?.email).toBe("fresh@example.invalid");
+    } finally { await rows.close(); }
+  });
+  it("atomically creates encryption identity, device and session binding with strict ownership", async () => {
+    const rows = await PostgresRows.open(db, tableSpecs()), accounts = new PostgresAccountStore(rows);
+    try {
+      await accounts.insertAccount(accountRow("enroll"));
+      await accounts.insertSession(sessionRow("enroll-session", "enroll"));
+      const create = (writer: import("../src/infrastructure/database/rows/types.js").RowWriter) => {
+        writer.insert("users", {id: "new-user", username: "new-user", display_name: "Synthetic", identity_key: "new-identity-key", created_at: 1000, updated_at: 1000});
+        writer.insert("devices", {id: "new-device", user_id: "new-user", name: "Synthetic", signing_key: "signature-key", encryption_key: "encryption-key", certificate: "certificate", created_at: 1000, last_seen_at: 1000});
+        return "new-device";
+      };
+      expect(await accounts.linkIdentity("enroll", "new-user", "enroll-session", 2000, create)).toBe("new-device");
+      expect((await accounts.sessionById("enroll-session"))?.device_id).toBe("new-device");
+      expect((await accounts.accountById("enroll"))?.user_id).toBe("new-user");
+      expect(await accounts.linkIdentity("enroll", "another-user", "enroll-session", 2001, () => { throw new Error("Already linked"); })).toBeNull();
+      await expect(accounts.bindDeviceWith("enroll-session", writer => {
+        writer.insert("devices", {id: "forged-device", user_id: "user2", name: "Wrong owner", signing_key: "bad", encryption_key: "bad", certificate: "bad", created_at: 1000, last_seen_at: 1000});
+        return "forged-device";
+      })).rejects.toThrow("ownership mismatch");
+      expect(rows.get("devices", {id: "forged-device"})).toBeUndefined();
+      expect((await db.query("SELECT user_id FROM meldiq.accounts WHERE id='enroll'")).rows[0].user_id).toBe("new-user");
+      await rows.close();
+      const reopened = await PostgresRows.open(db, tableSpecs());
+      try { expect((await new PostgresAccountStore(reopened).sessionById("enroll-session"))?.device_id).toBe("new-device"); }
+      finally { await reopened.close(); }
+    } finally { await rows.close(); }
+  });
+  it("preserves refresh CAS, one-use codes, factor metadata and account revocation", async () => {
+    const rows = await PostgresRows.open(db, tableSpecs()), accounts = new PostgresAccountStore(rows);
+    try {
+      const session = sessionRow("test-session");
+      await accounts.insertSession({...session, second_factor_at: 1000});
+      expect((await accounts.sessionByAccessHash(session.access_hash))?.second_factor_at).toBe(1000);
+      const rotation = {access_hash: "rotated-access", access_expires_at: 6000, refresh_hash: "rotated-refresh", previous_refresh_hash: session.refresh_hash,
+        previous_refresh_answer: "sealed-refresh-answer", refresh_expires_at: 11000, refreshed_at: 2000, last_used_at: 2000};
+      expect((await Promise.all([accounts.rotateSession(session.id, rotation, session.refresh_hash), accounts.rotateSession(session.id, rotation, session.refresh_hash)])).filter(Boolean)).toHaveLength(1);
+      expect(await accounts.sessionHolders(2000)).toBe(1);
+      expect(await accounts.activeSessions("account1", 2000)).toHaveLength(1);
+      await accounts.putCode({account_id: "account1", purpose: "verify_email", code_hash: "synthetic-code-hash", attempts: 99, created_at: 1000, expires_at: 3000});
+      await accounts.countCodeAttempt("account1", "verify_email");
+      expect((await accounts.code("account1", "verify_email"))?.attempts).toBe(1);
+      expect((await Promise.all([accounts.deleteCode("account1", "verify_email", "synthetic-code-hash"), accounts.deleteCode("account1", "verify_email", "synthetic-code-hash")])).filter(Boolean)).toHaveLength(1);
+      expect(await accounts.revokeSession(session.id, "test", 2500)).toBe(true);
+      expect(await accounts.revokeSession(session.id, "duplicate", 2600)).toBe(false);
+      expect(await accounts.activeSessions("account1", 2500)).toEqual([]);
+      expect(await accounts.recentSessions("account1", 2000, 10)).toHaveLength(1);
+      expect(await accounts.sessionHolders(2500)).toBe(0);
+    } finally { await rows.close(); }
+  });
+  it("uses exact provider/issuer/subject ownership and never links by matching email", async () => {
+    const rows = await PostgresRows.open(db, tableSpecs()), accounts = new PostgresAccountStore(rows);
+    const social = new SocialStore({identity: rows, accounts: {store: accounts}} as unknown as AppContext);
+    const identity = {id: "provider-identity", account_id: "account1", provider: "google" as const, issuer: "https://accounts.google.com", subject: "verified-subject", email: "fixture1@example.invalid", connected_at: 1000};
+    try {
+      await social.link(identity);
+      expect(await social.find(identity)).toEqual(identity);
+      expect(await social.find({...identity, subject: "other-subject"})).toBeNull();
+      expect(await social.find({...identity, issuer: "https://untrusted.example.invalid"})).toBeNull();
+      await expect(social.link({...identity, id: "duplicate-identity", account_id: "account2"})).rejects.toMatchObject({statusCode: 409, code: "identity_conflict"});
+      expect(await social.list("account2")).toEqual([]);
+      expect(await social.list("account1")).toEqual([identity]);
+      await social.unlink("account1", "google");
+      expect(await social.find(identity)).toBeNull();
+    } finally { await rows.close(); }
+  });
+  it("consumes social receipts in the same account transaction and restores them after a later failure", async () => {
+    const rows = await PostgresRows.open(db, tableSpecs()), accounts = new PostgresAccountStore(rows);
+    const social = new SocialStore({identity: rows, accounts: {store: accounts}} as unknown as AppContext);
+    const flow: SocialFlow = {id: "social-flow", provider: "google", challenge: "synthetic-challenge", verifier: "synthetic-verifier", cookie: "synthetic-cookie",
+      accountId: null, sessionId: null, platform: "web", nonce: "synthetic-nonce", stage: "ready", expiresAt: Date.now() + 10000};
+    try {
+      await social.insertFlow(flow);
+      await expect(accounts.transaction(async () => {
+        expect(await social.replace({...flow, stage: "used"}, "ready")).toBe(true);
+        await accounts.updateAccount("account1", {name: "failed provider mutation"}, 2000);
+        throw new Error("provider link failed");
+      })).rejects.toThrow("provider link failed");
+      expect((await social.flow(flow.id))?.stage).toBe("ready");
+      expect((await accounts.accountById("account1"))?.name).toBe("account1");
+      expect((await Promise.all([social.replace({...flow, stage: "used"}, "ready"), social.replace({...flow, stage: "used"}, "ready")])).filter(Boolean)).toHaveLength(1);
+      expect((await social.flow(flow.id))?.stage).toBe("used");
+    } finally { await rows.close(); }
+  });
+});
+
+describe("PostgreSQL legacy delivery and call metadata", () => {
+  const submission = (id: string): Submission => ({message_id: id, sender_device_id: "device1", sender_user_id: "user1", conversation_id: "conversation1", recipient_count: 1, server_ts: 1000, expires_at: 5000});
+  const queued = (id: string, recipient = "device2"): QueueInsert => ({recipient_device_id: recipient, kind: "envelope", conversation_id: "conversation1", message_id: id,
+    sender_user_id: "user1", sender_device_id: "device1", payload: "opaque-encrypted-envelope", created_at: 1000, expires_at: 5000});
+  it("commits submission and per-device delivery once, fences acknowledgments and resumes counters after restart", async () => {
+    const rows = await PostgresRows.open(db, tableSpecs()), relay = new PostgresRelayStore(rows);
+    let lastId = 0;
+    try {
+      const results = await Promise.allSettled([relay.accept(submission("message1"), [queued("message1")]), relay.accept(submission("message1"), [queued("message1")])]);
+      expect(results.filter(result => result.status === "fulfilled")).toHaveLength(1);
+      expect(results.filter(result => result.status === "rejected")).toHaveLength(1);
+      expect(await relay.enqueue([queued("message1")])).toEqual([]);
+      const backlog = await relay.backlog("device2", 4999, 10);
+      expect(backlog).toHaveLength(1); lastId = backlog[0].id;
+      expect(Number.isSafeInteger(lastId)).toBe(true);
+      expect(await relay.backlog("device2", 5000, 10)).toEqual([]);
+      expect(await relay.hasEnvelopeSince("device2", 1000, 4999)).toBe(true);
+      expect(await relay.hasEnvelopeSince("device2", 1001, 4999)).toBe(false);
+      expect(await relay.take("other-device", [lastId])).toEqual([]);
+      expect(await relay.take("device2", [lastId, lastId])).toEqual(backlog);
+      expect(await relay.stats()).toEqual({envelopes: 0, receipts: 0, oldestCreatedAt: null});
+      expect(await relay.countInConversations([])).toBe(0);
+    } finally { await rows.close(); }
+    const reopened = await PostgresRows.open(db, tableSpecs());
+    try {
+      const restarted = new PostgresRelayStore(reopened);
+      expect(await restarted.submission("message1")).toEqual(submission("message1"));
+      const next = await restarted.enqueue([queued("message2")]);
+      expect(next[0].id).toBeGreaterThan(lastId);
+      restarted.forgetConversationFor("conversation1", ["device2"]); await restarted.settled();
+      expect(await restarted.backlog("device2", 1000, 10)).toEqual([]);
+      restarted.forgetSender("user1"); await restarted.settled();
+      expect(await restarted.submission("message1")).toBeNull();
+    } finally { await reopened.close(); }
+  });
+  it("rolls back a rejected queue row with its submission and retains atomic identity cascades", async () => {
+    const rows = await PostgresRows.open(db, tableSpecs()), relay = new PostgresRelayStore(rows);
+    try {
+      await expect(relay.accept(submission("invalid"), [{...queued("invalid"), kind: "invalid" as "envelope"}])).rejects.toMatchObject({code: "23514"});
+      expect(await relay.submission("invalid")).toBeNull();
+      expect(await relay.backlog("device2", 1000, 10)).toEqual([]);
+      await relay.accept(submission("valid"), [queued("valid")]);
+      await expect(rows.transaction(async () => {
+        relay.forgetConversation("conversation1");
+        throw new Error("abort conversation deletion");
+      })).rejects.toThrow("abort conversation deletion");
+      await relay.settled();
+      expect(await relay.submission("valid")).not.toBeNull();
+      expect(await relay.purgeExpired(5000)).toEqual({queue: 1, submitted: 1});
+    } finally { await rows.close(); }
+  });
+  const call = (id: string): CallRow => ({id, conversation_id: "conversation1", room_name: `room-${id}`, created_by: "user1", video: 1, state: "RINGING",
+    created_at: 0, answered_at: null, ended_at: null, end_reason: null, alerted_at: null, host_server_id: null});
+  it("preserves answer/alert races, newest-device movement, hand order, attendance and retention", async () => {
+    const calls = new PostgresCallStore(db);
+    await calls.insert(call("call1"));
+    expect((await calls.byRoom("room-call1"))?.id).toBe("call1");
+    expect((await Promise.all([calls.markAnswered("call1", 60000), calls.markAnswered("call1", 60001)])).filter(Boolean)).toHaveLength(1);
+    expect((await Promise.all([calls.markAlerted("call1", 30000), calls.markAlerted("call1", 30001)])).filter(Boolean)).toHaveLength(1);
+    await calls.join("call1", "user1", "old-device", 0, false);
+    await calls.join("call1", "user1", "new-device", 60000, false);
+    await calls.join("call1", "user2", "other-user-device", 60000, false);
+    expect(await calls.leaveOtherDevices("call1", "user1", "new-device", 120000)).toEqual(["old-device"]);
+    await calls.join("call1", "user1", "old-device", 150000, false);
+    expect((await calls.participants("call1")).find(row => row.device_id === "old-device")?.joined_at).toBe(0);
+    expect(await calls.leave("call1", "old-device", 180000)).toBe(true);
+    expect(await calls.leave("call1", "old-device", 180001)).toBe(false);
+    await calls.join("call1", "user1", "new-device", 180000, true);
+    await calls.raiseHand("call1", "user1", 60000); await calls.raiseHand("call1", "user2", 70000); await calls.raiseHand("call1", "user1", 90000);
+    expect(await calls.hands("call1")).toEqual([{user_id: "user1", raised_at: 60000}, {user_id: "user2", raised_at: 70000}]);
+    expect(await calls.activeCounts()).toEqual({calls: 1, video: 1, participants: 2});
+    expect(await calls.liveWithParticipant("user1")).toHaveLength(1);
+    expect(await calls.liveIn([])).toEqual([]);
+    expect(await calls.countIn(["conversation1"])).toBe(1);
+    expect((await Promise.all([calls.end("call1", 240000, "lost"), calls.end("call1", 240000, "lost")])).filter(Boolean)).toHaveLength(1);
+    expect(await calls.present("call1")).toEqual([]);
+    expect(await calls.participantMinutes(["conversation1"], 0, 300000, 300000)).toBe(7);
+    expect(await calls.participantMinutes(["conversation1"], 60000, 180000, 300000)).toBe(4);
+    expect(await calls.days(0)).toEqual([{day: "1970-01-01", started: 1, answered: 1, declined: 0, lost: 1}]);
+    expect(await calls.leaderboardSpans(["conversation1"], 180000)).toHaveLength(2);
+    expect(await calls.history("conversation1", 0, 1, 10)).toHaveLength(1);
+    await calls.lowerHand("call1", "user1"); await calls.forgetUserHands("user2");
+    expect(await calls.hands("call1")).toEqual([]);
+    expect(await calls.pruneEnded(239999)).toBe(0);
+    expect(await calls.pruneEnded(240000)).toBe(1);
+    expect(await calls.participants("call1")).toEqual([]);
+  });
+  it("keeps mirrored-call updates transactional and refuses to revive an ended room", async () => {
+    const calls = new PostgresCallStore(db), mirror = {...call("mirror"), host_server_id: "remote-server"};
+    await calls.applyMirror(mirror, [{user_id: "user2", device_id: "remote-device", joined_at: 1000}]);
+    expect(await calls.live(false)).toHaveLength(1);
+    expect(await calls.live(true)).toEqual([]);
+    await calls.end(mirror.id, 2000, "ended");
+    await calls.applyMirror({...mirror, state: "ACTIVE", answered_at: 1500}, []);
+    expect((await calls.get(mirror.id))?.state).toBe("ENDED");
+    await expect(calls.applyMirror({...call("invalid-mirror"), created_by: "missing-user"}, [])).rejects.toMatchObject({code: "23503"});
+    expect(await calls.get("invalid-mirror")).toBeNull();
+    await calls.forgetConversations(["conversation1"]);
+    expect(await calls.get(mirror.id)).toBeNull();
+  });
+});
+
+describe("PostgreSQL privacy and catalog favorites", () => {
+  it("preserves privacy choices across restart, isolates owners and enforces the released policy enum", async () => {
+    const privacy = new PostgresPrivacyStore(db);
+    expect(await privacy.get("user1")).toBeNull();
+    await privacy.put("user1", {groupAddPolicy: "friends", suggestable: false}, 1000);
+    expect(await new PostgresPrivacyStore(db).get("user1")).toEqual({groupAddPolicy: "friends", suggestable: false});
+    expect(await privacy.get("user2")).toBeNull();
+    expect(await privacy.many([])).toEqual(new Map());
+    expect(await privacy.many(["user1", "user2"])).toEqual(new Map([["user1", {groupAddPolicy: "friends", suggestable: false}]]));
+    await expect(privacy.put("user1", {groupAddPolicy: "invalid" as "everyone", suggestable: true}, 2000)).rejects.toMatchObject({code: "23514"});
+    expect(await privacy.get("user1")).toEqual({groupAddPolicy: "friends", suggestable: false});
+    await privacy.deleteForUser("user1");
+    expect(await privacy.get("user1")).toBeNull();
+  });
+  it("accepts built-in favorites, keeps uploaded favorites after removal and isolates user lists", async () => {
+    const favorites = new PostgresFavoriteStore(db);
+    expect((await Promise.all([favorites.add("user1", "builtin:star", 1000), favorites.add("user1", "builtin:star", 1000)])).filter(Boolean)).toHaveLength(1);
+    await db.query(`INSERT INTO meldiq.profile_decorations(id,creator_id,name,status,format,size,created_at,wearers,reviewed_by,reason,reviewed_at,animated)
+      VALUES('uploaded-decoration','user1','Synthetic','approved','png',1,1000,0,NULL,NULL,NULL,false)`);
+    expect(await favorites.add("user1", "uploaded-decoration", 2000)).toBe(true);
+    await db.query("DELETE FROM meldiq.profile_decorations WHERE id='uploaded-decoration'");
+    expect(await new PostgresFavoriteStore(db).list("user1")).toEqual(["uploaded-decoration", "builtin:star"]);
+    expect(await favorites.count("user1")).toBe(2);
+    await favorites.add("user2", "builtin:star", 2000);
+    await favorites.remove("user1", "builtin:star");
+    expect(await favorites.list("user1")).toEqual(["uploaded-decoration"]);
+    expect(await favorites.list("user2")).toEqual(["builtin:star"]);
+    await favorites.deleteForUser("user1");
+    expect(await favorites.count("user1")).toBe(0);
+    expect(await favorites.count("user2")).toBe(1);
+  });
+});
+
+describe("PostgreSQL Meldiq OAuth apps and durable replay revocation", () => {
+  const app: OAuthApp = {id: "oauth-app", ownerId: "user1", name: "Synthetic app", redirectUris: ["https://client.example.invalid/callback"],
+    secretHash: secretHash("synthetic-client-secret"), createdAt: 1000, updatedAt: 1000, secretRotatedAt: 1000};
+  async function setup() {
+    const store = new PostgresOAuthStore(db);
+    await store.insertApp(app);
+    await store.upsertGrant(app.id, "user1", ["identify"], 1000);
+    await store.insertCode({hash: secretHash("synthetic-code"), appId: app.id, userId: "user1", redirectUri: app.redirectUris[0], scopes: ["identify"], challenge: null,
+      createdAt: 1000, expiresAt: 10000, usedAt: null, familyId: null});
+    const service = new OAuthService({} as AppContext, store, () => 2000);
+    const body = {grant_type: "authorization_code" as const, code: "synthetic-code", redirect_uri: app.redirectUris[0]};
+    const credentials = {id: app.id, secret: "synthetic-client-secret"};
+    return {store, service, body, credentials};
+  }
+  it("merges concurrent scope approvals, protects ownership and atomically revokes a grant's material", async () => {
+    const {store} = await setup();
+    await Promise.all([store.upsertGrant(app.id, "user1", ["identify"], 2000), store.upsertGrant(app.id, "user1", ["email"], 2000)]);
+    expect(new Set((await store.grant(app.id, "user1"))?.scopes)).toEqual(new Set(["identify", "email"]));
+    expect(await store.updateApp(app.id, "user2", {name: "forged owner"}, 2000)).toBeNull();
+    expect((await store.app(app.id))?.name).toBe(app.name);
+    expect(await store.appsOf("user1")).toHaveLength(1);
+    expect(await store.appsByIds([])).toEqual([]);
+    expect(await store.grantsOf("user1")).toHaveLength(1);
+    expect(await store.revokeGrant(app.id, "user1")).toBe(true);
+    expect(await store.grant(app.id, "user1")).toBeNull();
+    expect(await store.takeCode(secretHash("synthetic-code"), 2000)).toBeNull();
+    expect(await store.revokeGrant(app.id, "user1")).toBe(false);
+  });
+  it("issues once and commits family revocation when a concurrent code replay is rejected", async () => {
+    const {store, service, body, credentials} = await setup();
+    const results = await Promise.allSettled([oauthToken(service, body, credentials), oauthToken(service, body, credentials)]);
+    expect(results.filter(result => result.status === "fulfilled")).toHaveLength(1);
+    const rejected = results.find(result => result.status === "rejected") as PromiseRejectedResult;
+    expect(rejected.reason).toMatchObject({error: "invalid_grant"});
+    expect((await db.query("SELECT count(*) AS count FROM meldiq.oauth_tokens")).rows[0].count).toBe(0);
+    const code = await store.takeCode(secretHash("synthetic-code"), 3000);
+    expect(code?.usedAt).toBe(2000);
+    expect(Boolean(code?.familyId)).toBe(true);
+  });
+  it("rotates once and commits revocation when a replaced refresh token is replayed", async () => {
+    const {store, service, body, credentials} = await setup();
+    const issued = await oauthToken(service, body, credentials);
+    const family = await store.familyByAccess(secretHash(issued.access_token));
+    expect(Boolean(family)).toBe(true);
+    const refresh = {grant_type: "refresh_token" as const, refresh_token: issued.refresh_token};
+    const results = await Promise.allSettled([oauthToken(service, refresh, credentials), oauthToken(service, refresh, credentials)]);
+    expect(results.filter(result => result.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter(result => result.status === "rejected")).toHaveLength(1);
+    expect(await store.family(family!.id)).toBeNull();
+  });
+  it("rolls code consumption back on an unexpected persistence failure", async () => {
+    const {store} = await setup();
+    await expect(store.transaction(async () => {
+      await store.takeCode(secretHash("synthetic-code"), 2000);
+      await store.insertFamily({id: "invalid-family", appId: app.id, userId: "missing-owner", scopes: ["identify"], confidential: true,
+        accessHash: "synthetic-access-hash", accessExpiresAt: 5000, refreshHash: "synthetic-refresh-hash", previousRefreshHash: null,
+        refreshExpiresAt: 10000, createdAt: 2000, rotatedAt: 2000});
+    })).rejects.toMatchObject({code: "23503"});
+    expect((await store.takeCode(secretHash("synthetic-code"), 3000))?.usedAt).toBeNull();
+    expect(await store.family("invalid-family")).toBeNull();
+  });
+});
+
+describe("PostgreSQL bots and community configuration", () => {
+  async function org() {
+    await db.query("INSERT INTO meldiq.orgs(id,name,slug,created_by,created_at,updated_at) VALUES('org1','Synthetic','synthetic','user1',1000,1000)");
+  }
+  it("claims bot interactions without duplicate delivery and preserves reply/expiry outcomes", async () => {
+    await org();
+    const bots = new PostgresBotStore(db);
+    const bot = {id: "user2", ownerId: "user1", tokenHash: "synthetic-bot-token-hash", public: false, commands: [], createdAt: 1000, tokenRotatedAt: 1000};
+    await bots.insertBot(bot);
+    expect(await new PostgresBotStore(db).botByToken(bot.tokenHash)).toEqual(bot);
+    expect(await bots.botsOf("user1")).toEqual([bot]);
+    expect(await bots.botsByIds([])).toEqual([]);
+    expect((await bots.updateBot(bot.id, {public: true}))?.public).toBe(true);
+    for (let n = 1; n <= 2; n++) await bots.addInteraction({id: `interaction${n}`, botId: bot.id, userId: "user1", orgId: "org1", conversationId: "conversation1",
+      command: "synthetic", options: {choice: true}, state: "pending", createdAt: 1000 + n, expiresAt: 3000, deliveredAt: null, repliedAt: null});
+    expect(await bots.openCount(bot.id, 2000)).toBe(2);
+    const claimed = (await Promise.all([bots.claim(bot.id, 2000, 1000, 1), bots.claim(bot.id, 2000, 1000, 1)])).flat();
+    expect(claimed).toHaveLength(2);
+    expect(new Set(claimed.map(item => item.id)).size).toBe(2);
+    expect(await bots.claim(bot.id, 2100, 1999, 10)).toEqual([]);
+    expect(await bots.claim(bot.id, 2200, 2000, 10)).toHaveLength(2);
+    expect(await bots.answer("interaction1", "user1", 2300)).toBe("missing");
+    expect((await Promise.all([bots.answer("interaction1", bot.id, 2300), bots.answer("interaction1", bot.id, 2300)])).sort()).toEqual(["answered", "ok"]);
+    await bots.reopen("interaction1");
+    expect((await bots.interaction("interaction1"))?.repliedAt).toBeNull();
+    expect(await bots.answer("interaction1", bot.id, 2400)).toBe("ok");
+    expect(await bots.answer("interaction2", bot.id, 3000)).toBe("expired");
+    expect(await bots.openCount(bot.id, 3000)).toBe(0);
+    expect(await bots.purgeExpired(3000)).toBe(2);
+    await bots.deleteBot(bot.id);
+    expect(await bots.bot(bot.id)).toBeNull();
+  });
+  it("retains community rules, pins and awards when a historical moderator is purged", async () => {
+    await org();
+    await db.query("INSERT INTO meldiq.users(id,username,display_name,identity_key,avatar_color,created_at,updated_at) VALUES('former-moderator','former-moderator','Synthetic','synthetic',1,1000,1000)");
+    const rules = new PostgresRulesStore(db), pins = new PostgresPinStore(db);
+    const document = {orgId: "org1", channelId: null, required: true, rules: [{id: "rule1", title: "Be kind", description: null}], updatedAt: 1000, updatedBy: "former-moderator"};
+    const pin = {id: "pin1", orgId: "org1", name: "Synthetic", description: null, format: "png" as const, animated: false, createdBy: "former-moderator", createdAt: 1000};
+    const award = {pinId: pin.id, orgId: "org1", userId: "user2", awardedBy: "former-moderator", awardedAt: 1000};
+    await rules.put(document); await pins.insertPin(pin);
+    expect((await Promise.all([pins.award(award), pins.award({...award, awardedAt: 2000})])).filter(Boolean)).toHaveLength(1);
+    expect((await Promise.all([rules.agree({orgId: "org1", userId: "user2", agreedAt: 1000}), rules.agree({orgId: "org1", userId: "user2", agreedAt: 1000})])).filter(Boolean)).toHaveLength(1);
+    await db.query("DELETE FROM meldiq.users WHERE id='former-moderator'");
+    expect(await new PostgresRulesStore(db).all()).toEqual([document]);
+    expect(await new PostgresPinStore(db).pins()).toEqual([pin]);
+    expect((await pins.awards())[0].awardedBy).toBe("former-moderator");
+    expect(await rules.agreements()).toHaveLength(1);
+    await rules.forget("org1", "user2"); expect(await rules.agreements()).toEqual([]);
+    await rules.agree({orgId: "org1", userId: "user2", agreedAt: 2000});
+    await rules.deleteForUser("user2"); expect(await rules.agreements()).toEqual([]);
+    expect(await pins.revoke(pin.id, "user2")).toBe(true);
+    expect(await pins.revoke(pin.id, "user2")).toBe(false);
+    await pins.award(award); await pins.removePin(pin.id);
+    expect(await pins.awards()).toEqual([]);
+    expect(await rules.all()).toEqual([document]);
+    await rules.removeOrg("org1"); expect(await rules.all()).toEqual([]);
+  });
+});
+
+describe("PostgreSQL server-earned points and decoration moderation", () => {
+  const earned = (id: string, amount = 40): PointsEntry => ({id, userId: "user1", kind: "chat", amount, detail: null, day: "2026-11-02", at: 1000});
+  const levelEntry = (level: number): PointsEntry => ({...earned(`level-${level}`, -30), kind: "level", detail: String(level), at: 2000});
+  it("commits idempotent earnings and one covered level debit with exact account/day/ledger totals", async () => {
+    const points = new PostgresPointsStore(db);
+    expect((await Promise.all([points.earn(earned("earning")), points.earn(earned("earning"))])).filter(Boolean)).toHaveLength(1);
+    expect(await points.earn(earned("earning", 200))).toBe(false);
+    expect((await points.account("user1"))?.balance).toBe(40);
+    expect((await points.day("user1", "2026-11-02"))?.earned).toBe(40);
+    const spent = await Promise.all([points.levelUp("user1", 30, levelEntry), points.levelUp("user1", 30, levelEntry)]);
+    expect(spent.filter(Boolean)).toHaveLength(1);
+    expect(await new PostgresPointsStore(db).account("user1")).toEqual({userId: "user1", balance: 10, earnedTotal: 40, level: 2, streak: 0, lastVisitDay: null});
+    expect(await points.levels()).toEqual(new Map([["user1", 2]]));
+    expect(await points.leaderboard("embers")).toEqual([{userId: "user1", count: 40}]);
+    expect((await points.history("user1", 10)).reduce((sum, item) => sum + item.amount, 0)).toBe(10);
+    expect(await points.countSince("user1", "chat", 1000)).toBe(1);
+    expect(await points.countSince("user1", "level", 1000)).toBe(0);
+    expect(await points.recorded(["earning", "level-2", "missing"])).toEqual(new Set(["earning", "level-2"]));
+    await points.setStreak("user1", "2026-11-02", 3);
+    expect((await points.account("user1"))?.streak).toBe(3);
+    await points.earn({...earned("achievement", 0), kind: "quest", detail: "achievement:synthetic"});
+    expect(await points.achievementAwards("user1")).toEqual([{userId: "user1", achievementId: "synthetic", at: 1000}]);
+  });
+  it("rolls back a failed level ledger and an unsafe aggregate without losing balance or granting a level", async () => {
+    const points = new PostgresPointsStore(db);
+    await points.earn(earned("earning"));
+    await expect(points.levelUp("user1", 30, () => { throw new Error("ledger callback failed"); })).rejects.toThrow("callback failed");
+    expect((await points.account("user1"))?.balance).toBe(40);
+    expect((await points.account("user1"))?.level).toBe(1);
+    await expect(points.levelUp("user1", -30, levelEntry)).rejects.toThrow("positive exact integer");
+    await expect(points.levelUp("user1", 30, level => ({...levelEntry(level), userId: "user2"}))).rejects.toThrow("does not match");
+    expect((await points.account("user1"))?.balance).toBe(40);
+    await points.deleteForUser("user1");
+    await points.earn(earned("safe-max", Number.MAX_SAFE_INTEGER));
+    await expect(points.earn(earned("overflow", 1))).rejects.toThrow("safe range");
+    expect((await points.account("user1"))?.balance).toBe(Number.MAX_SAFE_INTEGER);
+    expect(await points.recorded(["overflow"])).toEqual(new Set());
+    await expect(points.earn({...earned("missing-user"), userId: "missing-owner"})).rejects.toMatchObject({code: "23503"});
+    expect(await points.recorded(["missing-user"])).toEqual(new Set());
+  });
+  it("bounds unique daily activity under concurrency and prevents recreation after the identity tombstone", async () => {
+    const points = new PostgresPointsStore(db);
+    const recorded = await Promise.all(Array.from({length: 12}, (_, n) => points.addToDay("user1", "2026-11-02", "minutes", n, 3)));
+    expect(recorded.filter(value => value !== null)).toHaveLength(3);
+    const day = await points.day("user1", "2026-11-02");
+    expect(day?.minutes.length).toBe(3);
+    expect(new Set(day?.minutes).size).toBe(3);
+    expect((await Promise.all([points.addToDay("user1", "2026-11-02", "chats", "conversation1", 2), points.addToDay("user1", "2026-11-02", "chats", "conversation1", 2)])).filter(value => value !== null)).toHaveLength(1);
+    expect(await points.addToDay("user1", "unused", "minutes", 1, 0)).toBeNull();
+    expect(await points.day("user1", "unused")).toBeNull();
+    await points.deleteForUser("user1");
+    await db.query("UPDATE meldiq.users SET deleted_at=1000 WHERE id='user1'");
+    expect(await points.earn(earned("after-delete"))).toBe(false);
+    expect(await points.addToDay("user1", "2026-11-02", "minutes", 1, 3)).toBeNull();
+    expect(await points.account("user1")).toBeNull();
+    expect(await points.day("user1", "2026-11-02")).toBeNull();
+  });
+  it("settles an invite once and exposes credited rankings without private balances", async () => {
+    const points = new PostgresPointsStore(db);
+    await db.query("INSERT INTO meldiq.orgs(id,name,slug,created_by,created_at,updated_at) VALUES('org1','Synthetic','synthetic','user1',1000,1000)");
+    const invite = {id: "org1|user2", inviterId: "user1", joinerId: "user2", orgId: "org1", joinedAt: 1000, state: "pending" as const, settledAt: null};
+    await Promise.all([points.addInvite(invite), points.addInvite(invite)]);
+    expect(await points.invitesBy("user1")).toEqual([invite]);
+    expect((await Promise.all([points.settleInvite(invite.id, "credited", 2000), points.settleInvite(invite.id, "credited", 2000)])).filter(Boolean)).toHaveLength(1);
+    expect(await points.leaderboard("invites")).toEqual([{userId: "user1", count: 1}]);
+    await points.deleteForUser("user2");
+    expect(await points.invitesBy("user1")).toEqual([]);
+  });
+  it("moderates a decoration once, retains exact rendering metadata and keeps wearer counts nonnegative", async () => {
+    const decorations = new PostgresDecorationStore(db);
+    const decoration = {id: "decoration1", creatorId: "user1", name: "Synthetic", status: "pending" as const, format: "webp" as const, animated: true,
+      size: 2048, createdAt: 1000, reviewedAt: null, reviewedBy: null, reason: null, wearers: 0};
+    await decorations.insert(decoration);
+    expect(await new PostgresDecorationStore(db).get(decoration.id)).toEqual(decoration);
+    expect(await decorations.countPending("user1")).toBe(1);
+    const approved = {status: "approved" as const, reviewedAt: 2000, reviewedBy: "account1", reason: null};
+    expect((await Promise.all([decorations.review(decoration.id, ["pending"], approved), decorations.review(decoration.id, ["pending"], approved)])).filter(Boolean)).toHaveLength(1);
+    await decorations.addWearers(decoration.id, 2); await decorations.addWearers(decoration.id, -5);
+    expect((await decorations.get(decoration.id))?.wearers).toBe(0);
+    await decorations.setWearers(decoration.id, 3);
+    expect((await decorations.approved())[0].wearers).toBe(3);
+    expect((await decorations.page("approved", null, 10)).items).toHaveLength(1);
+    expect(await decorations.byCreator("user2")).toEqual([]);
+    await decorations.remove(decoration.id); expect(await decorations.get(decoration.id)).toBeNull();
   });
 });

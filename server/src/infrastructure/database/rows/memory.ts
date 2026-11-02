@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import type { ColumnSpec, ForeignKeySpec, TableSpec } from "../mongo/catalog.js";
 import { type Cond, ConstraintError, type InsertResult, type Query, type Row, type Rows, type RowWriter, type Value, type Where } from "./types.js";
 
@@ -115,8 +116,9 @@ export abstract class MemoryRows implements Rows {
   protected readonly tables = new Map<string, TableState>();
   /** Child foreign keys of each table: who references it. */
   private readonly children = new Map<string, { table: string; fk: ForeignKeySpec }[]>();
-  /** The unit whose function is running now (synchronously): reads see its changes, nested writes join it. */
-  private active: Unit | null = null;
+  /** A request sees its own staged changes; unrelated requests only see committed rows. */
+  private readonly context = new AsyncLocalStorage<{unit: Unit; open: boolean}>();
+  private get active(): Unit | null { const current = this.context.getStore(); return current?.open ? current.unit : null; }
   private queue: Promise<unknown> = Promise.resolve();
 
   protected constructor(specs: TableSpec[]) {
@@ -243,7 +245,9 @@ export abstract class MemoryRows implements Rows {
       const unit = this.active;
       const saved = unit.snapshot();
       try {
-        return Promise.resolve(fn(unit.writer));
+        const result = fn(unit.writer);
+        if (result instanceof Promise) throw new Error("rows: a write unit must be synchronous");
+        return Promise.resolve(result);
       } catch (e) {
         unit.restore(saved);
         return Promise.reject(e);
@@ -251,29 +255,53 @@ export abstract class MemoryRows implements Rows {
     }
     const run = async (): Promise<T> => {
       const unit = new Unit(this);
-      this.active = unit;
+      const context = {unit, open: true};
       let result: T;
       try {
-        result = this.runUnit(() => fn(unit.writer));
+        result = this.context.run(context, () => this.runUnit(() => fn(unit.writer)));
       } finally {
-        this.active = null;
+        context.open = false;
       }
       if (result instanceof Promise) throw new Error("rows: a write unit must be synchronous");
-      const changes = unit.changes();
-      if (changes.changes.length) {
-        try {
-          await this.persist(changes);
-        } catch (e) {
-          this.onPartialFailure(e);
-          throw e;
-        }
-        this.publish(unit.overlay, changes.counters);
-      }
+      await this.commit(unit);
       return result;
     };
     const p = this.queue.then(run);
     this.queue = p.catch(() => undefined);
     return p;
+  }
+
+  /** Only asynchronous durable adapters may expose this operation. MongoRows' SQLite bridge must remain synchronous.
+   * Account transactions use one overlay across awaits, then one database commit. No outside request can observe it.
+   */
+  protected writeAsync<T>(fn: (writer: RowWriter) => Promise<T>): Promise<T> {
+    const current = this.active;
+    if (current) {
+      const saved = current.snapshot();
+      return (async () => {
+        try { return await fn(current.writer); }
+        catch (error) { current.restore(saved); throw error; }
+      })();
+    }
+    const run = async () => {
+      const unit = new Unit(this), context = {unit, open: true};
+      let result: T;
+      try { result = await this.context.run(context, () => fn(unit.writer)); }
+      finally { context.open = false; }
+      await this.commit(unit);
+      return result;
+    };
+    const pending = this.queue.then(run);
+    this.queue = pending.catch(() => undefined);
+    return pending;
+  }
+
+  private async commit(unit: Unit): Promise<void> {
+    const changes = unit.changes();
+    if (!changes.changes.length) return;
+    try { await this.persist(changes); }
+    catch (error) { this.onPartialFailure(error); throw error; }
+    this.publish(unit.overlay, changes.counters);
   }
 
   settled(): Promise<void> {

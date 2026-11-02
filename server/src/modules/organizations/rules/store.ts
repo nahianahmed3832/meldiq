@@ -28,7 +28,7 @@ export interface StoredAgreement {
  * CommunityRules keeps an in-memory copy of everything for the request path (posting is checked synchronously).
  */
 export interface RulesStore {
-  readonly backend: "memory" | "mongodb";
+  readonly backend: "memory" | "mongodb" | "postgres";
   all(): Promise<StoredRules[]>;
   agreements(): Promise<StoredAgreement[]>;
   put(r: StoredRules): Promise<void>;

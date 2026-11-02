@@ -56,7 +56,7 @@ export interface CallDay {
  * store. Conversations stay where they are: callers pass conversation ids in.
  */
 export interface CallStore {
-  readonly backend: "sqlite" | "mongodb";
+  readonly backend: "sqlite" | "mongodb" | "postgres";
   get(id: string): Promise<CallRow | null>;
   byRoom(roomName: string): Promise<CallRow | null>;
   /** Live (not ended) calls of these conversations, newest first. */

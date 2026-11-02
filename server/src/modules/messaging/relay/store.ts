@@ -55,7 +55,7 @@ export class DuplicateSubmission extends Error {
 }
 
 export interface RelayStore {
-  readonly backend: "sqlite" | "mongodb";
+  readonly backend: "sqlite" | "mongodb" | "postgres";
   /** The accepted message with this id, if any (idempotency and report checks). */
   submission(messageId: string): Promise<Submission | null>;
   /**

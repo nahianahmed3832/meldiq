@@ -2,6 +2,7 @@ import type { AppContext } from "../../../app/context.js";
 import { ApiError } from "../../../shared/errors.js";
 import { isDuplicateKey } from "../../../infrastructure/database/mongo/client.js";
 import type { SocialProvider } from "./config.js";
+import { PostgresRows } from "../../../infrastructure/database/rows/postgresRows.js";
 export interface ExternalIdentity {
   provider: SocialProvider;
   issuer: string;
@@ -32,6 +33,9 @@ export interface SocialFlow {
 /** Uses exactly the account domain's backend and surrounding transaction. No second identity database. */
 export class SocialStore {
   constructor(private readonly ctx: AppContext) {}
+  private get postgres(): PostgresRows | undefined {
+    return this.ctx.accounts.store.backend === "postgres" && this.ctx.identity instanceof PostgresRows ? this.ctx.identity : undefined;
+  }
   private get mongo() {
     return this.ctx.mongo?.owns("accounts") ? this.ctx.mongo : undefined;
   }
@@ -45,6 +49,7 @@ export class SocialStore {
       stage: f.stage,
       expires_at: f.expiresAt,
     };
+    if (this.postgres) { await this.postgres.write(writer => writer.insert("account_social_flows", r)); return; }
     if (this.mongo)
       await this.mongo.db
         .collection("account_social_flows")
@@ -55,6 +60,10 @@ export class SocialStore {
         .run(r.id, r.data, r.stage, r.expires_at);
   }
   async flow(id: string): Promise<SocialFlow | null> {
+    if (this.postgres) {
+      const row = this.postgres.get<{data: string; stage: SocialFlow["stage"]}>("account_social_flows", {id});
+      return row ? {...JSON.parse(row.data), stage: row.stage} as SocialFlow : null;
+    }
     const r = this.mongo
       ? await this.mongo.db
           .collection("account_social_flows")
@@ -70,6 +79,7 @@ export class SocialStore {
     f: SocialFlow,
     expected: SocialFlow["stage"],
   ): Promise<boolean> {
+    if (this.postgres) return this.postgres.write(writer => writer.update("account_social_flows", {id: f.id, stage: expected}, {data: JSON.stringify(f), stage: f.stage}) === 1);
     if (this.mongo)
       return (
         (
@@ -92,6 +102,7 @@ export class SocialStore {
   }
   async find(i: ExternalIdentity): Promise<SocialIdentity | null> {
     const { provider, issuer, subject } = i;
+    if (this.postgres) return this.postgres.get<SocialIdentity>("account_social_identities", {provider, issuer, subject}) ?? null;
     return (
       ((this.mongo
         ? await this.mongo.db
@@ -105,6 +116,7 @@ export class SocialStore {
     );
   }
   async list(accountId: string): Promise<SocialIdentity[]> {
+    if (this.postgres) return this.postgres.all("account_social_identities", {where: {account_id: accountId}});
     return (
       this.mongo
         ? await this.mongo.db
@@ -120,6 +132,12 @@ export class SocialStore {
   }
   async link(i: SocialIdentity): Promise<void> {
     try {
+      if (this.postgres) {
+        await this.postgres.write(writer => writer.insert("account_social_identities", {
+          id: i.id, account_id: i.account_id, provider: i.provider, issuer: i.issuer, subject: i.subject, email: i.email, connected_at: i.connected_at,
+        }));
+        return;
+      }
       if (this.mongo)
         await this.mongo.db
           .collection("account_social_identities")
@@ -164,6 +182,7 @@ export class SocialStore {
     }
   }
   async unlink(accountId: string, provider: SocialProvider): Promise<void> {
+    if (this.postgres) { await this.postgres.write(writer => writer.delete("account_social_identities", {account_id: accountId, provider})); return; }
     if (this.mongo)
       await this.mongo.db
         .collection("account_social_identities")
@@ -176,6 +195,7 @@ export class SocialStore {
         .run(accountId, provider);
   }
   async purge(): Promise<number> {
+    if (this.postgres) return this.postgres.write(writer => writer.delete("account_social_flows", {expires_at: {lte: Date.now()}}));
     if (this.mongo)
       return (
         await this.mongo.db

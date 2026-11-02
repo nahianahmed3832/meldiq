@@ -16,6 +16,13 @@ for(const[table,fields]of Object.entries({bots:["token_hash"],oauth_tokens:["acc
 for(const table of ["creator_verifications","creator_program"])lines.push(`CREATE UNIQUE INDEX ${q(`native_${table}_pending_user`)} ON meldiq.${q(table)}(user_id) WHERE status='pending';`);
 lines.push("CREATE UNIQUE INDEX native_creator_post_url ON meldiq.creator_posts(user_id,url);","ALTER TABLE meldiq.points_accounts ADD CHECK(balance >= 0 AND earned_total >= 0 AND level >= 1 AND streak >= 0);","ALTER TABLE meldiq.points_invites ADD CHECK(state IN ('pending','credited','lapsed','capped'));","ALTER TABLE meldiq.profile_decorations ADD CHECK(status IN ('pending','approved','rejected','removed') AND size >= 0 AND wearers >= 0);");
 for(const table of ["creator_verifications","creator_program"])lines.push(`ALTER TABLE meldiq.${q(table)} ADD CHECK(status IN ('pending','approved','rejected'));`);
-fs.writeFileSync(path.join(root,"supabase/migrations/20261102000400_native_relations.sql"),lines.join("\n")+"\n");
+const migration=path.join(root,"supabase/migrations/20261102000400_native_relations.sql"),sql=lines.join("\n")+"\n";
+if(!process.argv.includes("--catalog-only")){
+  if(fs.existsSync(migration)&&fs.readFileSync(migration,"utf8")!==sql)throw new Error("Applied native migration is immutable: add a reviewed numbered SQL migration, then regenerate with --catalog-only");
+  if(!fs.existsSync(migration))fs.writeFileSync(migration,sql,{flag:"wx"});
+}else{
+  const applied=fs.readdirSync(path.join(root,"supabase/migrations")).filter(file=>file.endsWith(".sql")).map(file=>fs.readFileSync(path.join(root,"supabase/migrations",file),"utf8")).join("\n");
+  for(const table of NATIVE_TABLES)if(!applied.includes(`CREATE TABLE meldiq.${q(table.name)}`))throw new Error(`Write the explicit migration for ${table.name} before updating its catalog`);
+}
 fs.writeFileSync(path.join(root,"supabase/generated/native-catalog.json"),JSON.stringify({tables:NATIVE_TABLES},null,2)+"\n");
 console.log(JSON.stringify({nativeTables:NATIVE_TABLES.length}));

@@ -38,7 +38,7 @@ export type AnswerOutcome = "ok" | "missing" | "expired" | "answered";
  * answering it are single conditional updates, so two polls never get the same one at once and it's answered once.
  */
 export interface BotStore {
-  readonly backend: "memory" | "mongodb";
+  readonly backend: "memory" | "mongodb" | "postgres";
   bot(id: string): Promise<Bot | null>;
   botsOf(ownerId: string): Promise<Bot[]>;
   botsByIds(ids: readonly string[]): Promise<Bot[]>;

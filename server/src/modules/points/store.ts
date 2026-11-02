@@ -64,7 +64,7 @@ export interface InviteJoin {
  * twice or spend more than the balance.
  */
 export interface PointsStore {
-  readonly backend: "memory" | "mongodb";
+  readonly backend: "memory" | "mongodb" | "postgres";
   account(userId: string): Promise<PointsAccount | null>;
   /** Public ranking totals; never balances or private earning history. */
   leaderboard(metric: "level" | "embers" | "invites"): Promise<{ userId: string; count: number }[]>;

@@ -23,10 +23,12 @@ export const NATIVE_TABLES:TableSpec[]=[
   table("bots","identity",fields("owner_id token_hash","created_at token_rotated_at","","","public","commands"),{owner_id:"users"}),
   table("bot_interactions","identity",fields("bot_id user_id org_id conversation_id command state","created_at expires_at","","delivered_at replied_at","","options"),{bot_id:"bots",user_id:"users",org_id:"orgs",conversation_id:"conversations"}),
   table("profile_decorations","identity",fields("creator_id name status format","size created_at wearers","reviewed_by reason","reviewed_at","animated"),{creator_id:"users"}),
-  table("decoration_favorites","identity",fields("user_id decoration_id","created_at"),{user_id:"users",decoration_id:"profile_decorations"}),
-  table("community_pins","workspace",fields("org_id name format created_by","created_at","description","","animated"),{org_id:"orgs",created_by:"users"}),
-  table("community_pin_awards","workspace",fields("pin_id org_id user_id awarded_by","awarded_at"),{pin_id:"community_pins",org_id:"orgs",user_id:"users",awarded_by:"users"}),
-  table("community_rules","workspace",fields("updated_by","updated_at","channel_id","","required","rules"),{updated_by:"users"}),
+  // Favorites also refer to built-in catalog IDs and intentionally survive a decoration being taken down.
+  table("decoration_favorites","identity",fields("user_id decoration_id","created_at"),{user_id:"users"}),
+  table("privacy_settings","identity",fields("group_add_policy","updated_at","","","suggestable")),
+  table("community_pins","workspace",fields("org_id name format created_by","created_at","description","","animated"),{org_id:"orgs"}),
+  table("community_pin_awards","workspace",fields("pin_id org_id user_id awarded_by","awarded_at"),{pin_id:"community_pins",org_id:"orgs",user_id:"users"}),
+  table("community_rules","workspace",fields("updated_by","updated_at","channel_id","","required","rules")),
   table("community_rule_agreements","workspace",fields("org_id user_id","agreed_at"),{org_id:"orgs",user_id:"users"}),
   table("user_activities","identity",fields("","updated_at expires_at","","","","activity")),
   table("username_holds","identity",fields("user_id","created_at expires_at"),{user_id:"users"}),
@@ -36,7 +38,7 @@ export const NATIVE_TABLES:TableSpec[]=[
   table("linked_accounts","identity",fields("user_id provider external_id name url items_kind","connected_at updated_at checked_at","tokens","","visible","items"),{user_id:"users"}),
   table("linked_account_starts","identity",fields("user_id provider verifier","expires_at"),{user_id:"users"}),
 ];
-for(const [name,parent] of Object.entries({points_accounts:"users",bots:"users",user_activities:"users",community_rules:"orgs"})) NATIVE_TABLES.find(t=>t.name===name)!.foreignKeys.push({columns:["id"],table:parent,references:["id"],onDelete:"CASCADE"});
+for(const [name,parent] of Object.entries({points_accounts:"users",bots:"users",user_activities:"users",privacy_settings:"users",community_rules:"orgs"})) NATIVE_TABLES.find(t=>t.name===name)!.foreignKeys.push({columns:["id"],table:parent,references:["id"],onDelete:"CASCADE"});
 export const postgresTableSpecs=()=>[...tableSpecs(),...NATIVE_TABLES];
 
 export function normalizeNativeDocument(name:string,doc:Record<string,unknown>):Record<string,unknown>{

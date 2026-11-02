@@ -103,7 +103,7 @@ export interface Admission {
  * MongoDB runs the identity part as its own rows unit and undoes it, or its own part, when the other fails.
  */
 export interface AccountStore {
-  readonly backend: "sqlite" | "mongodb";
+  readonly backend: "sqlite" | "mongodb" | "postgres";
   /**
    * Runs [fn] atomically over this store's rows. [fn] may only call this store's methods: no other tables, and nothing
    * else asynchronous (the SQLite store relies on that to keep one transaction open across its awaits).

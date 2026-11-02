@@ -182,9 +182,22 @@ async function refresh(svc: OAuthService, body: z.infer<typeof TokenBody>, creds
 /** POST /v2/oauth/token. Throws OAuthError, which the route answers in RFC 6749 §5.2's shape. */
 export async function token(svc: OAuthService, body: z.infer<typeof TokenBody>, creds: ClientCredentials): Promise<Token> {
   await svc.purgeNowAndThen();
-  if (body.grant_type === "authorization_code") return exchangeCode(svc, body, creds);
-  if (body.grant_type === "refresh_token") return refresh(svc, body, creds);
-  throw new OAuthError(400, "unsupported_grant_type", "Use authorization_code or refresh_token");
+  const run = async () => {
+    if (body.grant_type === "authorization_code") return exchangeCode(svc, body, creds);
+    if (body.grant_type === "refresh_token") return refresh(svc, body, creds);
+    throw new OAuthError(400, "unsupported_grant_type", "Use authorization_code or refresh_token");
+  };
+  if (!svc.store.transaction) return run();
+  const outcome = await svc.store.transaction(async () => {
+    try { return {ok: true as const, token: await run()}; }
+    catch (error) {
+      // Replay rejection must COMMIT its revocation. Unexpected persistence errors roll the whole exchange back.
+      if (error instanceof OAuthError) return {ok: false as const, error};
+      throw error;
+    }
+  });
+  if (!outcome.ok) throw outcome.error;
+  return outcome.token;
 }
 
 /** Who an access token speaks for, and what it may see; null for a token that's unknown, expired or revoked. */
