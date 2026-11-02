@@ -83,7 +83,7 @@ class AppContainer(
     val crypto = EnvelopeV1 { session.keys ?: error("no keys on this device") }
     val messages = MessageRepository(
         app, db, api, realtime, session, crypto, directory, conversations, users, settings, appState, scope,
-        java.io.File(app.filesDir, profile.attachmentsDir), com.meldiq.android.data.repo.AttachmentUploader(api, features),
+        java.io.File(app.filesDir, profile.attachmentsDir), com.meldiq.android.data.repo.AttachmentUploader(api, features, java.io.File(app.filesDir, "${profile.attachmentsDir}/upload-sessions")),
         serverHas = { features.has(it) == true },
     ) { notifier.show(it) }
     val orgs = OrgRepository(api, db, conversations, users)
@@ -138,6 +138,16 @@ class AppContainer(
 
     init {
         session.accountRenewal = { if (accounts.record?.tokens != null) accounts.refreshTokens() else null }
+        messages.entitlementUploadLimit = { cid ->
+            if (features.has("mojo") == true && mojo.state.value.catalog == null) mojo.refreshUploadLimits()
+            val state = mojo.state.value
+            if (state.catalog?.enforced == true) {
+                val plan = state.me?.perks ?: state.catalog.plan(com.meldiq.android.data.billing.MojoPlans.currentKey(state.entitlements))
+                val org = cid?.let { db.conversations().get(it)?.orgId }
+                val sparks = org?.let { mojo.orgSparks(it).getOrNull()?.perks }
+                com.meldiq.android.data.billing.MojoPlans.uploadLimit(plan, sparks).takeIf { plan != null }
+            } else null
+        }
         messages.start()
         calls.start()
         history.start()

@@ -1,5 +1,9 @@
 package com.meldiq.android.ui.media
 
+import android.graphics.drawable.Animatable
+import android.graphics.drawable.Drawable
+import android.os.Build
+import android.widget.ImageView
 import android.widget.VideoView
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -78,10 +82,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.meldiq.android.data.model.AttachmentRef
 import com.meldiq.android.ui.TimeFmt
 import com.meldiq.android.ui.friendly
 import com.meldiq.android.ui.theme.Griip
+import com.meldiq.android.ui.theme.rememberReducedMotion
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import java.io.File
 
@@ -195,13 +204,24 @@ private fun MediaPage(
     // Twice the screen's long edge (for zooming), capped: never the full photo in memory.
     val maxEdge = with(density) { (maxOf(config.screenWidthDp, config.screenHeightDp).dp.toPx() * 2).toInt() }.coerceIn(1024, 4096)
     var bitmap by remember(item.ref.id) { mutableStateOf<ImageBitmap?>(null) }
+    var drawable by remember(item.ref.id) { mutableStateOf<Drawable?>(null) }
     LaunchedEffect(item.ref.id, attempt) {
         state = PageState.Loading
-        state = runCatching { load(item.ref) }.fold({ PageState.Ready(it) }, { PageState.Failed(it.friendly()) })
-        val ready = state as? PageState.Ready ?: return@LaunchedEffect
-        if (MediaGallery.kindOf(item.ref) == MediaKind.Image) {
-            bitmap = MediaExport.decode(ready.file, maxEdge)?.asImageBitmap()
-            if (bitmap == null) state = PageState.Failed("This photo can't be shown: the file is damaged or in a format this phone can't open. You can still save it.")
+        bitmap = null; drawable = null
+        try {
+            val file = load(item.ref)
+            if (MediaGallery.kindOf(item.ref) == MediaKind.Image) {
+                if (Build.VERSION.SDK_INT >= 28) drawable = MediaExport.decodeDrawable(file, maxEdge)
+                else bitmap = MediaExport.decode(file, maxEdge)?.asImageBitmap()
+                if (bitmap == null && drawable == null) {
+                    state = PageState.Failed("This photo can't be shown: the file is damaged or in a format this phone can't open. You can still save it.")
+                    return@LaunchedEffect
+                }
+            }
+            state = PageState.Ready(file)
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) {
+            state = PageState.Failed(e.friendly())
         }
     }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -224,7 +244,7 @@ private fun MediaPage(
                 }
             }
             is PageState.Ready -> when (MediaGallery.kindOf(item.ref)) {
-                MediaKind.Image -> bitmap?.let { ZoomableImage(it, item.ref.name, onTap, onLongPress) }
+                MediaKind.Image -> ZoomableImage(bitmap, drawable, active, item.ref.name, onTap, onLongPress)
                 MediaKind.Video -> VideoPage(s.file, active, canPlayVideo, onPlay, onTap, onLongPress)
                 null -> Unit
             }
@@ -237,16 +257,28 @@ private fun MediaPage(
  * the pager, so swiping still moves between photos; while zoomed, the drag pans the photo instead.
  */
 @Composable
-private fun ZoomableImage(bitmap: ImageBitmap, description: String, onTap: () -> Unit, onLongPress: () -> Unit) {
+private fun ZoomableImage(bitmap: ImageBitmap?, drawable: Drawable?, active: Boolean, description: String, onTap: () -> Unit, onLongPress: () -> Unit) {
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val animate = active && !rememberReducedMotion()
+    DisposableEffect(drawable, lifecycle, animate) {
+        fun update() {
+            (drawable as? Animatable)?.let {
+                if (animate && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) it.start() else it.stop()
+            }
+        }
+        val observer = LifecycleEventObserver { _, _ -> update() }
+        lifecycle.addObserver(observer)
+        update()
+        onDispose { lifecycle.removeObserver(observer); (drawable as? Animatable)?.stop() }
+    }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val w = constraints.maxWidth.toFloat()
         val h = constraints.maxHeight.toFloat()
         fun clamp(o: Offset, s: Float) = Offset(o.x.coerceIn(-(s - 1) * w / 2, (s - 1) * w / 2), o.y.coerceIn(-(s - 1) * h / 2, (s - 1) * h / 2))
-        Image(
-            bitmap, description, contentScale = ContentScale.Fit,
-            modifier = Modifier.fillMaxSize()
+        Box(
+            Modifier.fillMaxSize()
                 .semantics { contentDescription = "Photo: $description. Double tap to zoom." }
                 .pointerInput(Unit) {
                     detectTapGestures(
@@ -280,7 +312,19 @@ private fun ZoomableImage(bitmap: ImageBitmap, description: String, onTap: () ->
                     }
                 }
                 .graphicsLayer { scaleX = scale; scaleY = scale; translationX = offset.x; translationY = offset.y },
-        )
+        ) {
+            if (drawable != null) AndroidView(
+                factory = { ImageView(it).apply { scaleType = ImageView.ScaleType.FIT_CENTER; contentDescription = description } },
+                update = { view ->
+                    if (view.drawable !== drawable) view.setImageDrawable(drawable)
+                    (drawable as? Animatable)?.let {
+                        if (animate && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) it.start() else it.stop()
+                    }
+                },
+                onRelease = { (it.drawable as? Animatable)?.stop(); it.setImageDrawable(null) },
+                modifier = Modifier.fillMaxSize(),
+            ) else bitmap?.let { Image(it, description, Modifier.fillMaxSize(), contentScale = ContentScale.Fit) }
+        }
     }
 }
 

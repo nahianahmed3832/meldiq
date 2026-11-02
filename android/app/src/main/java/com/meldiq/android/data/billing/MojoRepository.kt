@@ -114,6 +114,14 @@ class MojoRepository(private val backend: MojoBackend, private val play: PlaySto
         scope.launch { play.updates.collect(::onUpdate) }
     }
 
+    /** Media preflight reads server limits without opening or querying the Play purchase sheet. */
+    suspend fun refreshUploadLimits() {
+        val catalog = backend.catalog()
+        val entitlements = backend.entitlements()
+        val me = loadMe()
+        mutable.update { it.copy(catalog = catalog, entitlements = entitlements, me = me ?: it.me) }
+    }
+
     suspend fun refresh() {
         mutable.update { it.copy(loading = true) }
         val offers = scope.async { runCatching { play.offers() }.getOrDefault(emptyMap()) }

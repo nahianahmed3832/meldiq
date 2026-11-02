@@ -521,8 +521,9 @@ class MessageRepository(
         val m = db.messages().get(id) ?: return false
         if (m.status != MessageStatus.SENDING && m.status != MessageStatus.FAILED) return false
         if (db.outbox().get(id) != null) return false // already handed to the outbox: it's being sent
-        batchJobs.remove(id)?.cancel()
+        batchJobs.remove(id)?.let { it.cancel(); it.join() }
         attachments(m).forEach { ref -> if (ref.id == AttachmentFiles.PENDING) batchSources.remove(ref.sha256) }
+        attachments(m).filter { it.id == AttachmentFiles.PENDING }.forEach { ref -> files.child(ref.sha256 + ".enc")?.delete() }
         files.deleteFor(id, attachments(m))
         db.messages().deleteLocal(id)
         db.refreshPreview(m.conversationId)
@@ -534,7 +535,16 @@ class MessageRepository(
      * [SERVER_LIMIT_TTL_MS], so a limit the server's operator raises (production ran 25 MB) applies without restarting Meldiq.
      */
     @Volatile private var serverMaxBytes: Pair<Long, Long>? = null // limit, when it was read
-    suspend fun maxAttachmentBytes(): Long {
+    /** Optional account/community ceiling, read from the shared entitlement service. */
+    var entitlementUploadLimit: suspend (String?) -> Long? = { null }
+
+    suspend fun maxAttachmentBytes(conversationId: String? = null): Long {
+        val transport = serverAttachmentBytes()
+        val entitled = entitlementUploadLimit(conversationId)
+        return if (entitled != null) minOf(transport, entitled.coerceAtLeast(0)) else transport
+    }
+
+    private suspend fun serverAttachmentBytes(): Long {
         serverMaxBytes?.let { (limit, at) -> if (System.currentTimeMillis() - at < SERVER_LIMIT_TTL_MS) return limit }
         val info = runCatching { api.get<com.meldiq.android.data.api.ServerInfo>("/v1/server-info") }.getOrNull()
         return AttachmentPolicy.effectiveMax(info?.attachmentMaxBytes, info?.fileMaxBytes)
@@ -565,6 +575,33 @@ class MessageRepository(
         return sendBatch(destCid, items, AttachmentPolicy.Quality.ORIGINAL, caption, forwarded = true, rich = rich)
     }
 
+    /** Optional derivative, encrypted separately through the same authorized upload APIs. */
+    private suspend fun createThumbnail(cid: String, local: File, mime: String): com.meldiq.android.data.model.AttachmentThumbnail? {
+        if (!mime.startsWith("image/") && !mime.startsWith("video/")) return null
+        if (mime == "image/gif") return null
+        val preview = File(context.cacheDir, "preview-${UUID.randomUUID()}")
+        val encrypted = File(context.cacheDir, "${preview.name}.enc")
+        try {
+            val bitmap = if (mime.startsWith("video/")) com.meldiq.android.ui.media.MediaExport.videoFrame(local, 480)
+                else com.meldiq.android.ui.media.MediaExport.decode(local, 480)
+            if (bitmap == null) return null
+            val type = if (bitmap.hasAlpha()) "image/png" else "image/jpeg"
+            try {
+                withContext(Dispatchers.IO) {
+                    preview.outputStream().use { bitmap.compress(if (type == "image/png") android.graphics.Bitmap.CompressFormat.PNG else android.graphics.Bitmap.CompressFormat.JPEG, 75, it) }
+                }
+            } finally { bitmap.recycle() }
+            if (preview.length() !in 1..131072 || (mime.startsWith("image/") && preview.length() >= local.length())) return null
+            val meta = withContext(Dispatchers.IO) { AttachmentCrypto.encryptFile(preview, encrypted) }
+            val up = uploader.upload(cid, encrypted, meta.sha256) { }
+            return com.meldiq.android.data.model.AttachmentThumbnail(up.id, if (type == "image/png") "preview.png" else "preview.jpg", type, preview.length(), meta.key, meta.nonce, meta.sha256)
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (e: Exception) {
+            Log.w(TAG, "optional attachment preview unavailable: ${e.javaClass.simpleName}")
+            return null
+        } finally { preview.delete(); encrypted.delete() }
+    }
+
     private suspend fun processBatch(id: String) {
         if (!runningBatches.add(id)) return
         val m0 = db.messages().get(id) ?: run { runningBatches.remove(id); return }
@@ -588,20 +625,25 @@ class MessageRepository(
                 if (!local.exists()) {
                     val src = batchSources[pending.sha256] ?: throw MissingOriginal()
                     progress(i, "Preparing$what", 0f)
-                    ref = prepare(pending, local, src) { f -> progress(i, (if (src.kind == AttachmentPolicy.Kind.VIDEO) "Compressing video" else "Preparing") + what, f * 0.5f) }
+                    ref = prepare(cid, pending, local, src) { f -> progress(i, (if (src.kind == AttachmentPolicy.Kind.VIDEO) "Compressing video" else "Preparing") + what, f * 0.5f) }
                     batchSources.remove(pending.sha256)
                     refs[i] = ref
                     save()
                 }
                 progress(i, "Uploading$what", 0f)
                 val uploaded = uploadSlots.withPermit {
-                    val enc = File(context.cacheDir, "${local.name}.enc")
-                    try {
-                        // Over 25 MB: the chunked format, so neither side ever holds the whole file in memory.
-                        val chunked = local.length() > AttachmentPolicy.LEGACY_MAX_FILE_BYTES
-                        val meta = withContext(Dispatchers.IO) {
-                            if (chunked) ChunkedAttachmentCrypto.encryptFile(local, enc) else AttachmentCrypto.encryptFile(local, enc)
-                        }
+                    val enc = File(local.parentFile, "${local.name}.enc")
+                    // Completed encryption survives process death; keys follow the app's existing private Room metadata.
+                    val chunked = local.length() > AttachmentPolicy.LEGACY_MAX_FILE_BYTES
+                    val kept = ref.pendingCipher?.takeIf { enc.isFile && enc.length() == it.cipherSize }
+                    val meta = kept?.let { AttachmentCrypto.Meta(it.key, it.nonce, it.sha256) } ?: withContext(Dispatchers.IO) {
+                        if (chunked) ChunkedAttachmentCrypto.encryptFile(local, enc) else AttachmentCrypto.encryptFile(local, enc)
+                    }
+                    if (kept == null) {
+                        ref = ref.copy(pendingCipher = com.meldiq.android.data.model.PendingAttachmentCipher(meta.key, meta.nonce, meta.sha256, if (chunked) ChunkedAttachmentCrypto.DEFAULT_CHUNK else null, enc.length()))
+                        refs[i] = ref
+                        save()
+                    }
                         val up = uploader.upload(cid, enc, meta.sha256) { p -> progress(i, "Uploading$what", 0.5f + p * 0.5f) }
                         // Batch B16: the size as shown, so the other phones keep the picture's space while it loads.
                         val dims = com.meldiq.android.media.MediaDims.of(local, ref.mime).takeIf { ref.voice != true }
@@ -609,14 +651,13 @@ class MessageRepository(
                             up.id, ref.name, ref.mime, local.length(), meta.key, meta.nonce, meta.sha256, ref.voice, ref.durationMs,
                             chunk = if (chunked) ChunkedAttachmentCrypto.DEFAULT_CHUNK else null,
                             w = dims?.first, h = dims?.second,
+                            thumbnail = if (ref.voice != true) createThumbnail(cid, local, ref.mime) else null,
                         )
-                    } finally {
-                        enc.delete()
-                    }
                 }
                 local.renameTo(files.fileFor(uploaded.id, uploaded.name))
                 refs[i] = uploaded
                 save()
+                File(local.parentFile, "${local.name}.enc").delete()
             }
             val m = db.messages().get(id) ?: return
             sendText(cid, m.text, replyTo = m.replyToId, attachments = refs, presetId = id, forwarded = m.forwarded, mentions = if (m.forwarded) MentionSet.NONE else null, rich = rich(m))
@@ -649,7 +690,7 @@ class MessageRepository(
      * Writes the file to send into [local] (which appears only when complete): the picked file as it is, or a Standard/HD
      * version of a photo or video. Returns the placeholder with its final name, type and size.
      */
-    private suspend fun prepare(pending: AttachmentRef, local: File, src: BatchSource, onProgress: (Float) -> Unit): AttachmentRef {
+    private suspend fun prepare(cid: String, pending: AttachmentRef, local: File, src: BatchSource, onProgress: (Float) -> Unit): AttachmentRef {
         val compress = src.quality != AttachmentPolicy.Quality.ORIGINAL && AttachmentPolicy.compressible(src.kind, src.sniffed)
         // Large files (up to 1 GiB) need room for their copy and its encrypted copy: refuse early rather than fill the phone.
         if ((local.parentFile ?: context.filesDir).usableSpace < AttachmentPolicy.spaceNeeded(pending.size)) throw NotEnoughSpace()
@@ -657,7 +698,7 @@ class MessageRepository(
         val raw = File(context.cacheDir, "prep-${local.name}")
         try {
             val copyTo = if (compress) raw else part
-            val max = maxAttachmentBytes()
+            val max = maxAttachmentBytes(cid)
             copyFromUri(src.uri, copyTo, if (compress) AttachmentPolicy.MAX_SOURCE_BYTES else max)
             // The bytes read now must still be what was checked when it was picked (a file can change after picking).
             val head = copyTo.inputStream().use { i -> ByteArray(64).let { b -> b.copyOf(i.read(b).coerceAtLeast(0)) } }
@@ -720,7 +761,10 @@ class MessageRepository(
         val part = File(context.cacheDir, "dl-${ref.id.replace(Regex("[^A-Za-z0-9_-]"), "_")}.part")
         _transfer.update { it + (ref.id to 0f) }
         try {
-            TransferRetry.run { api.downloadTo("/v1/attachments/${ref.id}", part) { p -> _transfer.update { it + (ref.id to p) } } }
+            require(ref.size in 0..1_073_741_824L) { "Invalid attachment size" }
+            val chunk = ref.chunk?.also { require(it in 1024..16 * 1024 * 1024) { "Unsupported attachment encryption" } }
+            val expected = ref.size + 16L * (if (chunk == null) 1L else ((ref.size + chunk - 1) / chunk).coerceAtLeast(1))
+            TransferRetry.run { api.downloadToBounded("/v1/attachments/${ref.id}", part, expected) { p -> _transfer.update { it + (ref.id to p) } } }
             val out = files.fileFor(ref.id, ref.name)
             try {
                 withContext(Dispatchers.IO) {

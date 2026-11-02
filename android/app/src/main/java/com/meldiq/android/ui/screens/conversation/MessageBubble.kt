@@ -419,7 +419,7 @@ private fun MessageContent(b: BubbleModel, me: String?, tinted: Boolean, transfe
             b.attachments.filter { !album || it !in visuals }.forEach { a ->
                 if (VoiceNote.isVoice(a)) {
                     VoiceMessageView(a, tinted, transfer, voice.takeIf { it.key == m.id }, { cb.onVoiceToggle(a) }, { cb.onVoiceSeek(a, it) })
-                } else AttachmentView(a, tinted, transfer, localFile(a), cb.onOpenAttachment)
+                } else AttachmentView(a, tinted, transfer, localFile(a) ?: a.thumbnail?.asAttachment()?.let(localFile), cb.onOpenAttachment, localFile(a) == null && a.thumbnail?.asAttachment()?.let(localFile) != null)
                 if (m.text.isNotEmpty()) Spacer(Modifier.height(6.dp))
             }
             val rich = b.rich
@@ -586,14 +586,14 @@ private fun richText(
 private fun senderColor(i: Int): Color = com.meldiq.android.ui.theme.AvatarGradients[((i % 8) + 8) % 8].second
 
 @Composable
-private fun AttachmentView(a: AttachmentRef, out: Boolean, transfer: Float?, local: File?, onOpen: (AttachmentRef) -> Unit) {
+private fun AttachmentView(a: AttachmentRef, out: Boolean, transfer: Float?, local: File?, onOpen: (AttachmentRef) -> Unit, isThumbnail: Boolean = false) {
     val c = Griip.colors
     val kind = MediaGallery.kindOf(a)
     // Thumbnails: photos decoded at bubble size with their EXIF rotation, videos as their first frame.
     val bitmap by produceState<ImageBitmap?>(null, local?.path) {
         value = when {
             local == null -> null
-            kind == MediaKind.Image -> MediaExport.decode(local, 1080)?.asImageBitmap()
+            kind == MediaKind.Image || isThumbnail -> MediaExport.decode(local, 1080)?.asImageBitmap()
             kind == MediaKind.Video -> MediaExport.videoFrame(local, 720)?.asImageBitmap()
             else -> null
         }
