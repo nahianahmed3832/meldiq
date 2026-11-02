@@ -68,7 +68,7 @@ export interface RowWriter extends RowReader {
 }
 
 export interface Rows extends RowReader {
-  readonly backend: "sqlite" | "mongodb";
+  readonly backend: "sqlite" | "mongodb" | "postgres";
   /** One atomic unit of writes (see the module comment). Resolves with [fn]'s result once the unit is durable. */
   write<T>(fn: (w: RowWriter) => T): Promise<T>;
   /** Whether [table] is one of these rows' tables. */

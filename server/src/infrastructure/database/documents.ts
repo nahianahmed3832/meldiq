@@ -26,7 +26,7 @@ export interface FindOptions<T> {
 export class DuplicateDocument extends Error {}
 
 export interface DocumentStore<T extends Keyed> {
-  readonly backend: "memory" | "mongodb";
+  readonly backend: "memory" | "mongodb" | "postgres";
   /** Adds [doc]; throws DuplicateDocument when its id (or a unique index's key) is taken. */
   insert(doc: T): Promise<void>;
   /** Adds or replaces [doc] by its id. */

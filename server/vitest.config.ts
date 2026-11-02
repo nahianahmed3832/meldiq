@@ -7,6 +7,7 @@ const mongo = !!process.env.MELDIQ_TEST_MONGO_DOMAINS;
 export default defineConfig({
   test: {
     include: ["test/**/*.test.ts"],
+    exclude: ["test/supabase*.test.ts"], // Dedicated PostgreSQL harness: npm run test:supabase
     testTimeout: mongo ? 60000 : 20000,
     hookTimeout: mongo ? 90000 : 20000,
     pool: "forks",

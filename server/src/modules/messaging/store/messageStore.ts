@@ -52,7 +52,7 @@ export interface ConversationSummary {
 }
 
 export interface MessageStore {
-  readonly backend: "sqlite" | "mongodb";
+  readonly backend: "sqlite" | "mongodb" | "postgres";
   get(id: string): Promise<MessageEvent | null>;
   /** Adds [e]; false when an event with its id already exists (nothing changes then). */
   add(e: MessageEvent): Promise<boolean>;

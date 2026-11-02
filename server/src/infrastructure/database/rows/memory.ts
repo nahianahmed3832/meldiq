@@ -111,7 +111,7 @@ function equalities(where: Where | undefined): [string, Value][] {
 }
 
 export abstract class MemoryRows implements Rows {
-  abstract readonly backend: "sqlite" | "mongodb";
+  abstract readonly backend: "sqlite" | "mongodb" | "postgres";
   protected readonly tables = new Map<string, TableState>();
   /** Child foreign keys of each table: who references it. */
   private readonly children = new Map<string, { table: string; fk: ForeignKeySpec }[]>();
