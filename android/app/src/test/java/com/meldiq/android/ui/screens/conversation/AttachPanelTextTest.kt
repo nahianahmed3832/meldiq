@@ -11,11 +11,11 @@ class AttachPanelTextTest {
     @Test
     fun `the limit shown is the server's, not a fixed 25 MB`() {
         assertEquals(
-            "Up to 10 at once, 1 GB per file on this server. Photos and videos: Original, or compressed on this phone.",
+            "Up to 10 at once, 1 GB per file on this server. Photos and videos are optimized by default. Select Original file to send unchanged.",
             AttachPanelText.limits(1024 * mb),
         )
         assertEquals(
-            "Up to 10 at once, 25 MB per file on this server. Photos and videos: Original, or compressed on this phone.",
+            "Up to 10 at once, 25 MB per file on this server. Photos and videos are optimized by default. Select Original file to send unchanged.",
             AttachPanelText.limits(25 * mb),
         )
     }

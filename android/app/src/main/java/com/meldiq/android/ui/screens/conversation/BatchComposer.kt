@@ -7,6 +7,7 @@ import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
 import android.util.Size
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -32,6 +33,7 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Warning
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -47,6 +49,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
+import com.meldiq.android.R
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -55,11 +59,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.meldiq.android.data.model.AttachmentPolicy
 import com.meldiq.android.data.model.AttachmentPolicy.Quality
-import com.meldiq.android.ui.components.ChipRow
 import com.meldiq.android.ui.components.GlassSheet
 import com.meldiq.android.ui.components.GriipTextField
 import com.meldiq.android.ui.components.PillButton
-import com.meldiq.android.ui.components.PillChip
 import com.meldiq.android.ui.components.pressable
 import com.meldiq.android.ui.theme.Griip
 import com.meldiq.android.ui.theme.Shapes
@@ -80,13 +82,12 @@ fun BatchComposer(
     onSend: (photoQuality: Quality, videoQuality: Quality, caption: String) -> Unit,
     onDismiss: () -> Unit,
     maxFile: Long = AttachmentPolicy.MAX_FILE_BYTES,
-    defaultPhotoQuality: Quality = Quality.STANDARD,
-    defaultVideoQuality: Quality = Quality.ORIGINAL,
 ) {
     val c = Griip.colors
-    // Photos start at Standard and videos at Original unless Settings › Chats says otherwise; files are never compressed.
-    var quality by rememberSaveable { mutableStateOf(defaultPhotoQuality) }
-    var videoQuality by rememberSaveable { mutableStateOf(defaultVideoQuality) }
+    // Original is a per-batch choice, never inherited from a previous send or legacy settings.
+    var originalFile by rememberSaveable { mutableStateOf(false) }
+    val quality = if (originalFile) Quality.ORIGINAL else Quality.STANDARD
+    val videoQuality = quality
     var caption by rememberSaveable { mutableStateOf("") }
     val qualityOf = { k: AttachmentPolicy.Kind -> if (k == AttachmentPolicy.Kind.VIDEO) videoQuality else quality }
     val verdicts = items.map { AttachmentPolicy.check(it.item.kind, it.item.sniffed, it.item.size, qualityOf(it.item.kind), maxFile, it.item.durationMs) }
@@ -123,31 +124,17 @@ fun BatchComposer(
             }
         }
         note?.let { Text(it, style = Griip.type.caption, color = c.warning, modifier = Modifier.padding(top = 8.dp, start = 4.dp)) }
-        if (photos) {
+        if (photos || videos) {
             Spacer(Modifier.height(12.dp))
-            Text("Photo quality", style = Griip.type.label, color = c.textSecondary, modifier = Modifier.padding(start = 4.dp))
-            ChipRow(Modifier.padding(horizontal = 0.dp)) {
-                Quality.entries.forEach { q -> PillChip(q.label, quality == q, { quality = q }) }
+            Row(
+                Modifier.fillMaxWidth().toggleable(value = originalFile, role = androidx.compose.ui.semantics.Role.Checkbox, onValueChange = { originalFile = it }),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Checkbox(originalFile, onCheckedChange = null)
+                Text(stringResource(R.string.media_sharing_original_file), style = Griip.type.label, color = c.textPrimary)
             }
             Text(
-                when (quality) {
-                    Quality.STANDARD -> "Smaller and quicker: up to 1600 px, re-encoded without camera metadata or location."
-                    Quality.HD -> "Sharper, larger: up to 4096 px, re-encoded without camera metadata or location."
-                    Quality.ORIGINAL -> "Exactly as it is, including any location saved in the photo."
-                },
-                style = Griip.type.caption, color = c.textSecondary, modifier = Modifier.padding(horizontal = 4.dp),
-            )
-        }
-        if (videos) {
-            Spacer(Modifier.height(12.dp))
-            Text("Video quality", style = Griip.type.label, color = c.textSecondary, modifier = Modifier.padding(start = 4.dp))
-            ChipRow(Modifier.padding(horizontal = 0.dp)) {
-                listOf(Quality.ORIGINAL, Quality.HD, Quality.STANDARD).forEach { q ->
-                    PillChip(when (q) { Quality.ORIGINAL -> "Original"; Quality.HD -> "Compress (1080p)"; else -> "Compress (720p)" }, videoQuality == q, { videoQuality = q })
-                }
-            }
-            Text(
-                if (videoQuality == Quality.ORIGINAL) "Sent exactly as it is." else "Re-encoded on this phone before sending; this takes a while for long videos.",
+                stringResource(if (originalFile) R.string.media_sharing_original_note else R.string.media_sharing_optimized_note),
                 style = Griip.type.caption, color = c.textSecondary, modifier = Modifier.padding(horizontal = 4.dp),
             )
         }

@@ -1,0 +1,15 @@
+{
+  "focusedTests": {
+    "tests": 40,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "appApkBuilt": true,
+  "apkSha256": "4719aa18010c73b98e496cbd9b976336822d7296052736f71a31f30aea0b9bd9",
+  "nativeDefault": "optimized",
+  "onlyOptionalChoice": "Original file",
+  "originalChoiceStartsUnchecked": true,
+  "legacySavedQualityIgnoredByPicker": true,
+  "storePublished": false
+}

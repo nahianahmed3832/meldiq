@@ -2,4 +2,7 @@
     <string name="media_sharing_photos">Photos</string>
     <string name="media_sharing_videos">Videos</string>
     <string name="media_sharing_filter_filename">Filter this page by filename</string>
+    <string name="media_sharing_original_file">Original file</string>
+    <string name="media_sharing_optimized_note">Photos and videos are optimized automatically. Select Original file before sending to keep them unchanged.</string>
+    <string name="media_sharing_original_note">Send unchanged files, including any saved location metadata.</string>
 </resources>
