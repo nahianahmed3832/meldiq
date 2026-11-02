@@ -67,7 +67,7 @@ describe("the trial program in the console", () => {
 
   it("follows the environment until an operator saves it: off here, so nobody gets a trial", async () => {
     const p = await program();
-    expect(p).toMatchObject({ source: "environment", live: false, settings: { enabled: false, planKey: "plus", days: 14, referralDays: 30, referralCapDays: 90, claimWindowDays: 7 } });
+    expect(p).toMatchObject({ source: "environment", live: false, settings: { enabled: false, planKey: "plus", days: 0, referralDays: 30, referralCapDays: 90, claimWindowDays: 7 } });
     expect(p.plans.map((x: any) => x.key)).toEqual(["plus"]);
     expect((await h.app.inject({ method: "GET", url: "/v2/billing/plans" })).json().trial).toBeNull();
     const early = await signedIn("earlybird");

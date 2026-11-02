@@ -41,7 +41,7 @@ describe("trial settings", () => {
     expect(trialConfig({ BILLING_TRIAL_STARTS_AT: "2026-11-01T00:00:00Z" })).toEqual({
       startsAt: Date.parse("2026-11-01T00:00:00Z"),
       planKey: "plus",
-      days: 14,
+      days: 0,
       referralDays: 30,
       referralCapDays: 90,
       claimWindowDays: 7,
@@ -75,6 +75,7 @@ describe("with trials and invite links", () => {
         STRIPE_WEBHOOK_SECRET: WHSEC,
         BILLING_RETURN_URL: "https://meldiq.test/account/billing",
         BILLING_TRIAL_STARTS_AT: new Date(Date.now() - 60 * DAY).toISOString(),
+        BILLING_TRIAL_DAYS: "14",
         WORKFLOW_TICK_MS: "0",
       },
       { mailer, billingProvider: new StripeProvider({ secretKey: SK, webhookSecret: WHSEC, allowPromotionCodes: false, api: stripe }) },

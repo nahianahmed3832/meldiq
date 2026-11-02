@@ -93,7 +93,7 @@ export interface TrialConfig {
   startsAt: number;
   /** The plan a grant gives (BILLING_TRIAL_PLAN, a plan key; default "plus"). */
   planKey: string;
-  /** BILLING_TRIAL_DAYS (default 14): every account's trial. */
+  /** BILLING_TRIAL_DAYS (default 0): automatic signup trials require an explicit operator opt-in. */
   days: number;
   /** BILLING_REFERRAL_DAYS (default 30): the trial through an invite link, and each inviter's bonus. */
   referralDays: number;
@@ -121,7 +121,7 @@ export function trialConfig(env: NodeJS.ProcessEnv): TrialConfig | null {
   return {
     startsAt,
     planKey,
-    days: wholeDays(env, "BILLING_TRIAL_DAYS", 14, 365),
+    days: wholeDays(env, "BILLING_TRIAL_DAYS", 0, 365),
     referralDays: wholeDays(env, "BILLING_REFERRAL_DAYS", 30, 365),
     referralCapDays: wholeDays(env, "BILLING_REFERRAL_YEARLY_CAP_DAYS", 90, 3650),
     claimWindowDays: wholeDays(env, "BILLING_REFERRAL_CLAIM_DAYS", 7, 90),
