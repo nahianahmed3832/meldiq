@@ -102,5 +102,19 @@
       "nativeDesktop verified_range 206 edge true",
       "Final current release invalidated a redeemed private grant"
     ]
+  },
+  "publicHealth": {
+    "observedAtUTC": "2026-11-03T09:16:18Z",
+    "overall": "degraded",
+    "services": {
+      "Website & web app": "operational",
+      "Sign in": "operational",
+      "Messaging": "degraded",
+      "Files & media": "operational",
+      "Voice & video": "operational",
+      "Notifications": "operational",
+      "Payments": "operational"
+    },
+    "statusWorkerVersion": "d771ba64-cfb4-4a1e-aa26-7bb295927a25"
   }
 }

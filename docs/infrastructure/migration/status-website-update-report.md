@@ -17,3 +17,5 @@ The status owner confirmed native release df7dc4f4-f12c-4b9a-8011-005d1742536e, 
 The first live upload-session measurement uncovered a monitor bug. It supplied a JSON Content-Type with an empty DELETE body. Both regional Lambda archives were redeployed after adding a valid cancellation body and regression test. A real rerun against the public production API then created and canceled the session successfully. The S3 checks from both regions now use Frankfurt.
 
 Frankfurt upload sessions succeeded at 08:45:50 UTC (5,019 ms) and 09:00:50 UTC (3,747 ms). Both were genuine measured successes. The status reducer counted only consecutive checks on the same side of the four-second latency threshold and incorrectly kept the outage open. Native Worker release d771ba64-cfb4-4a1e-aa26-7bb295927a25 separates availability recovery from sustained latency; 43 status tests passed. It uses the stored observations without rewriting samples.
+
+The 09:15 UTC scheduled Frankfurt measurements restored the public Files & media row to operational. Messaging remained degraded from measured latency, and its incident remained open. The other six customer-facing rows were operational.

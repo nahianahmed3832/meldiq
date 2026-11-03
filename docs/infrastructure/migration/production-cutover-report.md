@@ -26,6 +26,12 @@ A runtime check with the active API credentials returned 200 from Frankfurt and 
 
 See [the test report](full-migration-test-report.md), [client compatibility](client-backward-compatibility-report.md), [cost evidence](monthly-cost-and-performance-report.md), [status monitoring](status-website-update-report.md) and [the rollback procedure](rollback-and-recovery.md).
 
+## Final monitoring readback
+
+At 09:15:50 UTC (17:15 Shanghai), the public Files & media row was operational. Frankfurt reported successful S3 upload (189 ms), S3 download (63 ms), private attachment range (2,089 ms), authorized upload-session test (3,690 ms) and database ping (348 ms). Website, sign-in, voice/video, notifications and payments were also operational. Messaging remained degraded: the message-delivery probe succeeded in 2,980 ms against its 2,000 ms slow threshold. The overall public status was degraded.
+
+A brief Redis command-timeout burst at 08:58:56 UTC affected multiple API requests. Redis later returned an authenticated PONG and the last 12-minute API log readback had 380 HTTP 200s and 24 HTTP 302s, with no HTTP 500s, PostgreSQL acquisition timeouts or Redis command timeouts. These are observations over that window.
+
 ## Earlier release windows
 
 
