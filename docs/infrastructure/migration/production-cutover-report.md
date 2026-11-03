@@ -8,6 +8,24 @@ The two earlier backup archives (317,904 encrypted bytes) and a final operator c
 
 A runtime check with the active API credentials returned 200 from Frankfurt and 403 from Singapore for the same controlled fixture. The old Windows renderer sent two signed multipart parts through the production web proxy. Frankfurt ListParts reported their expected hashes. The full API-level multipart-completion test used the private Frankfurt test bucket because the production synthetic account is subject to the normal file-size limit.
 
+## Final execution report
+
+| Area | Verified production result |
+|---|---|
+| A. Infrastructure | Private, versioned SSE-S3 storage moved from griipbuddy-orbit-media-sg in ap-southeast-1 to griipbuddy-orbit-media-fra-914016532802 in eu-central-1. The writer-fenced inventory had 620 keys, 618 data versions and 82 markers. All 700 entries matched the version journal. The 35 supplemental files also verified. Total file bytes were 2,247,147,225. No failed entries remained at the fence. |
+| B. Cloudflare | media.meldiq.app serves the deployed private-media Worker over HTTPS. The public fixture is cacheable. Private grants require fresh authorization, do not enter shared cache, and were rejected after sign-out. |
+| C. Backend and database | Hostinger runs the API. Supabase/PostgreSQL remains authoritative. The old Mongo audit covered 51 collections and 11,291 documents. The PostgreSQL audit covered 52 tables and 11,403 rows. No historical URL rewrites were required. Five existing completed uploads received indefinite expiry without changing ownership or publication. |
+| D. Applications | The existing web build uses the updated host policy. The original 0.2.0 desktop payload passed the versioned upload path and signed-part checks. Windows 0.2.1 passed native qualification and is on the signed stable feed. Android source, instrumentation and a historical beta were exercised. The exact currently distributed Google Play binary was not qualified. |
+| E. Admin | Admin consumes the existing API storage contract. Tests passed (32, one skipped). The protected operations interface and backend configuration distinguish active storage from the recovery bucket. A full interactive production operator session was not used as a substitute for the tests. |
+| F. Status | The customer-owned status.meldiq.app Worker/D1 shows seven public service rows. The Frankfurt scheduler runs actual storage, authenticated file and API measurements. Singapore monitoring is disabled. Historical incidents and measurements are retained. See the dated monitoring readback below for service health. |
+| G. Storefront | meldiq.app serves release site-20261103T083210Z-850d638f1b. Privacy, features, FAQ, pricing and download content were audited or updated. Sitemap, robots and public links were checked. Windows 0.2.1 installer bytes and signed feed matched. The displayed Plus offer matches the live $4.99/month, decimal 1 GB catalog entry. Checkout was tested without a real charge and existing offer gates remain in effect. |
+| H. Security | Both media buckets block public access. The active runtime can read the controlled Frankfurt object and gets 403 on its Singapore counterpart. Proxy PUTs are bound to a fixed HTTPS origin, object path and signed headers. A copied valid grant is a short-lived bearer capability until revocation/expiry. Attachment v2 keys can be read by the relay, as described in the storefront. |
+| I. Costs | The measured Frankfurt storage footprint was about $0.051/month at the queried Standard rate. At 43,200 monthly PUTs and 86,400 GETs a sample S3 request-plus-storage subtotal is roughly $0.32/month. Workers Free was confirmed. Singapore retention, network transfer, private-media volume, access logs, CloudWatch, EBS snapshots and backups remain separate. A reliable all-in bill requires actual usage. |
+| J. Recovery | Singapore’s original buckets and stopped-server snapshots remain protected. A separately authorized operator must fence writes and reconcile the reverse journal, sessions, metadata and soft deletions before rollback. The private Frankfurt recovery archive passed checksum readback and decryption. |
+| K. Outstanding | Production media and retention changes are deployed and verified. Full end-to-end multipart completion via the public API was not possible with the free synthetic account’s cap. The current Play binary and a full production disaster reversal remain unverified. This report does not certify unrelated features or a Germany-only global delivery network. |
+
+See [the test report](full-migration-test-report.md), [client compatibility](client-backward-compatibility-report.md), [cost evidence](monthly-cost-and-performance-report.md), [status monitoring](status-website-update-report.md) and [the rollback procedure](rollback-and-recovery.md).
+
 ## Earlier release windows
 
 
