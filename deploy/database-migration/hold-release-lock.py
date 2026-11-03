@@ -7,6 +7,8 @@ import os
 from pathlib import Path
 import time
 
+os.umask(0o077)
+
 parser = argparse.ArgumentParser()
 parser.add_argument("run_directory", type=Path)
 parser.add_argument("--lock", type=Path, default=Path("/run/lock/meldiq-production-release.lock"))
