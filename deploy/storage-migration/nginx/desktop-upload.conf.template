@@ -1,5 +1,6 @@
 # Include inside the production web server block. Substitute only the two deployment variables below.
-location ~ "^/_meldiq-upload(?<object_path>/orbit/attachments/a_[A-Za-z0-9_-]{22})$" {
+location ^~ /v1/_meldiq-upload/ {
+    if ($uri !~ "^/v1/_meldiq-upload(?<object_path>/orbit/attachments/a_[A-Za-z0-9_-]{22})$") { return 403; }
     limit_except PUT { deny all; }
     if ($args !~ "(^|&)X-Amz-Signature=[0-9a-f]{64}(&|$)") { return 403; }
     access_log off;

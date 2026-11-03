@@ -400,7 +400,7 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
     const url = new URL(upload.url);
     // Existing sessions stay on their originally signed origin. New sessions use the primary.
     if (url.origin !== `https://${s3.bucket}.s3.${s3.region}.amazonaws.com`) return upload;
-    return { ...upload, url: "https://web.meldiq.app/_meldiq-upload" + url.pathname + url.search };
+    return { ...upload, url: "https://web.meldiq.app/v1/_meldiq-upload" + url.pathname + url.search };
   };
   const requireDirect = (id: string) => {
     const direct = blobs.previousUploads?.owns(id) ? blobs.previousUploads.direct : blobs.direct;

@@ -94,6 +94,30 @@ describe("direct uploads to S3", () => {
     } finally { h.ctx.config.storage.delivery = previous; }
   });
 
+  it("uses the versioned API relay accepted by packaged Windows for new and refreshed upload URLs", async () => {
+    const old = h.ctx.config.directUploads.legacyWebProxy;
+    h.ctx.config.directUploads.legacyWebProxy = true;
+    const signed = "https://orbit-direct.s3.ap-southeast-1.amazonaws.com/orbit/attachments/a_example?X-Amz-Signature=test";
+    const signer = vi.spyOn(h.ctx.blobs.direct!, "presignPut").mockResolvedValue({
+      method: "PUT", url: signed, headers: {}, expiresAt: Date.now() + 60000,
+    });
+    const request = (path: string, body: unknown) => fetch(h.baseUrl+path,{method:"POST",headers:{
+      authorization:"Bearer "+alice.token,"content-type":"application/json","user-agent":"Meldiq/0.2.0"
+    },body:JSON.stringify(body)});
+    let id: string | undefined;
+    try {
+      const start = await (await request("/v1/attachments/uploads",{conversationId:dm,size:7,sha256:sha(Buffer.from("Desktop"))})).json();
+      id=start.uploadId;expect(id).toMatch(/^a_/);
+      const expected="https://web.meldiq.app/v1/_meldiq-upload/orbit/attachments/a_example?X-Amz-Signature=test";
+      expect(start.upload.url).toBe(expected);
+      const fresh=await (await request("/v1/attachments/uploads/"+id+"/url",{})).json();
+      expect(fresh.upload.url).toBe(expected);
+    } finally {
+      signer.mockRestore(); h.ctx.config.directUploads.legacyWebProxy=old;
+      if(id)await alice.req("DELETE","/v1/attachments/uploads/"+id);
+    }
+  });
+
   it("preserves old desktop upload sessions and only publishes after a verified promotion", async () => {
     const publish = vi.fn().mockRejectedValueOnce(new Error("copy interrupted")).mockResolvedValue(undefined);
     const transition = {olderDesktop:true,owns:(id:string)=>id.startsWith("a_legacy_"),direct:h.ctx.blobs.direct!,publish};
