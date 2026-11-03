@@ -18,7 +18,8 @@ async function main() {
     const manifest=JSON.parse(fs.readFileSync(path.join(snapshot,"manifest.json"),"utf8"));
     const endpoint=new URL(process.env.SUPABASE_DATABASE_URL);
     const local=["localhost","127.0.0.1","[::1]"].includes(endpoint.hostname);
-    if(!manifest.frozen||(!manifest.synthetic&&(!process.argv.includes("--real-data-rehearsal")||manifest.realDataSnapshot!==true||manifest.purpose!=="staging-rehearsal"||!local&&process.env.SUPABASE_EXPECTED_PROJECT_REF!=="bkvlxbsnzqkhbifawcww")))throw new Error("Explicit immutable real-data rehearsal or frozen synthetic snapshot required");
+    const approvedSource=manifest.purpose==="staging-rehearsal"||manifest.purpose==="production-cutover"&&manifest.sourceWritesFrozen===true;
+    if(!manifest.frozen||(!manifest.synthetic&&(!process.argv.includes("--real-data-rehearsal")||manifest.realDataSnapshot!==true||!approvedSource||!local&&process.env.SUPABASE_EXPECTED_PROJECT_REF!=="bkvlxbsnzqkhbifawcww")))throw new Error("Explicit immutable real-data snapshot or frozen synthetic snapshot required");
     report.synthetic=manifest.synthetic;
     const counts=await tableCounts(db,tableSpecs());
     for(const spec of tableSpecs()){

@@ -21,7 +21,8 @@ async function main() {
   if(environment==="staging"&&local) throw new Error("Staging must identify the hosted staging project");
   const manifest=JSON.parse(fs.readFileSync(path.join(snapshot,"manifest.json"),"utf8")) as MigrationRun & {frozen:boolean;synthetic:boolean;tables:{name:string;sha256:string;count:number}[];excludedCollections:{name:string;reason:string}[]};
   const real = !manifest.synthetic;
-  if(!manifest.frozen || (real && (!process.argv.includes("--real-data-rehearsal") || (manifest as any).realDataSnapshot !== true || (manifest as any).purpose !== "staging-rehearsal" || (manifest as any).sourceWritesFrozen !== false || !local && expected !== "bkvlxbsnzqkhbifawcww"))) throw new Error("Explicit immutable real-data rehearsal or frozen synthetic snapshot required");
+  const ownedFinalClone=local&&environment==="development"&&/^\/meldiq_customer_rehearsal_[a-f0-9]{32}$/.test(url.pathname)&&process.argv.includes("--final-cutover-clone")&&(manifest as any).purpose==="production-cutover"&&(manifest as any).sourceWritesFrozen===true;
+  if(!manifest.frozen || (real && ((manifest as any).realDataSnapshot !== true || !ownedFinalClone&&(!process.argv.includes("--real-data-rehearsal") || (manifest as any).purpose !== "staging-rehearsal" || (manifest as any).sourceWritesFrozen !== false || !local && expected !== "bkvlxbsnzqkhbifawcww")))) throw new Error("Explicit immutable real-data rehearsal or frozen owned clone required");
   if(digest(JSON.stringify(manifest.tables))!==manifest.sourceSha256) throw new Error("Snapshot manifest fingerprint mismatch");
   const specs=dependencyOrder(tableSpecs());
   if(digest(JSON.stringify(tableSpecs()))!==manifest.catalogSha256) throw new Error("Snapshot and runtime catalogs differ");

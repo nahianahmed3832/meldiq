@@ -15,9 +15,16 @@ const MOD = 1n << 256n;
 const hex = (value: bigint) => value.toString(16).padStart(64, "0");
 async function main() {
   process.umask(0o077);
-  const [encrypted, identity, output] = process.argv.slice(2);
+  const [encrypted, identity, output, frozenReceipt] = process.argv.slice(2);
   if (!encrypted || !identity || !output || !path.isAbsolute(output)) throw new Error("Private encrypted input, identity and new absolute output directory required");
   for (const file of [encrypted, identity]) if (!fs.statSync(file).isFile() || fs.statSync(file).mode & 0o077) throw new Error("Private input permissions required");
+  let capture:any;
+  if(frozenReceipt){
+    const stat=fs.lstatSync(frozenReceipt);if(!stat.isFile()||stat.isSymbolicLink()||stat.mode&0o077)throw new Error("Private frozen capture receipt required");
+    capture=JSON.parse(fs.readFileSync(frozenReceipt,"utf8"));
+    const hash=crypto.createHash("sha256");for await(const chunk of fs.createReadStream(encrypted))hash.update(chunk);
+    if(!capture.ok||!capture.sourceReadOnly||capture.sourceRemainsLive||!capture.sourceWritesFrozen||!capture.pointInTimeSnapshot||capture.ciphertextSha256!==hash.digest("hex")||!capture.freezeProof?.ok||!capture.freezeProof.sourceWritesFrozen||capture.freezeProof.productionAuthorityChanged||!/^\/opt\/griip-internal-messaging\/database-migration\/postgres-cutover-\d{8}T\d{6}Z$/.test(capture.freezeProof.runDirectory))throw new Error("Verified frozen-source capture required");
+  }
   fs.mkdirSync(output, {mode: 0o700});
   const specs = postgresTableSpecs();
   const tables = new Map(specs.map(spec => [spec.name, {spec, count: 0, hash: crypto.createHash("sha256")} ]));
@@ -80,6 +87,7 @@ async function main() {
     }
     if (stream) { stream.end(); await once(stream, "finish"); stream = undefined; }
     if ((await exited)[0] !== 0 || !complete || !complete.snapshotTime || complete.totals.length !== stats.size) throw new Error("Incomplete immutable snapshot");
+    if(capture&&(capture.snapshotTime!==complete.snapshotTime||!Number.isFinite(Date.parse(capture.freezeProof.frozenAt))||Date.parse(header.createdAt)<Date.parse(capture.freezeProof.frozenAt)))throw new Error("Snapshot does not follow the verified source freeze");
     for (const expected of complete.totals) {
       const actual = stats.get(expected.collection);
       if (!actual || actual.count !== expected.count || hex(actual.sum) !== expected.checksum) throw new Error("Source backup checksum mismatch");
@@ -92,10 +100,10 @@ async function main() {
     fs.writeFileSync(path.join(output, "normalization-report.json"), JSON.stringify(report, null, 2) + "\n", {mode: 0o600});
     if (report.ok) {
       const files = [...tables].map(([name, table]) => ({name, count: table.count, sha256: table.hash.digest("hex")}));
-      const manifest = {id: crypto.randomUUID(), frozen: true, synthetic: false, realDataSnapshot: true, purpose: "staging-rehearsal", sourceWritesFrozen: false,
+      const manifest = {id: crypto.randomUUID(), frozen: true, synthetic: false, realDataSnapshot: true, purpose: capture?"production-cutover":"staging-rehearsal", sourceWritesFrozen: !!capture,
         sourceKind: "mongo-atlas-snapshot", createdAt: new Date().toISOString(), snapshotTime: complete.snapshotTime,
         catalogSha256: digest(JSON.stringify(specs)), sourceSha256: digest(JSON.stringify(files)), tables: files, counters,
-        excludedCollections: report.archivedCollections};
+        excludedCollections: report.archivedCollections,...(capture?{freezeProof:capture.freezeProof,sourceCiphertextSha256:capture.ciphertextSha256}:{})};
       fs.writeFileSync(path.join(output, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n", {mode: 0o600, flag: "wx"});
     }
     console.log(JSON.stringify(report));
