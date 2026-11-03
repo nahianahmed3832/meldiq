@@ -1545,3 +1545,26 @@ describe("PostgreSQL-only staged Fastify composition", () => {
     expect((await db.query("SELECT 1 AS value")).rows[0].value).toBe(1);
   });
 });
+
+describe("prepared release snapshots",()=>{
+  const specs=()=>tableSpecs().filter(t=>["delivery_queue","resource_samples","users"].includes(t.name));
+  it("adopts only versions still visible after the fence, including HOT updates, deletions, and a reused logical key", async()=>{
+    await db.query(`INSERT INTO meldiq.resource_samples(minute,series,value) SELECT n,'old',n+0.5 FROM generate_series(1,1400)n`);
+    const incumbent=await PostgresRows.open(db,specs());
+    await PostgresRows.prepare(db,specs());
+    await db.query("UPDATE meldiq.resource_samples SET value=99.125 WHERE minute=3; DELETE FROM meldiq.resource_samples WHERE minute IN (4,6); INSERT INTO meldiq.resource_samples VALUES (6,'old',909),(1401,'new',55)");
+    // Abort another update while the snapshot is held: new writer cannot publish it.
+    const c=await db.connect(); await c.query("BEGIN; UPDATE meldiq.resource_samples SET value=0 WHERE minute=2; ROLLBACK");c.release();
+    await incumbent.close();
+    const active=await PostgresRows.open(db,specs());
+    try{
+      const current=(await db.query("SELECT * FROM meldiq.resource_samples ORDER BY minute")).rows;
+      expect(active.all("resource_samples",{orderBy:[["minute","asc"]]})).toEqual(current);
+    }finally{await active.close();}
+  });
+  it("refuses a prepared writer while another writer owns the lease",async()=>{
+    const old=await PostgresRows.open(db,specs());
+    try{await PostgresRows.prepare(db,specs());await expect(PostgresRows.open(db,specs())).rejects.toThrow(/Another synchronous repository writer/);expect(old.available).toBe(true);}
+    finally{await old.close();}
+  });
+});

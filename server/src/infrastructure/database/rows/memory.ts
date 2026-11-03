@@ -153,11 +153,11 @@ export abstract class MemoryRows implements Rows {
   }
 
   /** Loads a committed row (startup). */
-  protected load(table: string, row: Row, rowid?: number): void {
+  protected load(table: string, row: Row, rowid?: number): string {
     const s = this.state(table);
     const id = rowid ?? (s.spec.autoincrement ? Number(row[s.spec.primaryKey[0]]) : undefined);
     if (id !== undefined && id >= s.nextId) s.nextId = id + 1;
-    s.rows.set(rowKey(s.spec, row, rowid), row);
+    const key=rowKey(s.spec,row,rowid);s.rows.set(key,row);return key;
   }
 
   protected bumpCounter(table: string, last: number): void {

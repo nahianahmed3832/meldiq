@@ -1,3 +1,4 @@
+import {PreparedPages} from "./preparedPages.js";
 import pg, { type PoolClient } from "pg";
 import { MemoryRows, type PersistedChanges } from "./memory.js";
 import type { TableSpec } from "../mongo/catalog.js";
@@ -25,15 +26,24 @@ export class PostgresRows extends MemoryRows {
   override all<R = Row>(table: string, query: Query = {}): R[] { this.assertAvailable(); return super.all(table, query); }
   override count(table: string, where?: Where): number { this.assertAvailable(); return super.count(table, where); }
 
+  private static readonly prepared=new WeakMap<MeldiqPostgres,PreparedPages>();
+  static async prepare(postgres:MeldiqPostgres,specs:TableSpec[]){
+    if(this.prepared.has(postgres))throw Error("A release snapshot is already prepared");
+    const pages=await PreparedPages.capture(postgres,specs);
+    this.prepared.set(postgres,pages);
+  }
   static async open(postgres: MeldiqPostgres, specs: TableSpec[]): Promise<PostgresRows> {
     if (new URL(postgres.config.url).port === "6543") throw new Error("PostgresRows needs a direct or session pool connection");
     const lease = await postgres.connect();
     const rows = new PostgresRows(postgres, specs, lease);
+    const pages=this.prepared.get(postgres);this.prepared.delete(postgres);
     try {
       const result = await lease.query("SELECT pg_try_advisory_lock(hashtextextended('meldiq-rows-writer', 0)) AS locked");
       if (!result.rows[0].locked) throw new Error("Another synchronous repository writer is active");
       // The lease is the write connection too: losing it prevents writes, and therefore stale-cache commits.
       await lease.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY; SET LOCAL statement_timeout='120s'");
+      const adopted=new Set<string>();
+      if(pages)for(const [name,state] of await pages.reconcile(lease)){rows.tables.set(name,state);adopted.add(name);}
       const counters = await lease.query<{table_name: string; value: number}>("SELECT table_name,value FROM meldiq_private.row_counters");
       for (const counter of counters.rows) if (specs.some(spec => spec.name === counter.table_name)) rows.bumpCounter(counter.table_name, counter.value);
       const relations = await lease.query<{oid:string;name:string}>(`SELECT c.oid::text AS oid,c.relname AS name FROM pg_class c
@@ -43,7 +53,7 @@ export class PostgresRows extends MemoryRows {
       // pg's row-event API decodes each row directly into the cache without accumulating a second result array.
       // Stream one simple-query message on the already fenced lease. PostgreSQL returns each
       // SELECT's real relation metadata; no second copy of the rows or extra pool slots.
-      const query=new pg.Query<Row>({text:specs.map(spec=>`SELECT * FROM meldiq.${q(spec.name)};`).join("\n")});
+      const query=new pg.Query<Row>({text:specs.filter(spec=>!adopted.has(spec.name)).map(spec=>`SELECT * FROM meldiq.${q(spec.name)};`).join("\n")});
       let failure:unknown;
       query.on("row",(row,result)=>{
         if(failure)return;
@@ -59,7 +69,7 @@ export class PostgresRows extends MemoryRows {
       });
       await lease.query("COMMIT");
       return rows;
-    } catch (error) { await lease.query("ROLLBACK").catch(() => undefined); lease.release(true); throw error; }
+    } catch (error) { await lease.query("ROLLBACK").catch(() => undefined); lease.release(true); throw error; } finally {pages?.discard();}
   }
 
   private parameters({ changes, counters }: PersistedChanges): string[] {
