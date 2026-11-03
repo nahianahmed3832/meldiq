@@ -101,6 +101,7 @@ export interface Config {
    * good. Off ("false"): the 7-day relay window and ATTACHMENT_KEEP_DAYS, as before.
    */
   attachmentKeepForever: boolean;
+  retainCompletedUploads?: boolean;
   attachmentUserKeptBytes: number;
   /**
    * Where files live: the server's disk (default) or Amazon S3 / a compatible store (docs/STORAGE_AND_DATA.md).
@@ -179,7 +180,7 @@ export interface Config {
    * Direct uploads from the app to S3 (2026-10-17). How long an upload URL may be started with, how long an upload may
    * take before it counts as abandoned (its object or parts are then deleted), and how many a person may have open.
    */
-  directUploads: { urlTtlSeconds: number; sessionSeconds: number; maxPendingPerUser: number };
+  directUploads: { legacyWebProxy?: boolean; urlTtlSeconds: number; sessionSeconds: number; maxPendingPerUser: number };
   /**
    * The largest file a person may send, in bytes of the file itself (before encryption). Apps check it byte-exactly;
    * [attachmentMaxBytes] is the ciphertext limit the server enforces, which defaults to this plus encryption headroom.
@@ -620,10 +621,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     // the old default (1024 MiB) was below one 1 GB file plus its encryption headroom, so such a file was always refused.
     attachmentMaxPendingBytes: Math.max(int("ATTACHMENT_MAX_PENDING_BYTES", 2 * attachmentMaxBytes), 2 * attachmentMaxBytes),
     attachmentKeepDays: Math.max(int("ATTACHMENT_KEEP_DAYS", 365), 0),
+    retainCompletedUploads: env.ATTACHMENT_RETAIN_COMPLETED === "true",
     attachmentKeepForever: (env.ATTACHMENT_KEEP_FOREVER ?? "true").trim().toLowerCase() !== "false",
     attachmentUserKeptBytes: Math.max(int("ATTACHMENT_USER_KEPT_BYTES", 0), 0),
     storage: storageConfig(env, dataDir, int),
     directUploads: {
+      legacyWebProxy: env.S3_USE_LEGACY_WEB_UPLOAD_PROXY === "true",
       urlTtlSeconds: Math.min(Math.max(int("S3_UPLOAD_URL_TTL_SECONDS", 900), 60), 3600),
       sessionSeconds: Math.min(Math.max(int("DIRECT_UPLOAD_SESSION_SECONDS", 24 * 3600), 600), 7 * 86_400),
       maxPendingPerUser: Math.max(int("DIRECT_UPLOAD_MAX_PENDING_PER_USER", 10), 1),

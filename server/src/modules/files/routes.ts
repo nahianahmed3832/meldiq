@@ -16,6 +16,7 @@ import { hasNewAccountLimits, HOUR_MS, limitedUserIds, SlidingWindow } from "../
 import { type AppContext } from "../../app/context.js";
 import { authenticateToken, bearer, me, requireAuth } from "../auth/index.js";
 import { parse } from "../../shared/validation/index.js";
+import type { PresignedRequest } from "../../infrastructure/storage/blobstore.js";
 import type { BlobKind } from "../../infrastructure/storage/index.js";
 import { ApiError, badRequest, notFound } from "../../shared/errors.js";
 import { newId, now } from "../../shared/utilities/util.js";
@@ -392,6 +393,15 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
   //    can't overwrite anything (or, above the multipart threshold, starts a multipart upload with per-part hashes).
   // 3. The app sends the bytes straight to S3, then asks the server to complete. 4. The server checks the stored object
   //    (size, hash) and only then records the attachment. Apps on servers storing on disk keep using POST /v1/attachments.
+  const oldDesktop = (agent: string | undefined) => /\bMeldiq\/0\.(?:1\.0|2\.0)(?:\s|$)/.test(agent ?? "");
+  const desktopUpload = (upload: PresignedRequest, agent: string | undefined) => {
+    const s3 = cfg.storage.s3;
+    if (!cfg.directUploads.legacyWebProxy || !s3 || !oldDesktop(agent)) return upload;
+    const url = new URL(upload.url);
+    // Existing sessions stay on their originally signed origin. New sessions use the primary.
+    if (url.origin !== `https://${s3.bucket}.s3.${s3.region}.amazonaws.com`) return upload;
+    return { ...upload, url: "https://web.meldiq.app/_meldiq-upload" + url.pathname + url.search };
+  };
   const requireDirect = (id: string) => {
     const direct = blobs.previousUploads?.owns(id) ? blobs.previousUploads.direct : blobs.direct;
     if (!direct) throw new ApiError(409, "direct_upload_unavailable", "This server receives uploads itself: use POST /v1/attachments.");
@@ -426,7 +436,7 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
   app.post("/v1/attachments/uploads", auth, async (req, reply) => {
     requireFeature(ctx.platform, "uploads", me(req).userId);
     const { userId, deviceId } = me(req);
-    const legacyDesktop = blobs.previousUploads?.olderDesktop && /\bMeldiq\/0\.(?:1\.0|2\.0)(?:\s|$)/.test(req.headers["user-agent"] ?? "");
+    const legacyDesktop = !cfg.directUploads.legacyWebProxy && blobs.previousUploads?.olderDesktop && oldDesktop(req.headers["user-agent"]);
     const id = newId(legacyDesktop ? "a_legacy" : "a");
     const d = requireDirect(id);
     const body = parse(UploadStartBody, req.body);
@@ -478,7 +488,7 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
       };
     }
     const upload = await d.presignPut("attachments", id, body.size, body.sha256, cfg.directUploads.urlTtlSeconds).catch((e) => storeFailure(e, "presign"));
-    return { uploadId: id, mode: "single", upload, expiresAt };
+    return { uploadId: id, mode: "single", upload: desktopUpload(upload, req.headers["user-agent"]), expiresAt };
   });
 
   // A fresh URL for a single upload whose URL expired before the app could start it.
@@ -487,7 +497,7 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
     const d = requireDirect(u.id);
     if (u.multipart_id) throw badRequest("This is a multipart upload: ask for its parts");
     return {
-      upload: await d.presignPut("attachments", u.id, u.size, u.sha256, cfg.directUploads.urlTtlSeconds).catch((e) => storeFailure(e, "presign")),
+      upload: desktopUpload(await d.presignPut("attachments", u.id, u.size, u.sha256, cfg.directUploads.urlTtlSeconds).catch((e) => storeFailure(e, "presign")), req.headers["user-agent"]),
     };
   });
 
@@ -503,7 +513,7 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
     const signed = await Promise.all(
       parts.map(async (p) => ({
         n: p.n,
-        upload: await d.presignPart("attachments", u.id, u.multipart_id!, p.n, p.size, p.sha256, cfg.directUploads.urlTtlSeconds),
+        upload: desktopUpload(await d.presignPart("attachments", u.id, u.multipart_id!, p.n, p.size, p.sha256, cfg.directUploads.urlTtlSeconds), req.headers["user-agent"]),
       })),
     ).catch((e) => storeFailure(e, "presign-part"));
     return { parts: signed };
@@ -710,4 +720,9 @@ export async function processAbandonedUploads(ctx: AppContext, limit = 200): Pro
   return done;
 }
 
-export function fileExpiry(ctx: Pick<AppContext,"platform"|"config">, t:number):number {const days=runtimePolicy(ctx.platform).policy.fileRetentionDays;return days===null?expiryOf(ctx.config,t):days===0?KEPT_FOREVER:t+days*86400000;}
+export function fileExpiry(ctx: Pick<AppContext, "platform" | "config">, t: number): number {
+  if (ctx.config.retainCompletedUploads) return KEPT_FOREVER;
+  const days = runtimePolicy(ctx.platform).policy.fileRetentionDays;
+  if (days === null) return expiryOf(ctx.config, t);
+  return days === 0 ? KEPT_FOREVER : t + days * 86400000;
+}

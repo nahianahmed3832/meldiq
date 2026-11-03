@@ -1,0 +1,25 @@
+# Include inside the production web server block. Substitute only the two deployment variables below.
+location ~ "^/_meldiq-upload(?<object_path>/orbit/attachments/a_[A-Za-z0-9_-]{22})$" {
+    limit_except PUT { deny all; }
+    if ($args !~ "(^|&)X-Amz-Signature=[0-9a-f]{64}(&|$)") { return 403; }
+    access_log off;
+    error_log /dev/null crit;
+    client_max_body_size 1100m;
+    resolver ${RESOLVER} valid=60s ipv6=off;
+    proxy_http_version 1.1;
+    proxy_request_buffering off;
+    proxy_buffering off;
+    proxy_ssl_server_name on;
+    proxy_ssl_verify on;
+    proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
+    proxy_pass_request_headers off;
+    proxy_set_header Host ${UPLOAD_HOST};
+    proxy_set_header Connection "";
+    proxy_set_header Content-Length $http_content_length;
+    proxy_set_header Content-Type $http_content_type;
+    proxy_set_header If-None-Match $http_if_none_match;
+    proxy_set_header x-amz-checksum-sha256 $http_x_amz_checksum_sha256;
+    proxy_set_header x-amz-server-side-encryption $http_x_amz_server_side_encryption;
+    proxy_set_header x-amz-server-side-encryption-aws-kms-key-id $http_x_amz_server_side_encryption_aws_kms_key_id;
+    proxy_pass https://${UPLOAD_HOST}$object_path$is_args$args;
+}

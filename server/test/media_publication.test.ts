@@ -49,6 +49,20 @@ describe("publishing completed attachments", () => {
     for (const id of [original.id, thumbnail.id]) expect(await h.ctx.files.attachment(id)).toMatchObject({ message_id: messageId, pending_message_until: null, expires_at: KEPT_FOREVER });
     await expectStatus(send(dm, [{ ...original, thumbnail: { ...thumbnail, mime: "image/svg+xml" } }]), 400);
   });
+  it("retains completed files beyond their original window without making unsent files public", async () => {
+    const old = h.ctx.config.retainCompletedUploads;
+    h.ctx.config.retainCompletedUploads = true;
+    try {
+      const file = await upload(dm);
+      const row = await h.ctx.files.attachment(file.id);
+      expect(row!.expires_at).toBe(KEPT_FOREVER);
+      expect(row!.pending_message_until).not.toBeNull();
+      await expectStatus(bob.req("GET", `/v1/attachments/${file.id}`), 404);
+      expect(await h.ctx.files.purgeExpired(Date.now() + 365 * 86400000)).not.toContain(file.id);
+      await send(dm, [file]);
+      await bob.req("GET", `/v1/attachments/${file.id}`);
+    } finally { h.ctx.config.retainCompletedUploads = old; }
+  });
   it("cleans new unsent completed objects while preserving legacy records and published media", async () => {
     const abandoned = await upload(dm);
     // A fresh unbound upload remains temporary through the regular forever-retention pass.
