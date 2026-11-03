@@ -47,8 +47,16 @@ jobs:
         run: npm ci
       - name: Typecheck
         run: npm run typecheck
-      - name: Install isolated Redis test dependency
-        run: sudo apt-get update && sudo apt-get install -y redis-server
+      - name: Install the production Redis version for isolated tests
+        run: |
+          docker pull redis:8-alpine@sha256:21090af93f8324db2f0f0f4f38a7c60369d47d917e000c3423d89d2ae2883537
+          mkdir -p "$RUNNER_TEMP/meldiq-test-bin"
+          cat > "$RUNNER_TEMP/meldiq-test-bin/redis-server" <<'SH'
+          #!/usr/bin/env bash
+          exec docker run --rm --network host --workdir /tmp --user "$(id -u):$(id -g)" --mount type=bind,src=/tmp,dst=/tmp --entrypoint redis-server redis:8-alpine@sha256:21090af93f8324db2f0f0f4f38a7c60369d47d917e000c3423d89d2ae2883537 "$@"
+          SH
+          chmod +x "$RUNNER_TEMP/meldiq-test-bin/redis-server"
+          echo "$RUNNER_TEMP/meldiq-test-bin" >> "$GITHUB_PATH"
       # Includes the shared griip-envelope-v1 vectors (test/interop_vectors.test.ts), which the Android job checks too.
       # The real-S3 suite skips itself: CI has no AWS credentials and no ORBIT_LIVE_S3_BUCKET.
       # A throwaway local MongoDB replica set comes up for the run (test/support/mongoGlobal.ts; the mongod binary is

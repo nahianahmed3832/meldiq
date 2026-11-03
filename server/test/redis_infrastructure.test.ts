@@ -223,6 +223,7 @@ describe("Redis infrastructure", () => {
       );
       await new Promise<void>((resolve, reject) => {
         server!.once("error", reject);
+        server!.once("exit", code => reject(new Error(`Redis ACL fixture exited before readiness: ${code}`)));
         server!.stdout!.on("data", (data) => {
           if (String(data).includes("Ready to accept connections")) resolve();
         });
