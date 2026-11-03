@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AccountClient, MemoryMailer } from "./support/accounts.js";
 import { ADMIN_ORIGIN, consoleAdmin, type ConsoleAdmin } from "./support/adminConsole.js";
 import { startServer, expectStatus, type Harness } from "./support/harness.js";
+import { accountRows } from "./support/accountRows.js";
 import { DEFAULT_SETTINGS, DAY } from "../src/modules/billing/upgradePromotions.js";
 
 const mailer = new MemoryMailer();
@@ -11,8 +12,7 @@ describe("authenticated promotion API", () => {
  beforeAll(async () => {
   h = await startServer({ ADMIN_CONSOLE_ORIGIN: ADMIN_ORIGIN, PLATFORM_SECRETS_KEY: "ab".repeat(32), BILLING_PROVIDER: "sandbox", BILLING_SANDBOX_WEBHOOK_SECRET: "test-only-secret-at-least-thirty-two-characters", WORKFLOW_TICK_MS: "0" }, { mailer });
   alice = await AccountClient.ready(h.baseUrl, mailer, "promo-alice");bob=await AccountClient.ready(h.baseUrl,mailer,"promo-bob");admin=await consoleAdmin(h,mailer,"billing_admin");
-  if(h.ctx.postgres) await h.ctx.postgres.rows.write(w=>w.update("accounts",{id:alice.accountId},{created_at:Date.now()-10*DAY}));
-  else h.ctx.db.prepare("UPDATE accounts SET created_at = ? WHERE id = ?").run(Date.now()-10*DAY,alice.accountId);
+  await accountRows(h).setAccount(alice.accountId,{created_at:Date.now()-10*DAY});
   const plan=await h.ctx.billing.catalog.create("plus",{name:"Meldiq Plus",description:"",segment:"personal",public:true,audience:"personal"},{interval:"month",currency:"USD",amountMinor:499,providerPriceRef:"test_plus_499",trialDays:0,graceDays:0,limits:{},notes:""},"test",Date.now());
   await h.ctx.billing.catalog.publish(plan.id,"sandbox","test",Date.now());
  });

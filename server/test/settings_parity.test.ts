@@ -337,7 +337,7 @@ describe("settings parity on the default (memory) stores", () => {
 });
 
 describe.each([
-  ["memory", {}],
+  ["memory", { MONGODB_DOMAINS: "" }],
   ["mongodb", { MONGODB_DOMAINS: PRODUCTION_DOMAINS }],
 ] as const)("new settings kept in %s", (backend, env) => {
   let h: Harness;

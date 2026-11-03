@@ -24,7 +24,7 @@ const read = (c: GriipClient, conv: string, upTo: number) => c.send(conv, { type
 const code = (e: { error: { code: string } }) => e.error.code;
 
 describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
-  ["memory", {}],
+  ["memory", { MONGODB_DOMAINS: "" }],
   ["mongodb", { MONGODB_DOMAINS: PRODUCTION_DOMAINS }],
 ] as const)("rules channel kept in %s", (backend, env) => {
   let h: Harness;

@@ -19,7 +19,7 @@ import {
 import { legacyOperatorAllowed } from "../src/modules/platformAdmin/operations.js";
 import { PlatformAudit } from "../src/modules/platformAdmin/audit.js";
 import { testMongoEnv } from "./support/mongo.js";
-import { mongoConfig } from "../src/infrastructure/database/mongo/config.js";
+import { MONGO_DOMAINS, mongoConfig } from "../src/infrastructure/database/mongo/config.js";
 import { openMongo } from "../src/infrastructure/database/mongo/index.js";
 import { openDatabase } from "../src/infrastructure/database/db.js";
 const SECRET = "whsec_opsTestSecret01234567890123456789";
@@ -57,7 +57,7 @@ describe("connected operational controls", () => {
     payments = new Payments();
   let noticeId: string, warningId: string, appealId: string, orderId: string;
   beforeAll(async () => {
-    const mongoEnv = process.env.MELDIQ_TEST_MONGO_DOMAINS ? testMongoEnv({}) : {};
+    const mongoEnv = process.env.MELDIQ_TEST_MONGO_DOMAINS ? testMongoEnv({MONGODB_DOMAINS:MONGO_DOMAINS.join(",")}) : {};
     if (process.env.MELDIQ_TEST_MONGO_DOMAINS) {
       // Bootstrap the disposable, empty domains through the normal authority checks,
       // then exercise the stricter production startup against verified markers.

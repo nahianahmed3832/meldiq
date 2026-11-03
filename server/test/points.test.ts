@@ -47,7 +47,7 @@ const quest = (view: PointsView, id: string) =>
   view.quests.find((q) => q.id === id)!;
 
 describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
-  ["memory", {}],
+  ["memory", { MONGODB_DOMAINS: "" }],
   ["mongodb", { MONGODB_DOMAINS: PRODUCTION_DOMAINS }],
 ] as const)("points kept in %s", (backend, env) => {
   let h: Harness;

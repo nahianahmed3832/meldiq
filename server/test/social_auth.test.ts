@@ -24,7 +24,7 @@ for (const backend of process.env.MELDIQ_TEST_PG_URL ? ["postgres"] : ["sqlite",
           SOCIAL_AUTH_PUBLIC_ORIGIN: "https://web.example",
           SOCIAL_AUTH_WEB_ORIGIN: "https://web.example",
           SOCIAL_AUTH_PROVIDERS: "google,apple,discord",
-          ...(backend === "mongodb" ? { MONGODB_DOMAINS: "accounts" } : {}),
+          MONGODB_DOMAINS: backend === "mongodb" ? "accounts" : "",
         },
         { mailer },
       );
@@ -378,18 +378,7 @@ for (const backend of process.env.MELDIQ_TEST_PG_URL ? ["postgres"] : ["sqlite",
     it("requires fresh authentication for old sessions without rotating or deleting existing tokens", async () => {
       const c = await account();
       const store = h.ctx.accounts.store as any;
-      if (backend === "postgres") await accountRows(h).setSession(c.sessionId, {created_at: Date.now() - 600_000});
-      else if (backend === "sqlite")
-        h.ctx.db
-          .prepare("UPDATE account_sessions SET created_at = ? WHERE id = ?")
-          .run(Date.now() - 600_000, c.sessionId);
-      else
-        await h.ctx
-          .mongo!.db.collection("account_sessions")
-          .updateOne(
-            { id: c.sessionId },
-            { $set: { created_at: Date.now() - 600_000 } },
-          );
+      await accountRows(h).setSession(c.sessionId, {created_at: Date.now() - 600_000});
       const b = {
         provider: "google",
         challenge: digest(secret()),

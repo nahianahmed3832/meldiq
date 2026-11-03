@@ -144,7 +144,7 @@ describe("the outbound client", () => {
 const PRODUCTION_DOMAINS = "preferences,reports,relationships,history,accounts,files,relay,billing";
 
 describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
-  ["memory", {}],
+  ["memory", { MONGODB_DOMAINS: "" }],
   ["mongodb", { MONGODB_DOMAINS: PRODUCTION_DOMAINS }],
 ] as const)("linked accounts, kept in %s", (backend, env) => {
   let h: Harness;

@@ -50,7 +50,7 @@ type Pin = {
 };
 
 describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
-  ["memory", {}],
+  ["memory", { MONGODB_DOMAINS: "" }],
   ["mongodb", { MONGODB_DOMAINS: PRODUCTION_DOMAINS }],
 ] as const)("kept in %s", (backend, env) => {
   let h: Harness;
