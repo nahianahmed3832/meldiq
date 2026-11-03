@@ -10,7 +10,8 @@ try{
   const alice=new GriipClient(base,"canaryalice"),bob=new GriipClient(base,"canarybob");clients.push(alice,bob);
   await alice.register();await bob.register();await alice.connect();await bob.connect();
   const conversation=(await alice.req("POST","/v1/conversations/dm",{userId:bob.userId})).conversation.id;
-  const latencies=[],sent=[],total=20,concurrency=4;let next=0;
+  const latencies=[],sent=[],total=20,concurrency=Number(process.env.MELDIQ_CANARY_CONCURRENCY??4);let next=0;
+  if(![4,8].includes(concurrency))throw new Error("Reviewed owned load concurrency required");
   report.phase="message-load";
   const started=performance.now();
   await Promise.all(Array.from({length:concurrency},async()=>{

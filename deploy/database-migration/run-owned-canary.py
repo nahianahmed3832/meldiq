@@ -17,6 +17,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--fixtures', type=Path, required=True)
 parser.add_argument('--candidate', required=True)
 parser.add_argument('--rollback', required=True)
+parser.add_argument('--concurrency', type=int, choices=[4, 8], default=4)
 args = parser.parse_args()
 if not all(re.fullmatch('[a-f0-9]{40}', value) for value in [args.candidate, args.rollback]):
     raise SystemExit('Exact release revisions required')
@@ -119,7 +120,7 @@ try:
         raise RuntimeError('Owned candidate did not activate')
     report['activationHoldVerified'] = True
     report['phase'] = 'load-and-post-write-rollback'
-    start(driver, candidate, ['/app/probes/owned-client-check.mjs'], '384m', 'container:' + pg, common)
+    start(driver, candidate, ['/app/probes/owned-client-check.mjs'], '384m', 'container:' + pg, {**common, 'MELDIQ_CANARY_CONCURRENCY': str(args.concurrency)})
     wait_file('ready-for-rollback.json')
     command(['docker', 'stop', '--time', '30', api], stdout=subprocess.DEVNULL)
     before = fingerprint()
