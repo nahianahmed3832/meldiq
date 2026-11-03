@@ -647,6 +647,7 @@ function expiryOf(cfg: Pick<Config, "attachmentKeepForever" | "attachmentTtlSeco
  * setting, idempotent and cheap after the first run), so nothing is purged; otherwise expired files are deleted.
  */
 export async function purgeExpiredAttachments(ctx: AppContext): Promise<number> {
+  if (ctx.config.retainCompletedUploads) return 0;
   const t = now();
   if (ctx.config.attachmentKeepForever) await ctx.files.keepAllForever(t);
   return (await ctx.files.purgeExpired(t)).length;
