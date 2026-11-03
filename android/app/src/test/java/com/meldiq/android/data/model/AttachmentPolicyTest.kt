@@ -98,7 +98,7 @@ class AttachmentPolicyTest {
         assertTrue(AttachmentPolicy.check(Kind.FILE, null, 0, Quality.STANDARD) is Verdict.TooLarge)
         assertEquals(Verdict.Ok, AttachmentPolicy.check(Kind.FILE, null, -1, Quality.STANDARD)) // size unknown: enforced while copying
         assertFalse(AttachmentPolicy.compressible(Kind.FILE, Sniffed.PDF))
-        assertTrue(AttachmentPolicy.compressible(Kind.PHOTO, Sniffed.HEIF))
+        assertFalse(AttachmentPolicy.compressible(Kind.PHOTO, Sniffed.HEIF))
     }
 
     @Test
@@ -126,18 +126,18 @@ class AttachmentPolicyTest {
     }
 
     @Test
-    fun largeFilesFollowTheServersLimitUpTo1Gib() {
+    fun largeFilesFollowTheServersLimitUpToOneDecimalGB() {
         val mb = 1024L * 1024
         val gib = 1024 * mb
         assertEquals(25 * mb, AttachmentPolicy.effectiveMax(null)) // an older server
-        assertEquals(gib, AttachmentPolicy.effectiveMax(2048 * mb)) // never more than the app's own limit
-        assertEquals(100 * mb, AttachmentPolicy.effectiveMax(100 * mb))
+        assertEquals(1_000_000_000L, AttachmentPolicy.effectiveMax(2048 * mb)) // never more than the app's own limit
+        assertEquals(100 * mb - 16, AttachmentPolicy.effectiveMax(100 * mb))
         // Orbit 2.0 servers say the file limit itself (fileMaxBytes), which wins over their ciphertext limit.
-        assertEquals(1_073_741_824L, AttachmentPolicy.effectiveMax(gib + mb, 1_073_741_824L))
+        assertEquals(1_000_000_000L, AttachmentPolicy.effectiveMax(gib + mb, 1_073_741_824L))
         assertEquals(26_214_000L, AttachmentPolicy.effectiveMax(25 * mb, 26_214_000L))
         val oneGib = AttachmentPolicy.effectiveMax(gib + mb, gib)
-        assertEquals(Verdict.Ok, AttachmentPolicy.check(Kind.FILE, Sniffed.ZIP, 1_073_741_824L, Quality.ORIGINAL, oneGib))
-        assertEquals(Verdict.TooLarge("Over 1 GB. Files up to 1 GB can be sent."), AttachmentPolicy.check(Kind.FILE, Sniffed.ZIP, 1_073_741_825L, Quality.ORIGINAL, oneGib))
+        assertEquals(Verdict.Ok, AttachmentPolicy.check(Kind.FILE, Sniffed.ZIP, 1_000_000_000L, Quality.ORIGINAL, oneGib))
+        assertEquals(Verdict.TooLarge("Over 1 GB. Files up to 1 GB can be sent."), AttachmentPolicy.check(Kind.FILE, Sniffed.ZIP, 1_000_000_001L, Quality.ORIGINAL, oneGib))
         assertEquals("1 GB", AttachmentPolicy.sizeLabel(gib))
         assertEquals("1.5 GB", AttachmentPolicy.sizeLabel(gib + gib / 2))
         // Room for the copy and its encrypted copy, plus a margin; unknown sizes need the margin only.
@@ -156,6 +156,17 @@ class AttachmentPolicyTest {
         assertEquals("1.5 MB", AttachmentPolicy.sizeLabel(mb * 3 / 2))
         // A 25 MB limit less the encryption overhead (what a 0.4.0 server advertises) reads 25 MB, not 24 (UI-003).
         assertEquals("25 MB", AttachmentPolicy.sizeLabel(26_214_000L))
+    }
+
+    @Test
+    fun animationsAreNeverFlattenedAndAvifIsRecognizedWithoutTrustingMime() {
+        for (format in listOf(Sniffed.GIF, Sniffed.PNG, Sniffed.WEBP, Sniffed.HEIF, Sniffed.AVIF)) {
+            assertFalse(AttachmentPolicy.compressible(Kind.PHOTO, format))
+        }
+        val avif = AttachmentPolicy.sniff(ascii(8, "avif", ascii(4, "ftyp")))
+        assertEquals(Sniffed.AVIF, avif)
+        assertEquals("image/avif", AttachmentPolicy.sendMime("application/octet-stream", Kind.PHOTO, avif))
+        assertEquals(0L, AttachmentPolicy.effectiveMax(16, 0))
     }
 
     @Test

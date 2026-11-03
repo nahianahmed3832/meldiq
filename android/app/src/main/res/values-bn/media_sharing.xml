@@ -1,0 +1,8 @@
+<resources>
+    <string name="media_sharing_photos">ছবি</string>
+    <string name="media_sharing_videos">ভিডিও</string>
+    <string name="media_sharing_filter_filename">ফাইলের নাম দিয়ে এই পৃষ্ঠা ফিল্টার করুন</string>
+    <string name="media_sharing_original_file">আসল ফাইল</string>
+    <string name="media_sharing_optimized_note">ছবি ও ভিডিও স্বয়ংক্রিয়ভাবে অপ্টিমাইজ করা হয়। অপরিবর্তিত রাখতে পাঠানোর আগে আসল ফাইল নির্বাচন করুন।</string>
+    <string name="media_sharing_original_note">ফাইল অপরিবর্তিত পাঠান, সংরক্ষিত অবস্থানের তথ্যসহ।</string>
+</resources>

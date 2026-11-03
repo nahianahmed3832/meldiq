@@ -1,5 +1,11 @@
 package com.meldiq.android.data.api
 
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -125,6 +131,7 @@ class ApiClient(
      */
     suspend fun putPresigned(url: String, headers: Map<String, String>, file: File, offset: Long, length: Long, onProgress: (Long) -> Unit): String? =
         withContext(Dispatchers.IO) {
+            val coroutine = currentCoroutineContext()
             val type = (headers["content-type"] ?: "application/octet-stream").toMediaType()
             val body = object : RequestBody() {
                 override fun contentType() = type
@@ -136,6 +143,7 @@ class ApiClient(
                         var left = length
                         var sent = 0L
                         while (left > 0) {
+                            if (!coroutine.isActive) throw IOException("Upload cancelled")
                             val n = raf.read(buf, 0, minOf(buf.size.toLong(), left).toInt())
                             if (n < 0) throw IOException("file ended early")
                             sink.write(buf, 0, n)
@@ -149,16 +157,22 @@ class ApiClient(
             val b = Request.Builder().url(url).put(body)
             // Content-Type and Content-Length come from the body; every other signed header is sent as it is.
             for ((k, v) in headers) if (!k.equals("content-type", true) && !k.equals("content-length", true)) b.header(k, v)
-            try {
-                http.newCall(b.build()).execute().use { r ->
-                    if (!r.isSuccessful) {
-                        val code = Regex("<Code>([^<]+)</Code>").find(r.body?.string().orEmpty())?.groupValues?.get(1) ?: "http_${r.code}"
-                        throw ApiException(r.code, "store_$code", "Upload failed (${r.code})")
+            suspendCancellableCoroutine { continuation ->
+                val call = http.newCall(b.build())
+                continuation.invokeOnCancellation { call.cancel() }
+                call.enqueue(object : okhttp3.Callback {
+                    override fun onFailure(call: okhttp3.Call, e: IOException) {
+                        if (continuation.isActive) continuation.resumeWithException(ApiException(0, "network", "Can't reach the server's file storage"))
                     }
-                    r.header("ETag")
-                }
-            } catch (e: IOException) {
-                throw ApiException(0, "network", "Can't reach the server's file storage")
+                    override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) {
+                        response.use { r ->
+                            if (!continuation.isActive) return
+                            if (!r.isSuccessful) {
+                                continuation.resumeWithException(ApiException(r.code, "store_http_${r.code}", "Upload failed (${r.code})"))
+                            } else continuation.resume(r.header("ETag"))
+                        }
+                    }
+                })
             }
         }
 
@@ -167,9 +181,14 @@ class ApiClient(
      * Range request (T2.6). A server that ignores the range (200) restarts the file; 416 means [dest] is
      * already complete (or wrong; the caller's hash check decides).
      */
-    suspend fun downloadTo(path: String, dest: File, onProgress: (Float) -> Unit) = withContext(Dispatchers.IO) {
+    suspend fun downloadTo(path: String, dest: File, onProgress: (Float) -> Unit) = downloadToBounded(path, dest, Long.MAX_VALUE, onProgress)
+
+    suspend fun downloadToBounded(path: String, dest: File, maxBytes: Long, onProgress: (Float) -> Unit = {}) = withContext(Dispatchers.IO) {
+        require(maxBytes > 0)
+        val coroutine = currentCoroutineContext()
         fun once(): Int {
             val have = if (dest.exists()) dest.length() else 0L
+            if (have > maxBytes) { dest.delete(); return 413 }
             val req = Request.Builder().url(baseUrl().trimEnd('/') + path).get().apply {
                 token()?.let { header("Authorization", "Bearer $it") }
                 if (have > 0) header("Range", "bytes=$have-")
@@ -181,14 +200,26 @@ class ApiClient(
                         !r.isSuccessful -> r.code
                         else -> {
                             val append = r.code == 206
-                            val total = (if (append) have else 0L) + (r.body?.contentLength() ?: -1L)
+                            if (append) {
+                                val range = Regex("bytes (\\d+)-(\\d+)/(\\d+)").matchEntire(r.header("Content-Range").orEmpty())
+                                if (range == null || range.groupValues[1].toLongOrNull() != have) {
+                                    throw ApiException(502, "download_range", "The server returned an invalid download range")
+                                }
+                                if ((range.groupValues[3].toLongOrNull() ?: Long.MAX_VALUE) > maxBytes) { dest.delete(); return 413 }
+                            }
+                            val length = r.body?.contentLength() ?: -1L
+                            val offset = if (append) have else 0L
+                            if (length >= 0 && length > maxBytes - offset) { dest.delete(); return 413 }
+                            val total = if (length < 0) -1L else offset + length
                             var written = if (append) have else 0L
                             FileOutputStream(dest, append).use { out ->
                                 val src = r.body!!.byteStream()
                                 val buf = ByteArray(64 * 1024)
                                 while (true) {
+                                    coroutine.ensureActive()
                                     val n = src.read(buf)
                                     if (n < 0) break
+                                    if (n > maxBytes - written) throw ApiException(413, "too_large", "Download exceeds the allowed size")
                                     out.write(buf, 0, n)
                                     written += n
                                     if (total > 0) onProgress(written.toFloat() / total)
@@ -198,6 +229,9 @@ class ApiClient(
                         }
                     }
                 }
+            } catch (e: ApiException) {
+                if (e.status == 413) dest.delete()
+                throw e
             } catch (e: IOException) {
                 0
             }
@@ -206,6 +240,7 @@ class ApiClient(
         if (code == 401 && reauthLock.withLock { reauth() }) code = once()
         when (code) {
             200, 416 -> Unit
+            413 -> throw ApiException(413, "too_large", "Download exceeds the allowed size")
             0 -> throw ApiException(0, "network", "Can't reach the server")
             404 -> throw ApiException(404, "not_found", "This file has expired or you no longer have access")
             else -> throw ApiException(code, "http_$code", "Download failed ($code)")

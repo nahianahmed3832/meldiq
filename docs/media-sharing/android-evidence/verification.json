@@ -1,0 +1,33 @@
+{
+  "verifiedAt": "2026-11-02T14:31:36.687370+00:00",
+  "baseCommit": "b34d3ee82eeb82cdcce8d2e5af0ad06ead17398d",
+  "focusedTests": 58,
+  "focusedFailures": 0,
+  "appApkBuilt": true,
+  "instrumentationApkBuilt": true,
+  "fullUnitRun": {
+    "total": 787,
+    "passed": 783,
+    "failed": 4,
+    "failures": [
+      "ContractFixturesTest.theAppDecodesEveryFixtureItUses: existing interaction.reply codec mismatch",
+      "ContractFixturesTest.strictDecodingOnlyFailsWhereAlreadyKnown: existing interaction.reply codec mismatch",
+      "RealtimeCodecTest client schema: expected anyOf missing",
+      "RealtimeCodecTest server schema: expected anyOf missing"
+    ],
+    "contractTestAndCodecSourcesUnchangedFromBase": true
+  },
+  "apkArtifacts": {
+    "android/app/build/outputs/apk/debug/app-debug.apk": {
+      "bytes": 150419540,
+      "sha256": "8703584a46305a43c9354800d1c69db2ee7a15faf493adf838d687b055732cb4"
+    },
+    "android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk": {
+      "bytes": 1072093,
+      "sha256": "b26f41621d6607662401f57daf72e6a3f964694ad4a9e91c4a8c80baeeb8b6de"
+    }
+  },
+  "playStorePublished": false,
+  "instrumentationExecutedOnThisCleanPort": false,
+  "galleryScope": "Existing cached-message window; separate uncommitted collection browser was excluded."
+}

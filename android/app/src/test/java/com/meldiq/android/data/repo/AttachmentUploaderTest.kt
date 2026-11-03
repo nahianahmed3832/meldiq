@@ -3,6 +3,10 @@ package com.meldiq.android.data.repo
 import com.meldiq.android.data.api.ApiClient
 import com.meldiq.android.data.api.ApiException
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.delay
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -39,12 +43,13 @@ class AttachmentUploaderTest {
     private var expireFirstPut = false
     private var dropPart = -1
     private var failComplete = false
+    private var stallPut = false
     private var completed: String? = null
 
     private fun sha(b: ByteArray) = Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(b))
     private fun json(body: String, code: Int = 200) = MockResponse().setResponseCode(code).setHeader("content-type", "application/json").setBody(body)
     private fun presigned(path: String, extra: String) =
-        """{"method":"PUT","url":"${server.url(path)}?X-Amz-Signature=abc","headers":{"content-type":"application/octet-stream",$extra},"expiresAt":1}"""
+        """{"method":"PUT","url":"${server.url(path)}?X-Amz-Signature=abc","headers":{"content-type":"application/octet-stream",$extra},"expiresAt":${System.currentTimeMillis() + 3_600_000}}"""
 
     @Before
     fun setUp() {
@@ -60,9 +65,9 @@ class AttachmentUploaderTest {
                         val size = Regex("\"size\":(\\d+)").find(body)!!.groupValues[1].toLong()
                         val sha = Regex("\"sha256\":\"([^\"]+)\"").find(body)!!.groupValues[1]
                         return if (partSize > 0 && size > partSize) {
-                            json("""{"uploadId":"a_up","mode":"multipart","expiresAt":1,"partSize":$partSize,"partCount":${(size + partSize - 1) / partSize}}""")
+                            json("""{"uploadId":"a_up","mode":"multipart","expiresAt":${System.currentTimeMillis() + 3_600_000},"partSize":$partSize,"partCount":${(size + partSize - 1) / partSize}}""")
                         } else {
-                            json("""{"uploadId":"a_up","mode":"single","expiresAt":1,"upload":${presigned("/s3/a_up", "\"x-amz-checksum-sha256\":\"$sha\",\"if-none-match\":\"*\"")}}""")
+                            json("""{"uploadId":"a_up","mode":"single","expiresAt":${System.currentTimeMillis() + 3_600_000},"upload":${presigned("/s3/a_up", "\"x-amz-checksum-sha256\":\"$sha\",\"if-none-match\":\"*\"")}}""")
                         }
                     }
                     path == "/v1/attachments/uploads/a_up/url" -> {
@@ -91,6 +96,7 @@ class AttachmentUploaderTest {
                     }
                     path.startsWith("/s3/") -> {
                         s3Requests += request
+                        if (stallPut) return MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE)
                         val body = request.body.readByteArray()
                         val n = Regex("part(\\d+)").find(path)?.groupValues?.get(1)?.toInt()
                         if (expireFirstPut) {
@@ -206,6 +212,34 @@ class AttachmentUploaderTest {
         features = "null"
         stored.remove("legacy")
         assertEquals("a_legacy", uploader().upload("c_1", file(bytes), sha(bytes)) {}.id)
+    }
+
+    @Test
+    fun completedMultipartCheckpointSurvivesANewUploaderWithoutSendingBytesAgain() = runBlocking {
+        partSize = 40_000
+        val bytes = ByteArray(90_000) { 6 }
+        val directory = java.nio.file.Files.createTempDirectory("meldiq-upload-checkpoint-").toFile()
+        try {
+            val client = api()
+            AttachmentUploader(client, ServerFeatures(client), directory).upload("c_1", file(bytes), sha(bytes)) {}
+            val before = log.count { it == "POST /v1/attachments/uploads" }
+            s3Requests.clear()
+            val ready = AttachmentUploader(client, ServerFeatures(client), directory).upload("c_1", file(bytes), sha(bytes)) {}
+            assertEquals("a_up", ready.id)
+            assertTrue(s3Requests.isEmpty())
+            assertEquals(before, log.count { it == "POST /v1/attachments/uploads" })
+        } finally { directory.deleteRecursively() }
+    }
+
+    @Test
+    fun cancellingStopsTheRequestAndAbandonsTheDirectSession() = runBlocking {
+        partSize = 40_000
+        stallPut = true
+        val bytes = ByteArray(90_000) { 4 }
+        val transfer = launch { uploader().upload("c_1", file(bytes), sha(bytes)) {} }
+        withTimeout(5_000) { while (s3Requests.isEmpty()) delay(10) }
+        transfer.cancelAndJoin()
+        assertTrue(log.contains("DELETE /v1/attachments/uploads/a_up"))
     }
 
     @Test

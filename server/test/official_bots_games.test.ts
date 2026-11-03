@@ -228,7 +228,8 @@ describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
       await say(ana, games, answer);
       const won = (await lines(games, botId)).at(-1)!;
       expect(won).toMatch(/^🎉 obgana\d* solved Wordy #\d+ in 2\/6!\n[🟩🟨⬛]{5}\n🟩🟩🟩🟩🟩\nStreak: 5 🔥$/u);
-      expect(won.toLowerCase()).not.toContain(answer);
+      // A valid answer such as "solve" may be a substring of the fixed word "solved".
+      expect(won.toLowerCase()).not.toMatch(new RegExp(`\\b${answer}\\b`));
       expect(h.ctx.ws.get<{ streak: number; best_streak: number; distribution: string }>("bot_wordy_stats", { org_id: orgId, user_id: ana.userId })).toMatchObject({ streak: 5, best_streak: 5, distribution: "[0,2,2,1,0,0]" });
       await say(ana, games, "!wordy");
       expect((await lines(games, botId)).at(-1)).toMatch(/has played Wordy #\d+ already \(2\/6\)/);

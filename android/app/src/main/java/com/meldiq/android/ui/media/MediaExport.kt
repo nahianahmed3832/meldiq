@@ -6,6 +6,7 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
+import android.graphics.drawable.Drawable
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
@@ -23,11 +24,24 @@ import java.io.File
  * encrypted download is never exported. Everything streams: no file is read whole into memory.
  */
 object MediaExport {
+    /** Keeps GIF/WebP animation when supported, with bounded frames rather than a full-resolution decode. */
+    suspend fun decodeDrawable(file: File, maxEdge: Int): Drawable? = withContext(Dispatchers.IO) {
+        if (Build.VERSION.SDK_INT < 28) return@withContext null
+        runCatching {
+            ImageDecoder.decodeDrawable(ImageDecoder.createSource(file)) { decoder, info, _ ->
+                val edge = if (info.isAnimated) minOf(maxEdge, 1600) else maxEdge
+                val factor = minOf(1f, edge.coerceAtLeast(1).toFloat() / maxOf(info.size.width, info.size.height).coerceAtLeast(1))
+                decoder.setTargetSize((info.size.width * factor).toInt().coerceAtLeast(1), (info.size.height * factor).toInt().coerceAtLeast(1))
+            }
+        }.getOrNull()
+    }
+
     /** Decodes [file] with its long edge at most [maxEdge], applying the photo's EXIF rotation (Android 9+). */
     suspend fun decode(file: File, maxEdge: Int): Bitmap? = withContext(Dispatchers.IO) {
         runCatching {
             if (Build.VERSION.SDK_INT >= 28) {
                 ImageDecoder.decodeBitmap(ImageDecoder.createSource(file)) { decoder, info, _ ->
+                    decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
                     val long = maxOf(info.size.width, info.size.height)
                     if (long > maxEdge) {
                         val f = maxEdge.toFloat() / long
@@ -47,7 +61,13 @@ object MediaExport {
         val r = MediaMetadataRetriever()
         try {
             r.setDataSource(file.path)
-            val frame = r.getFrameAtTime(0) ?: return@withContext null
+            val width = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 0
+            val height = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: 0
+            val longest = maxOf(width, height)
+            val frame = if (Build.VERSION.SDK_INT >= 27 && longest > maxEdge) {
+                r.getScaledFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, (width * maxEdge / longest).coerceAtLeast(1), (height * maxEdge / longest).coerceAtLeast(1))
+            } else r.getFrameAtTime(0)
+            if (frame == null) return@withContext null
             val long = maxOf(frame.width, frame.height)
             if (long <= maxEdge) frame else Bitmap.createScaledBitmap(frame, frame.width * maxEdge / long, frame.height * maxEdge / long, true).also { frame.recycle() }
         } catch (e: Exception) {

@@ -1080,8 +1080,6 @@ fun ConversationScreen(nav: NavHostController, conversationId: String, threadRoo
             batch, batchNote, onRemove = vm::unpick, onAddMore = { attachSheet = true },
             onSend = { q, vq, caption -> vm.sendBatch(q, vq, caption) }, onDismiss = vm::clearBatch,
             maxFile = maxFile,
-            defaultPhotoQuality = com.meldiq.android.ui.LocalContainer.current.settings.current.photoQuality,
-            defaultVideoQuality = com.meldiq.android.ui.LocalContainer.current.settings.current.videoQuality,
         )
     }
     if (bulkSheet) {

@@ -1,0 +1,8 @@
+<resources>
+    <string name="media_sharing_photos">照片</string>
+    <string name="media_sharing_videos">视频</string>
+    <string name="media_sharing_filter_filename">按文件名筛选此页</string>
+    <string name="media_sharing_original_file">原始文件</string>
+    <string name="media_sharing_optimized_note">照片和视频默认自动优化。发送前选择原始文件可保持文件不变。</string>
+    <string name="media_sharing_original_note">发送未经修改的文件，包括其中保存的位置信息。</string>
+</resources>

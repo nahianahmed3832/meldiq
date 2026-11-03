@@ -48,7 +48,10 @@ object MediaGallery {
 
     /** Of a received message's files, the ones that download by themselves once the message is on screen. */
     fun autoDownloadable(refs: List<AttachmentRef>): List<AttachmentRef> =
-        refs.filter { kindOf(it) == MediaKind.Image && it.size <= AUTO_DOWNLOAD_MAX_BYTES }
+        refs.mapNotNull { ref ->
+            if (kindOf(ref) == null) null
+            else ref.thumbnail?.asAttachment() ?: ref.takeIf { kindOf(it) == MediaKind.Image && it.size <= AUTO_DOWNLOAD_MAX_BYTES }
+        }
 
     fun kindOf(ref: AttachmentRef): MediaKind? = when {
         ref.id == "pending" || VoiceNote.isVoice(ref) -> null
@@ -56,6 +59,10 @@ object MediaGallery {
         ref.mime.lowercase().startsWith("video/") -> MediaKind.Video
         else -> null
     }
+
+    /** Filters one bounded collection page; it does not claim to search the whole conversation. */
+    fun matches(ref: AttachmentRef, kind: MediaKind?, filename: String): Boolean =
+        (kind == null || kindOf(ref) == kind) && ref.name.contains(filename.trim(), ignoreCase = true)
 
     /**
      * Every photo and video in [messages] (any order in), oldest first, the order the viewer swipes through. Deleted and

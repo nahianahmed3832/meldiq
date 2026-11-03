@@ -105,12 +105,12 @@ private fun AttachTile(t: Tile, modifier: Modifier, onClick: () -> Unit) {
 object AttachPanelText {
     fun limits(maxFile: Long): String =
         "Up to ${AttachmentPolicy.MAX_ITEMS} at once, ${AttachmentPolicy.sizeLabel(maxFile)} per file on this server. " +
-            "Photos and videos: Original, or compressed on this phone."
+            "Photos and videos are optimized by default. Select Original file to send unchanged."
 
     /** Servers still at the old 25 MB limit: big videos only go compressed, so say so before the person picks one. */
     fun smallServerHint(maxFile: Long): String? =
         if (maxFile <= AttachmentPolicy.LEGACY_MAX_FILE_BYTES) {
-            "Long videos only fit compressed here: pick Compress (720p) in the preview."
+            "Videos are compressed automatically. Long videos may still exceed this server limit."
         } else {
             null
         }

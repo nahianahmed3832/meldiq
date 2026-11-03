@@ -4,8 +4,9 @@ package com.meldiq.android.data.model
  * What may be sent, and how files are checked (2026-10-17 batch attachments, docs/ATTACHMENTS.md; unit-tested in
  * `AttachmentPolicyTest`).
  *
- * Files are end-to-end encrypted on the phone, so the server only ever stores ciphertext: it can't scan them for
- * malware and the app never says it does. The checks here run on the phone, on the plaintext: the real type of a file is
+ * File bodies are encrypted on the phone before storage. Current v2 server-stored messages carry their keys to the
+ * relay, so that path is not E2EE against the server. No malware scanning is implemented. These plaintext checks run
+ * on the phone: the real type of a file is
  * read from its first bytes (not trusted from its name or the picker's MIME type), names are made safe to show and save,
  * and files that can install or run software are flagged before sending and before opening.
  */
@@ -23,16 +24,20 @@ object AttachmentPolicy {
 
     /**
      * The most this app sends in one file, whatever the server allows (also bounded by the phone's free space): Meldiq
-     * 2.0's 1 GiB, counted in bytes of the file itself, exactly (docs/ORBIT_2_ARCHITECTURE §7).
+     * 1 GB ceiling (1,000,000,000 bytes of the original file).
      */
-    const val APP_MAX_FILE_BYTES = 1024L * 1024 * 1024
+    const val APP_MAX_FILE_BYTES = 1_000_000_000L
 
     /**
      * The limit to use with a server. [serverFileMax] is Orbit 2.0's `fileMaxBytes` (the file itself, before encryption);
      * older servers only give [serverMax], their ciphertext limit, used as it is. Neither: a server before large files.
      */
     fun effectiveMax(serverMax: Long?, serverFileMax: Long? = null): Long =
-        (serverFileMax ?: serverMax)?.takeIf { it > 0 }?.coerceAtMost(APP_MAX_FILE_BYTES) ?: LEGACY_MAX_FILE_BYTES
+        when {
+            serverFileMax != null && serverFileMax >= 0 -> serverFileMax.coerceAtMost(APP_MAX_FILE_BYTES)
+            serverMax != null && serverMax > 0 -> (serverMax - 16).coerceIn(0, APP_MAX_FILE_BYTES)
+            else -> LEGACY_MAX_FILE_BYTES
+        }
 
     /**
      * Free space a file of [size] bytes needs on the phone before sending: its copy in app storage and its encrypted copy
@@ -45,6 +50,7 @@ object AttachmentPolicy {
 
     /** "25 MB", "500 MB", "1.5 MB", "1 GB". */
     fun sizeLabel(bytes: Long): String {
+        if (bytes == APP_MAX_FILE_BYTES) return "1 GB"
         val mb = bytes / (1024.0 * 1024.0)
         val gb = mb / 1024.0
         return when {
@@ -67,7 +73,7 @@ object AttachmentPolicy {
 
     /** The real type of a file, from its first bytes. */
     enum class Sniffed(val visual: Kind?) {
-        JPEG(Kind.PHOTO), PNG(Kind.PHOTO), GIF(Kind.PHOTO), WEBP(Kind.PHOTO), HEIF(Kind.PHOTO), BMP(Kind.PHOTO),
+        JPEG(Kind.PHOTO), PNG(Kind.PHOTO), GIF(Kind.PHOTO), WEBP(Kind.PHOTO), AVIF(Kind.PHOTO), HEIF(Kind.PHOTO), BMP(Kind.PHOTO),
         MP4(Kind.VIDEO), WEBM(Kind.VIDEO),
         PDF(null), ZIP(null),
         /** Windows program (MZ), Linux program (ELF), macOS program (Mach-O), or a script starting with `#!`. */
@@ -88,7 +94,7 @@ object AttachmentPolicy {
             ascii(0, "BM") && head.size >= 14 -> Sniffed.BMP
             ascii(4, "ftyp") -> {
                 val brand = if (head.size >= 12) String(head, 8, 4, Charsets.ISO_8859_1) else ""
-                if (brand in HEIF_BRANDS) Sniffed.HEIF else Sniffed.MP4
+                if (brand in setOf("avif", "avis")) Sniffed.AVIF else if (brand in HEIF_BRANDS) Sniffed.HEIF else Sniffed.MP4
             }
             at(0, 0x1A, 0x45, 0xDF, 0xA3) -> Sniffed.WEBM // Matroska/WebM
             ascii(0, "%PDF-") -> Sniffed.PDF
@@ -143,7 +149,8 @@ object AttachmentPolicy {
             Sniffed.PNG -> "image/png"
             Sniffed.GIF -> "image/gif"
             Sniffed.WEBP -> "image/webp"
-            Sniffed.HEIF -> if (mime.lowercase() == "image/avif") "image/avif" else "image/heic"
+            Sniffed.AVIF -> "image/avif"
+            Sniffed.HEIF -> "image/heic"
             Sniffed.BMP -> "image/bmp"
             else -> mime
         }
@@ -231,9 +238,9 @@ object AttachmentPolicy {
         }
     }
 
-    /** Photos (not GIFs, which may be animated) and videos are compressed at Standard and HD; files never are. */
+    /** Only known static photos are re-encoded; GIF, PNG, WebP and HEIF/AVIF may contain animation. */
     fun compressible(kind: Kind, sniffed: Sniffed?): Boolean = when (kind) {
-        Kind.PHOTO -> sniffed != Sniffed.GIF
+        Kind.PHOTO -> sniffed == Sniffed.JPEG || sniffed == Sniffed.BMP
         Kind.VIDEO -> sniffed == Sniffed.MP4 // MP4/MOV/3GP; WebM is sent as it is
         Kind.FILE -> false
     }

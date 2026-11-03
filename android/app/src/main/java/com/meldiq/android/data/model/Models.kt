@@ -157,7 +157,24 @@ data class AttachmentRef(
      */
     val w: Int? = null,
     val h: Int? = null,
+    /** Separate encrypted derivative; the original descriptor and download remain unchanged. */
+    val thumbnail: AttachmentThumbnail? = null,
+    /** Local pending-message state only. Final sent references omit this field. */
+    val pendingCipher: PendingAttachmentCipher? = null,
 )
+
+@Serializable
+data class PendingAttachmentCipher(val key: String, val nonce: String, val sha256: String, val chunk: Int?, val cipherSize: Long)
+
+@Serializable
+data class AttachmentThumbnail(
+    val id: String, val name: String, val mime: String, val size: Long,
+    val key: String, val nonce: String, val sha256: String,
+) {
+    /** Received metadata is untrusted; previews never fetch an unbounded or active-content object. */
+    fun asAttachment(): AttachmentRef? = if (size in 1..131072 && mime in setOf("image/jpeg", "image/png", "image/webp") && id.isNotBlank())
+        AttachmentRef(id, name, mime, size, key, nonce, sha256) else null
+}
 
 @Serializable
 data class MemberSummary(

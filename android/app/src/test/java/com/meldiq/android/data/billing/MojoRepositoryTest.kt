@@ -41,7 +41,8 @@ class MojoRepositoryTest {
         override val updates = MutableSharedFlow<PlayUpdate>()
         var owned = listOf<PlayPurchase>()
         var prices = mapOf("mojo_plus" to PlayOffer("mojo_plus", "$4.99", "P1M", "USD", 4_990_000), "mojo_plus_quarterly" to PlayOffer("mojo_plus_quarterly", "$12.99", "P3M", "USD", 12_990_000), "mojo_plus_yearly" to PlayOffer("mojo_plus_yearly", "$49.99", "P1Y", "USD", 49_990_000), "gift_plus_3m" to PlayOffer("gift_plus_3m", "$12.99", null, "USD", 12_990_000))
-        override suspend fun offers() = prices
+        var offerQueries = 0
+        override suspend fun offers() = run { offerQueries++; prices }
         override suspend fun owned() = owned
         override fun launch(activity: Activity, launch: PlayLaunch): PlayError? = null
         override fun close() {}
@@ -79,6 +80,17 @@ class MojoRepositoryTest {
         assertEquals("1", r.state.value.catalog?.version)
         assertEquals("$4.99", r.state.value.offers["mojo_plus"]?.price)
         assertEquals(false, r.state.value.unavailable)
+    }
+
+    @Test
+    fun `media preflight refreshes entitlements without querying Play offers`() = runTest(UnconfinedTestDispatcher()) {
+        val play = FakePlay()
+        val r = repo(FakeBackend(plus), play)
+        r.refreshUploadLimits()
+        assertEquals("1", r.state.value.catalog?.version)
+        assertEquals("plus", MojoPlans.currentKey(r.state.value.entitlements))
+        assertEquals(0, play.offerQueries)
+        assertTrue(r.state.value.offers.isEmpty())
     }
 
     @Test

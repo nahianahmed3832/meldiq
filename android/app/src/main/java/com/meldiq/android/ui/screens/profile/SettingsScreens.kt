@@ -87,7 +87,6 @@ import com.meldiq.android.GriipApp
 import com.meldiq.android.R
 import com.meldiq.android.call.CallPhase
 import com.meldiq.android.data.repo.AutoDownload
-import com.meldiq.android.data.model.AttachmentPolicy.Quality
 import com.meldiq.android.data.repo.LinkOpening
 import com.meldiq.android.data.repo.Settings
 import com.meldiq.android.ui.AppLanguage
@@ -323,22 +322,9 @@ fun ChatSettingsScreen(nav: NavHostController) {
             }
         }
         item {
-            // Where a send of photos and videos starts; the send preview can still change it each time.
-            GlassCard(Modifier.fillMaxWidth().padding(horizontal = Space.gutter).padding(top = 8.dp), contentPadding = PaddingValues(4.dp)) {
-                Text(stringResource(R.string.ux_upload_quality), style = Griip.type.titleSmall, color = c.textPrimary, modifier = Modifier.padding(start = 12.dp, top = 10.dp))
-                Text(stringResource(R.string.ux_photos), style = Griip.type.label, color = c.textSecondary, modifier = Modifier.padding(start = 12.dp, top = 8.dp))
-                ChipRow {
-                    listOf(Quality.STANDARD to R.string.ux_q_standard, Quality.HD to R.string.ux_q_hd, Quality.ORIGINAL to R.string.ux_q_original).forEach { (q, label) ->
-                        PillChip(stringResource(label), s.photoQuality == q, { update { it.copy(photoQuality = q) } })
-                    }
-                }
-                Text(stringResource(R.string.ux_videos), style = Griip.type.label, color = c.textSecondary, modifier = Modifier.padding(start = 12.dp, top = 4.dp))
-                ChipRow {
-                    listOf(Quality.ORIGINAL to R.string.ux_q_original, Quality.HD to R.string.ux_q_1080, Quality.STANDARD to R.string.ux_q_720).forEach { (q, label) ->
-                        PillChip(stringResource(label), s.videoQuality == q, { update { it.copy(videoQuality = q) } })
-                    }
-                }
-                Text(stringResource(R.string.ux_upload_quality_sub), style = Griip.type.caption, color = c.textSecondary, modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 10.dp))
+            GlassCard(Modifier.fillMaxWidth().padding(horizontal = Space.gutter).padding(top = 8.dp), contentPadding = PaddingValues(16.dp)) {
+                Text(stringResource(R.string.ux_upload_quality), style = Griip.type.titleSmall, color = c.textPrimary)
+                Text(stringResource(R.string.media_sharing_optimized_note), style = Griip.type.caption, color = c.textSecondary)
             }
         }
         item { SectionHeader(stringResource(R.string.ux_gestures), Modifier.padding(top = 16.dp, bottom = 6.dp)) }
