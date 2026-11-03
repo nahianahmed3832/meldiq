@@ -1,3 +1,4 @@
+import { mediaDeliveryConfig } from "../infrastructure/storage/mediaDelivery.js";
 import { socialConfig, type SocialConfig } from "../modules/accounts/social/config.js";
 import { postgresConfig } from "../infrastructure/database/postgres/config.js";
 import type { PostgresConfig } from "../infrastructure/database/postgres/client.js";
@@ -106,7 +107,7 @@ export interface Config {
    * [readFallback]: the other backend, still read (and deleted from) after a switch, so files stored before it stay
    * available until they expire; new files go to [backend] only. [s3] is set whenever either one is S3.
    */
-  storage: { backend: StorageBackend; readFallback: StorageBackend | null; s3: S3Config | null };
+  storage: { delivery?: ReturnType<typeof mediaDeliveryConfig>; backend: StorageBackend; readFallback: StorageBackend | null; s3: S3Config | null };
   /** Encrypted message history kept for each account (docs/MESSAGE_HISTORY.md). */
   /**
    * Server-stored messages (API 0.57.0, docs/SERVER_MESSAGES.md). [acceptEncrypted]: whether POST /v1/messages still
@@ -715,7 +716,9 @@ function storageConfig(env: NodeJS.ProcessEnv, dataDir: string, int: (n: string,
   const readFallback = storageBackend(env.STORAGE_READ_FALLBACK, "STORAGE_READ_FALLBACK");
   if (readFallback === backend) throw new Error("STORAGE_READ_FALLBACK must differ from STORAGE_BACKEND");
   const usesS3 = backend === "s3" || readFallback === "s3";
-  return { backend, readFallback, s3: usesS3 ? s3Config(env, dataDir, int) : null };
+  const delivery = mediaDeliveryConfig(env);
+  if (delivery && (backend !== "s3" || env.S3_PRESIGNED_DOWNLOADS === "false")) throw Error("Media delivery requires S3 presigned reads");
+  return { delivery, backend, readFallback, s3: usesS3 ? s3Config(env, dataDir, int) : null };
 }
 
 function storageBackend(v: string | undefined, name: string): StorageBackend | null {

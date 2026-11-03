@@ -1,0 +1,102 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Retained private media origin for the Meldiq Frankfurt storage migration.
+Metadata:
+  AWSToolsMetrics:
+    AWSAgentToolkit: aws-cloudformation@3
+Resources:
+  AccessLogs:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub 'griipbuddy-orbit-media-logs-fra-${AWS::AccountId}'
+      OwnershipControls:
+        Rules: [{ObjectOwnership: BucketOwnerEnforced}]
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: {SSEAlgorithm: AES256}
+  LogPolicy:
+    Type: AWS::S3::BucketPolicy
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Bucket: !Ref AccessLogs
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource: [!GetAtt AccessLogs.Arn, !Sub '${AccessLogs.Arn}/*']
+            Condition:
+              Bool: {'aws:SecureTransport': 'false'}
+          - Effect: Allow
+            Principal: {Service: logging.s3.amazonaws.com}
+            Action: s3:PutObject
+            Resource: !Sub '${AccessLogs.Arn}/media/*'
+            Condition:
+              ArnEquals:
+                'aws:SourceArn': !Sub 'arn:${AWS::Partition}:s3:::griipbuddy-orbit-media-fra-${AWS::AccountId}'
+              StringEquals:
+                'aws:SourceAccount': !Ref AWS::AccountId
+  Media:
+    DependsOn: LogPolicy
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: Version-preserving migration destination and future private application origin.
+        must: Retain data across stack changes. Never expire noncurrent versions during migration.
+    Properties:
+      BucketName: !Sub 'griipbuddy-orbit-media-fra-${AWS::AccountId}'
+      OwnershipControls:
+        Rules: [{ObjectOwnership: BucketOwnerEnforced}]
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: {SSEAlgorithm: AES256}
+      VersioningConfiguration: {Status: Enabled}
+      LifecycleConfiguration:
+        Rules:
+          - Id: AbortIncomplete
+            Status: Enabled
+            AbortIncompleteMultipartUpload: {DaysAfterInitiation: 1}
+      LoggingConfiguration:
+        DestinationBucketName: !Ref AccessLogs
+        LogFilePrefix: media/
+      MetricsConfigurations: [{Id: EntireBucket}]
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins: ['https://web.meldiq.app', 'https://admin.meldiq.app']
+            AllowedMethods: [GET, HEAD, PUT]
+            AllowedHeaders: [content-type, content-length, range, if-none-match, if-match, 'x-amz-*']
+            ExposedHeaders: [ETag, x-amz-checksum-sha256, x-amz-version-id, Content-Length, Content-Range, Accept-Ranges]
+            MaxAge: 3600
+  PrivateHttps:
+    Type: AWS::S3::BucketPolicy
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Bucket: !Ref Media
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource: [!GetAtt Media.Arn, !Sub '${Media.Arn}/*']
+            Condition:
+              Bool: {'aws:SecureTransport': 'false'}
+Outputs:
+  MediaBucket:
+    Value: !Ref Media
