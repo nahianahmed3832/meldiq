@@ -29,6 +29,13 @@ export const safeTypes = {
   },
 };
 
+/** Pool checkout may wait for a short request burst; opening a socket still fails promptly. */
+class BoundedConnectClient extends pg.Client {
+  constructor(config?: pg.ClientConfig | string) {
+    super({...(typeof config === "string" ? {connectionString: config} : config), connectionTimeoutMillis: 5_000});
+  }
+}
+
 export class MeldiqPostgres {
   readonly pool: pg.Pool;
   private readonly context = new AsyncLocalStorage<PoolClient>();
@@ -44,10 +51,11 @@ export class MeldiqPostgres {
     if ([...url.searchParams.keys()].some(k => /^ssl/i.test(k))) throw new Error("Configure TLS through the trusted CA setting, not URL overrides");
     const max = config.maxConnections ?? 5;
     if (!Number.isInteger(max) || max < 1 || max > 20) throw new Error("Connection pool must be between 1 and 20");
-    this.pool = new pg.Pool({ connectionString: url.href, max, min: 0, idleTimeoutMillis: 30_000,
-      connectionTimeoutMillis: 5_000, statement_timeout: 15_000, idle_in_transaction_session_timeout: 30_000,
+    const poolConfig: pg.PoolConfig & {Client: typeof pg.Client} = { connectionString: url.href, max, min: 0, idleTimeoutMillis: 30_000,
+      Client: BoundedConnectClient, connectionTimeoutMillis: 15_000, statement_timeout: 15_000, idle_in_transaction_session_timeout: 30_000,
       application_name: `meldiq-${config.environment}`, options: "-c timezone=UTC -c extra_float_digits=3",
-      ssl: local ? false : { rejectUnauthorized: true, ...(config.ca ? { ca: config.ca } : {}) }, types: safeTypes });
+      ssl: local ? false : { rejectUnauthorized: true, ...(config.ca ? { ca: config.ca } : {}) }, types: safeTypes };
+    this.pool = new pg.Pool(poolConfig);
     // No raw driver errors: connection errors can contain infrastructure details.
     this.pool.on("error", () => { this.connectionErrors++; });
   }
