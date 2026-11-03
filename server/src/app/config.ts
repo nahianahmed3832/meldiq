@@ -1,3 +1,4 @@
+import { mediaDeliveryConfig } from "../infrastructure/storage/mediaDelivery.js";
 import { socialConfig, type SocialConfig } from "../modules/accounts/social/config.js";
 import { postgresConfig } from "../infrastructure/database/postgres/config.js";
 import type { PostgresConfig } from "../infrastructure/database/postgres/client.js";
@@ -100,13 +101,14 @@ export interface Config {
    * good. Off ("false"): the 7-day relay window and ATTACHMENT_KEEP_DAYS, as before.
    */
   attachmentKeepForever: boolean;
+  retainCompletedUploads?: boolean;
   attachmentUserKeptBytes: number;
   /**
    * Where files live: the server's disk (default) or Amazon S3 / a compatible store (docs/STORAGE_AND_DATA.md).
    * [readFallback]: the other backend, still read (and deleted from) after a switch, so files stored before it stay
    * available until they expire; new files go to [backend] only. [s3] is set whenever either one is S3.
    */
-  storage: { backend: StorageBackend; readFallback: StorageBackend | null; s3: S3Config | null };
+  storage: { delivery?: ReturnType<typeof mediaDeliveryConfig>; backend: StorageBackend; readFallback: StorageBackend | null; s3: S3Config | null };
   /** Encrypted message history kept for each account (docs/MESSAGE_HISTORY.md). */
   /**
    * Server-stored messages (API 0.57.0, docs/SERVER_MESSAGES.md). [acceptEncrypted]: whether POST /v1/messages still
@@ -178,7 +180,7 @@ export interface Config {
    * Direct uploads from the app to S3 (2026-10-17). How long an upload URL may be started with, how long an upload may
    * take before it counts as abandoned (its object or parts are then deleted), and how many a person may have open.
    */
-  directUploads: { urlTtlSeconds: number; sessionSeconds: number; maxPendingPerUser: number };
+  directUploads: { legacyWebProxy?: boolean; urlTtlSeconds: number; sessionSeconds: number; maxPendingPerUser: number };
   /**
    * The largest file a person may send, in bytes of the file itself (before encryption). Apps check it byte-exactly;
    * [attachmentMaxBytes] is the ciphertext limit the server enforces, which defaults to this plus encryption headroom.
@@ -619,10 +621,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     // the old default (1024 MiB) was below one 1 GB file plus its encryption headroom, so such a file was always refused.
     attachmentMaxPendingBytes: Math.max(int("ATTACHMENT_MAX_PENDING_BYTES", 2 * attachmentMaxBytes), 2 * attachmentMaxBytes),
     attachmentKeepDays: Math.max(int("ATTACHMENT_KEEP_DAYS", 365), 0),
+    retainCompletedUploads: env.ATTACHMENT_RETAIN_COMPLETED === "true",
     attachmentKeepForever: (env.ATTACHMENT_KEEP_FOREVER ?? "true").trim().toLowerCase() !== "false",
     attachmentUserKeptBytes: Math.max(int("ATTACHMENT_USER_KEPT_BYTES", 0), 0),
     storage: storageConfig(env, dataDir, int),
     directUploads: {
+      legacyWebProxy: env.S3_USE_LEGACY_WEB_UPLOAD_PROXY === "true",
       urlTtlSeconds: Math.min(Math.max(int("S3_UPLOAD_URL_TTL_SECONDS", 900), 60), 3600),
       sessionSeconds: Math.min(Math.max(int("DIRECT_UPLOAD_SESSION_SECONDS", 24 * 3600), 600), 7 * 86_400),
       maxPendingPerUser: Math.max(int("DIRECT_UPLOAD_MAX_PENDING_PER_USER", 10), 1),
@@ -715,7 +719,9 @@ function storageConfig(env: NodeJS.ProcessEnv, dataDir: string, int: (n: string,
   const readFallback = storageBackend(env.STORAGE_READ_FALLBACK, "STORAGE_READ_FALLBACK");
   if (readFallback === backend) throw new Error("STORAGE_READ_FALLBACK must differ from STORAGE_BACKEND");
   const usesS3 = backend === "s3" || readFallback === "s3";
-  return { backend, readFallback, s3: usesS3 ? s3Config(env, dataDir, int) : null };
+  const delivery = mediaDeliveryConfig(env);
+  if (delivery && (backend !== "s3" || env.S3_PRESIGNED_DOWNLOADS === "false")) throw Error("Media delivery requires S3 presigned reads");
+  return { delivery, backend, readFallback, s3: usesS3 ? s3Config(env, dataDir, int) : null };
 }
 
 function storageBackend(v: string | undefined, name: string): StorageBackend | null {
@@ -735,7 +741,17 @@ function s3Config(env: NodeJS.ProcessEnv, dataDir: string, int: (n: string, d: n
   const prefix = (env.S3_PREFIX ?? "orbit/").trim();
   if (prefix && !/^[A-Za-z0-9_\-/.]{1,64}$/.test(prefix)) throw new Error("S3_PREFIX may only use letters, digits, _ - . /");
   const partSize = Math.max(int("S3_PART_SIZE", 16 * MiB), 5 * MiB);
+  let previousUploads: S3Config["previousUploads"];
+  if (env.S3_PREVIOUS_UPLOAD_BUCKET || env.S3_PREVIOUS_UPLOAD_REGION) {
+    const bucket = need("S3_PREVIOUS_UPLOAD_BUCKET", env.S3_PREVIOUS_UPLOAD_BUCKET);
+    const region = need("S3_PREVIOUS_UPLOAD_REGION", env.S3_PREVIOUS_UPLOAD_REGION);
+    if (bucket === env.S3_BUCKET) throw Error("Previous upload bucket must differ from the primary");
+    const pending = (env.S3_PREVIOUS_UPLOAD_IDS ?? "").split(",").filter(Boolean);
+    if (pending.some(id => !/^[A-Za-z0-9_-]{1,64}$/.test(id))) throw Error("Invalid previous upload ID");
+    previousUploads = {bucket,region,endpoint:env.S3_PREVIOUS_UPLOAD_ENDPOINT?.trim() || null,pending,olderDesktop:env.S3_PREVIOUS_DESKTOP_UPLOADS === "true"};
+  }
   return {
+    previousUploads,
     bucket: need("S3_BUCKET", env.S3_BUCKET),
     region: need("S3_REGION", env.S3_REGION ?? env.AWS_REGION),
     endpoint: env.S3_ENDPOINT?.trim() || null,

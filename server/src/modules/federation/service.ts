@@ -1,3 +1,4 @@
+import { KEPT_FOREVER } from "../files/store.js";
 /**
  * Federation on a home server (docs/FEDERATION_PROTOCOL.md). Owns this server's identity, its announcements to the
  * core nodes, signed requests to peers, global address lookup, remote users ("shadows"), the outbox and inbound
@@ -662,7 +663,7 @@ export class Federation {
       await fs.promises.rm(tmp, { force: true });
       return { status: 400, code: "bad_body" };
     }
-    const expiresAt = Math.min(meta.expiresAt, now() + config.attachmentTtlSeconds * 1000);
+    const expiresAt = config.retainCompletedUploads ? KEPT_FOREVER : Math.min(meta.expiresAt, now() + config.attachmentTtlSeconds * 1000);
     await this.ctx.files.recordAttachment({ id: meta.id, conversation_id: meta.conversationId, uploader_user_id: meta.uploaderUserId, size, created_at: now(), expires_at: expiresAt });
     return { status: 200 };
   }

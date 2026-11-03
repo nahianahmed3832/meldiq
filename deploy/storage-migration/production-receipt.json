@@ -1,0 +1,49 @@
+{
+  "activated": {
+    "activatedAt": "2026-11-03T08:08:53.387851+00:00",
+    "baseImage": "sha256:71e273ba61f38a62ec3456e8c015a30a3469bbb251952c183df27a7ea3ee896d",
+    "image": "sha256:78bc3b174a50ce8e80c5bb06075bd97597f4b6d735ed798225333810e9fa9645",
+    "revision": "458aebfad5a17155cd80d5630f8060fd40d0b5cb",
+    "pendingSourceSessions": 2,
+    "database": "supabase",
+    "primaryRegion": "eu-central-1"
+  },
+  "fence": {
+    "keys": 620,
+    "dataVersions": 618,
+    "markers": 82,
+    "dataBytes": 2180958913,
+    "verifiedDisk": 35
+  },
+  "postgresAudit": {
+    "tables": 52,
+    "rows": 11403,
+    "rowsWithSourceUrls": 0
+  },
+  "qualification": {
+    "imageId": "sha256:78bc3b174a50ce8e80c5bb06075bd97597f4b6d735ed798225333810e9fa9645",
+    "revision": "458aebfad5a17155cd80d5630f8060fd40d0b5cb",
+    "suiteSha256": "6355286257ace27048261a936466c8156c70272ec1e1f7a948319198e292fbe4",
+    "isolatedPostgresTests": 24
+  },
+  "publicCanary": [
+    "historical verified_range 206 edge true",
+    "pending verified_range 206 edge true",
+    "new verified_range 206 edge true",
+    "oldDesktop verified_range 206 edge true",
+    "revoked session denied 404"
+  ],
+  "recoveryArchive": {
+    "encrypted": true,
+    "readbackVerified": true,
+    "journalRestoreVerified": true
+  },
+  "publicWindowsVersion": "0.2.1",
+  "publicSiteRelease": "site-20261103T080905Z-7edd73c885",
+  "cloudflareMediaVersion": "850c482c-bc36-4255-88ac-bbab1a619c8c",
+  "singaporeRollbackHistory": {
+    "stackStatus": "UPDATE_COMPLETE",
+    "noncurrentExpiry": "Disabled",
+    "incompleteMultipartCleanup": "Enabled"
+  }
+}

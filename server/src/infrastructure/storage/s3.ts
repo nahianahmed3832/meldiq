@@ -3,6 +3,7 @@ import type { Readable } from "node:stream";
 import {
   AbortMultipartUploadCommand,
   CompleteMultipartUploadCommand,
+  CopyObjectCommand,
   CreateMultipartUploadCommand,
   DeleteObjectCommand,
   GetObjectCommand,
@@ -18,6 +19,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { type BlobKind, type BlobRange, type BlobStore, type DirectUploads, type PresignedRequest, checkId } from "./blobstore.js";
 
 export interface S3Config {
+  previousUploads?: { bucket: string; region: string; endpoint: string | null; pending: string[]; olderDesktop: boolean };
   bucket: string;
   region: string;
   /** Custom endpoint (S3-compatible stores, tests); absent: AWS's regional endpoint. */
@@ -62,6 +64,8 @@ export class S3BlobStore implements BlobStore {
   readonly spoolDir: string;
   readonly client: S3Client;
   readonly direct: DirectUploads;
+  readonly previousUploads?: BlobStore["previousUploads"];
+  private previous?: S3BlobStore;
 
   constructor(private cfg: S3Config) {
     fs.mkdirSync(cfg.spoolDir, { recursive: true });
@@ -77,6 +81,39 @@ export class S3BlobStore implements BlobStore {
       responseChecksumValidation: "WHEN_REQUIRED",
     });
     this.direct = new S3DirectUploads(this);
+    const previous = cfg.previousUploads;
+    if (previous) {
+      const source = new S3BlobStore({...cfg, previousUploads:undefined, bucket:previous.bucket, region:previous.region, endpoint:previous.endpoint});
+      this.previous = source;
+      const pending = new Set(previous.pending);
+      this.previousUploads = {
+        direct: source.direct,
+        olderDesktop: previous.olderDesktop,
+        owns: id => pending.has(id) || /^a_legacy_[A-Za-z0-9_-]{22}$/.test(id),
+        publish: (id,size,sha256) => this.copyVerifiedUpload(source,id,size,sha256),
+      };
+    }
+  }
+
+  // Old signed URLs cannot be retargeted. Promote the completed ciphertext
+  // before publishing its database record, including after an interrupted retry.
+  private async copyVerifiedUpload(source: S3BlobStore, id: string, size: number, sha256: string) {
+    const kind = "attachments";
+    const object = {Bucket:this.bucket, Key:this.key(kind,id)};
+    const sourceKey = source.key(kind,id);
+    const metadata = await source.client.send(new HeadObjectCommand({Bucket:source.bucket,Key:sourceKey}));
+    if (metadata.ContentLength !== size || !metadata.ETag) throw new Error("Previous upload size mismatch");
+    try {
+      await this.client.send(new CopyObjectCommand({
+        ...object, CopySource: source.bucket + "/" + sourceKey.split("/").map(encodeURIComponent).join("/"),
+        CopySourceIfMatch:metadata.ETag, IfNoneMatch:"*", ChecksumAlgorithm:"SHA256",
+        MetadataDirective:"COPY", TaggingDirective:"REPLACE", ...this.sseParams(),
+      }));
+    } catch (error) {
+      if (!(error instanceof S3ServiceException && error.$metadata.httpStatusCode === 412)) throw error;
+    }
+    const copy = await this.client.send(new HeadObjectCommand({...object,ChecksumMode:"ENABLED"}));
+    if (copy.ContentLength !== size || copy.ChecksumSHA256 !== sha256) throw new Error("Promoted upload integrity mismatch");
   }
 
   key(kind: BlobKind, id: string): string {
@@ -193,6 +230,8 @@ export class S3BlobStore implements BlobStore {
   }
 
   async delete(kind: BlobKind, id: string): Promise<void> {
+    // Normal application retention/abandon, limited to uploads assigned to the previous origin.
+    if (kind === "attachments" && this.previousUploads?.owns(id)) await this.previous?.delete(kind,id);
     try {
       await this.client.send(new DeleteObjectCommand({ Bucket: this.cfg.bucket, Key: this.key(kind, id) }));
     } catch (e) {
@@ -200,9 +239,10 @@ export class S3BlobStore implements BlobStore {
     }
   }
 
-  async presignedGet(kind: BlobKind, id: string): Promise<string | null> {
+  async presignedGet(kind: BlobKind, id: string, head = false): Promise<string | null> {
     if (!this.cfg.presignedDownloads) return null;
-    return getSignedUrl(this.client, new GetObjectCommand({ Bucket: this.cfg.bucket, Key: this.key(kind, id) }), { expiresIn: this.cfg.presignTtlSeconds });
+    const object = { Bucket: this.cfg.bucket, Key: this.key(kind, id) };
+    return getSignedUrl(this.client, head ? new HeadObjectCommand(object) : new GetObjectCommand(object), { expiresIn: this.cfg.presignTtlSeconds });
   }
 
   async *listIds(kind: BlobKind): AsyncIterable<{ id: string; size: number; modifiedAt: number }> {

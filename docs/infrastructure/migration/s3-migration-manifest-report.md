@@ -1,0 +1,13 @@
+# Version copy and verification
+
+All 615 original object versions and 82 delete markers matched the initial source snapshot. Original data size was 2,180,950,688 bytes. The copy tool processes each key oldest first using the interleaved XML service response, verifies destination version order and records the new S3 version ID. Version IDs and service-assigned modification times are different across buckets. No source objects were deleted.
+
+Verification compared byte count, tags, custom metadata, content type, disposition, encoding, language, expiry, encryption and storage class. It checked matching S3 checksum algorithms and types or streamed SHA-256 from both versions when their stored checksums differed. Six original versions required the streamed comparison. Source and destination were relisted before declaring the snapshot matched. The journal records attempts, sizes, checksums and errors per source version.
+
+The 33-byte canary raised the S3 count to 616 object versions plus 82 markers. A separate journal verified all 35 disk-backed historical attachments, 66,188,312 bytes, against the API's file records, file digests and Frankfurt HeadObject checksum/size. Total recorded Frankfurt data across versions is 2,247,139,033 bytes. A first disk copy was interrupted when the independent database deployment stopped the API container. A bounded read-only helper resumed via conditional puts and verified existing copies.
+
+Private evidence is under meldiq_server_status/platform/.local/storage-migration on the operator volume. The S3 journal SHA-256 begins e723e8d4096709e6 and the disk journal begins a2aaae7e8657d0a3. Keep the full journals for restart and recovery. Re-run reconcile.py with the same state directory under an exclusive destination-writer fence. Re-run again after the final upload fence. The initial match is not a final cutover checkpoint.
+
+Before activation, two additional 4,096-byte synthetic objects were created in the isolated monitoring account to test an historical attachment and an already-issued upload session. A full re-verification of all source versions completed, including metadata and tags. The later checkpoint contains 618 data versions, 82 markers, 2,180,958,913 S3 bytes and the 35 supplemental disk versions. The operational manifest is append-only; count distinct source key/version pairs for current totals.
+
+The final writer-fenced inventory recorded 620 Singapore keys, 618 data versions (2,180,958,913 bytes) and 82 markers, plus the 35 verified disk-backed files. The three additions after the original inventory were isolated monitoring/test objects. The encrypted final journal was restored and its digest checked.
