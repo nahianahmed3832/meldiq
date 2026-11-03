@@ -3,9 +3,9 @@ import net from "node:net";
 import path from "node:path";
 import { Console } from "node:console";
 import { Writable } from "node:stream";
-import type { AppContext } from "../../app/context.js";
+import type { AppContext } from "./context.js";
 import { runOperatorCommand } from "./operatorCommand.js";
-import { PostgresRelayStore } from "../messaging/relay/postgresStore.js";
+import { PostgresRelayStore } from "../modules/messaging/relay/postgresStore.js";
 
 const REQUEST_LIMIT = 32 * 1024,
   OUTPUT_LIMIT = 2 * 1024 * 1024;

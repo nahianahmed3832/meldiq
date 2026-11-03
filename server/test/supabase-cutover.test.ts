@@ -6,7 +6,7 @@ import {DatabaseCutover} from "../src/app/databaseCutover.js";
 import {preparePostgresHarness} from "./support/postgres.js";
 import {loadConfig} from "../src/app/config.js";
 import {buildApp} from "../src/app/server.js";
-import {openOperatorSocket,callOperatorSocket,operatorSocketPath} from "../src/modules/administration/operatorSocket.js";
+import {openOperatorSocket,callOperatorSocket,operatorSocketPath} from "../src/app/operatorSocket.js";
 import {tableCounts} from "../src/infrastructure/database/postgres/migration.js";
 import {postgresTableSpecs} from "../src/infrastructure/database/postgres/nativeCatalog.js";
 

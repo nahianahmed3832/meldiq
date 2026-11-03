@@ -1,6 +1,6 @@
-import { PLUS_TERMS, type PlusTerm } from "../../modules/billing/pricing.js";
-import { seedCollectionArtwork } from "../../modules/accounts/collectibles/seedAssets.js";
-import { collectibleBlobIsReferenced } from "../../modules/accounts/collectibles/assetReferences.js";
+import { PLUS_TERMS, type PlusTerm } from "../modules/billing/pricing.js";
+import { seedCollectionArtwork } from "../modules/accounts/collectibles/seedAssets.js";
+import { collectibleBlobIsReferenced } from "../modules/accounts/collectibles/assetReferences.js";
 /**
  * Operator CLI. Runs inside the api container; there is no HTTP admin surface.
  *
@@ -52,57 +52,57 @@ import { collectibleBlobIsReferenced } from "../../modules/accounts/collectibles
  *   platform-audit-verify          Platform Admin Console roles, enrolment codes and its audit chain
  *                                  (src/modules/platformAdmin/cli.ts)
  */
-import { addWarning, revokeWarning, standingOf } from "../../modules/accounts/standing.js";
-import { BUG_STATUSES, type BugStatus, listBugReports, setBugStatus } from "../../modules/accounts/bugReports.js";
-import { MongoRelationshipStore } from "../../modules/accounts/relationships/mongoStore.js";
-import { type RelationshipStore, SqliteRelationshipStore } from "../../modules/accounts/relationships/store.js";
-import { Accounts } from "../../modules/accounts/index.js";
-import { Authz } from "../../modules/organizations/authz.js";
-import { backupDatabase, verifyBackup } from "../../modules/administration/backup.js";
-import { loadConfig } from "../../app/config.js";
-import { readSiteDetails } from "../../app/siteDetails.js";
+import { addWarning, revokeWarning, standingOf } from "../modules/accounts/standing.js";
+import { BUG_STATUSES, type BugStatus, listBugReports, setBugStatus } from "../modules/accounts/bugReports.js";
+import { MongoRelationshipStore } from "../modules/accounts/relationships/mongoStore.js";
+import { type RelationshipStore, SqliteRelationshipStore } from "../modules/accounts/relationships/store.js";
+import { Accounts } from "../modules/accounts/index.js";
+import { Authz } from "../modules/organizations/authz.js";
+import { backupDatabase, verifyBackup } from "../modules/administration/backup.js";
+import { loadConfig } from "./config.js";
+import { readSiteDetails } from "./siteDetails.js";
 import Stripe from "stripe";
-import { PlanCatalog, termsOf } from "../../modules/billing/catalog.js";
-import { stripeKeyMode } from "../../modules/billing/providers/stripe.js";
-import { DEFAULT_MOJO_AMOUNTS, publishedMojoAmounts, publishMojoPlans, stripeSetup, stripeSetupApi } from "../../modules/billing/stripeSetup.js";
-import { openDatabase } from "../../infrastructure/database/db.js";
-import { ServerIdentity } from "../../modules/federation/identity.js";
-import { Hub } from "../../modules/realtime/hub.js";
-import { endNewAccountLimits } from "../../app/middleware/abuse.js";
-import { createLoadtestInvite, LOADTEST_INVITE_MAX_DAYS, LOADTEST_INVITE_MAX_USES } from "../../modules/accounts/index.js";
-import { createRegistrationInvite } from "../../modules/organizations/invites.js";
-import type { AppContext } from "../../app/context.js";
-import { runCleanup } from "../../modules/administration/jobs.js";
-import { applyChannelAccessRepair, planChannelAccessRepair } from "../../modules/messaging/channelRepair.js";
-import { deleteEmptyOrg, findDuplicateOrgs, keepReason, orgFootprint, type OrgRepairStores } from "../../modules/organizations/orgRepair.js";
-import { MongoCallStore } from "../../modules/calls/mongoStore.js";
-import { type CallStore, SqliteCallStore } from "../../modules/calls/store.js";
-import { humanCode, newId, now, sha256Hex } from "../../shared/utilities/util.js";
-import { createBlobStore } from "../../infrastructure/storage/index.js";
-import { MONGO_COMMANDS, runMongoCommand } from "../../infrastructure/database/mongo/admin.js";
-import { RETIRED_COMMANDS, runRetiredCommand } from "../../modules/administration/retiredData.js";
-import { migrateBranchesAndTeams, verifyCommunityMigration } from "../../modules/organizations/communityMigration.js";
-import { openMongo } from "../../infrastructure/database/mongo/index.js";
-import { type CliRows, openCliRows } from "../../app/cliRows.js";
-import { ReminderService } from "../../modules/accounts/reminders/service.js";
-import type { MeldiqMongo } from "../../infrastructure/database/mongo/client.js";
-import { describeTables } from "../../infrastructure/database/mongo/catalog.js";
-import { type Rows, SqliteRows } from "../../infrastructure/database/rows/index.js";
-import { openWorkspaceRows, WORKSPACE_DOMAINS } from "../../app/workspaceRows.js";
-import { openBillingRows } from "../../app/billingRows.js";
-import { openDomainRows } from "../../app/domainRows.js";
-import { PlatformAudit } from "../../modules/platformAdmin/audit.js";
-import { PayPalProvider } from "../../modules/billing/providers/paypal.js";
-import { MongoRelayStore } from "../../modules/messaging/relay/mongoStore.js";
-import { PLATFORM_ADMIN_COMMANDS, runPlatformAdminCommand } from "../../modules/platformAdmin/index.js";
-import { MongoFileStore } from "../../modules/files/mongoStore.js";
-import { type FileStore, SqliteFileStore } from "../../modules/files/store.js";
-import { type RelayStore, SqliteRelayStore } from "../../modules/messaging/relay/store.js";
-import { MongoReportStore } from "../../modules/organizations/reports/mongoStore.js";
-import { ReportSealer } from "../../modules/organizations/reports/seal.js";
-import { type ReportStore, SqliteReportStore } from "../../modules/organizations/reports/store.js";
-import { postgresTableSpecs } from "../../infrastructure/database/postgres/nativeCatalog.js";
-import {tableCounts} from "../../infrastructure/database/postgres/migration.js";
+import { PlanCatalog, termsOf } from "../modules/billing/catalog.js";
+import { stripeKeyMode } from "../modules/billing/providers/stripe.js";
+import { DEFAULT_MOJO_AMOUNTS, publishedMojoAmounts, publishMojoPlans, stripeSetup, stripeSetupApi } from "../modules/billing/stripeSetup.js";
+import { openDatabase } from "../infrastructure/database/db.js";
+import { ServerIdentity } from "../modules/federation/identity.js";
+import { Hub } from "../modules/realtime/hub.js";
+import { endNewAccountLimits } from "./middleware/abuse.js";
+import { createLoadtestInvite, LOADTEST_INVITE_MAX_DAYS, LOADTEST_INVITE_MAX_USES } from "../modules/accounts/index.js";
+import { createRegistrationInvite } from "../modules/organizations/invites.js";
+import type { AppContext } from "./context.js";
+import { runCleanup } from "../modules/administration/jobs.js";
+import { applyChannelAccessRepair, planChannelAccessRepair } from "../modules/messaging/channelRepair.js";
+import { deleteEmptyOrg, findDuplicateOrgs, keepReason, orgFootprint, type OrgRepairStores } from "../modules/organizations/orgRepair.js";
+import { MongoCallStore } from "../modules/calls/mongoStore.js";
+import { type CallStore, SqliteCallStore } from "../modules/calls/store.js";
+import { humanCode, newId, now, sha256Hex } from "../shared/utilities/util.js";
+import { createBlobStore } from "../infrastructure/storage/index.js";
+import { MONGO_COMMANDS, runMongoCommand } from "../infrastructure/database/mongo/admin.js";
+import { RETIRED_COMMANDS, runRetiredCommand } from "../modules/administration/retiredData.js";
+import { migrateBranchesAndTeams, verifyCommunityMigration } from "../modules/organizations/communityMigration.js";
+import { openMongo } from "../infrastructure/database/mongo/index.js";
+import { type CliRows, openCliRows } from "./cliRows.js";
+import { ReminderService } from "../modules/accounts/reminders/service.js";
+import type { MeldiqMongo } from "../infrastructure/database/mongo/client.js";
+import { describeTables } from "../infrastructure/database/mongo/catalog.js";
+import { type Rows, SqliteRows } from "../infrastructure/database/rows/index.js";
+import { openWorkspaceRows, WORKSPACE_DOMAINS } from "./workspaceRows.js";
+import { openBillingRows } from "./billingRows.js";
+import { openDomainRows } from "./domainRows.js";
+import { PlatformAudit } from "../modules/platformAdmin/audit.js";
+import { PayPalProvider } from "../modules/billing/providers/paypal.js";
+import { MongoRelayStore } from "../modules/messaging/relay/mongoStore.js";
+import { PLATFORM_ADMIN_COMMANDS, runPlatformAdminCommand } from "../modules/platformAdmin/index.js";
+import { MongoFileStore } from "../modules/files/mongoStore.js";
+import { type FileStore, SqliteFileStore } from "../modules/files/store.js";
+import { type RelayStore, SqliteRelayStore } from "../modules/messaging/relay/store.js";
+import { MongoReportStore } from "../modules/organizations/reports/mongoStore.js";
+import { ReportSealer } from "../modules/organizations/reports/seal.js";
+import { type ReportStore, SqliteReportStore } from "../modules/organizations/reports/store.js";
+import { postgresTableSpecs } from "../infrastructure/database/postgres/nativeCatalog.js";
+import {tableCounts} from "../infrastructure/database/postgres/migration.js";
 
 class OperatorExit extends Error {
   constructor(readonly code: number) {

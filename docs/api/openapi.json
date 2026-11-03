@@ -11165,6 +11165,13 @@
                         "boolean",
                         "null"
                       ]
+                    },
+                    "postgres": {
+                      "type": "boolean"
+                    },
+                    "databaseMode": {
+                      "type": "string",
+                      "const": "supabase"
                     }
                   },
                   "required": [
@@ -11211,6 +11218,13 @@
                         "boolean",
                         "null"
                       ]
+                    },
+                    "postgres": {
+                      "type": "boolean"
+                    },
+                    "databaseMode": {
+                      "type": "string",
+                      "const": "supabase"
                     }
                   },
                   "required": [

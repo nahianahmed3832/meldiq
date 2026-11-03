@@ -1,6 +1,6 @@
 import path from "node:path";
-import { runOperatorCommand } from "./modules/administration/operatorCommand.js";
-import { callOperatorSocket, operatorSocketPath } from "./modules/administration/operatorSocket.js";
+import { runOperatorCommand } from "./app/operatorCommand.js";
+import { callOperatorSocket, operatorSocketPath } from "./app/operatorSocket.js";
 
 const [command = "help", ...args] = process.argv.slice(2);
 try {

@@ -4,8 +4,8 @@ import type {AppContext} from "../../app/context.js";
 import type {SupabaseAccessVerifier, SupabasePrincipal, SupabaseSession} from "../../infrastructure/database/postgres/auth.js";
 import {verifyEd25519} from "../../shared/utilities/crypto.js";
 import {ApiError, unauthorized} from "../../shared/errors.js";
-import {consumeChallenge} from "../accounts/service.js";
-import type {AuthInfo} from "./index.js";
+import {consumeChallenge} from "./service.js";
+import type {AuthInfo} from "../auth/index.js";
 import {SupabaseDeviceProof, SupabaseLegacyLink} from "../../shared/contracts/http/supabaseAuth.js";
 
 export interface AuthDeviceBinding {

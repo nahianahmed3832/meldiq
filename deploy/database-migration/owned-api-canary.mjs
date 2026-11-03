@@ -2,7 +2,7 @@ import fs from "node:fs";
 import {loadConfig} from "/app/dist/app/config.js";
 import {buildApp} from "/app/dist/app/server.js";
 import {MeldiqPostgres} from "/app/dist/infrastructure/database/postgres/client.js";
-import {openOperatorSocket} from "/app/dist/modules/administration/operatorSocket.js";
+const {openOperatorSocket}=await import(fs.existsSync("/app/dist/app/operatorSocket.js")?"/app/dist/app/operatorSocket.js":"/app/dist/modules/administration/operatorSocket.js");
 
 if(process.env.MELDIQ_OWNED_CANARY!=="synthetic-loopback"||process.env.NODE_ENV!=="development")throw new Error("Owned synthetic canary settings required");
 const endpoint=new URL(process.env.SUPABASE_DATABASE_URL);

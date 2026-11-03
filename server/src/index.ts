@@ -2,7 +2,7 @@ import { buildApp } from "./app/server.js";
 import { loadConfig } from "./app/config.js";
 import { startJobs } from "./modules/administration/jobs.js";
 import { MeldiqPostgres } from "./infrastructure/database/postgres/client.js";
-import { openOperatorSocket } from "./modules/administration/operatorSocket.js";
+import { openOperatorSocket } from "./app/operatorSocket.js";
 import {afterDatabaseActivation} from "./app/databaseCutover.js";
 
 const config = loadConfig();

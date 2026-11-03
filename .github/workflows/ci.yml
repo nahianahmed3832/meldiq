@@ -47,6 +47,8 @@ jobs:
         run: npm ci
       - name: Typecheck
         run: npm run typecheck
+      - name: Install isolated Redis test dependency
+        run: sudo apt-get update && sudo apt-get install -y redis-server
       # Includes the shared griip-envelope-v1 vectors (test/interop_vectors.test.ts), which the Android job checks too.
       # The real-S3 suite skips itself: CI has no AWS credentials and no ORBIT_LIVE_S3_BUCKET.
       # A throwaway local MongoDB replica set comes up for the run (test/support/mongoGlobal.ts; the mongod binary is

@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { startServer } from "./support/harness.js";
 import { preparePostgresHarness } from "./support/postgres.js";
-import { callOperatorSocket, openOperatorSocket, operatorSocketPath } from "../src/modules/administration/operatorSocket.js";
+import { callOperatorSocket, openOperatorSocket, operatorSocketPath } from "../src/app/operatorSocket.js";
 
 const execute = promisify(execFile);
 describe("PostgreSQL operator commands share the active writer", () => {

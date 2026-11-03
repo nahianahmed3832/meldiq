@@ -19,7 +19,7 @@ import type { MeldiqPostgres } from "../infrastructure/database/postgres/client.
 import {DatabaseCutover,afterDatabaseActivation,CUTOVER_MESSAGE} from "./databaseCutover.js";
 import { blockLegacySql, openPostgresRuntime } from "./postgresRuntime.js";
 import { SupabaseAccessVerifier } from "../infrastructure/database/postgres/auth.js";
-import { SupabaseDeviceAuth, registerSupabaseIdentity } from "../modules/auth/supabaseIdentity.js";
+import { SupabaseDeviceAuth, registerSupabaseIdentity } from "../modules/accounts/supabaseIdentity.js";
 import { registerSupabaseTransport } from "../modules/auth/supabaseRoutes.js";
 import type { JWTVerifyGetKey } from "jose";
 import { type ContractObserver, observeContracts } from "./contractObserver.js";

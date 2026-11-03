@@ -5,7 +5,7 @@ import {preparePostgresHarness} from "./support/postgres.js";
 import {startServer} from "./support/harness.js";
 import {AccountClient, MemoryMailer, PASSWORD} from "./support/accounts.js";
 import {sign} from "./support/griipClient.js";
-import {supabaseDeviceProof} from "../src/modules/auth/supabaseIdentity.js";
+import {supabaseDeviceProof} from "../src/modules/accounts/supabaseIdentity.js";
 import {authenticateToken, stillAuthenticated} from "../src/modules/auth/index.js";
 import {fromBase32, stepAt, totpCode} from "../src/modules/accounts/totp.js";
 
