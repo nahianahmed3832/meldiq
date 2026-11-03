@@ -65,26 +65,31 @@ export class PostgresRows extends MemoryRows {
 
   protected async persist({ changes, counters }: PersistedChanges): Promise<void> {
     this.assertAvailable();
-    await this.lease.query("BEGIN");
-    try {
-      for (const change of changes) {
-        const spec = this.state(change.table).spec;
-        const pk = spec.primaryKey.length ? spec.primaryKey : ["rowid"];
-        if (change.row) {
-          const row = spec.primaryKey.length ? change.row : { ...change.row, rowid: Number(change.key.slice(2)) };
-          const cols = [...spec.columns.map(c => c.name), ...(!spec.primaryKey.length ? ["rowid"] : [])];
-          const update = cols.filter(c => !pk.includes(c)).map(c => `${q(c)} = EXCLUDED.${q(c)}`).join(", ");
-          await this.lease.query(`INSERT INTO meldiq.${q(spec.name)} (${cols.map(q)}) VALUES (${cols.map((_,i) => `$${i+1}`)}) ON CONFLICT (${pk.map(q)}) DO ${update ? `UPDATE SET ${update}` : "NOTHING"}`, cols.map(c => row[c]));
-        } else {
-          const before = this.state(change.table).rows.get(change.key);
-          if (!before) continue;
-          const values = pk.map(c => c === "rowid" ? Number(change.key.slice(2)) : before[c]);
-          await this.lease.query(`DELETE FROM meldiq.${q(spec.name)} WHERE ${pk.map((c,i) => `${q(c)} = $${i+1}`).join(" AND ")}`, values);
+    const operations:Record<string,unknown>[]=[];
+    for(const change of changes){
+      const spec=this.state(change.table).spec;
+      const encode=(row:Row)=>Object.fromEntries(Object.entries(row).flatMap(([name,value])=>{
+        const column=spec.columns.find(column=>column.name===name);
+        if(typeof value==="number"&&!Number.isFinite(value))throw new Error("Non-finite PostgreSQL repository number");
+        if(column?.type==="BLOB"&&value!==null&&value!==undefined)value="\\x"+Buffer.from(value as Uint8Array).toString("hex");
+        if(column?.type==="JSONB"){
+          if(value===null||value===undefined)return []; // SQL NULL; a present JSON null is kept distinct.
+          if(typeof value==="string")value=JSON.parse(value);
         }
+        return [[name,value]];
+      }));
+      if(change.row){
+        const row=spec.primaryKey.length?change.row:{...change.row,rowid:Number(change.key.slice(2))};
+        operations.push({table:spec.name,row:encode(row)});
+      }else{
+        const before=this.state(change.table).rows.get(change.key);if(!before)continue;
+        const keys=spec.primaryKey.length?spec.primaryKey:["rowid"];
+        operations.push({table:spec.name,key:encode(Object.fromEntries(keys.map(name=>[name,name==="rowid"?Number(change.key.slice(2)):before[name]])))});
       }
-      for (const [table, value] of counters) await this.lease.query("INSERT INTO meldiq_private.row_counters(table_name, value) VALUES($1,$2) ON CONFLICT(table_name) DO UPDATE SET value = greatest(row_counters.value, excluded.value)", [table, value]);
-      await this.lease.query("COMMIT");
-    } catch (error) { await this.lease.query("ROLLBACK").catch(() => undefined); throw error; }
+    }
+    const serialize=(value:unknown)=>JSON.stringify(value,(_key,value)=>typeof value==="bigint"?value.toString():value);
+    // The invoker function preserves operation order and rolls the entire unit back on any failure.
+    await this.lease.query("SELECT meldiq_private.apply_row_changes($1::jsonb,$2::jsonb)",[serialize(operations),serialize(Object.fromEntries(counters))]);
   }
 
   /** Account/identity operations share this writer and commit together, including nested synchronous business units. */

@@ -297,6 +297,40 @@ describe("message durability and outbox recovery",()=>{
   });
 });
 
+describe("atomic repository transport",()=>{
+  it("preserves bytes, monetary integers, float precision, arrays and JSON null through one invoker unit",async()=>{
+    const name="atomic_fixture";
+    await db.query(`CREATE TABLE meldiq.atomic_fixture(id text PRIMARY KEY,money_minor bigint NOT NULL,precise double precision NOT NULL,payload bytea,meta jsonb,tags text[])`);
+    const spec={...tableSpecs()[0],name,primaryKey:["id"],autoincrement:false,foreignKeys:[],indexes:[],columns:[
+      {name:"id",type:"TEXT",notNull:true},{name:"money_minor",type:"INTEGER",notNull:true},{name:"precise",type:"REAL",notNull:true},
+      {name:"payload",type:"BLOB",notNull:false},{name:"meta",type:"JSONB",notNull:false},{name:"tags",type:"TEXT[]",notNull:false},
+    ]} as ReturnType<typeof tableSpecs>[number];
+    let rows:PostgresRows|undefined;
+    try{
+      rows=await PostgresRows.open(db,[spec]);
+      await rows.write(writer=>{
+        writer.insert(name,{id:"one",money_minor:Number.MAX_SAFE_INTEGER,precise:1.2345678901234567,payload:Buffer.from([0,255,128,65]),meta:["nested",[]],tags:["a","quoted, value"]});
+        writer.insert(name,{id:"json-null",money_minor:1,precise:0,payload:null,meta:"null",tags:[]});
+        writer.insert(name,{id:"sql-null",money_minor:2,precise:0,payload:null,meta:null,tags:null});
+      });
+      const first=(await db.query("SELECT * FROM meldiq.atomic_fixture WHERE id='one'")).rows[0];
+      expect(first).toMatchObject({money_minor:Number.MAX_SAFE_INTEGER,precise:1.2345678901234567,payload:Buffer.from([0,255,128,65]),meta:["nested",[]],tags:["a","quoted, value"]});
+      expect((await db.query("SELECT meta IS NULL AS sql_null,meta='null'::jsonb AS json_null FROM meldiq.atomic_fixture WHERE id='json-null'")).rows[0]).toEqual({sql_null:false,json_null:true});
+      expect((await db.query("SELECT meta IS NULL AS sql_null FROM meldiq.atomic_fixture WHERE id='sql-null'")).rows[0].sql_null).toBe(true);
+      await rows.write(writer=>{writer.update(name,{id:"one"},{money_minor:42});writer.delete(name,{id:"sql-null"});});
+      expect((await db.query("SELECT money_minor FROM meldiq.atomic_fixture WHERE id='one'")).rows[0].money_minor).toBe(42);
+      expect(rows.count(name)).toBe(2);
+      await expect(rows.write(writer=>writer.update(name,{id:"one"},{precise:Infinity}))).rejects.toThrow("Non-finite");
+      expect((await db.query("SELECT precise FROM meldiq.atomic_fixture WHERE id='one'")).rows[0].precise).toBe(1.2345678901234567);
+    }finally{await rows?.close();await db.query("DROP TABLE meldiq.atomic_fixture");}
+  });
+  it("does not grant public clients mutation execution or bypass RLS",async()=>{
+    await expect(claims(auth1,()=>db.query("SELECT meldiq_private.apply_row_changes('[]'::jsonb,'{}'::jsonb)"))).rejects.toMatchObject({code:"42501"});
+    expect((await db.query("SELECT p.prosecdef FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='meldiq_private' AND p.proname='apply_row_changes'")).rows[0].prosecdef).toBe(false);
+    await expect(db.query("SELECT meldiq_private.apply_row_changes('[{\"table\":\"auth.users\",\"row\":{}}]'::jsonb,'{}'::jsonb)")).rejects.toMatchObject({code:"22023"});
+  });
+});
+
 describe("PostgresRows compatibility",()=>{
   it("loads multiple cursor pages and keeps durable counters ahead of retained rows", async () => {
     await db.query(`INSERT INTO meldiq.users(id,username,display_name,identity_key,avatar_color,created_at,updated_at)

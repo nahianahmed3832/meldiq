@@ -30,7 +30,10 @@ export class PostgresMessageStore implements MessageStore {
     }
     return true;
   }
-  async add(event: MessageEvent): Promise<boolean> { return this.db.transaction(() => this.insert(event)); }
+  async add(event: MessageEvent): Promise<boolean> {
+    // Compatibility delivery inserts one statement; PostgreSQL already commits that statement atomically.
+    return this.db.config.deliveryMode==="legacy"?this.insert(event):this.db.transaction(() => this.insert(event));
+  }
   async addMany(events: MessageEvent[]): Promise<number> {
     return this.db.transaction(async () => { let count = 0; for (const event of events) if (await this.insert(event)) count++; return count; });
   }

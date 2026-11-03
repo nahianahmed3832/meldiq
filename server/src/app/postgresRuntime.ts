@@ -32,6 +32,8 @@ const asyncAccountTables = new Set(["account_recovery_codes", "account_recovery_
 export async function openPostgresRuntime(database: MeldiqPostgres) {
   if (database.config.environment === "production" && !database.config.productionAcceptance) throw new Error("Production PostgreSQL activation awaits verified cutover acceptance");
   if ((database.config.maxConnections ?? 5) < 2) throw new Error("PostgreSQL runtime needs one writer lease and at least one query connection");
+  const capabilities=(await database.query<{ready:boolean}>("SELECT coalesce(has_function_privilege(current_user,to_regprocedure('meldiq_private.apply_row_changes(jsonb,jsonb)'),'EXECUTE'),false) AS ready")).rows[0];
+  if(!capabilities?.ready)throw new Error("PostgreSQL repository migration 14 must be applied before this runtime starts");
   const endpoint = new URL(database.config.url), local = ["localhost", "127.0.0.1", "[::1]"].includes(endpoint.hostname);
   if (!local) {
     const ref = database.config.projectRef;

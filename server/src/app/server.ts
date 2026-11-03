@@ -235,7 +235,7 @@ export async function buildApp(
             // Never log credentials. Request bodies are not logged at all (default), so
             // message ciphertext and keys never reach the logs either.
             redact: {
-              paths: ["req.headers.authorization", "req.headers.cookie"],
+              paths: ["req.headers.authorization", "req.headers.cookie", "err.detail", "err.where", "err.internalQuery", "err.query", "err.parameters"],
               remove: true,
             },
             serializers: {
