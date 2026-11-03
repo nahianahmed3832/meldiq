@@ -13,7 +13,7 @@ function view(workspaceId: string, s: StoredPrefs | null) {
     workspaceId,
     rev: s?.rev ?? 0,
     updatedAt: s?.updatedAt ?? null,
-    prefs: s?.prefs ?? EMPTY_PREFS,
+    prefs: { ...(s?.prefs ?? EMPTY_PREFS), ...(workspaceId === PERSONAL_WORKSPACE_ID ? { locale: s?.prefs.locale ?? null } : {}) },
   };
 }
 
@@ -58,6 +58,7 @@ export default async function preferenceRoutes(app: FastifyInstance, ctx: AppCon
     // The same for a community's own notification settings and the rail order (batch B2). Each lives in one kind of
     // document only: community settings in a community's, the rail order in the personal one.
     const personal = workspaceId === PERSONAL_WORKSPACE_ID;
+    const locale = personal ? (body.prefs.locale !== undefined ? body.prefs.locale : stored?.locale ?? null) : undefined;
     // A client that doesn't know the community mute (API 0.46.0) leaves it out of its copy: the stored one stays.
     const sentCommunity = body.prefs.community;
     const community = personal
@@ -120,6 +121,7 @@ export default async function preferenceRoutes(app: FastifyInstance, ctx: AppCon
     const prefs = normalizePrefs(
       {
         ...body.prefs,
+        locale,
         expressionFavorites,
         expressionRecents,
         saved,

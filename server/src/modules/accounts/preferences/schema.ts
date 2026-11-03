@@ -111,6 +111,8 @@ export const zRailFolder = z
 
 export const zNavPrefs = z
   .object({
+    /** Optional personal interface preference; older clients may omit it. */
+    locale: z.enum(["system", "en", "bn", "hi", "ur", "zh-CN", "zh-TW", "ja", "ko", "id", "vi", "th", "ar", "tr", "pt-BR", "es-419", "es-ES", "fr", "de", "it", "nl", "pl", "ru", "uk", "ro", "sv", "cs", "el", "pt-PT"]).nullable().optional(),
     starred: z.array(zConversationId).max(LIMITS.starred).default([]),
     sections: z.array(zSection).max(LIMITS.sections).default([]),
     collapsed: z.array(zGroupKey).max(LIMITS.collapsed).default([]),
@@ -223,6 +225,7 @@ export function normalizePrefs(
   const savedIds = new Set<string>();
   const saved = (p.saved ?? []).filter((item) => keep(item.conversationId) && !savedIds.has(item.messageId) && (savedIds.add(item.messageId), true));
   return {
+    ...(p.locale !== undefined ? { locale: p.locale } : {}),
     starred,
     sections,
     collapsed: [...new Set(p.collapsed)],
