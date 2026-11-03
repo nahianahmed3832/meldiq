@@ -128,6 +128,9 @@ async function main(){
       // Upsert parents and changed foreign keys first; remove deleted children before parents. Any conflict aborts the whole refresh.
       if(upserts.length)await client.query("SELECT meldiq_private.apply_row_changes($1::jsonb,'{}'::jsonb)",[JSON.stringify(upserts)]);
       if(removals.length)await client.query("SELECT meldiq_private.apply_row_changes($1::jsonb,'{}'::jsonb)",[JSON.stringify(removals)]);
+      // INSERT/UPDATE can queue deferred FK events on these relations, even with cleanup disabled.
+      // Validate the complete delta and drain that queue before ALTER TABLE restores the cleanup triggers.
+      await client.query("SET CONSTRAINTS ALL IMMEDIATE");
       await client.query("ALTER TABLE meldiq.attachments ENABLE TRIGGER attachment_removed_cleanup; ALTER TABLE meldiq.attachment_uploads ENABLE TRIGGER upload_removed_cleanup");
       await client.query("SELECT meldiq_private.apply_row_changes('[]'::jsonb,$1::jsonb)",[JSON.stringify(after.counters)]);
       const prior=(await client.query("SELECT source_sha256,catalog_sha256 FROM meldiq_private.migration_runs WHERE id=$1",[after.id])).rows[0];
@@ -142,7 +145,7 @@ async function main(){
     report.atomicDeltaCommitted=true;report.phase="exact-after-reconciliation";await reconcile(db,afterDirectory,after);
     if(final){verifyFreeze(after);report.finalFrozenSourceReconciled=true;report.preparedForProduction=true;}
     report.allRecordHashesMatch=true;report.tables=postgresTableSpecs().length;report.records=after.tables.reduce((sum:number,table:any)=>sum+table.count,0);report.phase="complete";report.ok=true;
-  }catch(error){report.errorCode=/^[A-Z0-9_]{5,40}$/.test((error as any)?.code??"")?(error as any).code:"refresh_stopped";process.exitCode=1;}
+  }catch(error){report.errorCode=/^[A-Z0-9_]{5,40}$/.test((error as any)?.code??"")?(error as any).code:"refresh_stopped";fs.writeFileSync(path.join(afterDirectory,"refresh-diagnostics.json"),JSON.stringify({code:report.errorCode,message:error instanceof Error?error.message:"refresh stopped",table:(error as any)?.table,constraint:(error as any)?.constraint},null,2)+"\n",{mode:0o600});process.exitCode=1;}
   finally{await db.close();report.completedAt=new Date().toISOString();fs.writeFileSync(path.join(afterDirectory,"refresh-results.json"),JSON.stringify(report,null,2)+"\n",{mode:0o600});fs.appendFileSync(path.join(afterDirectory,"refresh-history.ndjson"),JSON.stringify(report)+"\n",{mode:0o600});console.log(JSON.stringify(report));}
 }
 main().catch(()=>{console.error("Rehearsal refresh stopped; keep Atlas live and inspect private evidence. No production cutover was performed.");process.exitCode=1;});

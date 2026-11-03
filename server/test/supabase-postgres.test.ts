@@ -668,6 +668,27 @@ describe("PostgreSQL attachment metadata and durable S3 cleanup", () => {
     expect(await files.dueBlobDeletes(0, 10)).toEqual([{kind: "attachments", blob_id: "parent-deleted", attempts: 0}]);
     expect(await files.dueAbandoned(0, 10)).toEqual([{id: "upload-parent-deleted", multipart_id: "original-s3-multipart-id", attempts: 0}]);
   });
+  it("drains deferred foreign keys before restoring snapshot cleanup triggers", async () => {
+    const files = new PostgresFileStore(db);
+    const disable = "ALTER TABLE meldiq.attachments DISABLE TRIGGER attachment_removed_cleanup; ALTER TABLE meldiq.attachment_uploads DISABLE TRIGGER upload_removed_cleanup";
+    const enable = "ALTER TABLE meldiq.attachments ENABLE TRIGGER attachment_removed_cleanup; ALTER TABLE meldiq.attachment_uploads ENABLE TRIGGER upload_removed_cleanup";
+    await expect(db.transaction(async () => {
+      await db.query(disable);
+      await files.recordAttachment(attachment("snapshot-added"));
+      await db.query(enable);
+    })).rejects.toMatchObject({code:"55006"});
+    expect(await files.attachment("snapshot-added")).toBeNull();
+    await db.transaction(async () => {
+      await db.query(disable);
+      await files.recordAttachment(attachment("snapshot-added"));
+      await db.query("SET CONSTRAINTS ALL IMMEDIATE");
+      await db.query(enable);
+    });
+    expect(await files.attachment("snapshot-added")).not.toBeNull();
+    expect(await files.dueBlobDeletes(0,10)).toEqual([]);
+    await db.query("DELETE FROM meldiq.attachments WHERE id='snapshot-added'");
+    expect(await files.dueBlobDeletes(0,10)).toEqual([{kind:"attachments",blob_id:"snapshot-added",attempts:0}]);
+  });
   it("does not queue a live attachment when a deferred upload deletion becomes a completed file", async () => {
     const files = new PostgresFileStore(db);
     await files.startUpload(upload("complete-transaction"));
