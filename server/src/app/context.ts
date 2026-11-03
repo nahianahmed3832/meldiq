@@ -1,4 +1,5 @@
 import type { CollectibleCommerce } from "../modules/billing/collectibleCommerce.js";
+import type {DatabaseCutover} from "./databaseCutover.js";
 import type { RedisInfrastructure } from "../infrastructure/redis/service.js";
 import type { FastifyBaseLogger, FastifyRequest } from "fastify";
 import type { FileStore } from "../modules/files/store.js";
@@ -151,6 +152,7 @@ export interface AppContext {
   mongo?: MeldiqMongo;
   /** Staged PostgreSQL composition. One writer is shared by synchronous account/authorization domains. */
   postgres?: {database: MeldiqPostgres; rows: PostgresRows};
+  databaseCutover?: DatabaseCutover;
   redis?: RedisInfrastructure;
   /** Plan-based limits (src/entitlements.ts, docs/PLANS.md): none by default. */
   entitlements: Entitlements;

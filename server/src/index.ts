@@ -3,6 +3,7 @@ import { loadConfig } from "./app/config.js";
 import { startJobs } from "./modules/administration/jobs.js";
 import { MeldiqPostgres } from "./infrastructure/database/postgres/client.js";
 import { openOperatorSocket } from "./modules/administration/operatorSocket.js";
+import {afterDatabaseActivation} from "./app/databaseCutover.js";
 
 const config = loadConfig();
 const postgres = config.postgres ? new MeldiqPostgres(config.postgres) : undefined;
@@ -11,7 +12,8 @@ const { app, ctx } = await buildApp(config, { postgres }).catch(async (error) =>
   throw error;
 });
 const stopOperator = postgres ? await openOperatorSocket(ctx) : undefined;
-const stopJobs = startJobs(ctx);
+let stopJobs=()=>{};
+await afterDatabaseActivation(ctx.databaseCutover,()=>{stopJobs=startJobs(ctx);});
 
 if (!config.livekit) app.log.warn("LIVEKIT_* not configured: voice/video calling is disabled");
 
@@ -30,6 +32,8 @@ process.on("SIGINT", () => void shutdown("SIGINT"));
 
 await app.listen({ host: config.host, port: config.port });
 if (ctx.federation) {
-  ctx.federation.start(); // announce to the core nodes, then heartbeats and outbox delivery
-  app.log.info({ serverId: ctx.federation.serverId, domain: ctx.federation.domain }, "federation enabled");
+  await afterDatabaseActivation(ctx.databaseCutover,()=>{
+    ctx.federation!.start(); // announce to the core nodes, then heartbeats and outbox delivery
+    app.log.info({ serverId: ctx.federation!.serverId, domain: ctx.federation!.domain }, "federation enabled");
+  });
 }

@@ -102,6 +102,7 @@ import { MongoReportStore } from "../../modules/organizations/reports/mongoStore
 import { ReportSealer } from "../../modules/organizations/reports/seal.js";
 import { type ReportStore, SqliteReportStore } from "../../modules/organizations/reports/store.js";
 import { postgresTableSpecs } from "../../infrastructure/database/postgres/nativeCatalog.js";
+import {tableCounts} from "../../infrastructure/database/postgres/migration.js";
 
 class OperatorExit extends Error {
   constructor(readonly code: number) {
@@ -120,6 +121,12 @@ function borrowRows(rows: Rows): Rows {
 }
 /** Commands share the live writer when invoked through the private local operator socket. */
 export async function runOperatorCommand(cmd: string, rest: string[], runtime?: AppContext, console: OperatorOutput = globalThis.console): Promise<number> {
+  if(cmd==="database-cutover-status"||cmd==="database-cutover-activate"){
+    if(!runtime?.databaseCutover)throw new Error("This process has no pending database cutover");
+    if(cmd==="database-cutover-activate")await runtime.databaseCutover.activate(rest[0]??"");
+    console.log(JSON.stringify(runtime.databaseCutover.status()));return 0;
+  }
+  if(runtime?.databaseCutover?.held && !["stats","table-counts","platform-admin-list","platform-audit-verify"].includes(cmd))throw new Error("Database cutover is held; only status and read-only verification commands are available");
   let exitCode = 0;
   function exit(code: number = exitCode): never {
     throw new OperatorExit(code);
@@ -828,12 +835,7 @@ export async function runOperatorCommand(cmd: string, rest: string[], runtime?: 
       }
       case "table-counts": {
         if (runtime?.postgres) {
-          const counts: Record<string, number> = {};
-          for (const table of postgresTableSpecs()) {
-            if (!/^[a-z_][a-z0-9_]*$/.test(table.name)) throw new Error("Unexpected table identifier");
-            counts[table.name] = Number((await runtime.postgres.database.query<{ n: string }>(`SELECT count(*)::text AS n FROM meldiq."${table.name}"`)).rows[0].n);
-          }
-          console.log(JSON.stringify(counts, null, 2));
+          console.log(JSON.stringify(Object.fromEntries(await tableCounts(runtime.postgres.database,postgresTableSpecs())), null, 2));
           break;
         }
         if (cfg.databaseMode === "atlas" && cfg.mongo) {

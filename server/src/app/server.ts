@@ -16,6 +16,7 @@ import { SqliteRelayStore } from "../modules/messaging/relay/store.js";
 import { MongoFileStore } from "../modules/files/mongoStore.js";
 import { SqliteFileStore, type FileStore } from "../modules/files/store.js";
 import type { MeldiqPostgres } from "../infrastructure/database/postgres/client.js";
+import {DatabaseCutover,afterDatabaseActivation,CUTOVER_MESSAGE} from "./databaseCutover.js";
 import { blockLegacySql, openPostgresRuntime } from "./postgresRuntime.js";
 import { SupabaseAccessVerifier } from "../infrastructure/database/postgres/auth.js";
 import { SupabaseDeviceAuth, registerSupabaseIdentity } from "../modules/auth/supabaseIdentity.js";
@@ -200,6 +201,8 @@ export async function buildApp(
     files?: FileStore;
     /** Explicit PostgreSQL composition; production requires its accepted cutover receipt. */
     postgres?: MeldiqPostgres;
+    /** Owned tests may activate their hold; hosted rehearsal holds must remain read-only. */
+    cutover?: DatabaseCutover;
     /** Explicit staging-only JWT/device bridge; production activation remains blocked. */
     supabase?: {projectUrl: string; keys?: JWTVerifyGetKey};
     /** Tests only: capture safe call sites of unhandled failures without logging request secrets. */
@@ -209,6 +212,7 @@ export async function buildApp(
   } = {},
 ): Promise<BuiltApp> {
   if (config.databaseMode === "supabase" && !opts.postgres) throw new Error("Supabase mode requires its PostgreSQL runtime; legacy fallback is forbidden");
+  if(opts.cutover && (!opts.postgres || config.accounts.appEnv==="production" || opts.postgres.config.environment==="production" || opts.cutover.dataDir!==config.dataDir || (opts.postgres.config.environment==="staging" && opts.cutover.allowActivation))) throw new Error("Only owned test holds or read-only staging holds may be injected");
   if (opts.supabase && config.accounts.appEnv === "production") throw new Error("Native Supabase Auth activation awaits its separate client and revocation acceptance checks");
   if (
     opts.postgres &&
@@ -283,7 +287,11 @@ export async function buildApp(
   } as AppContext;
   if (runtime) {
     ctx.postgres = runtime;
+    ctx.databaseCutover=runtime.database.config.environment==="production"
+      ? new DatabaseCutover(config.dataDir,runtime.database.config.projectRef!,runtime.database.config.productionAcceptance!.sourceSha256)
+      : opts.cutover;
     app.addHook("onRequest", async (_req, reply) => {
+      if(ctx.databaseCutover?.held && !(_req.method==="GET" && ["/healthz","/v1/server-info","/v2/site/details"].includes(_req.url.split("?")[0]))) return reply.code(503).send({error:{code:"maintenance",message:CUTOVER_MESSAGE}});
       if (!runtime.rows.available) return reply.code(503).send({error: {code: "unavailable", message: "The database connection is recovering"}});
     });
     app.addHook("onSend", async (_req, _reply, payload) => {
@@ -377,7 +385,7 @@ export async function buildApp(
   if (activityStore instanceof MongoActivityStore) await activityStore.ensureIndexes();
   ctx.activity = new ActivityService(activityStore, app.log);
   ctx.activity.onChange = (userId) => announceActivity(ctx, userId);
-  await ctx.activity.start();
+  await afterDatabaseActivation(ctx.databaseCutover,()=>ctx.activity.start());
   app.addHook("onClose", async () => ctx.activity.stop());
   // API 0.61.0: profile decorations people send in (docs/PROFILE_DECORATIONS.md), new data, so MongoDB whenever there is one.
   const decorationStore = postgres?.decorations ?? (ctx.mongo ? new MongoDecorationStore(ctx.mongo) : new MemoryDecorationStore());
@@ -386,24 +394,24 @@ export async function buildApp(
   const favoriteStore = postgres?.favorites ?? (ctx.mongo ? new MongoFavoriteStore(ctx.mongo) : new MemoryFavoriteStore());
   if (favoriteStore instanceof MongoFavoriteStore) await favoriteStore.ensureIndexes();
   ctx.decorations = new DecorationService(ctx, decorationStore, favoriteStore);
-  await ctx.decorations.load();
+  await afterDatabaseActivation(ctx.databaseCutover,()=>ctx.decorations.load());
   // API 0.64.0: community pins (docs/PROFILE_PINS.md), new data, so MongoDB whenever there is one.
   const pinStore = postgres?.pins ?? (ctx.mongo ? new MongoPinStore(ctx.mongo) : new MemoryPinStore());
   if (pinStore instanceof MongoPinStore) await pinStore.ensureIndexes();
   ctx.pins = new PinService(ctx, pinStore);
-  await ctx.pins.load();
+  await afterDatabaseActivation(ctx.databaseCutover,()=>ctx.pins.load());
   ctx.privacyChoices = postgres?.privacy ?? (ctx.mongo ? new MongoPrivacyStore(ctx.mongo) : new MemoryPrivacyStore());
   const holdStore = postgres?.holds ?? (ctx.mongo ? new MongoUsernameHoldStore(ctx.mongo) : new MemoryUsernameHoldStore());
   if (holdStore instanceof MongoUsernameHoldStore) await holdStore.ensureIndexes();
   ctx.usernames = new UsernameHolds(holdStore);
-  await ctx.usernames.load();
+  await afterDatabaseActivation(ctx.databaseCutover,()=>ctx.usernames.load());
   const pointsStore = postgres?.points ?? (ctx.mongo ? new MongoPointsStore(ctx.mongo) : new MemoryPointsStore());
   if (pointsStore instanceof MongoPointsStore) await pointsStore.ensureIndexes();
   ctx.points = new PointsService(ctx, pointsStore);
-  await ctx.points.load();
+  await afterDatabaseActivation(ctx.databaseCutover,()=>ctx.points.load());
   // API 0.65.0 batch B (docs/SETTINGS_PARITY_API.md): creators and linked accounts, new data too.
   ctx.creators = new CreatorService(ctx, await openCreatorStores(ctx));
-  await ctx.creators.load();
+  await afterDatabaseActivation(ctx.databaseCutover,()=>ctx.creators.load());
   ctx.linkedAccounts = await LinkedAccountsService.open(ctx);
   // API 0.65.0 batch B (docs/SETTINGS_PARITY_API.md): "Log in with Meldiq" apps and bots, new data too.
   const oauthStore = postgres?.oauth ?? (ctx.mongo ? new MongoOAuthStore(ctx.mongo) : new MemoryOAuthStore());
@@ -416,7 +424,7 @@ export async function buildApp(
   const rulesStore = postgres?.rules ?? (ctx.mongo ? new MongoRulesStore(ctx.mongo) : new MemoryRulesStore());
   if (rulesStore instanceof MongoRulesStore) await rulesStore.ensureIndexes();
   ctx.communityRules = new CommunityRules(ctx, rulesStore, config.communityRules);
-  await ctx.communityRules.load();
+  await afterDatabaseActivation(ctx.databaseCutover,()=>ctx.communityRules.load());
   // Authorisation was made before the rules: it asks them from here on.
   ctx.authz.rulesChannelId = (orgId) => ctx.communityRules.channelIdOf(orgId);
   ctx.authz.mustAgreeRules = (orgId, userId) => ctx.communityRules.mustAgree(orgId, userId);
@@ -446,7 +454,7 @@ export async function buildApp(
   // Part 2: giveaways ending, Wordy recaps and Alerts' checks run on timers (stopped before the queue drains).
   // Paid bot features need the completed billing context before the first scheduled tick.
   app.addHook("onReady", async () => {
-    ctx.officialBots.scheduler.start();
+    await afterDatabaseActivation(ctx.databaseCutover,()=>ctx.officialBots.scheduler.start());
   });
   app.addHook("onClose", async () => {
     await ctx.officialBots.scheduler.stop();
@@ -532,16 +540,18 @@ export async function buildApp(
   // AI and AI Workforce were removed in API 0.47.0 (docs/AI_REMOVAL.md): their tables stay, unread.
   // Activity, traffic, concurrency and resources (docs/ANALYTICS_DEFINITIONS.md): written once a minute.
   ctx.telemetry = new Telemetry(ctx);
-  await ctx.telemetry.init();
-  await ctx.telemetry.recordVersion(VERSION);
-  if (config.telemetryTickMs > 0) ctx.telemetry.start(config.telemetryTickMs);
+  await afterDatabaseActivation(ctx.databaseCutover,async()=>{
+    await ctx.telemetry.init();
+    await ctx.telemetry.recordVersion(VERSION);
+    if (config.telemetryTickMs > 0) ctx.telemetry.start(config.telemetryTickMs);
+  });
   app.addHook("onClose", async () => ctx.telemetry.stop());
   ctx.reminders = new ReminderService(ctx);
-  ctx.reminders.start(config.reminderTickMs);
+  await afterDatabaseActivation(ctx.databaseCutover,()=>ctx.reminders.start(config.reminderTickMs));
   app.addHook("onClose", async () => ctx.reminders.stop());
   app.addHook("onClose", async () => ctx.hub.closePresence());
   ctx.meetings = new MeetingService(ctx);
-  ctx.meetings.start(config.workflowTickMs > 0 ? 30_000 : 0);
+  await afterDatabaseActivation(ctx.databaseCutover,()=>ctx.meetings.start(config.workflowTickMs > 0 ? 30_000 : 0));
   app.addHook("onClose", async () => ctx.meetings.stop());
   // Branches and teams become roles and categories once (docs/COMMUNITY_REBUILD_2026-10-21.md §6); idempotent. A
   // conversion of SQLite's data: with communities in MongoDB it ran long before, and SQLite's copy is left alone.
@@ -737,7 +747,7 @@ export async function buildApp(
     // Apps that predate "closed" know only invite and open: closed shows as invite there, so they ask for a code.
     registration: signupMode(ctx.platform, config.registrationMode) === "open" ? "open" : "invite",
     signups: signupMode(ctx.platform, config.registrationMode),
-    maintenance: (({ enabled, message }) => ({ enabled, message }))(readControl(ctx.platform, "maintenance")),
+    maintenance: ctx.databaseCutover?.held?{enabled:true,message:CUTOVER_MESSAGE}:(({ enabled, message }) => ({ enabled, message }))(readControl(ctx.platform, "maintenance")),
     // Federation (additive): this server's global identity, if it federates.
     federation: ctx.federation
       ? {

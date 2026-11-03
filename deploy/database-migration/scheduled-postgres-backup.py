@@ -164,6 +164,8 @@ def main():
         encrypted(['docker', 'exec', API, 'cat', data + '/reports.key'], 'reports.key.age')
         if environment.get('SUPABASE_PRODUCTION_ACCEPTANCE_FILE'):
             encrypted(['docker', 'exec', API, 'cat', environment['SUPABASE_PRODUCTION_ACCEPTANCE_FILE']], 'cutover-acceptance.json.age')
+        if subprocess.run(['docker', 'exec', API, 'test', '-f', data + '/database-authority.json'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
+            encrypted(['docker', 'exec', API, 'cat', data + '/database-authority.json'], 'database-authority.json.age')
         federation = Path(environment.get('FEDERATION_KEY_DIR', data + '/federation'))
         if subprocess.run(['docker', 'exec', API, 'test', '-d', str(federation)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
             encrypted(['docker', 'exec', API, 'tar', '-czf', '-', '-C', str(federation.parent), federation.name], 'federation.keys.tar.gz.age')
