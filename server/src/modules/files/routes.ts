@@ -392,8 +392,8 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
   //    can't overwrite anything (or, above the multipart threshold, starts a multipart upload with per-part hashes).
   // 3. The app sends the bytes straight to S3, then asks the server to complete. 4. The server checks the stored object
   //    (size, hash) and only then records the attachment. Apps on servers storing on disk keep using POST /v1/attachments.
-  const direct = blobs.direct;
-  const requireDirect = () => {
+  const requireDirect = (id: string) => {
+    const direct = blobs.previousUploads?.owns(id) ? blobs.previousUploads.direct : blobs.direct;
     if (!direct) throw new ApiError(409, "direct_upload_unavailable", "This server receives uploads itself: use POST /v1/attachments.");
     return direct;
   };
@@ -426,7 +426,9 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
   app.post("/v1/attachments/uploads", auth, async (req, reply) => {
     requireFeature(ctx.platform, "uploads", me(req).userId);
     const { userId, deviceId } = me(req);
-    const d = requireDirect();
+    const legacyDesktop = blobs.previousUploads?.olderDesktop && /\bMeldiq\/0\.(?:1\.0|2\.0)(?:\s|$)/.test(req.headers["user-agent"] ?? "");
+    const id = newId(legacyDesktop ? "a_legacy" : "a");
+    const d = requireDirect(id);
     const body = parse(UploadStartBody, req.body);
     const conv = ctx.authz.requireMember(body.conversationId, userId);
     if (!ctx.authz.canPost(conv, userId)) throw new ApiError(403, "forbidden", "You can't post in this conversation");
@@ -437,7 +439,6 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
     const planMax = Math.min(cfg.attachmentMaxBytes, encryptedAttachmentBytes(plainMax));
     if (body.size > planMax) throw uploadLimit(plainMax);
     admitStart(userId, reply);
-    const id = newId("a");
     const multipart = body.size > d.multipartThreshold;
     const t = now();
     const expiresAt = t + cfg.directUploads.sessionSeconds * 1000;
@@ -482,8 +483,8 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
 
   // A fresh URL for a single upload whose URL expired before the app could start it.
   app.post("/v1/attachments/uploads/:id/url", auth, async (req) => {
-    const d = requireDirect();
     const u = await loadUpload(parse(idParams, req.params).id, me(req).userId);
+    const d = requireDirect(u.id);
     if (u.multipart_id) throw badRequest("This is a multipart upload: ask for its parts");
     return {
       upload: await d.presignPut("attachments", u.id, u.size, u.sha256, cfg.directUploads.urlTtlSeconds).catch((e) => storeFailure(e, "presign")),
@@ -492,8 +493,8 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
 
   // URLs for parts of a multipart upload: each bound to its exact size and SHA-256.
   app.post("/v1/attachments/uploads/:id/parts", auth, async (req) => {
-    const d = requireDirect();
     const u = await loadUpload(parse(idParams, req.params).id, me(req).userId);
+    const d = requireDirect(u.id);
     if (!u.multipart_id) throw badRequest("This is a single upload: ask for its URL");
     const { parts } = parse(PartsBody, req.body);
     for (const p of parts) {
@@ -510,8 +511,8 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
 
   // What the store already has of a multipart upload (an app resuming after an interruption).
   app.get("/v1/attachments/uploads/:id/parts", auth, async (req) => {
-    const d = requireDirect();
     const u = await loadUpload(parse(idParams, req.params).id, me(req).userId);
+    const d = requireDirect(u.id);
     if (!u.multipart_id) throw badRequest("This is a single upload");
     const have = await d.listParts("attachments", u.id, u.multipart_id).catch((e) => storeFailure(e, "list-parts"));
     return {
@@ -527,8 +528,8 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
   // Checks the stored object and records the attachment. Safe to repeat: a completed upload answers the same again.
   app.post("/v1/attachments/uploads/:id/complete", auth, async (req) => {
     const { userId } = me(req);
-    const d = requireDirect();
     const { id } = parse(idParams, req.params);
+    const d = requireDirect(id);
     const done = await files.attachment(id);
     if (done && done.uploader_user_id === userId && done.expires_at > now() && ctx.authz.isMember(done.conversation_id, userId)) return { id: done.id, size: done.size, expiresAt: done.expires_at };
     const u = await loadUpload(id, userId);
@@ -572,6 +573,9 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
     }
     const t = now();
     const expiresAt = fileExpiry(ctx, t);
+    if (blobs.previousUploads?.owns(u.id)) {
+      await blobs.previousUploads.publish(u.id,u.size,u.sha256).catch(e => storeFailure(e,"promote-previous-upload"));
+    }
     // Exactly one of this and the expiry job wins: the attachment exists only if this upload session was still open.
     const recorded = await files.completeUpload(u.id, {
       id: u.id,
@@ -692,7 +696,8 @@ export async function processAbandonedUploads(ctx: AppContext, limit = 200): Pro
     try {
       // A recorded attachment with this id owns the object: only an unfinished multipart upload is aborted then.
       const recorded = await ctx.files.attachment(a.id);
-      if (a.multipart_id) await direct.abortMultipart("attachments", a.id, a.multipart_id);
+      const origin = ctx.blobs.previousUploads?.owns(a.id) ? ctx.blobs.previousUploads.direct : direct;
+      if (a.multipart_id) await origin.abortMultipart("attachments", a.id, a.multipart_id);
       if (!recorded) await ctx.blobs.delete("attachments", a.id);
       await ctx.files.abandonedDone(a.id);
       done++;

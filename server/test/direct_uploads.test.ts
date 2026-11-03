@@ -94,6 +94,26 @@ describe("direct uploads to S3", () => {
     } finally { h.ctx.config.storage.delivery = previous; }
   });
 
+  it("preserves old desktop upload sessions and only publishes after a verified promotion", async () => {
+    const publish = vi.fn().mockRejectedValueOnce(new Error("copy interrupted")).mockResolvedValue(undefined);
+    const transition = {olderDesktop:true,owns:(id:string)=>id.startsWith("a_legacy_"),direct:h.ctx.blobs.direct!,publish};
+    Object.defineProperty(h.ctx.blobs,"previousUploads",{value:transition,configurable:true});
+    try {
+      const bytes = Buffer.from("old desktop encrypted upload");
+      const create = await fetch(h.baseUrl+"/v1/attachments/uploads",{method:"POST",headers:{
+        authorization:"Bearer "+alice.token,"content-type":"application/json","user-agent":"Meldiq/0.2.0 Chrome/156 Electron/45.2.1"
+      },body:JSON.stringify({conversationId:dm,size:bytes.length,sha256:sha(bytes)})});
+      expect(create.status).toBe(200);
+      const start=await create.json();
+      expect(start.uploadId).toMatch(/^a_legacy_/);
+      expect((await put(start.upload,bytes)).status).toBe(200);
+      await expectStatus(alice.req("POST","/v1/attachments/uploads/"+start.uploadId+"/complete",{}),503);
+      expect(await h.ctx.files.attachment(start.uploadId)).toBeNull();
+      const attachment=await alice.req("POST","/v1/attachments/uploads/"+start.uploadId+"/complete",{});
+      expect(attachment.id).toBe(start.uploadId);
+      expect(publish).toHaveBeenLastCalledWith(start.uploadId,bytes.length,sha(bytes));
+    } finally {Object.defineProperty(h.ctx.blobs,"previousUploads",{value:undefined,configurable:true});}
+  });
   it("server-info offers direct uploads", async () => {
     expect((await alice.req("GET", "/v1/server-info")).features).toContain("direct-upload");
   });

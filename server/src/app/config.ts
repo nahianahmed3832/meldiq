@@ -733,7 +733,17 @@ function s3Config(env: NodeJS.ProcessEnv, dataDir: string, int: (n: string, d: n
   const prefix = (env.S3_PREFIX ?? "orbit/").trim();
   if (prefix && !/^[A-Za-z0-9_\-/.]{1,64}$/.test(prefix)) throw new Error("S3_PREFIX may only use letters, digits, _ - . /");
   const partSize = Math.max(int("S3_PART_SIZE", 16 * MiB), 5 * MiB);
+  let previousUploads: S3Config["previousUploads"];
+  if (env.S3_PREVIOUS_UPLOAD_BUCKET || env.S3_PREVIOUS_UPLOAD_REGION) {
+    const bucket = need("S3_PREVIOUS_UPLOAD_BUCKET", env.S3_PREVIOUS_UPLOAD_BUCKET);
+    const region = need("S3_PREVIOUS_UPLOAD_REGION", env.S3_PREVIOUS_UPLOAD_REGION);
+    if (bucket === env.S3_BUCKET) throw Error("Previous upload bucket must differ from the primary");
+    const pending = (env.S3_PREVIOUS_UPLOAD_IDS ?? "").split(",").filter(Boolean);
+    if (pending.some(id => !/^[A-Za-z0-9_-]{1,64}$/.test(id))) throw Error("Invalid previous upload ID");
+    previousUploads = {bucket,region,endpoint:env.S3_PREVIOUS_UPLOAD_ENDPOINT?.trim() || null,pending,olderDesktop:env.S3_PREVIOUS_DESKTOP_UPLOADS === "true"};
+  }
   return {
+    previousUploads,
     bucket: need("S3_BUCKET", env.S3_BUCKET),
     region: need("S3_REGION", env.S3_REGION ?? env.AWS_REGION),
     endpoint: env.S3_ENDPOINT?.trim() || null,
