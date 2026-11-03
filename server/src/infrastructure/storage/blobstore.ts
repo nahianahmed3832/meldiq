@@ -18,7 +18,15 @@ export interface BlobRange {
   end: number;
 }
 
+export interface PreviousUploadOrigin {
+  direct: DirectUploads;
+  olderDesktop: boolean;
+  owns(id: string): boolean;
+  publish(id: string, size: number, sha256: string): Promise<void>;
+}
+
 export interface BlobStore {
+  readonly previousUploads?: PreviousUploadOrigin;
   readonly backend: "local" | "s3";
   /** Where uploads are written while they are received and checked, before they enter the store. */
   readonly spoolDir: string;
