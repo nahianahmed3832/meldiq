@@ -32,8 +32,14 @@ describe("end-to-end encrypted messaging", () => {
     const rows = await queuedRows(h);
     expect(rows.length).toBeGreaterThan(0);
     for (const r of rows) expect(r.payload).not.toContain(secret.slice(0, 20));
-    const dbFile = fs.readFileSync(h.ctx.config.databasePath + "-wal").toString("latin1") + fs.readFileSync(h.ctx.config.databasePath).toString("latin1");
-    expect(dbFile).not.toContain(secret.slice(0, 20));
+    if (h.ctx.postgres) {
+      const stored = await h.ctx.postgres.database.query<{payload:string}>("SELECT payload FROM meldiq.delivery_queue");
+      expect(stored.rows.length).toBeGreaterThan(0);
+      for (const row of stored.rows) expect(row.payload).not.toContain(secret.slice(0, 20));
+    } else {
+      const dbFile = fs.readFileSync(h.ctx.config.databasePath + "-wal").toString("latin1") + fs.readFileSync(h.ctx.config.databasePath).toString("latin1");
+      expect(dbFile).not.toContain(secret.slice(0, 20));
+    }
 
     bob.ws!.send(JSON.stringify({ t: "ack", ids: [got.queueId] }));
     await new Promise((r) => setTimeout(r, 100));

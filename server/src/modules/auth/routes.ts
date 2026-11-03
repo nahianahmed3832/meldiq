@@ -31,7 +31,7 @@ import { evictUserDevicesFromCalls } from "../calls/routes.js";
 import { notifyOrg } from "../organizations/orgsRoutes.js";
 import { conversationPeers } from "../messaging/index.js";
 
-const CHALLENGE_TTL_MS = 2 * 60 * 1000;
+import { consumeChallenge, issueChallenge } from "./challenge.js";
 const PAIRING_TTL_MS = 10 * 60 * 1000;
 
 /** The username rule, also used by accounts v2 (src/modules/accounts/identity.ts). */
@@ -48,11 +48,6 @@ function requireLegacy(ctx: AppContext, what: "registration" | "login"): void {
   if (what === "login" && !ctx.config.accounts.legacy.login) {
     throw new ApiError(410, "legacy_login_closed", "This version of the app can't sign in any more. Update the app and sign in with your email.");
   }
-}
-
-/** Consume a single-use challenge nonce. Returns false if unknown/expired/already used. */
-function consumeChallenge(ctx: AppContext, nonce: string): Promise<boolean> {
-  return ctx.ephemeral.write((w) => w.delete("auth_challenges", { nonce, expires_at: { gt: now() } }) > 0);
 }
 
 async function issueSession(ctx: AppContext, userId: string, deviceId: string) {
@@ -195,12 +190,7 @@ export default async function authRoutes(app: FastifyInstance, ctx: AppContext) 
     day: new SlidingWindow(abuse.registrationsPerAddressPerDay, DAY_MS),
   };
 
-  app.post("/v1/auth/challenge", strict, async () => {
-    const nonce = crypto.randomBytes(24).toString("base64url");
-    const t = now();
-    await ctx.ephemeral.write((w) => w.insert("auth_challenges", { nonce, created_at: t, expires_at: t + CHALLENGE_TTL_MS }));
-    return { nonce, expiresAt: t + CHALLENGE_TTL_MS };
-  });
+  app.post("/v1/auth/challenge", strict, async () => issueChallenge(ctx));
 
   app.get("/v1/auth/username-available", strict, async (req) => {
     const q = parse(UsernameQuery, req.query);
@@ -316,13 +306,22 @@ export default async function authRoutes(app: FastifyInstance, ctx: AppContext) 
     if (!dev || !verifyEd25519(dev.signing_key, canonical.authProof("login", body.nonce, dev.signing_key), body.signature)) {
       throw unauthorized("Invalid device proof");
     }
-    if (!(await consumeChallenge(ctx, body.nonce))) throw unauthorized("Challenge expired or already used");
-    // The account's other devices learn why they were signed out (docs/ACCOUNT_DELETION.md).
-    if (dev.deleted_at) throw new ApiError(401, "account_deleted", "This account was deleted");
-    if (dev.revoked_at) throw new ApiError(401, "device_revoked", "This device has been removed from the account");
-    if (dev.disabled_at) throw new ApiError(401, "account_disabled", "This account is disabled");
-    const session = await issueSession(ctx, dev.user_id, dev.id);
-    return { userId: dev.user_id, deviceId: dev.id, sessionToken: session.token, expiresAt: session.expiresAt };
+    const login = async () => {
+      if (!(await consumeChallenge(ctx, body.nonce))) return unauthorized("Challenge expired or already used");
+      // Recheck standing inside the leased writer before minting a durable session.
+      const current = ctx.identity.get<typeof device>("devices", {id:dev.id});
+      const user = ctx.identity.get<typeof owner>("users", {id:dev.user_id, home_server_id:null});
+      if (!current || !user || current.user_id!==dev.user_id || current.signing_key!==dev.signing_key) return unauthorized("Invalid device proof");
+      if (user.deleted_at) return new ApiError(401, "account_deleted", "This account was deleted");
+      if (current.revoked_at) return new ApiError(401, "device_revoked", "This device has been removed from the account");
+      if (user.disabled_at) return new ApiError(401, "account_disabled", "This account is disabled");
+      const session = await issueSession(ctx, dev.user_id, dev.id);
+      return { userId:dev.user_id, deviceId:dev.id, sessionToken:session.token, expiresAt:session.expiresAt };
+    };
+    // Consume-on-denial too. No token leaves the process until the writer has committed.
+    const result = ctx.postgres ? await ctx.postgres.rows.transaction(login) : await login();
+    if (result instanceof Error) throw result;
+    return result;
   });
 
   // Add a device to an existing account (pairing or recovery). The certificate must be

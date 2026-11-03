@@ -240,8 +240,13 @@ export abstract class MemoryRows implements Rows {
   // ───────────── writes ─────────────
 
   write<T>(fn: (w: RowWriter) => T): Promise<T> {
+    return this.writeUnit(fn);
+  }
+
+  protected writeUnit<T>(fn: (w: RowWriter) => T, persist?: (changes: PersistedChanges) => Promise<void>): Promise<T> {
     // Inside a running unit (a write started from its function): part of it, like a SQLite savepoint.
     if (this.active) {
+      if (persist) return Promise.reject(new Error("External atomic insert cannot nest in another writer unit"));
       const unit = this.active;
       const saved = unit.snapshot();
       try {
@@ -263,7 +268,7 @@ export abstract class MemoryRows implements Rows {
         context.open = false;
       }
       if (result instanceof Promise) throw new Error("rows: a write unit must be synchronous");
-      await this.commit(unit);
+      await this.commit(unit, persist);
       return result;
     };
     const p = this.queue.then(run);
@@ -296,10 +301,10 @@ export abstract class MemoryRows implements Rows {
     return pending;
   }
 
-  private async commit(unit: Unit): Promise<void> {
+  private async commit(unit: Unit, persist?: (changes: PersistedChanges) => Promise<void>): Promise<void> {
     const changes = unit.changes();
     if (!changes.changes.length) return;
-    try { await this.persist(changes); }
+    try { await (persist ? persist(changes) : this.persist(changes)); }
     catch (error) { this.onPartialFailure(error); throw error; }
     this.publish(unit.overlay, changes.counters);
   }
