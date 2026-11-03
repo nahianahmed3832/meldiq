@@ -1,0 +1,40 @@
+{
+  "rttMs": 168,
+  "failureInjection": true,
+  "prepared": true,
+  "productionSized": true,
+  "calibratedFinalReadMs": 4295,
+  "run": "ph3-07d7211c6560",
+  "started": 1793712514284,
+  "switches": [
+    {
+      "label": "rollout",
+      "start": 1793712568635,
+      "drained": 1793712569004,
+      "resumed": 1793712576995,
+      "admissionHoldMs": 8360,
+      "invalidRejected": false
+    }
+  ],
+  "sourceImages": {
+    "griip-internal-messaging-api:0.76.1-pg-b9e6f005": [
+      "b9e6f0054fa1fa5fd647cebb3ea072ea65b20a28",
+      "sha256:9bb580a8be7a5f2823cd0b9a1ad95bed65291389321658d29124feebe321ba5c"
+    ],
+    "griip-internal-messaging-api:0.76.1-pg-8ce2c5c0": [
+      "8ce2c5c00773551442716fed95d4de587a84103b",
+      "sha256:6b03cc04db250e01d9fca3dd625ed3f67c8cf8f181161e3c67f0e6a4a78ad5ab"
+    ],
+    "griip-internal-messaging-api:0.76.1-pg-b51f3b13": [
+      "b51f3b13fb29653688da8334760bd4e85956cd4d",
+      "sha256:41261d4c1b29e73b960d945f785ea0855a7fa5d5969b4e02aa64cd103639882e"
+    ],
+    "griip-internal-messaging-api:0.76.1-pg-77258f7e": [
+      "77258f7e9dafe83256117d33fd0cf0a5153c4632",
+      "sha256:aaef30f0158286413e4acca7aa119283d547ebb63f733cec5893b33f46c52f25"
+    ]
+  },
+  "ok": false,
+  "error": "timed out: proven-rollout",
+  "ended": 1793712590816
+}

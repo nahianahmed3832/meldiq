@@ -1,0 +1,14 @@
+{
+  "input": "calibrated-pool.json.gz",
+  "roleBudget": 6,
+  "rejectedDatabaseLoginUTC": "2026-11-03T13:47:38.387Z",
+  "healthObserved": {
+    "k": "health",
+    "p": "rollback",
+    "at": 1793713658298,
+    "ms": 162,
+    "ok": false
+  },
+  "healthResponseEndUTC": "2026-11-03T13:47:38.460000+00:00",
+  "httpAfterFreezeWasNotAssumed": true
+}

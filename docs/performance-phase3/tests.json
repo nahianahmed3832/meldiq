@@ -1,0 +1,16 @@
+{
+  "source": "77258f7e9dafe83256117d33fd0cf0a5153c4632",
+  "typecheck": "passed for candidate and fallback",
+  "suites": {
+    "ordinary": [
+      "Test Files  194 passed | 5 skipped (199)",
+      "Tests  2043 passed | 26 skipped (2069)",
+      "Duration  542.27s (transform 8.82s, setup 0ms, import 196.28s, tests 1394.72s, environment 13ms)"
+    ],
+    "postgres": [
+      "Test Files  7 passed (7)",
+      "Tests  128 passed (128)",
+      "Duration  46.52s (transform 2.71s, setup 0ms, import 8.33s, tests 36.57s, environment 1ms)"
+    ]
+  }
+}

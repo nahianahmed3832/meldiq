@@ -1,0 +1,68 @@
+{
+  "evaluatedAt": "2026-11-03T13:51:25.343317+00:00",
+  "decision": "hold b9e6f005",
+  "checks": [
+    {
+      "check": "writer unchanged and healthy",
+      "passed": true,
+      "detail": "2026-11-03T11:06:18.203184099Z"
+    },
+    {
+      "check": "public cohort and restore",
+      "passed": true,
+      "detail": "12 encrypted messages"
+    },
+    {
+      "check": "scaled container",
+      "passed": true,
+      "detail": [
+        7086,
+        6712
+      ]
+    },
+    {
+      "check": "calibrated native with managed veto",
+      "passed": true,
+      "detail": [
+        6886,
+        7108
+      ]
+    },
+    {
+      "check": "production-sized calibrated container both transitions",
+      "passed": false,
+      "detail": [
+        7169
+      ]
+    },
+    {
+      "check": "two standby slots with one spare for incumbent",
+      "passed": false,
+      "detail": {
+        "limit": 6,
+        "connected": 6
+      }
+    },
+    {
+      "check": "incumbent direct clients drained",
+      "passed": false,
+      "detail": [
+        2,
+        2,
+        2
+      ]
+    },
+    {
+      "check": "published index plus private standby and rollback",
+      "passed": false,
+      "detail": [
+        7169
+      ]
+    },
+    {
+      "check": "recent production observation",
+      "passed": false,
+      "detail": "must repeat immediately before any real switch"
+    }
+  ]
+}

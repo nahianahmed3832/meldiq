@@ -1,0 +1,18 @@
+[
+  {
+    "mode": "activate",
+    "at": "2026-11-03T13:29:14.306554+00:00",
+    "writerStart": "2026-11-03T11:06:18.203184099Z",
+    "writerImage": "sha256:9bb580a8be7a5f2823cd0b9a1ad95bed65291389321658d29124feebe321ba5c",
+    "nginxSha256": "fe054c8b07c962ecd73b196c4ec3cf9c5375a2fa9e46c1e22212b61756ed7e8e",
+    "canary": true
+  },
+  {
+    "mode": "rollback",
+    "at": "2026-11-03T13:29:33.109859+00:00",
+    "writerStart": "2026-11-03T11:06:18.203184099Z",
+    "writerImage": "sha256:9bb580a8be7a5f2823cd0b9a1ad95bed65291389321658d29124feebe321ba5c",
+    "nginxSha256": "d4b7c3803696819790176f4048dcd4283ef062179e38eac5d41570b013d3f116",
+    "canary": false
+  }
+]

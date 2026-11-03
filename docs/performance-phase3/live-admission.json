@@ -1,0 +1,69 @@
+{
+  "at": "2026-11-03T13:42:00.499Z",
+  "providerBackendSessions": {
+    "limit": 6,
+    "connected": 6
+  },
+  "incumbentHubSamples": [
+    {
+      "minute": "29895221",
+      "sockets": "2",
+      "connects": "0",
+      "disconnects": "0"
+    },
+    {
+      "minute": "29895220",
+      "sockets": "2",
+      "connects": "0",
+      "disconnects": "0"
+    },
+    {
+      "minute": "29895219",
+      "sockets": "2",
+      "connects": "0",
+      "disconnects": "0"
+    },
+    {
+      "minute": "29895218",
+      "sockets": "2",
+      "connects": "0",
+      "disconnects": "2"
+    },
+    {
+      "minute": "29895217",
+      "sockets": "4",
+      "connects": "2",
+      "disconnects": "0"
+    },
+    {
+      "minute": "29895216",
+      "sockets": "2",
+      "connects": "1",
+      "disconnects": "0"
+    },
+    {
+      "minute": "29895215",
+      "sockets": "1",
+      "connects": "0",
+      "disconnects": "1"
+    },
+    {
+      "minute": "29895214",
+      "sockets": "2",
+      "connects": "1",
+      "disconnects": "1"
+    },
+    {
+      "minute": "29895213",
+      "sockets": "2",
+      "connects": "0",
+      "disconnects": "1"
+    },
+    {
+      "minute": "29895212",
+      "sockets": "3",
+      "connects": "1",
+      "disconnects": "0"
+    }
+  ]
+}

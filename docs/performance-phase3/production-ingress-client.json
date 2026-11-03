@@ -1,0 +1,13 @@
+{
+  "segments": [],
+  "externalCloses": [],
+  "errors": [
+    "ack:503"
+  ],
+  "messages": 3,
+  "duplicateFrames": 0,
+  "verifiedHistory": 4,
+  "queuesAcked": 3,
+  "completed": false,
+  "at": "2026-11-03T13:29:30.591Z"
+}

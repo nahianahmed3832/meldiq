@@ -1,0 +1,1 @@
+{"at":"2026-11-03T13:44:17.608Z","preparedMs":10399,"verifiedMs":8384,"finalReadMs":8384,"preparedRows":631214,"otherRows":43801,"rssMiB":249,"writerLease":false,"parallelSharedFinalSnapshot":true,"role":"read-only diagnostics; exact production tables; no active API bootstrap"}

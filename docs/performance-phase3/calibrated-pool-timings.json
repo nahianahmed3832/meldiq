@@ -1,0 +1,429 @@
+{
+  "source": "calibrated-pool.json.gz",
+  "note": "Synthetic, milliseconds. No warm-up discard in these continuous release probes. Percentiles describe successful operations; failures counted separately. Includes multiple sequential operations in inHoldMessage.",
+  "success": false,
+  "timings": {
+    "after-rollback": {
+      "applicationPong": {
+        "attempts": 27,
+        "failed": 0,
+        "p50": 13,
+        "p95": 283,
+        "p99": 444,
+        "max": 444
+      },
+      "deny": {
+        "attempts": 17,
+        "failed": 0,
+        "p50": 11,
+        "p95": 164,
+        "p99": 164,
+        "max": 164
+      },
+      "health": {
+        "attempts": 15,
+        "failed": 0,
+        "p50": 176,
+        "p95": 495,
+        "p99": 495,
+        "max": 495
+      },
+      "history": {
+        "attempts": 4,
+        "failed": 0,
+        "p50": 858,
+        "p95": 1026,
+        "p99": 1026,
+        "max": 1026
+      },
+      "logout": {
+        "attempts": 1,
+        "failed": 0,
+        "p50": 177,
+        "p95": 177,
+        "p99": 177,
+        "max": 177
+      },
+      "queue": {
+        "attempts": 10,
+        "failed": 0,
+        "p50": 140,
+        "p95": 335,
+        "p99": 335,
+        "max": 335
+      },
+      "retry": {
+        "attempts": 1,
+        "failed": 0,
+        "p50": 178,
+        "p95": 178,
+        "p99": 178,
+        "max": 178
+      },
+      "submit": {
+        "attempts": 3,
+        "failed": 0,
+        "p50": 528,
+        "p95": 696,
+        "p99": 696,
+        "max": 696
+      },
+      "summary": {
+        "attempts": 14,
+        "failed": 0,
+        "p50": 184,
+        "p95": 336,
+        "p99": 336,
+        "max": 336
+      }
+    },
+    "after-rollout": {
+      "applicationPong": {
+        "attempts": 21,
+        "failed": 0,
+        "p50": 13,
+        "p95": 297,
+        "p99": 508,
+        "max": 508
+      },
+      "deny": {
+        "attempts": 14,
+        "failed": 0,
+        "p50": 13,
+        "p95": 250,
+        "p99": 250,
+        "max": 250
+      },
+      "health": {
+        "attempts": 15,
+        "failed": 0,
+        "p50": 179,
+        "p95": 334,
+        "p99": 334,
+        "max": 334
+      },
+      "history": {
+        "attempts": 4,
+        "failed": 0,
+        "p50": 523,
+        "p95": 531,
+        "p99": 531,
+        "max": 531
+      },
+      "queue": {
+        "attempts": 10,
+        "failed": 0,
+        "p50": 175,
+        "p95": 312,
+        "p99": 312,
+        "max": 312
+      },
+      "submit": {
+        "attempts": 4,
+        "failed": 0,
+        "p50": 382,
+        "p95": 541,
+        "p99": 541,
+        "max": 541
+      },
+      "summary": {
+        "attempts": 11,
+        "failed": 0,
+        "p50": 334,
+        "p95": 501,
+        "p99": 501,
+        "max": 501
+      }
+    },
+    "prepare-rollback": {
+      "applicationPong": {
+        "attempts": 155,
+        "failed": 0,
+        "p50": 13,
+        "p95": 246,
+        "p99": 297,
+        "max": 309
+      },
+      "deny": {
+        "attempts": 104,
+        "failed": 0,
+        "p50": 37,
+        "p95": 115,
+        "p99": 121,
+        "max": 128
+      },
+      "health": {
+        "attempts": 92,
+        "failed": 0,
+        "p50": 179,
+        "p95": 345,
+        "p99": 370,
+        "max": 370
+      },
+      "history": {
+        "attempts": 26,
+        "failed": 0,
+        "p50": 522,
+        "p95": 535,
+        "p99": 539,
+        "max": 539
+      },
+      "queue": {
+        "attempts": 52,
+        "failed": 0,
+        "p50": 149,
+        "p95": 182,
+        "p99": 182,
+        "max": 182
+      },
+      "submit": {
+        "attempts": 26,
+        "failed": 0,
+        "p50": 356,
+        "p95": 378,
+        "p99": 385,
+        "max": 385
+      },
+      "summary": {
+        "attempts": 80,
+        "failed": 0,
+        "p50": 318,
+        "p95": 349,
+        "p99": 363,
+        "max": 363
+      }
+    },
+    "prepare-rollout": {
+      "applicationPong": {
+        "attempts": 38,
+        "failed": 0,
+        "p50": 13,
+        "p95": 203,
+        "p99": 225,
+        "max": 225
+      },
+      "deny": {
+        "attempts": 24,
+        "failed": 0,
+        "p50": 7,
+        "p95": 142,
+        "p99": 161,
+        "max": 161
+      },
+      "health": {
+        "attempts": 22,
+        "failed": 0,
+        "p50": 180,
+        "p95": 339,
+        "p99": 348,
+        "max": 348
+      },
+      "history": {
+        "attempts": 4,
+        "failed": 0,
+        "p50": 869,
+        "p95": 878,
+        "p99": 878,
+        "max": 878
+      },
+      "queue": {
+        "attempts": 8,
+        "failed": 0,
+        "p50": 150,
+        "p95": 178,
+        "p99": 178,
+        "max": 178
+      },
+      "submit": {
+        "attempts": 5,
+        "failed": 0,
+        "p50": 539,
+        "p95": 586,
+        "p99": 586,
+        "max": 586
+      },
+      "summary": {
+        "attempts": 20,
+        "failed": 0,
+        "p50": 187,
+        "p95": 338,
+        "p99": 381,
+        "max": 381
+      }
+    },
+    "rollback": {
+      "applicationPong": {
+        "attempts": 2,
+        "failed": 0,
+        "p50": 13,
+        "p95": 6890,
+        "p99": 6890,
+        "max": 6890
+      },
+      "deny": {
+        "attempts": 2,
+        "failed": 0,
+        "p50": 67,
+        "p95": 6960,
+        "p99": 6960,
+        "max": 6960
+      },
+      "health": {
+        "attempts": 2,
+        "failed": 1,
+        "p50": 7090,
+        "p95": 7090,
+        "p99": 7090,
+        "max": 7090
+      },
+      "history": {
+        "attempts": 1,
+        "failed": 0,
+        "p50": 7796,
+        "p95": 7796,
+        "p99": 7796,
+        "max": 7796
+      },
+      "inHoldMessage": {
+        "attempts": 1,
+        "failed": 0,
+        "p50": 9132,
+        "p95": 9132,
+        "p99": 9132,
+        "max": 9132
+      },
+      "submit": {
+        "attempts": 1,
+        "failed": 0,
+        "p50": 7581,
+        "p95": 7581,
+        "p99": 7581,
+        "max": 7581
+      },
+      "summary": {
+        "attempts": 1,
+        "failed": 0,
+        "p50": 7257,
+        "p95": 7257,
+        "p99": 7257,
+        "max": 7257
+      }
+    },
+    "rollout": {
+      "applicationPong": {
+        "attempts": 2,
+        "failed": 0,
+        "p50": 13,
+        "p95": 6860,
+        "p99": 6860,
+        "max": 6860
+      },
+      "deny": {
+        "attempts": 2,
+        "failed": 0,
+        "p50": 63,
+        "p95": 6957,
+        "p99": 6957,
+        "max": 6957
+      },
+      "health": {
+        "attempts": 2,
+        "failed": 0,
+        "p50": 357,
+        "p95": 6734,
+        "p99": 6734,
+        "max": 6734
+      },
+      "history": {
+        "attempts": 1,
+        "failed": 0,
+        "p50": 7448,
+        "p95": 7448,
+        "p99": 7448,
+        "max": 7448
+      },
+      "inHoldMessage": {
+        "attempts": 1,
+        "failed": 0,
+        "p50": 8103,
+        "p95": 8103,
+        "p99": 8103,
+        "max": 8103
+      },
+      "submit": {
+        "attempts": 1,
+        "failed": 0,
+        "p50": 7050,
+        "p95": 7050,
+        "p99": 7050,
+        "max": 7050
+      },
+      "summary": {
+        "attempts": 1,
+        "failed": 0,
+        "p50": 7259,
+        "p95": 7259,
+        "p99": 7259,
+        "max": 7259
+      }
+    },
+    "warm": {
+      "applicationPong": {
+        "attempts": 11,
+        "failed": 0,
+        "p50": 13,
+        "p95": 162,
+        "p99": 162,
+        "max": 162
+      },
+      "deny": {
+        "attempts": 7,
+        "failed": 0,
+        "p50": 7,
+        "p95": 180,
+        "p99": 180,
+        "max": 180
+      },
+      "health": {
+        "attempts": 6,
+        "failed": 0,
+        "p50": 179,
+        "p95": 206,
+        "p99": 206,
+        "max": 206
+      },
+      "history": {
+        "attempts": 2,
+        "failed": 0,
+        "p50": 866,
+        "p95": 872,
+        "p99": 872,
+        "max": 872
+      },
+      "queue": {
+        "attempts": 4,
+        "failed": 0,
+        "p50": 135,
+        "p95": 189,
+        "p99": 189,
+        "max": 189
+      },
+      "submit": {
+        "attempts": 2,
+        "failed": 0,
+        "p50": 544,
+        "p95": 870,
+        "p99": 870,
+        "max": 870
+      },
+      "summary": {
+        "attempts": 5,
+        "failed": 0,
+        "p50": 185,
+        "p95": 341,
+        "p99": 341,
+        "max": 341
+      }
+    }
+  }
+}

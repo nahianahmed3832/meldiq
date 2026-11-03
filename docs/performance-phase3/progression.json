@@ -1,0 +1,261 @@
+[
+  {
+    "receipt": "low-v2.json",
+    "ok": true,
+    "rttMs": 2,
+    "switches": [
+      {
+        "label": "rollout",
+        "start": 1793711389855,
+        "drained": 1793711389877,
+        "resumed": 1793711392094,
+        "admissionHoldMs": 2239,
+        "invalidRejected": false
+      },
+      {
+        "label": "rollback",
+        "start": 1793711396195,
+        "drained": 1793711396216,
+        "resumed": 1793711398823,
+        "admissionHoldMs": 2628,
+        "invalidRejected": true
+      }
+    ],
+    "error": null,
+    "messages": 37,
+    "acknowledged": 37,
+    "duplicateFrames": 0,
+    "socketCloses": [],
+    "httpFailures": 0,
+    "front": {
+      "state": "open",
+      "generation": 2,
+      "waiting": 0,
+      "active": 0,
+      "peers": 0,
+      "peakWaiting": 4,
+      "expired": 0,
+      "externalAccepted": 3,
+      "resumed": 4,
+      "suppressedRedeliveries": 32,
+      "dispatched": 296
+    }
+  },
+  {
+    "receipt": "high-v2.json",
+    "ok": false,
+    "rttMs": 168,
+    "switches": [
+      {
+        "label": "rollout",
+        "start": 1793711316488,
+        "drained": 1793711316869,
+        "resumed": 1793711328263,
+        "admissionHoldMs": 11775,
+        "invalidRejected": false
+      },
+      {
+        "label": "rollback",
+        "start": 1793711332364,
+        "drained": 1793711332510,
+        "resumed": 1793711344560,
+        "admissionHoldMs": 12196,
+        "invalidRejected": false
+      }
+    ],
+    "error": null,
+    "messages": 4,
+    "acknowledged": 2,
+    "duplicateFrames": 0,
+    "socketCloses": [
+      {
+        "who": "bob",
+        "c": 1013,
+        "phase": "rollout"
+      },
+      {
+        "who": "alice",
+        "c": 1013,
+        "phase": "rollout"
+      }
+    ],
+    "httpFailures": 125,
+    "front": {
+      "state": "open",
+      "generation": 2,
+      "waiting": 0,
+      "active": 0,
+      "peers": 0,
+      "peakWaiting": 4,
+      "expired": 7,
+      "externalAccepted": 3,
+      "resumed": 0,
+      "suppressedRedeliveries": 0,
+      "dispatched": 108
+    }
+  },
+  {
+    "receipt": "high-fast.json",
+    "ok": true,
+    "rttMs": 168,
+    "switches": [
+      {
+        "label": "rollout",
+        "start": 1793711506988,
+        "drained": 1793711507356,
+        "resumed": 1793711512688,
+        "admissionHoldMs": 5700,
+        "invalidRejected": false
+      },
+      {
+        "label": "rollback",
+        "start": 1793711516789,
+        "drained": 1793711516890,
+        "resumed": 1793711523305,
+        "admissionHoldMs": 6516,
+        "invalidRejected": false
+      }
+    ],
+    "error": null,
+    "messages": 8,
+    "acknowledged": 8,
+    "duplicateFrames": 0,
+    "socketCloses": [],
+    "httpFailures": 0,
+    "front": {
+      "state": "open",
+      "generation": 2,
+      "waiting": 0,
+      "active": 0,
+      "peers": 0,
+      "peakWaiting": 4,
+      "expired": 0,
+      "externalAccepted": 3,
+      "resumed": 4,
+      "suppressedRedeliveries": 6,
+      "dispatched": 123
+    }
+  },
+  {
+    "receipt": "scaled-warm.json",
+    "ok": false,
+    "rttMs": 168,
+    "switches": [],
+    "error": "driver stopped: []",
+    "messages": 35,
+    "acknowledged": 35,
+    "duplicateFrames": 0,
+    "socketCloses": [],
+    "httpFailures": 0,
+    "front": null
+  },
+  {
+    "receipt": "scaled-compact.json",
+    "ok": false,
+    "rttMs": 168,
+    "switches": [
+      {
+        "label": "rollout",
+        "start": 1793712031146,
+        "drained": 1793712031287,
+        "resumed": 1793712038008,
+        "admissionHoldMs": 6862,
+        "invalidRejected": false
+      }
+    ],
+    "error": "standby exited before preparation: ph3-46507b5a91f5-fallback",
+    "messages": null,
+    "acknowledged": null,
+    "duplicateFrames": null,
+    "socketCloses": null,
+    "httpFailures": null,
+    "front": null
+  },
+  {
+    "receipt": "scaled-proof.json",
+    "ok": true,
+    "rttMs": 168,
+    "switches": [
+      {
+        "label": "rollout",
+        "start": 1793712146608,
+        "drained": 1793712147379,
+        "resumed": 1793712153694,
+        "admissionHoldMs": 7086,
+        "invalidRejected": false
+      },
+      {
+        "label": "rollback",
+        "start": 1793712190025,
+        "drained": 1793712190393,
+        "resumed": 1793712196737,
+        "admissionHoldMs": 6712,
+        "invalidRejected": true
+      }
+    ],
+    "error": null,
+    "messages": 37,
+    "acknowledged": 37,
+    "duplicateFrames": 0,
+    "socketCloses": [],
+    "httpFailures": 0,
+    "front": {
+      "state": "open",
+      "generation": 2,
+      "waiting": 0,
+      "active": 0,
+      "peers": 0,
+      "peakWaiting": 5,
+      "expired": 0,
+      "externalAccepted": 3,
+      "resumed": 4,
+      "suppressedRedeliveries": 39,
+      "dispatched": 559
+    }
+  },
+  {
+    "receipt": "calibrated.json",
+    "ok": false,
+    "rttMs": 168,
+    "switches": [
+      {
+        "label": "rollout",
+        "start": 1793712568635,
+        "drained": 1793712569004,
+        "resumed": 1793712576995,
+        "admissionHoldMs": 8360,
+        "invalidRejected": false
+      }
+    ],
+    "error": "timed out: proven-rollout",
+    "messages": null,
+    "acknowledged": null,
+    "duplicateFrames": null,
+    "socketCloses": null,
+    "httpFailures": null,
+    "front": null
+  },
+  {
+    "receipt": "calibrated-preflight.json",
+    "ok": false,
+    "rttMs": 168,
+    "switches": [
+      {
+        "label": "rollout",
+        "start": 1793713340153,
+        "drained": 1793713340899,
+        "resumed": 1793713348045,
+        "admissionHoldMs": 7892,
+        "afterDrainMs": 7146,
+        "invalidRejected": false
+      }
+    ],
+    "error": "timed out: proven-rollout",
+    "messages": null,
+    "acknowledged": null,
+    "duplicateFrames": null,
+    "socketCloses": null,
+    "httpFailures": null,
+    "front": null
+  }
+]

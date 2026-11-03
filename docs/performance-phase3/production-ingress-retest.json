@@ -1,0 +1,143 @@
+{
+  "events": [
+    {
+      "mode": "activate",
+      "at": "2026-11-03T13:37:31.641765+00:00",
+      "writerStart": "2026-11-03T11:06:18.203184099Z",
+      "writerImage": "sha256:9bb580a8be7a5f2823cd0b9a1ad95bed65291389321658d29124feebe321ba5c",
+      "nginxSha256": "fe054c8b07c962ecd73b196c4ec3cf9c5375a2fa9e46c1e22212b61756ed7e8e",
+      "canary": true
+    },
+    {
+      "mode": "rollback",
+      "at": "2026-11-03T13:37:51.028364+00:00",
+      "writerStart": "2026-11-03T11:06:18.203184099Z",
+      "writerImage": "sha256:9bb580a8be7a5f2823cd0b9a1ad95bed65291389321658d29124feebe321ba5c",
+      "nginxSha256": "d4b7c3803696819790176f4048dcd4283ef062179e38eac5d41570b013d3f116",
+      "canary": false
+    },
+    {
+      "mode": "activate",
+      "at": "2026-11-03T13:38:09.063908+00:00",
+      "writerStart": "2026-11-03T11:06:18.203184099Z",
+      "writerImage": "sha256:9bb580a8be7a5f2823cd0b9a1ad95bed65291389321658d29124feebe321ba5c",
+      "nginxSha256": "fe054c8b07c962ecd73b196c4ec3cf9c5375a2fa9e46c1e22212b61756ed7e8e",
+      "canary": true
+    },
+    {
+      "mode": "rollback",
+      "at": "2026-11-03T13:38:30.098799+00:00",
+      "writerStart": "2026-11-03T11:06:18.203184099Z",
+      "writerImage": "sha256:9bb580a8be7a5f2823cd0b9a1ad95bed65291389321658d29124feebe321ba5c",
+      "nginxSha256": "d4b7c3803696819790176f4048dcd4283ef062179e38eac5d41570b013d3f116",
+      "canary": false
+    },
+    {
+      "retired": true,
+      "nginxSha256": "d4b7c3803696819790176f4048dcd4283ef062179e38eac5d41570b013d3f116",
+      "writerStart": "2026-11-03T11:06:18.203184099Z",
+      "ingress": {
+        "state": "open",
+        "generation": 0,
+        "waiting": 0,
+        "active": 0,
+        "peers": 0,
+        "peakWaiting": 0,
+        "expired": 0,
+        "externalAccepted": 1,
+        "resumed": 0,
+        "suppressedRedeliveries": 0,
+        "dispatched": 45
+      }
+    }
+  ],
+  "client": {
+    "segments": [
+      {
+        "stage": "canary-on",
+        "measures": [
+          {
+            "peerMs": 1269,
+            "summaryMs": 370.58,
+            "summaryPolicy": "private, no-store"
+          },
+          {
+            "peerMs": 709,
+            "summaryMs": 349.47,
+            "summaryPolicy": "private, no-store"
+          },
+          {
+            "peerMs": 1305,
+            "summaryMs": 332.65,
+            "summaryPolicy": "private, no-store"
+          },
+          {
+            "peerMs": 722,
+            "summaryMs": 369.26,
+            "summaryPolicy": "private, no-store"
+          }
+        ]
+      },
+      {
+        "stage": "ingress-rollback",
+        "measures": [
+          {
+            "peerMs": 718,
+            "summaryMs": 311.01,
+            "summaryPolicy": null
+          },
+          {
+            "peerMs": 701,
+            "summaryMs": 340.31,
+            "summaryPolicy": null
+          },
+          {
+            "peerMs": 711,
+            "summaryMs": 360.91,
+            "summaryPolicy": null
+          },
+          {
+            "peerMs": 707,
+            "summaryMs": 344.3,
+            "summaryPolicy": null
+          }
+        ]
+      },
+      {
+        "stage": "ingress-restored",
+        "measures": [
+          {
+            "peerMs": 1224,
+            "summaryMs": 342.2,
+            "summaryPolicy": "private, no-store"
+          },
+          {
+            "peerMs": 719,
+            "summaryMs": 352.07,
+            "summaryPolicy": "private, no-store"
+          },
+          {
+            "peerMs": 727,
+            "summaryMs": 646.54,
+            "summaryPolicy": "private, no-store"
+          },
+          {
+            "peerMs": 706,
+            "summaryMs": 345.77,
+            "summaryPolicy": "private, no-store"
+          }
+        ]
+      }
+    ],
+    "externalCloses": [],
+    "errors": [],
+    "messages": 12,
+    "duplicateFrames": 0,
+    "verifiedHistory": 12,
+    "queuesAcked": 12,
+    "completed": true,
+    "sameSockets": true,
+    "idempotent": true,
+    "at": "2026-11-03T13:38:25.074Z"
+  }
+}
