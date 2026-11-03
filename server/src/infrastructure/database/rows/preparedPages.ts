@@ -7,7 +7,7 @@ import type {MeldiqPostgres} from "../postgres/client.js";
 import type {Row} from "./types.js";
 const names=["resource_samples","delivery_queue"] as const;
 type Name=(typeof names)[number];
-type Page={keys:Map<number,string>; masks:bigint[]};
+type Page={keys:string[]; masks:bigint[]};
 export class PreparedPages extends MemoryRows{
   readonly backend="postgres" as const;
   private readonly pages=new Map<string,Map<number,Page>>();
@@ -34,11 +34,13 @@ export class PreparedPages extends MemoryRows{
         await stream(reader,`SELECT x.*,ctid::text AS _release_tid FROM ONLY meldiq."${t}" x`,row=>{
           const tid=String(row._release_tid).match(/^\((\d+),(\d+)\)$/);
           if(!tid)throw Error("Malformed snapshot TID");
-          delete row._release_tid;
+          // Keep loaded objects in compact property layouts. Deleting the extra TID in place
+          // puts hundreds of thousands of ordinary rows into dictionary storage in V8.
+          const {_release_tid,...data}=row;
           const block=Number(tid[1]),slot=Number(tid[2]),half=slot>>6;
-          let page=pages.get(block);if(!page){page={keys:new Map(),masks:[]};pages.set(block,page);}
-          if(page.keys.has(slot))throw Error("Duplicate snapshot slot");
-          page.keys.set(slot,p.load(t,row));page.masks[half]=(page.masks[half]??0n)|(1n<<BigInt(slot%64));
+          let page=pages.get(block);if(!page){page={keys:[],masks:[]};pages.set(block,page);}
+          if(page.keys[slot]!==undefined)throw Error("Duplicate snapshot slot");
+          page.keys[slot]=p.load(t,data);page.masks[half]=(page.masks[half]??0n)|(1n<<BigInt(slot%64));
         });
       }
       p.timer=setTimeout(()=>p.discard(),45_000);p.timer.unref();return p;
@@ -74,7 +76,7 @@ export class PreparedPages extends MemoryRows{
       const changed=[...dirty.get(t)!].sort((a,b)=>a-b);
       const state=this.state(t);
       if(changed.length>256)throw Error("Snapshot churn exceeds release limit");
-      for(const p of changed)for(const k of pages.get(p)?.keys.values()??[])state.rows.delete(k);
+      for(const p of changed)for(const k of pages.get(p)?.keys??[])if(k!==undefined)state.rows.delete(k);
       if(changed.length){
         const predicate=changed.map(p=>`(ctid>='(${p},0)'::tid AND ctid<'(${p+1},0)'::tid)`).join(" OR ");
         await stream(lease,`SELECT * FROM ONLY meldiq."${t}" WHERE ${predicate}`,r=>{this.load(t,r);});
