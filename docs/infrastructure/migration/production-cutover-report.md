@@ -6,6 +6,8 @@ The final PostgreSQL inspection counted 533 completed attachment rows and zero f
 
 The two earlier backup archives (317,904 encrypted bytes) and a final operator checkpoint are verified in Frankfurt. The status site still displays real observations from the Frankfurt monitoring location; consult it for service-wide health. No whole-database or Hostinger relocation was performed.
 
+A runtime check with the active API credentials returned 200 from Frankfurt and 403 from Singapore for the same controlled fixture. The old Windows renderer sent two signed multipart parts through the production web proxy. Frankfurt ListParts reported their expected hashes. The full API-level multipart-completion test used the private Frankfurt test bucket because the production synthetic account is subject to the normal file-size limit.
+
 ## Earlier release windows
 
 

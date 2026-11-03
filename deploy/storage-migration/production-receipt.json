@@ -86,6 +86,21 @@
     "stoppedHostSnapshotSchedule": "DISABLED",
     "verifiedEarlierRecoveryArchives": 2,
     "earlierEncryptedRecoveryBytes": 317904,
-    "finalCheckpointRestoreVerified": true
+    "finalCheckpointRestoreVerified": true,
+    "runtimeRegionsReadback": {
+      "primary": 200,
+      "archive": 403
+    },
+    "signedWindowsParts": [
+      5242880,
+      4096
+    ],
+    "finalPublicPrivateCanary": [
+      "historical verified_range 206 edge true",
+      "pending verified_range 206 edge true",
+      "primaryRegular verified_range 206 edge true",
+      "nativeDesktop verified_range 206 edge true",
+      "Final current release invalidated a redeemed private grant"
+    ]
   }
 }

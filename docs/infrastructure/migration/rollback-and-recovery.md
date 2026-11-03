@@ -17,3 +17,5 @@ The final journal archive also contains the fence, release and activation receip
 Source stack orbit-storage-prod now uses PreserveRollbackHistory=true. A reviewed static, non-replacing lifecycle-only change suspended the pre-existing 30-day noncurrent-version/expired-marker cleanup. The one-day incomplete multipart rule remains enabled. The stack finished UPDATE_COMPLETE and S3 readback confirmed both statuses. Reenabling destructive retention requires a separate review of the retained history.
 
 The existing encrypted recovery bucket is still in Singapore. Its normal backup-object expiry is separate from the history holds on the two media buckets.
+
+A verified user deletion request must identify the account and affected assets. Preserve a record of the deletion when restoring a backup so recovered attachments do not become available again. Permanent version removal is a separate scoped operator action.
