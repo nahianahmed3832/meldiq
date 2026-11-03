@@ -59,6 +59,22 @@ describe.skipIf(!process.env.MELDIQ_TEST_PG_URL || process.env.MELDIQ_TEST_PG_DE
   const future=vi.spyOn(Date,"now").mockReturnValue(unused.expiresAt+1);
   try{await expectStatus(login(unused.nonce),401);}finally{future.mockRestore();}
  });
+ it("publishes no history, device queue or timestamp after a posting metadata failure",async()=>{
+  const db=h.ctx.postgres!.database;
+  const msg={messageId:crypto.randomUUID(),conversationId:group,cls:"message",sentAt:Date.now(),payload:{type:"text",text:"synthetic"}};
+  const member=()=>h.ctx.ws.get<{last_post_at:number|null}>("conversation_members",{conversation_id:group,user_id:sender.userId})!.last_post_at;
+  const before=member();
+  await db.query("CREATE FUNCTION meldiq_private.fail_post() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'fixture'; END $$; CREATE TRIGGER fail_post BEFORE UPDATE ON meldiq.conversation_members FOR EACH ROW EXECUTE FUNCTION meldiq_private.fail_post()");
+  try {await expectStatus(sender.req("POST","/v2/messages",msg),500);} finally {await db.query("DROP TRIGGER fail_post ON meldiq.conversation_members; DROP FUNCTION meldiq_private.fail_post()");}
+  expect(await h.ctx.messages.get(msg.messageId)).toBeNull();
+  expect(await h.ctx.relay.submission(msg.messageId)).toBeNull();
+  expect(member()).toBe(before);
+  expect((await receiver.req("GET","/v1/queue")).items.some((r:{messageId:string})=>r.messageId===msg.messageId)).toBe(false);
+  const sent=await sender.req("POST","/v2/messages",msg);
+  expect(member()).toBe(sent.serverTs);
+  expect((await sender.req("POST","/v2/messages",msg)).duplicate).toBe(true);
+  expect((await receiver.req("GET","/v1/queue")).items.filter((r:{messageId:string})=>r.messageId===msg.messageId)).toHaveLength(1);
+ });
  it("rolls back event, fanout and cache on queue failure; a retry commits exactly once",async()=>{
   const db=h.ctx.postgres!.database,b=body();
   await db.query("CREATE FUNCTION meldiq_private.test_queue_abort() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'fixture queue failure'; END $$; CREATE TRIGGER fail_queue BEFORE INSERT ON meldiq.delivery_queue FOR EACH ROW EXECUTE FUNCTION meldiq_private.test_queue_abort()");

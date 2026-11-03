@@ -19,9 +19,10 @@ export class PostgresRelayStore implements RelayStore {
       return this.insert(writer, items);
     });
   }
-  async acceptEvent(event: import("../store/messageStore.js").MessageEvent, submission: Submission, items: QueueInsert[]): Promise<QueueItemRow[]> {
+  async acceptEvent(event: import("../store/messageStore.js").MessageEvent, submission: Submission, items: QueueInsert[], stagePost: (w: RowWriter) => void): Promise<QueueItemRow[]> {
     return this.rows.writeMessage(event, writer => {
       if (!writer.insert("submitted_messages", {...submission}, {orIgnore: true}).inserted) throw new DuplicateSubmission(submission.message_id);
+      stagePost(writer);
       return this.insert(writer, items);
     });
   }

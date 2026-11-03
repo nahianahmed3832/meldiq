@@ -11,7 +11,7 @@ import { DuplicateSubmission, type QueueInsert } from "./relay/store.js";
 import type { MessageEvent } from "./store/messageStore.js";
 import { memberUsers } from "./memberUsers.js";
 import { admitChannelContent, moderatesMessage } from "./contentRules.js";
-import { admitClock, admitCommunity, admitConversation, admitGranted, admitPost, recordPost, refusePostingTools } from "./sendRules.js";
+import { admitClock, admitCommunity, admitConversation, admitGranted, admitPost, recordPost, recordPostRows, refusePostingTools } from "./sendRules.js";
 
 /** Changes only a message's own sender may make. */
 const AUTHOR_ONLY = new Set(["edit", "delete", "poll_close"]);
@@ -167,7 +167,8 @@ export async function sendServerMessage(ctx: AppContext, sender: Sender, m: Send
     let queued;
     const submission = { message_id: m.messageId, sender_device_id: relayDevice, sender_user_id: userId, conversation_id: conv.id, recipient_count: items.length, server_ts: t, expires_at: expiresAt };
     if (atomicRelay) {
-      queued = await atomicRelay.acceptEvent(event, submission, items);
+      queued = await atomicRelay.acceptEvent(event, submission, items, writer =>
+        recordPostRows(writer, conv.id, userId, m.messageId, m.cls, mentionAll, t));
     } else {
       if (!(await ctx.messages.add(event))) {
         const dup = await retry();
@@ -186,7 +187,11 @@ export async function sendServerMessage(ctx: AppContext, sender: Sender, m: Send
       }
     }
     committed = true;
-    await recordPost(ctx, conv.id, userId, m.messageId, m.cls, mentionAll, t);
+    if (atomicRelay) {
+      if (m.cls === "message") ctx.communitySafety.noteMessage(conv.id, userId);
+    } else {
+      await recordPost(ctx, conv.id, userId, m.messageId, m.cls, mentionAll, t);
+    }
     const ownerOf = new Map(devices.map((d) => [d.id, d.user_id]));
     // Controls (reactions, read markers, call keys) don't wake a sleeping phone; messages do, unless it's a request's.
     for (const row of queued) ctx.hub.pushQueued(row.recipient_device_id, [row], { wake: m.cls === "message" && !quietFor.has(ownerOf.get(row.recipient_device_id) ?? "") });

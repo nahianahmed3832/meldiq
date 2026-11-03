@@ -1,3 +1,4 @@
+import type { RowWriter } from "../../infrastructure/database/rows/types.js";
 import { requireStanding } from "../accounts/index.js";
 import { REQUEST_MESSAGE_LIMIT } from "../accounts/relationships/rules.js";
 import type { AppContext } from "../../app/context.js";
@@ -144,10 +145,13 @@ export async function recordPost(ctx: AppContext, conversationId: string, userId
   if (!mentionAll && cls !== "message") return;
   // Community parity A2: raid protection counts messages per channel.
   if (cls === "message") ctx.communitySafety.noteMessage(conversationId, userId);
-  await ctx.ws.write((w) => {
-    if (mentionAll) w.insert("mention_all_events", { conversation_id: conversationId, user_id: userId, message_id: messageId, at });
-    if (cls !== "message") return;
-    w.update("conversations", { id: conversationId }, { updated_at: at });
-    w.update("conversation_members", { conversation_id: conversationId, user_id: userId }, { last_post_at: at });
-  });
+  await ctx.ws.write(w => recordPostRows(w, conversationId, userId, messageId, cls, mentionAll, at));
+}
+
+/** The same posting metadata is staged in the history/queue commit when using the leased PostgreSQL writer. */
+export function recordPostRows(w: RowWriter, conversationId: string, userId: string, messageId: string, cls: Cls, mentionAll: boolean, at: number): void {
+  if (mentionAll) w.insert("mention_all_events", { conversation_id: conversationId, user_id: userId, message_id: messageId, at });
+  if (cls !== "message") return;
+  w.update("conversations", { id: conversationId }, { updated_at: at });
+  w.update("conversation_members", { conversation_id: conversationId, user_id: userId }, { last_post_at: at });
 }
