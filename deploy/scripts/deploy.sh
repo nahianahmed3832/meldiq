@@ -9,6 +9,15 @@ PROJECT=griip-internal-messaging
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 SSH="ssh -o BatchMode=yes $TARGET"
 
+# This legacy full-stack template predates the retained PostgreSQL acceptance/CA mounts and Redis.
+# It must not overwrite the canonical, verified deployment after the database authority changes.
+REMOTE_DATABASE_MODE=$($SSH "docker exec griip-internal-messaging-api-1 node -p 'process.env.DATABASE_MODE || \"\"'" 2>/dev/null || true)
+if [ "$REMOTE_DATABASE_MODE" = supabase ]; then
+  echo "The deployed API uses PostgreSQL. Preserve its canonical compose/env, acceptance, CA and data volume."
+  echo "Use an API-only image replacement under /run/lock/meldiq-production-release.lock; see docs/SUPABASE_DATABASE_CUTOVER.md."
+  exit 1
+fi
+
 echo "→ preflight (read-only)"
 $SSH "mkdir -p $DIR/scripts $DIR/ntfy && chmod 750 $DIR"
 scp -q "$ROOT/deploy/scripts/preflight.sh" "$TARGET:$DIR/scripts/preflight.sh"
