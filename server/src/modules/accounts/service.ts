@@ -1,4 +1,4 @@
-import { consumeChallenge } from "../auth/challenge.js";
+import { consumeChallenge } from "../auth/index.js";
 import { requireSignupAllowed, signupMode } from "../../app/platformControls.js";
 import crypto from "node:crypto";
 import { DAY_MS, HOUR_MS, networkKey, openRegistrationsToday, SlidingWindow } from "../../app/middleware/abuse.js";
@@ -647,4 +647,4 @@ function formatResetCode(code: string): string {
   return `${code.slice(0, 5)}-${code.slice(5)}`;
 }
 
-export { consumeChallenge } from "../auth/challenge.js";
+export { consumeChallenge } from "../auth/index.js";

@@ -13,7 +13,6 @@
   "modules/accounts/preferences/routes.ts -> conversations",
   "modules/accounts/preferences/routes.ts -> org_members",
   "modules/accounts/relationships/rules.ts -> org_members",
-  "modules/accounts/service.ts -> auth_challenges",
   "modules/accounts/usersRoutes.ts -> org_members",
   "modules/accounts/usersRoutes.ts -> orgs",
   "modules/accounts/workspaces.ts -> org_members",
