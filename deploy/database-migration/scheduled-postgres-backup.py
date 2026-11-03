@@ -160,6 +160,8 @@ def main():
                              (BASE / 'database-migration/.env.redis', 'redis.env.age'), (TOOLS / 'postgres-backup.json', 'postgres-backup.json.age'),
                              (ca, 'postgres-root.crt.age')]:
             encrypted(['cat', str(source)], name)
+        # Includes values supplied by additional env_file layers, such as the media release.
+        encrypted(['docker', 'inspect', '--format', '{{json .Config.Env}}', API], 'api-effective-environment.json.age')
         data = environment.get('DATA_DIR', '/data')
         encrypted(['docker', 'exec', API, 'cat', data + '/reports.key'], 'reports.key.age')
         fcm = environment.get('FCM_SERVICE_ACCOUNT_FILE', '').strip()
