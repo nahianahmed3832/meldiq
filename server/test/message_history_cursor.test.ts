@@ -2,7 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { expectStatus, type Harness, startServer } from "./support/harness.js";
 import type { GriipClient } from "./support/griipClient.js";
 
-for (const backend of ["sqlite", "mongodb"] as const) {
+const backends = process.env.MELDIQ_TEST_PG_URL ? ["postgres"] : ["sqlite", "mongodb"];
+for (const backend of backends) {
   describe(`ordered message cursors (${backend})`, () => {
     let h: Harness;
     let alice: GriipClient, outsider: GriipClient;

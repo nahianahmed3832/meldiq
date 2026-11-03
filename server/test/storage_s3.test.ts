@@ -1,3 +1,4 @@
+import { preparePostgresHarness } from "./support/postgres.js";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -297,10 +298,15 @@ describe("switching between the disk and S3 without moving files (STORAGE_READ_F
     fs.rmSync(dataDir, { recursive: true, force: true });
   });
 
+  let sharedPg: Awaited<ReturnType<typeof preparePostgresHarness>>;
+  afterAll(async () => { await sharedPg?.close(); });
+
   it("disk files stay readable after moving to S3, and S3 files after a rollback to the disk", async () => {
     const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), crypto.randomBytes(3000), Buffer.from([0xff, 0xd9])]);
     // 1. On the disk, as production runs today.
-    let h = await startServer({ DATA_DIR: dataDir, ...filesInSqlite });
+    sharedPg = await preparePostgresHarness();
+    const options = {postgres:sharedPg?.database};
+    let h = await startServer({ DATA_DIR: dataDir, ...filesInSqlite }, options);
     const alice = await h.client("alice");
     const bob = await h.client("bob");
     const dm = (await alice.req("POST", "/v1/conversations/dm", { userId: bob.userId })).conversation.id;
@@ -309,7 +315,7 @@ describe("switching between the disk and S3 without moving files (STORAGE_READ_F
     await alice.req("PUT", "/v1/users/me/photo", undefined, jpeg);
     await h.close();
     const restart = async (env: Record<string, string>) => {
-      h = await startServer({ DATA_DIR: dataDir, ...filesInSqlite, ...env });
+      h = await startServer({ DATA_DIR: dataDir, ...filesInSqlite, ...env }, options);
       for (const c of [alice, bob]) c.baseUrl = h.baseUrl;
     };
 
