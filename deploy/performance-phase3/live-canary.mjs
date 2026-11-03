@@ -11,7 +11,7 @@ const key=fs.readFileSync(d+'/cohort','utf8').trim(),limit=8000,pause=ms=>new Pr
 const r={segments:[],externalCloses:[],errors:[],messages:0,duplicateFrames:0,verifiedHistory:0,queuesAcked:0,completed:false};
 const flag=k=>fs.writeFileSync(d+'/'+k,'1');const has=k=>fs.existsSync(d+'/'+k);
 async function request(k,route,token,tag,body=null){
- const st=performance.now(),x=await fetch(base+route,{method:body?'POST':'GET',redirect:'error',signal:AbortSignal.timeout(limit),headers:{...(token?{authorization:'Bearer '+token}:{}),...(tag?{'X-Meldiq-Release-Probe':key}:{}),...(body?{'content-type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});
+ const st=performance.now(),x=await fetch(base+route,{method:body?'POST':'GET',redirect:'error',signal:AbortSignal.timeout(limit),headers:{...(token?{authorization:'Bearer '+token}:{}),...(tag?{'X-Meldiq-Release-Probe':key}:{}),...(body?{'content-type':'application/json'}:{})},body:body?JSON.stringify(body):undefined}).catch(e=>{r.failedOperation={k,at:new Date().toISOString(),reason:String(e.cause?.code||e.name).slice(0,50)};throw e;});
  const result=await x.json(),ms=Math.round((performance.now()-st)*100)/100;if(x.status!==200){const code=result?.error?.code;throw Error(k+':'+x.status+(typeof code==='string'&&/^[a-z_]{1,40}$/.test(code)?':'+code:''));}return {result,ms,policy:x.headers.get('cache-control')};
 }
 const bounded=async(what,fn,ms=8000)=>{const until=Date.now()+ms;while(Date.now()<until){const x=fn();if(x)return x;await pause(20);}throw Error(what+' deadline');};

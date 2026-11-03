@@ -1,5 +1,5 @@
 {
-  "evaluatedAt": "2026-11-03T13:51:25.343317+00:00",
+  "evaluatedAt": "2026-11-03T14:15:43.129523+00:00",
   "decision": "hold b9e6f005",
   "checks": [
     {
@@ -11,6 +11,14 @@
       "check": "public cohort and restore",
       "passed": true,
       "detail": "12 encrypted messages"
+    },
+    {
+      "check": "exact staged gateway verified in public private cohort and retired",
+      "passed": true,
+      "detail": {
+        "digest": "f3acc7232945fed994a8571776c328565d655b130ef985ab6fdc53555077a323",
+        "messages": 12
+      }
     },
     {
       "check": "scaled container",
@@ -30,10 +38,40 @@
     },
     {
       "check": "production-sized calibrated container both transitions",
-      "passed": false,
+      "passed": true,
       "detail": [
-        7169
+        6582,
+        6615
       ]
+    },
+    {
+      "check": "two independent calibrated rehearsals on reduced pool",
+      "passed": true,
+      "detail": [
+        "ph3-7122e8c47f96",
+        "ph3-33f03f895d54"
+      ]
+    },
+    {
+      "check": "two independent calibrated rehearsals preserving the six-serving-session budget",
+      "passed": true,
+      "detail": [
+        "ph3-a0828f397a50",
+        "ph3-32550a7822b2"
+      ]
+    },
+    {
+      "check": "existing six-session pool sustains measured load without errors",
+      "passed": true,
+      "detail": {
+        "chosenPool": 6,
+        "fourSessionAlternativePassed": false,
+        "fourInsteadOfSixP95ChangePercent": {
+          "summary": 50.0,
+          "history": 76.2,
+          "health": 51.15
+        }
+      }
     },
     {
       "check": "two standby slots with one spare for incumbent",
@@ -47,22 +85,28 @@
       "check": "incumbent direct clients drained",
       "passed": false,
       "detail": [
-        2,
+        4,
         2,
         2
       ]
     },
     {
       "check": "published index plus private standby and rollback",
-      "passed": false,
+      "passed": true,
       "detail": [
-        7169
+        6582,
+        6615
       ]
     },
     {
       "check": "recent production observation",
-      "passed": false,
+      "passed": true,
       "detail": "must repeat immediately before any real switch"
+    },
+    {
+      "check": "production outside maintenance, ingress restored and lab retired",
+      "passed": true,
+      "detail": "2026-11-03T14:15:34.516028+00:00"
     }
   ]
 }

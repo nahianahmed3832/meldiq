@@ -1,0 +1,14 @@
+{
+  "note": "Full-pool staged controller and verified fixture code on the host.",
+  "sha256": {
+    "rehearse.py": "70dbe09c4f8c86a22a9d45b76cd42ad0905356c0048afa1cf9e9d3660c6fa6b7",
+    "standby-boot.mjs": "75f67ca4b4d5d32ac577eab3659ac35821abfe9f5d29151390a9bfc4a9cbd5cf",
+    "handoff.mjs": "f3acc7232945fed994a8571776c328565d655b130ef985ab6fdc53555077a323",
+    "client.mjs": "dea6a9ca848a44f698a8a8ddbc999dc214a104526ee1c797fb3d1c6f552cede3",
+    "owned-normal.mjs": "aa954a5473a4dd27c42aa0bedf84be34a83e47cad00333e8fc77ca66db7dea83",
+    "owned-pg-wire.mjs": "7edaa6547a05907b8953072c9838bb76b508c7620f451efe4ceee89fc3f67acb",
+    "park.mjs": "1eae446302826eec46ff0d67d6a093b5ae484ec03bc85b54ff0a6898b63a2554",
+    "pool-client.mjs": "985290f7f8f7ca528592f72654ed92682ef35b816ff6e0f435c048fbd0271239",
+    "pool-experiment.py": "01b7bf2c96a791b411c95c675fedc694228ee8e6f050af45123821bd69e15b76"
+  }
+}

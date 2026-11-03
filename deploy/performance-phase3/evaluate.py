@@ -9,9 +9,19 @@ checks=[]
 def test(label,passed,detail):checks.append(dict(check=label,passed=bool(passed),detail=detail))
 test('writer unchanged and healthy',host['release'].endswith('b9e6f005') and host['restarts']==0 and all(host[k] for k in ['healthySupabaseRedis','authorityMatches','mountsMatch','environmentMatches','rollbackImageRetained']),host['startedAt'])
 c=cohort['client'];test('public cohort and restore',c['completed'] and c['sameSockets'] and not c['errors'] and not c['duplicateFrames'] and c['verifiedHistory']==c['queuesAcked']==12 and cohort['events'][-1]['retired'],f"{c['verifiedHistory']} encrypted messages")
+verified=load('production-hot-ingress.json') if (d/'production-hot-ingress.json').exists() else {}
+pin=load('production-verified-ingress-prepare.json') if (d/'production-verified-ingress-prepare.json').exists() else {}
+vc=verified.get('client',{})
+events=[e for e in verified.get('events',[]) if 'mode' in e]
+stable=bool(events and [e['mode'] for e in events]==['activate','rollback','activate','rollback'] and
+            len({e.get('workerGeneration') for e in events})==1 and all(e.get('workerGeneration') and e.get('nginxReloaded') is False for e in events))
+test('exact staged gateway verified in public private cohort and retired',
+   pin.get('sourceSha256')==load('final-fixtures.json')['sha256']['handoff.mjs'] and stable and vc.get('completed') and vc.get('sameSockets') and
+   vc.get('verifiedHistory')==vc.get('queuesAcked')==12 and not vc.get('errors') and not vc.get('duplicateFrames') and
+   verified.get('events',[{}])[-1].get('retired'),{'digest':pin.get('sourceSha256'),'messages':vc.get('verifiedHistory')})
 for file,label in [('scaled-proof.json.gz','scaled container'),('native-managed.json.gz','calibrated native with managed veto')]:
  r=load(file);test(label,r['ok'] and r['client']['allDelivered'] and not r['client']['socketCloses'] and not r['client']['duplicates'],[x['admissionHoldMs'] for x in r['switches']])
-file=next(f for f in ['normal-pinned-repeat.json.gz','normal-pinned.json.gz','normal-overlap.json.gz','normal-device.json.gz','normal-reserved.json.gz','normal-entry.json.gz','calibrated-pool.json.gz','calibrated-preflight.json'] if (d/f).exists())
+file=next(f for f in ['normal-full-pool-repeat.json.gz','normal-full-pool.json.gz','normal-pinned-repeat.json.gz','normal-pinned.json.gz','normal-overlap.json.gz','normal-device.json.gz','normal-reserved.json.gz','normal-entry.json.gz','calibrated-pool.json.gz','calibrated-preflight.json'] if (d/f).exists())
 r=load(file)
 test('production-sized calibrated container both transitions',r['ok'] and len(r['switches'])==2 and r.get('client',{}).get('allDelivered') and not r.get('client',{}).get('socketCloses') and not r.get('client',{}).get('duplicates') and not r.get('front',{}).get('expired') and r.get('managedVeto',{}).get('status')==409,[x['admissionHoldMs'] for x in r['switches']])
 def strict(r):
@@ -25,11 +35,20 @@ def strict(r):
    n>0 and n==c.get('acks')==c.get('history')==db.get('events')==db.get('distinctIds')==db.get('markers') and
    db.get('pendingMessages')==0 and db.get('writerLeases')==1)
 pair=[load(f) if (d/f).exists() else {} for f in ['normal-pinned.json.gz','normal-pinned-repeat.json.gz']]
-test('two independent final calibrated rehearsals',all(strict(x) for x in pair) and pair[0].get('run')!=pair[1].get('run'),[x.get('run','missing') for x in pair])
-cap=gate['providerBackendSessions'];test('two standby slots with one spare for incumbent',int(cap['limit'])-int(cap['connected'])>=3,cap)
+test('two independent calibrated rehearsals on reduced pool',all(strict(x) for x in pair) and pair[0].get('run')!=pair[1].get('run'),[x.get('run','missing') for x in pair])
+loadcap=load('pool-load-summary.json') if (d/'pool-load-summary.json').exists() else {}
+preferred=[load(f) if (d/f).exists() else {} for f in ['normal-full-pool.json.gz','normal-full-pool-repeat.json.gz']]
+test('two independent calibrated rehearsals preserving the six-serving-session budget',
+     all(strict(x) and x.get('fixtureRoleSlots')==9 and x.get('candidatePool')==6 for x in preferred) and preferred[0].get('run')!=preferred[1].get('run'),
+     [x.get('run','missing') for x in preferred])
+reference=loadcap.get('byPool',{}).get('6',{})
+test('existing six-session pool sustains measured load without errors',
+     len(reference)==3 and all(m['errors']==0 for m in reference.values()) and all(reference[k]['measured']==500 for k in ['summary','history']),
+     {'chosenPool':6,'fourSessionAlternativePassed':loadcap.get('passed'),'fourInsteadOfSixP95ChangePercent':loadcap.get('p95ChangePercent')})
+cap=gate['providerBackendSessions'];test('two standby slots with one spare for incumbent',int(cap['limit'])>=9 and int(cap['limit'])-int(cap['connected'])>=3,cap)
 latest=gate['incumbentHubSamples'][:3]
 test('incumbent direct clients drained',len(latest)==3 and all(int(x['sockets'])==0 for x in latest),[int(x['sockets']) for x in latest])
-normal_name=next((f for f in ['normal-pinned-repeat.json.gz','normal-pinned.json.gz','normal-overlap.json.gz','normal-device.json.gz','normal-reserved.json.gz','normal-entry.json.gz'] if (d/f).exists()),None)
+normal_name=next((f for f in ['normal-full-pool-repeat.json.gz','normal-full-pool.json.gz','normal-pinned-repeat.json.gz','normal-pinned.json.gz','normal-overlap.json.gz','normal-device.json.gz','normal-reserved.json.gz','normal-entry.json.gz'] if (d/f).exists()),None)
 normal=load(normal_name) if normal_name else {}
 test('published index plus private standby and rollback',normal.get('normalEntry') and normal.get('ok') and len(normal.get('switches',[]))==2 and normal['switches'][-1]['invalidRejected'] and normal.get('managedVeto',{}).get('status')==409,
      [x['admissionHoldMs'] for x in normal.get('switches',[])] if normal else 'no full normal-entry receipt')

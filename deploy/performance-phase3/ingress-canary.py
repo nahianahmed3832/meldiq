@@ -1,7 +1,10 @@
 """Install/reverse the opt-in production ingress independently of the messaging writer."""
 import argparse,datetime,fcntl,hashlib,json,os,pathlib,secrets,shutil,subprocess,time,urllib.request
 from contextlib import ExitStack
-root=pathlib.Path('/opt/griip-internal-messaging/releases/phase3-ingress')
+checkpoint_mode=os.environ.get('MELDIQ_PHASE3_CHECKPOINT','initial')
+if checkpoint_mode not in ('initial','verified-v1'):raise SystemExit('unknown ingress checkpoint')
+legacy=pathlib.Path('/opt/griip-internal-messaging/releases/phase3-ingress')
+root=legacy if checkpoint_mode=='initial' else legacy.with_name('phase3-ingress-verified-v1')
 site=pathlib.Path('/etc/nginx/sites-enabled/meldiq-msg.conf').resolve()
 writer='griip-internal-messaging-api-1'
 original='sha256:9bb580a8be7a5f2823cd0b9a1ad95bed65291389321658d29124feebe321ba5c'
@@ -42,6 +45,9 @@ def main(mode):
  checkpoint=root/'nginx.before';keyfile=root/'cohort';code=root/'handoff.mjs'
  if mode=='prepare':
   if checkpoint.exists() or keyfile.exists():raise RuntimeError('canary already prepared')
+  if checkpoint_mode=='verified-v1':
+   if raw!=(legacy/'nginx.before').read_bytes() or sha(code.read_bytes())!='f3acc7232945fed994a8571776c328565d655b130ef985ab6fdc53555077a323':raise RuntimeError('unexpected predecessor or gateway digest')
+   if get('http://127.0.0.1:18080/v1/server-info')['maintenance']['enabled'] or not get('http://127.0.0.1:18080/healthz')['ok']:raise RuntimeError('production not eligible for private cohort')
   if run('ss','-Hlt','sport','=',':18087').strip():raise RuntimeError('port already allocated')
   control=root/'control';control.mkdir(exist_ok=False);os.chown(control,1000,1000);control.chmod(0o700)
   checkpoint.write_bytes(raw);keyfile.write_text(secrets.token_hex(24))

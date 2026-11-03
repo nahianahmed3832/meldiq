@@ -1,0 +1,147 @@
+{
+  "events": [
+    {
+      "mode": "activate",
+      "at": 1793715262.5047476,
+      "writerStart": "2026-11-03T11:06:18.203184099Z",
+      "canary": true,
+      "nginxSha256": "b81370367b4e0e9729e2e5862e2458269789dd6b03e678605b22c3252372fc4d",
+      "workerGeneration": "829d23e35a8206ae",
+      "nginxReloaded": false
+    },
+    {
+      "mode": "rollback",
+      "at": 1793715282.0128698,
+      "writerStart": "2026-11-03T11:06:18.203184099Z",
+      "canary": false,
+      "nginxSha256": "b81370367b4e0e9729e2e5862e2458269789dd6b03e678605b22c3252372fc4d",
+      "workerGeneration": "829d23e35a8206ae",
+      "nginxReloaded": false
+    },
+    {
+      "mode": "activate",
+      "at": 1793715298.311322,
+      "writerStart": "2026-11-03T11:06:18.203184099Z",
+      "canary": true,
+      "nginxSha256": "b81370367b4e0e9729e2e5862e2458269789dd6b03e678605b22c3252372fc4d",
+      "workerGeneration": "829d23e35a8206ae",
+      "nginxReloaded": false
+    },
+    {
+      "mode": "rollback",
+      "at": 1793715317.4695253,
+      "writerStart": "2026-11-03T11:06:18.203184099Z",
+      "canary": false,
+      "nginxSha256": "b81370367b4e0e9729e2e5862e2458269789dd6b03e678605b22c3252372fc4d",
+      "workerGeneration": "829d23e35a8206ae",
+      "nginxReloaded": false
+    },
+    {
+      "retired": true,
+      "nginxSha256": "d4b7c3803696819790176f4048dcd4283ef062179e38eac5d41570b013d3f116",
+      "writerStart": "2026-11-03T11:06:18.203184099Z",
+      "ingress": {
+        "state": "open",
+        "generation": 0,
+        "waiting": 0,
+        "active": 0,
+        "peers": 0,
+        "peakWaiting": 0,
+        "expired": 0,
+        "externalAccepted": 1,
+        "resumed": 0,
+        "suppressedRedeliveries": 0,
+        "dispatched": 44
+      }
+    }
+  ],
+  "client": {
+    "segments": [
+      {
+        "stage": "canary-on",
+        "measures": [
+          {
+            "peerMs": 1159,
+            "summaryMs": 353.18,
+            "summaryPolicy": "private, no-store"
+          },
+          {
+            "peerMs": 1019,
+            "summaryMs": 351,
+            "summaryPolicy": "private, no-store"
+          },
+          {
+            "peerMs": 725,
+            "summaryMs": 352.74,
+            "summaryPolicy": "private, no-store"
+          },
+          {
+            "peerMs": 702,
+            "summaryMs": 348.25,
+            "summaryPolicy": "private, no-store"
+          }
+        ]
+      },
+      {
+        "stage": "ingress-rollback",
+        "measures": [
+          {
+            "peerMs": 1249,
+            "summaryMs": 349.52,
+            "summaryPolicy": null
+          },
+          {
+            "peerMs": 693,
+            "summaryMs": 344.79,
+            "summaryPolicy": null
+          },
+          {
+            "peerMs": 702,
+            "summaryMs": 348.23,
+            "summaryPolicy": null
+          },
+          {
+            "peerMs": 697,
+            "summaryMs": 348.36,
+            "summaryPolicy": null
+          }
+        ]
+      },
+      {
+        "stage": "ingress-restored",
+        "measures": [
+          {
+            "peerMs": 695,
+            "summaryMs": 372.41,
+            "summaryPolicy": "private, no-store"
+          },
+          {
+            "peerMs": 729,
+            "summaryMs": 352.58,
+            "summaryPolicy": "private, no-store"
+          },
+          {
+            "peerMs": 698,
+            "summaryMs": 313.36,
+            "summaryPolicy": "private, no-store"
+          },
+          {
+            "peerMs": 696,
+            "summaryMs": 353.21,
+            "summaryPolicy": "private, no-store"
+          }
+        ]
+      }
+    ],
+    "externalCloses": [],
+    "errors": [],
+    "messages": 12,
+    "duplicateFrames": 0,
+    "verifiedHistory": 12,
+    "queuesAcked": 12,
+    "completed": true,
+    "sameSockets": true,
+    "idempotent": true,
+    "at": "2026-11-03T14:15:12.084Z"
+  }
+}

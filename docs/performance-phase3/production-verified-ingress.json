@@ -1,0 +1,77 @@
+{
+  "events": [
+    {
+      "mode": "activate",
+      "at": "2026-11-03T14:11:39.741078+00:00",
+      "writerStart": "2026-11-03T11:06:18.203184099Z",
+      "writerImage": "sha256:9bb580a8be7a5f2823cd0b9a1ad95bed65291389321658d29124feebe321ba5c",
+      "nginxSha256": "ea0140aaf6c818538cc1b33c258333471c632fbf5f5b55691afef5d30f525fad",
+      "canary": true
+    },
+    {
+      "mode": "rollback",
+      "at": "2026-11-03T14:12:00.381004+00:00",
+      "writerStart": "2026-11-03T11:06:18.203184099Z",
+      "writerImage": "sha256:9bb580a8be7a5f2823cd0b9a1ad95bed65291389321658d29124feebe321ba5c",
+      "nginxSha256": "d4b7c3803696819790176f4048dcd4283ef062179e38eac5d41570b013d3f116",
+      "canary": false
+    },
+    {
+      "retired": true,
+      "nginxSha256": "d4b7c3803696819790176f4048dcd4283ef062179e38eac5d41570b013d3f116",
+      "writerStart": "2026-11-03T11:06:18.203184099Z",
+      "ingress": {
+        "state": "open",
+        "generation": 0,
+        "waiting": 0,
+        "active": 0,
+        "peers": 0,
+        "peakWaiting": 0,
+        "expired": 0,
+        "externalAccepted": 1,
+        "resumed": 0,
+        "suppressedRedeliveries": 0,
+        "dispatched": 22
+      }
+    }
+  ],
+  "client": {
+    "segments": [
+      {
+        "stage": "canary-on",
+        "measures": [
+          {
+            "peerMs": 1948,
+            "summaryMs": 426.02,
+            "summaryPolicy": "private, no-store"
+          },
+          {
+            "peerMs": 716,
+            "summaryMs": 359.41,
+            "summaryPolicy": "private, no-store"
+          },
+          {
+            "peerMs": 1124,
+            "summaryMs": 381.14,
+            "summaryPolicy": "private, no-store"
+          },
+          {
+            "peerMs": 831,
+            "summaryMs": 360.33,
+            "summaryPolicy": "private, no-store"
+          }
+        ]
+      }
+    ],
+    "externalCloses": [],
+    "errors": [
+      "fetch failed"
+    ],
+    "messages": 4,
+    "duplicateFrames": 0,
+    "verifiedHistory": 4,
+    "queuesAcked": 4,
+    "completed": false,
+    "at": "2026-11-03T14:12:00.734Z"
+  }
+}

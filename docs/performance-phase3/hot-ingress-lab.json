@@ -1,0 +1,1 @@
+{"ok": true, "requests": 120, "sameClientTcpConnection": true, "nginxReloadsDuringSwitches": 0, "steps": [{"enabled": false, "verified": 24}, {"enabled": true, "verified": 24}, {"enabled": false, "verified": 24}, {"enabled": true, "verified": 24}, {"enabled": false, "verified": 24}]}

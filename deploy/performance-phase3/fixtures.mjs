@@ -18,4 +18,4 @@ for(const [f,out] of [['griipClient.ts','griipClient.mjs'],['accounts.ts','manag
 }
 for(const f of ['synthetics.mjs','transport.mjs'])copy(path.join(status,'monitor',f));
 copy(path.join(back,'deploy/database-migration/owned-api-canary.mjs'));
-for(const f of ['rehearse.py','standby-boot.mjs','owned-normal.mjs','park.mjs','client.mjs','handoff.mjs','owned-prepared-api.mjs','owned-pg-wire.mjs','owned-pg-latency.mjs'])copy(path.join(here,f));
+for(const f of ['rehearse.py','pool-experiment.py','pool-client.mjs','standby-boot.mjs','owned-normal.mjs','park.mjs','client.mjs','handoff.mjs','owned-prepared-api.mjs','owned-pg-wire.mjs','owned-pg-latency.mjs'])copy(path.join(here,f));

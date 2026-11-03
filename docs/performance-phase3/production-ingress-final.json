@@ -1,0 +1,13 @@
+{
+  "at": "2026-11-03T14:15:34.516028+00:00",
+  "writerImage": "sha256:9bb580a8be7a5f2823cd0b9a1ad95bed65291389321658d29124feebe321ba5c",
+  "writerStarted": "2026-11-03T11:06:18.203184099Z",
+  "restartCount": 0,
+  "nginxRestored": true,
+  "nginxSha256": "d4b7c3803696819790176f4048dcd4283ef062179e38eac5d41570b013d3f116",
+  "experimentalPublicSidecarAbsent": true,
+  "postgres": true,
+  "redis": true,
+  "maintenance": false,
+  "activeOwnedLabs": 0
+}

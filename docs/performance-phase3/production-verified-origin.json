@@ -1,0 +1,1 @@
+{"from": "2026-11-03T14:11:37Z", "to": "2026-11-03T14:12:04Z", "allOriginResponses": {"200": 26}, "allMessagePostsAtOrigin": {"200": 4}, "scope": "Aggregate across traffic. An absent origin record does not identify which intermediary failed."}

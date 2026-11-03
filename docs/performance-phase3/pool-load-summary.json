@@ -1,0 +1,180 @@
+{
+  "run": "ph3-50125f3faa33",
+  "source": "pool-load.json.gz",
+  "unit": "ms",
+  "warmups": "discarded 32 mixed reads plus their health probes per block; all warm-up errors counted",
+  "screen": "no errors, p95 may not worsen by more than 5% for any measured route; not equivalent to live regional p95",
+  "passed": false,
+  "p95ChangePercent": {
+    "summary": 50.0,
+    "history": 76.2,
+    "health": 51.15
+  },
+  "warmErrors": 0,
+  "byPool": {
+    "6": {
+      "summary": {
+        "measured": 500,
+        "errors": 0,
+        "p50": 336,
+        "p95": 352,
+        "p99": 368
+      },
+      "history": {
+        "measured": 500,
+        "errors": 0,
+        "p50": 833,
+        "p95": 874,
+        "p99": 902
+      },
+      "health": {
+        "measured": 40,
+        "errors": 0,
+        "p50": 314,
+        "p95": 348,
+        "p99": 358
+      }
+    },
+    "4": {
+      "summary": {
+        "measured": 500,
+        "errors": 0,
+        "p50": 511,
+        "p95": 528,
+        "p99": 2571
+      },
+      "history": {
+        "measured": 500,
+        "errors": 0,
+        "p50": 1372,
+        "p95": 1540,
+        "p99": 4152
+      },
+      "health": {
+        "measured": 40,
+        "errors": 0,
+        "p50": 511,
+        "p95": 526,
+        "p99": 632
+      }
+    }
+  },
+  "blocks": [
+    {
+      "pool": 6,
+      "block": 0,
+      "elapsedMs": 35425,
+      "connectedBackends": 6,
+      "timings": {
+        "summary": {
+          "measured": 250,
+          "errors": 0,
+          "p50": 338,
+          "p95": 350,
+          "p99": 369
+        },
+        "history": {
+          "measured": 250,
+          "errors": 0,
+          "p50": 826,
+          "p95": 872,
+          "p99": 897
+        },
+        "health": {
+          "measured": 20,
+          "errors": 0,
+          "p50": 327,
+          "p95": 348,
+          "p99": 352
+        }
+      }
+    },
+    {
+      "pool": 4,
+      "block": 1,
+      "elapsedMs": 66792,
+      "connectedBackends": 4,
+      "timings": {
+        "summary": {
+          "measured": 250,
+          "errors": 0,
+          "p50": 509,
+          "p95": 525,
+          "p99": 3330
+        },
+        "history": {
+          "measured": 250,
+          "errors": 0,
+          "p50": 1371,
+          "p95": 1565,
+          "p99": 5897
+        },
+        "health": {
+          "measured": 20,
+          "errors": 0,
+          "p50": 511,
+          "p95": 516,
+          "p99": 538
+        }
+      }
+    },
+    {
+      "pool": 4,
+      "block": 2,
+      "elapsedMs": 61450,
+      "connectedBackends": 4,
+      "timings": {
+        "summary": {
+          "measured": 250,
+          "errors": 0,
+          "p50": 512,
+          "p95": 529,
+          "p99": 1433
+        },
+        "history": {
+          "measured": 250,
+          "errors": 0,
+          "p50": 1372,
+          "p95": 1502,
+          "p99": 3791
+        },
+        "health": {
+          "measured": 20,
+          "errors": 0,
+          "p50": 506,
+          "p95": 526,
+          "p99": 632
+        }
+      }
+    },
+    {
+      "pool": 6,
+      "block": 3,
+      "elapsedMs": 35504,
+      "connectedBackends": 6,
+      "timings": {
+        "summary": {
+          "measured": 250,
+          "errors": 0,
+          "p50": 331,
+          "p95": 355,
+          "p99": 368
+        },
+        "history": {
+          "measured": 250,
+          "errors": 0,
+          "p50": 838,
+          "p95": 879,
+          "p99": 905
+        },
+        "health": {
+          "measured": 20,
+          "errors": 0,
+          "p50": 303,
+          "p95": 342,
+          "p99": 358
+        }
+      }
+    }
+  ]
+}

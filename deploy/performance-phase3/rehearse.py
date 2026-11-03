@@ -1,7 +1,9 @@
 """Unpublished, synthetic Docker network only. Never mounts a production volume or uses production credentials."""
 import datetime, json, os, pathlib, subprocess, sys, time, uuid
 from argparse import ArgumentParser
-P=ArgumentParser();P.add_argument('--rtt',type=int,choices=[2,168],required=True);P.add_argument('--output',required=True);P.add_argument('--preflight',action='store_true');P.add_argument('--warm-pool',action='store_true');P.add_argument('--normal',action='store_true');P.add_argument('--reserve',action='store_true');P.add_argument('--overlap-stop',action='store_true');P.add_argument('--pinned-session',action='store_true');P.add_argument('--calibrate',action='store_true');P.add_argument('--warm',action='store_true');P.add_argument('--scaled',action='store_true');P.add_argument('--fast',action='store_true');P.add_argument('--failure',action='store_true');A=P.parse_args()
+P=ArgumentParser();P.add_argument('--rtt',type=int,choices=[2,168],required=True);P.add_argument('--output',required=True);P.add_argument('--pool-load',action='store_true');P.add_argument('--full-pool-budget',action='store_true');P.add_argument('--preflight',action='store_true');P.add_argument('--warm-pool',action='store_true');P.add_argument('--normal',action='store_true');P.add_argument('--reserve',action='store_true');P.add_argument('--overlap-stop',action='store_true');P.add_argument('--pinned-session',action='store_true');P.add_argument('--calibrate',action='store_true');P.add_argument('--warm',action='store_true');P.add_argument('--scaled',action='store_true');P.add_argument('--fast',action='store_true');P.add_argument('--failure',action='store_true');A=P.parse_args()
+if A.full_pool_budget and not(A.normal and A.reserve and A.overlap_stop and A.pinned_session and not A.pool_load):raise SystemExit('full pool budget requires the pinned staged handoff')
+role_slots=9 if A.full_pool_budget else 6
 root=pathlib.Path('/opt/griip-internal-messaging/releases/phase3-lab')
 fixtures=root/'fixtures'
 base='griip-internal-messaging-api:0.76.1-pg-'
@@ -24,7 +26,7 @@ created=[]
 def out(*cmd,input=None,timeout=70):return subprocess.check_output(cmd,input=input,timeout=timeout,stderr=subprocess.PIPE).decode().strip()
 def dr(*args,**kwargs):return out('docker',*args,**kwargs)
 def stamp():return round(time.time()*1000)
-report={'rttMs':A.rtt,'failureInjection':A.failure,'prepared':A.warm,'productionSized':A.scaled,'preflight':A.preflight,'warmPool':A.warm_pool,'normalEntry':A.normal,'reserveReaderSlots':A.reserve,'overlapStop':A.overlap_stop,'pinnedSession':A.pinned_session,'calibratedFinalReadMs':4295 if A.calibrate else 0,'run':ident,'started':stamp(),'switches':[],'sourceImages':pins}
+report={'rttMs':A.rtt,'failureInjection':A.failure,'prepared':A.warm,'productionSized':A.scaled,'preflight':A.preflight,'warmPool':A.warm_pool,'normalEntry':A.normal,'reserveReaderSlots':A.reserve,'overlapStop':A.overlap_stop,'pinnedSession':A.pinned_session,'fixtureRoleSlots':role_slots,'candidatePool':6 if A.full_pool_budget or not A.reserve else 4,'calibratedFinalReadMs':4295 if A.calibrate else 0,'run':ident,'started':stamp(),'switches':[],'sourceImages':pins}
 def start(name,image,argv,env=None,pg=False):
  n=ident+'-'+name
  cmd=['run','-d','--name',n,'--label','meldiq.phase3='+ident,'--network','none' if pg else 'container:'+ident+'-pg','--read-only','--security-opt','no-new-privileges:true','--cap-drop','ALL','--cpus','1.25' if A.scaled else '0.75','--memory','768m' if A.scaled else '480m','--pids-limit','128','--no-healthcheck','--tmpfs','/tmp:rw,nosuid,size=32m']
@@ -55,7 +57,7 @@ def startslot(s,im,bad=False):
  if A.reserve and s in ('candidate','fallback'):
   # The role budget is six. A prepared standby needs a snapshot and one warm
   # session; cap only the new writer at four. The old image starts unmodified.
-  e['SUPABASE_DATABASE_POOL_SIZE']='4'
+  e['SUPABASE_DATABASE_POOL_SIZE']='6' if A.full_pool_budget else '4'
  if bad:e['SUPABASE_DATABASE_URL']='postgresql://meldiq_canary_runtime@127.0.0.1:55434/postgres'
  start(s,im,['/app/probes/park.mjs'],e);wait('parked-'+s)
 def ready(s,signal=True):
@@ -107,7 +109,7 @@ try:
   except subprocess.SubprocessError:time.sleep(.2)
  sql((fixtures/'postgres-bootstrap.sql').read_text())
  for f in sorted((fixtures/'migrations').glob('*.sql')):sql(f.read_text())
- sql("CREATE ROLE meldiq_canary_runtime LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS CONNECTION LIMIT 6; GRANT meldiq_api TO meldiq_canary_runtime; ALTER ROLE meldiq_canary_runtime SET search_path=pg_catalog,meldiq;")
+ sql(f"CREATE ROLE meldiq_canary_runtime LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS CONNECTION LIMIT {role_slots}; GRANT meldiq_api TO meldiq_canary_runtime; ALTER ROLE meldiq_canary_runtime SET search_path=pg_catalog,meldiq;")
  if A.scaled:
   sql("""INSERT INTO meldiq.resource_samples(minute,series,value) SELECT floor(extract(epoch FROM now())/60)::bigint-(n/60), 'load-'||(n%60),n*0.0625 FROM generate_series(0,582239)n;
          INSERT INTO meldiq.delivery_queue(id,recipient_device_id,kind,conversation_id,message_id,sender_user_id,sender_device_id,payload,created_at,expires_at)
@@ -136,24 +138,30 @@ try:
   common.update({'PH3_PREFLIGHT':'1','PH3_MANAGED_GATE':'1'})
  if A.calibrate:common.update({'PH3_FINAL_READ_FLOOR_MS':'4295','REDIS_URL':'redis://127.0.0.1:6379','REDIS_PASSWORD':'synthetic-fixture-only','REDIS_PRIVATE_NETWORK':'true'})
  start('lag',old,['/app/probes/owned-pg-wire.mjs' if A.scaled else '/app/probes/owned-pg-latency.mjs'],common);wait('proxy-ready.json')
- startslot('initial',old);ready('initial')
- startslot('candidate',new);startslot('fallback',fallback)
- if A.failure:startslot('bad',new,True)
- start('front',old,['/app/probes/handoff.mjs'],{'MELDIQ_OWNED_CANARY':'synthetic-loopback'})
- start('driver',old,['/app/probes/client.mjs'],{'MELDIQ_OWNED_CANARY':'synthetic-loopback','PH3_MANAGED_GATE':'1' if A.preflight else '0','PH3_NORMAL':'1' if A.normal else '0'})
- if A.preflight:
-  wait('managed-ready');before=control('state','GET')
-  code=out('curl','-s','-o','/dev/null','-w','%{http_code}','--unix-socket',str(C/'handoff.sock'),'-X','POST','http://localhost/drain')
-  after=control('state','GET')
-  if code!='409' or after['state']!='open' or after['peers']!=before['peers'] or after['peers']<3 or actual_leases()!=1:raise RuntimeError('managed session drain was not safely vetoed')
-  report['managedVeto']={'status':int(code),'peers':after['peers'],'originalOpen':True};flag('managed-vetoed')
- wait('client-ready');time.sleep(2.1);change('rollout','initial','candidate');time.sleep(4.1)
- change('rollback','candidate','fallback',A.failure);time.sleep(4.1);flag('finish')
- report['client']=json.loads(wait('client-report.json',70))
- report['front']=control('state','GET')
- report['database']={k:int(sql(q)) for k,q in {'events':'select count(*) from meldiq.message_events','distinctIds':'select count(distinct id) from meldiq.message_events','markers':"select count(*) from meldiq.submitted_messages where message_id not like 'seed-%'",'pendingMessages':"select count(*) from meldiq.delivery_queue where kind='message'",'writerLeases':"select count(*) from pg_locks where locktype='advisory' and granted"}.items()}
- db=report['database'];n=report['client']['accepted']
- report['ok']=bool(report['client']['ok'] and db['events']==db['distinctIds']==db['markers']==n and db['pendingMessages']==0 and report['front']['expired']==0 and report['front']['resumed']>=4 and len(report['switches'])==2)
+ if A.pool_load:
+  import runpy
+  report['experiment']='same candidate, restricted role limit 6, pool order 6/4/4/6, eight concurrent signed inbox/history readers, periodic health'
+  report['blocks']=runpy.run_path(str(fixtures/'pool-experiment.py'))['measure'](globals())
+  report['ok']=all(all(o['ok'] for o in b['obs']+b['warm']) for b in report['blocks'])
+ else:
+  startslot('initial',old);ready('initial')
+  startslot('candidate',new);startslot('fallback',fallback)
+  if A.failure:startslot('bad',new,True)
+  start('front',old,['/app/probes/handoff.mjs'],{'MELDIQ_OWNED_CANARY':'synthetic-loopback'})
+  start('driver',old,['/app/probes/client.mjs'],{'MELDIQ_OWNED_CANARY':'synthetic-loopback','PH3_MANAGED_GATE':'1' if A.preflight else '0','PH3_NORMAL':'1' if A.normal else '0'})
+  if A.preflight:
+   wait('managed-ready');before=control('state','GET')
+   code=out('curl','-s','-o','/dev/null','-w','%{http_code}','--unix-socket',str(C/'handoff.sock'),'-X','POST','http://localhost/drain')
+   after=control('state','GET')
+   if code!='409' or after['state']!='open' or after['peers']!=before['peers'] or after['peers']<3 or actual_leases()!=1:raise RuntimeError('managed session drain was not safely vetoed')
+   report['managedVeto']={'status':int(code),'peers':after['peers'],'originalOpen':True};flag('managed-vetoed')
+  wait('client-ready');time.sleep(2.1);change('rollout','initial','candidate');time.sleep(4.1)
+  change('rollback','candidate','fallback',A.failure);time.sleep(4.1);flag('finish')
+  report['client']=json.loads(wait('client-report.json',70))
+  report['front']=control('state','GET')
+  report['database']={k:int(sql(q)) for k,q in {'events':'select count(*) from meldiq.message_events','distinctIds':'select count(distinct id) from meldiq.message_events','markers':"select count(*) from meldiq.submitted_messages where message_id not like 'seed-%'",'pendingMessages':"select count(*) from meldiq.delivery_queue where kind='message'",'writerLeases':"select count(*) from pg_locks where locktype='advisory' and granted"}.items()}
+  db=report['database'];n=report['client']['accepted']
+  report['ok']=bool(report['client']['ok'] and db['events']==db['distinctIds']==db['markers']==n and db['pendingMessages']==0 and report['front']['expired']==0 and report['front']['resumed']>=4 and len(report['switches'])==2)
 except Exception as e:
  report['ok']=False;report['error']=str(e)[:300]
  if (C/'client-ready').exists() and not(C/'client-report.json').exists():
@@ -177,5 +185,5 @@ finally:
    dr('rm','-f','-v',n)
  report['ended']=stamp()
  pathlib.Path(A.output).write_text(json.dumps(report,indent=2)+'\n')
- print(json.dumps({k:v for k,v in report.items() if k not in ('client','sourceImages')}),flush=True)
+ print(json.dumps({k:v for k,v in report.items() if k not in ('client','sourceImages','blocks')}),flush=True)
 sys.exit(0 if report['ok'] else 1)
