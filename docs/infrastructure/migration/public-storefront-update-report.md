@@ -1,5 +1,9 @@
 # Public storefront
 
+Production release site-20261103T083210Z-850d638f1b reflects actual Frankfurt-only serving, retention of completed files after message expiry, historical copies in Singapore, and the Supabase/Hostinger deployments. The English retention disclosure and old Windows statement were read back from public HTTPS. The final export, lint and 46 unit tests passed.
+
+## Migration record
+
 The existing Next Pages site at meldiq.app serves the homepage, features, pricing, support, FAQ, download, account/checkout and legal pages. The audit found Singapore-specific storage text and claims that the server cannot read current attachment keys. Current v2 attachment references contain keys readable by the relay. Updated the privacy, FAQ, features and related landing copy, including the storage region, disk/file retention description and unsupported blanket encryption statements. The initial privacy text identifies Singapore as active and Frankfurt as a staged copy. It makes no EU-only processing or new legal-compliance guarantee.
 
 Release site-20261103T065029Z-746c220a40 was activated with the expected previous release pinned. The previous release was retained. Production privacy returned the new copy. Homepage, features, pricing, downloads, FAQ, privacy, sitemap, robots and billing plans returned HTTP 200 at the storefront verification checkpoint. Checkout tests used the site's mock API. No real charge was created. Plan prices and entitlements were not edited. Android's Play listing was reachable. The signed Windows installer link returned the expected content length and its complete artifact hash matched.

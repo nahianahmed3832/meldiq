@@ -1,5 +1,9 @@
 # Version copy and verification
 
+The final fence verified 618 data versions, 82 delete markers and 35 supplemental disk files. The two original encrypted Singapore recovery archives were copied byte-for-byte to a versioned, private Frankfurt recovery bucket. The final recovery checkpoint was also uploaded there and decrypted for verification. No historical version expiry is enabled on either media bucket.
+
+## Migration record
+
 All 615 original object versions and 82 delete markers matched the initial source snapshot. Original data size was 2,180,950,688 bytes. The copy tool processes each key oldest first using the interleaved XML service response, verifies destination version order and records the new S3 version ID. Version IDs and service-assigned modification times are different across buckets. No source objects were deleted.
 
 Verification compared byte count, tags, custom metadata, content type, disposition, encoding, language, expiry, encryption and storage class. It checked matching S3 checksum algorithms and types or streamed SHA-256 from both versions when their stored checksums differed. Six original versions required the streamed comparison. Source and destination were relisted before declaring the snapshot matched. The journal records attempts, sizes, checksums and errors per source version.

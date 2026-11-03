@@ -1,5 +1,9 @@
 # Cloudflare media delivery
 
+Final production state. Private downloads are live on media.meldiq.app. The Hostinger API issues upload grants. Both direct uploads and the web-domain path used by older Windows clients store bytes in Frankfurt. Private range reads, HEAD, anonymous denial and revoked-ticket denial passed.
+
+## Migration record
+
 The signed-in Cloudflare account dashboard lists Workers Free as the current plan. The zone uses Free Website. Regional processing entitlements were not established. The Worker uses an exact custom-domain route with workers.dev and preview URLs disabled. No EU-only processing or residency guarantee is asserted.
 
 The legacy authenticated GET continues to accept proxy=1. The deployed backend issues a 60-second opaque AES-GCM ticket bound to an attachment ID. Only the API has the grant key. When the Worker presents its separate secret and the ticket, the API rechecks the original session, membership, publication state, expiration and quota. It returns a short-lived GET or HEAD SigV4 origin URL to the Worker. The Worker only follows the exact configured HTTPS origin and object path. It forwards selected range and conditional headers and streams the response. Private responses use private, no-store and CDN-Cache-Control: no-store. Private data never enters the shared Cache API. Direct upload URLs and multipart bodies continue to go to S3.

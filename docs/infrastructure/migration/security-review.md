@@ -1,5 +1,9 @@
 # Security verification
 
+The scoped runtime IAM policy now denies access to the Singapore media bucket. The versioned first-party compatibility route accepts only signed PUT requests for exact attachment paths, checks upstream TLS, streams bytes to a fixed Frankfurt origin and disables request logging. Signing credentials and user session headers are not forwarded.
+
+## Migration record
+
 The source and destination are private and encrypted. The Frankfurt origin denies insecure transport. The runtime IAM policy is confined to the application prefix and server-originated deletion/listing. A separate IAM identity may only read the exact public fixture from the private bucket. The Worker holds no AWS credential capable of reading a customer object. Worker secrets are encrypted bindings. API secrets are not client settings. Private manifest files and keys are excluded from source control.
 
 Authorized downloads are scoped to one file, expire quickly, and require a live session and conversation membership on redemption. The API checks pending publication and charges byte quotas. The Worker validates paths, origin and signed redirects, uses no-store on private subrequests and responses, and forwards no client bearer or cookies to S3. Obsolete/invalid/tampered grants, logged-out sessions and a different conversation member were exercised in tests. Live anonymous reads were denied without origin details. The single explicitly public synthetic fixture is the only shared-cache path.

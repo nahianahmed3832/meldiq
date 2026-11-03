@@ -1,5 +1,9 @@
 # Independent production status
 
+The owner requested Frankfurt-only operations. status.meldiq.app now expects Frankfurt as its sole external monitoring location. The Singapore schedule is disabled and its historical samples remain available. The last native Worker release for this change is 83b602b5-3849-4d4d-af1e-6b839ed17674. Scheduled synthetic observations determine current public status.
+
+## Migration record
+
 The canonical status.meldiq.app and its verification alias status-check.meldiq.app serve the customer-owned Cloudflare Worker and independent D1. The status operator imported the previous Sites data and took ownership of the canonical hostname. The old Sites D1 is archival. Both AWS monitoring regions remain enabled. Storage administration and maintenance posting targeted the live D1.
 
 The Frankfurt origin probe requests a signed, uncached range and validates its exact bytes. The media edge probe checks a dedicated public fixture. Customer-upload and download monitoring also includes API readiness, an authorized private range with an expected hash, creation and cancellation of an isolated presigned upload session, and synthetic object I/O. Regional monitoring configurations switched to Frankfurt storage and private edge delivery after the API opened. The database probe now checks PostgreSQL, Supabase mode and Redis, matching the accepted production database.

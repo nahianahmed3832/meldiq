@@ -1,13 +1,4 @@
 {
-  "activated": {
-    "activatedAt": "2026-11-03T08:08:53.387851+00:00",
-    "baseImage": "sha256:71e273ba61f38a62ec3456e8c015a30a3469bbb251952c183df27a7ea3ee896d",
-    "image": "sha256:78bc3b174a50ce8e80c5bb06075bd97597f4b6d735ed798225333810e9fa9645",
-    "revision": "458aebfad5a17155cd80d5630f8060fd40d0b5cb",
-    "pendingSourceSessions": 2,
-    "database": "supabase",
-    "primaryRegion": "eu-central-1"
-  },
   "fence": {
     "keys": 620,
     "dataVersions": 618,
@@ -39,11 +30,62 @@
     "journalRestoreVerified": true
   },
   "publicWindowsVersion": "0.2.1",
-  "publicSiteRelease": "site-20261103T080905Z-7edd73c885",
+  "publicSiteRelease": "site-20261103T083210Z-850d638f1b",
   "cloudflareMediaVersion": "850c482c-bc36-4255-88ac-bbab1a619c8c",
   "singaporeRollbackHistory": {
     "stackStatus": "UPDATE_COMPLETE",
     "noncurrentExpiry": "Disabled",
     "incompleteMultipartCleanup": "Enabled"
+  },
+  "firstActivation": {
+    "activatedAt": "2026-11-03T08:08:53.387851+00:00",
+    "baseImage": "sha256:71e273ba61f38a62ec3456e8c015a30a3469bbb251952c183df27a7ea3ee896d",
+    "image": "sha256:78bc3b174a50ce8e80c5bb06075bd97597f4b6d735ed798225333810e9fa9645",
+    "revision": "458aebfad5a17155cd80d5630f8060fd40d0b5cb",
+    "pendingSourceSessions": 2,
+    "database": "supabase",
+    "primaryRegion": "eu-central-1"
+  },
+  "retentionActivation": {
+    "activatedAt": "2026-11-03T08:30:56.240613+00:00",
+    "baseImage": "sha256:78bc3b174a50ce8e80c5bb06075bd97597f4b6d735ed798225333810e9fa9645",
+    "image": "sha256:0fbc95897c811c3f3a4a8bc30df4e62278d3bd4c54b6b8859e0870aae1c4a73b",
+    "revision": "2e2af1beec57a78f8ec6b6ebab0a1f8cc3adb73d",
+    "pendingSourceSessions": 1,
+    "database": "supabase",
+    "primaryRegion": "eu-central-1"
+  },
+  "finalActivation": {
+    "activatedAt": "2026-11-03T08:37:06.952767+00:00",
+    "revision": "b7bffce7b88c527837596cd05d62b386dd76919e",
+    "image": "sha256:7adf52744c507df0dcaecc3532123b32ab699e3535cc8166c923d332745d2bb5",
+    "baseImage": "sha256:0fbc95897c811c3f3a4a8bc30df4e62278d3bd4c54b6b8859e0870aae1c4a73b",
+    "primaryRegion": "eu-central-1",
+    "database": "supabase"
+  },
+  "finalVerification": {
+    "postgresTests": 26,
+    "retainedRows": 5,
+    "finalFiniteExpiryCount": 0,
+    "completedRowsAtReadback": 533,
+    "oldDesktopRenderer": {
+      "origin": "https://web.meldiq.app",
+      "status": 200,
+      "etag": true,
+      "cspViolations": []
+    },
+    "recoveredFromEdge": "nativeDesktop verified_range 206 edge true",
+    "userFacingStorageRegions": [
+      "eu-central-1"
+    ],
+    "monitoringLocations": [
+      "frankfurt"
+    ],
+    "singaporeSchedule": "DISABLED",
+    "singaporeRuntimeAccess": "ExplicitDeny",
+    "stoppedHostSnapshotSchedule": "DISABLED",
+    "verifiedEarlierRecoveryArchives": 2,
+    "earlierEncryptedRecoveryBytes": 317904,
+    "finalCheckpointRestoreVerified": true
   }
 }

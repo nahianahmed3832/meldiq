@@ -1,5 +1,9 @@
 # Test record
 
+Final release b7bffce7 passed 26 tests across four suites on isolated PostgreSQL. The original 0.2.0 Electron renderer completed its real Frankfurt upload through /v1/_meldiq-upload with HTTP 200, ETag and zero CSP violations. Public authenticated retrieval returned the expected bytes. One earlier non-versioned path failed in the packaged shell and was replaced. Live multipart testing on the synthetic free account hit its plan limit. Multipart resume/completion passed against the private Frankfurt S3 test bucket. This is not a claim of native GUI coverage for every client.
+
+## Migration record
+
 | Area | Performed | Limit at that staging checkpoint |
 |---|---|---|
 | Storage | AWS identity, stack validation/lint, bucket readback, current and historical versions, tags, metadata, checksum and ordered delete markers. Reran reconciliation with the supplemental disk manifest. Anonymous bucket listing returned 403. | Final fenced delta before primary switch and subsequent disaster-recovery rehearsal. |

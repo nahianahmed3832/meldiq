@@ -1,5 +1,9 @@
 # Client compatibility
 
+Windows 0.2.1 is signed and public. The original 0.2.0 installer payload was run with matching Electron on macOS and sent a real signed PUT through the versioned web API path. Its renderer returned 200 and an ETag with zero CSP violations. The API completed the upload, and the expected private range downloaded from Frankfurt. Source and emulator Android tests passed. The current Google Play binary was not verified.
+
+## Migration record
+
 | Platform | Release inspected | Works without a release? | Evidence and limits |
 |---|---|---|---|
 | Web | Deployed 0.5.0-beta-supabase-prep-8bda737 | The browser origin checks pass with the same build after the host update. | Chromium on the live page initially emitted CSP violations for both target origins. The nginx headers and signed-download proxy allowlist were extended under the release lock. nginx validation passed and the same browser probe reported neither origin blocked. Authenticated full-path testing is separate. |

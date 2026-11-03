@@ -1,5 +1,9 @@
 # Public and product consistency
 
+The deployed API retains all completed files independently of message timers, including unpublished files, with uploader-only access until publication. Its production runtime cannot access the Singapore media bucket. The storefront and desktop repository snapshot carry the same privacy disclosure.
+
+## Migration record
+
 | Subject | Authoritative owning path | Result |
 |---|---|---|
 | Per-file limits and ownership | API files routes, quotas, plan catalog and Spark overrides | Existing upload validation and pricing data preserved. The storefront advertises the live decimal 1 GB cap for Plus. |

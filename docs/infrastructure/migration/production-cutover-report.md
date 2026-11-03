@@ -1,5 +1,14 @@
 # Frankfurt production cutover
 
+**Final state on 3 November 2026.** Frankfurt is the sole live media region. Hostinger runs the API and Supabase remains the database. With release b7bffce7 live at 08:37:06 UTC, all new uploads, including older Windows clients, go to Frankfurt. The production principal is denied access to Singapore media. The Singapore bucket, its versions and five stopped-server snapshots remain for recovery. Both the Singapore status and snapshot schedules are disabled.
+
+The final PostgreSQL inspection counted 533 completed attachment rows and zero finite expiry values. Eight pending-publication rows remained private to their uploaders. The retention job skips completed-file expiry under this deployment policy. Message timers do not remove stored files. Incomplete multipart transfers remain subject to cleanup. The production compatibility test used the original published desktop payload with matching Electron on macOS. Native Windows 0.2.1 qualification ran separately.
+
+The two earlier backup archives (317,904 encrypted bytes) and a final operator checkpoint are verified in Frankfurt. The status site still displays real observations from the Frankfurt monitoring location; consult it for service-wide health. No whole-database or Hostinger relocation was performed.
+
+## Earlier release windows
+
+
 Production file storage switched to Frankfurt on 3 November 2026 at 08:08:53 UTC (16:08 Shanghai). The API runs revision `458aebfad5a17155cd80d5630f8060fd40d0b5cb` on the accepted PostgreSQL/Supabase base `f2f7c6c3`. The storage deployment preserved database authority, volumes, credentials and the existing database acceptance receipt.
 
 Under the shared release lock the API upstreams served scheduled maintenance, the old writer stopped and the final inventory matched 618 verified data versions (2,180,958,913 bytes), 82 soft-delete markers and 35 supplemental disk files (66,188,312 bytes). Two in-flight Singapore sessions were captured. The new API started and an authenticated loopback read resolved to the Frankfurt origin with the expected bytes before public traffic reopened. Singapore was retained without deleting data.

@@ -6,6 +6,9 @@ Parameters:
   MediaBucket: {Type: String}
   BackendUser: {Type: String}
   ServerIp: {Type: String}
+  ArchiveSourceBucket: {Type: String, Default: ''}
+Conditions:
+  ArchiveSource: !Not [!Equals [!Ref ArchiveSourceBucket, '']]
 Resources:
   Backend:
     Type: AWS::IAM::Policy
@@ -15,6 +18,13 @@ Resources:
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
+          - !If
+            - ArchiveSource
+            - Sid: PreventRuntimeAccessToArchivedSource
+              Effect: Deny
+              Action: s3:*
+              Resource: [!Sub 'arn:${AWS::Partition}:s3:::${ArchiveSourceBucket}', !Sub 'arn:${AWS::Partition}:s3:::${ArchiveSourceBucket}/*']
+            - !Ref AWS::NoValue
           - Effect: Allow
             Action: [s3:PutObject, s3:GetObject, s3:AbortMultipartUpload, s3:ListMultipartUploadParts]
             Resource: !Sub 'arn:${AWS::Partition}:s3:::${MediaBucket}/orbit/*'
