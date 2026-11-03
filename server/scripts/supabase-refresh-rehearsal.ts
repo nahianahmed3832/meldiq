@@ -70,9 +70,10 @@ END $$;`;
 async function main(){
   process.umask(0o077);
   const [beforeDirectory,afterDirectory,backupDirectory,mode]=process.argv.slice(2);
-  const final=mode==="--apply-final-sync";
+  const resume=mode==="--resume-preactivation-final-sync";
+  const final=mode==="--apply-final-sync"||resume;
   if(!beforeDirectory||!afterDirectory||!process.env.SUPABASE_DATABASE_URL||!final&&mode!=="--apply-rehearsal-refresh")throw new Error("Explicit refresh/final sync, two verified snapshots and a backup directory required");
-  const before=manifest(beforeDirectory),after=manifest(afterDirectory,final),endpoint=new URL(process.env.SUPABASE_DATABASE_URL);
+  const before=manifest(beforeDirectory,resume),after=manifest(afterDirectory,final),endpoint=new URL(process.env.SUPABASE_DATABASE_URL);
   const local=["127.0.0.1","localhost","[::1]"].includes(endpoint.hostname);
   if(endpoint.search||endpoint.hash||(local?!/^\/meldiq_customer_rehearsal_[a-f0-9]{32}$/.test(endpoint.pathname)||process.env.SUPABASE_ENVIRONMENT!=="development":
     process.env.SUPABASE_ENVIRONMENT!=="staging"||process.env.SUPABASE_EXPECTED_PROJECT_REF!==project||endpoint.hostname!=="aws-1-eu-central-1.pooler.supabase.com"||endpoint.port!=="5432"||endpoint.pathname!=="/postgres"||decodeURIComponent(endpoint.username)!==`postgres.${project}`))throw new Error("Only the owned clone or approved Frankfurt rehearsal is permitted");
@@ -96,7 +97,8 @@ async function main(){
   const db=new MeldiqPostgres({url:endpoint.href,environment:local?"development":"staging",maxConnections:1,ca:local?undefined:fs.readFileSync(process.env.SUPABASE_DB_CA_FILE!,"utf8")});
   try{
     const marker=(await db.query("SELECT coalesce(obj_description('meldiq'::regnamespace,'pg_namespace'),'') AS marker")).rows[0].marker;
-    if(!local&&!marker.startsWith("Meldiq customer-data rehearsal:"))throw new Error("A serving or prepared production database cannot be refreshed");
+    const expectedPrepared=`Meldiq prepared production database: ${before.id}; source frozen; private activation required`;
+    if(!local&&(resume?marker!==expectedPrepared:!marker.startsWith("Meldiq customer-data rehearsal:")))throw new Error("A serving database cannot be refreshed; prepared data requires an exact preactivation resume");
     const native=(await db.query("SELECT (SELECT count(*) FROM meldiq_private.auth_links)+(SELECT count(*) FROM meldiq.auth_device_sessions)+(SELECT count(*) FROM meldiq_private.outbox)+(SELECT count(*) FROM meldiq_private.realtime_grants) AS n")).rows[0].n;
     if(native!==0)throw new Error("Native identity/delivery work must not be overwritten");
     report.phase="exact-before-reconciliation";await reconcile(db,beforeDirectory,before);

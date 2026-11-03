@@ -83,7 +83,11 @@ def main():
     if any(re.search(r'(?m)^      '+key+':', api) for key in keys):
         raise RuntimeError('Unexpected preexisting PostgreSQL configuration')
     api = api.replace('    environment:\n', '    environment:\n' + ''.join('      '+key+': ${'+key+':?}\n' for key in keys) + '      MONGODB_URI: ""\n')
-    api = api.replace('    volumes:\n', '    volumes:\n      - ./database-migration/production-db/root.crt:/run/meldiq-db/root.crt:ro\n      - ./database-migration/production-db/acceptance.json:/run/meldiq-db/acceptance.json:ro\n')
+    volume_item = re.search(r'(?m)^( +)- ', api.split('    volumes:\n', 1)[1])
+    if not volume_item:
+        raise RuntimeError('Existing API volume list required')
+    prefix = volume_item.group(1) + '- '
+    api = api.replace('    volumes:\n', '    volumes:\n' + prefix + './database-migration/production-db/root.crt:/run/meldiq-db/root.crt:ro\n' + prefix + './database-migration/production-db/acceptance.json:/run/meldiq-db/acceptance.json:ro\n')
     candidate = original_compose[:start] + api + original_compose[end:]
     values = {'DATABASE_MODE':'supabase','MONGODB_URI':'','SUPABASE_DATABASE_URL':settings['databaseUrl'],
               'SUPABASE_DATABASE_PROJECT_REF':PROJECT,'SUPABASE_DATABASE_POOL_SIZE':'4',
@@ -117,7 +121,9 @@ def main():
     if args.apply:
         control.frozen(run)
         target = BASE/'database-migration/production-db'
-        target.mkdir(mode=0o700)
+        target.mkdir(mode=0o700, exist_ok=True)
+        if not target.is_dir() or target.is_symlink() or target.stat().st_mode & 0o077:
+            raise RuntimeError('Private production configuration directory required')
         ca = BASE/'database-migration/backup-tools/postgres-root.crt'
         atomic(target/'root.crt',ca.read_text(),0o644)
         atomic(target/'acceptance.json',json.dumps(acceptance)+'\n',0o400)

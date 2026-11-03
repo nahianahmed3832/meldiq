@@ -15,6 +15,29 @@ const project="bkvlxbsnzqkhbifawcww",source="a".repeat(64);
 function folder(){const dir=fs.mkdtempSync(path.join(os.tmpdir(),"meldiq-authority-test-"));directories.push(dir);return dir;}
 afterEach(()=>{for(const dir of directories.splice(0))fs.rmSync(dir,{recursive:true,force:true});});
 describe("database authority commit point",()=>{
+  it("boots production social sign-in on accepted PostgreSQL while keeping customer routes held",async()=>{
+    const storage=await preparePostgresHarness(process.env.MELDIQ_PG_TEST_URL);
+    if(!storage)throw new Error("An owned loopback PostgreSQL database is required");
+    const dir=folder(),before=await tableCounts(storage.database,postgresTableSpecs());
+    const config=loadConfig({DATA_DIR:dir,LOG_LEVEL:"silent",TELEMETRY_TICK_MS:"0",REMINDER_TICK_MS:"0",WORKFLOW_TICK_MS:"0",
+      SUPABASE_AUTH_URL:"https://test-auth.example",SUPABASE_AUTH_PUBLISHABLE_KEY:"sb_publishable_test",
+      SOCIAL_AUTH_PUBLIC_ORIGIN:"https://api.example.invalid",SOCIAL_AUTH_WEB_ORIGIN:"https://web.example.invalid",SOCIAL_AUTH_PROVIDERS:"google"});
+    // Only this owned fixture emulates the already-validated production composition. No hosted URL is accepted here.
+    config.accounts.appEnv="production";config.databaseMode="supabase";
+    storage.database.config.environment="production";storage.database.config.projectRef=project;
+    let built:Awaited<ReturnType<typeof buildApp>>|undefined;
+    try{
+      await expect(buildApp(config,{postgres:storage.database,logger:false})).rejects.toThrow("accepted environment");
+      storage.database.config.productionAcceptance={sourceSha256:source,runtimeRevision:"a".repeat(40),acceptedAt:new Date().toISOString()};
+      built=await buildApp(config,{postgres:storage.database,logger:false});
+      expect(built.ctx.accounts.store.backend).toBe("postgres");
+      expect(built.ctx.accounts.social.provider).toBeTruthy();
+      expect(built.ctx.databaseCutover?.held).toBe(true);
+      expect((await built.app.inject({method:"POST",url:"/v2/account/login",payload:{}})).statusCode).toBe(503);
+      expect(await tableCounts(storage.database,postgresTableSpecs())).toEqual(before);
+      expect(fs.existsSync(path.join(dir,"database-authority.json"))).toBe(false);
+    }finally{await built?.app.close();built?.ctx.db.close();await storage.close();}
+  });
   it("holds effects until the exact source is activated, then resumes safely after restart",async()=>{
     const dir=folder(),gate=new DatabaseCutover(dir,project,source);let starts=0;
     await gate.whenActive(()=>{starts++;});expect(starts).toBe(0);expect(gate.held).toBe(true);

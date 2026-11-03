@@ -56,7 +56,7 @@ def frozen(run):
     current = inspect()
     if (proof['version'] != 1 or proof['runDirectory'] != str(run) or proof['lockPid'] != lock['pid'] or
             current['Id'] != proof['containerId'] or current['Image'] != proof['imageId'] or
-            current['State']['Running'] or current['State']['Status'] != 'exited' or not maintenance()):
+            current['State']['Running'] or current['State']['Status'] != 'exited' or not maintenance() or authority(current).exists()):
         raise RuntimeError('Atlas source freeze is not intact')
     return proof
 
