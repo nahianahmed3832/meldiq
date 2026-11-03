@@ -240,6 +240,15 @@ describe("message durability and outbox recovery",()=>{
     expect(await messages.lastMessageAt(["conversation1"])).toEqual({conversation1:1000});
     expect((await messages.activitySince(["conversation1"],1,10)).topSenders).toEqual([{userId:"user2",count:1}]);
   });
+  it("keeps inbox order, empty previews, visibility and per-conversation caps when batching",async()=>{
+    const preview=event("visible0002",{sender_user_id:"user2",server_ts:1002,payload:'{"mentions":["user1"]}'});
+    await messages.addMany([preview,event("visible0001",{sender_user_id:"user2",server_ts:1001}),
+      event("hidden00003",{sender_user_id:"user2",server_ts:1003,audience:"self"})]);
+    const result=await messages.summaries(["empty","conversation1","empty"],"user1",1);
+    const empty={conversation_id:"empty",last:null,read_up_to:0,unread:0,mentions:0};
+    expect(result).toEqual([empty,{conversation_id:"conversation1",last:preview,read_up_to:0,unread:1,mentions:1},empty]);
+    expect(await messages.summaries([],"user1",1)).toEqual([]);
+  });
   it("orders claims and prevents competing workers from claiming one event",async()=>{
     await messages.addMany([event("message0001"),event("message0002")]);
     const a=new PostgresOutbox(db),b=new PostgresOutbox(db);

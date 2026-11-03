@@ -3,7 +3,9 @@ import { MemoryRows, type PersistedChanges } from "./memory.js";
 import type { TableSpec } from "../mongo/catalog.js";
 import type { MeldiqPostgres } from "../postgres/client.js";
 import { identifier as q } from "../postgres/client.js";
-import type { Query, Row, Where } from "./types.js";
+import type { Query, Row, RowWriter, Where } from "./types.js";
+
+export class ExistingEvent extends Error {}
 
 /** Transitional synchronous repository API, one database writer enforced by a session advisory lock.
  * This preserves existing business rules while individual repositories move to indexed asynchronous SQL.
@@ -63,7 +65,7 @@ export class PostgresRows extends MemoryRows {
     } catch (error) { await lease.query("ROLLBACK").catch(() => undefined); lease.release(true); throw error; }
   }
 
-  protected async persist({ changes, counters }: PersistedChanges): Promise<void> {
+  private parameters({ changes, counters }: PersistedChanges): string[] {
     this.assertAvailable();
     const operations:Record<string,unknown>[]=[];
     for(const change of changes){
@@ -89,7 +91,25 @@ export class PostgresRows extends MemoryRows {
     }
     const serialize=(value:unknown)=>JSON.stringify(value,(_key,value)=>typeof value==="bigint"?value.toString():value);
     // The invoker function preserves operation order and rolls the entire unit back on any failure.
-    await this.lease.query("SELECT meldiq_private.apply_row_changes($1::jsonb,$2::jsonb)",[serialize(operations),serialize(Object.fromEntries(counters))]);
+    return [serialize(operations), serialize(Object.fromEntries(counters))];
+  }
+
+  protected async persist(changes: PersistedChanges): Promise<void> {
+    await this.lease.query("SELECT meldiq_private.apply_row_changes($1::jsonb,$2::jsonb)", this.parameters(changes));
+  }
+
+  /** The insert-only history and complete fanout commit on the leased connection in one statement.
+   * A conflict throws before the queue cache can publish its staged rows or id counter. */
+  writeMessage<T>(event: object, stage: (w: RowWriter) => T): Promise<T> {
+    return this.writeUnit(stage, async changes => {
+      const result = await this.lease.query(
+        `WITH saved AS (INSERT INTO meldiq.message_events
+             SELECT incoming.* FROM jsonb_populate_record(NULL::meldiq.message_events,$3::jsonb) incoming
+             ON CONFLICT (id) DO NOTHING RETURNING id)
+         SELECT meldiq_private.apply_row_changes($1::jsonb,$2::jsonb) FROM saved`,
+        [...this.parameters(changes), JSON.stringify(event)]);
+      if (!result.rowCount) throw new ExistingEvent();
+    });
   }
 
   /** Account/identity operations share this writer and commit together, including nested synchronous business units. */

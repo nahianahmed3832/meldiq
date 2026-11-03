@@ -1,3 +1,4 @@
+import { consumeChallenge } from "../auth/index.js";
 import { requireSignupAllowed, signupMode } from "../../app/platformControls.js";
 import crypto from "node:crypto";
 import { DAY_MS, HOUR_MS, networkKey, openRegistrationsToday, SlidingWindow } from "../../app/middleware/abuse.js";
@@ -646,7 +647,4 @@ function formatResetCode(code: string): string {
   return `${code.slice(0, 5)}-${code.slice(5)}`;
 }
 
-/** Consumes a single-use /v1/auth/challenge nonce. False if unknown, expired or already used. */
-export function consumeChallenge(ctx: AppContext, nonce: string): Promise<boolean> {
-  return ctx.ephemeral.write((w) => w.delete("auth_challenges", { nonce, expires_at: { gt: now() } }) > 0);
-}
+export { consumeChallenge } from "../auth/index.js";

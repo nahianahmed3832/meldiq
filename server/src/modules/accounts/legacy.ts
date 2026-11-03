@@ -63,7 +63,7 @@ export class LegacyMigrationService {
     });
     // Unknown username and wrong key answer alike, so this doesn't reveal which usernames exist.
     const proven = !!user && verifyEd25519(user.identity_key, canonical.legacyMigration(user.username, body.nonce), body.signature);
-    if (!user || !proven || !consumeChallenge(this.ctx, body.nonce)) {
+    if (!user || !proven || !(await consumeChallenge(this.ctx, body.nonce))) {
       const t = now();
       this.failedByUsername.record(body.username, t);
       this.failedByNetwork.record(network, t);

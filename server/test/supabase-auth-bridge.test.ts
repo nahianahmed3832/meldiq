@@ -161,11 +161,12 @@ describe("staged Supabase Auth/device migration", () => {
       await storage.database.query(`CREATE FUNCTION meldiq_private.test_auth_binding_failure() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic failure'; END $$;
         CREATE TRIGGER test_auth_binding_failure AFTER INSERT ON meldiq.auth_device_sessions FOR EACH ROW EXECUTE FUNCTION meldiq_private.test_auth_binding_failure();`);
       const proof = await f.proof();
+      const existing = f.h.ctx.ephemeral.count("auth_challenges");
       try {
         expect((await f.request("POST", "/v3/auth/legacy-link", {legacyAccessToken: f.person.accessToken, ...proof})).statusCode).toBe(500);
         expect((await storage.database.query("SELECT 1 FROM meldiq_private.auth_links WHERE auth_user_id=$1", [f.authUserId])).rowCount).toBe(0);
         expect(f.h.ctx.postgres!.rows.get("auth_device_sessions", {id: f.sessionId})).toBeUndefined();
-        expect(f.h.ctx.ephemeral.get("auth_challenges", {nonce: proof.nonce})).toBeDefined();
+        expect(f.h.ctx.ephemeral.count("auth_challenges")).toBe(existing);
       } finally {await storage.database.query("DROP TRIGGER test_auth_binding_failure ON meldiq.auth_device_sessions; DROP FUNCTION meldiq_private.test_auth_binding_failure()");}
       expect((await f.request("POST", "/v3/auth/legacy-link", {legacyAccessToken: f.person.accessToken, ...proof})).statusCode).toBe(200);
     } finally {await f.h.close();}

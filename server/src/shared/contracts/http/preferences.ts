@@ -85,6 +85,8 @@ export const SavedItem = z.strictObject({
 });
 
 const prefsFields = {
+  /** Optional locale in the personal document. Null advertises support without selecting a language. */
+  locale: z.enum(["system", "en", "bn", "hi", "ur", "zh-CN", "zh-TW", "ja", "ko", "id", "vi", "th", "ar", "tr", "pt-BR", "es-419", "es-ES", "fr", "de", "it", "nl", "pl", "ru", "uk", "ro", "sv", "cs", "el", "pt-PT"]).nullable().optional(),
   starred: z.array(zConversationId).max(PREFS_LIMITS.starred).default([]),
   sections: z.array(NavSection).max(PREFS_LIMITS.sections).default([]),
   collapsed: z.array(zGroupKey).max(PREFS_LIMITS.collapsed).default([]),

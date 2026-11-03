@@ -19,6 +19,12 @@ export class PostgresRelayStore implements RelayStore {
       return this.insert(writer, items);
     });
   }
+  async acceptEvent(event: import("../store/messageStore.js").MessageEvent, submission: Submission, items: QueueInsert[]): Promise<QueueItemRow[]> {
+    return this.rows.writeMessage(event, writer => {
+      if (!writer.insert("submitted_messages", {...submission}, {orIgnore: true}).inserted) throw new DuplicateSubmission(submission.message_id);
+      return this.insert(writer, items);
+    });
+  }
   async enqueue(items: QueueInsert[]): Promise<QueueItemRow[]> { return this.rows.write(writer => this.insert(writer, items)); }
   private insert(writer: RowWriter, items: QueueInsert[]): QueueItemRow[] {
     const result: QueueItemRow[] = [];

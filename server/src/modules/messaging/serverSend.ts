@@ -5,6 +5,8 @@ import type { AppContext } from "../../app/context.js";
 import { ApiError, badRequest, conflict } from "../../shared/errors.js";
 import { now } from "../../shared/utilities/util.js";
 import { rowsByIds } from "../../infrastructure/database/byIds.js";
+import { ExistingEvent } from "../../infrastructure/database/rows/postgresRows.js";
+import { PostgresRelayStore } from "./relay/postgresStore.js";
 import { DuplicateSubmission, type QueueInsert } from "./relay/store.js";
 import type { MessageEvent } from "./store/messageStore.js";
 import { memberUsers } from "./memberUsers.js";
@@ -90,108 +92,131 @@ export async function sendServerMessage(ctx: AppContext, sender: Sender, m: Send
     }
     return { messageId: m.messageId, serverTs: prior.server_ts, duplicate: true };
   };
-  const earlier = await retry();
-  if (earlier) return earlier;
+  const atomicRelay = ctx.postgres?.database.config.deliveryMode === "legacy" && ctx.relay instanceof PostgresRelayStore ? ctx.relay : null;
+  if (!atomicRelay || await atomicRelay.submission(m.messageId)) {
+    const earlier = await retry();
+    if (earlier) return earlier;
+  }
+  let committed = false;
+  const submit = async () => {
 
-  const attachmentIds = (m.cls === "message" || type === "edit")
-    ? await messageAttachments(ctx, userId, conv.id, conv.org_id, m.payload.attachments) : [];
+    const attachmentIds = (m.cls === "message" || type === "edit")
+      ? await messageAttachments(ctx, userId, conv.id, conv.org_id, m.payload.attachments) : [];
 
-  // A change to a message: only to one in this conversation, and edits, deletions and closing a poll only by its sender.
-  // Community parity A1: a channel's moderators also delete other people's messages.
-  const target = typeof m.payload.target === "string" ? m.payload.target : null;
-  if (m.cls === "control" && target && AUTHOR_ONLY.has(type)) {
-    const t = await ctx.messages.get(target);
-    if (!t || t.conversation_id !== conv.id) throw new ApiError(404, "not_found", "That message isn't in this conversation");
-    if (t.sender_user_id !== userId && !(type === "delete" && moderatesMessage(ctx, conv, userId, t))) {
-      throw new ApiError(403, "not_yours", "Only the person who sent a message can change it");
+    // A change to a message: only to one in this conversation, and edits, deletions and closing a poll only by its sender.
+    // Community parity A1: a channel's moderators also delete other people's messages.
+    const target = typeof m.payload.target === "string" ? m.payload.target : null;
+    if (m.cls === "control" && target && AUTHOR_ONLY.has(type)) {
+      const t = await ctx.messages.get(target);
+      if (!t || t.conversation_id !== conv.id) throw new ApiError(404, "not_found", "That message isn't in this conversation");
+      if (t.sender_user_id !== userId && !(type === "delete" && moderatesMessage(ctx, conv, userId, t))) {
+        throw new ApiError(403, "not_yours", "Only the person who sent a message can change it");
+      }
     }
-  }
-  if (m.cls === "message" && target) throw badRequest("A message can't target another one");
-  // Community parity A1: what a message may carry in this channel (links, polls, threads, new reactions, pins...). A
-  // webhook's post was checked by the webhook's own limits instead.
-  if (!granted) await admitChannelContent(ctx, conv, userId, m);
+    if (m.cls === "message" && target) throw badRequest("A message can't target another one");
+    // Community parity A1: what a message may carry in this channel (links, polls, threads, new reactions, pins...). A
+    // webhook's post was checked by the webhook's own limits instead.
+    if (!granted) await admitChannelContent(ctx, conv, userId, m);
 
-  const { request, quietFor, dropFor, mentionAll } = await admitPost(ctx, conv, userId, m.cls, m.mentionAll === true);
-  const selfOnly = m.audience === "self";
-  if (selfOnly && m.cls !== "control") throw badRequest("Only controls can be sent to your own devices alone");
+    const { request, quietFor, dropFor, mentionAll } = await admitPost(ctx, conv, userId, m.cls, m.mentionAll === true);
+    const selfOnly = m.audience === "self";
+    if (selfOnly && m.cls !== "control") throw badRequest("Only controls can be sent to your own devices alone");
 
-  const t = now();
-  const event: MessageEvent = {
-    id: m.messageId,
-    conversation_id: conv.id,
-    sender_user_id: userId,
-    sender_device_id: deviceId,
-    cls: m.cls,
-    type,
-    target,
-    audience: selfOnly ? "self" : "all",
-    payload,
-    sent_at: m.sentAt,
-    server_ts: t,
-    mention_all: mentionAll ? 1 : 0,
-    imported_by: null,
+    const t = now();
+    const event: MessageEvent = {
+      id: m.messageId,
+      conversation_id: conv.id,
+      sender_user_id: userId,
+      sender_device_id: deviceId,
+      cls: m.cls,
+      type,
+      target,
+      audience: selfOnly ? "self" : "all",
+      payload,
+      sent_at: m.sentAt,
+      server_ts: t,
+      mention_all: mentionAll ? 1 : 0,
+      imported_by: null,
+    };
+    // Who gets it: every active device of the current members (the sender's other devices too), except people who
+    // blocked the sender and the recipient of a declined message request; a self-only control, the sender's own.
+    const people = memberUsers<{ id: string; disabled_at: number | null; kind: string }>(ctx, conv.id, "id, disabled_at, kind")
+      .map(({ user }) => user)
+      .filter((u) => u.disabled_at == null && u.kind === "person" && (!selfOnly || u.id === userId));
+    const blockedBy = new Set(ctx.identity.all<{ user_id: string }>("user_blocks", { where: { blocked_user_id: userId } }).map((r) => r.user_id));
+    const devices = rowsByIds<{ id: string; user_id: string; revoked_at: number | null }>(
+      ctx.identity,
+      "devices",
+      "user_id",
+      people.map((u) => u.id),
+      "id, user_id, revoked_at",
+    ).filter((d) => d.revoked_at == null && d.id !== deviceId && !blockedBy.has(d.user_id) && !dropFor.has(d.user_id));
+    const expiresAt = t + ctx.config.queueTtlSeconds * 1000;
+    const wire = JSON.stringify({ v: 2, event: eventToWire(event) });
+    const items: QueueInsert[] = devices.map((d) => ({
+      recipient_device_id: d.id,
+      kind: "message",
+      conversation_id: conv.id,
+      message_id: m.messageId,
+      sender_user_id: userId,
+      sender_device_id: relayDevice,
+      payload: wire,
+      created_at: t,
+      expires_at: expiresAt,
+    }));
+    let queued;
+    const submission = { message_id: m.messageId, sender_device_id: relayDevice, sender_user_id: userId, conversation_id: conv.id, recipient_count: items.length, server_ts: t, expires_at: expiresAt };
+    if (atomicRelay) {
+      queued = await atomicRelay.acceptEvent(event, submission, items);
+    } else {
+      if (!(await ctx.messages.add(event))) {
+        const dup = await retry();
+        if (dup) return dup;
+        throw conflict("Message id collision");
+      }
+      try {
+        queued = await ctx.relay.accept(
+          submission,
+          items,
+        );
+      } catch (err) {
+        // Stored already: a concurrent acceptance of the same id queued it.
+        if (err instanceof DuplicateSubmission) return { messageId: m.messageId, serverTs: t, duplicate: true };
+        throw err;
+      }
+    }
+    committed = true;
+    await recordPost(ctx, conv.id, userId, m.messageId, m.cls, mentionAll, t);
+    const ownerOf = new Map(devices.map((d) => [d.id, d.user_id]));
+    // Controls (reactions, read markers, call keys) don't wake a sleeping phone; messages do, unless it's a request's.
+    for (const row of queued) ctx.hub.pushQueued(row.recipient_device_id, [row], { wake: m.cls === "message" && !quietFor.has(ownerOf.get(row.recipient_device_id) ?? "") });
+    if (request?.state === "pending" && m.cls === "message") await ctx.relationships.countSent(conv.id);
+    await retainMessageAttachments(ctx, attachmentIds, m.messageId).catch((err) => log.warn({ err }, "attachment retention will be retried by history keep"));
+    // Posting tools: a reaction may give or take a reaction role, a deleted message takes its reaction roles with it.
+    // Like points, this never fails a message that was accepted.
+    if (m.cls === "control" && conv.org_id) {
+      await ctx.reactionRoles.noteChange({ orgId: conv.org_id, conversationId: conv.id, userId, payload: m.payload }).catch((err: unknown) => log.warn({ err }, "reaction roles: change not applied"));
+    }
+    // Community parity batch D: official bots see what happens in community channels (commands, XP, logs, stars). This
+    // only queues it: the bots act after the message was accepted and can never fail it.
+    if (conv.org_id && !selfOnly) ctx.officialBots.noteMessage({ orgId: conv.org_id, conversationId: conv.id, userId, messageId: m.messageId, cls: m.cls, payload: m.payload, at: t });
+    // API 0.65.0: chat minutes and the daily quests. Points never hold up or fail a message: a failure is only logged.
+    if (!selfOnly) {
+      await ctx.points
+        .noteMessage({ userId, conversationId: conv.id, messageId: m.messageId, cls: m.cls, payload: m.payload, at: t })
+        .catch((err) => log.warn({ err }, "points: message not counted"));
+    }
+    return { messageId: m.messageId, serverTs: t, duplicate: false };
   };
-  // Who gets it: every active device of the current members (the sender's other devices too), except people who
-  // blocked the sender and the recipient of a declined message request; a self-only control, the sender's own.
-  const people = memberUsers<{ id: string; disabled_at: number | null; kind: string }>(ctx, conv.id, "id, disabled_at, kind")
-    .map(({ user }) => user)
-    .filter((u) => u.disabled_at == null && u.kind === "person" && (!selfOnly || u.id === userId));
-  const blockedBy = new Set(ctx.identity.all<{ user_id: string }>("user_blocks", { where: { blocked_user_id: userId } }).map((r) => r.user_id));
-  const devices = rowsByIds<{ id: string; user_id: string; revoked_at: number | null }>(
-    ctx.identity,
-    "devices",
-    "user_id",
-    people.map((u) => u.id),
-    "id, user_id, revoked_at",
-  ).filter((d) => d.revoked_at == null && d.id !== deviceId && !blockedBy.has(d.user_id) && !dropFor.has(d.user_id));
-  const expiresAt = t + ctx.config.queueTtlSeconds * 1000;
-  const wire = JSON.stringify({ v: 2, event: eventToWire(event) });
-  const items: QueueInsert[] = devices.map((d) => ({
-    recipient_device_id: d.id,
-    kind: "message",
-    conversation_id: conv.id,
-    message_id: m.messageId,
-    sender_user_id: userId,
-    sender_device_id: relayDevice,
-    payload: wire,
-    created_at: t,
-    expires_at: expiresAt,
-  }));
-  if (!(await ctx.messages.add(event))) {
-    const dup = await retry();
-    if (dup) return dup;
-    throw conflict("Message id collision");
-  }
-  let queued;
-  try {
-    queued = await ctx.relay.accept(
-      { message_id: m.messageId, sender_device_id: relayDevice, sender_user_id: userId, conversation_id: conv.id, recipient_count: items.length, server_ts: t, expires_at: expiresAt },
-      items,
-    );
-  } catch (err) {
-    // Stored already: a concurrent acceptance of the same id queued it.
-    if (err instanceof DuplicateSubmission) return { messageId: m.messageId, serverTs: t, duplicate: true };
+  try { return await submit(); }
+  catch (err) {
+    if (atomicRelay && !committed && (err instanceof ApiError || err instanceof ExistingEvent || err instanceof DuplicateSubmission)) {
+      // Older/imported events may no longer have a relay marker. Preserve the original retry result
+      // even when a current posting rule would refuse the same request.
+      const duplicate = await retry();
+      if (duplicate) return duplicate;
+      if (err instanceof ExistingEvent || err instanceof DuplicateSubmission) throw conflict("Message id collision");
+    }
     throw err;
   }
-  await recordPost(ctx, conv.id, userId, m.messageId, m.cls, mentionAll, t);
-  const ownerOf = new Map(devices.map((d) => [d.id, d.user_id]));
-  // Controls (reactions, read markers, call keys) don't wake a sleeping phone; messages do, unless it's a request's.
-  for (const row of queued) ctx.hub.pushQueued(row.recipient_device_id, [row], { wake: m.cls === "message" && !quietFor.has(ownerOf.get(row.recipient_device_id) ?? "") });
-  if (request?.state === "pending" && m.cls === "message") await ctx.relationships.countSent(conv.id);
-  await retainMessageAttachments(ctx, attachmentIds, m.messageId).catch((err) => log.warn({ err }, "attachment retention will be retried by history keep"));
-  // Posting tools: a reaction may give or take a reaction role, a deleted message takes its reaction roles with it.
-  // Like points, this never fails a message that was accepted.
-  if (m.cls === "control" && conv.org_id) {
-    await ctx.reactionRoles.noteChange({ orgId: conv.org_id, conversationId: conv.id, userId, payload: m.payload }).catch((err: unknown) => log.warn({ err }, "reaction roles: change not applied"));
-  }
-  // Community parity batch D: official bots see what happens in community channels (commands, XP, logs, stars). This
-  // only queues it: the bots act after the message was accepted and can never fail it.
-  if (conv.org_id && !selfOnly) ctx.officialBots.noteMessage({ orgId: conv.org_id, conversationId: conv.id, userId, messageId: m.messageId, cls: m.cls, payload: m.payload, at: t });
-  // API 0.65.0: chat minutes and the daily quests. Points never hold up or fail a message: a failure is only logged.
-  if (!selfOnly) {
-    await ctx.points
-      .noteMessage({ userId, conversationId: conv.id, messageId: m.messageId, cls: m.cls, payload: m.payload, at: t })
-      .catch((err) => log.warn({ err }, "points: message not counted"));
-  }
-  return { messageId: m.messageId, serverTs: t, duplicate: false };
 }

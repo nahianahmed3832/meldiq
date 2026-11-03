@@ -72,13 +72,34 @@ export class PostgresMessageStore implements MessageStore {
       AND audience='all' AND strpos(lower(meldiq_private.event_payload(payload)->>'text'),lower($2))>0 ORDER BY server_ts DESC,id DESC LIMIT $3`, [ids,query.trim(),limit])).rows;
   }
   async summaries(ids: readonly string[], userId: string, cap: number): Promise<ConversationSummary[]> {
-    return Promise.all(ids.map(async id => {
-      const last = (await this.db.query<MessageEvent>(`SELECT ${columns} FROM meldiq.message_events WHERE conversation_id=$1 AND ${visible} AND cls='message' ORDER BY server_ts DESC,id DESC LIMIT 1`,[id,userId])).rows[0]??null;
-      const read = await this.db.query<{up: number}>(`SELECT coalesce(max(meldiq_private.read_position(payload)),0) AS up FROM meldiq.message_events WHERE conversation_id=$1 AND sender_user_id=$2 AND cls='control' AND type='read'`,[id,userId]);
-      const up = read.rows[0].up;
-      const unread = await this.db.query<{ mention_all: number; payload: string }>(`SELECT mention_all,payload FROM meldiq.message_events WHERE conversation_id=$1 AND sender_user_id<>$2 AND audience='all'
-        AND cls='message' AND server_ts>$3 AND imported_by IS NULL ORDER BY server_ts DESC,id DESC LIMIT $4`,[id,userId,up,cap]);
-      return { conversation_id:id,last,read_up_to:up,unread:unread.rows.length,mentions:unread.rows.filter(r=>r.mention_all===1 || (JSON.parse(r.payload).mentions??[]).includes(userId)).length };
+    if (!ids.length) return [];
+    type SummaryRow = MessageEvent & {
+      scope_id: string; read_up_to: number; unread_events: { mention_all: number; payload: string }[];
+    };
+    // Keep each conversation's indexed LIMIT and return all summaries from one database snapshot.
+    const result = await this.db.query<SummaryRow>(`SELECT scope.id AS scope_id, latest.*, marker.read_up_to, unseen.unread_events
+      FROM unnest($1::text[]) WITH ORDINALITY AS scope(id, position)
+      LEFT JOIN LATERAL (
+        SELECT ${columns} FROM meldiq.message_events
+        WHERE conversation_id=scope.id AND ${visible} AND cls='message'
+        ORDER BY server_ts DESC,id DESC LIMIT 1
+      ) latest ON true
+      CROSS JOIN LATERAL (
+        SELECT coalesce(max(meldiq_private.read_position(payload)),0) AS read_up_to
+        FROM meldiq.message_events WHERE conversation_id=scope.id AND sender_user_id=$2 AND cls='control' AND type='read'
+      ) marker
+      CROSS JOIN LATERAL (
+        SELECT coalesce(json_agg(events),'[]') AS unread_events FROM (
+          SELECT mention_all,payload FROM meldiq.message_events
+          WHERE conversation_id=scope.id AND sender_user_id<>$2 AND audience='all'
+            AND cls='message' AND server_ts>marker.read_up_to AND imported_by IS NULL
+          ORDER BY server_ts DESC,id DESC LIMIT $3
+        ) events
+      ) unseen ORDER BY scope.position`, [ids,userId,cap]);
+    return result.rows.map(({ scope_id, read_up_to, unread_events, ...last }) => ({
+      conversation_id: scope_id, last: last.id === null ? null : last, read_up_to,
+      unread: unread_events.length,
+      mentions: unread_events.filter(r => r.mention_all === 1 || (JSON.parse(r.payload).mentions ?? []).includes(userId)).length,
     }));
   }
   async changesTo(id: string, target: string, type: string): Promise<MessageEvent[]> {

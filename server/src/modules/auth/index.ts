@@ -5,6 +5,7 @@ import { now, sha256Hex } from "../../shared/utilities/util.js";
 import type { SupabasePrincipal } from "../../infrastructure/database/postgres/auth.js";
 
 export { revokeUserDevice } from "./routes.js";
+export { consumeChallenge } from "./challenge.js";
 
 /**
  * The auth module's public API: who a request or a WebSocket is. A bearer token is either a v1 session token (device

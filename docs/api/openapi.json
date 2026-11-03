@@ -31194,6 +31194,47 @@
                     "prefs": {
                       "type": "object",
                       "properties": {
+                        "locale": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "system",
+                                "en",
+                                "bn",
+                                "hi",
+                                "ur",
+                                "zh-CN",
+                                "zh-TW",
+                                "ja",
+                                "ko",
+                                "id",
+                                "vi",
+                                "th",
+                                "ar",
+                                "tr",
+                                "pt-BR",
+                                "es-419",
+                                "es-ES",
+                                "fr",
+                                "de",
+                                "it",
+                                "nl",
+                                "pl",
+                                "ru",
+                                "uk",
+                                "ro",
+                                "sv",
+                                "cs",
+                                "el",
+                                "pt-PT"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "starred": {
                           "default": [],
                           "maxItems": 200,
@@ -31567,6 +31608,47 @@
                     "prefs": {
                       "type": "object",
                       "properties": {
+                        "locale": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "system",
+                                "en",
+                                "bn",
+                                "hi",
+                                "ur",
+                                "zh-CN",
+                                "zh-TW",
+                                "ja",
+                                "ko",
+                                "id",
+                                "vi",
+                                "th",
+                                "ar",
+                                "tr",
+                                "pt-BR",
+                                "es-419",
+                                "es-ES",
+                                "fr",
+                                "de",
+                                "it",
+                                "nl",
+                                "pl",
+                                "ru",
+                                "uk",
+                                "ro",
+                                "sv",
+                                "cs",
+                                "el",
+                                "pt-PT"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "starred": {
                           "default": [],
                           "maxItems": 200,
@@ -31904,6 +31986,47 @@
                   "prefs": {
                     "type": "object",
                     "properties": {
+                      "locale": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "system",
+                              "en",
+                              "bn",
+                              "hi",
+                              "ur",
+                              "zh-CN",
+                              "zh-TW",
+                              "ja",
+                              "ko",
+                              "id",
+                              "vi",
+                              "th",
+                              "ar",
+                              "tr",
+                              "pt-BR",
+                              "es-419",
+                              "es-ES",
+                              "fr",
+                              "de",
+                              "it",
+                              "nl",
+                              "pl",
+                              "ru",
+                              "uk",
+                              "ro",
+                              "sv",
+                              "cs",
+                              "el",
+                              "pt-PT"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
                       "starred": {
                         "default": [],
                         "maxItems": 200,
