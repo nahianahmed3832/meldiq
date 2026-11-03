@@ -109,7 +109,9 @@ export class Accounts {
     this.totp = new TotpService(ctx, ctx.config.platformSecretsKey);
     this.service.secondFactor = (accountId, code) => this.totp.checkSignIn(accountId, code);
     this.emailChange = new EmailChangeService(ctx, this.service);
-    if (ctx.config.socialAuth?.providers.length && ctx.config.accounts.appEnv === "production" && this.store.backend !== "mongodb") throw new Error("Production social sign-in requires the existing MongoDB accounts domain; no account database is migrated automatically");
+    const acceptedPostgres = this.store.backend === "postgres" && ctx.config.databaseMode === "supabase" &&
+      ctx.postgres?.database.config.environment === "production" && !!ctx.postgres.database.config.productionAcceptance;
+    if (ctx.config.socialAuth?.providers.length && ctx.config.accounts.appEnv === "production" && this.store.backend !== "mongodb" && !acceptedPostgres) throw new Error("Production social sign-in requires a verified PostgreSQL runtime or the existing MongoDB accounts domain; no account database is migrated automatically");
     this.social = new SocialAuth(ctx, ctx.config.socialAuth);
   }
 
