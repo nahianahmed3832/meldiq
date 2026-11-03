@@ -18,7 +18,15 @@ export interface BlobRange {
   end: number;
 }
 
+export interface PreviousUploadOrigin {
+  direct: DirectUploads;
+  olderDesktop: boolean;
+  owns(id: string): boolean;
+  publish(id: string, size: number, sha256: string): Promise<void>;
+}
+
 export interface BlobStore {
+  readonly previousUploads?: PreviousUploadOrigin;
   readonly backend: "local" | "s3";
   /** Where uploads are written while they are received and checked, before they enter the store. */
   readonly spoolDir: string;
@@ -29,7 +37,7 @@ export interface BlobStore {
   exists(kind: BlobKind, id: string): Promise<boolean>;
   delete(kind: BlobKind, id: string): Promise<void>;
   /** A short-lived link the client can download from directly (S3 with presigned downloads on); null to stream through the server. */
-  presignedGet(kind: BlobKind, id: string): Promise<string | null>;
+  presignedGet(kind: BlobKind, id: string, head?: boolean): Promise<string | null>;
   /** Uploads straight from the app to the store with presigned requests (S3 only); null when the store can't. */
   readonly direct: DirectUploads | null;
   /** Ids of stored attachments, for the orphan check (admin CLI). */

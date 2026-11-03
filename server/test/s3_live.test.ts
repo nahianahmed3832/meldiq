@@ -10,6 +10,7 @@ import { readAll } from "../src/infrastructure/storage/blobstore.js";
 import type { S3BlobStore } from "../src/infrastructure/storage/s3.js";
 import type { GriipClient } from "./support/griipClient.js";
 import { expectStatus, type Harness, startServer } from "./support/harness.js";
+import { mediaDeliveryConfig } from "../src/infrastructure/storage/mediaDelivery.js";
 import { expireUploadSessions } from "./support/files.js";
 
 /**
@@ -121,6 +122,33 @@ describe.skipIf(!BUCKET)("real S3 test bucket", () => {
     expect(ranged.status).toBe(206);
     await expectStatus(eve.req("GET", `/v1/attachments/${done.id}`), 404);
   }, 60_000);
+
+  it("streams an authorized Frankfurt-style range and HEAD through the private edge implementation", async () => {
+    const { deliver } = await import("../../deploy/media-worker/worker.mjs");
+    const item = kept[0];
+    const cfg = mediaDeliveryConfig({MEDIA_PUBLIC_BASE_URL:"https://media.meldiq.app",MEDIA_GRANT_KEY:"34".repeat(32),MEDIA_EDGE_SECRET:"56".repeat(32)})!;
+    const previous = h.ctx.config.storage.delivery;
+    h.ctx.config.storage.delivery = cfg;
+    try {
+      const path = "/v1/attachments/" + item.id;
+      const issue = (token: string) => fetch(h.baseUrl + path, {headers:{authorization:"Bearer "+token},redirect:"manual"});
+      expect((await issue(eve.token!)).status).toBe(404);
+      const member = await issue(bob.token!);
+      expect(member.status).toBe(302);
+      const url = member.headers.get("location")!;
+      const workerEnv = {MEDIA_EDGE_SECRET:cfg.edge,S3_ORIGIN:`https://${BUCKET}.s3.${REGION}.amazonaws.com`,S3_PREFIX:PREFIX};
+      const transport = (target: string, options: RequestInit) => fetch(target.startsWith("https://msg.meldiq.app/") ? h.baseUrl + new URL(target).pathname : target,options);
+      const response = await deliver(new Request(url,{headers:{range:"bytes=2-7"}}),workerEnv,transport);
+      expect(response.status).toBe(206);
+      expect(Buffer.from(await response.arrayBuffer())).toEqual(item.ct.subarray(2,8));
+      expect(response.headers.get("cache-control")).toBe("private, no-store");
+      const head = await deliver(new Request(url,{method:"HEAD"}),workerEnv,transport);
+      expect(head.status).toBe(200);
+      expect(head.headers.get("content-length")).toBe(String(item.ct.length));
+      const conditional = await deliver(new Request(url,{headers:{"if-none-match":head.headers.get("etag")!}}),workerEnv,transport);
+      expect(conditional.status).toBe(304);
+    } finally { h.ctx.config.storage.delivery=previous; }
+  },60_000);
 
   it("S3 itself refuses other bytes, another size, a missing no-overwrite condition, and overwrites", async () => {
     const body = crypto.randomBytes(20_000);

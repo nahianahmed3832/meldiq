@@ -10,6 +10,7 @@ import type { BlobKind, BlobRange, BlobStore } from "./blobstore.js";
 export class FallbackBlobStore implements BlobStore {
   readonly backend: BlobStore["backend"];
   readonly spoolDir: string;
+  readonly previousUploads: BlobStore["previousUploads"];
   readonly direct: BlobStore["direct"];
 
   constructor(
@@ -19,6 +20,7 @@ export class FallbackBlobStore implements BlobStore {
     this.backend = primary.backend;
     this.spoolDir = primary.spoolDir;
     this.direct = primary.direct;
+    this.previousUploads = primary.previousUploads;
   }
 
   putFile(kind: BlobKind, id: string, file: string, size: number, sha256Hex?: string): Promise<void> {
@@ -38,9 +40,9 @@ export class FallbackBlobStore implements BlobStore {
   }
 
   /** A link from whichever store holds the file (only S3 gives one); null streams it through the server. */
-  async presignedGet(kind: BlobKind, id: string): Promise<string | null> {
-    if (await this.primary.exists(kind, id)) return this.primary.presignedGet(kind, id);
-    if (await this.fallback.exists(kind, id)) return this.fallback.presignedGet(kind, id);
+  async presignedGet(kind: BlobKind, id: string, head = false): Promise<string | null> {
+    if (await this.primary.exists(kind, id)) return this.primary.presignedGet(kind, id, head);
+    if (await this.fallback.exists(kind, id)) return this.fallback.presignedGet(kind, id, head);
     return null;
   }
 
