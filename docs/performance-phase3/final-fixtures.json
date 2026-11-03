@@ -1,0 +1,12 @@
+{
+  "note": "The final staged host matched this checkout byte for byte.",
+  "sha256": {
+    "standby-boot.mjs": "75f67ca4b4d5d32ac577eab3659ac35821abfe9f5d29151390a9bfc4a9cbd5cf",
+    "handoff.mjs": "f3acc7232945fed994a8571776c328565d655b130ef985ab6fdc53555077a323",
+    "client.mjs": "dea6a9ca848a44f698a8a8ddbc999dc214a104526ee1c797fb3d1c6f552cede3",
+    "rehearse.py": "ee03046d7ce83bb1a56cdadc0524d23396adcd1b47f7121714dff762f42e47c7",
+    "owned-normal.mjs": "aa954a5473a4dd27c42aa0bedf84be34a83e47cad00333e8fc77ca66db7dea83",
+    "owned-pg-wire.mjs": "7edaa6547a05907b8953072c9838bb76b508c7620f451efe4ceee89fc3f67acb",
+    "park.mjs": "1eae446302826eec46ff0d67d6a093b5ae484ec03bc85b54ff0a6898b63a2554"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "source": "Phase 2 regional-percentiles.json",
+  "sourceSHA256": "50bb31e1c9c27a84c7b18f9a99cf91435c4026e8ae4803c70f0ade6d5e841a26",
+  "release": "b9e6f005",
+  "metric": "signed-in inbox client end-to-end, 500 measured requests per region, separate warmups",
+  "regions": {
+    "eu-central-1": {
+      "n": 500,
+      "p50": 530.25,
+      "p75": 675.32,
+      "p90": 709.46,
+      "p95": 762.69,
+      "p99": 1068.01
+    },
+    "ap-southeast-1": {
+      "n": 500,
+      "p50": 348.24,
+      "p75": 383.27,
+      "p90": 512.92,
+      "p95": 549.38,
+      "p99": 852.62
+    },
+    "ap-northeast-1": {
+      "n": 500,
+      "p50": 414.88,
+      "p75": 457.98,
+      "p90": 578.54,
+      "p95": 682.86,
+      "p99": 882.15
+    }
+  }
+}

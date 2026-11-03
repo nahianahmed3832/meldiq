@@ -1,0 +1,1 @@
+{"writer": "b9e6f005", "metric": "Fastify origin processing; real and synthetic requests share this interval; no network latency or alternate production writer", "fromUTC": "2026-11-03T12:51:53+00:00", "untilUTC": "2026-11-03T13:51:53.617831+00:00", "successes": 30, "non200": {"503": 3, "401": 1}, "p50Ms": 224.78, "p95Ms": 1609.97, "p99Ms": 1673.83}

@@ -32,18 +32,59 @@ PostgresRows.open=async function(db,specs){
    catch(e){if(!['53300','ECONNRESET'].includes(e.code)||Date.now()+5000>=plan.expires)throw e;await pause(4000);}
  }
  if(!prepared)throw Error('could not reserve read-only preparation');
- const spare=await db.connect();try{await spare.query('SELECT 1');}finally{spare.release();}
+ const pinned=plan.pinnedSession===true;
+ if(pinned&&!plan.waitForRelease)throw Error('pinned lease requires a fenced handoff');
+ let reserved=await db.connect();
+ try{
+   if(pinned)await reserved.query("SET lock_timeout='3750ms'");
+   else await reserved.query('SELECT 1');
+ }catch(e){reserved.release(true);throw e;}
+ if(!pinned){reserved.release();reserved=null;}
+ try{
  fs.writeFileSync(dir+'/prepared-'+slot,plan.nonce,{mode:0o600,flag:'wx'});
  const deadline=Math.min(plan.expires,Date.now()+20000);
  while(!fs.existsSync(dir+'/start-'+slot)&&Date.now()<deadline)await pause(5);
  if(Date.now()>=deadline||read(dir+'/start-'+slot)!==plan.nonce)throw Error('standby not released for this attempt');
- PreparedPages.prototype.reconcile=function(...args){
+ PreparedPages.prototype.reconcile=async function(...args){
    PreparedPages.prototype.reconcile=normalReconcile;
    // open() has acquired the exclusive writer lease. No prepared reader performs writes.
-   const count=Math.max(0,Math.min(4,(db.config.maxConnections??5)-2));
+   const count=Math.max(0,Math.min(4,(db.config.maxConnections??5)-(pinned?1:2)));
    void Promise.allSettled(Array.from({length:count},async()=>{const c=await db.connect();c.release();}));
-   return normalReconcile.apply(this,args);
+   const states=await normalReconcile.apply(this,args);
+   // Exact tuple verification has completed in the writer's own repeatable snapshot.
+   // No later read depends on the old snapshot. Free its slot while the writer is
+   // still streaming the other tables, so the final service connection can warm now.
+   if(pinned)this.discard();
+   return states;
  };
- return normalOpen.call(PostgresRows,db,specs);
+ if(plan.waitForRelease===true){
+   // The incumbent may still be closing its jobs when the private operator opens
+   // the gate. Wait on the *same physical session* that normal open() will use;
+   // its own advisory-lock check is then reentrant. Both holds end on close/destroy.
+   const connect=db.connect;
+   db.connect=async function(){
+     db.connect=connect;
+     const lease=reserved??await connect.call(db);
+     reserved=null;
+     if(pinned){
+       const query=lease.query;
+       lease.query=function(sql,...args){
+         lease.query=query;
+         if(args.length||sql!=="SELECT pg_try_advisory_lock(hashtextextended('meldiq-rows-writer', 0)) AS locked")
+           throw Error('unexpected pinned writer protocol');
+         // The pinned image must perform its usual try-lock. Wait and re-check on the
+         // same backend in one round trip. A failure destroys this session in normalOpen.
+         return query.call(lease,"WITH acquired AS MATERIALIZED (SELECT pg_advisory_lock(hashtextextended('meldiq-rows-writer',0))) SELECT pg_try_advisory_lock(hashtextextended('meldiq-rows-writer',0)) AS locked, set_config('lock_timeout','0',false) AS reset FROM acquired");
+       };
+       return lease;
+     }
+     try{
+       await lease.query("SET lock_timeout='3750ms'; SELECT pg_advisory_lock(hashtextextended('meldiq-rows-writer',0)); RESET lock_timeout");
+       return lease;
+     }catch(e){lease.release(true);throw e;}
+   };
+ }
+ return await normalOpen.call(PostgresRows,db,specs);
+ }finally{reserved?.release(true);}
 };
 await import('/app/dist/index.js');

@@ -2,9 +2,9 @@
 import datetime,fcntl,json,os,pathlib,subprocess,sys,urllib.request
 from contextlib import ExitStack
 lab=pathlib.Path('/opt/griip-internal-messaging/releases/phase3-lab'); lab=lab.resolve(strict=True)
-reserve=sys.argv[1:]==['--reserve']
-if sys.argv[1:] not in ([],['--reserve']):raise SystemExit('use --reserve or no arguments')
-out=lab/('normal-reserved.json' if reserve else 'normal-entry.json')
+reserve='--reserve' in sys.argv[1:]
+if sys.argv[1:] not in ([],['--reserve'],['--reserve','--device-preflight'],['--reserve','--overlap-stop'],['--reserve','--overlap-stop','--pinned-session'],['--reserve','--overlap-stop','--pinned-session','--repeat']):raise SystemExit('use --reserve or no arguments')
+out=lab/('normal-pinned-repeat.json' if '--repeat' in sys.argv else 'normal-pinned.json' if '--pinned-session' in sys.argv else 'normal-overlap.json' if '--overlap-stop' in sys.argv else 'normal-device.json' if '--device-preflight' in sys.argv else 'normal-reserved.json' if reserve else 'normal-entry.json')
 if out.exists():raise SystemExit('receipt already exists; archive it explicitly before a distinct run')
 with open('/run/lock/meldiq-phase3-lab.lock','a') as lock:
  fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
@@ -14,5 +14,5 @@ with open('/run/lock/meldiq-phase3-lab.lock','a') as lock:
   if n.endswith('api-1') and (s['Image']!='sha256:9bb580a8be7a5f2823cd0b9a1ad95bed65291389321658d29124feebe321ba5c' or s['State']['Health']['Status']!='healthy'):raise SystemExit('writer drift')
  if json.load(urllib.request.urlopen('http://127.0.0.1:18080/v1/server-info',timeout=5))['maintenance']['enabled']:raise SystemExit('maintenance active')
  if int(next(l for l in open('/proc/meminfo') if l.startswith('MemAvailable:')).split()[1])<2900000 or subprocess.check_output(['docker','ps','--filter','name=ph3-','-q']).strip():raise SystemExit('insufficient isolated lab capacity')
- p=subprocess.run(['nice','-n','10','python3',lab/'fixtures/rehearse.py','--rtt','168','--warm','--fast','--scaled','--failure','--calibrate','--preflight','--warm-pool','--normal',*(['--reserve'] if reserve else []),'--output',out])
+ p=subprocess.run(['nice','-n','10','python3',lab/'fixtures/rehearse.py','--rtt','168','--warm','--fast','--scaled','--failure','--calibrate','--preflight','--warm-pool','--normal',*(['--reserve'] if reserve else []),*(['--overlap-stop'] if '--overlap-stop' in sys.argv else []),*(['--pinned-session'] if '--pinned-session' in sys.argv else []),'--output',out])
  raise SystemExit(p.returncode)

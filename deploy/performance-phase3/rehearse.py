@@ -1,7 +1,7 @@
 """Unpublished, synthetic Docker network only. Never mounts a production volume or uses production credentials."""
 import datetime, json, os, pathlib, subprocess, sys, time, uuid
 from argparse import ArgumentParser
-P=ArgumentParser();P.add_argument('--rtt',type=int,choices=[2,168],required=True);P.add_argument('--output',required=True);P.add_argument('--preflight',action='store_true');P.add_argument('--warm-pool',action='store_true');P.add_argument('--normal',action='store_true');P.add_argument('--reserve',action='store_true');P.add_argument('--calibrate',action='store_true');P.add_argument('--warm',action='store_true');P.add_argument('--scaled',action='store_true');P.add_argument('--fast',action='store_true');P.add_argument('--failure',action='store_true');A=P.parse_args()
+P=ArgumentParser();P.add_argument('--rtt',type=int,choices=[2,168],required=True);P.add_argument('--output',required=True);P.add_argument('--preflight',action='store_true');P.add_argument('--warm-pool',action='store_true');P.add_argument('--normal',action='store_true');P.add_argument('--reserve',action='store_true');P.add_argument('--overlap-stop',action='store_true');P.add_argument('--pinned-session',action='store_true');P.add_argument('--calibrate',action='store_true');P.add_argument('--warm',action='store_true');P.add_argument('--scaled',action='store_true');P.add_argument('--fast',action='store_true');P.add_argument('--failure',action='store_true');A=P.parse_args()
 root=pathlib.Path('/opt/griip-internal-messaging/releases/phase3-lab')
 fixtures=root/'fixtures'
 base='griip-internal-messaging-api:0.76.1-pg-'
@@ -24,7 +24,7 @@ created=[]
 def out(*cmd,input=None,timeout=70):return subprocess.check_output(cmd,input=input,timeout=timeout,stderr=subprocess.PIPE).decode().strip()
 def dr(*args,**kwargs):return out('docker',*args,**kwargs)
 def stamp():return round(time.time()*1000)
-report={'rttMs':A.rtt,'failureInjection':A.failure,'prepared':A.warm,'productionSized':A.scaled,'preflight':A.preflight,'warmPool':A.warm_pool,'normalEntry':A.normal,'reserveReaderSlots':A.reserve,'calibratedFinalReadMs':4295 if A.calibrate else 0,'run':ident,'started':stamp(),'switches':[],'sourceImages':pins}
+report={'rttMs':A.rtt,'failureInjection':A.failure,'prepared':A.warm,'productionSized':A.scaled,'preflight':A.preflight,'warmPool':A.warm_pool,'normalEntry':A.normal,'reserveReaderSlots':A.reserve,'overlapStop':A.overlap_stop,'pinnedSession':A.pinned_session,'calibratedFinalReadMs':4295 if A.calibrate else 0,'run':ident,'started':stamp(),'switches':[],'sourceImages':pins}
 def start(name,image,argv,env=None,pg=False):
  n=ident+'-'+name
  cmd=['run','-d','--name',n,'--label','meldiq.phase3='+ident,'--network','none' if pg else 'container:'+ident+'-pg','--read-only','--security-opt','no-new-privileges:true','--cap-drop','ALL','--cpus','1.25' if A.scaled else '0.75','--memory','768m' if A.scaled else '480m','--pids-limit','128','--no-healthcheck','--tmpfs','/tmp:rw,nosuid,size=32m']
@@ -58,26 +58,41 @@ def startslot(s,im,bad=False):
   e['SUPABASE_DATABASE_POOL_SIZE']='4'
  if bad:e['SUPABASE_DATABASE_URL']='postgresql://meldiq_canary_runtime@127.0.0.1:55434/postgres'
  start(s,im,['/app/probes/park.mjs'],e);wait('parked-'+s)
-def ready(s):
- flag('start-'+s, json.loads((C/('plan-'+s)).read_text())['nonce'] if A.normal and s in ('candidate','fallback') else '1')
+def ready(s,signal=True):
+ if signal:flag('start-'+s, json.loads((C/('plan-'+s)).read_text())['nonce'] if A.normal and s in ('candidate','fallback') else '1')
  r=json.loads(wait('api-ready.json',70))
  if not r['ready'] or r['held']:raise RuntimeError('writer not active')
 def actual_leases():return int(sql("select count(*) from pg_locks where locktype='advisory' and granted and classid=(hashtextextended('meldiq-rows-writer',0)>>32 & 4294967295)::oid and objid=(hashtextextended('meldiq-rows-writer',0) & 4294967295)::oid;"))
 def change(name,pre,suc,inject=False):
  if A.warm:
   phase('prepare-'+name)
-  if A.normal:flag('plan-'+suc,json.dumps(dict(slot=suc,nonce=os.urandom(24).hex(),expires=stamp()+100000)))
+  if A.normal:flag('plan-'+suc,json.dumps(dict(slot=suc,nonce=os.urandom(24).hex(),expires=stamp()+100000,waitForRelease=A.overlap_stop,pinnedSession=A.pinned_session)))
   flag('prepare-'+suc);wait('prepared-'+suc)
+ if A.overlap_stop and inject:
+  # Reject a misconfigured target while the incumbent is still serving. Do not
+  # pay a failed image's startup cost behind a closed admission gate.
+  flag('start-bad');rc=dr('wait',ident+'-bad')
+  if rc=='0' or actual_leases()!=1:raise RuntimeError('invalid target passed preflight')
  phase(name);before=stamp();control('drain');drained=stamp()
  flag('challenge-'+name);wait('arrival-'+name,3)
- dr('stop','-t','8',ident+'-'+pre);exitcode=int(dr('inspect','-f','{{.State.ExitCode}}',ident+'-'+pre))
- if exitcode!=0:raise RuntimeError('writer required forced stop: '+str(exitcode))
  (C/'api-ready.json').unlink()
- if actual_leases()!=0:raise RuntimeError('old lease still held')
- if inject:
-  flag('start-bad');rc=dr('wait',ident+'-bad')
-  if rc=='0' or (C/'api-ready.json').exists():raise RuntimeError('misconfiguration unexpectedly ready')
- ready(suc)
+ if A.overlap_stop:
+  if not (A.normal and A.reserve):raise RuntimeError('ownership overlap requires normal reserved mode')
+  # Delivery stopped admitting work; the target may wait for the lease in parallel
+  # with graceful shutdown. It cannot start a write or job until it actually owns it.
+  with subprocess.Popen(['docker','stop','-t','8',ident+'-'+pre],stdout=subprocess.DEVNULL,stderr=subprocess.PIPE) as stopping:
+   flag('start-'+suc,json.loads((C/('plan-'+suc)).read_text())['nonce'])
+   if stopping.wait(10)!=0:raise RuntimeError('incumbent stop failed')
+  if int(dr('inspect','-f','{{.State.ExitCode}}',ident+'-'+pre))!=0:raise RuntimeError('incumbent required forced stop')
+  ready(suc,False)
+ else:
+  dr('stop','-t','8',ident+'-'+pre);exitcode=int(dr('inspect','-f','{{.State.ExitCode}}',ident+'-'+pre))
+  if exitcode!=0:raise RuntimeError('writer required forced stop: '+str(exitcode))
+  if actual_leases()!=0:raise RuntimeError('old lease still held')
+  if inject:
+   flag('start-bad');rc=dr('wait',ident+'-bad')
+   if rc=='0' or (C/'api-ready.json').exists():raise RuntimeError('misconfiguration unexpectedly ready')
+  ready(suc)
  if actual_leases()!=1:raise RuntimeError('writer lease mismatch')
  control('resume');after=stamp()
  report['switches'].append({'label':name,'start':before,'drained':drained,'resumed':after,'admissionHoldMs':after-before,'afterDrainMs':after-drained,'invalidRejected':inject})
@@ -110,6 +125,7 @@ try:
   authority.write_text(json.dumps({'version':1,'projectRef':'z'*20,'sourceSha256':'a'*64,'activatedAt':'2026-11-03T00:00:00.000Z'}));os.chown(authority,1000,1000);authority.chmod(0o600)
  common={'PREPARE_PAGES':'1' if A.warm else '0','MELDIQ_OWNED_CANARY':'synthetic-loopback','MELDIQ_CANARY_DATABASE_RTT_MS':str(A.rtt),'NODE_ENV':'development','APP_ENV':'development','DATABASE_MODE':'supabase','SUPABASE_DATABASE_URL':'postgresql://meldiq_canary_runtime@127.0.0.1:55433/postgres','DATA_DIR':'/data'}
  if A.normal:
+  if A.pinned_session and not (A.reserve and A.overlap_stop):raise RuntimeError('pinned session needs reserved role and bounded wait')
   if not (A.preflight and A.warm_pool):raise RuntimeError('calibrated normal entry required')
   common['PH3_NORMAL']='1'
  if A.warm_pool:
@@ -149,6 +165,12 @@ except Exception as e:
   try:report['front']=control('state','GET')
   except Exception:pass
 finally:
+ # Preserve independent durability counts on a failed probe as well. A client timeout
+ # after dispatch is ambiguous; never infer a DB commit or a lost event from HTTP alone.
+ if 'database' not in report and (C/'client-ready').exists():
+  try:
+   report['database']={k:int(sql(q)) for k,q in {'events':'select count(*) from meldiq.message_events','distinctIds':'select count(distinct id) from meldiq.message_events','markers':"select count(*) from meldiq.submitted_messages where message_id not like 'seed-%'",'pendingMessages':"select count(*) from meldiq.delivery_queue where kind='message'",'writerLeases':"select count(*) from pg_locks where locktype='advisory' and granted"}.items()}
+  except (subprocess.SubprocessError,ValueError):pass
  for n in reversed(created):
   if dr('inspect','-f','{{index .Config.Labels "meldiq.phase3"}}',n)==ident:
    with open(run/(n+'.log'),'wb') as f:subprocess.run(['docker','logs',n],stdout=f,stderr=subprocess.STDOUT)

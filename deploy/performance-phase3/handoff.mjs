@@ -57,9 +57,12 @@ wss.on('connection',(out,req)=>{
       const path='http://127.0.0.1:'+upstream;
       const account=await fetch(path+'/v2/account/sessions',options);
       await account.body?.cancel();if(account.status!==401)return false;
-      const me=await fetch(path+'/v1/users/me',options);
+      // The device listing authenticates against the incumbent's committed view. Avoid
+      // /v1/users/me: it also fetches linked profiles via a scarce SQL connection.
+      const me=await fetch(path+'/v1/devices',options);
       if(!me.ok){await me.body?.cancel();return false;}
-      return (await me.json()).user?.id===identity[0] && verified;
+      const devices=(await me.json()).devices;
+      return Array.isArray(devices)&&devices.some(d=>d.id===identity[1]&&d.current===true&&d.revokedAt==null)&&verified;
     }catch{return false;}
   }
   const p={resume:()=>connect(),drain:()=>drain(),eligible};

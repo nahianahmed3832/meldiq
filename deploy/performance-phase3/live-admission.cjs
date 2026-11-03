@@ -8,6 +8,7 @@ const c=await pool.connect();try{
 await c.query('BEGIN READ ONLY');
 const capacity=await c.query("select rolconnlimit as limit, (select count(*)::int from pg_stat_activity where usename=$1) as connected from pg_roles where rolname=$1",[role]);
 if(capacity.rowCount!==1)throw Error('unknown runtime role');
+const states=await c.query("select coalesce(state,'not visible') as state,count(*)::int as backends from pg_stat_activity where usename=$1 group by 1 order by 1",[role]);
 const sockets=await c.query("select minute,sockets,connects,disconnects from meldiq.presence_samples where minute>=floor(extract(epoch from now())/60)-12 order by minute desc limit 10");
-await c.query('ROLLBACK');console.log(JSON.stringify({at:new Date().toISOString(),providerBackendSessions:capacity.rows[0],incumbentHubSamples:sockets.rows}));
+await c.query('ROLLBACK');console.log(JSON.stringify({at:new Date().toISOString(),providerBackendSessions:capacity.rows[0],backendStates:states.rows,incumbentHubSamples:sockets.rows}));
 }finally{c.release();await pool.end();}})().catch(()=>{console.error('admission read unavailable');process.exitCode=1;});
