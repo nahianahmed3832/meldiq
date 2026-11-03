@@ -162,6 +162,11 @@ def main():
             encrypted(['cat', str(source)], name)
         data = environment.get('DATA_DIR', '/data')
         encrypted(['docker', 'exec', API, 'cat', data + '/reports.key'], 'reports.key.age')
+        fcm = environment.get('FCM_SERVICE_ACCOUNT_FILE', '').strip()
+        if fcm:
+            if not Path(fcm).is_absolute() or subprocess.run(['docker', 'exec', API, 'test', '-f', fcm], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode:
+                raise RuntimeError('Configured push service account file is unavailable')
+            encrypted(['docker', 'exec', API, 'cat', fcm], 'fcm-service-account.json.age')
         if environment.get('SUPABASE_PRODUCTION_ACCEPTANCE_FILE'):
             encrypted(['docker', 'exec', API, 'cat', environment['SUPABASE_PRODUCTION_ACCEPTANCE_FILE']], 'cutover-acceptance.json.age')
         if subprocess.run(['docker', 'exec', API, 'test', '-f', data + '/database-authority.json'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
