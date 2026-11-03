@@ -1,6 +1,142 @@
 [
-  {"resource":"components","body":{"id":"frankfurt-storage","name":"Frankfurt object storage","group":"Media & communication","description":"Migration target. Reads a fixed monitoring file from the private Frankfurt origin and verifies its bytes. Singapore remains the active application store.","position":18,"visible":true}},
-  {"resource":"probes","body":{"id":"frankfurt-origin-range","componentId":"frankfurt-storage","name":"Fresh Frankfurt object range","kind":"http","config":{"url":"https://media.meldiq.app/healthz","json":{"ok":true}},"enabled":true,"intervalMs":60000,"staleMs":300000,"slowMs":4000,"failureThreshold":3,"recoveryThreshold":2}},
-  {"resource":"components","body":{"id":"media-edge","name":"Cloudflare media delivery","group":"Media & communication","description":"Checks delivery of a public monitoring file through media.meldiq.app. Private attachment delivery is staged separately.","position":19,"visible":true}},
-  {"resource":"probes","body":{"id":"media-edge-fixture","componentId":"media-edge","name":"Public media fixture delivery","kind":"http","config":{"url":"https://media.meldiq.app/public/origin-v1.txt","contains":"Meldiq Frankfurt origin check v1"},"enabled":true,"intervalMs":60000,"staleMs":300000,"slowMs":4000,"failureThreshold":3,"recoveryThreshold":2}}
+  {
+    "resource": "components",
+    "body": {
+      "id": "frankfurt-storage",
+      "name": "Frankfurt object storage",
+      "group": "Media & communication",
+      "description": "Migration target. Reads a fixed monitoring file from the private Frankfurt origin and verifies its bytes. Singapore remains the active application store.",
+      "position": 18,
+      "visible": true
+    }
+  },
+  {
+    "resource": "probes",
+    "body": {
+      "id": "frankfurt-origin-range",
+      "componentId": "frankfurt-storage",
+      "name": "Fresh Frankfurt object range",
+      "kind": "http",
+      "config": {
+        "url": "https://media.meldiq.app/healthz",
+        "json": {
+          "ok": true
+        }
+      },
+      "enabled": true,
+      "intervalMs": 60000,
+      "staleMs": 300000,
+      "slowMs": 4000,
+      "failureThreshold": 3,
+      "recoveryThreshold": 2
+    }
+  },
+  {
+    "resource": "components",
+    "body": {
+      "id": "media-edge",
+      "name": "Cloudflare media delivery",
+      "group": "Media & communication",
+      "description": "Checks delivery of a public monitoring file through media.meldiq.app. Private attachment delivery is staged separately.",
+      "position": 19,
+      "visible": true
+    }
+  },
+  {
+    "resource": "probes",
+    "body": {
+      "id": "media-edge-fixture",
+      "componentId": "media-edge",
+      "name": "Public media fixture delivery",
+      "kind": "http",
+      "config": {
+        "url": "https://media.meldiq.app/public/origin-v1.txt",
+        "contains": "Meldiq Frankfurt origin check v1"
+      },
+      "enabled": true,
+      "intervalMs": 60000,
+      "staleMs": 300000,
+      "slowMs": 4000,
+      "failureThreshold": 3,
+      "recoveryThreshold": 2
+    }
+  },
+  {
+    "resource": "probes",
+    "body": {
+      "id": "uploads-api-ready",
+      "componentId": "uploads",
+      "name": "Upload API availability",
+      "kind": "http",
+      "config": {
+        "url": "https://msg.meldiq.app/healthz",
+        "json": {
+          "ok": true
+        }
+      },
+      "enabled": true,
+      "intervalMs": 60000,
+      "staleMs": 300000,
+      "slowMs": 3000,
+      "failureThreshold": 2,
+      "recoveryThreshold": 2
+    }
+  },
+  {
+    "resource": "probes",
+    "body": {
+      "id": "downloads-api-ready",
+      "componentId": "downloads",
+      "name": "Download API availability",
+      "kind": "http",
+      "config": {
+        "url": "https://msg.meldiq.app/healthz",
+        "json": {
+          "ok": true
+        }
+      },
+      "enabled": true,
+      "intervalMs": 60000,
+      "staleMs": 300000,
+      "slowMs": 3000,
+      "failureThreshold": 2,
+      "recoveryThreshold": 2
+    }
+  },
+  {
+    "resource": "probes",
+    "body": {
+      "id": "authorized-attachment-range",
+      "componentId": "downloads",
+      "name": "Authorized attachment range",
+      "kind": "diagnostic",
+      "config": {
+        "check": "authorized-download"
+      },
+      "enabled": true,
+      "intervalMs": 300000,
+      "staleMs": 900000,
+      "slowMs": 4000,
+      "failureThreshold": 2,
+      "recoveryThreshold": 2
+    }
+  },
+  {
+    "resource": "probes",
+    "body": {
+      "id": "authorized-upload-session",
+      "componentId": "uploads",
+      "name": "Presigned upload session and cancellation",
+      "kind": "diagnostic",
+      "config": {
+        "check": "upload-session"
+      },
+      "enabled": true,
+      "intervalMs": 900000,
+      "staleMs": 2700000,
+      "slowMs": 4000,
+      "failureThreshold": 2,
+      "recoveryThreshold": 2
+    }
+  }
 ]

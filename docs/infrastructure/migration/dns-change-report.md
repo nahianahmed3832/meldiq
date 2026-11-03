@@ -5,3 +5,5 @@ Cloudflare is authoritative for meldiq.app. Wrangler OAuth succeeded; its zone-r
 The status domain's separate Sites CNAME and TXT were being configured concurrently. The Sites provider confirmed active domain and active TLS. Resolution through the VPS's caching resolver initially returned an old negative entry. Direct authoritative and independent resolver checks then produced Cloudflare edge addresses; a hostname-verified TLS request returned the Worker's private no-store denial. The domain, Worker and encrypted origin connection were verified separately.
 
 The normalized before-and-after authoritative answer comparison found two new media A answers and zero removals in the recorded set. The account's DNS-listing API was inaccessible through the Worker OAuth token, so this is not an account-wide assertion about every possible record or concurrent operator action.
+
+The status owner subsequently bound status.meldiq.app to the customer-owned meldiq-status Worker. Both the canonical hostname and status-check.meldiq.app serve the native application with valid HTTPS. The previous Sites D1 is archival. Media remains a separate Worker custom domain.

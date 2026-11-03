@@ -24,6 +24,11 @@ Parameters:
     Description: The API server's public IPv4 address (for the test stack, the machine running the tests). Only it may
       delete or list objects. Uploads and downloads use
       short-lived presigned URLs from phones, so those can't be limited by address.
+  PreserveRollbackHistory:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: Retain historical versions and delete markers while this bucket is held for rollback.
   NoncurrentDays:
     Type: Number
     Default: 30
@@ -34,6 +39,7 @@ Parameters:
     Description: The orbit-runtime-boundary policy from orbit-ops-admin.yaml (required when that user creates the stack).
 
 Conditions:
+  RetainRollbackVersions: !Equals [!Ref PreserveRollbackHistory, "true"]
   HasBoundary: !Not [!Equals [!Ref PermissionsBoundaryArn, ""]]
 
 Resources:
@@ -66,7 +72,7 @@ Resources:
             AbortIncompleteMultipartUpload:
               DaysAfterInitiation: 1
           - Id: recoverable-for-a-while-then-gone
-            Status: Enabled
+            Status: !If [RetainRollbackVersions, Disabled, Enabled]
             NoncurrentVersionExpiration:
               NoncurrentDays: !Ref NoncurrentDays
             ExpiredObjectDeleteMarker: true
