@@ -44,15 +44,25 @@ export class PostgresMessageStore implements MessageStore {
     return { messages, changes: await this.changesFor(conversationId,viewer,messages), more: rows.length > limit };
   }
   async around(conversationId: string, viewer: string, messageId: string, limit: number): Promise<HistoryPage | null> {
-    const at = await this.get(messageId);
-    if (!at || at.conversation_id !== conversationId || at.cls !== "message" || (at.audience === "self" && at.sender_user_id !== viewer)) return null;
-    const args = [conversationId,viewer,at.server_ts,at.id,limit+1];
-    const older = (await this.db.query<MessageEvent>(`SELECT ${columns} FROM meldiq.message_events WHERE conversation_id=$1 AND ${visible} AND cls='message'
-      AND (server_ts,id) < ($3,$4) ORDER BY server_ts DESC,id DESC LIMIT $5`, args)).rows;
-    const newer = (await this.db.query<MessageEvent>(`SELECT ${columns} FROM meldiq.message_events WHERE conversation_id=$1 AND ${visible} AND cls='message'
-      AND (server_ts,id) > ($3,$4) ORDER BY server_ts,id LIMIT $5`, [...args.slice(0,4),limit])).rows;
-    const messages = [...newer.reverse(),at,...older.slice(0,limit)];
-    return { messages,changes:await this.changesFor(conversationId,viewer,messages),more:older.length>limit };
+    // The anchor itself must be visible before either indexed window can produce rows.
+    const rows = (await this.db.query<MessageEvent & { flank: number }>(`WITH anchor AS MATERIALIZED (
+      SELECT ${columns} FROM meldiq.message_events
+      WHERE id=$3 AND conversation_id=$1 AND cls='message' AND ${visible}
+    ) SELECT * FROM (
+      SELECT 0 AS flank, anchor.* FROM anchor
+      UNION ALL SELECT -1 AS flank, older.* FROM anchor CROSS JOIN LATERAL (
+        SELECT ${columns} FROM meldiq.message_events WHERE conversation_id=$1 AND cls='message' AND ${visible}
+          AND (server_ts,id)<(anchor.server_ts,anchor.id) ORDER BY server_ts DESC,id DESC LIMIT ($4::int+1)
+      ) older
+      UNION ALL SELECT 1 AS flank, newer.* FROM anchor CROSS JOIN LATERAL (
+        SELECT ${columns} FROM meldiq.message_events WHERE conversation_id=$1 AND cls='message' AND ${visible}
+          AND (server_ts,id)>(anchor.server_ts,anchor.id) ORDER BY server_ts,id LIMIT $4
+      ) newer
+    ) windowed ORDER BY server_ts DESC,id DESC`,[conversationId,viewer,messageId,limit])).rows;
+    if (!rows.length) return null;
+    const more = rows.filter(row=>row.flank===-1).length>limit;
+    const messages = (more ? rows.slice(0,-1) : rows).map(({flank:_, ...event})=>event);
+    return {messages,changes:await this.changesFor(conversationId,viewer,messages),more};
   }
   private async changesFor(conversationId: string, viewer: string, messages: MessageEvent[]): Promise<MessageEvent[]> {
     if (!messages.length) return [];
@@ -74,10 +84,10 @@ export class PostgresMessageStore implements MessageStore {
   async summaries(ids: readonly string[], userId: string, cap: number): Promise<ConversationSummary[]> {
     if (!ids.length) return [];
     type SummaryRow = MessageEvent & {
-      scope_id: string; read_up_to: number; unread_events: { mention_all: number; payload: string }[];
+      scope_id: string; read_up_to: number; unread_count: number; everyone: number; possible_mentions: string[];
     };
     // Keep each conversation's indexed LIMIT and return all summaries from one database snapshot.
-    const result = await this.db.query<SummaryRow>(`SELECT scope.id AS scope_id, latest.*, marker.read_up_to, unseen.unread_events
+    const result = await this.db.query<SummaryRow>(`SELECT scope.id AS scope_id, latest.*, marker.read_up_to, unseen.unread_count, unseen.everyone, unseen.possible_mentions
       FROM unnest($1::text[]) WITH ORDINALITY AS scope(id, position)
       LEFT JOIN LATERAL (
         SELECT ${columns} FROM meldiq.message_events
@@ -89,17 +99,23 @@ export class PostgresMessageStore implements MessageStore {
         FROM meldiq.message_events WHERE conversation_id=scope.id AND sender_user_id=$2 AND cls='control' AND type='read'
       ) marker
       CROSS JOIN LATERAL (
-        SELECT coalesce(json_agg(events),'[]') AS unread_events FROM (
+        SELECT count(*)::int AS unread_count,
+          count(*) FILTER (WHERE mention_all=1)::int AS everyone,
+          coalesce(json_agg(payload) FILTER (WHERE mention_all<>1 AND (
+            strpos(payload,'"mentions"')>0 OR strpos(payload,chr(92))>0 OR NOT (payload IS JSON OBJECT)
+          )),'[]') AS possible_mentions FROM (
           SELECT mention_all,payload FROM meldiq.message_events
           WHERE conversation_id=scope.id AND sender_user_id<>$2 AND audience='all'
             AND cls='message' AND server_ts>marker.read_up_to AND imported_by IS NULL
           ORDER BY server_ts DESC,id DESC LIMIT $3
         ) events
       ) unseen ORDER BY scope.position`, [ids,userId,cap]);
-    return result.rows.map(({ scope_id, read_up_to, unread_events, ...last }) => ({
+    return result.rows.map(({ scope_id, read_up_to, unread_count, everyone, possible_mentions, ...last }) => ({
       conversation_id: scope_id, last: last.id === null ? null : last, read_up_to,
-      unread: unread_events.length,
-      mentions: unread_events.filter(r => r.mention_all === 1 || (JSON.parse(r.payload).mentions ?? []).includes(userId)).length,
+      unread: unread_count,
+      // Only valid objects without a literal or escaped mentions key were omitted in SQL.
+      // Legacy escaped keys, non-objects and malformed payloads retain the old JS semantics.
+      mentions: everyone + possible_mentions.filter(payload => (JSON.parse(payload).mentions ?? []).includes(userId)).length,
     }));
   }
   async changesTo(id: string, target: string, type: string): Promise<MessageEvent[]> {

@@ -249,6 +249,19 @@ describe("message durability and outbox recovery",()=>{
     expect(result).toEqual([empty,{conversation_id:"conversation1",last:preview,read_up_to:0,unread:1,mentions:1},empty]);
     expect(await messages.summaries([],"user1",1)).toEqual([]);
   });
+  it("preserves escaped mention keys and counts an everyone mention only once",async()=>{
+    await messages.addMany([
+      event("escaped0001",{sender_user_id:"user2",payload:String.raw`{"m\u0065ntions":["user1"]}`}),
+      event("everyone001",{sender_user_id:"user2",mention_all:1,payload:'{"mentions":["user1"]}'}),
+      event("opaque00001",{sender_user_id:"user2",payload:'{"sealed":"opaque"}'}),
+    ]);
+    expect((await messages.summaries(["conversation1"],"user1",99))[0]).toMatchObject({unread:3,mentions:2});
+  });
+  it("requires a visible anchor and never substitutes adjacent public messages for a hidden one",async()=>{
+    await messages.addMany([event("public00001"),event("private0001",{audience:"self",sender_user_id:"user2"})]);
+    expect(await messages.around("conversation1","user1","private0001",2)).toBeNull();
+    expect(await messages.around("other","user2","public00001",2)).toBeNull();
+  });
   it("orders claims and prevents competing workers from claiming one event",async()=>{
     await messages.addMany([event("message0001"),event("message0002")]);
     const a=new PostgresOutbox(db),b=new PostgresOutbox(db);
