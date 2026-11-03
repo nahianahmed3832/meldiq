@@ -48,9 +48,7 @@ async function main() {
     report.heapUsedBytes = process.memoryUsage().heapUsed;
     const counts = await tableCounts(db, postgresTableSpecs());
     for (const table of manifest.tables) if (counts.get(table.name) !== table.count) throw new Error("Repository bootstrap count mismatch");
-    for (const name of ["accounts", "users", "devices", "orgs", "conversations", "billing_plan_versions", "auth_device_sessions"]) {
-      if (runtime.rows.count(name) !== counts.get(name)) throw new Error("Cached repository bootstrap mismatch");
-    }
+    for (const spec of postgresTableSpecs()) if (runtime.rows.has(spec.name) && runtime.rows.count(spec.name) !== counts.get(spec.name)) throw new Error("Cached repository bootstrap mismatch");
     report.applicationTables = counts.size;
     report.records = [...counts.values()].reduce((sum, count) => sum + count, 0);
     report.cachedDomainsMatchDatabaseCounts = true;
