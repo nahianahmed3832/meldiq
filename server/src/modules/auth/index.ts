@@ -4,6 +4,7 @@ import { ApiError, unauthorized } from "../../shared/errors.js";
 import { now, sha256Hex } from "../../shared/utilities/util.js";
 import type { SupabasePrincipal } from "../../infrastructure/database/postgres/auth.js";
 
+export { consumeChallenge } from "./challenge.js";
 export { revokeUserDevice } from "./routes.js";
 
 /**

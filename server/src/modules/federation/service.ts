@@ -1,4 +1,4 @@
-import { KEPT_FOREVER } from "../files/store.js";
+import { KEPT_FOREVER } from "../files/index.js";
 /**
  * Federation on a home server (docs/FEDERATION_PROTOCOL.md). Owns this server's identity, its announcements to the
  * core nodes, signed requests to peers, global address lookup, remote users ("shadows"), the outbox and inbound

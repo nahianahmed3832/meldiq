@@ -35,12 +35,12 @@ const send = (
   });
 
 /** Makes [c]'s account [days] days old, so it earns. */
-const age = (h: Harness, c: GriipClient, days = 2) =>
+const age = (h: Harness, c: GriipClient, days = 2, reference = Date.now()) =>
   h.ctx.identity.write((w) =>
     w.update(
       "users",
       { id: c.userId },
-      { created_at: Date.now() - days * DAY },
+      { created_at: reference - days * DAY },
     ),
   );
 const quest = (view: PointsView, id: string) =>
@@ -119,7 +119,7 @@ describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
 
   it("counts a chat minute once however many messages it has, 5 points per 5 minutes, at most 25 a day", async () => {
     const c = await h.client("ptchat");
-    await age(h, c);
+    await age(h, c, 2, T0);
     const clock = { t: T0 };
     const points = at(clock);
     const msg = (t: number) =>
