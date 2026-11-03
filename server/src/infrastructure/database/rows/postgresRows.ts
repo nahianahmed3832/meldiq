@@ -33,8 +33,7 @@ export class PostgresRows extends MemoryRows {
       const result = await lease.query("SELECT pg_try_advisory_lock(hashtextextended('meldiq-rows-writer', 0)) AS locked");
       if (!result.rows[0].locked) throw new Error("Another synchronous repository writer is active");
       // The lease is the write connection too: losing it prevents writes, and therefore stale-cache commits.
-      await lease.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
-      await lease.query("SET LOCAL statement_timeout='120s'");
+      await lease.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY; SET LOCAL statement_timeout='120s'");
       const counters = await lease.query<{table_name: string; value: number}>("SELECT table_name,value FROM meldiq_private.row_counters");
       for (const counter of counters.rows) if (specs.some(spec => spec.name === counter.table_name)) rows.bumpCounter(counter.table_name, counter.value);
       const relations = await lease.query<{oid:string;name:string}>(`SELECT c.oid::text AS oid,c.relname AS name FROM pg_class c
@@ -42,24 +41,22 @@ export class PostgresRows extends MemoryRows {
       const byOid=new Map(relations.rows.map(relation=>[Number(relation.oid),specs.find(spec=>spec.name===relation.name)!]));
       if(byOid.size!==specs.length)throw new Error("PostgreSQL bootstrap table inventory is incomplete");
       // pg's row-event API decodes each row directly into the cache without accumulating a second result array.
-      // Batch eight SELECTs per round trip, retaining the same read-only snapshot and exact driver type parsers.
-      for (let start = 0; start < specs.length; start += 8) {
-        const group = specs.slice(start, start + 8);
-        const query=new pg.Query<Row>({text:group.map(spec=>`SELECT * FROM meldiq.${q(spec.name)};`).join("\n")});
-        let failure:unknown;
-        query.on("row",(row,result)=>{
-          if(failure)return;
-          try{
-            const oid=result?.fields[0]?.tableID;
-            const spec=oid===undefined?undefined:byOid.get(oid);
-            if(!spec||!group.includes(spec))throw new Error("Unexpected PostgreSQL bootstrap relation");
-            rows.load(spec.name,row,spec.primaryKey.length?undefined:row.rowid as number);
-          }catch(error){failure=error;}
-        });
-        await new Promise<void>((resolve,reject)=>{
-          query.once("error",reject);query.once("end",()=>failure?reject(failure):resolve());lease.query(query);
-        });
-      }
+      // Stream one simple-query message on the already fenced lease. PostgreSQL returns each
+      // SELECT's real relation metadata; no second copy of the rows or extra pool slots.
+      const query=new pg.Query<Row>({text:specs.map(spec=>`SELECT * FROM meldiq.${q(spec.name)};`).join("\n")});
+      let failure:unknown;
+      query.on("row",(row,result)=>{
+        if(failure)return;
+        try{
+          const oid=result?.fields[0]?.tableID;
+          const spec=oid===undefined?undefined:byOid.get(oid);
+          if(!spec)throw new Error("Unexpected PostgreSQL bootstrap relation");
+          rows.load(spec.name,row,spec.primaryKey.length?undefined:row.rowid as number);
+        }catch(error){failure=error;}
+      });
+      await new Promise<void>((resolve,reject)=>{
+        query.once("error",reject);query.once("end",()=>failure?reject(failure):resolve());lease.query(query);
+      });
       await lease.query("COMMIT");
       return rows;
     } catch (error) { await lease.query("ROLLBACK").catch(() => undefined); lease.release(true); throw error; }

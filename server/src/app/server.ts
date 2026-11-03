@@ -381,11 +381,17 @@ export async function buildApp(
   ctx.relationships = postgres?.relationships ?? (ctx.mongo?.owns("relationships") ? new MongoRelationshipStore(ctx.mongo) : new SqliteRelationshipStore(db));
   ctx.calls = postgres?.calls ?? (ctx.mongo?.owns("calls") ? new MongoCallStore(ctx.mongo) : new SqliteCallStore(db));
   // API 0.56.0: new data, so MongoDB whenever the server has one (no domain to migrate).
+  // These seven independent startup views must all be complete before routes are usable.
+  const bootReads: (()=>Promise<void>)[]=[];
+  const loadView=async (read:()=>Promise<void>)=>{
+    if(postgres && !ctx.databaseCutover?.held)bootReads.push(read);
+    else await afterDatabaseActivation(ctx.databaseCutover,read);
+  };
   const activityStore = postgres?.activity ?? (ctx.mongo ? new MongoActivityStore(ctx.mongo) : new MemoryActivityStore());
   if (activityStore instanceof MongoActivityStore) await activityStore.ensureIndexes();
   ctx.activity = new ActivityService(activityStore, app.log);
   ctx.activity.onChange = (userId) => announceActivity(ctx, userId);
-  await afterDatabaseActivation(ctx.databaseCutover,()=>ctx.activity.start());
+  await loadView(()=>ctx.activity.start());
   app.addHook("onClose", async () => ctx.activity.stop());
   // API 0.61.0: profile decorations people send in (docs/PROFILE_DECORATIONS.md), new data, so MongoDB whenever there is one.
   const decorationStore = postgres?.decorations ?? (ctx.mongo ? new MongoDecorationStore(ctx.mongo) : new MemoryDecorationStore());
@@ -394,24 +400,24 @@ export async function buildApp(
   const favoriteStore = postgres?.favorites ?? (ctx.mongo ? new MongoFavoriteStore(ctx.mongo) : new MemoryFavoriteStore());
   if (favoriteStore instanceof MongoFavoriteStore) await favoriteStore.ensureIndexes();
   ctx.decorations = new DecorationService(ctx, decorationStore, favoriteStore);
-  await afterDatabaseActivation(ctx.databaseCutover,()=>ctx.decorations.load());
+  await loadView(()=>ctx.decorations.load());
   // API 0.64.0: community pins (docs/PROFILE_PINS.md), new data, so MongoDB whenever there is one.
   const pinStore = postgres?.pins ?? (ctx.mongo ? new MongoPinStore(ctx.mongo) : new MemoryPinStore());
   if (pinStore instanceof MongoPinStore) await pinStore.ensureIndexes();
   ctx.pins = new PinService(ctx, pinStore);
-  await afterDatabaseActivation(ctx.databaseCutover,()=>ctx.pins.load());
+  await loadView(()=>ctx.pins.load());
   ctx.privacyChoices = postgres?.privacy ?? (ctx.mongo ? new MongoPrivacyStore(ctx.mongo) : new MemoryPrivacyStore());
   const holdStore = postgres?.holds ?? (ctx.mongo ? new MongoUsernameHoldStore(ctx.mongo) : new MemoryUsernameHoldStore());
   if (holdStore instanceof MongoUsernameHoldStore) await holdStore.ensureIndexes();
   ctx.usernames = new UsernameHolds(holdStore);
-  await afterDatabaseActivation(ctx.databaseCutover,()=>ctx.usernames.load());
+  await loadView(()=>ctx.usernames.load());
   const pointsStore = postgres?.points ?? (ctx.mongo ? new MongoPointsStore(ctx.mongo) : new MemoryPointsStore());
   if (pointsStore instanceof MongoPointsStore) await pointsStore.ensureIndexes();
   ctx.points = new PointsService(ctx, pointsStore);
-  await afterDatabaseActivation(ctx.databaseCutover,()=>ctx.points.load());
+  await loadView(()=>ctx.points.load());
   // API 0.65.0 batch B (docs/SETTINGS_PARITY_API.md): creators and linked accounts, new data too.
   ctx.creators = new CreatorService(ctx, await openCreatorStores(ctx));
-  await afterDatabaseActivation(ctx.databaseCutover,()=>ctx.creators.load());
+  await loadView(()=>ctx.creators.load());
   ctx.linkedAccounts = await LinkedAccountsService.open(ctx);
   // API 0.65.0 batch B (docs/SETTINGS_PARITY_API.md): "Log in with Meldiq" apps and bots, new data too.
   const oauthStore = postgres?.oauth ?? (ctx.mongo ? new MongoOAuthStore(ctx.mongo) : new MemoryOAuthStore());
@@ -424,7 +430,10 @@ export async function buildApp(
   const rulesStore = postgres?.rules ?? (ctx.mongo ? new MongoRulesStore(ctx.mongo) : new MemoryRulesStore());
   if (rulesStore instanceof MongoRulesStore) await rulesStore.ensureIndexes();
   ctx.communityRules = new CommunityRules(ctx, rulesStore, config.communityRules);
-  await afterDatabaseActivation(ctx.databaseCutover,()=>ctx.communityRules.load());
+  await loadView(()=>ctx.communityRules.load());
+  // Settle all readers, even if one fails, before shutdown releases the lease or pool.
+  const loaded=await Promise.allSettled(bootReads.map(read=>read()));
+  for(const result of loaded)if(result.status==="rejected")throw result.reason;
   // Authorisation was made before the rules: it asks them from here on.
   ctx.authz.rulesChannelId = (orgId) => ctx.communityRules.channelIdOf(orgId);
   ctx.authz.mustAgreeRules = (orgId, userId) => ctx.communityRules.mustAgree(orgId, userId);
