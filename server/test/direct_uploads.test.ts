@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import http from "node:http";
+import { mediaDeliveryConfig } from "../src/infrastructure/storage/mediaDelivery.js";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { runCleanup } from "../src/modules/administration/jobs.js";
 import { type FakeS3, startFakeS3 } from "./support/fakeS3.js";
@@ -62,6 +63,35 @@ describe("direct uploads to S3", () => {
   afterAll(async () => {
     await h.close();
     await s3.close();
+  });
+
+  it("redeems an attachment grant with fresh authorization and denies a revoked session", async () => {
+    const member = await h.client("edgemember");
+    const conversation = (await member.req("POST", "/v1/conversations/dm", {userId: bob.userId})).conversation.id;
+    const {done} = await uploadSingle(member, conversation, Buffer.from("edge-private-ciphertext"));
+    const config = mediaDeliveryConfig({MEDIA_PUBLIC_BASE_URL:"https://media.meldiq.app", MEDIA_GRANT_KEY:"11".repeat(32), MEDIA_EDGE_SECRET:"22".repeat(32)})!;
+    const previous = h.ctx.config.storage.delivery;
+    h.ctx.config.storage.delivery = config;
+    try {
+      const path = h.baseUrl + "/v1/attachments/" + done.id;
+      const issue = (token: string) => fetch(path,{headers:{authorization:"Bearer "+token},redirect:"manual"});
+      expect((await issue(eve.token!)).status).toBe(404);
+      const grant = await issue(member.token!);
+      const location = new URL(grant.headers.get("location")!);
+      expect(location.origin).toBe(config.origin);
+      const redeem = (edge: string) => fetch(path,{redirect:"manual", headers:{
+        "x-meldiq-media-grant":location.searchParams.get("ticket")!, "x-meldiq-edge-key":edge, range:"bytes=0-3"
+      }});
+      expect((await redeem("00".repeat(32))).status).toBe(404);
+      const signed = await redeem(config.edge);
+      expect(signed.status).toBe(302);
+      expect(signed.headers.get("cache-control")).toBe("private, no-store");
+      const range = await fetch(signed.headers.get("location")!,{headers:{range:"bytes=0-3"}});
+      expect(range.status).toBe(206);
+      expect(await range.text()).toBe("edge");
+      await member.req("POST","/v1/auth/logout",{});
+      expect((await redeem(config.edge)).status).toBe(404);
+    } finally { h.ctx.config.storage.delivery = previous; }
   });
 
   it("server-info offers direct uploads", async () => {

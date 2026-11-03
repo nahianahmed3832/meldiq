@@ -1,3 +1,4 @@
+import { mediaUrl, openMediaGrant } from "../../infrastructure/storage/mediaDelivery.js";
 import { runtimePolicy } from "../platformAdmin/index.js";
 import { requireFeature } from "../../app/platformControls.js";
 import crypto from "node:crypto";
@@ -13,7 +14,7 @@ import { pipeline } from "node:stream/promises";
 import type { FastifyInstance } from "fastify";
 import { hasNewAccountLimits, HOUR_MS, limitedUserIds, SlidingWindow } from "../../app/middleware/abuse.js";
 import { type AppContext } from "../../app/context.js";
-import { me, requireAuth } from "../auth/index.js";
+import { authenticateToken, bearer, me, requireAuth } from "../auth/index.js";
 import { parse } from "../../shared/validation/index.js";
 import type { BlobKind } from "../../infrastructure/storage/index.js";
 import { ApiError, badRequest, notFound } from "../../shared/errors.js";
@@ -291,7 +292,17 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
     return { id, size, expiresAt };
   });
 
-  app.get("/v1/attachments/:id", auth, async (req, reply) => {
+  app.get("/v1/attachments/:id", { preHandler: async (req, reply) => {
+    const ticket = req.headers["x-meldiq-media-grant"];
+    if (ticket === undefined) return auth.preHandler(req);
+    reply.header("cache-control", "private, no-store");
+    const { id } = parse(idParams, req.params);
+    const delivery = cfg.storage.delivery;
+    const session = delivery && openMediaGrant(delivery, id, ticket, req.headers["x-meldiq-edge-key"], now());
+    const principal = session && await authenticateToken(ctx, session);
+    if (!principal) throw notFound("Attachment not found or expired");
+    req.auth = principal;
+  } }, async (req, reply) => {
     const { userId } = me(req);
     const { id } = parse(idParams, req.params);
     const { proxy } = parse(AttachmentDownloadQuery, req.query);
@@ -299,17 +310,22 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
     // Same 404 for unknown, expired and unauthorised: no oracle for guessing ids.
     if (!a || a.expires_at <= now() || !ctx.authz.isMember(a.conversation_id, userId) || (a.pending_message_until != null && a.uploader_user_id !== userId)) throw notFound("Attachment not found or expired");
     reply.header("cache-control", "private, no-store");
+    const delivery = cfg.storage.delivery;
+    if (delivery && proxy !== "1" && !req.headers["x-meldiq-media-grant"] && await blobs.presignedGet("attachments", a.id)) {
+      return reply.redirect(mediaUrl(delivery, id, bearer(req)!, now()), 302);
+    }
     // Usage (round 7): bytes asked for, whether served here or from S3 (a range counts its own length).
     const orgOf = (ctx.authz.conversation(a.conversation_id)?.org_id ?? null) as string | null;
     const askedRange = /^bytes=(\d+)-(\d*)$/.exec(String(req.headers.range ?? ""));
-    const asked = askedRange ? Math.max(0, (askedRange[2] === "" ? a.size - 1 : Math.min(Number(askedRange[2]), a.size - 1)) - Number(askedRange[1]) + 1) : a.size;
+    const headOnly = !!req.headers["x-meldiq-media-grant"] && req.headers["x-meldiq-media-method"] === "HEAD";
+    const asked = headOnly ? 0 : askedRange ? Math.max(0, (askedRange[2] === "" ? a.size - 1 : Math.min(Number(askedRange[2]), a.size - 1)) - Number(askedRange[1]) + 1) : a.size;
     const downloadQuota = await ctx.quotas.charge("files.download_bytes", scopesFor(userId, orgOf), asked);
     if (!downloadQuota.allowed) throw refusal(downloadQuota);
     ctx.usage?.add(orgOf, "files.download_bytes", asked);
     ctx.telemetry?.activity.addTraffic(userId, "files.download", asked, now());
     // S3 with presigned downloads: after the checks above, a link valid for a few minutes (the client follows it; its
     // Range header still applies). The bucket itself stays private.
-    const direct = proxy === "1" ? null : await blobs.presignedGet("attachments", a.id);
+    const direct = proxy === "1" ? null : await blobs.presignedGet("attachments", a.id, headOnly);
     if (direct) return reply.redirect(direct, 302);
     reply.header("accept-ranges", "bytes");
     // Resumable downloads (T2.6): a single "bytes=start-[end]" range, checked after membership.

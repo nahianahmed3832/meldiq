@@ -200,9 +200,10 @@ export class S3BlobStore implements BlobStore {
     }
   }
 
-  async presignedGet(kind: BlobKind, id: string): Promise<string | null> {
+  async presignedGet(kind: BlobKind, id: string, head = false): Promise<string | null> {
     if (!this.cfg.presignedDownloads) return null;
-    return getSignedUrl(this.client, new GetObjectCommand({ Bucket: this.cfg.bucket, Key: this.key(kind, id) }), { expiresIn: this.cfg.presignTtlSeconds });
+    const object = { Bucket: this.cfg.bucket, Key: this.key(kind, id) };
+    return getSignedUrl(this.client, head ? new HeadObjectCommand(object) : new GetObjectCommand(object), { expiresIn: this.cfg.presignTtlSeconds });
   }
 
   async *listIds(kind: BlobKind): AsyncIterable<{ id: string; size: number; modifiedAt: number }> {

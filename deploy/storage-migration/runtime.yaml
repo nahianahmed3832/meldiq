@@ -1,0 +1,43 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Permit the existing backend to use Frankfurt and the edge probe to read only its fixture.
+Metadata:
+  AWSToolsMetrics: {AWSAgentToolkit: aws-cloudformation@3}
+Parameters:
+  MediaBucket: {Type: String}
+  BackendUser: {Type: String}
+  ServerIp: {Type: String}
+Resources:
+  Backend:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: meldiq-frankfurt-media
+      Users: [!Ref BackendUser]
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: [s3:PutObject, s3:GetObject, s3:AbortMultipartUpload, s3:ListMultipartUploadParts]
+            Resource: !Sub 'arn:${AWS::Partition}:s3:::${MediaBucket}/orbit/*'
+          - Effect: Allow
+            Action: s3:DeleteObject
+            Resource: !Sub 'arn:${AWS::Partition}:s3:::${MediaBucket}/orbit/*'
+            Condition: {IpAddress: {'aws:SourceIp': !Ref ServerIp}}
+          - Effect: Allow
+            Action: s3:ListBucket
+            Resource: !Sub 'arn:${AWS::Partition}:s3:::${MediaBucket}'
+            Condition:
+              IpAddress: {'aws:SourceIp': !Ref ServerIp}
+              StringLike: {'s3:prefix': 'orbit/*'}
+  EdgeProbe:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: orbit-api-meldiq-frankfurt-probe
+      PermissionsBoundary: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/orbit-runtime-boundary'
+      Policies:
+        - PolicyName: ProbeFixtureOnly
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub 'arn:${AWS::Partition}:s3:::${MediaBucket}/orbit/__status-monitoring/frankfurt-origin-v1.txt'
