@@ -2,7 +2,7 @@ import fs from "node:fs";
 import crypto from "node:crypto";
 import {GriipClient} from "./griipClient.mjs";
 if(process.env.MELDIQ_OWNED_CANARY!=="synthetic-loopback")throw new Error("Owned canary only");
-const base="http://127.0.0.1:8080",clients=[],report={ok:false,synthetic:true,ownedNetworkOnly:true,productionChanged:false,simulatedDatabaseRoundTripMilliseconds:168,unifiedSupabaseAuthTested:false,managedRealtimeTested:false,phase:"register"};
+const base="http://127.0.0.1:8080",clients=[],report={ok:false,synthetic:true,ownedNetworkOnly:true,productionChanged:false,simulatedDatabaseRoundTripMilliseconds:Number(process.env.MELDIQ_CANARY_DATABASE_RTT_MS??168),unifiedSupabaseAuthTested:false,managedRealtimeTested:false,phase:"register"};
 const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function bounded(predicate,timeout=30_000){const end=performance.now()+timeout;while(performance.now()<end){if(predicate())return;await pause(50);}throw new Error("Owned canary condition timed out");}
 const quantile=(values,p)=>[...values].sort((a,b)=>a-b)[Math.max(0,Math.ceil(values.length*p)-1)];

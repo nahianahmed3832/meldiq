@@ -18,6 +18,7 @@ parser.add_argument('--fixtures', type=Path, required=True)
 parser.add_argument('--candidate', required=True)
 parser.add_argument('--rollback', required=True)
 parser.add_argument('--concurrency', type=int, choices=[4, 8], default=4)
+parser.add_argument('--database-rtt-ms', type=int, choices=[2, 168], default=168)
 args = parser.parse_args()
 if not all(re.fullmatch('[a-f0-9]{40}', value) for value in [args.candidate, args.rollback]):
     raise SystemExit('Exact release revisions required')
@@ -35,7 +36,7 @@ created = []
 label = 'meldiq.migration.owner=' + prefix
 report = {'ok': False, 'synthetic': True, 'productionChanged': False, 'unpublishedNetworkNamespace': True,
           'candidateRevision': args.candidate, 'rollbackRevision': args.rollback,
-          'simulatedDatabaseRoundTripMilliseconds': 168, 'phase': 'setup', 'observedAt': datetime.datetime.now(datetime.UTC).isoformat()}
+          'simulatedDatabaseRoundTripMilliseconds': args.database_rtt_ms, 'phase': 'setup', 'observedAt': datetime.datetime.now(datetime.UTC).isoformat()}
 
 
 def command(argv, **kwargs):
@@ -107,10 +108,11 @@ try:
     for migration in sorted((args.fixtures / 'migrations').glob('*.sql')):
         sql(migration.read_text())
     sql('CREATE ROLE meldiq_canary_runtime LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS CONNECTION LIMIT 6; GRANT meldiq_api TO meldiq_canary_runtime; ALTER ROLE meldiq_canary_runtime SET search_path=pg_catalog,meldiq;')
-    common = {'MELDIQ_OWNED_CANARY': 'synthetic-loopback', 'NODE_ENV': 'development', 'APP_ENV': 'development',
+    common = {'MELDIQ_OWNED_CANARY': 'synthetic-loopback', 'MELDIQ_CANARY_DATABASE_RTT_MS': str(args.database_rtt_ms), 'NODE_ENV': 'development', 'APP_ENV': 'development',
               'DATABASE_MODE': 'supabase', 'SUPABASE_DATABASE_URL': 'postgresql://meldiq_canary_runtime@127.0.0.1:55433/postgres', 'DATA_DIR': '/data'}
     start(proxy, candidate, ['/app/probes/owned-pg-latency.mjs'], '128m', 'container:' + pg, common)
-    wait_file('proxy-ready.json')
+    if wait_file('proxy-ready.json').get('simulatedRoundTripMilliseconds') != args.database_rtt_ms:
+        raise RuntimeError('Database delay fixture differs from requested benchmark')
     report['phase'] = 'candidate-startup-and-hold'
     start(api, candidate, ['/app/probes/owned-api-canary.mjs'], '768m', 'container:' + pg, {**common, 'MELDIQ_CANARY_PHASE': 'candidate'})
     if not wait_file('api-ready.json').get('held'):
@@ -136,6 +138,8 @@ try:
     report['customerTableFingerprintsUnchangedAtRollback'] = True
     (run / 'control/rollback-ready.json').write_text('{"ready":true}\n')
     report['client'] = wait_file('client-report.json')
+    if report['client'].get('simulatedDatabaseRoundTripMilliseconds') != args.database_rtt_ms or report['client'].get('messageLoad', {}).get('concurrency') != args.concurrency:
+        raise RuntimeError('Client fixture differs from requested benchmark')
     if not report['client'].get('ok'):
         raise RuntimeError('Post-rollback client checks failed')
     report['pendingNativeFanoutJobs'] = int(sql('SELECT count(*) FROM meldiq_private.outbox;'))
