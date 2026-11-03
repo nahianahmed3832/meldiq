@@ -6,6 +6,7 @@ import {createRequire} from "node:module";
 import {spawn,execFile} from "node:child_process";
 import {promisify} from "node:util";
 import {pipeline} from "node:stream/promises";
+import {reconcileRestoredSource} from "./reconcile-restored-source.mjs";
 
 process.umask(0o077);
 const root=path.join(os.homedir(),".local/share/meldiq-migration/offhost-mirror");
@@ -75,6 +76,9 @@ try{
   const actual=await manifest(restored);
   if(JSON.stringify(actual)!==JSON.stringify(expected))throw new Error("Restored rows differ from the exported snapshot");
   report.reconciledTables=actual.length;report.reconciledRows=source.rows;report.exactRowFingerprintsMatch=true;
+  const snapshot=process.argv.find(arg=>arg.startsWith("--reconcile-source="))?.slice("--reconcile-source=".length);
+  if(snapshot)report.sourceReconciliation=await reconcileRestoredSource({snapshot,database:name,directory,
+    sourceManifestSha256:report.sourceManifestSha256,ciphertextSha256:source.files.find(file=>file.name==="database.dump.age").sha256});
   report.encryptedBackupVerified=true;report.policyScope="Stored schemas and Auth/application/migration rows; no Auth/Realtime/OAuth/SMTP service or production-role restore claim";
   report.phase="complete";report.ok=true;
 }catch(error){report.errorCode=/^[A-Z0-9_]{5,40}$/.test(error?.code??"")?error.code:"verification_stopped";process.exitCode=1;}

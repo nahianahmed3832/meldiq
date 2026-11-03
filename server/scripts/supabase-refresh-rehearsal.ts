@@ -3,15 +3,16 @@ import path from "node:path";
 import os from "node:os";
 import crypto from "node:crypto";
 import readline from "node:readline";
+import {fileURLToPath} from "node:url";
 import {execFileSync} from "node:child_process";
 import {postgresTableSpecs} from "../src/infrastructure/database/postgres/nativeCatalog.js";
 import {dependencyOrder,digest,rowHash,validateRow,tableCounts,TypedPostgresImporter} from "../src/infrastructure/database/postgres/migration.js";
 import {MeldiqPostgres,identifier as q} from "../src/infrastructure/database/postgres/client.js";
 
-const project="bkvlxbsnzqkhbifawcww";
-function privateFile(file:string){const s=fs.lstatSync(file);if(!s.isFile()||s.isSymbolicLink()||s.mode&0o077)throw new Error("Private regular source file required");}
-async function checksum(file:string){const hash=crypto.createHash("sha256");for await(const chunk of fs.createReadStream(file))hash.update(chunk);return hash.digest("hex");}
-function manifest(directory:string,final=false){
+export const project="bkvlxbsnzqkhbifawcww";
+export function privateFile(file:string){const s=fs.lstatSync(file);if(!s.isFile()||s.isSymbolicLink()||s.mode&0o077)throw new Error("Private regular source file required");}
+export async function checksum(file:string){const hash=crypto.createHash("sha256");for await(const chunk of fs.createReadStream(file))hash.update(chunk);return hash.digest("hex");}
+export function manifest(directory:string,final=false){
   const stat=fs.lstatSync(directory);if(!path.isAbsolute(directory)||!stat.isDirectory()||stat.isSymbolicLink()||stat.mode&0o077)throw new Error("Private source directory required");
   privateFile(path.join(directory,"manifest.json"));privateFile(path.join(directory,"local-validation.json"));
   const source=JSON.parse(fs.readFileSync(path.join(directory,"manifest.json"),"utf8")),proof=JSON.parse(fs.readFileSync(path.join(directory,"local-validation.json"),"utf8"));
@@ -20,7 +21,7 @@ function manifest(directory:string,final=false){
   for(const [name,value] of Object.entries(source.counters)){const spec=postgresTableSpecs().find(table=>table.name===name);if(!spec||!(spec.autoincrement||!spec.primaryKey.length)||!Number.isSafeInteger(value)||Number(value)<0)throw new Error("Invalid source counter");}
   return source;
 }
-function verifyFreeze(source:any){
+export function verifyFreeze(source:any){
   const run=source.freezeProof?.runDirectory;
   if(!/^\/opt\/griip-internal-messaging\/database-migration\/postgres-cutover-\d{8}T\d{6}Z$/.test(run??"")||!source.freezeProof.ok||!source.freezeProof.sourceWritesFrozen||!/^sha256:[a-f0-9]{64}$/.test(source.freezeProof.imageId)||!/^[a-f0-9]{64}$/.test(source.sourceCiphertextSha256??""))throw new Error("Frozen cutover source evidence required");
   const live=JSON.parse(execFileSync("ssh",["-o","BatchMode=yes","-o","ConnectTimeout=10","root@72.60.107.88","python3 /opt/griip-internal-messaging/database-migration/cutover-control.py status "+run],{encoding:"utf8",timeout:20_000}));
@@ -52,7 +53,7 @@ function sqlRow(spec:ReturnType<typeof postgresTableSpecs>[number],row:Record<st
     return [[name,value]];
   }));
 }
-const guardSql=`CREATE FUNCTION pg_temp.verify_rehearsal_backup(expected jsonb) RETURNS void LANGUAGE plpgsql AS $$
+export const guardSql=`CREATE FUNCTION pg_temp.verify_rehearsal_backup(expected jsonb) RETURNS void LANGUAGE plpgsql AS $$
 DECLARE item jsonb; totals jsonb; canonical text; actual text;
 BEGIN
  FOR item IN SELECT value FROM jsonb_array_elements(expected) LOOP
@@ -67,10 +68,18 @@ BEGIN
  END LOOP;
 END $$;`;
 
+export function requireRestoredSourceProof(proof:any,source:any,sourceManifestSha256:string,ciphertextSha256:string){
+  if(!proof?.ok||!proof.allRecordHashesMatch||!proof.allSourceFileHashesMatch||!proof.timestampFinancialAndCounterChecksPassed||
+    proof.comparisonDatabase!=="owned loopback restore"||proof.sourceSha256!==source.sourceSha256||proof.catalogSha256!==source.catalogSha256||
+    proof.snapshotId!==source.id||proof.tables!==282||proof.records!==source.tables.reduce((n:number,t:any)=>n+t.count,0)||
+    proof.sourceManifestSha256!==sourceManifestSha256||proof.ciphertextSha256!==ciphertextSha256)throw new Error("Complete source comparison on the exact independently restored backup required");
+}
+
 async function main(){
   process.umask(0o077);
   const [beforeDirectory,afterDirectory,backupDirectory,mode]=process.argv.slice(2);
-  const resume=mode==="--resume-preactivation-final-sync";
+  const prepare=mode==="--prepare-preactivation-final-sync";
+  const resume=mode==="--resume-preactivation-final-sync"||prepare;
   const final=mode==="--apply-final-sync"||resume;
   if(!beforeDirectory||!afterDirectory||!process.env.SUPABASE_DATABASE_URL||!final&&mode!=="--apply-rehearsal-refresh")throw new Error("Explicit refresh/final sync, two verified snapshots and a backup directory required");
   const before=manifest(beforeDirectory,resume),after=manifest(afterDirectory,final),endpoint=new URL(process.env.SUPABASE_DATABASE_URL);
@@ -91,6 +100,7 @@ async function main(){
     const identity=path.join(os.homedir(),".local/share/meldiq-supabase/recovery-keys/vps-20261101T174639Z.agekey");privateFile(identity);
     const metadata=JSON.parse(execFileSync("age",["-d","-i",identity,path.join(backupDirectory,"source-manifest.json.age")],{encoding:"utf8",maxBuffer:2_000_000}));
     if(digest(JSON.stringify(metadata.tables))!==proof.sourceManifestSha256)throw new Error("Backup fingerprint evidence changed");
+    if(prepare)requireRestoredSourceProof(proof.sourceReconciliation,before,proof.sourceManifestSha256,backup.files.find((f:any)=>f.name==="database.dump.age").sha256);
     guarded=metadata.tables.filter((table:any)=>["meldiq","meldiq_private"].includes(table.schema));
     if(guarded?.length!==289||guarded.some(table=>!/^[a-z_][a-z0-9_]*$/.test(table.name)||!/^[a-f0-9]{64}$/.test(table.rowChecksum)))throw new Error("Incomplete protected-table backup");
   }
@@ -101,7 +111,7 @@ async function main(){
     if(!local&&(resume?marker!==expectedPrepared:!marker.startsWith("Meldiq customer-data rehearsal:")))throw new Error("A serving database cannot be refreshed; prepared data requires an exact preactivation resume");
     const native=(await db.query("SELECT (SELECT count(*) FROM meldiq_private.auth_links)+(SELECT count(*) FROM meldiq.auth_device_sessions)+(SELECT count(*) FROM meldiq_private.outbox)+(SELECT count(*) FROM meldiq_private.realtime_grants) AS n")).rows[0].n;
     if(native!==0)throw new Error("Native identity/delivery work must not be overwritten");
-    report.phase="exact-before-reconciliation";await reconcile(db,beforeDirectory,before);
+    report.phase="exact-before-reconciliation";if(!prepare)await reconcile(db,beforeDirectory,before);
     report.phase="prepare-delta";
     const order=dependencyOrder(postgresTableSpecs()),upserts:Record<string,unknown>[]=[],deletes=new Map<string,Record<string,unknown>[]>();
     let updated=0,inserted=0,deleted=0;
@@ -144,10 +154,17 @@ async function main(){
       if(final)verifyFreeze(after);
       await client.query(`COMMENT ON SCHEMA meldiq IS '${final?"Meldiq prepared production database":"Meldiq customer-data rehearsal"}: ${after.id}; ${final?"source frozen; private activation required":"Atlas remains live"}'`);
     });
-    report.atomicDeltaCommitted=true;report.phase="exact-after-reconciliation";await reconcile(db,afterDirectory,after);
+    report.atomicDeltaCommitted=true;
+    if(prepare){
+      report.phase="awaiting-independent-final-backup";report.preparedForProduction=true;
+      report.finalFrozenSourceReconciled=false;report.allRecordHashesMatch=false;
+      report.tables=postgresTableSpecs().length;report.records=after.tables.reduce((sum:number,table:any)=>sum+table.count,0);
+      return;
+    }
+    report.phase="exact-after-reconciliation";await reconcile(db,afterDirectory,after);
     if(final){verifyFreeze(after);report.finalFrozenSourceReconciled=true;report.preparedForProduction=true;}
     report.allRecordHashesMatch=true;report.tables=postgresTableSpecs().length;report.records=after.tables.reduce((sum:number,table:any)=>sum+table.count,0);report.phase="complete";report.ok=true;
   }catch(error){report.errorCode=/^[A-Z0-9_]{5,40}$/.test((error as any)?.code??"")?(error as any).code:"refresh_stopped";fs.writeFileSync(path.join(afterDirectory,"refresh-diagnostics.json"),JSON.stringify({code:report.errorCode,message:error instanceof Error?error.message:"refresh stopped",table:(error as any)?.table,constraint:(error as any)?.constraint},null,2)+"\n",{mode:0o600});process.exitCode=1;}
   finally{await db.close();report.completedAt=new Date().toISOString();fs.writeFileSync(path.join(afterDirectory,"refresh-results.json"),JSON.stringify(report,null,2)+"\n",{mode:0o600});fs.appendFileSync(path.join(afterDirectory,"refresh-history.ndjson"),JSON.stringify(report)+"\n",{mode:0o600});console.log(JSON.stringify(report));}
 }
-main().catch(()=>{console.error("Rehearsal refresh stopped; keep Atlas live and inspect private evidence. No production cutover was performed.");process.exitCode=1;});
+if(process.argv[1]&&fileURLToPath(import.meta.url)===path.resolve(process.argv[1]))main().catch(()=>{console.error("Rehearsal refresh stopped; keep Atlas live and inspect private evidence. No production cutover was performed.");process.exitCode=1;});
