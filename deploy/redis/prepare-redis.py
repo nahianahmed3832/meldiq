@@ -21,4 +21,6 @@ env="REDIS_URL=redis://meldiq@redis:6379/0\nREDIS_PASSWORD="+password+"\nREDIS_P
 for path,text,mode in [(private/"redis.acl",acl,0o644),(a.directory/".env.redis",env,0o600)]:
  fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL,mode)
  with os.fdopen(fd,"w") as f:f.write(text)
+ # Preserve the reviewed mode even when provisioning runs under umask 0077.
+ os.chmod(path,mode)
 print("Redis credential files created. No credentials printed. Review Compose config with config -q only.")

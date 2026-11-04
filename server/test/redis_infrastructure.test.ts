@@ -184,10 +184,13 @@ describe("Redis infrastructure", () => {
     try {
       const setup = spawn(
         "python3",
-        ["../deploy/redis/prepare-redis.py", dir],
+        ["-c", "import os, runpy, sys; os.umask(0o077); sys.argv = ['prepare-redis.py', sys.argv[1]]; runpy.run_path('../deploy/redis/prepare-redis.py', run_name='__main__')", dir],
         { stdio: "ignore" },
       );
       expect((await once(setup, "exit"))[0]).toBe(0);
+      expect(fs.statSync(path.join(dir, "secrets/redis.acl")).mode & 0o777).toBe(0o644);
+      expect(fs.statSync(path.join(dir, ".env.redis")).mode & 0o777).toBe(0o600);
+      expect(fs.statSync(path.join(dir, "secrets")).mode & 0o777).toBe(0o700);
       const env = Object.fromEntries(
         fs
           .readFileSync(path.join(dir, ".env.redis"), "utf8")
