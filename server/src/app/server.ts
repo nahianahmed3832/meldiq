@@ -1,3 +1,4 @@
+import { installHttpDrain } from "./httpDrain.js";
 import { BillingNotifications } from "../modules/billing/notifications.js";
 import { CardSubscriptions } from "../modules/billing/cardSubscriptions.js";
 import { CardVault } from "../modules/billing/cardVault.js";
@@ -359,6 +360,7 @@ export async function buildApp(
     trustProxy: config.trustProxy,
     bodyLimit: 256 * 1024,
   });
+  installHttpDrain(app);
   if (opts.contracts) observeContracts(app, opts.contracts);
 
   const legacyDb =
@@ -451,7 +453,7 @@ export async function buildApp(
         await runtime.files.settled();
         return payload;
       });
-      app.addHook("onClose", async () => runtime.close());
+      app.addHook("onClose", async () => { await runtime.close(); app.log.info({stage:"repositories-closed"}, "shutdown stage"); });
     }
     // MongoDB holds the domains in MONGODB_DOMAINS; it refuses to start if that would split a domain between stores.
     if (config.mongo) {
@@ -483,7 +485,7 @@ export async function buildApp(
     if (config.redis) {
       ctx.redis = new RedisInfrastructure(config.redis, app.log);
       await ctx.redis.connect();
-      app.addHook("onClose", async () => ctx.redis?.close());
+      app.addHook("onClose", async () => { await ctx.redis?.close(); app.log.info({stage:"redis-closed"}, "shutdown stage"); });
     }
     // Communities and conversations: authorisation reads them synchronously, wherever they live.
     ctx.ws =
@@ -518,6 +520,7 @@ export async function buildApp(
       ]) {
         await r?.settled();
         await r?.close();
+      if (runtime && r === runtime.rows && r === ctx.ws) app.log.info({stage:"writer-lease-released"}, "shutdown stage");
       }
     });
     installBotDomainAdapters(app, ctx);
@@ -945,7 +948,11 @@ export async function buildApp(
       ctx.reminders.start(config.reminderTickMs),
     );
     app.addHook("onClose", async () => ctx.reminders.stop());
-    app.addHook("onClose", async () => ctx.hub.closePresence());
+    app.addHook("onClose", async () => {
+      await ctx.hub.settled();
+      ctx.hub.closePresence();
+      app.log.info({stage:"websocket-work-drained"}, "shutdown stage");
+    });
     ctx.meetings = new MeetingService(ctx);
     await afterDatabaseActivation(ctx.databaseCutover, () =>
       ctx.meetings.start(config.workflowTickMs > 0 ? 30_000 : 0),

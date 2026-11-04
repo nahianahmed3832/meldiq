@@ -250,6 +250,11 @@ export class Hub {
     return run;
   }
 
+  /** Drain already queued frames before the stores and writer lease close. */
+  async settled(): Promise<void> {
+    while (this.deviceWork.size) await Promise.all([...this.deviceWork.values()]);
+  }
+
   /** Users with at least one open socket. */
   connectedUserIds(): string[] {
     return [...this.byUser.keys()];

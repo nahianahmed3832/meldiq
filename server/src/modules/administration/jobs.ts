@@ -200,12 +200,13 @@ async function reconcileParticipants(ctx: AppContext, c: CallRow, isDm: boolean,
   return stale;
 }
 
-export function startJobs(ctx: AppContext): () => void {
+export function startJobs(ctx: AppContext): () => Promise<void> {
+  let pending: Promise<void> = Promise.resolve();
   let running = false; // a slow LiveKit can make one run outlast the interval; never overlap runs
   const timer = setInterval(() => {
     if (running) return;
     running = true;
-    (ctx.metrics ? ctx.metrics.timeJob("retention.cleanup", () => runCleanup(ctx)) : runCleanup(ctx))
+    pending = (ctx.metrics ? ctx.metrics.timeJob("retention.cleanup", () => runCleanup(ctx)) : runCleanup(ctx))
       .then((r) => {
         const total = Object.values(r).reduce((a, b) => a + b, 0);
         if (total > 0) ctx.log.info({ cleanup: r }, "retention cleanup");
@@ -216,5 +217,5 @@ export function startJobs(ctx: AppContext): () => void {
       });
   }, ctx.config.cleanupIntervalSeconds * 1000);
   timer.unref();
-  return () => clearInterval(timer);
+  return async () => { clearInterval(timer); await pending; };
 }
