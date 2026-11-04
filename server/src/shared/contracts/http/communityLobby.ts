@@ -27,9 +27,27 @@ export const LOBBY_LIMITS = {
 } as const;
 
 /** The lobby's cards, in the reference's default order. */
-export const LOBBY_SECTION_KEYS = ["about", "main_channels", "live_now", "giveaways", "feed", "faq", "leaderboard", "pick_roles", "rules", "who_runs_it", "links"] as const;
+export const LOBBY_SECTION_KEYS = [
+  "about",
+  "main_channels",
+  "live_now",
+  "giveaways",
+  "feed",
+  "faq",
+  "leaderboard",
+  "pick_roles",
+  "rules",
+  "who_runs_it",
+  "links",
+] as const;
 export const LOBBY_BOARDS = ["levels", "messages_week", "invites"] as const;
-export const LOBBY_TEMPLATES = ["gaming", "study", "creators", "hangout", "minimal"] as const;
+export const LOBBY_TEMPLATES = [
+  "gaming",
+  "study",
+  "creators",
+  "hangout",
+  "minimal",
+] as const;
 
 export const LobbySectionKey = z.enum(LOBBY_SECTION_KEYS);
 export const LobbyBoard = z.enum(LOBBY_BOARDS);
@@ -59,11 +77,23 @@ export const LobbyLook = z.strictObject({
 });
 
 /** One card's place: shown or hidden, and in the classic layout's main or side column. */
-export const LobbySection = z.strictObject({ key: LobbySectionKey, shown: z.boolean(), column: z.enum(["main", "side"]) });
+export const LobbySection = z.strictObject({
+  key: LobbySectionKey,
+  shown: z.boolean(),
+  column: z.enum(["main", "side"]),
+});
 
 /** A button at the top of the page: a site (https) or a channel of the community. The first one is the primary one. */
-export const LobbyButton = z.strictObject({ label: z.string(), url: z.string().nullable(), channelId: z.string().nullable() });
-export const LobbyFaqItem = z.strictObject({ id: z.string(), question: z.string(), answer: z.string() });
+export const LobbyButton = z.strictObject({
+  label: z.string(),
+  url: z.string().nullable(),
+  channelId: z.string().nullable(),
+});
+export const LobbyFaqItem = z.strictObject({
+  id: z.string(),
+  question: z.string(),
+  answer: z.string(),
+});
 
 /** Everything the lobby's editor sets. */
 export const LobbySettings = z.strictObject({
@@ -80,6 +110,12 @@ export const LobbySettings = z.strictObject({
   showWhoRunsIt: z.boolean(),
   look: LobbyLook,
   sections: z.array(LobbySection),
+  phoneOrder: z
+    .array(LobbySectionKey)
+    .length(LOBBY_SECTION_KEYS.length)
+    .refine((v) => new Set(v).size === v.length, "Each section once")
+    .optional(),
+  ordersLinked: z.boolean().optional(),
   /** The leaderboard card's boards, in tab order. */
   leaderboards: z.array(LobbyBoard),
 });
@@ -90,7 +126,10 @@ export const LobbyButtonBody = z
     url: HttpsUrl.nullish(),
     channelId: ChannelRef.nullish(),
   })
-  .refine((b) => !!b.url !== !!b.channelId, "A button opens either a link or a channel");
+  .refine(
+    (b) => !!b.url !== !!b.channelId,
+    "A button opens either a link or a channel",
+  );
 
 export const LobbyFaqBody = z.strictObject({
   /** Kept when it's 1–32 of A-Z, a-z, 0-9, _ and -; a new id otherwise. */
@@ -104,7 +143,10 @@ const unique = <T>(list: readonly T[]) => new Set(list).size === list.length;
 export const LobbySectionsBody = z
   .array(LobbySection)
   .length(LOBBY_SECTION_KEYS.length)
-  .refine((s) => unique(s.map((x) => x.key)), "Each section appears exactly once");
+  .refine(
+    (s) => unique(s.map((x) => x.key)),
+    "Each section appears exactly once",
+  );
 
 /**
  * A change to the lobby: [rev] is the revision it was made on (0 before the first save); a stale one is refused with
@@ -116,19 +158,40 @@ export const LobbySettingsBody = z.strictObject({
   tagline: z.string().trim().max(LOBBY_LIMITS.tagline).nullish(),
   buttons: z.array(LobbyButtonBody).max(LOBBY_LIMITS.buttons).optional(),
   about: z.string().trim().max(LOBBY_LIMITS.about).nullish(),
-  mainChannelIds: z.array(ChannelRef).max(LOBBY_LIMITS.mainChannels).refine(unique, "Each channel once").optional(),
+  mainChannelIds: z
+    .array(ChannelRef)
+    .max(LOBBY_LIMITS.mainChannels)
+    .refine(unique, "Each channel once")
+    .optional(),
   faq: z.array(LobbyFaqBody).max(LOBBY_LIMITS.faq).optional(),
   showWhoRunsIt: z.boolean().optional(),
   look: LobbyLook.partial().optional(),
   sections: LobbySectionsBody.optional(),
-  leaderboards: z.array(LobbyBoard).min(1).max(LOBBY_BOARDS.length).refine(unique, "Each board once").optional(),
+  phoneOrder: z
+    .array(LobbySectionKey)
+    .length(LOBBY_SECTION_KEYS.length)
+    .refine(unique, "Each section once")
+    .optional(),
+  ordersLinked: z.boolean().optional(),
+  leaderboards: z
+    .array(LobbyBoard)
+    .min(1)
+    .max(LOBBY_BOARDS.length)
+    .refine(unique, "Each board once")
+    .optional(),
 });
 
 /** Applies a template's look and section layout; text, channels and buttons stay, starter questions only fill an empty FAQ. */
-export const LobbyTemplateBody = z.strictObject({ key: LobbyTemplateKey, rev: zCount.optional() });
+export const LobbyTemplateBody = z.strictObject({
+  key: LobbyTemplateKey,
+  rev: zCount.optional(),
+});
 
 /** The feed URL's state (never the URL itself, which is shown once). */
-export const LobbyFeedInfo = z.strictObject({ createdAt: zTime, lastPostAt: zTime.nullable() });
+export const LobbyFeedInfo = z.strictObject({
+  createdAt: zTime,
+  lastPostAt: zTime.nullable(),
+});
 
 export const LobbySettingsView = z.strictObject({
   settings: LobbySettings,
@@ -142,14 +205,26 @@ export const LobbySettingsView = z.strictObject({
 });
 
 /** A new or rotated feed URL: POST [token] to /v1/lobby-feed/<token>. The token is shown only now. */
-export const LobbyFeedCreated = z.strictObject({ token: z.string(), feed: LobbyFeedInfo });
+export const LobbyFeedCreated = z.strictObject({
+  token: z.string(),
+  feed: LobbyFeedInfo,
+});
 export const LobbyFeedDeleted = z.strictObject({ feed: z.null() });
-export const LobbySeen = z.strictObject({ seen: z.literal(true), seenAt: zTime });
+export const LobbySeen = z.strictObject({
+  seen: z.literal(true),
+  seenAt: zTime,
+});
 
 /** Anything longer is refused outright; what fits is cut to the lobby's limits. */
 const FeedText = z.string().max(8000).nullish();
 const FeedImage = z.object({ url: FeedText }).nullish();
-const FeedEmbed = z.object({ title: FeedText, description: FeedText, url: FeedText, image: FeedImage, thumbnail: FeedImage });
+const FeedEmbed = z.object({
+  title: FeedText,
+  description: FeedText,
+  url: FeedText,
+  image: FeedImage,
+  thumbnail: FeedImage,
+});
 
 /**
  * What the feed URL takes: Meldiq's own `{title, text, url, image}`, or a Discord-style webhook body
@@ -164,5 +239,8 @@ export const LobbyFeedPostBody = z.object({
   embeds: z.array(FeedEmbed).max(10).nullish(),
 });
 
-export const LobbyFeedAccepted = z.strictObject({ id: z.string(), postedAt: zTime });
+export const LobbyFeedAccepted = z.strictObject({
+  id: z.string(),
+  postedAt: zTime,
+});
 export const LobbyFeedParams = z.object({ token: z.string().min(10).max(128) });

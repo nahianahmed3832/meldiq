@@ -13,6 +13,7 @@ import adminCreatorRoutes from "./creators.js";
 import adminBotsPlusRoutes from "./botsPlus.js";
 import adminDiscoveryRoutes from "./discovery.js";
 import moderationRoutes from "./moderation.js";
+import partnerAdminRoutes from "./partners.js";
 import operationsAdminRoutes from "./operations.js";
 import { gate } from "./guards.js";
 import { PlatformAdminStore } from "./store.js";
@@ -20,7 +21,13 @@ import { PlatformAdminStore } from "./store.js";
 export { PlatformAudit } from "./audit.js";
 export { PlatformAdminStore } from "./store.js";
 export { PLATFORM_ADMIN_COMMANDS, runPlatformAdminCommand } from "./cli.js";
-export { CLI_ACTOR, grantAdmin, issueEnrolment, resetAdminPasskeys, revokeAdmin } from "./bootstrap.js";
+export {
+  CLI_ACTOR,
+  grantAdmin,
+  issueEnrolment,
+  resetAdminPasskeys,
+  revokeAdmin,
+} from "./bootstrap.js";
 export { PLATFORM_ROLES, type PlatformRole } from "./permissions.js";
 export { platformSetting, SETTINGS, type SettingKey } from "./settings.js";
 
@@ -29,7 +36,11 @@ export { platformSetting, SETTINGS, type SettingKey } from "./settings.js";
  * when ADMIN_CONSOLE_ORIGIN is set. Everything in it runs behind [gate] (host, network, console header, origin) in its
  * own scope, so none of it touches the apps' routes.
  */
-export async function registerPlatformAdmin(app: FastifyInstance, ctx: AppContext, version: string): Promise<void> {
+export async function registerPlatformAdmin(
+  app: FastifyInstance,
+  ctx: AppContext,
+  version: string,
+): Promise<void> {
   const cfg = ctx.config.adminConsole;
   if (!cfg) return;
   const store = new PlatformAdminStore(ctx.platform, ctx.ephemeral);
@@ -41,6 +52,7 @@ export async function registerPlatformAdmin(app: FastifyInstance, ctx: AppContex
     const deps = { ctx, auth, audit, store, version };
     await adminDataRoutes(scope, deps);
     await moderationRoutes(scope, deps);
+    await partnerAdminRoutes(scope, deps);
     await operationsAdminRoutes(scope, deps);
     await collectibleCommerceAdminRoutes(scope, deps);
     await adminOpsRoutes(scope, deps);
@@ -61,7 +73,10 @@ export { validateAuditChain } from "./auditValidation.js";
 export { principal, requirePermission, metaOf } from "./guards.js";
 export type { AdminDeps } from "./dataRoutes.js";
 export type { Permission } from "./permissions.js";
-export { legacyOperatorAllowed, eraseOperationalUserData } from "./operations.js";
+export {
+  legacyOperatorAllowed,
+  eraseOperationalUserData,
+} from "./operations.js";
 export { runtimePolicy, inRollout } from "./runtimePolicy.js";
 
 export { hasPlatformAdminAccount } from "./audience.js";

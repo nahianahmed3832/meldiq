@@ -1,0 +1,35 @@
+{
+  "report": {
+    "id": "repcommunity_7e2b0c2b3728035f5d255c305f13171d2f490b56",
+    "orgId": null,
+    "targetUserId": null,
+    "targetCommunityId": "o_-aoYzYuw50gtFg5Q94IMcA",
+    "communityNote": "Private community safety evidence",
+    "reason": "spam",
+    "kind": "community",
+    "messageId": null,
+    "status": "dismissed",
+    "createdAt": 1793790434898,
+    "handledAt": 1793790434973,
+    "assigneeAccountId": null,
+    "priority": "normal",
+    "appealStatus": "none",
+    "syncStatus": "synced",
+    "intendedStatus": null,
+    "version": 1
+  },
+  "events": [
+    {
+      "at": 1793790434973,
+      "actorAccountId": "acc_cDjFh10ENqyCz4F0jnti3w",
+      "kind": "resolved",
+      "body": "dismissed"
+    },
+    {
+      "at": 1793790434971,
+      "actorAccountId": "acc_cDjFh10ENqyCz4F0jnti3w",
+      "kind": "resolution_requested",
+      "body": "Reviewed the submitted community evidence"
+    }
+  ]
+}

@@ -1,7 +1,12 @@
 import { z } from "zod/v4";
 import { zCount, zTime } from "./primitives.js";
 import { ChannelOptionsView } from "./conversations.js";
-import { AutoAssignMode, EveryoneDefaults, Permission, RoleExtras } from "./roles.js";
+import {
+  AutoAssignMode,
+  EveryoneDefaults,
+  Permission,
+  RoleExtras,
+} from "./roles.js";
 import { route } from "./route.js";
 
 export { ChannelOptionsView, EveryoneDefaults, RoleExtras };
@@ -18,7 +23,9 @@ const zId = z.string().min(1).max(64);
 const zHex = z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Use a colour like #E39B7B");
 const known = new Set<string>(Permission.options);
 const zPermissionList = z
-  .array(z.string().refine((k) => known.has(k), { message: "Unknown permission" }))
+  .array(
+    z.string().refine((k) => known.has(k), { message: "Unknown permission" }),
+  )
   .max(64)
   .transform((l) => [...new Set(l)]);
 
@@ -63,6 +70,7 @@ export const NicknameResult = z.strictObject({
 // ───────────── Role extras and order ─────────────
 
 export const RoleExtrasBody = z.object({
+  iconExpressionId: z.string().min(1).max(64).nullable().optional(),
   color2: zHex.nullable().optional(),
   mentionable: z.boolean().optional(),
   autoAssign: z
@@ -82,7 +90,9 @@ export const RoleOrderBody = z.object({
   roleIds: z.array(zId).min(1).max(100),
 });
 export const RoleOrderResult = z.strictObject({
-  order: z.array(z.strictObject({ id: z.string(), position: z.number().int() })),
+  order: z.array(
+    z.strictObject({ id: z.string(), position: z.number().int() }),
+  ),
 });
 
 // ───────────── Stages ─────────────
@@ -95,13 +105,15 @@ export const StageResult = z.strictObject({
 // ───────────── Routes ─────────────
 
 const tag = "community-permissions";
-const r = (c: Omit<Parameters<typeof route>[0], "tag" | "auth">) => route({ tag, auth: true, ...c });
+const r = (c: Omit<Parameters<typeof route>[0], "tag" | "auth">) =>
+  route({ tag, auth: true, ...c });
 
 export const communityPermissionsRoutes = [
   r({
     method: "GET",
     url: "/v1/orgs/:orgId/members/:userId/profile",
-    summary: "Community profile overrides, projected through global privacy and current membership.",
+    summary:
+      "Community profile overrides, projected through global privacy and current membership.",
     params: OrgMemberParams,
     response: CommunityProfileView,
     errors: ["not_found", "forbidden", "feature_disabled"],
@@ -109,7 +121,8 @@ export const communityPermissionsRoutes = [
   r({
     method: "PUT",
     url: "/v1/orgs/:orgId/members/:userId/profile",
-    summary: "Replace your own community profile overrides using its revision. Null fields inherit the global profile.",
+    summary:
+      "Replace your own community profile overrides using its revision. Null fields inherit the global profile.",
     params: OrgMemberParams,
     body: CommunityProfileBody,
     response: CommunityProfileView,
@@ -118,38 +131,68 @@ export const communityPermissionsRoutes = [
   r({
     method: "PUT",
     url: "/v1/orgs/:orgId/roles/everyone",
-    summary: "Change what plain members may do by default (everyday permissions you hold yourself; needs roles.manage).",
+    summary:
+      "Change what plain members may do by default (everyday permissions you hold yourself; needs roles.manage).",
     params: OrgParams,
     body: EveryoneBody,
     response: EveryoneOnly,
-    errors: ["not_found", "forbidden", "beyond_your_powers", "not_member_safe", "feature_disabled"],
+    errors: [
+      "not_found",
+      "forbidden",
+      "beyond_your_powers",
+      "not_member_safe",
+      "feature_disabled",
+    ],
   }),
   r({
     method: "PUT",
     url: "/v1/orgs/:orgId/members/:userId/nickname",
-    summary: "Set or clear a nickname in this community (your own with members.nickname, others' with members.nicknames).",
+    summary:
+      "Set or clear a nickname in this community (your own with members.nickname, others' with members.nicknames).",
     params: OrgMemberParams,
     body: NicknameBody,
     response: NicknameResult,
-    errors: ["not_found", "bad_request", "nickname_not_allowed", "nicknames_not_allowed", "feature_disabled"],
+    errors: [
+      "not_found",
+      "bad_request",
+      "nickname_not_allowed",
+      "nicknames_not_allowed",
+      "feature_disabled",
+    ],
   }),
   r({
     method: "PUT",
     url: "/v1/roles/:roleId/extras",
-    summary: "Set a role's second colour, whether anyone may mention it, and who gets it automatically.",
+    summary:
+      "Set a role's second colour, whether anyone may mention it, and who gets it automatically.",
     params: RoleParams,
     body: RoleExtrasBody,
     response: RoleExtrasResult,
-    errors: ["not_found", "forbidden", "beyond_your_powers", "delegation_required", "auto_role_has_powers", "archived", "feature_disabled"],
+    errors: [
+      "not_found",
+      "forbidden",
+      "beyond_your_powers",
+      "delegation_required",
+      "auto_role_has_powers",
+      "archived",
+      "feature_disabled",
+    ],
   }),
   r({
     method: "PUT",
     url: "/v1/orgs/:orgId/roles/order",
-    summary: "Reorder roles (highest first); only roles below your own highest move unless you're an owner or admin.",
+    summary:
+      "Reorder roles (highest first); only roles below your own highest move unless you're an owner or admin.",
     params: OrgParams,
     body: RoleOrderBody,
     response: RoleOrderResult,
-    errors: ["not_found", "forbidden", "bad_request", "beyond_your_powers", "feature_disabled"],
+    errors: [
+      "not_found",
+      "forbidden",
+      "bad_request",
+      "beyond_your_powers",
+      "feature_disabled",
+    ],
   }),
   r({
     method: "PUT",
@@ -162,7 +205,8 @@ export const communityPermissionsRoutes = [
   r({
     method: "DELETE",
     url: "/v1/conversations/:id/stage/speakers/:userId",
-    summary: "Send a speaker back to the audience (its moderators, or the speaker themself).",
+    summary:
+      "Send a speaker back to the audience (its moderators, or the speaker themself).",
     params: ChannelMemberParams,
     response: StageResult,
     errors: ["not_found", "forbidden", "bad_request", "feature_disabled"],

@@ -13,7 +13,9 @@ import { listMediaFields, UserSummary } from "./users.js";
 /** The most people in a group, its creator included. */
 export const MAX_GROUP = 50;
 /** The slowmode intervals a channel can have, in seconds (0: off), as Discord-style apps offer them. */
-export const SLOWMODE_STEPS = [0, 5, 10, 30, 60, 300, 900, 3600, 21600] as const;
+export const SLOWMODE_STEPS = [
+  0, 5, 10, 30, 60, 300, 900, 3600, 21600,
+] as const;
 /** Up to this many tags per forum (the reference forum allows the same). */
 export const FORUM_TAG_LIMIT = 20;
 /** Batch B8: the longest a forum's post guidelines may be. */
@@ -45,7 +47,11 @@ export const ConversationMemberDetail = ConversationMember.extend({
   orgRole: z.enum(["OWNER", "ADMIN", "MEMBER", "GUEST"]).nullable(),
 });
 
-export const ForumTag = z.strictObject({ id: z.string(), name: z.string() });
+export const ForumTag = z.strictObject({
+  id: z.string(),
+  name: z.string(),
+  restricted: z.boolean().optional(),
+});
 
 /** A call that hasn't ended in the conversation. */
 export const ActiveCall = z.strictObject({
@@ -59,7 +65,14 @@ export const ActiveCall = z.strictObject({
 
 /** For a conversation with people on other servers: each server's domain, directory state and queued deliveries. */
 export const ConversationFederation = z.strictObject({
-  servers: z.array(z.strictObject({ serverId: z.string(), domain: z.string().nullable(), state: z.string(), pending: zCount })),
+  servers: z.array(
+    z.strictObject({
+      serverId: z.string(),
+      domain: z.string().nullable(),
+      state: z.string(),
+      pending: zCount,
+    }),
+  ),
   /** Whether this server can start a call here (calls are hosted by the caller's server). */
   calls: z.boolean(),
 });
@@ -91,7 +104,10 @@ export const channelOptionFields = {
   noGifs: z.boolean().optional(),
   stage: z.boolean().optional(),
   readOnly: z.boolean().optional(),
-  posterRoleIds: z.array(z.string().min(1).max(64)).max(POSTER_ROLES_LIMIT).optional(),
+  posterRoleIds: z
+    .array(z.string().min(1).max(64))
+    .max(POSTER_ROLES_LIMIT)
+    .optional(),
 };
 
 /** A conversation as one person sees it. */
@@ -110,6 +126,7 @@ export const ConversationView = z.strictObject({
   position: z.number().int(),
   format: z.enum(["text", "forum"]),
   forumTags: z.array(ForumTag),
+  requireForumTag: z.boolean().optional(),
   /** A forum's post guidelines, or null. */
   guidelines: z.string().nullable(),
   kind: z.enum(["PUBLIC", "PRIVATE", "ANNOUNCEMENT"]).nullable(),
@@ -160,12 +177,23 @@ export const MessageRequest = z.strictObject({
   limit: zCount,
 });
 
-export const ConversationWithRequest = ConversationView.extend({ request: MessageRequest.nullable() });
-export const ConversationOnly = z.strictObject({ conversation: ConversationView });
-export const ConversationWithRequestOnly = z.strictObject({ conversation: ConversationWithRequest });
+export const ConversationWithRequest = ConversationView.extend({
+  request: MessageRequest.nullable(),
+});
+export const ConversationOnly = z.strictObject({
+  conversation: ConversationView,
+});
+export const ConversationWithRequestOnly = z.strictObject({
+  conversation: ConversationWithRequest,
+});
 
 /** A device's public keys (griip-envelope-v1): what a sender encrypts to. */
-export const DirectoryDevice = z.strictObject({ id: z.string(), signingKey: z.string(), encryptionKey: z.string(), certificate: z.string() });
+export const DirectoryDevice = z.strictObject({
+  id: z.string(),
+  signingKey: z.string(),
+  encryptionKey: z.string(),
+  certificate: z.string(),
+});
 export const DeviceDirectoryEntry = z.strictObject({
   userId: z.string(),
   identityKey: z.string(),
@@ -176,15 +204,32 @@ export const DeviceDirectoryEntry = z.strictObject({
    * An AI agent reading this conversation (docs/AI_WORKFORCE_2_PLAN.md phase 5): listed only for apps that send
    * `x-meldiq-ai-reader: 1`, with only its device here. A sender wraps to it only if their person chose to share.
    */
-  agent: z.strictObject({ installId: z.string(), readerId: z.string(), name: z.string() }).optional(),
+  agent: z
+    .strictObject({
+      installId: z.string(),
+      readerId: z.string(),
+      name: z.string(),
+    })
+    .optional(),
 });
 
 export const Ok = z.strictObject({ ok: z.literal(true) });
 
-export const ConversationListQuery = z.object({ requests: z.enum(["0", "1"]).optional() });
-export const MemberParams = z.strictObject({ id: zConvId, userId: z.string().max(64) });
+export const ConversationListQuery = z.object({
+  requests: z.enum(["0", "1"]).optional(),
+});
+export const MemberParams = z.strictObject({
+  id: zConvId,
+  userId: z.string().max(64),
+});
 export const DmBody = z.object({ userId: z.string().max(64) });
-export const GroupBody = z.object({ name: z.string().trim().min(1).max(60), memberIds: z.array(z.string().max(64)).min(1).max(MAX_GROUP - 1) });
+export const GroupBody = z.object({
+  name: z.string().trim().min(1).max(60),
+  memberIds: z
+    .array(z.string().max(64))
+    .min(1)
+    .max(MAX_GROUP - 1),
+});
 export const ConversationPatchBody = z.object({
   name: z.string().trim().min(1).max(60).optional(),
   topic: z.string().trim().max(500).nullable().optional(),
@@ -192,36 +237,54 @@ export const ConversationPatchBody = z.object({
   kind: z.enum(["PUBLIC", "PRIVATE", "ANNOUNCEMENT"]).optional(),
   format: z.enum(["text", "forum"]).optional(),
   forumTags: z
-    .array(z.object({ id: z.string().max(64).optional(), name: z.string().max(20) }))
+    .array(
+      z.object({
+        id: z.string().max(64).optional(),
+        name: z.string().max(20),
+        restricted: z.boolean().optional(),
+      }),
+    )
     .max(FORUM_TAG_LIMIT)
     .optional(),
+  requireForumTag: z.boolean().optional(),
   /** Batch B8: a forum's post guidelines (null removes them). */
   guidelines: z.string().trim().max(FORUM_GUIDELINES_MAX).nullable().optional(),
   /** Batch B3: seconds between one person's messages; only the intervals the apps offer. */
   slowmodeSec: z
     .number()
     .int()
-    .refine((n) => (SLOWMODE_STEPS as readonly number[]).includes(n), { message: "Pick one of the offered intervals" })
+    .refine((n) => (SLOWMODE_STEPS as readonly number[]).includes(n), {
+      message: "Pick one of the offered intervals",
+    })
     .optional(),
   ...channelOptionFields,
 });
-export const ConversationDeleteBody = z.object({ confirmName: z.string().max(200) });
-export const MemberPutBody = z.object({ role: z.enum(["ADMIN", "MEMBER"]).default("MEMBER") });
+export const ConversationDeleteBody = z.object({
+  confirmName: z.string().max(200),
+});
+export const MemberPutBody = z.object({
+  role: z.enum(["ADMIN", "MEMBER"]).default("MEMBER"),
+});
 
-const conv = (c: Omit<Parameters<typeof route>[0], "tag" | "auth">) => route({ tag: "conversations", auth: true, ...c });
+const conv = (c: Omit<Parameters<typeof route>[0], "tag" | "auth">) =>
+  route({ tag: "conversations", auth: true, ...c });
 
 export const conversationRoutes = [
   conv({
     method: "GET",
     url: "/v1/conversations",
-    summary: "This person's conversations, most recently active first (?requests=1: only message requests waiting for them).",
+    summary:
+      "This person's conversations, most recently active first (?requests=1: only message requests waiting for them).",
     query: ConversationListQuery,
-    response: z.strictObject({ conversations: z.array(ConversationWithRequest) }),
+    response: z.strictObject({
+      conversations: z.array(ConversationWithRequest),
+    }),
   }),
   conv({
     method: "GET",
     url: "/v1/conversations/:id/presence",
-    summary: "How many members are online now (counting only people whose online state the viewer may see).",
+    summary:
+      "How many members are online now (counting only people whose online state the viewer may see).",
     params: idParams,
     response: z.strictObject({ online: zCount, members: zCount }),
     errors: ["not_found"],
@@ -229,7 +292,8 @@ export const conversationRoutes = [
   conv({
     method: "GET",
     url: "/v1/conversations/:id",
-    summary: "One conversation (a channel the person can see, or one they're in).",
+    summary:
+      "One conversation (a channel the person can see, or one they're in).",
     params: idParams,
     response: ConversationWithRequestOnly,
     errors: ["not_found"],
@@ -245,7 +309,8 @@ export const conversationRoutes = [
   conv({
     method: "GET",
     url: "/v1/conversations/:id/devices",
-    summary: "Public keys of every active device of every member: what a sender must encrypt to.",
+    summary:
+      "Public keys of every active device of every member: what a sender must encrypt to.",
     params: idParams,
     response: z.strictObject({ users: z.array(DeviceDirectoryEntry) }),
     errors: ["not_found"],
@@ -253,15 +318,23 @@ export const conversationRoutes = [
   conv({
     method: "POST",
     url: "/v1/conversations/dm",
-    summary: "Open the direct conversation with someone (created on first use, possibly as a message request).",
+    summary:
+      "Open the direct conversation with someone (created on first use, possibly as a message request).",
     body: DmBody,
     response: ConversationWithRequestOnly,
-    errors: ["not_available", "dm_not_allowed", "request_rate_limited", "dms_paused", "federation_disabled"],
+    errors: [
+      "not_available",
+      "dm_not_allowed",
+      "request_rate_limited",
+      "dms_paused",
+      "federation_disabled",
+    ],
   }),
   conv({
     method: "PUT",
     url: "/v1/conversations/:id/photo",
-    summary: "Set a group's photo (a JPEG of up to 512 KB; not end-to-end encrypted). Group admins only.",
+    summary:
+      "Set a group's photo (a JPEG of up to 512 KB; not end-to-end encrypted). Group admins only.",
     params: idParams,
     binary: "request",
     response: z.strictObject({ photoRev: zTime }),
@@ -287,7 +360,8 @@ export const conversationRoutes = [
   conv({
     method: "POST",
     url: "/v1/conversations/group",
-    summary: "Create a group with people on this server; the creator is its admin. Each person's group-add choice applies (API 0.65.0).",
+    summary:
+      "Create a group with people on this server; the creator is its admin. Each person's group-add choice applies (API 0.65.0).",
     body: GroupBody,
     response: ConversationOnly,
     errors: ["group_add_not_allowed"],
@@ -295,19 +369,32 @@ export const conversationRoutes = [
   conv({
     method: "PATCH",
     url: "/v1/conversations/:id",
-    summary: "Change a conversation: name, topic, archived, access mode, forum format, tags and guidelines, slowmode, channel options.",
+    summary:
+      "Change a conversation: name, topic, archived, access mode, forum format, tags and guidelines, slowmode, channel options.",
     params: idParams,
     body: ConversationPatchBody,
     response: ConversationOnly,
-    errors: ["not_found", "forbidden", "conflict", "bad_request", "feature_disabled"],
+    errors: [
+      "not_found",
+      "forbidden",
+      "conflict",
+      "bad_request",
+      "feature_disabled",
+    ],
   }),
   conv({
     method: "DELETE",
     url: "/v1/conversations/:id",
-    summary: "Delete a community channel with its messages, files and calls, after typing its name.",
+    summary:
+      "Delete a community channel with its messages, files and calls, after typing its name.",
     params: idParams,
     body: ConversationDeleteBody,
-    response: z.strictObject({ deleted: z.literal(true), id: z.string(), members: zCount, files: zCount }),
+    response: z.strictObject({
+      deleted: z.literal(true),
+      id: z.string(),
+      members: zCount,
+      files: zCount,
+    }),
     errors: ["not_found", "forbidden", "confirm_mismatch"],
   }),
   conv({
@@ -321,7 +408,8 @@ export const conversationRoutes = [
   conv({
     method: "PUT",
     url: "/v1/conversations/:id/members/:userId",
-    summary: "Add someone to a group or channel, or change their role there. Managers only; adding someone to a group asks their group-add choice.",
+    summary:
+      "Add someone to a group or channel, or change their role there. Managers only; adding someone to a group asks their group-add choice.",
     params: MemberParams,
     body: MemberPutBody,
     response: Ok,
@@ -330,7 +418,8 @@ export const conversationRoutes = [
   conv({
     method: "DELETE",
     url: "/v1/conversations/:id/members/:userId",
-    summary: "Leave a group, or take someone out of a group or channel (managers). Community channels can't be left.",
+    summary:
+      "Leave a group, or take someone out of a group or channel (managers). Community channels can't be left.",
     params: MemberParams,
     response: Ok,
     errors: ["not_found", "forbidden", "leave_community"],

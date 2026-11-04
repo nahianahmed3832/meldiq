@@ -1,0 +1,22 @@
+{
+  "report": {
+    "id": "repcommunity_7e2b0c2b3728035f5d255c305f13171d2f490b56",
+    "orgId": null,
+    "targetUserId": null,
+    "targetCommunityId": "o_-aoYzYuw50gtFg5Q94IMcA",
+    "communityNote": "Private community safety evidence",
+    "reason": "spam",
+    "kind": "community",
+    "messageId": null,
+    "status": "open",
+    "createdAt": 1793790434898,
+    "handledAt": null,
+    "assigneeAccountId": null,
+    "priority": "normal",
+    "appealStatus": "none",
+    "syncStatus": "synced",
+    "intendedStatus": null,
+    "version": 0
+  },
+  "events": []
+}

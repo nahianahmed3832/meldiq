@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { QUICK_REACTION_CHOICES } from "../../../shared/contracts/http/preferences.js";
 
 /**
  * Personal navigation preferences (docs/WORKSPACE_ADMINISTRATION.md › Personal sections): one document per person and
@@ -160,6 +161,12 @@ export const zNavPrefs = z
      * (false: Meldiq's own theme everywhere). Left out, the stored choice is kept; never set means shown.
      */
     communityThemes: z.boolean().optional(),
+    quickReactions: z
+      .array(z.enum(QUICK_REACTION_CHOICES))
+      .min(3)
+      .max(5)
+      .refine((items) => new Set(items).size === items.length)
+      .optional(),
     expressionFavorites: z
       .array(z.string().regex(/^(emj|stk)_[A-Za-z0-9_-]{1,40}$/))
       .max(100)
@@ -204,7 +211,8 @@ export function normalizePrefs(
   p: NavPrefs,
   keep: (conversationId: string) => boolean,
   /** The level a channel would follow without its own (its category's, else the community's). */
-  parentLevel: (conversationId: string) => NotifyLevel = () => p.community?.level ?? "all",
+  parentLevel: (conversationId: string) => NotifyLevel = () =>
+    p.community?.level ?? "all",
   at: number = Date.now(),
 ): NavPrefs {
   const seen = new Set<string>();
@@ -216,14 +224,24 @@ export function normalizePrefs(
     });
   const starred = take(p.starred);
   const sectionIds = new Set<string>();
-  const sections = p.sections.filter((s) => !sectionIds.has(s.id) && (sectionIds.add(s.id), true)).map((s) => ({ ...s, items: take(s.items) }));
+  const sections = p.sections
+    .filter((s) => !sectionIds.has(s.id) && (sectionIds.add(s.id), true))
+    .map((s) => ({ ...s, items: take(s.items) }));
   const notify = Object.fromEntries(
     Object.entries(p.notify)
-      .filter(([id, level]) => (level !== "all" || parentLevel(id) !== "all") && keep(id))
+      .filter(
+        ([id, level]) =>
+          (level !== "all" || parentLevel(id) !== "all") && keep(id),
+      )
       .sort(([a], [b]) => a.localeCompare(b)),
   ) as Record<string, NotifyLevel>;
   const savedIds = new Set<string>();
-  const saved = (p.saved ?? []).filter((item) => keep(item.conversationId) && !savedIds.has(item.messageId) && (savedIds.add(item.messageId), true));
+  const saved = (p.saved ?? []).filter(
+    (item) =>
+      keep(item.conversationId) &&
+      !savedIds.has(item.messageId) &&
+      (savedIds.add(item.messageId), true),
+  );
   return {
     ...(p.locale !== undefined ? { locale: p.locale } : {}),
     starred,
@@ -236,36 +254,63 @@ export function normalizePrefs(
     ...(p.railFolders ? { railFolders: normalizeFolders(p.railFolders) } : {}),
     ...(p.mutedUntil
       ? {
-          mutedUntil: Object.fromEntries(Object.entries(p.mutedUntil).filter(([id, until]) => until > at && keep(id))),
+          mutedUntil: Object.fromEntries(
+            Object.entries(p.mutedUntil).filter(
+              ([id, until]) => until > at && keep(id),
+            ),
+          ),
         }
       : {}),
     ...(p.categoryNotify ? { categoryNotify: p.categoryNotify } : {}),
     ...(p.hidden ? { hidden: [...new Set(p.hidden)] } : {}),
-    ...(p.expressionFavorites ? { expressionFavorites: [...new Set(p.expressionFavorites)] } : {}),
-    ...(p.expressionRecents ? { expressionRecents: [...new Set(p.expressionRecents)] } : {}),
-    ...(p.communityThemes !== undefined ? { communityThemes: p.communityThemes } : {}),
+    ...(p.expressionFavorites
+      ? { expressionFavorites: [...new Set(p.expressionFavorites)] }
+      : {}),
+    ...(p.expressionRecents
+      ? { expressionRecents: [...new Set(p.expressionRecents)] }
+      : {}),
+    ...(p.communityThemes !== undefined
+      ? { communityThemes: p.communityThemes }
+      : {}),
+    ...(p.quickReactions ? { quickReactions: p.quickReactions } : {}),
   };
 }
 
 /** Each community in at most one folder (the first wins); folders left empty are dropped; colours in lower case. */
-function normalizeFolders(folders: z.infer<typeof zRailFolder>[]): z.infer<typeof zRailFolder>[] {
+function normalizeFolders(
+  folders: z.infer<typeof zRailFolder>[],
+): z.infer<typeof zRailFolder>[] {
   const placed = new Set<string>();
   const ids = new Set<string>();
   return folders.flatMap((f) => {
     if (ids.has(f.id)) return [];
     ids.add(f.id);
-    const orgIds = f.orgIds.filter((id) => !placed.has(id) && (placed.add(id), true));
-    return orgIds.length ? [{ ...f, color: f.color ? f.color.toLowerCase() : null, orgIds }] : [];
+    const orgIds = f.orgIds.filter(
+      (id) => !placed.has(id) && (placed.add(id), true),
+    );
+    return orgIds.length
+      ? [{ ...f, color: f.color ? f.color.toLowerCase() : null, orgIds }]
+      : [];
   });
 }
 
 /** Every conversation id a document mentions. */
 export function referencedConversations(p: NavPrefs): string[] {
-  return [...new Set([...p.starred, ...p.sections.flatMap((s) => s.items), ...Object.keys(p.notify), ...(p.saved ?? []).map((s) => s.conversationId)])];
+  return [
+    ...new Set([
+      ...p.starred,
+      ...p.sections.flatMap((s) => s.items),
+      ...Object.keys(p.notify),
+      ...(p.saved ?? []).map((s) => s.conversationId),
+    ]),
+  ];
 }
 
 /** A community's settings without a mute that has ended. */
-function liveCommunity(c: z.infer<typeof zCommunityNotify>, at: number): z.infer<typeof zCommunityNotify> {
+function liveCommunity(
+  c: z.infer<typeof zCommunityNotify>,
+  at: number,
+): z.infer<typeof zCommunityNotify> {
   const { mutedUntil, ...rest } = c;
   return mutedUntil && mutedUntil > at ? { ...rest, mutedUntil } : rest;
 }

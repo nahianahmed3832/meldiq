@@ -22,20 +22,42 @@ export {
 } from "./platformQueries.js";
 // The Platform Admin Console removes a member the same way a community manager does (everything else follows).
 export { eraseWorkspace, removeFromWorkspace } from "./orgsRoutes.js";
-export { communityCount, orgMates, presenceWatchers, sharedCommunityCounts } from "./orgMates.js";
+export {
+  communityCount,
+  orgMates,
+  presenceWatchers,
+  sharedCommunityCounts,
+} from "./orgMates.js";
 // API 0.65.0 batch B: bots joining and leaving communities (modules/bots decides who may add which bot).
-export { addBotMember, type BotChannelView, botChannels, removeBotMember, requireBotManager } from "./botMembers.js";
+export {
+  addBotMember,
+  type BotChannelView,
+  botChannels,
+  removeBotMember,
+  requireBotManager,
+} from "./botMembers.js";
 // Community parity batch D: what official bots (modules/officialBots) need from communities.
-export { activeRoleName, botRoleGivableBy, communityFacts, giveRoleAsBot, holdsRole, officialBotAssigner, publicTextChannel } from "./botMembers.js";
+export {
+  activeRoleName,
+  botRoleGivableBy,
+  communityFacts,
+  giveRoleAsBot,
+  holdsRole,
+  officialBotAssigner,
+  publicTextChannel,
+} from "./botMembers.js";
 export type { ConversationRow } from "./authz.js";
 export { leaderboardChannels } from "./lobby/view.js";
 
 export type { ReportRow, AdminReportQuery } from "./reports/store.js";
 
-export { orgPlatformRestriction, setOrgPlatformRestriction } from "./platformQueries.js";
+export {
+  orgPlatformRestriction,
+  setOrgPlatformRestriction,
+} from "./platformQueries.js";
 
 export { REPORT_RETENTION_MS } from "./reports/routes.js";
 
-
 export { notifyOrg } from "./orgsRoutes.js";
 export { applyOwnershipApproval } from "./ownershipApprovals.js";
+export { partnerView, type PartnerRow } from "./partnerApplications.js";

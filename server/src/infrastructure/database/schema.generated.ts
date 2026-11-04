@@ -1116,6 +1116,7 @@ export const SCHEMA: readonly TableShape[] = [
       {"name":"action","type":"TEXT","notNull":true},
       {"name":"target","type":"TEXT","notNull":false},
       {"name":"detail","type":"TEXT","notNull":false},
+      {"name":"changes_json","type":"TEXT","notNull":false},
     ],
     primaryKey: ["id"],
     indexes: [
@@ -2613,6 +2614,7 @@ export const SCHEMA: readonly TableShape[] = [
       {"name":"requested_by","type":"TEXT","notNull":true},
       {"name":"created_at","type":"INTEGER","notNull":true},
       {"name":"accepted_at","type":"INTEGER","notNull":false},
+      {"name":"request_note","type":"TEXT","notNull":false},
     ],
     primaryKey: ["pair"],
     indexes: [
@@ -2666,6 +2668,7 @@ export const SCHEMA: readonly TableShape[] = [
       {"name":"slowmode_sec","type":"INTEGER","notNull":true,"default":0},
       {"name":"photo_rev","type":"INTEGER","notNull":false},
       {"name":"guidelines","type":"TEXT","notNull":false},
+      {"name":"forum_require_tag","type":"INTEGER","notNull":true,"default":0},
     ],
     primaryKey: ["id"],
     indexes: [
@@ -3673,6 +3676,10 @@ export const SCHEMA: readonly TableShape[] = [
       {"name":"created_at","type":"INTEGER","notNull":true},
       {"name":"updated_at","type":"INTEGER","notNull":true},
       {"name":"repeat","type":"TEXT","notNull":false},
+      {"name":"cover_id","type":"TEXT","notNull":false},
+      {"name":"external_location","type":"TEXT","notNull":false},
+      {"name":"occurrence_base","type":"TEXT","notNull":false},
+      {"name":"occurrence_cancelled","type":"INTEGER","notNull":true,"default":0},
     ],
     primaryKey: ["id"],
     indexes: [
@@ -4048,6 +4055,29 @@ export const SCHEMA: readonly TableShape[] = [
     autoincrement: false,
   },
   {
+    name: "org_partner_applications",
+    columns: [
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"submitted_by","type":"TEXT","notNull":true},
+      {"name":"statement","type":"TEXT","notNull":true},
+      {"name":"checklist","type":"TEXT","notNull":true},
+      {"name":"status","type":"TEXT","notNull":true},
+      {"name":"rev","type":"INTEGER","notNull":true},
+      {"name":"submitted_at","type":"INTEGER","notNull":true},
+      {"name":"reviewed_at","type":"INTEGER","notNull":false},
+      {"name":"reviewed_by","type":"TEXT","notNull":false},
+      {"name":"review_note","type":"TEXT","notNull":false},
+    ],
+    primaryKey: ["org_id"],
+    indexes: [
+      {"name":"partner_application_queue","columns":["status","submitted_at","org_id"],"unique":false,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [
+      {"columns":["org_id"],"table":"orgs","references":["id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
     name: "org_role_extras",
     columns: [
       {"name":"role_id","type":"TEXT","notNull":true},
@@ -4058,12 +4088,14 @@ export const SCHEMA: readonly TableShape[] = [
       {"name":"auto_before","type":"INTEGER","notNull":false},
       {"name":"updated_by","type":"TEXT","notNull":true},
       {"name":"updated_at","type":"INTEGER","notNull":true},
+      {"name":"icon_expression_id","type":"TEXT","notNull":false},
     ],
     primaryKey: ["role_id"],
     indexes: [
       {"name":"org_role_extras_org","columns":["org_id"],"unique":false,"nocase":false,"partialNotNull":null},
     ],
     foreignKeys: [
+      {"columns":["icon_expression_id"],"table":"community_expressions","references":["id"],"onDelete":"SET NULL"},
       {"columns":["role_id"],"table":"org_roles","references":["id"],"onDelete":"CASCADE"},
     ],
     autoincrement: false,
@@ -4948,9 +4980,11 @@ export const SCHEMA: readonly TableShape[] = [
       {"name":"handled_note","type":"TEXT","notNull":false},
       {"name":"created_at","type":"INTEGER","notNull":true},
       {"name":"handled_at","type":"INTEGER","notNull":false},
+      {"name":"target_org_id","type":"TEXT","notNull":false},
     ],
     primaryKey: ["id"],
     indexes: [
+      {"name":"reports_target_community","columns":["target_org_id"],"unique":false,"nocase":false,"partialNotNull":null},
       {"name":"idx_reports_admin","columns":["status","created_at","id"],"unique":false,"nocase":false,"partialNotNull":null},
       {"name":"reports_target","columns":["target_user_id"],"unique":false,"nocase":false,"partialNotNull":null},
       {"name":"reports_reporter","columns":["reporter_id","created_at"],"unique":false,"nocase":false,"partialNotNull":null},

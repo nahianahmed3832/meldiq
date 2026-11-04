@@ -1,7 +1,11 @@
 import { z } from "zod/v4";
 import { ActivityWire, PresenceState } from "../realtime.js";
 import { zCount, zTime } from "./primitives.js";
-import { channelOptionFields, ConversationView, SLOWMODE_STEPS } from "./conversations.js";
+import {
+  channelOptionFields,
+  ConversationView,
+  SLOWMODE_STEPS,
+} from "./conversations.js";
 import { route } from "./route.js";
 import { TicketsSummary } from "./tickets.js";
 import { listMediaFields } from "./users.js";
@@ -24,22 +28,36 @@ const zOptText = zText.nullable().optional();
  * A community's accent colour (docs/COMMUNITY_BRANDING.md): "#rrggbb", stored in lower case; null puts Meldiq's theme
  * back. Apps derive readable text and tints from it, so any colour is safe to pick.
  */
-export const zAccent = z.string().regex(/^#[0-9a-fA-F]{6}$/, "Use a colour like #3a5bd9");
+export const zAccent = z
+  .string()
+  .regex(/^#[0-9a-fA-F]{6}$/, "Use a colour like #3a5bd9");
 const zRules = z.string().trim().max(4000).nullable().optional();
 /** A community's tag (API 0.46.0): 2 to 4 letters or digits, stored in capitals; members may wear it by their names. */
-export const zCommunityTag = z.string().trim().regex(/^[A-Za-z0-9]{2,4}$/, "Use 2 to 4 letters or digits");
+export const zCommunityTag = z
+  .string()
+  .trim()
+  .regex(/^[A-Za-z0-9]{2,4}$/, "Use 2 to 4 letters or digits");
 /** Accepted from older apps and ignored: every workspace is a community since the rebuild. */
 const zOrgKind = z.enum(["team", "community"]);
 /** Listed in discovery or not, and how people get in (docs/COMMUNITY_REBUILD_2026-10-21.md §5). */
 export const Visibility = z.enum(["private", "public"]);
 export const JoinPolicy = z.enum(["invite", "open"]);
 /** The starter channel sets a new community can begin with (batch B2). */
-export const COMMUNITY_TEMPLATE_IDS = ["starter", "friends", "gaming", "study", "club"] as const;
+export const COMMUNITY_TEMPLATE_IDS = [
+  "starter",
+  "friends",
+  "gaming",
+  "study",
+  "club",
+] as const;
 /** Branches, departments and teams became roles and categories: always empty, kept for apps that read them. */
 const zRetired = z.array(z.never()).max(0);
 
 export const OrgParams = z.object({ orgId: z.string().max(64) });
-export const OrgMemberParams = z.object({ orgId: z.string().max(64), userId: z.string().max(64) });
+export const OrgMemberParams = z.object({
+  orgId: z.string().max(64),
+  userId: z.string().max(64),
+});
 export const InviteIdParams = z.object({ id: z.string().max(64) });
 /** An invitation code, or (community parity A3) a community's custom invite link of 3 or more characters. */
 export const InviteCodeParams = z.object({ code: z.string().min(3).max(40) });
@@ -50,7 +68,11 @@ const Ok = z.strictObject({ ok: z.literal(true) });
 // ───────────── Views ─────────────
 
 /** A community guide item: a "Get started" task or a resource, each opening a channel. */
-const GuideItem = z.strictObject({ id: z.string(), title: z.string(), channelId: z.string() });
+const GuideItem = z.strictObject({
+  id: z.string(),
+  title: z.string(),
+  channelId: z.string(),
+});
 
 /**
  * A community's rules channel as its views carry it (API 0.65.0, feature "rules-channel"; the rules themselves come from
@@ -70,7 +92,10 @@ export const RulesSummary = z.strictObject({
 });
 
 /** One of a community's links (community parity A3): a label and an https address. */
-export const CommunityLink = z.strictObject({ label: z.string(), url: z.string() });
+export const CommunityLink = z.strictObject({
+  label: z.string(),
+  url: z.string(),
+});
 
 /**
  * What community views carry from its settings (community parity A3, feature "community-settings"; absent while it's
@@ -143,11 +168,19 @@ export const CommunityView = z.strictObject({
   /** The join application's questions, or null when the community doesn't take applications. */
   joinQuestions: z.array(z.string()).nullable(),
   /** The community guide (members only), null without one. */
-  guide: z.strictObject({ welcome: z.string().nullable(), tasks: z.array(GuideItem), resources: z.array(GuideItem) }).nullable(),
+  guide: z
+    .strictObject({
+      welcome: z.string().nullable(),
+      tasks: z.array(GuideItem),
+      resources: z.array(GuideItem),
+    })
+    .nullable(),
   onboarding: z.boolean(),
   activityAlerts: z.boolean(),
   /** A join spike shown to moderators for a day, null otherwise. */
-  activityAlert: z.strictObject({ kind: z.literal("joins"), count: zCount, at: zTime }).nullable(),
+  activityAlert: z
+    .strictObject({ kind: z.literal("joins"), count: zCount, at: zTime })
+    .nullable(),
   /** API 0.65.0: the rules channel and whether the viewer has to agree to the rules (absent without either). */
   rulesChannel: RulesSummary.optional(),
   ...communitySettingsFields,
@@ -166,7 +199,20 @@ export const CommunityView = z.strictObject({
 export const CommunityOnly = z.strictObject({ org: CommunityView });
 
 /** A custom role's name and colour, as shown next to someone. */
-export const RoleBadge = z.strictObject({ id: z.string(), name: z.string(), color: z.string().nullable() });
+export const RoleBadge = z.strictObject({
+  id: z.string(),
+  name: z.string(),
+  color: z.string().nullable(),
+  iconExpression: z
+    .strictObject({
+      id: z.string(),
+      orgId: z.string(),
+      name: z.string(),
+      sha256: z.string(),
+      animated: z.boolean(),
+    })
+    .optional(),
+});
 
 /** The person fields every member list shares (userSummary + memberView): what the person shows to the viewer. */
 const personFields = {
@@ -203,13 +249,22 @@ export const CommunityMember = z.strictObject({
   branches: zRetired,
   teams: zRetired,
   /** Hoisted roles (batch B12) carry hoist and their position; a gradient's second colour (community parity A1). */
-  customRoles: z.array(RoleBadge.extend({ hoist: z.literal(true).optional(), position: z.number().int().optional(), color2: z.string().optional() })),
+  customRoles: z.array(
+    RoleBadge.extend({
+      hoist: z.literal(true).optional(),
+      position: z.number().int().optional(),
+      color2: z.string().optional(),
+    }),
+  ),
   /** Community parity A1: their nickname in this community, null without one (absent while the feature is off). */
   nickname: z.string().nullable().optional(),
 });
 
 /** One of the first members of a conversation, as conversation views list them. */
-const ConversationMember = z.strictObject({ ...personFields, role: z.enum(["ADMIN", "MEMBER"]) });
+const ConversationMember = z.strictObject({
+  ...personFields,
+  role: z.enum(["ADMIN", "MEMBER"]),
+});
 
 /** A channel as the caller sees it: the conversation view (GET /v1/conversations/:id). */
 export const ChannelView = ConversationView;
@@ -282,7 +337,14 @@ const CommunityTemplate = z.strictObject({
   categories: z.array(
     z.strictObject({
       name: z.string(),
-      channels: z.array(z.strictObject({ name: z.string(), voice: z.boolean(), format: z.enum(["text", "forum"]), kind: z.enum(["PUBLIC", "ANNOUNCEMENT"]) })),
+      channels: z.array(
+        z.strictObject({
+          name: z.string(),
+          voice: z.boolean(),
+          format: z.enum(["text", "forum"]),
+          kind: z.enum(["PUBLIC", "ANNOUNCEMENT"]),
+        }),
+      ),
     }),
   ),
 });
@@ -320,7 +382,13 @@ export const CommunityDetail = z.strictObject({
   departments: zRetired,
   teams: zRetired,
   categories: z.array(CategorySummary),
-  stats: z.strictObject({ members: zCount, teams: z.literal(0), channels: zCount, branches: z.literal(0), categories: zCount }),
+  stats: z.strictObject({
+    members: zCount,
+    teams: z.literal(0),
+    channels: zCount,
+    branches: z.literal(0),
+    categories: zCount,
+  }),
   permissions: CommunityPermissions,
   /** The custom roles the caller holds here. */
   myRoles: z.array(RoleBadge),
@@ -343,7 +411,10 @@ export const OrgCreateBody = z.object({
    * Community parity E (feature "template-links"): make it from a template link's code instead (channels,
    * categories, roles and @everyone defaults; `template` is then ignored). 404 template_not_found for an unknown code.
    */
-  templateCode: z.string().regex(/^[A-Za-z0-9]{8,16}$/).optional(),
+  templateCode: z
+    .string()
+    .regex(/^[A-Za-z0-9]{8,16}$/)
+    .optional(),
 });
 
 export const OrgUpdateBody = z.object({
@@ -359,15 +430,32 @@ export const OrgUpdateBody = z.object({
   tag: zCommunityTag.nullable().optional(),
 });
 
-export const OrgDeleteBody = z.object({ confirmName: z.string().max(200), requestId: z.string().min(8).max(64).optional() });
+export const OrgDeleteBody = z.object({
+  confirmName: z.string().max(200),
+  requestId: z.string().min(8).max(64).optional(),
+});
 
-export const MemberSearchQuery = z.object({ q: z.string().trim().max(40).optional() });
+export const MemberSearchQuery = z.object({
+  q: z.string().trim().max(40).optional(),
+  role: OrgRole.optional(),
+  roleId: z.string().min(1).max(64).optional(),
+  after: z.string().max(1024).optional(),
+  limit: z.coerce.number().int().min(1).max(500).default(500),
+});
 
-export const MemberUpdateBody = z.object({ role: OrgRole.optional(), title: zOptText });
+export const MemberUpdateBody = z.object({
+  role: OrgRole.optional(),
+  title: zOptText,
+});
 
 /** Adding existing accounts directly (community-first brief §F): up to twenty at a time. */
-export const MembersAddBody = z.object({ userIds: z.array(z.string().min(1).max(64)).min(1).max(20) });
-export const MembersAddResult = z.strictObject({ userId: z.string(), outcome: z.enum(["added", "already_member", "not_available"]) });
+export const MembersAddBody = z.object({
+  userIds: z.array(z.string().min(1).max(64)).min(1).max(20),
+});
+export const MembersAddResult = z.strictObject({
+  userId: z.string(),
+  outcome: z.enum(["added", "already_member", "not_available"]),
+});
 
 export const InviteCreateBody = z.object({
   role: z.enum(["ADMIN", "MEMBER", "GUEST"]).default("MEMBER"),
@@ -408,20 +496,33 @@ export const ChannelCreateBody = z.object({
   slowmodeSec: z
     .number()
     .int()
-    .refine((n) => (SLOWMODE_STEPS as readonly number[]).includes(n), { message: "Pick one of the offered intervals" })
+    .refine((n) => (SLOWMODE_STEPS as readonly number[]).includes(n), {
+      message: "Pick one of the offered intervals",
+    })
     .optional(),
   ...channelOptionFields,
 });
 
-export const ChannelListQuery = z.object({ q: z.string().trim().max(40).optional(), includeArchived: z.enum(["true", "false"]).optional() });
+export const ChannelListQuery = z.object({
+  q: z.string().trim().max(40).optional(),
+  includeArchived: z.enum(["true", "false"]).optional(),
+});
 
 // ───────────── Routes ─────────────
 
-const INVITE_PROBLEM_CODES = ["invite_not_found", "invite_revoked", "invite_expired", "invite_used_up", "invite_unavailable"] as const;
+const INVITE_PROBLEM_CODES = [
+  "invite_not_found",
+  "invite_revoked",
+  "invite_expired",
+  "invite_used_up",
+  "invite_unavailable",
+] as const;
 
 /** API 0.65.0: leave up to 100 communities at once (Settings › Privacy). */
 export const LEAVE_MANY_MAX = 100;
-export const LeaveOrgsBody = z.strictObject({ orgIds: z.array(z.string().min(1).max(64)).min(1).max(LEAVE_MANY_MAX) });
+export const LeaveOrgsBody = z.strictObject({
+  orgIds: z.array(z.string().min(1).max(64)).min(1).max(LEAVE_MANY_MAX),
+});
 export const LeaveOrgsResult = z.strictObject({
   /** Communities you left. */
   left: z.array(z.string()),
@@ -431,13 +532,16 @@ export const LeaveOrgsResult = z.strictObject({
   notMember: z.array(z.string()),
 });
 
-const community = (c: Omit<Parameters<typeof route>[0], "tag" | "auth"> & { auth?: boolean }) => route({ tag: "communities", auth: true, ...c });
+const community = (
+  c: Omit<Parameters<typeof route>[0], "tag" | "auth"> & { auth?: boolean },
+) => route({ tag: "communities", auth: true, ...c });
 
 export const orgRoutes = [
   community({
     method: "POST",
     url: "/v1/orgs",
-    summary: "Create a community with its starter channels. Idempotent on requestId.",
+    summary:
+      "Create a community with its starter channels. Idempotent on requestId.",
     body: OrgCreateBody,
     response: CommunityOnly,
     errors: ["org_name_taken", "template_not_found", "feature_disabled"],
@@ -448,11 +552,17 @@ export const orgRoutes = [
     summary: "The starter templates a new community can begin with.",
     response: z.strictObject({ templates: z.array(CommunityTemplate) }),
   }),
-  community({ method: "GET", url: "/v1/orgs", summary: "The communities the caller belongs to, by name.", response: z.strictObject({ orgs: z.array(CommunityView) }) }),
+  community({
+    method: "GET",
+    url: "/v1/orgs",
+    summary: "The communities the caller belongs to, by name.",
+    response: z.strictObject({ orgs: z.array(CommunityView) }),
+  }),
   community({
     method: "GET",
     url: "/v1/orgs/:orgId",
-    summary: "A community with its categories, figures and what the caller may do there.",
+    summary:
+      "A community with its categories, figures and what the caller may do there.",
     params: OrgParams,
     response: CommunityDetail,
     errors: ["not_found"],
@@ -460,7 +570,8 @@ export const orgRoutes = [
   community({
     method: "PATCH",
     url: "/v1/orgs/:orgId",
-    summary: "Change a community's name, description, rules, visibility or join policy (the last two: owners only).",
+    summary:
+      "Change a community's name, description, rules, visibility or join policy (the last two: owners only).",
     params: OrgParams,
     body: OrgUpdateBody,
     response: CommunityOnly,
@@ -495,7 +606,8 @@ export const orgRoutes = [
   community({
     method: "PUT",
     url: "/v1/orgs/:orgId/banner",
-    summary: "Set the community banner (a JPEG of at most 1 MB; the apps send about 1200 × 480).",
+    summary:
+      "Set the community banner (a JPEG of at most 1 MB; the apps send about 1200 × 480).",
     params: OrgParams,
     binary: "request",
     response: z.strictObject({ bannerRev: zTime }),
@@ -512,7 +624,8 @@ export const orgRoutes = [
   community({
     method: "GET",
     url: "/v1/orgs/:orgId/banner",
-    summary: "The community banner (JPEG): for its members, and for anyone signed in when the community is public.",
+    summary:
+      "The community banner (JPEG): for its members, and for anyone signed in when the community is public.",
     params: OrgParams,
     binary: "response",
     response: z.unknown(),
@@ -521,16 +634,24 @@ export const orgRoutes = [
   community({
     method: "DELETE",
     url: "/v1/orgs/:orgId",
-    summary: "Delete a community for good (owners, after typing its name). A retry with the same requestId gets the same answer.",
+    summary:
+      "Delete a community for good (owners, after typing its name). A retry with the same requestId gets the same answer.",
     params: OrgParams,
     body: OrgDeleteBody,
-    response: z.strictObject({ deleted: z.literal(true), orgId: z.string(), members: zCount, channels: zCount, files: zCount }),
+    response: z.strictObject({
+      deleted: z.literal(true),
+      orgId: z.string(),
+      members: zCount,
+      channels: zCount,
+      files: zCount,
+    }),
     errors: ["not_found", "forbidden", "confirm_mismatch"],
   }),
   community({
     method: "GET",
     url: "/v1/orgs/:orgId/archived",
-    summary: "Archived branches and teams: always empty since they became roles (for older apps).",
+    summary:
+      "Archived branches and teams: always empty since they became roles (for older apps).",
     params: OrgParams,
     response: z.strictObject({ branches: zRetired, teams: zRetired }),
     errors: ["not_found"],
@@ -541,7 +662,12 @@ export const orgRoutes = [
     summary: "The member list (at most 500), searchable by name or username.",
     params: OrgParams,
     query: MemberSearchQuery,
-    response: z.strictObject({ members: z.array(CommunityMember) }),
+    response: z.strictObject({
+      members: z.array(CommunityMember),
+      total: z.number().int().nonnegative().optional(),
+      ownerCount: z.number().int().nonnegative().optional(),
+      nextAfter: z.string().nullable().optional(),
+    }),
     errors: ["not_found", "forbidden"],
   }),
   community({
@@ -564,7 +690,8 @@ export const orgRoutes = [
   community({
     method: "POST",
     url: "/v2/orgs/leave",
-    summary: "Leave several communities at once (1 to 100). Communities you own are skipped and listed; each leave is the same as leaving one.",
+    summary:
+      "Leave several communities at once (1 to 100). Communities you own are skipped and listed; each leave is the same as leaving one.",
     body: LeaveOrgsBody,
     response: LeaveOrgsResult,
   }),
@@ -581,16 +708,24 @@ export const orgRoutes = [
   community({
     method: "POST",
     url: "/v1/orgs/:orgId/invites",
-    summary: "Create an invitation code (shown once), optionally giving a custom role.",
+    summary:
+      "Create an invitation code (shown once), optionally giving a custom role.",
     params: OrgParams,
     body: InviteCreateBody,
     response: z.strictObject({ invite: CreatedInvite }),
-    errors: ["not_found", "forbidden", "conflict", "beyond_your_powers", "delegation_required"],
+    errors: [
+      "not_found",
+      "forbidden",
+      "conflict",
+      "beyond_your_powers",
+      "delegation_required",
+    ],
   }),
   community({
     method: "GET",
     url: "/v1/orgs/:orgId/invites",
-    summary: "The latest 100 invitations: all of them for invitation managers, otherwise the caller's own.",
+    summary:
+      "The latest 100 invitations: all of them for invitation managers, otherwise the caller's own.",
     params: OrgParams,
     response: z.strictObject({ invites: z.array(InviteListItem) }),
     errors: ["not_found"],
@@ -637,7 +772,8 @@ export const orgRoutes = [
   community({
     method: "GET",
     url: "/v1/invites/:code/public",
-    summary: "The invite page before signing in: the community's name, description and size only.",
+    summary:
+      "The invite page before signing in: the community's name, description and size only.",
     auth: false,
     params: InviteCodeParams,
     response: z.strictObject({
@@ -658,7 +794,8 @@ export const orgRoutes = [
   community({
     method: "GET",
     url: "/v1/invites/:code/banner",
-    summary: "The banner of the community an invitation leads to (JPEG), before signing in.",
+    summary:
+      "The banner of the community an invitation leads to (JPEG), before signing in.",
     auth: false,
     params: InviteCodeParams,
     binary: "response",
@@ -668,7 +805,8 @@ export const orgRoutes = [
   community({
     method: "GET",
     url: "/v1/invites/:code/photo",
-    summary: "The icon of the community an invitation leads to (JPEG), before signing in.",
+    summary:
+      "The icon of the community an invitation leads to (JPEG), before signing in.",
     auth: false,
     params: InviteCodeParams,
     binary: "response",
@@ -678,19 +816,37 @@ export const orgRoutes = [
   community({
     method: "POST",
     url: "/v1/invites/accept",
-    summary: "Join a community with an invitation code. A repeat after joining succeeds without using it again.",
+    summary:
+      "Join a community with an invitation code. A repeat after joining succeeds without using it again.",
     body: InviteCodeBody,
-    response: z.strictObject({ org: CommunityView, alreadyMember: z.boolean() }),
-    errors: [...INVITE_PROBLEM_CODES, "banned", "invites_paused", "community_locked", "account_too_new", "limit_reached"],
+    response: z.strictObject({
+      org: CommunityView,
+      alreadyMember: z.boolean(),
+    }),
+    errors: [
+      ...INVITE_PROBLEM_CODES,
+      "banned",
+      "invites_paused",
+      "community_locked",
+      "account_too_new",
+      "limit_reached",
+    ],
   }),
   community({
     method: "POST",
     url: "/v1/orgs/:orgId/channels",
-    summary: "Create a text, forum or voice channel, optionally in a category, with its slowmode and options.",
+    summary:
+      "Create a text, forum or voice channel, optionally in a category, with its slowmode and options.",
     params: OrgParams,
     body: ChannelCreateBody,
     response: z.strictObject({ channel: ChannelView }),
-    errors: ["not_found", "forbidden", "conflict", "bad_request", "feature_disabled"],
+    errors: [
+      "not_found",
+      "forbidden",
+      "conflict",
+      "bad_request",
+      "feature_disabled",
+    ],
   }),
   community({
     method: "GET",
@@ -704,7 +860,8 @@ export const orgRoutes = [
   community({
     method: "GET",
     url: "/v1/orgs/:orgId/activity",
-    summary: "Recent community activity (the latest 60 entries the caller may see).",
+    summary:
+      "Recent community activity (the latest 60 entries the caller may see).",
     params: OrgParams,
     response: z.strictObject({ activity: z.array(ActivityEntry) }),
     errors: ["not_found", "forbidden"],

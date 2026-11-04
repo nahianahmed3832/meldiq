@@ -10,8 +10,16 @@ import { route } from "./route.js";
 /** A payload's JSON text: up to 128 KiB (attachments go through /v1/attachments). */
 export const MAX_PAYLOAD_BYTES = 128 * 1024;
 
-const zMessageId = z.string().min(8).max(64).regex(/^[A-Za-z0-9_-]+$/);
-const zPayloadObject = z.looseObject({ type: z.string().min(1).max(40), target: z.string().max(64).optional(), text: z.string().optional() });
+const zMessageId = z
+  .string()
+  .min(8)
+  .max(64)
+  .regex(/^[A-Za-z0-9_-]+$/);
+const zPayloadObject = z.looseObject({
+  type: z.string().min(1).max(40),
+  target: z.string().max(64).optional(),
+  text: z.string().optional(),
+});
 
 export const SendMessage = z.object({
   conversationId: z.string().max(64),
@@ -51,17 +59,24 @@ export const StoredEvent = z.strictObject({
 export type StoredEvent = z.infer<typeof StoredEvent>;
 
 /** What a device finds in a queue item's `payload` when its kind is "message" (the stored event itself). */
-export const MessageItemPayload = z.strictObject({ v: z.literal(2), event: StoredEvent });
+export const MessageItemPayload = z.strictObject({
+  v: z.literal(2),
+  event: StoredEvent,
+});
 
-export const HistoryQuery = z.object({
-  /** Messages strictly older than this serverTs; omitted: the newest. */
-  before: z.coerce.number().int().positive().optional(),
-  /** ID at the exclusive timestamp boundary; omitted by older clients. */
-  beforeId: zMessageId.optional(),
-  /** Instead of a page: the messages around this one (a link or a search hit). */
-  around: zMessageId.optional(),
-  limit: z.coerce.number().int().min(1).max(100).default(50),
-}).refine((q) => !q.beforeId || (q.before !== undefined && !q.around), { message: "beforeId requires before and cannot be combined with around" });
+export const HistoryQuery = z
+  .object({
+    /** Messages strictly older than this serverTs; omitted: the newest. */
+    before: z.coerce.number().int().positive().optional(),
+    /** ID at the exclusive timestamp boundary; omitted by older clients. */
+    beforeId: zMessageId.optional(),
+    /** Instead of a page: the messages around this one (a link or a search hit). */
+    around: zMessageId.optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(50),
+  })
+  .refine((q) => !q.beforeId || (q.before !== undefined && !q.around), {
+    message: "beforeId requires before and cannot be combined with around",
+  });
 
 export const HistoryResponse = z.strictObject({
   /** Newest first. */
@@ -73,7 +88,10 @@ export const HistoryResponse = z.strictObject({
   changes: z.array(StoredEvent),
   more: z.boolean(),
   /** Additive cursor for clients that support timestamp ties. */
-  nextCursor: z.object({ serverTs: zTime, id: zMessageId }).nullable().optional(),
+  nextCursor: z
+    .object({ serverTs: zTime, id: zMessageId })
+    .nullable()
+    .optional(),
 });
 
 /** History a device held from before the server kept messages: uploaded once when the app updates. */
@@ -96,13 +114,51 @@ export const ImportBody = z.object({
 
 export const ImportResult = z.strictObject({ added: zCount, skipped: zCount });
 
-export const SearchQuery = z.object({
-  q: z.string().min(1).max(200),
-  /** Only this conversation; omitted: every conversation the person is in. */
-  conversationId: z.string().max(64).optional(),
-  limit: z.coerce.number().int().min(1).max(100).default(30),
+export const SearchQuery = z
+  .object({
+    q: z.string().trim().max(200).default(""),
+    /** Only this conversation; omitted: every conversation the person is in. */
+    conversationId: z.string().max(64).optional(),
+    orgId: z.string().max(64).optional(),
+    from: z.string().trim().min(1).max(64).optional(),
+    mentions: z.string().trim().min(1).max(64).optional(),
+    in: z.string().trim().min(1).max(100).optional(),
+    has: z
+      .string()
+      .regex(/^(image|video|file|link)(,(image|video|file|link))*$/)
+      .optional(),
+    pinned: z.enum(["true", "false"]).optional(),
+    before: z.coerce.number().int().nonnegative().optional(),
+    after: z.coerce.number().int().nonnegative().optional(),
+    cursorTs: z.coerce.number().int().positive().optional(),
+    cursorId: zMessageId.optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(30),
+  })
+  .superRefine((q, c) => {
+    if ((q.cursorTs !== undefined) !== (q.cursorId !== undefined))
+      c.addIssue({
+        code: "custom",
+        message: "Search cursor timestamp and id must be paired",
+      });
+    if (
+      !q.q &&
+      ![q.from, q.mentions, q.in, q.has, q.pinned, q.before, q.after].some(
+        (v) => v !== undefined,
+      )
+    )
+      c.addIssue({ code: "custom", message: "Enter text or a search filter" });
+  });
+export type MessageSearchQuery = z.infer<typeof SearchQuery>;
+export const SearchResponse = z.strictObject({
+  messages: z.array(StoredEvent),
+  // Optional for clients inspecting an older release response. Current servers always return these fields.
+  changes: z.array(StoredEvent).optional(),
+  more: z.boolean().optional(),
+  nextCursor: z
+    .object({ serverTs: z.number().int().positive(), id: zMessageId })
+    .nullable()
+    .optional(),
 });
-export const SearchResponse = z.strictObject({ messages: z.array(StoredEvent) });
 
 /** Each conversation you're in: its newest message, where you've read up to, and what's new since (the apps' list). */
 export const SummaryResponse = z.strictObject({
@@ -123,7 +179,8 @@ export const serverMessagesRoutes = [
     method: "POST",
     url: "/v2/messages",
     tag: "messaging",
-    summary: "Send a message or a change to one: stored, then delivered to every member's devices. Idempotent on messageId.",
+    summary:
+      "Send a message or a change to one: stored, then delivered to every member's devices. Idempotent on messageId.",
     auth: true,
     body: SendMessage,
     response: SendMessageResult,
@@ -153,7 +210,8 @@ export const serverMessagesRoutes = [
     method: "GET",
     url: "/v2/conversations/:id/messages",
     tag: "messaging",
-    summary: "A conversation's history, newest first, with the changes to those messages and each other member's newest read receipt.",
+    summary:
+      "A conversation's history, newest first, with the changes to those messages and each other member's newest read receipt.",
     auth: true,
     query: HistoryQuery,
     response: HistoryResponse,
@@ -163,7 +221,8 @@ export const serverMessagesRoutes = [
     method: "POST",
     url: "/v2/messages/import",
     tag: "messaging",
-    summary: "Upload history this device held from before the server kept messages; messages already stored are skipped.",
+    summary:
+      "Upload history this device held from before the server kept messages; messages already stored are skipped.",
     auth: true,
     body: ImportBody,
     response: ImportResult,
@@ -172,7 +231,8 @@ export const serverMessagesRoutes = [
     method: "GET",
     url: "/v2/messages/summary",
     tag: "messaging",
-    summary: "Every conversation you're in: its newest message, your read position, and unread messages and mentions since.",
+    summary:
+      "Every conversation you're in: its newest message, your read position, and unread messages and mentions since.",
     auth: true,
     response: SummaryResponse,
   }),

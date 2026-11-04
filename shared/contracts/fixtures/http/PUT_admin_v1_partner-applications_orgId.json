@@ -1,0 +1,17 @@
+{
+  "application": {
+    "orgId": "o_ypzKnK1_g9XaOOFRm2w4WQ",
+    "statement": "Private community application",
+    "checklist": {
+      "guidelines": true,
+      "moderation": true,
+      "safety": true,
+      "activity": true
+    },
+    "status": "declined",
+    "rev": 2,
+    "submittedAt": 1793790432811,
+    "reviewedAt": 1793790432919,
+    "reviewNote": "Please describe your moderation coverage"
+  }
+}

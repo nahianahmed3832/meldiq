@@ -17,6 +17,7 @@ export const PERMISSION_KEYS = [
   "workspace.usage.view",
   "workspace.delete",
   "workspace.transfer",
+  "events.manage",
   "members.view",
   "members.invite",
   "members.invites.manage",
@@ -62,9 +63,28 @@ export const PERMISSION_KEYS = [
   "reports.view",
 ] as const;
 export type PermissionKey = (typeof PERMISSION_KEYS)[number];
-export const PERMISSION_CATEGORIES = ["workspace", "members", "roles", "channels", "messaging", "voice", "security"] as const;
+export const PERMISSION_CATEGORIES = [
+  "workspace",
+  "members",
+  "roles",
+  "channels",
+  "messaging",
+  "voice",
+  "security",
+] as const;
 /** Icons a custom role may show (names the app maps to its own icon set). */
-export const ROLE_ICON_NAMES = ["shield", "star", "people", "briefcase", "support", "code", "finance", "eye", "megaphone", "badge"] as const;
+export const ROLE_ICON_NAMES = [
+  "shield",
+  "star",
+  "people",
+  "briefcase",
+  "support",
+  "code",
+  "finance",
+  "eye",
+  "megaphone",
+  "badge",
+] as const;
 
 export const ROLE_NAME_MAX = 40;
 export const ROLE_DESCRIPTION_MAX = 200;
@@ -73,24 +93,48 @@ export const AUDIT_PAGE_MAX = 100;
 export const Permission = z.enum(PERMISSION_KEYS);
 const known = new Set<string>(PERMISSION_KEYS);
 /** Input: an unknown key is refused with "Unknown permission". */
-const zPermissionInput = z.string().refine((k) => known.has(k), { message: "Unknown permission" }) as unknown as z.ZodType<PermissionKey>;
+const zPermissionInput = z.string().refine((k) => known.has(k), {
+  message: "Unknown permission",
+}) as unknown as z.ZodType<PermissionKey>;
 /** Repeats are dropped. */
 const zPermissionList = z
   .array(zPermissionInput)
   .max(64)
   .transform((l) => [...new Set(l)]);
 const zRoleName = z.string().trim().min(1).max(ROLE_NAME_MAX);
-const zColor = z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Use a colour like #E39B7B").nullable();
+const zColor = z
+  .string()
+  .regex(/^#[0-9A-Fa-f]{6}$/, "Use a colour like #E39B7B")
+  .nullable();
 const zIcon = z.enum(ROLE_ICON_NAMES).nullable();
 const zId = z.string().max(64);
 
 export const RoleParams = z.object({ roleId: zId });
+export const RoleBulkMembersBody = z.strictObject({
+  userIds: z
+    .array(z.string().min(1).max(64))
+    .min(1)
+    .max(50)
+    .refine((v) => new Set(v).size === v.length, "Each person once"),
+  add: z.boolean(),
+});
+export const RoleBulkMembersResult = z.strictObject({
+  ok: z.literal(true),
+  changed: z.array(z.string()),
+});
 export const RoleMemberParams = z.object({ roleId: zId, userId: zId });
-export const RolesQuery = z.object({ includeArchived: z.enum(["true", "false"]).optional() });
+export const RolesQuery = z.object({
+  includeArchived: z.enum(["true", "false"]).optional(),
+});
 
 export const RoleCreateBody = z.object({
   name: zRoleName.optional(),
-  description: z.string().trim().max(ROLE_DESCRIPTION_MAX).nullable().optional(),
+  description: z
+    .string()
+    .trim()
+    .max(ROLE_DESCRIPTION_MAX)
+    .nullable()
+    .optional(),
   color: zColor.optional(),
   icon: zIcon.optional(),
   hoist: z.boolean().optional(),
@@ -105,7 +149,12 @@ export const RoleUpdateBody = z.object({
   /** The revision the edit is based on (409 stale otherwise). */
   baseRev: z.number().int().min(1),
   name: zRoleName.optional(),
-  description: z.string().trim().max(ROLE_DESCRIPTION_MAX).nullable().optional(),
+  description: z
+    .string()
+    .trim()
+    .max(ROLE_DESCRIPTION_MAX)
+    .nullable()
+    .optional(),
   color: zColor.optional(),
   icon: zIcon.optional(),
   hoist: z.boolean().optional(),
@@ -114,7 +163,10 @@ export const RoleUpdateBody = z.object({
   archived: z.boolean().optional(),
 });
 
-export const OwnershipBody = z.object({ userId: zId, confirmName: z.string().max(200) });
+export const OwnershipBody = z.object({
+  userId: zId,
+  confirmName: z.string().max(200),
+});
 
 export const AuditQuery = z.object({
   /** The last id seen (the next page starts below it). */
@@ -140,6 +192,7 @@ export const AutoAssign = z.strictObject({
 });
 /** Community parity A1: what a role carries beyond its name, colour and powers. */
 export const RoleExtras = z.strictObject({
+  iconExpressionId: z.string().nullable().optional(),
   /** A second colour: the role's colour fades into it. Null: one colour. */
   color2: z.string().nullable(),
   /** Anyone may mention the role (holders of messages.mention_all always may). */
@@ -214,16 +267,38 @@ export const RolesOverview = z.strictObject({
   catalog: z.array(PermissionDef),
   templates: z.array(RoleTemplate),
   icons: z.array(z.enum(ROLE_ICON_NAMES)),
-  baseRoles: z.array(z.strictObject({ key: OrgRole, name: z.string(), permissions: z.array(Permission), memberCount: zCount, protected: z.literal(true) })),
+  baseRoles: z.array(
+    z.strictObject({
+      key: OrgRole,
+      name: z.string(),
+      permissions: z.array(Permission),
+      memberCount: zCount,
+      protected: z.literal(true),
+    }),
+  ),
   roles: z.array(RoleView),
-  limits: z.strictObject({ activeRoles: zCount, rolesPerMember: zCount, nameMax: zCount, descriptionMax: zCount }),
-  me: z.strictObject({ base: OrgRole, permissions: z.array(Permission), canManage: z.boolean(), canAssign: z.boolean(), canDelegate: z.boolean() }),
+  limits: z.strictObject({
+    activeRoles: zCount,
+    rolesPerMember: zCount,
+    nameMax: zCount,
+    descriptionMax: zCount,
+  }),
+  me: z.strictObject({
+    base: OrgRole,
+    permissions: z.array(Permission),
+    canManage: z.boolean(),
+    canAssign: z.boolean(),
+    canDelegate: z.boolean(),
+  }),
   /** Community parity A1 (feature "community-permissions"): the "@everyone" defaults; absent while it's off. */
   everyone: EveryoneDefaults.optional(),
 });
 
 /** After assigning or removing a role: the person's effective permissions. */
-const AssignmentResult = z.strictObject({ ok: z.literal(true), permissions: z.array(Permission) });
+const AssignmentResult = z.strictObject({
+  ok: z.literal(true),
+  permissions: z.array(Permission),
+});
 
 const MetricSeries = z.strictObject({
   metric: z.string(),
@@ -235,7 +310,13 @@ const MetricSeries = z.strictObject({
 });
 
 export const Usage = z.strictObject({
-  members: z.strictObject({ total: zCount, owners: zCount, admins: zCount, members: zCount, guests: zCount }),
+  members: z.strictObject({
+    total: zCount,
+    owners: zCount,
+    admins: zCount,
+    members: zCount,
+    guests: zCount,
+  }),
   structure: z.strictObject({
     branches: z.literal(0),
     departments: z.literal(0),
@@ -248,9 +329,15 @@ export const Usage = z.strictObject({
   files: z.strictObject({ count: zCount, bytes: zCount }),
   invitations: z.strictObject({ active: zCount }),
   roles: z.strictObject({ custom: zCount }),
-  limits: z.strictObject({ fileMaxBytes: zCount, orgStoredBytes: zCount.nullable() }),
+  limits: z.strictObject({
+    fileMaxBytes: zCount,
+    orgStoredBytes: zCount.nullable(),
+  }),
   /** Measured usage over the last 30 days, per day (counts and sizes only). */
-  metered: z.strictObject({ days: z.literal(30), metrics: z.array(MetricSeries) }),
+  metered: z.strictObject({
+    days: z.literal(30),
+    metrics: z.array(MetricSeries),
+  }),
 });
 
 /** The workspace's plan while a subscription grants one (docs/BILLING.md), else null; upgrade is always null. */
@@ -281,6 +368,27 @@ export const AuditPage = z.strictObject({
       actorName: z.string().nullable(),
       target: z.string().nullable(),
       detail: z.string().nullable(),
+      changes: z
+        .array(
+          z.strictObject({
+            field: z.string(),
+            before: z.union([
+              z.string(),
+              z.number(),
+              z.boolean(),
+              z.null(),
+              z.array(z.string()),
+            ]),
+            after: z.union([
+              z.string(),
+              z.number(),
+              z.boolean(),
+              z.null(),
+              z.array(z.string()),
+            ]),
+          }),
+        )
+        .optional(),
     }),
   ),
   /** Pass as `before` for the next page; null at the end. */
@@ -290,15 +398,36 @@ export const AuditPage = z.strictObject({
 // ───────────── Routes ─────────────
 
 /** Why a role can't be defined this way (permissions/rules.ts roleDefinitionRefusal). */
-const DEFINITION_REFUSALS = ["forbidden", "owner_only", "not_restrictable", "grant_and_deny", "beyond_your_powers", "delegation_required"] as const;
+const DEFINITION_REFUSALS = [
+  "forbidden",
+  "owner_only",
+  "not_restrictable",
+  "grant_and_deny",
+  "beyond_your_powers",
+  "delegation_required",
+] as const;
 
-const roles = (c: Omit<Parameters<typeof route>[0], "tag" | "auth">) => route({ tag: "roles", auth: true, ...c });
+const roles = (c: Omit<Parameters<typeof route>[0], "tag" | "auth">) =>
+  route({ tag: "roles", auth: true, ...c });
 
 export const roleRoutes = [
+  route({
+    method: "POST",
+    url: "/v1/roles/:roleId/members/bulk",
+    tag: "roles",
+    auth: true,
+    summary:
+      "Atomically assign or remove a role for up to 50 explicitly selected eligible members; owners stay protected.",
+    params: RoleParams,
+    body: RoleBulkMembersBody,
+    response: RoleBulkMembersResult,
+    errors: ["not_found", "forbidden", "conflict"],
+  }),
   roles({
     method: "GET",
     url: "/v1/orgs/:orgId/roles",
-    summary: "The permission catalog, role templates, base roles, the community's custom roles and what the caller may do.",
+    summary:
+      "The permission catalog, role templates, base roles, the community's custom roles and what the caller may do.",
     params: OrgParams,
     query: RolesQuery,
     response: RolesOverview,
@@ -307,20 +436,36 @@ export const roleRoutes = [
   roles({
     method: "POST",
     url: "/v1/orgs/:orgId/roles",
-    summary: "Create a custom role, from scratch, a template or a copy of another role.",
+    summary:
+      "Create a custom role, from scratch, a template or a copy of another role.",
     params: OrgParams,
     body: RoleCreateBody,
     response: RoleOnly,
-    errors: ["not_found", "unknown_template", ...DEFINITION_REFUSALS, "role_name_taken", "conflict", "limit_reached"],
+    errors: [
+      "not_found",
+      "unknown_template",
+      ...DEFINITION_REFUSALS,
+      "role_name_taken",
+      "conflict",
+      "limit_reached",
+    ],
   }),
   roles({
     method: "PATCH",
     url: "/v1/roles/:roleId",
-    summary: "Change, archive or restore a role, based on its current revision.",
+    summary:
+      "Change, archive or restore a role, based on its current revision.",
     params: RoleParams,
     body: RoleUpdateBody,
     response: RoleOnly,
-    errors: ["not_found", ...DEFINITION_REFUSALS, "holder_out_of_reach", "role_name_taken", "conflict", "stale"],
+    errors: [
+      "not_found",
+      ...DEFINITION_REFUSALS,
+      "holder_out_of_reach",
+      "role_name_taken",
+      "conflict",
+      "stale",
+    ],
   }),
   roles({
     method: "DELETE",
@@ -337,7 +482,14 @@ export const roleRoutes = [
     params: RoleParams,
     response: z.strictObject({
       members: z.array(
-        z.strictObject({ id: z.string(), username: z.string(), displayName: z.string(), orgRole: OrgRole, assignedAt: zTime, assignedBy: z.string() }),
+        z.strictObject({
+          id: z.string(),
+          username: z.string(),
+          displayName: z.string(),
+          orgRole: OrgRole,
+          assignedAt: zTime,
+          assignedBy: z.string(),
+        }),
       ),
     }),
     errors: ["not_found", "forbidden"],
@@ -348,7 +500,15 @@ export const roleRoutes = [
     summary: "Give someone a role. Giving it again changes nothing.",
     params: RoleMemberParams,
     response: AssignmentResult,
-    errors: ["not_found", "archived", "forbidden", "beyond_your_powers", "delegation_required", "not_for_guests", "conflict"],
+    errors: [
+      "not_found",
+      "archived",
+      "forbidden",
+      "beyond_your_powers",
+      "delegation_required",
+      "not_for_guests",
+      "conflict",
+    ],
   }),
   roles({
     method: "DELETE",
@@ -356,12 +516,18 @@ export const roleRoutes = [
     summary: "Take a role away from someone.",
     params: RoleMemberParams,
     response: AssignmentResult,
-    errors: ["not_found", "forbidden", "beyond_your_powers", "delegation_required"],
+    errors: [
+      "not_found",
+      "forbidden",
+      "beyond_your_powers",
+      "delegation_required",
+    ],
   }),
   roles({
     method: "GET",
     url: "/v1/orgs/:orgId/members/:userId/permissions",
-    summary: "One member's effective permissions and where each comes from (\"base\" or a role id).",
+    summary:
+      'One member\'s effective permissions and where each comes from ("base" or a role id).',
     params: OrgMemberParams,
     response: z.strictObject({
       base: OrgRole,
@@ -377,16 +543,22 @@ export const roleRoutes = [
   roles({
     method: "POST",
     url: "/v1/orgs/:orgId/ownership",
-    summary: "Hand ownership to another member (owners, after typing the community's name); the caller becomes an admin.",
+    summary:
+      "Hand ownership to another member (owners, after typing the community's name); the caller becomes an admin.",
     params: OrgParams,
     body: OwnershipBody,
-    response: z.strictObject({ ok: z.literal(true), newOwner: z.string(), yourRole: z.literal("ADMIN") }),
+    response: z.strictObject({
+      ok: z.literal(true),
+      newOwner: z.string(),
+      yourRole: z.literal("ADMIN"),
+    }),
     errors: ["not_found", "forbidden", "confirm_mismatch", "conflict"],
   }),
   roles({
     method: "GET",
     url: "/v1/orgs/:orgId/usage",
-    summary: "Member, structure, file and invitation figures, limits and 30 days of measured usage.",
+    summary:
+      "Member, structure, file and invitation figures, limits and 30 days of measured usage.",
     params: OrgParams,
     response: Usage,
     errors: ["not_found", "forbidden"],
@@ -394,7 +566,8 @@ export const roleRoutes = [
   roles({
     method: "GET",
     url: "/v1/orgs/:orgId/plan",
-    summary: "What the community can use: no plans exist yet, so only the limits that apply.",
+    summary:
+      "What the community can use: no plans exist yet, so only the limits that apply.",
     params: OrgParams,
     response: Plan,
     errors: ["not_found"],

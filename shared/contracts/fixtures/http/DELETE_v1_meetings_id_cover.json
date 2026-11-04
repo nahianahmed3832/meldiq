@@ -1,0 +1,38 @@
+{
+  "meeting": {
+    "id": "mtg_fOcd45raAP_fwEWbClQc6w",
+    "orgId": "o_Bi5sjHDrFLqdZemcYjhU9w",
+    "title": "First",
+    "description": null,
+    "room": {
+      "id": "c_TuZvudIQTs6TmwuM5IndOg",
+      "name": "event-room"
+    },
+    "externalLocation": null,
+    "visibilityChannel": {
+      "id": "c_TuZvudIQTs6TmwuM5IndOg",
+      "name": "event-room"
+    },
+    "occurrenceOverride": false,
+    "startsAt": 1793791060797,
+    "endsAt": 1793792560797,
+    "timeZone": "UTC",
+    "organizer": {
+      "id": "u_TI3GQ9gk_xuXp9d5alLzCA",
+      "name": "evowner"
+    },
+    "participants": [
+      {
+        "id": "u_z5AR3A-NBgAPlJXx4oJqtQ",
+        "name": "evmember",
+        "response": "pending"
+      }
+    ],
+    "myResponse": null,
+    "cancelled": false,
+    "repeat": null,
+    "coverId": null,
+    "canEdit": true,
+    "rev": 4
+  }
+}

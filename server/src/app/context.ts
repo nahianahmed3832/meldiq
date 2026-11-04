@@ -1,5 +1,5 @@
 import type { CollectibleCommerce } from "../modules/billing/collectibleCommerce.js";
-import type {DatabaseCutover} from "./databaseCutover.js";
+import type { DatabaseCutover } from "./databaseCutover.js";
 import type { RedisInfrastructure } from "../infrastructure/redis/service.js";
 import type { FastifyBaseLogger, FastifyRequest } from "fastify";
 import type { FileStore } from "../modules/files/store.js";
@@ -52,7 +52,12 @@ import type { ReminderService } from "../modules/accounts/reminders/service.js";
 import type { BlobStore } from "../infrastructure/storage/index.js";
 import type { Telemetry } from "../modules/telemetry/index.js";
 import type { QuotaEngine } from "../modules/quotas/index.js";
-import type { Billing, Gifts, Mojo, PlayBilling } from "../modules/billing/index.js";
+import type {
+  Billing,
+  Gifts,
+  Mojo,
+  PlayBilling,
+} from "../modules/billing/index.js";
 import type { MeldiqPostgres } from "../infrastructure/database/postgres/client.js";
 import type { PostgresRows } from "../infrastructure/database/rows/postgresRows.js";
 import type { SupabaseDeviceAuth } from "../modules/accounts/supabaseIdentity.js";
@@ -151,7 +156,7 @@ export interface AppContext {
   /** Present when MONGODB_URI is set: the domains in MONGODB_DOMAINS live there (docs/MONGODB.md). */
   mongo?: MeldiqMongo;
   /** Staged PostgreSQL composition. One writer is shared by synchronous account/authorization domains. */
-  postgres?: {database: MeldiqPostgres; rows: PostgresRows};
+  postgres?: { database: MeldiqPostgres; rows: PostgresRows };
   databaseCutover?: DatabaseCutover;
   redis?: RedisInfrastructure;
   /** Plan-based limits (src/entitlements.ts, docs/PLANS.md): none by default. */
@@ -180,5 +185,12 @@ export interface AppContext {
   /** Display names of users by id (identity), for billing's views. */
   userNames: (ids: readonly string[]) => Map<string, string>;
   log: FastifyBaseLogger;
-  audit: (e: { actorId?: string | null; orgId?: string | null; action: string; target?: string | null; detail?: string | null }) => void;
+  audit: (e: {
+    actorId?: string | null;
+    orgId?: string | null;
+    action: string;
+    target?: string | null;
+    detail?: string | null;
+    changes?: import("../modules/organizations/adminChanges.js").AuditChange[];
+  }) => void;
 }

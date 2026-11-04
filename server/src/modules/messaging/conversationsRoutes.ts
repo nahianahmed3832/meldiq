@@ -1,6 +1,19 @@
 import type { FastifyInstance } from "fastify";
-import { requireStanding, requireSyntheticScopeForPeople } from "../accounts/index.js";
-import { availableUser, blockedEitherWay, dmDecision, notAvailable, REQUEST_MESSAGE_LIMIT, requireGroupAdd, requireRequestBudget } from "../accounts/relationships/rules.js";
+import { auditChanges } from "../organizations/adminChanges.js";
+import { writeChannelOptions } from "../organizations/communityPermissions/channelSettings.js";
+import {
+  requireStanding,
+  requireSyntheticScopeForPeople,
+} from "../accounts/index.js";
+import {
+  availableUser,
+  blockedEitherWay,
+  dmDecision,
+  notAvailable,
+  REQUEST_MESSAGE_LIMIT,
+  requireGroupAdd,
+  requireRequestBudget,
+} from "../accounts/relationships/rules.js";
 import type { DmRequestRow } from "../accounts/relationships/store.js";
 import { mentionAllPermission } from "./mentions.js";
 import type { ConversationRow } from "../organizations/authz.js";
@@ -21,12 +34,27 @@ import {
   SLOWMODE_STEPS,
 } from "../../shared/contracts/http/conversations.js";
 import { idParams } from "../../shared/contracts/http/primitives.js";
-import { appearsOnline, canSeeLastSeen, memberView, type ProfileRow } from "../accounts/profile.js";
-import { ApiError, badRequest, conflict, forbidden, notFound } from "../../shared/errors.js";
+import {
+  appearsOnline,
+  canSeeLastSeen,
+  memberView,
+  type ProfileRow,
+} from "../accounts/profile.js";
+import {
+  ApiError,
+  badRequest,
+  conflict,
+  forbidden,
+  notFound,
+} from "../../shared/errors.js";
 import { newId, now } from "../../shared/utilities/util.js";
 import { fedDmId } from "../federation/service.js";
 import { userSummary } from "../auth/routes.js";
-import { deleteBlobNow, processBlobDeletes, queueBlobDelete } from "../files/routes.js";
+import {
+  deleteBlobNow,
+  processBlobDeletes,
+  queueBlobDelete,
+} from "../files/routes.js";
 import { photoBlobId, readJpegBody, storePhoto } from "../accounts/photos.js";
 import { evictRemovedMember } from "../calls/routes.js";
 import { reconcileAccess } from "../organizations/communityRoutes.js";
@@ -48,20 +76,36 @@ export interface LiveCallInfo {
  * The live calls of [convs], read once per request: one call-store query for all of them (which may be MongoDB), plus
  * who is present only for voice rooms with a call. [conversationView] takes the result.
  */
-export async function liveCallsOf(ctx: AppContext, convs: readonly Pick<ConversationRow, "id" | "voice">[]): Promise<Map<string, LiveCallInfo>> {
+export async function liveCallsOf(
+  ctx: AppContext,
+  convs: readonly Pick<ConversationRow, "id" | "voice">[],
+): Promise<Map<string, LiveCallInfo>> {
   const out = new Map<string, LiveCallInfo>();
   // Newest first: the first call seen per conversation is its current one.
-  for (const call of await ctx.calls.liveIn(convs.map((c) => c.id))) if (!out.has(call.conversation_id)) out.set(call.conversation_id, { call });
+  for (const call of await ctx.calls.liveIn(convs.map((c) => c.id)))
+    if (!out.has(call.conversation_id)) out.set(call.conversation_id, { call });
   for (const c of convs) {
     const info = out.get(c.id);
-    if (c.voice && info) info.inRoom = [...new Set((await ctx.calls.present(info.call.id)).map((p) => p.user_id))].slice(0, 12);
+    if (c.voice && info)
+      info.inRoom = [
+        ...new Set(
+          (await ctx.calls.present(info.call.id)).map((p) => p.user_id),
+        ),
+      ].slice(0, 12);
   }
   return out;
 }
 
-export function conversationView(ctx: AppContext, c: ConversationRow, userId: string, live: ReadonlyMap<string, LiveCallInfo>) {
+export function conversationView(
+  ctx: AppContext,
+  c: ConversationRow,
+  userId: string,
+  live: ReadonlyMap<string, LiveCallInfo>,
+) {
   const { ws, authz } = ctx;
-  const memberCount = ws.count("conversation_members", { conversation_id: c.id });
+  const memberCount = ws.count("conversation_members", {
+    conversation_id: c.id,
+  });
   const myRole = authz.conversationRole(c.id, userId);
   let members: object[] | undefined;
   if (c.type !== "CHANNEL" || memberCount <= 12) {
@@ -69,7 +113,12 @@ export function conversationView(ctx: AppContext, c: ConversationRow, userId: st
       .filter(({ user }) => user.kind === "person")
       .sort((a, b) => a.member.joined_at - b.member.joined_at)
       .slice(0, 12)
-      .map(({ member, user }) => memberView(ctx, userId, user, { ...userSummary(user), role: member.role }));
+      .map(({ member, user }) =>
+        memberView(ctx, userId, user, {
+          ...userSummary(user),
+          role: member.role,
+        }),
+      );
   }
   const call = live.get(c.id)?.call;
   // Who is in a voice room right now (shown on the room before joining), at most 12 people.
@@ -78,8 +127,15 @@ export function conversationView(ctx: AppContext, c: ConversationRow, userId: st
   // so they list categories too. Newer apps read categoryId and position (docs/COMMUNITY_REBUILD_2026-10-21.md §7).
   // categoryPosition (API 0.48.0): the category's place too, so an app orders categories right before it has loaded the
   // community's category list (no alphabetical first paint that then jumps, brief v4 §15).
-  const category = c.category_id ? ws.get<{ id: string; name: string; position: number }>("channel_categories", { id: c.category_id }) : undefined;
-  const orgName = c.org_id ? (ws.get<{ name: string }>("orgs", { id: c.org_id })?.name ?? null) : null;
+  const category = c.category_id
+    ? ws.get<{ id: string; name: string; position: number }>(
+        "channel_categories",
+        { id: c.category_id },
+      )
+    : undefined;
+  const orgName = c.org_id
+    ? (ws.get<{ name: string }>("orgs", { id: c.org_id })?.name ?? null)
+    : null;
   const channel = c.type === "CHANNEL";
   return {
     id: c.id,
@@ -94,14 +150,23 @@ export function conversationView(ctx: AppContext, c: ConversationRow, userId: st
     position: c.position ?? 0,
     format: c.format ?? "text",
     forumTags: c.format === "forum" ? forumTags(c) : [],
+    ...(c.format === "forum"
+      ? { requireForumTag: c.forum_require_tag === 1 }
+      : {}),
     // Batch B8: a forum's post guidelines, or null.
-    guidelines: c.format === "forum" ? ((c as { guidelines?: string | null }).guidelines ?? null) : null,
+    guidelines:
+      c.format === "forum"
+        ? ((c as { guidelines?: string | null }).guidelines ?? null)
+        : null,
     kind: c.kind,
     name: c.name,
     topic: c.topic,
     archived: !!c.archived_at,
     // Batch B6b: a group's photo revision (GET /v1/conversations/:id/photo); null without one.
-    photoRev: c.type === "GROUP" ? ((c as { photo_rev?: number | null }).photo_rev ?? null) : null,
+    photoRev:
+      c.type === "GROUP"
+        ? ((c as { photo_rev?: number | null }).photo_rev ?? null)
+        : null,
     createdAt: c.created_at,
     updatedAt: c.updated_at,
     memberCount,
@@ -110,21 +175,40 @@ export function conversationView(ctx: AppContext, c: ConversationRow, userId: st
     myRole,
     canPost: authz.canPost(c, userId),
     // While this person is timed out in the community: when it ends (the app says why it can't post).
-    ...(c.org_id && authz.timeoutUntil(c.org_id, userId) ? { timedOutUntil: authz.timeoutUntil(c.org_id, userId) } : {}),
+    ...(c.org_id && authz.timeoutUntil(c.org_id, userId)
+      ? { timedOutUntil: authz.timeoutUntil(c.org_id, userId) }
+      : {}),
     canAttach: authz.canAttach(c, userId),
     canManage: authz.canManageConversation(c, userId),
     // Whether this person may switch the channel between public, private and announcement (scope managers only).
     canManageAccess: authz.canManageChannelAccess(c, userId),
     // Whether the app should offer @everyone here (the hourly limit is checked when sending).
     canMentionAll: mentionAllPermission(ctx, c, userId) === null,
-    activeCall: call ? { id: call.id, video: !!call.video, state: call.state, startedAt: call.created_at, ...(inRoom ? { participantIds: inRoom } : {}) } : null,
+    activeCall: call
+      ? {
+          id: call.id,
+          video: !!call.video,
+          state: call.state,
+          startedAt: call.created_at,
+          ...(inRoom ? { participantIds: inRoom } : {}),
+        }
+      : null,
     voice: !!c.voice,
     // Batch B3: slowmode, and for this person whether it applies and when they may post next (null: now).
     ...(c.type === "CHANNEL"
-      ? { slowmodeSec: c.slowmode_sec ?? 0, slowmodeExempt: authz.slowmodeExempt(c, userId), nextPostAt: authz.nextPostAt(c, userId, now()) }
+      ? {
+          slowmodeSec: c.slowmode_sec ?? 0,
+          slowmodeExempt: authz.slowmodeExempt(c, userId),
+          nextPostAt: authz.nextPostAt(c, userId, now()),
+        }
       : {}),
     // Voice channels: whether this person may join the call, and talk in it (listen-only otherwise).
-    ...(c.voice ? { canConnect: authz.canConnectVoice(c, userId), canSpeak: authz.canSpeakInVoice(c, userId) } : {}),
+    ...(c.voice
+      ? {
+          canConnect: authz.canConnectVoice(c, userId),
+          canSpeak: authz.canSpeakInVoice(c, userId),
+        }
+      : {}),
     // Community parity A1: the channel's options (text only, no GIFs, stage, read-only).
     ...ctx.communityPermissions.channelView(c, userId),
     federation: federationInfo(ctx, c.id),
@@ -134,6 +218,7 @@ export function conversationView(ctx: AppContext, c: ConversationRow, userId: st
 export interface ForumTag {
   id: string;
   name: string;
+  restricted?: boolean;
 }
 
 /** A forum's tags as stored; anything malformed reads as no tags. */
@@ -141,7 +226,12 @@ export function forumTags(c: Pick<ConversationRow, "forum_tags">): ForumTag[] {
   try {
     const v: unknown = JSON.parse(c.forum_tags ?? "[]");
     if (!Array.isArray(v)) return [];
-    return v.filter((t): t is ForumTag => typeof t?.id === "string" && typeof t?.name === "string").slice(0, FORUM_TAG_LIMIT);
+    return v
+      .filter(
+        (t): t is ForumTag =>
+          typeof t?.id === "string" && typeof t?.name === "string",
+      )
+      .slice(0, FORUM_TAG_LIMIT);
   } catch {
     return [];
   }
@@ -151,7 +241,11 @@ export function forumTags(c: Pick<ConversationRow, "forum_tags">): ForumTag[] {
  * The tags to store from a manager's list: names trimmed, empty and repeated names (ignoring case) dropped, existing ids
  * kept for names that already had one (so posts keep their labels), new ids for new names.
  */
-export function nextForumTags(prev: readonly ForumTag[], wanted: readonly { id?: string; name: string }[], makeId: () => string): ForumTag[] {
+export function nextForumTags(
+  prev: readonly ForumTag[],
+  wanted: readonly { id?: string; name: string; restricted?: boolean }[],
+  makeId: () => string,
+): ForumTag[] {
   const seen = new Set<string>();
   const used = new Set<string>();
   const out: ForumTag[] = [];
@@ -161,10 +255,13 @@ export function nextForumTags(prev: readonly ForumTag[], wanted: readonly { id?:
     if (!name || seen.has(key)) continue;
     seen.add(key);
     // An id goes to one tag only: a renamed tag keeps its id, and its old name sent again becomes a new tag.
-    const keep = prev.find((p) => p.id === w.id && !used.has(p.id)) ?? prev.find((p) => p.name.toLowerCase() === key && !used.has(p.id));
+    const keep =
+      prev.find((p) => p.id === w.id && !used.has(p.id)) ??
+      prev.find((p) => p.name.toLowerCase() === key && !used.has(p.id));
     const id = keep?.id ?? makeId();
     used.add(id);
-    out.push({ id, name });
+    const restricted = w.restricted ?? keep?.restricted ?? false;
+    out.push({ id, name, ...(restricted ? { restricted: true } : {}) });
   }
   return out;
 }
@@ -172,13 +269,40 @@ export function nextForumTags(prev: readonly ForumTag[], wanted: readonly { id?:
 /** For a conversation with people on other servers: each server's domain, directory state and queued deliveries. */
 function federationInfo(ctx: AppContext, convId: string) {
   const servers = [
-    ...new Set(memberUsers<{ home_server_id: string | null }>(ctx, convId, "id, home_server_id").flatMap(({ user }) => (user.home_server_id ? [user.home_server_id] : []))),
+    ...new Set(
+      memberUsers<{ home_server_id: string | null }>(
+        ctx,
+        convId,
+        "id, home_server_id",
+      ).flatMap(({ user }) =>
+        user.home_server_id ? [user.home_server_id] : [],
+      ),
+    ),
   ];
-  const peers = mapByIds<{ server_id: string; domain: string | null; state: string | null }>(ctx.fed, "federation_peers", "server_id", servers, "server_id, domain, state");
-  const rows = servers.map((id) => ({ id, domain: peers.get(id)?.domain ?? null, state: peers.get(id)?.state ?? null }));
+  const peers = mapByIds<{
+    server_id: string;
+    domain: string | null;
+    state: string | null;
+  }>(
+    ctx.fed,
+    "federation_peers",
+    "server_id",
+    servers,
+    "server_id, domain, state",
+  );
+  const rows = servers.map((id) => ({
+    id,
+    domain: peers.get(id)?.domain ?? null,
+    state: peers.get(id)?.state ?? null,
+  }));
   if (rows.length === 0) return null;
   return {
-    servers: rows.map((r) => ({ serverId: r.id, domain: r.domain, state: r.state ?? "unknown", pending: ctx.federation?.pendingFor(r.id) ?? 0 })),
+    servers: rows.map((r) => ({
+      serverId: r.id,
+      domain: r.domain,
+      state: r.state ?? "unknown",
+      pending: ctx.federation?.pendingFor(r.id) ?? 0,
+    })),
     // Calls are hosted by the caller's server: this server can start one if it has its own media server.
     calls: !!ctx.federation?.callsEnabled(),
   };
@@ -189,30 +313,61 @@ function federationInfo(ctx: AppContext, convId: string) {
  * declined: the conversation is hidden from them), the sender always sees "pending" until it's accepted, so a decline
  * isn't revealed. [sent]: the sender's messages so far (at most REQUEST_MESSAGE_LIMIT before an answer).
  */
-export function requestView(r: DmRequestRow | null | undefined, userId: string) {
+export function requestView(
+  r: DmRequestRow | null | undefined,
+  userId: string,
+) {
   if (!r) return null;
   const incoming = r.recipient === userId;
-  return { state: "pending" as const, incoming, sent: incoming ? undefined : Math.min(r.sent, REQUEST_MESSAGE_LIMIT), limit: REQUEST_MESSAGE_LIMIT };
+  return {
+    state: "pending" as const,
+    incoming,
+    sent: incoming ? undefined : Math.min(r.sent, REQUEST_MESSAGE_LIMIT),
+    limit: REQUEST_MESSAGE_LIMIT,
+  };
 }
 
-export default async function conversationRoutes(app: FastifyInstance, ctx: AppContext) {
+export default async function conversationRoutes(
+  app: FastifyInstance,
+  ctx: AppContext,
+) {
   const auth = { preHandler: requireAuth(ctx) };
   const { db, ws, authz } = ctx;
 
   app.get("/v1/conversations", auth, async (req) => {
     const { userId } = me(req);
     const { requests } = parse(ConversationListQuery, req.query);
-    const mine = ws.all<{ conversation_id: string }>("conversation_members", { where: { user_id: userId } }).map((m) => m.conversation_id);
-    const rows = ws.all<ConversationRow>("conversations", { where: { id: { in: mine } }, orderBy: [["updated_at", "desc"]] });
+    const mine = ws
+      .all<{ conversation_id: string }>("conversation_members", {
+        where: { user_id: userId },
+      })
+      .map((m) => m.conversation_id);
+    const rows = ws.all<ConversationRow>("conversations", {
+      where: { id: { in: mine } },
+      orderBy: [["updated_at", "desc"]],
+    });
     // Batch B6: message requests are marked; ones you declined are left out; ?requests=1 lists only those waiting for you.
-    const byConv = new Map((await ctx.relationships.requestsIn(rows.filter((c) => c.type === "DM").map((c) => c.id))).map((r) => [r.conversation_id, r]));
+    const byConv = new Map(
+      (
+        await ctx.relationships.requestsIn(
+          rows.filter((c) => c.type === "DM").map((c) => c.id),
+        )
+      ).map((r) => [r.conversation_id, r]),
+    );
     const shown = rows.filter((c) => {
       const r = byConv.get(c.id);
       if (r && r.recipient === userId && r.state === "declined") return false;
-      return requests === "1" ? r?.recipient === userId && r.state === "pending" : true;
+      return requests === "1"
+        ? r?.recipient === userId && r.state === "pending"
+        : true;
     });
     const live = await liveCallsOf(ctx, shown);
-    return { conversations: shown.map((c) => ({ ...conversationView(ctx, c, userId, live), request: requestView(byConv.get(c.id), userId) })) };
+    return {
+      conversations: shown.map((c) => ({
+        ...conversationView(ctx, c, userId, live),
+        request: requestView(byConv.get(c.id), userId),
+      })),
+    };
   });
 
   /**
@@ -220,37 +375,64 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
    * only people whose "last seen" setting lets the viewer see their online state, so the number reveals no one who
    * hides it; the viewer counts too.
    */
-  app.get("/v1/conversations/:id/presence", { ...auth, config: { rateLimit: { max: 60, timeWindow: "1 minute" } } }, async (req) => {
-    const { userId } = me(req);
-    const { id } = parse(idParams, req.params);
-    authz.requireMember(id, userId);
-    const members = memberUsers<ProfileRow & Record<string, unknown>>(ctx, id)
-      .map(({ user }) => user)
-      .filter((u) => u.disabled_at == null);
-    const online = members.filter((u) => (u.id === userId || canSeeLastSeen(ctx, userId, u)) && appearsOnline(ctx, u)).length;
-    return { online, members: members.length };
-  });
+  app.get(
+    "/v1/conversations/:id/presence",
+    { ...auth, config: { rateLimit: { max: 60, timeWindow: "1 minute" } } },
+    async (req) => {
+      const { userId } = me(req);
+      const { id } = parse(idParams, req.params);
+      authz.requireMember(id, userId);
+      const members = memberUsers<ProfileRow & Record<string, unknown>>(ctx, id)
+        .map(({ user }) => user)
+        .filter((u) => u.disabled_at == null);
+      const online = members.filter(
+        (u) =>
+          (u.id === userId || canSeeLastSeen(ctx, userId, u)) &&
+          appearsOnline(ctx, u),
+      ).length;
+      return { online, members: members.length };
+    },
+  );
 
   app.get("/v1/conversations/:id", auth, async (req) => {
     const { userId } = me(req);
     const { id } = parse(idParams, req.params);
     const c = authz.conversation(id);
     if (!c) throw notFound("Conversation not found");
-    const visible = c.type === "CHANNEL" ? authz.canViewChannel(c, userId) : authz.isMember(c.id, userId);
+    const visible =
+      c.type === "CHANNEL"
+        ? authz.canViewChannel(c, userId)
+        : authz.isMember(c.id, userId);
     if (!visible) throw notFound("Conversation not found");
     const r = c.type === "DM" ? await ctx.relationships.request(c.id) : null;
-    if (r && r.recipient === userId && r.state === "declined") throw notFound("Conversation not found");
-    return { conversation: { ...conversationView(ctx, c, userId, await liveCallsOf(ctx, [c])), request: requestView(r, userId) } };
+    if (r && r.recipient === userId && r.state === "declined")
+      throw notFound("Conversation not found");
+    return {
+      conversation: {
+        ...conversationView(ctx, c, userId, await liveCallsOf(ctx, [c])),
+        request: requestView(r, userId),
+      },
+    };
   });
 
   app.get("/v1/conversations/:id/members", auth, async (req) => {
     const { userId } = me(req);
     const { id } = parse(idParams, req.params);
     const c = authz.conversation(id);
-    if (!c || !(c.type === "CHANNEL" ? authz.canViewChannel(c, userId) : authz.isMember(c.id, userId))) throw notFound("Conversation not found");
+    if (
+      !c ||
+      !(c.type === "CHANNEL"
+        ? authz.canViewChannel(c, userId)
+        : authz.isMember(c.id, userId))
+    )
+      throw notFound("Conversation not found");
     const rows = memberUsers<any>(ctx, id)
       .filter(({ user }) => user.kind === "person")
-      .sort((a, b) => compareText(a.member.role, b.member.role) || compareText(a.user.display_name, b.user.display_name));
+      .sort(
+        (a, b) =>
+          compareText(a.member.role, b.member.role) ||
+          compareText(a.user.display_name, b.user.display_name),
+      );
     return {
       members: rows.map(({ member, user }) =>
         memberView(ctx, userId, user, {
@@ -279,7 +461,8 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
   app.post("/v1/conversations/dm", auth, async (req) => {
     const { userId } = me(req);
     const { userId: other } = parse(DmBody, req.body);
-    if (other === userId) throw badRequest("You can't start a direct conversation with yourself");
+    if (other === userId)
+      throw badRequest("You can't start a direct conversation with yourself");
     const target = availableUser(ctx, other);
     if (target) requireSyntheticScopeForPeople(ctx.identity, userId, [other]);
     // Batch B6: unknown, disabled and blocked (either way) all answer the same, so a block isn't revealed.
@@ -287,7 +470,9 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     const key = [userId, other].sort().join("|");
     const t = now();
     let c = ws.get<ConversationRow>("conversations", { dm_key: key });
-    let request: DmRequestRow | null = c ? await ctx.relationships.request(c.id) : null;
+    let request: DmRequestRow | null = c
+      ? await ctx.relationships.request(c.id)
+      : null;
     // Opening a DM with someone whose request you had: it's yours now too, a normal DM.
     if (c && request && request.recipient === userId) {
       await ctx.relationships.deleteRequest(c.id);
@@ -297,36 +482,91 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     if (!c) {
       requireStanding(ctx.safety, userId, "start_conversation");
       // People on other servers keep their settings there: their server decides.
-      const decision = target.home_server_id ? "direct" : await dmDecision(ctx, userId, other);
-      if (decision === "refused") throw new ApiError(403, "dm_not_allowed", "This person only accepts messages from people they're connected with");
+      const decision = target.home_server_id
+        ? "direct"
+        : await dmDecision(ctx, userId, other);
+      if (decision === "refused")
+        throw new ApiError(
+          403,
+          "dm_not_allowed",
+          "This person only accepts messages from people they're connected with",
+        );
       if (decision === "request") await requireRequestBudget(ctx, userId, t);
       // Batch B4: a community can pause new DMs between its members. It applies when every community the two share
       // has paused them, and neither of them moderates one of those communities (moderators can still reach people).
-      const otherOrgs = new Set(ws.all<{ org_id: string }>("org_members", { where: { user_id: other } }).map((m) => m.org_id));
-      const shared = ws.all<{ org_id: string }>("org_members", { where: { user_id: userId } }).flatMap((m) => (otherOrgs.has(m.org_id) ? [m.org_id] : []));
+      const otherOrgs = new Set(
+        ws
+          .all<{ org_id: string }>("org_members", { where: { user_id: other } })
+          .map((m) => m.org_id),
+      );
+      const shared = ws
+        .all<{ org_id: string }>("org_members", { where: { user_id: userId } })
+        .flatMap((m) => (otherOrgs.has(m.org_id) ? [m.org_id] : []));
       const t0 = now();
-      const paused = shared.length > 0 && shared.every((o) => authz.pausedUntil(o, "dms", t0) !== null);
-      const moderator = shared.some((o) => authz.can(o, userId, "members.timeout") || authz.can(o, other, "members.timeout"));
-      if (paused && !moderator) throw new ApiError(403, "dms_paused", "New direct messages between members of your community are paused for now");
+      const paused =
+        shared.length > 0 &&
+        shared.every((o) => authz.pausedUntil(o, "dms", t0) !== null);
+      const moderator = shared.some(
+        (o) =>
+          authz.can(o, userId, "members.timeout") ||
+          authz.can(o, other, "members.timeout"),
+      );
+      if (paused && !moderator)
+        throw new ApiError(
+          403,
+          "dms_paused",
+          "New direct messages between members of your community are paused for now",
+        );
       // With someone on another server, both servers derive the same conversation id from the two user ids.
-      if (target.home_server_id && !ctx.federation) throw new ApiError(503, "federation_disabled", "This server doesn't federate");
+      if (target.home_server_id && !ctx.federation)
+        throw new ApiError(
+          503,
+          "federation_disabled",
+          "This server doesn't federate",
+        );
       const id = target.home_server_id ? fedDmId(key) : newId("c");
       // Checked again inside the unit: the other person may have opened the same DM meanwhile.
       const created = await ws.write((w) => {
         if (w.get("conversations", { dm_key: key })) return false;
-        w.insert("conversations", { id, type: "DM", dm_key: key, created_by: userId, created_at: t, updated_at: t });
-        for (const u of [userId, other]) w.insert("conversation_members", { conversation_id: id, user_id: u, role: "MEMBER", joined_at: t });
+        w.insert("conversations", {
+          id,
+          type: "DM",
+          dm_key: key,
+          created_by: userId,
+          created_at: t,
+          updated_at: t,
+        });
+        for (const u of [userId, other])
+          w.insert("conversation_members", {
+            conversation_id: id,
+            user_id: u,
+            role: "MEMBER",
+            joined_at: t,
+          });
         return true;
       });
       c = ws.get<ConversationRow>("conversations", { dm_key: key })!;
       if (!created) request = await ctx.relationships.request(c.id);
       else if (decision === "request") {
-        request = { conversation_id: id, recipient: other, sender: userId, state: "pending", sent: 0, created_at: t, answered_at: null };
+        request = {
+          conversation_id: id,
+          recipient: other,
+          sender: userId,
+          state: "pending",
+          sent: 0,
+          created_at: t,
+          answered_at: null,
+        };
         await ctx.relationships.createRequest(request);
       }
       notifyConversation(ctx, c.id);
     }
-    return { conversation: { ...conversationView(ctx, c, userId, await liveCallsOf(ctx, [c])), request: requestView(request, userId) } };
+    return {
+      conversation: {
+        ...conversationView(ctx, c, userId, await liveCallsOf(ctx, [c])),
+        request: requestView(request, userId),
+      },
+    };
   });
 
   // ───────────── Group photo (batch B6b, Discord reference GDM-CTRL-002) ─────────────
@@ -334,8 +574,10 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
   // People who can rename the group set or remove it; every member can see it.
   const groupFor = (id: string, userId: string, manage: boolean) => {
     const c = authz.conversation(id);
-    if (!c || c.type !== "GROUP" || !authz.isMember(id, userId)) throw notFound("Group not found");
-    if (manage && !authz.canManageConversation(c, userId)) throw forbidden("Only the group's admins can change its photo");
+    if (!c || c.type !== "GROUP" || !authz.isMember(id, userId))
+      throw notFound("Group not found");
+    if (manage && !authz.canManageConversation(c, userId))
+      throw forbidden("Only the group's admins can change its photo");
     return c as ConversationRow & { photo_rev?: number | null };
   };
 
@@ -347,11 +589,20 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     const previous = c.photo_rev ?? null;
     const rev = Math.max(now(), (previous ?? 0) + 1);
     await storePhoto(ctx, photoBlobId(id, rev), buf);
-    if ((await ws.write((w) => w.update("conversations", { id }, { photo_rev: rev, updated_at: now() }))) === 0) {
+    if (
+      (await ws.write((w) =>
+        w.update(
+          "conversations",
+          { id },
+          { photo_rev: rev, updated_at: now() },
+        ),
+      )) === 0
+    ) {
       await deleteBlobNow(ctx, "profile-photos", photoBlobId(id, rev));
       throw notFound("Group not found");
     }
-    if (previous) await deleteBlobNow(ctx, "profile-photos", photoBlobId(id, previous));
+    if (previous)
+      await deleteBlobNow(ctx, "profile-photos", photoBlobId(id, previous));
     notifyConversation(ctx, id);
     return { photoRev: rev };
   });
@@ -361,7 +612,13 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     const { id } = parse(idParams, req.params);
     const c = groupFor(id, userId, true);
     if (c.photo_rev) {
-      await ws.write((w) => w.update("conversations", { id }, { photo_rev: null, updated_at: now() }));
+      await ws.write((w) =>
+        w.update(
+          "conversations",
+          { id },
+          { photo_rev: null, updated_at: now() },
+        ),
+      );
       await deleteBlobNow(ctx, "profile-photos", photoBlobId(id, c.photo_rev));
       notifyConversation(ctx, id);
     }
@@ -372,9 +629,15 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     const { userId } = me(req);
     const { id } = parse(idParams, req.params);
     const c = groupFor(id, userId, false);
-    const stream = c.photo_rev ? await ctx.blobs.get("profile-photos", photoBlobId(id, c.photo_rev)) : null;
+    const stream = c.photo_rev
+      ? await ctx.blobs.get("profile-photos", photoBlobId(id, c.photo_rev))
+      : null;
     if (!stream) throw notFound("No photo");
-    return reply.header("content-type", "image/jpeg").header("cache-control", "private, max-age=3600").header("etag", `"${c.photo_rev}"`).send(stream);
+    return reply
+      .header("content-type", "image/jpeg")
+      .header("cache-control", "private, max-age=3600")
+      .header("etag", `"${c.photo_rev}"`)
+      .send(stream);
   });
 
   app.post("/v1/conversations/group", auth, async (req) => {
@@ -383,21 +646,53 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     requireStanding(ctx.safety, userId, "start_conversation");
     const ids = [...new Set(body.memberIds.filter((m) => m !== userId))];
     // Groups are server-local in this release: people on other servers can't be added (FEDERATION_PROTOCOL.md §7).
-    const found = ctx.identity.count("users", { disabled_at: null, home_server_id: null, id: { in: ids } });
-    if (found !== ids.length) throw badRequest("One or more members do not exist or are on another server");
+    const found = ctx.identity.count("users", {
+      disabled_at: null,
+      home_server_id: null,
+      id: { in: ids },
+    });
+    if (found !== ids.length)
+      throw badRequest(
+        "One or more members do not exist or are on another server",
+      );
     requireSyntheticScopeForPeople(ctx.identity, userId, ids);
     // API 0.65.0: each person's choice of who may add them to group chats.
     await requireGroupAdd(ctx, userId, ids);
     const id = newId("c");
     const t = now();
     await ws.write((w) => {
-      w.insert("conversations", { id, type: "GROUP", name: body.name, created_by: userId, created_at: t, updated_at: t });
-      w.insert("conversation_members", { conversation_id: id, user_id: userId, role: "ADMIN", joined_at: t });
-      for (const m of ids) w.insert("conversation_members", { conversation_id: id, user_id: m, role: "MEMBER", joined_at: t });
+      w.insert("conversations", {
+        id,
+        type: "GROUP",
+        name: body.name,
+        created_by: userId,
+        created_at: t,
+        updated_at: t,
+      });
+      w.insert("conversation_members", {
+        conversation_id: id,
+        user_id: userId,
+        role: "ADMIN",
+        joined_at: t,
+      });
+      for (const m of ids)
+        w.insert("conversation_members", {
+          conversation_id: id,
+          user_id: m,
+          role: "MEMBER",
+          joined_at: t,
+        });
     });
     notifyConversation(ctx, id);
     const view = authz.conversation(id)!;
-    return { conversation: conversationView(ctx, view, userId, await liveCallsOf(ctx, [view])) };
+    return {
+      conversation: conversationView(
+        ctx,
+        view,
+        userId,
+        await liveCallsOf(ctx, [view]),
+      ),
+    };
   });
 
   app.patch("/v1/conversations/:id", auth, async (req) => {
@@ -406,59 +701,156 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     const c = authz.requireMember(id, userId);
     if (!authz.canManageConversation(c, userId)) throw forbidden();
     const body = parse(ConversationPatchBody, req.body);
-    if (body.slowmodeSec !== undefined && c.type !== "CHANNEL") throw badRequest("Only channels have slowmode");
-    if (body.format !== undefined && (c.type !== "CHANNEL" || c.voice)) throw badRequest("Only text channels can become forums");
-    if (body.archived !== undefined && c.type !== "CHANNEL") throw badRequest("Only channels can be archived");
+    if (body.slowmodeSec !== undefined && c.type !== "CHANNEL")
+      throw badRequest("Only channels have slowmode");
+    if (body.format !== undefined && (c.type !== "CHANNEL" || c.voice))
+      throw badRequest("Only text channels can become forums");
+    if (body.archived !== undefined && c.type !== "CHANNEL")
+      throw badRequest("Only channels can be archived");
     const nextFormat = body.format ?? c.format ?? "text";
-    if (body.forumTags !== undefined && nextFormat !== "forum") throw badRequest("Only forum channels have tags");
-    if (body.guidelines !== undefined && nextFormat !== "forum") throw badRequest("Only forum channels have post guidelines");
+    if (body.requireForumTag !== undefined && nextFormat !== "forum")
+      throw badRequest("Only a forum can require tags");
+    if (body.forumTags !== undefined && nextFormat !== "forum")
+      throw badRequest("Only forum channels have tags");
+    if (body.guidelines !== undefined && nextFormat !== "forum")
+      throw badRequest("Only forum channels have post guidelines");
     const kindChange = body.kind !== undefined && body.kind !== c.kind;
-    if (body.kind !== undefined && c.type !== "CHANNEL") throw badRequest("Only channels have an access mode");
+    if (body.kind !== undefined && c.type !== "CHANNEL")
+      throw badRequest("Only channels have an access mode");
     if (kindChange) {
       // Access mode (docs/WORKSPACE_ADMINISTRATION.md): only the scope's managers, never a channel admin by role alone.
-      if (!authz.canManageChannelAccess(c, userId)) throw forbidden("Only people who can change channel access can change who can see and post in it");
-      if (c.archived_at && body.archived !== false) throw conflict("This channel is archived. Restore it before changing its access.");
+      if (!authz.canManageChannelAccess(c, userId))
+        throw forbidden(
+          "Only people who can change channel access can change who can see and post in it",
+        );
+      if (c.archived_at && body.archived !== false)
+        throw conflict(
+          "This channel is archived. Restore it before changing its access.",
+        );
     }
     // Private channels never auto-join; announcement channels always do; a channel made public again auto-joins the
     // people its permissions let see it, as a new channel would. Making a channel private removes nobody.
-    const autoJoin = !kindChange ? c.auto_join : body.kind === "PRIVATE" ? 0 : body.kind === "ANNOUNCEMENT" ? 1 : c.kind === "PRIVATE" ? 1 : c.auto_join;
-    const slowmodeChange = body.slowmodeSec !== undefined && body.slowmodeSec !== (c.slowmode_sec ?? 0);
+    const autoJoin = !kindChange
+      ? c.auto_join
+      : body.kind === "PRIVATE"
+        ? 0
+        : body.kind === "ANNOUNCEMENT"
+          ? 1
+          : c.kind === "PRIVATE"
+            ? 1
+            : c.auto_join;
+    const slowmodeChange =
+      body.slowmodeSec !== undefined &&
+      body.slowmodeSec !== (c.slowmode_sec ?? 0);
     // Community parity A1: the channel's options, checked (and stored) before the rest of the change.
-    const options = { textOnly: body.textOnly, noGifs: body.noGifs, stage: body.stage, readOnly: body.readOnly, posterRoleIds: body.posterRoleIds };
-    await ctx.communityPermissions.updateChannel(c, userId, options);
+    const options = {
+      textOnly: body.textOnly,
+      noGifs: body.noGifs,
+      stage: body.stage,
+      readOnly: body.readOnly,
+      posterRoleIds: body.posterRoleIds,
+    };
     // Only what this request changes, so a concurrent edit of other fields isn't overwritten; tags from the stored row.
     await ws.write((w) => {
       const current = w.get<ConversationRow>("conversations", { id });
       if (!current) return;
+      const tags =
+        body.forumTags === undefined
+          ? forumTags(current)
+          : nextForumTags(forumTags(current), body.forumTags, () =>
+              newId("tag"),
+            );
+      if (
+        nextFormat === "forum" &&
+        (body.requireForumTag ?? current.forum_require_tag === 1) &&
+        tags.length === 0
+      )
+        throw badRequest("Add a tag before requiring one");
+      writeChannelOptions(ctx, w, current, userId, options);
       w.update(
         "conversations",
         { id },
         {
           ...(body.name !== undefined ? { name: body.name } : {}),
           ...(body.topic !== undefined ? { topic: body.topic } : {}),
-          ...(body.archived !== undefined ? { archived_at: body.archived ? now() : null } : {}),
+          ...(body.archived !== undefined
+            ? { archived_at: body.archived ? now() : null }
+            : {}),
           ...(kindChange ? { kind: body.kind!, auto_join: autoJoin } : {}),
           ...(body.format !== undefined ? { format: nextFormat } : {}),
-          ...(body.forumTags !== undefined ? { forum_tags: JSON.stringify(nextForumTags(forumTags(current), body.forumTags, () => newId("tag"))) } : {}),
-          ...(body.guidelines !== undefined ? { guidelines: body.guidelines || null } : {}),
+          ...(body.forumTags !== undefined
+            ? { forum_tags: JSON.stringify(tags) }
+            : {}),
+          ...(body.requireForumTag !== undefined
+            ? { forum_require_tag: body.requireForumTag ? 1 : 0 }
+            : {}),
+          ...(body.guidelines !== undefined
+            ? { guidelines: body.guidelines || null }
+            : {}),
           ...(slowmodeChange ? { slowmode_sec: body.slowmodeSec! } : {}),
           updated_at: now(),
         },
       );
     });
-    if (body.guidelines !== undefined && c.org_id) ctx.audit({ actorId: userId, orgId: c.org_id, action: "channel.guidelines", target: id });
-    if (slowmodeChange && c.org_id) ctx.audit({ actorId: userId, orgId: c.org_id, action: "channel.slowmode", target: id, detail: `${body.slowmodeSec}s` });
+    if (body.guidelines !== undefined && c.org_id)
+      ctx.audit({
+        actorId: userId,
+        orgId: c.org_id,
+        action: "channel.guidelines",
+        target: id,
+      });
+    if (slowmodeChange && c.org_id)
+      ctx.audit({
+        actorId: userId,
+        orgId: c.org_id,
+        action: "channel.slowmode",
+        target: id,
+        detail: `${body.slowmodeSec}s`,
+        changes: auditChanges(c, { slowmode_sec: body.slowmodeSec }),
+      });
     if (c.org_id) {
-      if (kindChange) ctx.audit({ actorId: userId, orgId: c.org_id, action: "channel.access", target: id, detail: `${c.kind}→${body.kind}` });
+      if (kindChange)
+        ctx.audit({
+          actorId: userId,
+          orgId: c.org_id,
+          action: "channel.access",
+          target: id,
+          detail: `${c.kind}→${body.kind}`,
+          changes: auditChanges(c, { kind: body.kind }),
+        });
       if (body.archived !== undefined && body.archived !== !!c.archived_at) {
-        ctx.audit({ actorId: userId, orgId: c.org_id, action: body.archived ? "channel.archive" : "channel.restore", target: id });
+        ctx.audit({
+          actorId: userId,
+          orgId: c.org_id,
+          action: body.archived ? "channel.archive" : "channel.restore",
+          target: id,
+        });
       }
-      if (body.name !== undefined || body.topic !== undefined || body.format !== undefined || body.forumTags !== undefined) ctx.audit({ actorId: userId, orgId: c.org_id, action: "channel.update", target: id });
-      if (kindChange && body.kind !== "PRIVATE") await reconcileAccess(ctx, c.org_id);
+      if (
+        body.name !== undefined ||
+        body.topic !== undefined ||
+        body.format !== undefined ||
+        body.forumTags !== undefined
+      )
+        ctx.audit({
+          actorId: userId,
+          orgId: c.org_id,
+          action: "channel.update",
+          target: id,
+        });
+      if (kindChange && body.kind !== "PRIVATE")
+        await reconcileAccess(ctx, c.org_id);
     }
     notifyConversation(ctx, id);
     const view = authz.conversation(id)!;
-    return { conversation: conversationView(ctx, view, userId, await liveCallsOf(ctx, [view])) };
+    return {
+      conversation: conversationView(
+        ctx,
+        view,
+        userId,
+        await liveCallsOf(ctx, [view]),
+      ),
+    };
   });
 
   /**
@@ -471,10 +863,18 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     const { id } = parse(idParams, req.params);
     const body = parse(ConversationDeleteBody, req.body ?? {});
     const c = authz.requireMember(id, userId);
-    if (c.type !== "CHANNEL" || !c.org_id) throw badRequest("Only community channels can be deleted; leave a group or conversation instead");
-    if (!authz.canManageConversation(c, userId)) throw forbidden("Only people who manage this channel can delete it");
+    if (c.type !== "CHANNEL" || !c.org_id)
+      throw badRequest(
+        "Only community channels can be deleted; leave a group or conversation instead",
+      );
+    if (!authz.canManageConversation(c, userId))
+      throw forbidden("Only people who manage this channel can delete it");
     if (body.confirmName.trim().replace(/^#/, "") !== (c.name ?? "").trim()) {
-      throw new ApiError(400, "confirm_mismatch", "Type the channel's name exactly as it appears to delete it");
+      throw new ApiError(
+        400,
+        "confirm_mismatch",
+        "Type the channel's name exactly as it appears to delete it",
+      );
     }
     const orgId = c.org_id;
     // Read before the transaction: the files store may not be SQLite.
@@ -483,13 +883,21 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     const rooms = (await ctx.calls.liveIn([id])).map((call) => call.room_name);
     const result = await ws.write((w) => {
       if (!w.get("conversations", { id })) return null;
-      const members = w.all<{ user_id: string }>("conversation_members", { where: { conversation_id: id } }).map((r) => r.user_id);
+      const members = w
+        .all<{ user_id: string }>("conversation_members", {
+          where: { conversation_id: id },
+        })
+        .map((r) => r.user_id);
       // Its files and uploads, queued items, and rows without a foreign key to the conversation (members and calls
       // cascade), and its overwrites.
       ctx.files.forgetConversation(id);
       ctx.relay.forgetConversation(id);
       w.delete("mention_all_events", { conversation_id: id });
       w.delete("channel_overwrites", { target_type: "channel", target_id: id });
+      for (const m of w.all<{ cover_id: string | null }>("meetings", {
+        where: { room_id: id },
+      }))
+        if (m.cover_id) queueBlobDelete(ctx, "profile-photos", m.cover_id);
       w.delete("conversations", { id });
       return { members, files, rooms };
     });
@@ -498,27 +906,66 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     await ctx.calls.forgetConversations([id]);
     // Its stored messages (they may not be in SQLite).
     await ctx.messages.deleteConversation(id);
-    ctx.audit({ actorId: userId, orgId, action: "channel.delete", target: id, detail: `${c.name ?? ""} (${result.files.length} files)` });
+    ctx.audit({
+      actorId: userId,
+      orgId,
+      action: "channel.delete",
+      target: id,
+      detail: `${c.name ?? ""} (${result.files.length} files)`,
+    });
     // Apps refresh the channel (now 404, shown as gone) and the community's channel list.
-    ctx.hub.sendToUsers(new Set(result.members), { t: "conv.updated", conversationId: id });
-    const orgMembers = ws.all<{ user_id: string }>("org_members", { where: { org_id: orgId } }).map((r) => r.user_id);
+    ctx.hub.sendToUsers(new Set(result.members), {
+      t: "conv.updated",
+      conversationId: id,
+    });
+    const orgMembers = ws
+      .all<{ user_id: string }>("org_members", { where: { org_id: orgId } })
+      .map((r) => r.user_id);
     ctx.hub.sendToUsers(new Set(orgMembers), { t: "org.updated", orgId });
-    for (const room of result.rooms) await ctx.livekit?.deleteRoom(room).catch(() => {});
+    for (const room of result.rooms)
+      await ctx.livekit?.deleteRoom(room).catch(() => {});
     await processBlobDeletes(ctx).catch(() => 0);
-    return { deleted: true, id, members: result.members.length, files: result.files.length };
+    return {
+      deleted: true,
+      id,
+      members: result.members.length,
+      files: result.files.length,
+    };
   });
 
   app.post("/v1/conversations/:id/join", auth, async (req) => {
     const { userId } = me(req);
     const { id } = parse(idParams, req.params);
     const c = authz.conversation(id);
-    if (!c || c.type !== "CHANNEL" || !authz.canViewChannel(c, userId)) throw notFound("Channel not found");
-    if (c.kind === "PRIVATE") throw forbidden("Private channels require an invitation from a channel manager");
+    if (!c || c.type !== "CHANNEL" || !authz.canViewChannel(c, userId))
+      throw notFound("Channel not found");
+    if (c.kind === "PRIVATE")
+      throw forbidden(
+        "Private channels require an invitation from a channel manager",
+      );
     if (c.archived_at) throw conflict("This channel is archived");
     if (!authz.scopeEligible(c, userId)) throw forbidden();
-    await ws.write((w) => w.insert("conversation_members", { conversation_id: id, user_id: userId, role: "MEMBER", joined_at: now() }, { orIgnore: true }));
+    await ws.write((w) =>
+      w.insert(
+        "conversation_members",
+        {
+          conversation_id: id,
+          user_id: userId,
+          role: "MEMBER",
+          joined_at: now(),
+        },
+        { orIgnore: true },
+      ),
+    );
     notifyConversation(ctx, id);
-    return { conversation: conversationView(ctx, c, userId, await liveCallsOf(ctx, [c])) };
+    return {
+      conversation: conversationView(
+        ctx,
+        c,
+        userId,
+        await liveCallsOf(ctx, [c]),
+      ),
+    };
   });
 
   app.put("/v1/conversations/:id/members/:userId", auth, async (req) => {
@@ -527,24 +974,46 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     const { role } = parse(MemberPutBody, req.body ?? {});
     const c = authz.conversation(p.id);
     if (!c) throw notFound("Conversation not found");
-    if (c.type === "DM") throw badRequest("Direct conversations have fixed members");
-    if (!authz.canManageConversation(c, actor)) throw forbidden("Only managers of this conversation can add members");
-    const target = ctx.identity.get("users", { id: p.userId, disabled_at: null });
+    if (c.type === "DM")
+      throw badRequest("Direct conversations have fixed members");
+    if (!authz.canManageConversation(c, actor))
+      throw forbidden("Only managers of this conversation can add members");
+    const target = ctx.identity.get("users", {
+      id: p.userId,
+      disabled_at: null,
+    });
     if (!target) throw notFound("User not found");
     if (c.type === "CHANNEL") {
       const targetOrgRole = authz.orgRole(c.org_id!, p.userId);
-      if (!targetOrgRole) throw conflict("That person is not a member of this community");
+      if (!targetOrgRole)
+        throw conflict("That person is not a member of this community");
       if (targetOrgRole !== "GUEST" && !authz.scopeEligible(c, p.userId)) {
-        throw conflict("That person can't see this channel: its permissions don't include them");
+        throw conflict(
+          "That person can't see this channel: its permissions don't include them",
+        );
       }
     } else {
       const n = ws.count("conversation_members", { conversation_id: c.id });
-      if (n >= MAX_GROUP && !authz.isMember(c.id, p.userId)) throw conflict(`Groups are limited to ${MAX_GROUP} people`);
+      if (n >= MAX_GROUP && !authz.isMember(c.id, p.userId))
+        throw conflict(`Groups are limited to ${MAX_GROUP} people`);
       // API 0.65.0: adding someone new asks their group-add choice (changing a member's role doesn't).
-      if (!authz.isMember(c.id, p.userId)) await requireGroupAdd(ctx, actor, [p.userId]);
+      if (!authz.isMember(c.id, p.userId))
+        await requireGroupAdd(ctx, actor, [p.userId]);
     }
-    await ws.write((w) => w.upsert("conversation_members", { conversation_id: c.id, user_id: p.userId, role, joined_at: now() }, { role }));
-    if (c.org_id) ctx.audit({ actorId: actor, orgId: c.org_id, action: "channel.member.add", target: `${c.id}:${p.userId}` });
+    await ws.write((w) =>
+      w.upsert(
+        "conversation_members",
+        { conversation_id: c.id, user_id: p.userId, role, joined_at: now() },
+        { role },
+      ),
+    );
+    if (c.org_id)
+      ctx.audit({
+        actorId: actor,
+        orgId: c.org_id,
+        action: "channel.member.add",
+        target: `${c.id}:${p.userId}`,
+      });
     notifyConversation(ctx, c.id);
     return { ok: true };
   });
@@ -553,25 +1022,62 @@ export default async function conversationRoutes(app: FastifyInstance, ctx: AppC
     const actor = me(req).userId;
     const p = parse(MemberParams, req.params);
     const c = authz.conversation(p.id);
-    if (!c || !authz.isMember(c.id, actor)) throw notFound("Conversation not found");
-    if (c.type === "DM") throw badRequest("You can't leave a direct conversation");
-    if (actor !== p.userId && !authz.canManageConversation(c, actor)) throw forbidden();
+    if (!c || !authz.isMember(c.id, actor))
+      throw notFound("Conversation not found");
+    if (c.type === "DM")
+      throw badRequest("You can't leave a direct conversation");
+    if (actor !== p.userId && !authz.canManageConversation(c, actor))
+      throw forbidden();
     // Batch B14b (master prompt §5.2): people leave a community, not one of its channels. Who sees a channel follows
     // community membership and permissions; a manager can still take someone out of a channel.
     if (c.type === "CHANNEL" && c.org_id && actor === p.userId) {
-      throw new ApiError(403, "leave_community", "Leave the community instead of one of its channels");
+      throw new ApiError(
+        403,
+        "leave_community",
+        "Leave the community instead of one of its channels",
+      );
     }
-    if (c.type === "CHANNEL" && c.kind === "ANNOUNCEMENT" && actor === p.userId && !authz.canManageConversation(c, actor)) {
+    if (
+      c.type === "CHANNEL" &&
+      c.kind === "ANNOUNCEMENT" &&
+      actor === p.userId &&
+      !authz.canManageConversation(c, actor)
+    ) {
       throw forbidden("Announcement channels can't be left");
     }
     await ws.write((w) => {
-      w.delete("conversation_members", { conversation_id: c.id, user_id: p.userId });
+      w.delete("conversation_members", {
+        conversation_id: c.id,
+        user_id: p.userId,
+      });
       // Keep at least one admin in a group.
-      if (c.type !== "GROUP" || w.count("conversation_members", { conversation_id: c.id, role: "ADMIN" }) > 0) return;
-      const eldest = w.get<{ user_id: string }>("conversation_members", { conversation_id: c.id }, [["joined_at", "asc"]]);
-      if (eldest) w.update("conversation_members", { conversation_id: c.id, user_id: eldest.user_id }, { role: "ADMIN" });
+      if (
+        c.type !== "GROUP" ||
+        w.count("conversation_members", {
+          conversation_id: c.id,
+          role: "ADMIN",
+        }) > 0
+      )
+        return;
+      const eldest = w.get<{ user_id: string }>(
+        "conversation_members",
+        { conversation_id: c.id },
+        [["joined_at", "asc"]],
+      );
+      if (eldest)
+        w.update(
+          "conversation_members",
+          { conversation_id: c.id, user_id: eldest.user_id },
+          { role: "ADMIN" },
+        );
     });
-    if (c.org_id) ctx.audit({ actorId: actor, orgId: c.org_id, action: actor === p.userId ? "channel.leave" : "channel.member.remove", target: `${c.id}:${p.userId}` });
+    if (c.org_id)
+      ctx.audit({
+        actorId: actor,
+        orgId: c.org_id,
+        action: actor === p.userId ? "channel.leave" : "channel.member.remove",
+        target: `${c.id}:${p.userId}`,
+      });
     notifyConversation(ctx, c.id, [p.userId]);
     await evictRemovedMember(ctx, p.userId, [c.id]);
     return { ok: true };

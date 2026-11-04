@@ -36,7 +36,8 @@ export type TableDomain =
  */
 export const EXCLUDED_TABLES: Readonly<Record<string, string>> = {
   sqlite_sequence: "SQLite internal",
-  schema_migrations: "SQLite migration bookkeeping (MongoDB has its own: orbit_meta)",
+  schema_migrations:
+    "SQLite migration bookkeeping (MongoDB has its own: orbit_meta)",
 };
 
 /**
@@ -45,24 +46,32 @@ export const EXCLUDED_TABLES: Readonly<Record<string, string>> = {
  * everything moving to MongoDB they live there like the rest, and are copied at the switch so nobody is signed out.
  */
 export const EPHEMERAL_TABLES: Readonly<Record<string, string>> = {
-  platform_appeal_challenges: "email appeal proofs, valid for 15 minutes; no login authority",
+  platform_appeal_challenges:
+    "email appeal proofs, valid for 15 minutes; no login authority",
   auth_challenges: "sign-in nonces, valid for 2 minutes",
-  pairing_requests: "device pairing in progress (10 minutes), carries sealed identity material for the new device",
+  pairing_requests:
+    "device pairing in progress (10 minutes), carries sealed identity material for the new device",
   sessions: "v1 session token hashes (7 days)",
   federation_nonces: "replay protection for signed server requests, minutes",
   // The Platform Admin Console (migration 046): sign-in material that is worthless after minutes or hours.
-  platform_admin_challenges: "console passkey ceremonies in progress, 5 minutes",
-  platform_admin_enrolments: "one-time console enrolment code hashes, 30 minutes",
+  platform_admin_challenges:
+    "console passkey ceremonies in progress, 5 minutes",
+  platform_admin_enrolments:
+    "one-time console enrolment code hashes, 30 minutes",
   platform_admin_sessions: "console session token hashes, at most 12 hours",
   // Platform Admin 2.0 (migration 048): per-minute telemetry, worth little once its hourly rollup exists.
-  presence_samples: "per-minute concurrency samples, 30 days (presence_hourly keeps the long view)",
-  resource_samples: "per-minute resource samples, 7 days (resource_hourly keeps the long view)",
+  presence_samples:
+    "per-minute concurrency samples, 30 days (presence_hourly keeps the long view)",
+  resource_samples:
+    "per-minute resource samples, 7 days (resource_hourly keeps the long view)",
   // Discord import (migration 056): a sign-in with Discord in progress, 10 minutes.
   discord_oauth_states: "Discord sign-in states in progress, 10 minutes",
 };
 
 export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
-  ...(Object.fromEntries(Object.keys(EPHEMERAL_TABLES).map((t) => [t, "ephemeral"])) as Record<string, TableDomain>),
+  ...(Object.fromEntries(
+    Object.keys(EPHEMERAL_TABLES).map((t) => [t, "ephemeral"]),
+  ) as Record<string, TableDomain>),
   accounts: "accounts",
   account_social_identities: "accounts",
   account_social_flows: "accounts",
@@ -178,6 +187,7 @@ export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
   history_items: "history",
   message_events: "history",
   reports: "reports",
+  org_partner_applications: "workspace",
   // Batch B8b: onboarding questions and members' answers (configuration of a community, like roles).
   community_onboarding: "workspace",
   // Batch B9: a community's own emoji and stickers (their images are profile-photos blobs).
@@ -415,7 +425,10 @@ let specs: TableSpec[] | null = null;
 export function tableSpecs(): TableSpec[] {
   specs ??= SCHEMA.map((t) => {
     const domain = TABLE_DOMAINS[t.name];
-    if (!domain) throw new Error(`Table ${t.name} has no MongoDB domain: classify it in src/infrastructure/database/mongo/catalog.ts`);
+    if (!domain)
+      throw new Error(
+        `Table ${t.name} has no MongoDB domain: classify it in src/infrastructure/database/mongo/catalog.ts`,
+      );
     return { ...t, domain };
   });
   return specs;
@@ -424,7 +437,10 @@ export function tableSpecs(): TableSpec[] {
 /** The checked-in schema file's text for [tables] (scripts/schema.ts writes it; test/schema.test.ts compares it). */
 export function schemaSource(tables: readonly TableSpec[]): string {
   // One line per column, index and foreign key: small, and a migration's change reads clearly in a diff.
-  const list = (items: readonly unknown[]) => (items.length ? `[\n${items.map((i) => `      ${JSON.stringify(i)},`).join("\n")}\n    ]` : "[]");
+  const list = (items: readonly unknown[]) =>
+    items.length
+      ? `[\n${items.map((i) => `      ${JSON.stringify(i)},`).join("\n")}\n    ]`
+      : "[]";
   const table = (t: TableSpec) =>
     [
       "  {",
@@ -453,12 +469,19 @@ export function schemaSource(tables: readonly TableSpec[]): string {
  * server itself runs on [tableSpecs].
  */
 export function describeTables(db: DB): TableSpec[] {
-  const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all() as { name: string }[];
+  const tables = db
+    .prepare(
+      "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name",
+    )
+    .all() as { name: string }[];
   const specs: TableSpec[] = [];
   for (const { name } of tables) {
     if (name in EXCLUDED_TABLES) continue;
     const domain = TABLE_DOMAINS[name];
-    if (!domain) throw new Error(`Table ${name} has no MongoDB domain: classify it in src/infrastructure/database/mongo/catalog.ts`);
+    if (!domain)
+      throw new Error(
+        `Table ${name} has no MongoDB domain: classify it in src/infrastructure/database/mongo/catalog.ts`,
+      );
     const info = db.prepare(`PRAGMA table_info("${name}")`).all() as {
       name: string;
       type: string;
@@ -477,7 +500,13 @@ export function describeTables(db: DB): TableSpec[] {
       .filter((c) => c.pk > 0)
       .sort((a, b) => a.pk - b.pk)
       .map((c) => c.name);
-    const sql = (db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?").get(name) as { sql: string }).sql;
+    const sql = (
+      db
+        .prepare(
+          "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?",
+        )
+        .get(name) as { sql: string }
+    ).sql;
     specs.push({
       name,
       domain,
@@ -491,7 +520,11 @@ export function describeTables(db: DB): TableSpec[] {
   return specs;
 }
 
-function describeIndexes(db: DB, table: string, columns: ColumnSpec[]): IndexSpec[] {
+function describeIndexes(
+  db: DB,
+  table: string,
+  columns: ColumnSpec[],
+): IndexSpec[] {
   const list = db.prepare(`PRAGMA index_list("${table}")`).all() as {
     name: string;
     unique: number;
@@ -507,27 +540,49 @@ function describeIndexes(db: DB, table: string, columns: ColumnSpec[]): IndexSpe
       key: number;
     }[];
     const keyCols = info.filter((c) => c.key === 1 && c.name);
-    const sql = (db.prepare("SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?").get(ix.name) as { sql: string | null } | undefined)?.sql ?? "";
+    const sql =
+      (
+        db
+          .prepare(
+            "SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?",
+          )
+          .get(ix.name) as { sql: string | null } | undefined
+      )?.sql ?? "";
     let partialNotNull: string[] | null = null;
     if (ix.partial) {
-      const where = sql.slice(sql.toUpperCase().lastIndexOf(" WHERE ") + 7).trim();
-      const parts = where.split(/\s+AND\s+/i).map((p) => p.match(/^"?([A-Za-z_][A-Za-z0-9_]*)"?\s+IS\s+NOT\s+NULL$/i)?.[1] ?? null);
+      const where = sql
+        .slice(sql.toUpperCase().lastIndexOf(" WHERE ") + 7)
+        .trim();
+      const parts = where
+        .split(/\s+AND\s+/i)
+        .map(
+          (p) =>
+            p.match(/^"?([A-Za-z_][A-Za-z0-9_]*)"?\s+IS\s+NOT\s+NULL$/i)?.[1] ??
+            null,
+        );
       if (parts.every((p) => p !== null)) partialNotNull = parts as string[];
       // Any other condition can't be expressed safely as a unique partial index: a person has to map it.
-      else if (ix.unique) throw new Error(`Unique partial index ${ix.name} (${where}) needs a hand-written MongoDB mapping`);
+      else if (ix.unique)
+        throw new Error(
+          `Unique partial index ${ix.name} (${where}) needs a hand-written MongoDB mapping`,
+        );
     }
     out.push({
       name: ix.name,
       columns: keyCols.map((c) => c.name as string),
       unique: ix.unique === 1,
-      nocase: keyCols.some((c) => c.coll.toUpperCase() === "NOCASE") || keyCols.some((c) => columnNocase(db, table, c.name as string)),
+      nocase:
+        keyCols.some((c) => c.coll.toUpperCase() === "NOCASE") ||
+        keyCols.some((c) => columnNocase(db, table, c.name as string)),
       partialNotNull,
     });
   }
   // Unique nullable columns: SQLite allows many NULLs, MongoDB would treat them as one value, so they become partial.
   return out.map((ix) => {
     if (!ix.unique || ix.partialNotNull) return ix;
-    const nullable = ix.columns.filter((c) => !columns.find((col) => col.name === c)?.notNull);
+    const nullable = ix.columns.filter(
+      (c) => !columns.find((col) => col.name === c)?.notNull,
+    );
     return nullable.length ? { ...ix, partialNotNull: nullable } : ix;
   });
 }
@@ -558,15 +613,29 @@ function describeForeignKeys(db: DB, table: string): ForeignKeySpec[] {
 
 /** A column declared COLLATE NOCASE (its implicit UNIQUE index reports BINARY otherwise). */
 function columnNocase(db: DB, table: string, column: string): boolean {
-  const sql = (db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?").get(table) as { sql: string }).sql;
-  const line = sql.split("\n").find((l) => new RegExp(`^\\s*"?${column}"?\\s`, "i").test(l)) ?? "";
+  const sql = (
+    db
+      .prepare(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?",
+      )
+      .get(table) as { sql: string }
+  ).sql;
+  const line =
+    sql
+      .split("\n")
+      .find((l) => new RegExp(`^\\s*"?${column}"?\\s`, "i").test(l)) ?? "";
   return /COLLATE\s+NOCASE/i.test(line);
 }
 
 function bsonTypes(c: ColumnSpec, table: string): string[] {
   if (JSON_COLUMNS[table]?.includes(c.name)) return ["object"];
   if (c.type.includes("INT")) return ["int", "long", "double"];
-  if (c.type.includes("REAL") || c.type.includes("FLOA") || c.type.includes("DOUB")) return ["double", "int", "long"];
+  if (
+    c.type.includes("REAL") ||
+    c.type.includes("FLOA") ||
+    c.type.includes("DOUB")
+  )
+    return ["double", "int", "long"];
   if (c.type.includes("BLOB")) return ["binData"];
   return ["string"];
 }
@@ -581,7 +650,10 @@ export function validatorFor(t: TableSpec): Record<string, unknown> {
   return {
     $jsonSchema: {
       bsonType: "object",
-      required: ["_id", ...t.columns.filter((c) => c.notNull).map((c) => c.name)],
+      required: [
+        "_id",
+        ...t.columns.filter((c) => c.notNull).map((c) => c.name),
+      ],
       properties,
     },
   };
@@ -615,13 +687,27 @@ export function indexesFor(t: TableSpec): IndexDescription[] {
   });
   // API 0.72: optional derived event metadata, maintained by MongoMessageStore and bounded legacy backfill.
   if (t.name === "message_events") {
-    for (const [field, suffix] of [["root", "threads"], ["media", "media"], ["files", "files"]] as const) {
-      out.push({ key: { conversation_id: 1, cls: 1, [`_retrieval.${field}`]: 1, server_ts: -1, _id: -1 }, name: `message_retrieval_${suffix}_v1` });
+    for (const [field, suffix] of [
+      ["root", "threads"],
+      ["media", "media"],
+      ["files", "files"],
+    ] as const) {
+      out.push({
+        key: {
+          conversation_id: 1,
+          cls: 1,
+          [`_retrieval.${field}`]: 1,
+          server_ts: -1,
+          _id: -1,
+        },
+        name: `message_retrieval_${suffix}_v1`,
+      });
     }
   }
   if (t.primaryKey.length > 1) {
     for (const c of t.primaryKey) {
-      if (!out.some((d) => Object.keys(d.key)[0] === c)) out.push({ key: { [c]: 1 }, name: `pk_${t.name}_${c}` });
+      if (!out.some((d) => Object.keys(d.key)[0] === c))
+        out.push({ key: { [c]: 1 }, name: `pk_${t.name}_${c}` });
     }
   }
   return out;
@@ -635,21 +721,35 @@ export function docId(t: TableSpec, row: Record<string, unknown>): unknown {
 }
 
 /** A SQLite row as a MongoDB document (JSON text columns parsed, everything else as is). */
-export function toDocument(t: TableSpec, row: Record<string, unknown>): Record<string, unknown> {
+export function toDocument(
+  t: TableSpec,
+  row: Record<string, unknown>,
+): Record<string, unknown> {
   const doc: Record<string, unknown> = { _id: docId(t, row) };
   for (const c of t.columns) {
     const v = row[c.name];
-    doc[c.name] = JSON_COLUMNS[t.name]?.includes(c.name) && typeof v === "string" ? JSON.parse(v) : (v ?? null);
+    doc[c.name] =
+      JSON_COLUMNS[t.name]?.includes(c.name) && typeof v === "string"
+        ? JSON.parse(v)
+        : (v ?? null);
   }
   return doc;
 }
 
 /** A MongoDB document back as a SQLite row (rollback and restore). */
-export function toRow(t: TableSpec, doc: Record<string, unknown>): Record<string, unknown> {
+export function toRow(
+  t: TableSpec,
+  doc: Record<string, unknown>,
+): Record<string, unknown> {
   const row: Record<string, unknown> = {};
   for (const c of t.columns) {
     let v = doc[c.name] ?? null;
-    if (JSON_COLUMNS[t.name]?.includes(c.name) && v !== null && typeof v === "object") v = JSON.stringify(v);
+    if (
+      JSON_COLUMNS[t.name]?.includes(c.name) &&
+      v !== null &&
+      typeof v === "object"
+    )
+      v = JSON.stringify(v);
     else if (v instanceof Binary) v = Buffer.from(v.buffer);
     row[c.name] = v;
   }

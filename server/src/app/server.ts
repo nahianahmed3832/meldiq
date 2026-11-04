@@ -4,22 +4,37 @@ import { CardVault } from "../modules/billing/cardVault.js";
 import { PayPalProvider } from "../modules/billing/providers/paypal.js";
 import { GiftDelivery } from "../modules/billing/index.js";
 import { SecretBox } from "../infrastructure/crypto/secretBox.js";
-import { CollectibleCommerce, collectibleCommerceUserRoutes } from "../modules/billing/collectibleCommerce.js";
+import {
+  CollectibleCommerce,
+  collectibleCommerceUserRoutes,
+} from "../modules/billing/collectibleCommerce.js";
 import socialRoutes from "../modules/accounts/social/routes.js";
 import { RedisInfrastructure } from "../infrastructure/redis/service.js";
 import { CachedPreferenceStore } from "../modules/accounts/preferences/cachedStore.js";
 import rateLimit from "@fastify/rate-limit";
-import { MAINTENANCE_RETRY_SECONDS, maintenanceError, readControl, signupMode } from "./platformControls.js";
+import {
+  MAINTENANCE_RETRY_SECONDS,
+  maintenanceError,
+  readControl,
+  signupMode,
+} from "./platformControls.js";
 import { readSiteDetails } from "./siteDetails.js";
 import { MongoRelayStore } from "../modules/messaging/relay/mongoStore.js";
 import { SqliteRelayStore } from "../modules/messaging/relay/store.js";
 import { MongoFileStore } from "../modules/files/mongoStore.js";
 import { SqliteFileStore, type FileStore } from "../modules/files/store.js";
 import type { MeldiqPostgres } from "../infrastructure/database/postgres/client.js";
-import {DatabaseCutover,afterDatabaseActivation,CUTOVER_MESSAGE} from "./databaseCutover.js";
+import {
+  DatabaseCutover,
+  afterDatabaseActivation,
+  CUTOVER_MESSAGE,
+} from "./databaseCutover.js";
 import { blockLegacySql, openPostgresRuntime } from "./postgresRuntime.js";
 import { SupabaseAccessVerifier } from "../infrastructure/database/postgres/auth.js";
-import { SupabaseDeviceAuth, registerSupabaseIdentity } from "../modules/accounts/supabaseIdentity.js";
+import {
+  SupabaseDeviceAuth,
+  registerSupabaseIdentity,
+} from "../modules/accounts/supabaseIdentity.js";
 import { registerSupabaseTransport } from "../modules/auth/supabaseRoutes.js";
 import type { JWTVerifyGetKey } from "jose";
 import { type ContractObserver, observeContracts } from "./contractObserver.js";
@@ -35,9 +50,16 @@ import { orgMemberIds } from "../modules/organizations/index.js";
 import { openBillingRows } from "./billingRows.js";
 import { openDomainRows } from "./domainRows.js";
 import { Gifts, Mojo, PlayBilling } from "../modules/billing/index.js";
-import { availableUser, blockedEitherWay, namesOf } from "../modules/accounts/index.js";
+import {
+  availableUser,
+  blockedEitherWay,
+  namesOf,
+} from "../modules/accounts/index.js";
 import { type Config, effectiveFileMaxBytes } from "./config.js";
-import { federationClientRoutes, federationPeerRoutes } from "../modules/federation/routes.js";
+import {
+  federationClientRoutes,
+  federationPeerRoutes,
+} from "../modules/federation/routes.js";
 import { Federation } from "../modules/federation/service.js";
 import { type AppContext } from "./context.js";
 import { authenticateRequest } from "../modules/auth/index.js";
@@ -57,6 +79,8 @@ import { openWorkspaceRows } from "./workspaceRows.js";
 import { SqliteReportStore } from "../modules/organizations/reports/store.js";
 import reportRoutes from "../modules/organizations/reports/routes.js";
 import applicationRoutes from "../modules/organizations/applicationsRoutes.js";
+import partnerRoutes from "../modules/organizations/partnerApplications.js";
+import { safeAuditChanges } from "../modules/organizations/adminChanges.js";
 import connectionRoutes from "../modules/accounts/relationships/routes.js";
 import onboardingRoutes from "../modules/organizations/onboardingRoutes.js";
 import guideRoutes from "../modules/organizations/guideRoutes.js";
@@ -79,7 +103,10 @@ import ticketRoutes from "../modules/organizations/posting/ticketRoutes.js";
 import { Tickets } from "../modules/organizations/posting/tickets.js";
 import webhookRoutes from "../modules/organizations/posting/webhookRoutes.js";
 import { Webhooks } from "../modules/organizations/posting/webhooks.js";
-import { OfficialBots, officialBotRoutes } from "../modules/officialBots/index.js";
+import {
+  OfficialBots,
+  officialBotRoutes,
+} from "../modules/officialBots/index.js";
 import botDirectoryRoutes from "../modules/organizations/discovery/botDirectoryRoutes.js";
 import { BotDirectory } from "../modules/organizations/discovery/botDirectory.js";
 import discoveryRoutes from "../modules/organizations/discovery/routes.js";
@@ -88,7 +115,10 @@ import communityTemplateRoutes from "../modules/organizations/discovery/template
 import { CommunityTemplates } from "../modules/organizations/discovery/templates.js";
 import expressionRoutes from "../modules/organizations/expressionsRoutes.js";
 import { MongoPreferenceStore } from "../modules/accounts/preferences/mongoStore.js";
-import { type PushDeps, PushService } from "../modules/notifications/service.js";
+import {
+  type PushDeps,
+  PushService,
+} from "../modules/notifications/service.js";
 import { createBlobStore } from "../infrastructure/storage/index.js";
 import attachmentRoutes from "../modules/files/routes.js";
 import authRoutes from "../modules/auth/routes.js";
@@ -107,7 +137,10 @@ import roleRoutes from "../modules/organizations/rolesRoutes.js";
 import { Entitlements } from "../modules/administration/entitlements.js";
 import opsRoutes from "../modules/administration/ops/routes.js";
 import { operationalUserRoutes } from "../modules/platformAdmin/operations.js";
-import { platformSetting, registerPlatformAdmin } from "../modules/platformAdmin/index.js";
+import {
+  platformSetting,
+  registerPlatformAdmin,
+} from "../modules/platformAdmin/index.js";
 import { Telemetry } from "../modules/telemetry/index.js";
 import { QuotaEngine, scopesFor } from "../modules/quotas/index.js";
 import searchRoutes from "../modules/messaging/search/routes.js";
@@ -136,13 +169,34 @@ import { UsernameHolds } from "../modules/accounts/usernameHolds.js";
 import { MemoryUsernameHoldStore } from "../modules/accounts/usernameHoldStore.js";
 import { MongoUsernameHoldStore } from "../modules/accounts/mongoUsernameHoldStore.js";
 import leaderboardRoutes from "../modules/leaderboards/routes.js";
-import { MemoryPointsStore, MongoPointsStore, PointsService, pointsRoutes } from "../modules/points/index.js";
+import {
+  MemoryPointsStore,
+  MongoPointsStore,
+  PointsService,
+  pointsRoutes,
+} from "../modules/points/index.js";
 import leaveManyRoutes from "../modules/organizations/leaveMany.js";
 import creatorRoutes from "../modules/accounts/creators/routes.js";
-import { CreatorService, openCreatorStores } from "../modules/accounts/creators/service.js";
-import { LinkedAccountsService, linkedAccountRoutes } from "../modules/linkedAccounts/index.js";
-import { MemoryOAuthStore, MongoOAuthStore, OAuthService, oauthRoutes } from "../modules/oauth/index.js";
-import { BotService, botRoutes, MemoryBotStore, MongoBotStore } from "../modules/bots/index.js";
+import {
+  CreatorService,
+  openCreatorStores,
+} from "../modules/accounts/creators/service.js";
+import {
+  LinkedAccountsService,
+  linkedAccountRoutes,
+} from "../modules/linkedAccounts/index.js";
+import {
+  MemoryOAuthStore,
+  MongoOAuthStore,
+  OAuthService,
+  oauthRoutes,
+} from "../modules/oauth/index.js";
+import {
+  BotService,
+  botRoutes,
+  MemoryBotStore,
+  MongoBotStore,
+} from "../modules/bots/index.js";
 import { ActivityService } from "../modules/accounts/activity/service.js";
 import { MemoryActivityStore } from "../modules/accounts/activity/store.js";
 import { MongoActivityStore } from "../modules/accounts/activity/mongoStore.js";
@@ -181,7 +235,10 @@ export function logUrl(url: string): string {
   if (url.startsWith("/v2/auth/social/")) return url.split("?")[0];
   if (url.startsWith("/admin/")) return url.split("?")[0];
   // A webhook's address holds its secret token (community parity batch C): never logged.
-  return url.replace(/^(\/v1\/webhooks\/[^/?]+\/)(?!avatar(?:[?]|$))[^/?]+/, "$1<token>");
+  return url.replace(
+    /^(\/v1\/webhooks\/[^/?]+\/)(?!avatar(?:[?]|$))[^/?]+/,
+    "$1<token>",
+  );
 }
 
 export interface BuiltApp {
@@ -204,28 +261,58 @@ export async function buildApp(
     /** Owned tests may activate their hold; hosted rehearsal holds must remain read-only. */
     cutover?: DatabaseCutover;
     /** Explicit staging-only JWT/device bridge; production activation remains blocked. */
-    supabase?: {projectUrl: string; keys?: JWTVerifyGetKey};
+    supabase?: { projectUrl: string; keys?: JWTVerifyGetKey };
     /** Tests only: capture safe call sites of unhandled failures without logging request secrets. */
     onUnhandledError?: (error: unknown) => void;
     /** Tests only: checks routes, answers and frames against the contracts (src/app/contractObserver.ts). */
     contracts?: ContractObserver;
   } = {},
 ): Promise<BuiltApp> {
-  if (config.databaseMode === "supabase" && !opts.postgres) throw new Error("Supabase mode requires its PostgreSQL runtime; legacy fallback is forbidden");
-  if(opts.cutover && (!opts.postgres || config.accounts.appEnv==="production" || opts.postgres.config.environment==="production" || opts.cutover.dataDir!==config.dataDir || (opts.postgres.config.environment==="staging" && opts.cutover.allowActivation))) throw new Error("Only owned test holds or read-only staging holds may be injected");
-  if (opts.supabase && config.accounts.appEnv === "production") throw new Error("Native Supabase Auth activation awaits its separate client and revocation acceptance checks");
+  if (config.databaseMode === "supabase" && !opts.postgres)
+    throw new Error(
+      "Supabase mode requires its PostgreSQL runtime; legacy fallback is forbidden",
+    );
+  if (
+    opts.cutover &&
+    (!opts.postgres ||
+      config.accounts.appEnv === "production" ||
+      opts.postgres.config.environment === "production" ||
+      opts.cutover.dataDir !== config.dataDir ||
+      (opts.postgres.config.environment === "staging" &&
+        opts.cutover.allowActivation))
+  )
+    throw new Error(
+      "Only owned test holds or read-only staging holds may be injected",
+    );
+  if (opts.supabase && config.accounts.appEnv === "production")
+    throw new Error(
+      "Native Supabase Auth activation awaits its separate client and revocation acceptance checks",
+    );
   if (
     opts.postgres &&
-    ((config.accounts.appEnv === "production" && (config.databaseMode !== "supabase" || opts.postgres.config.environment !== "production" || !opts.postgres.config.productionAcceptance)) ||
+    ((config.accounts.appEnv === "production" &&
+      (config.databaseMode !== "supabase" ||
+        opts.postgres.config.environment !== "production" ||
+        !opts.postgres.config.productionAcceptance)) ||
       config.mongo ||
       opts.mongo ||
       opts.db ||
       opts.files)
   ) {
-    throw new Error("PostgreSQL requires its accepted environment with no alternate database/store overrides");
+    throw new Error(
+      "PostgreSQL requires its accepted environment with no alternate database/store overrides",
+    );
   }
-  if (opts.supabase && (!opts.postgres || (opts.postgres.config.projectRef && opts.supabase.projectUrl !== `https://${opts.postgres.config.projectRef}.supabase.co`)))
-    throw new Error("Supabase Auth bridge requires its matching staged PostgreSQL runtime");
+  if (
+    opts.supabase &&
+    (!opts.postgres ||
+      (opts.postgres.config.projectRef &&
+        opts.supabase.projectUrl !==
+          `https://${opts.postgres.config.projectRef}.supabase.co`))
+  )
+    throw new Error(
+      "Supabase Auth bridge requires its matching staged PostgreSQL runtime",
+    );
   const app = Fastify({
     logger:
       opts.logger === false
@@ -235,11 +322,28 @@ export async function buildApp(
             // Never log credentials. Request bodies are not logged at all (default), so
             // message ciphertext and keys never reach the logs either.
             redact: {
-              paths: ["req.headers.authorization", "req.headers.cookie", 'req.headers["x-meldiq-media-grant"]', 'req.headers["x-meldiq-edge-key"]', "res.headers.location", "err.detail", "err.where", "err.internalQuery", "err.query", "err.parameters"],
+              paths: [
+                "req.headers.authorization",
+                "req.headers.cookie",
+                'req.headers["x-meldiq-media-grant"]',
+                'req.headers["x-meldiq-edge-key"]',
+                "res.headers.location",
+                "err.detail",
+                "err.where",
+                "err.internalQuery",
+                "err.query",
+                "err.parameters",
+              ],
               remove: true,
             },
             serializers: {
-              req: (r: { method: string; url: string; hostname?: string; ip?: string; socket?: { remotePort?: number } }) => ({
+              req: (r: {
+                method: string;
+                url: string;
+                hostname?: string;
+                ip?: string;
+                socket?: { remotePort?: number };
+              }) => ({
                 method: r.method,
                 url: logUrl(r.url),
                 hostname: r.hostname,
@@ -253,624 +357,1028 @@ export async function buildApp(
   });
   if (opts.contracts) observeContracts(app, opts.contracts);
 
-  const legacyDb = opts.db ?? openDatabase(opts.postgres || config.databaseMode === "atlas" ? ":memory:" : config.databasePath);
+  const legacyDb =
+    opts.db ??
+    openDatabase(
+      opts.postgres || config.databaseMode === "atlas"
+        ? ":memory:"
+        : config.databasePath,
+    );
   let postgres: Awaited<ReturnType<typeof openPostgresRuntime>> | undefined;
   try {
-  postgres = opts.postgres ? await openPostgresRuntime(opts.postgres) : undefined;
-  const runtime = postgres;
-  const db = runtime ? blockLegacySql(legacyDb, () => { runtime.legacySqlAttempts++; }) : legacyDb;
-  // `accounts` needs the finished context; it is set right below, before any route can run.
-  const ctx = {
-    db,
-    config,
-    livekit: config.livekit ? new LiveKitService(config.livekit) : null,
-    blobs: createBlobStore(config),
-    log: app.log,
-    metrics: new Metrics(),
-    audit: (e) => {
-      // Part of the write unit running now, if any (as it was part of the SQLite transaction); its own unit otherwise.
-      ctx.ws
-        .write((w) =>
-          w.insert("audit_log", {
-            at: now(),
-            actor_id: e.actorId ?? null,
-            org_id: e.orgId ?? null,
-            action: e.action,
-            target: e.target ?? null,
-            detail: e.detail ?? null,
-          }),
+    postgres = opts.postgres
+      ? await openPostgresRuntime(opts.postgres)
+      : undefined;
+    const runtime = postgres;
+    const db = runtime
+      ? blockLegacySql(legacyDb, () => {
+          runtime.legacySqlAttempts++;
+        })
+      : legacyDb;
+    // `accounts` needs the finished context; it is set right below, before any route can run.
+    const ctx = {
+      db,
+      config,
+      livekit: config.livekit ? new LiveKitService(config.livekit) : null,
+      blobs: createBlobStore(config),
+      log: app.log,
+      metrics: new Metrics(),
+      audit: (e) => {
+        // Part of the write unit running now, if any (as it was part of the SQLite transaction); its own unit otherwise.
+        ctx.ws
+          .write((w) =>
+            w.insert("audit_log", {
+              at: now(),
+              actor_id: e.actorId ?? null,
+              org_id: e.orgId ?? null,
+              action: e.action,
+              target: e.target ?? null,
+              detail: e.detail ?? null,
+              changes_json:
+                e.changes?.length &&
+                /^(role|channel|category|org|member|invite|meeting|security|permissions)\./.test(
+                  e.action,
+                )
+                  ? JSON.stringify(safeAuditChanges(e.changes))
+                  : null,
+            }),
+          )
+          .catch((err) =>
+            app.log.error({ err, action: e.action }, "audit: entry not stored"),
+          );
+        // Community parity batch D: official bots hear about joins, leaves, moderation and roles (only queued here).
+        ctx.officialBots?.noteAudit(e);
+      },
+    } as AppContext;
+    if (runtime) {
+      ctx.postgres = runtime;
+      ctx.databaseCutover =
+        runtime.database.config.environment === "production"
+          ? new DatabaseCutover(
+              config.dataDir,
+              runtime.database.config.projectRef!,
+              runtime.database.config.productionAcceptance!.sourceSha256,
+            )
+          : opts.cutover;
+      app.addHook("onRequest", async (_req, reply) => {
+        if (
+          ctx.databaseCutover?.held &&
+          !(
+            _req.method === "GET" &&
+            ["/healthz", "/v1/server-info", "/v2/site/details"].includes(
+              _req.url.split("?")[0],
+            )
+          )
         )
-        .catch((err) => app.log.error({ err, action: e.action }, "audit: entry not stored"));
-      // Community parity batch D: official bots hear about joins, leaves, moderation and roles (only queued here).
-      ctx.officialBots?.noteAudit(e);
-    },
-  } as AppContext;
-  if (runtime) {
-    ctx.postgres = runtime;
-    ctx.databaseCutover=runtime.database.config.environment==="production"
-      ? new DatabaseCutover(config.dataDir,runtime.database.config.projectRef!,runtime.database.config.productionAcceptance!.sourceSha256)
-      : opts.cutover;
-    app.addHook("onRequest", async (_req, reply) => {
-      if(ctx.databaseCutover?.held && !(_req.method==="GET" && ["/healthz","/v1/server-info","/v2/site/details"].includes(_req.url.split("?")[0]))) return reply.code(503).send({error:{code:"maintenance",message:CUTOVER_MESSAGE}});
-      if (!runtime.rows.available) return reply.code(503).send({error: {code: "unavailable", message: "The database connection is recovering"}});
-    });
-    app.addHook("onSend", async (_req, _reply, payload) => {
-      await runtime.rows.settled(); await runtime.relay.settled(); await runtime.files.settled();
-      return payload;
-    });
-    app.addHook("onClose", async () => runtime.close());
-  }
-  // MongoDB holds the domains in MONGODB_DOMAINS; it refuses to start if that would split a domain between stores.
-  if (config.mongo) {
-    const mongo = opts.mongo ?? (await openMongo(config.mongo, db, app.log, config.databaseMode === "atlas"));
-    ctx.mongo = mongo;
-    // Write units still committing finish first: one cut off mid-transaction would hold its locks until it times out.
-    if (!opts.mongo)
-      app.addHook("onClose", async () => {
-        await ctx.ws?.settled();
-        await ctx.billing?.rows.settled();
-        for (const r of [ctx.identity, ctx.platform, ctx.fed, ctx.safety, ctx.ephemeral]) await r?.settled();
-        await mongo.close();
+          return reply
+            .code(503)
+            .send({ error: { code: "maintenance", message: CUTOVER_MESSAGE } });
+        if (!runtime.rows.available)
+          return reply.code(503).send({
+            error: {
+              code: "unavailable",
+              message: "The database connection is recovering",
+            },
+          });
       });
-  }
-  if (config.redis) {
-    ctx.redis = new RedisInfrastructure(config.redis, app.log);
-    await ctx.redis.connect();
-    app.addHook("onClose", async () => ctx.redis?.close());
-  }
-  // Communities and conversations: authorisation reads them synchronously, wherever they live.
-  ctx.ws = postgres?.rows ?? await openWorkspaceRows(db, ctx.mongo, app.log);
-  ctx.authz = new Authz(ctx.ws);
-  ctx.identity = postgres?.rows ?? await openDomainRows(db, "identity", ctx.mongo, app.log);
-  ctx.platform = postgres?.rows ?? await openDomainRows(db, "platform", ctx.mongo, app.log);
-  ctx.fed = postgres?.rows ?? await openDomainRows(db, "federation", ctx.mongo, app.log);
-  ctx.safety = postgres?.rows ?? await openDomainRows(db, "safety", ctx.mongo, app.log);
-  ctx.ephemeral = postgres?.rows ?? await openDomainRows(db, "ephemeral", ctx.mongo, app.log);
-  // Registered after the MongoDB client's own hook, so it runs before it (onClose hooks run last-in first-out): the rows
-  // stop following other processes' writes while the client is still open.
-  app.addHook("onClose", async () => {
-    for (const r of [ctx.ws, ctx.billing?.rows, ctx.identity, ctx.platform, ctx.fed, ctx.safety, ctx.ephemeral]) {
-      await r?.settled();
-      await r?.close();
+      app.addHook("onSend", async (_req, _reply, payload) => {
+        await runtime.rows.settled();
+        await runtime.relay.settled();
+        await runtime.files.settled();
+        return payload;
+      });
+      app.addHook("onClose", async () => runtime.close());
     }
-  });
-  for (const r of [ctx.identity, ctx.platform, ctx.fed, ctx.safety, ctx.ephemeral]) {
-    if (r.backend !== "mongodb") continue;
-    app.addHook("onSend", async (_req, _reply, payload) => {
-      await r.settled();
-      return payload;
-    });
-  }
-  // A response leaves once the units its request queued are durable (audit entries, metering), as when they were part
-  // of SQLite's transaction: a client that reads right after sees them. SQLite's units are durable already.
-  if (ctx.ws.backend === "mongodb") {
-    app.addHook("onSend", async (_req, _reply, payload) => {
-      await ctx.ws.settled();
-      return payload;
-    });
-  }
-  ctx.relay = postgres?.relay ?? (ctx.mongo?.owns("relay") ? new MongoRelayStore(ctx.mongo, db, app.log) : new SqliteRelayStore(db));
-  ctx.hub = new Hub(ctx.relay, config.abuse.wsMaxSocketsPerDevice, config.presence);
-  if (ctx.redis) await ctx.redis.subscribe("preferences", (data) => {
-    if (data.length > 8192) return;
-    try {
-      const event = JSON.parse(data) as Record<string, unknown>;
-      if (event.origin === ctx.redis!.instanceId || typeof event.userId !== "string" || event.userId.length > 200 || typeof event.workspaceId !== "string" || event.workspaceId.length > 200 || !Number.isSafeInteger(event.rev) || Number(event.rev) < 1) return;
-      ctx.hub.sendToUser(event.userId, { t: "prefs.updated", workspaceId: event.workspaceId, rev: Number(event.rev) });
-    } catch { /* malformed transient metadata is ignored */ }
-  });
-  ctx.files = postgres?.files ?? opts.files ?? (ctx.mongo?.owns("files") ? new MongoFileStore(ctx.mongo, app.log) : new SqliteFileStore(db));
-  if (ctx.files.backend === "postgres") {
-    app.addHook("onSend", async (_req, _reply, payload) => {
-      await ctx.files.settled();
-      return payload;
-    });
-    app.addHook("onClose", async () => ctx.files.settled());
-  }
-  if (opts.contracts) {
-    const observer = opts.contracts;
-    ctx.hub.observe = (e) => observer.frame(e);
-  }
-  ctx.accounts = new Accounts(ctx, { mailer: opts.mailer, ...(postgres ? {store: postgres.accounts, recoveryStore: postgres.recovery, keyBackupStore: postgres.keys} : {}) });
-  ctx.prefs = postgres?.preferences ?? (ctx.mongo?.owns("preferences") ? new MongoPreferenceStore(ctx.mongo) : new SqlitePreferenceStore(db));
-  if (ctx.redis) ctx.prefs = new CachedPreferenceStore(ctx.prefs, ctx.redis);
-  ctx.history = postgres?.history ?? (ctx.mongo?.owns("history") ? new MongoHistoryStore(ctx.mongo) : new SqliteHistoryStore(db));
-  // Server-stored messages live with message history (the "history" domain).
-  ctx.messages = postgres?.messages ?? (ctx.mongo?.owns("history") ? new MongoMessageStore(ctx.mongo) : new SqliteMessageStore(db));
-  ctx.reports = postgres?.reports ?? (ctx.mongo?.owns("reports") ? new MongoReportStore(ctx.mongo) : new SqliteReportStore(db));
-  ctx.relationships = postgres?.relationships ?? (ctx.mongo?.owns("relationships") ? new MongoRelationshipStore(ctx.mongo) : new SqliteRelationshipStore(db));
-  ctx.calls = postgres?.calls ?? (ctx.mongo?.owns("calls") ? new MongoCallStore(ctx.mongo) : new SqliteCallStore(db));
-  // API 0.56.0: new data, so MongoDB whenever the server has one (no domain to migrate).
-  const activityStore = postgres?.activity ?? (ctx.mongo ? new MongoActivityStore(ctx.mongo) : new MemoryActivityStore());
-  if (activityStore instanceof MongoActivityStore) await activityStore.ensureIndexes();
-  ctx.activity = new ActivityService(activityStore, app.log);
-  ctx.activity.onChange = (userId) => announceActivity(ctx, userId);
-  await afterDatabaseActivation(ctx.databaseCutover,()=>ctx.activity.start());
-  app.addHook("onClose", async () => ctx.activity.stop());
-  // API 0.61.0: profile decorations people send in (docs/PROFILE_DECORATIONS.md), new data, so MongoDB whenever there is one.
-  const decorationStore = postgres?.decorations ?? (ctx.mongo ? new MongoDecorationStore(ctx.mongo) : new MemoryDecorationStore());
-  if (decorationStore instanceof MongoDecorationStore) await decorationStore.ensureIndexes();
-  // API 0.65.0 (docs/SETTINGS_PARITY_API.md): favourites, privacy choices, username holds and points are new data too.
-  const favoriteStore = postgres?.favorites ?? (ctx.mongo ? new MongoFavoriteStore(ctx.mongo) : new MemoryFavoriteStore());
-  if (favoriteStore instanceof MongoFavoriteStore) await favoriteStore.ensureIndexes();
-  ctx.decorations = new DecorationService(ctx, decorationStore, favoriteStore);
-  await afterDatabaseActivation(ctx.databaseCutover,()=>ctx.decorations.load());
-  // API 0.64.0: community pins (docs/PROFILE_PINS.md), new data, so MongoDB whenever there is one.
-  const pinStore = postgres?.pins ?? (ctx.mongo ? new MongoPinStore(ctx.mongo) : new MemoryPinStore());
-  if (pinStore instanceof MongoPinStore) await pinStore.ensureIndexes();
-  ctx.pins = new PinService(ctx, pinStore);
-  await afterDatabaseActivation(ctx.databaseCutover,()=>ctx.pins.load());
-  ctx.privacyChoices = postgres?.privacy ?? (ctx.mongo ? new MongoPrivacyStore(ctx.mongo) : new MemoryPrivacyStore());
-  const holdStore = postgres?.holds ?? (ctx.mongo ? new MongoUsernameHoldStore(ctx.mongo) : new MemoryUsernameHoldStore());
-  if (holdStore instanceof MongoUsernameHoldStore) await holdStore.ensureIndexes();
-  ctx.usernames = new UsernameHolds(holdStore);
-  await afterDatabaseActivation(ctx.databaseCutover,()=>ctx.usernames.load());
-  const pointsStore = postgres?.points ?? (ctx.mongo ? new MongoPointsStore(ctx.mongo) : new MemoryPointsStore());
-  if (pointsStore instanceof MongoPointsStore) await pointsStore.ensureIndexes();
-  ctx.points = new PointsService(ctx, pointsStore);
-  await afterDatabaseActivation(ctx.databaseCutover,()=>ctx.points.load());
-  // API 0.65.0 batch B (docs/SETTINGS_PARITY_API.md): creators and linked accounts, new data too.
-  ctx.creators = new CreatorService(ctx, await openCreatorStores(ctx));
-  await afterDatabaseActivation(ctx.databaseCutover,()=>ctx.creators.load());
-  ctx.linkedAccounts = await LinkedAccountsService.open(ctx);
-  // API 0.65.0 batch B (docs/SETTINGS_PARITY_API.md): "Log in with Meldiq" apps and bots, new data too.
-  const oauthStore = postgres?.oauth ?? (ctx.mongo ? new MongoOAuthStore(ctx.mongo) : new MemoryOAuthStore());
-  if (oauthStore instanceof MongoOAuthStore) await oauthStore.ensureIndexes();
-  ctx.oauth = new OAuthService(ctx, oauthStore);
-  const botStore = postgres?.bots ?? (ctx.mongo ? new MongoBotStore(ctx.mongo) : new MemoryBotStore());
-  if (botStore instanceof MongoBotStore) await botStore.ensureIndexes();
-  ctx.bots = new BotService(ctx, botStore);
-  // API 0.65.0 (docs/SETTINGS_PARITY_API.md): rules channels, the rules and who agreed to them, new data too.
-  const rulesStore = postgres?.rules ?? (ctx.mongo ? new MongoRulesStore(ctx.mongo) : new MemoryRulesStore());
-  if (rulesStore instanceof MongoRulesStore) await rulesStore.ensureIndexes();
-  ctx.communityRules = new CommunityRules(ctx, rulesStore, config.communityRules);
-  await afterDatabaseActivation(ctx.databaseCutover,()=>ctx.communityRules.load());
-  // Authorisation was made before the rules: it asks them from here on.
-  ctx.authz.rulesChannelId = (orgId) => ctx.communityRules.channelIdOf(orgId);
-  ctx.authz.mustAgreeRules = (orgId, userId) => ctx.communityRules.mustAgree(orgId, userId);
-  // Community parity A1 (docs/COMMUNITY_PERMISSIONS.md): the community's own defaults and channel options, in the
-  // workspace rows like the rest of authorisation. Authorisation reads them only while the feature is on.
-  ctx.communityPermissions = new CommunityPermissions(ctx, config.communityPermissions);
-  if (config.communityPermissions) ctx.authz.extras = ctx.communityPermissions;
-  // Community parity A3 (docs/COMMUNITY_SETTINGS_API.md): invite links, links, background tint, the onboarding gate.
-  ctx.communitySettings = new CommunitySettings(ctx, config.communitySettings);
-  ctx.authz.mustFinishOnboarding = (orgId, userId) => ctx.communitySettings.mustFinish(orgId, userId);
-  ctx.authz.inviteSlugsOn = () => ctx.communitySettings.enabled;
-  // Community parity A2 (docs/COMMUNITY_SAFETY_API.md): community_safety and the voice tables are workspace rows.
-  ctx.communitySafety = new CommunitySafety(ctx, config.communitySafety);
-  ctx.authz.voiceBanned = (orgId, userId) => ctx.communitySafety.voice.banned(orgId, userId);
-  ctx.authz.voiceMuted = (orgId, userId) => ctx.communitySafety.voice.muted(orgId, userId);
-  ctx.authz.autoSlowmodeSec = (conversationId) => ctx.communitySafety.autoSlowmodeSec(conversationId);
-  // Community parity B (docs/COMMUNITY_PARITY_API.md): the community lobby, kept in the workspace rows (migration 072).
-  ctx.lobby = new CommunityLobby(ctx, config.communityLobby.enabled, config.communityLobby.feedImageHosts);
-  // Community parity batch C (docs/COMMUNITY_PARITY_API.md › Posting tools): webhooks, reaction roles and tickets,
-  // kept in workspace rows (migration 073).
-  ctx.webhooks = new Webhooks(ctx, config.postingTools.webhooks);
-  ctx.reactionRoles = new ReactionRoles(ctx, config.postingTools.reactionRoles);
-  ctx.tickets = new Tickets(ctx, config.postingTools.tickets);
-  // Community parity batch D (docs/COMMUNITY_PARITY_API.md › Official bots): official bots, kept in workspace rows
-  // (migration 074). Registered after the stores' own onClose hooks, so queued bot work finishes before they close.
-  ctx.officialBots = new OfficialBots(ctx, config.communityBots);
-  // Part 2: giveaways ending, Wordy recaps and Alerts' checks run on timers (stopped before the queue drains).
-  // Paid bot features need the completed billing context before the first scheduled tick.
-  app.addHook("onReady", async () => {
-    await afterDatabaseActivation(ctx.databaseCutover,()=>ctx.officialBots.scheduler.start());
-  });
-  app.addHook("onClose", async () => {
-    await ctx.officialBots.scheduler.stop();
-    await ctx.officialBots.settled();
-  });
-  // Community parity batch E (docs/COMMUNITY_PARITY_API.md › Discovery): Discover, Promote, templates from a community
-  // and the bot directory, kept in workspace rows (migration 075).
-  ctx.discovery = new Discovery(ctx, config.discovery);
-  ctx.communityTemplates = new CommunityTemplates(ctx, config.discovery.templates);
-  ctx.botDirectory = new BotDirectory(ctx, config.discovery.botDirectory);
-  ctx.reportSealer = ReportSealer.load(process.env, config.dataDir);
-  // Billing (plans, subscriptions, Meldiq Spark, gifts): rows in SQLite, or MongoDB when MONGODB_DOMAINS includes it.
-  ctx.billing = new Billing(postgres?.rows ?? await openBillingRows(db, ctx.mongo, app.log), config.billing, app.log, Date.now, (id) => ctx.quotas.planExists(id));
-  if (ctx.billing.rows.backend === "mongodb") {
-    app.addHook("onSend", async (_req, _reply, payload) => {
-      await ctx.billing.rows.settled();
-      return payload;
-    });
-  }
-  // Entitlement changes reach every signed-in device at once (they also refresh on their own): the account's own
-  // sessions for a personal subscription, every member for an organization's.
-  ctx.userNames = (ids) => new Map(namesOf(ctx.identity, ids).map((u) => [u.id, u.displayName]));
-  ctx.mojo = new Mojo(ctx.billing, ctx.billing.rows, {
-    isMember: (orgId, userId) => !!ctx.authz.orgRole(orgId, userId),
-    enforce: config.mojoEnforce,
-    // Mojo on sale in Google Play counts as on sale (MOJO_ENFORCE=auto).
-    storeOnSale: () => ctx.play?.onSale() ?? false,
-    notifyOrg: (orgId) =>
-      ctx.hub.sendToUsers(orgMemberIds(ctx.ws, orgId), {
-        t: "entitlements.changed",
-        scope: "org",
-        orgId,
-      }),
-    maxUploadBytes: effectiveFileMaxBytes(config),
-  });
-  ctx.billing.notifications = new BillingNotifications(ctx.billing.rows, ctx.accounts.mailer, id => ctx.accounts.store.accountById(id), config.billing.webReturnUrl ?? config.billing.siteUrl);
-  ctx.gifts = new Gifts(
-    ctx.billing,
-    ctx.billing.rows,
-    {
-      delivery: new GiftDelivery(ctx.billing.rows, new SecretBox(config.platformSecretsKey), ctx.accounts.mailer, config.billing.webReturnUrl ?? config.billing.siteUrl),
-      // A local, enabled person who hasn't blocked the buyer (nor been blocked by them): the same answer for anyone else.
-      canReceive: (recipient, buyer) => {
-        const u = availableUser(ctx, recipient);
-        return !!u && u.home_server_id === null && !(buyer && blockedEitherWay(ctx, recipient, buyer));
-      },
-      notify: (userId) =>
-        ctx.hub.sendToUser(userId, {
-          t: "entitlements.changed",
-          scope: "account",
-        }),
-    },
-    app.log,
-  );
-  if (ctx.billing.provider instanceof PayPalProvider) ctx.billing.cardSubscriptions = new CardSubscriptions(ctx.billing, new CardVault(ctx.billing.rows, ctx.billing.provider, new SecretBox(config.platformSecretsKey), new URL("/settings/billing", config.billing.webReturnUrl ?? config.billing.siteUrl).href));
-  ctx.collectibleCommerce = new CollectibleCommerce(ctx);
-  ctx.billing.webhooks.payments = {
-    applyCheckout: (w, provider, snapshot, t) => ctx.collectibleCommerce.applyCheckout(w, provider, snapshot, t) ?? ctx.billing.cardSubscriptions?.applyCheckout(w, provider, snapshot, t) ?? ctx.billing.sparkPurchases.applyCheckout(w, provider, snapshot, t) ?? ctx.gifts.applyCheckout(w, provider, snapshot, t),
-    applyPayment: (w, provider, payment, t) => ctx.collectibleCommerce.applyPayment(w, provider, payment, t) ?? ctx.billing.cardSubscriptions?.applyPayment(w, provider, payment, t) ?? ctx.billing.sparkPurchases.applyPayment(w, provider, payment, t) ?? ctx.gifts.applyPayment(w, provider, payment, t),
-  };
-  ctx.play = config.billing.play ? new PlayBilling(ctx.billing, ctx.gifts, config.billing.play, app.log) : null;
-  ctx.billing.onChange = (owner) => {
-    if (owner.kind === "org")
-      ctx.hub.sendToUsers(orgMemberIds(ctx.ws, owner.orgId), {
-        t: "entitlements.changed",
-        scope: "org",
-        orgId: owner.orgId,
-      });
-    else {
-      const userIds = new Set([...ctx.billing.subscriptions.ownerUserIds(owner.accountId), ...ctx.billing.grants.userIdsOf(owner.accountId), ...ctx.billing.sparkPurchases.userIdsOf(owner.accountId)]);
-      const changedOrgs = new Set<string>();
-      for (const userId of userIds) {
-        ctx.hub.sendToUser(userId, { t: "entitlements.changed", scope: "account" });
-        for (const assignment of ctx.mojo.assignmentsOf(userId)) changedOrgs.add(assignment.org_id);
+    // MongoDB holds the domains in MONGODB_DOMAINS; it refuses to start if that would split a domain between stores.
+    if (config.mongo) {
+      const mongo =
+        opts.mongo ??
+        (await openMongo(
+          config.mongo,
+          db,
+          app.log,
+          config.databaseMode === "atlas",
+        ));
+      ctx.mongo = mongo;
+      // Write units still committing finish first: one cut off mid-transaction would hold its locks until it times out.
+      if (!opts.mongo)
+        app.addHook("onClose", async () => {
+          await ctx.ws?.settled();
+          await ctx.billing?.rows.settled();
+          for (const r of [
+            ctx.identity,
+            ctx.platform,
+            ctx.fed,
+            ctx.safety,
+            ctx.ephemeral,
+          ])
+            await r?.settled();
+          await mongo.close();
+        });
+    }
+    if (config.redis) {
+      ctx.redis = new RedisInfrastructure(config.redis, app.log);
+      await ctx.redis.connect();
+      app.addHook("onClose", async () => ctx.redis?.close());
+    }
+    // Communities and conversations: authorisation reads them synchronously, wherever they live.
+    ctx.ws =
+      postgres?.rows ?? (await openWorkspaceRows(db, ctx.mongo, app.log));
+    ctx.authz = new Authz(ctx.ws);
+    ctx.identity =
+      postgres?.rows ??
+      (await openDomainRows(db, "identity", ctx.mongo, app.log));
+    ctx.platform =
+      postgres?.rows ??
+      (await openDomainRows(db, "platform", ctx.mongo, app.log));
+    ctx.fed =
+      postgres?.rows ??
+      (await openDomainRows(db, "federation", ctx.mongo, app.log));
+    ctx.safety =
+      postgres?.rows ??
+      (await openDomainRows(db, "safety", ctx.mongo, app.log));
+    ctx.ephemeral =
+      postgres?.rows ??
+      (await openDomainRows(db, "ephemeral", ctx.mongo, app.log));
+    // Registered after the MongoDB client's own hook, so it runs before it (onClose hooks run last-in first-out): the rows
+    // stop following other processes' writes while the client is still open.
+    app.addHook("onClose", async () => {
+      for (const r of [
+        ctx.ws,
+        ctx.billing?.rows,
+        ctx.identity,
+        ctx.platform,
+        ctx.fed,
+        ctx.safety,
+        ctx.ephemeral,
+      ]) {
+        await r?.settled();
+        await r?.close();
       }
-      for (const orgId of changedOrgs) ctx.mojo.notifyOrg(orgId);
+    });
+    for (const r of [
+      ctx.identity,
+      ctx.platform,
+      ctx.fed,
+      ctx.safety,
+      ctx.ephemeral,
+    ]) {
+      if (r.backend !== "mongodb") continue;
+      app.addHook("onSend", async (_req, _reply, payload) => {
+        await r.settled();
+        return payload;
+      });
     }
-  };
-  // A workspace's subscription adds its plan's limits between operator overrides and server-wide limits.
-  ctx.entitlements = new Entitlements(config.entitlements, { db, rows: ctx.ws }, (orgId, t) => ctx.billing.subscriptions.planLimits(orgId, t));
-  ctx.usage = new UsageMeter(ctx.identity, ctx.ws, ctx.files, ctx.calls);
-  ctx.quotas = new QuotaEngine(ctx.platform, Date.now, (scope, t) => ctx.billing.quotaPlanFor(scope, t));
-  // AI and AI Workforce were removed in API 0.47.0 (docs/AI_REMOVAL.md): their tables stay, unread.
-  // Activity, traffic, concurrency and resources (docs/ANALYTICS_DEFINITIONS.md): written once a minute.
-  ctx.telemetry = new Telemetry(ctx);
-  await afterDatabaseActivation(ctx.databaseCutover,async()=>{
-    await ctx.telemetry.init();
-    await ctx.telemetry.recordVersion(VERSION);
-    if (config.telemetryTickMs > 0) ctx.telemetry.start(config.telemetryTickMs);
-  });
-  app.addHook("onClose", async () => ctx.telemetry.stop());
-  ctx.reminders = new ReminderService(ctx);
-  await afterDatabaseActivation(ctx.databaseCutover,()=>ctx.reminders.start(config.reminderTickMs));
-  app.addHook("onClose", async () => ctx.reminders.stop());
-  app.addHook("onClose", async () => ctx.hub.closePresence());
-  ctx.meetings = new MeetingService(ctx);
-  await afterDatabaseActivation(ctx.databaseCutover,()=>ctx.meetings.start(config.workflowTickMs > 0 ? 30_000 : 0));
-  app.addHook("onClose", async () => ctx.meetings.stop());
-  // Branches and teams become roles and categories once (docs/COMMUNITY_REBUILD_2026-10-21.md §6); idempotent. A
-  // conversion of SQLite's data: with communities in MongoDB it ran long before, and SQLite's copy is left alone.
-  if (ctx.ws.backend === "sqlite") {
-    const migrated = runCommunityMigration(ctx);
-    if (migrated.converted > 0) app.log.info({ ...migrated }, "community migration converted branches and teams");
-  }
-
-  if (config.fcm && !config.push) ctx.hub.onQueuedOffline = (deviceId) => ctx.fcm?.queued(deviceId);
-  if (config.trustProxy === true) {
-    app.log.warn(
-      "TRUST_PROXY=true believes X-Forwarded-For entries clients send themselves, so per-address limits can be dodged. Set the proxy's addresses instead, e.g. TRUST_PROXY=loopback,uniquelocal (docs/ABUSE_CONTROLS.md)",
+    // A response leaves once the units its request queued are durable (audit entries, metering), as when they were part
+    // of SQLite's transaction: a client that reads right after sees them. SQLite's units are durable already.
+    if (ctx.ws.backend === "mongodb") {
+      app.addHook("onSend", async (_req, _reply, payload) => {
+        await ctx.ws.settled();
+        return payload;
+      });
+    }
+    ctx.relay =
+      postgres?.relay ??
+      (ctx.mongo?.owns("relay")
+        ? new MongoRelayStore(ctx.mongo, db, app.log)
+        : new SqliteRelayStore(db));
+    ctx.hub = new Hub(
+      ctx.relay,
+      config.abuse.wsMaxSocketsPerDevice,
+      config.presence,
     );
-  }
-  if (config.federation) ctx.federation = new Federation(ctx, config.federation);
-  if (config.fcm) {
-    // Firebase wake-ups (docs/PUSH_FCM.md) beside UnifiedPush; the hub's hooks call both (set before UnifiedPush's).
-    const fcm = new FcmService(ctx.identity, ctx.hub, config.fcm, app.log);
-    fcm.metrics = ctx.metrics;
-    ctx.fcm = fcm;
-    app.addHook("preClose", (done) => {
-      fcm.stop();
-      done();
+    if (ctx.redis)
+      await ctx.redis.subscribe("preferences", (data) => {
+        if (data.length > 8192) return;
+        try {
+          const event = JSON.parse(data) as Record<string, unknown>;
+          if (
+            event.origin === ctx.redis!.instanceId ||
+            typeof event.userId !== "string" ||
+            event.userId.length > 200 ||
+            typeof event.workspaceId !== "string" ||
+            event.workspaceId.length > 200 ||
+            !Number.isSafeInteger(event.rev) ||
+            Number(event.rev) < 1
+          )
+            return;
+          ctx.hub.sendToUser(event.userId, {
+            t: "prefs.updated",
+            workspaceId: event.workspaceId,
+            rev: Number(event.rev),
+          });
+        } catch {
+          /* malformed transient metadata is ignored */
+        }
+      });
+    ctx.files =
+      postgres?.files ??
+      opts.files ??
+      (ctx.mongo?.owns("files")
+        ? new MongoFileStore(ctx.mongo, app.log)
+        : new SqliteFileStore(db));
+    if (ctx.files.backend === "postgres") {
+      app.addHook("onSend", async (_req, _reply, payload) => {
+        await ctx.files.settled();
+        return payload;
+      });
+      app.addHook("onClose", async () => ctx.files.settled());
+    }
+    if (opts.contracts) {
+      const observer = opts.contracts;
+      ctx.hub.observe = (e) => observer.frame(e);
+    }
+    ctx.accounts = new Accounts(ctx, {
+      mailer: opts.mailer,
+      ...(postgres
+        ? {
+            store: postgres.accounts,
+            recoveryStore: postgres.recovery,
+            keyBackupStore: postgres.keys,
+          }
+        : {}),
     });
-  }
-  if (config.push) {
-    const push = new PushService(ctx, config.push, opts.push);
-    ctx.push = push;
-    ctx.hub.onQueuedOffline = (deviceId) => {
-      push.queued(deviceId);
-      ctx.fcm?.queued(deviceId);
+    ctx.prefs =
+      postgres?.preferences ??
+      (ctx.mongo?.owns("preferences")
+        ? new MongoPreferenceStore(ctx.mongo)
+        : new SqlitePreferenceStore(db));
+    if (ctx.redis) ctx.prefs = new CachedPreferenceStore(ctx.prefs, ctx.redis);
+    ctx.history =
+      postgres?.history ??
+      (ctx.mongo?.owns("history")
+        ? new MongoHistoryStore(ctx.mongo)
+        : new SqliteHistoryStore(db));
+    // Server-stored messages live with message history (the "history" domain).
+    ctx.messages =
+      postgres?.messages ??
+      (ctx.mongo?.owns("history")
+        ? new MongoMessageStore(ctx.mongo)
+        : new SqliteMessageStore(db));
+    ctx.reports =
+      postgres?.reports ??
+      (ctx.mongo?.owns("reports")
+        ? new MongoReportStore(ctx.mongo)
+        : new SqliteReportStore(db));
+    ctx.relationships =
+      postgres?.relationships ??
+      (ctx.mongo?.owns("relationships")
+        ? new MongoRelationshipStore(ctx.mongo)
+        : new SqliteRelationshipStore(db));
+    ctx.calls =
+      postgres?.calls ??
+      (ctx.mongo?.owns("calls")
+        ? new MongoCallStore(ctx.mongo)
+        : new SqliteCallStore(db));
+    // API 0.56.0: new data, so MongoDB whenever the server has one (no domain to migrate).
+    const activityStore =
+      postgres?.activity ??
+      (ctx.mongo
+        ? new MongoActivityStore(ctx.mongo)
+        : new MemoryActivityStore());
+    if (activityStore instanceof MongoActivityStore)
+      await activityStore.ensureIndexes();
+    ctx.activity = new ActivityService(activityStore, app.log);
+    ctx.activity.onChange = (userId) => announceActivity(ctx, userId);
+    await afterDatabaseActivation(ctx.databaseCutover, () =>
+      ctx.activity.start(),
+    );
+    app.addHook("onClose", async () => ctx.activity.stop());
+    // API 0.61.0: profile decorations people send in (docs/PROFILE_DECORATIONS.md), new data, so MongoDB whenever there is one.
+    const decorationStore =
+      postgres?.decorations ??
+      (ctx.mongo
+        ? new MongoDecorationStore(ctx.mongo)
+        : new MemoryDecorationStore());
+    if (decorationStore instanceof MongoDecorationStore)
+      await decorationStore.ensureIndexes();
+    // API 0.65.0 (docs/SETTINGS_PARITY_API.md): favourites, privacy choices, username holds and points are new data too.
+    const favoriteStore =
+      postgres?.favorites ??
+      (ctx.mongo
+        ? new MongoFavoriteStore(ctx.mongo)
+        : new MemoryFavoriteStore());
+    if (favoriteStore instanceof MongoFavoriteStore)
+      await favoriteStore.ensureIndexes();
+    ctx.decorations = new DecorationService(
+      ctx,
+      decorationStore,
+      favoriteStore,
+    );
+    await afterDatabaseActivation(ctx.databaseCutover, () =>
+      ctx.decorations.load(),
+    );
+    // API 0.64.0: community pins (docs/PROFILE_PINS.md), new data, so MongoDB whenever there is one.
+    const pinStore =
+      postgres?.pins ??
+      (ctx.mongo ? new MongoPinStore(ctx.mongo) : new MemoryPinStore());
+    if (pinStore instanceof MongoPinStore) await pinStore.ensureIndexes();
+    ctx.pins = new PinService(ctx, pinStore);
+    await afterDatabaseActivation(ctx.databaseCutover, () => ctx.pins.load());
+    ctx.privacyChoices =
+      postgres?.privacy ??
+      (ctx.mongo ? new MongoPrivacyStore(ctx.mongo) : new MemoryPrivacyStore());
+    const holdStore =
+      postgres?.holds ??
+      (ctx.mongo
+        ? new MongoUsernameHoldStore(ctx.mongo)
+        : new MemoryUsernameHoldStore());
+    if (holdStore instanceof MongoUsernameHoldStore)
+      await holdStore.ensureIndexes();
+    ctx.usernames = new UsernameHolds(holdStore);
+    await afterDatabaseActivation(ctx.databaseCutover, () =>
+      ctx.usernames.load(),
+    );
+    const pointsStore =
+      postgres?.points ??
+      (ctx.mongo ? new MongoPointsStore(ctx.mongo) : new MemoryPointsStore());
+    if (pointsStore instanceof MongoPointsStore)
+      await pointsStore.ensureIndexes();
+    ctx.points = new PointsService(ctx, pointsStore);
+    await afterDatabaseActivation(ctx.databaseCutover, () => ctx.points.load());
+    // API 0.65.0 batch B (docs/SETTINGS_PARITY_API.md): creators and linked accounts, new data too.
+    ctx.creators = new CreatorService(ctx, await openCreatorStores(ctx));
+    await afterDatabaseActivation(ctx.databaseCutover, () =>
+      ctx.creators.load(),
+    );
+    ctx.linkedAccounts = await LinkedAccountsService.open(ctx);
+    // API 0.65.0 batch B (docs/SETTINGS_PARITY_API.md): "Log in with Meldiq" apps and bots, new data too.
+    const oauthStore =
+      postgres?.oauth ??
+      (ctx.mongo ? new MongoOAuthStore(ctx.mongo) : new MemoryOAuthStore());
+    if (oauthStore instanceof MongoOAuthStore) await oauthStore.ensureIndexes();
+    ctx.oauth = new OAuthService(ctx, oauthStore);
+    const botStore =
+      postgres?.bots ??
+      (ctx.mongo ? new MongoBotStore(ctx.mongo) : new MemoryBotStore());
+    if (botStore instanceof MongoBotStore) await botStore.ensureIndexes();
+    ctx.bots = new BotService(ctx, botStore);
+    // API 0.65.0 (docs/SETTINGS_PARITY_API.md): rules channels, the rules and who agreed to them, new data too.
+    const rulesStore =
+      postgres?.rules ??
+      (ctx.mongo ? new MongoRulesStore(ctx.mongo) : new MemoryRulesStore());
+    if (rulesStore instanceof MongoRulesStore) await rulesStore.ensureIndexes();
+    ctx.communityRules = new CommunityRules(
+      ctx,
+      rulesStore,
+      config.communityRules,
+    );
+    await afterDatabaseActivation(ctx.databaseCutover, () =>
+      ctx.communityRules.load(),
+    );
+    // Authorisation was made before the rules: it asks them from here on.
+    ctx.authz.rulesChannelId = (orgId) => ctx.communityRules.channelIdOf(orgId);
+    ctx.authz.mustAgreeRules = (orgId, userId) =>
+      ctx.communityRules.mustAgree(orgId, userId);
+    // Community parity A1 (docs/COMMUNITY_PERMISSIONS.md): the community's own defaults and channel options, in the
+    // workspace rows like the rest of authorisation. Authorisation reads them only while the feature is on.
+    ctx.communityPermissions = new CommunityPermissions(
+      ctx,
+      config.communityPermissions,
+    );
+    if (config.communityPermissions)
+      ctx.authz.extras = ctx.communityPermissions;
+    // Community parity A3 (docs/COMMUNITY_SETTINGS_API.md): invite links, links, background tint, the onboarding gate.
+    ctx.communitySettings = new CommunitySettings(
+      ctx,
+      config.communitySettings,
+    );
+    ctx.authz.mustFinishOnboarding = (orgId, userId) =>
+      ctx.communitySettings.mustFinish(orgId, userId);
+    ctx.authz.inviteSlugsOn = () => ctx.communitySettings.enabled;
+    // Community parity A2 (docs/COMMUNITY_SAFETY_API.md): community_safety and the voice tables are workspace rows.
+    ctx.communitySafety = new CommunitySafety(ctx, config.communitySafety);
+    ctx.authz.voiceBanned = (orgId, userId) =>
+      ctx.communitySafety.voice.banned(orgId, userId);
+    ctx.authz.voiceMuted = (orgId, userId) =>
+      ctx.communitySafety.voice.muted(orgId, userId);
+    ctx.authz.autoSlowmodeSec = (conversationId) =>
+      ctx.communitySafety.autoSlowmodeSec(conversationId);
+    // Community parity B (docs/COMMUNITY_PARITY_API.md): the community lobby, kept in the workspace rows (migration 072).
+    ctx.lobby = new CommunityLobby(
+      ctx,
+      config.communityLobby.enabled,
+      config.communityLobby.feedImageHosts,
+    );
+    // Community parity batch C (docs/COMMUNITY_PARITY_API.md › Posting tools): webhooks, reaction roles and tickets,
+    // kept in workspace rows (migration 073).
+    ctx.webhooks = new Webhooks(ctx, config.postingTools.webhooks);
+    ctx.reactionRoles = new ReactionRoles(
+      ctx,
+      config.postingTools.reactionRoles,
+    );
+    ctx.tickets = new Tickets(ctx, config.postingTools.tickets);
+    // Community parity batch D (docs/COMMUNITY_PARITY_API.md › Official bots): official bots, kept in workspace rows
+    // (migration 074). Registered after the stores' own onClose hooks, so queued bot work finishes before they close.
+    ctx.officialBots = new OfficialBots(ctx, config.communityBots);
+    // Part 2: giveaways ending, Wordy recaps and Alerts' checks run on timers (stopped before the queue drains).
+    // Paid bot features need the completed billing context before the first scheduled tick.
+    app.addHook("onReady", async () => {
+      await afterDatabaseActivation(ctx.databaseCutover, () =>
+        ctx.officialBots.scheduler.start(),
+      );
+    });
+    app.addHook("onClose", async () => {
+      await ctx.officialBots.scheduler.stop();
+      await ctx.officialBots.settled();
+    });
+    // Community parity batch E (docs/COMMUNITY_PARITY_API.md › Discovery): Discover, Promote, templates from a community
+    // and the bot directory, kept in workspace rows (migration 075).
+    ctx.discovery = new Discovery(ctx, config.discovery);
+    ctx.communityTemplates = new CommunityTemplates(
+      ctx,
+      config.discovery.templates,
+    );
+    ctx.botDirectory = new BotDirectory(ctx, config.discovery.botDirectory);
+    ctx.reportSealer = ReportSealer.load(process.env, config.dataDir);
+    // Billing (plans, subscriptions, Meldiq Spark, gifts): rows in SQLite, or MongoDB when MONGODB_DOMAINS includes it.
+    ctx.billing = new Billing(
+      postgres?.rows ?? (await openBillingRows(db, ctx.mongo, app.log)),
+      config.billing,
+      app.log,
+      Date.now,
+      (id) => ctx.quotas.planExists(id),
+    );
+    if (ctx.billing.rows.backend === "mongodb") {
+      app.addHook("onSend", async (_req, _reply, payload) => {
+        await ctx.billing.rows.settled();
+        return payload;
+      });
+    }
+    // Entitlement changes reach every signed-in device at once (they also refresh on their own): the account's own
+    // sessions for a personal subscription, every member for an organization's.
+    ctx.userNames = (ids) =>
+      new Map(namesOf(ctx.identity, ids).map((u) => [u.id, u.displayName]));
+    ctx.mojo = new Mojo(ctx.billing, ctx.billing.rows, {
+      isMember: (orgId, userId) => !!ctx.authz.orgRole(orgId, userId),
+      enforce: config.mojoEnforce,
+      // Mojo on sale in Google Play counts as on sale (MOJO_ENFORCE=auto).
+      storeOnSale: () => ctx.play?.onSale() ?? false,
+      notifyOrg: (orgId) =>
+        ctx.hub.sendToUsers(orgMemberIds(ctx.ws, orgId), {
+          t: "entitlements.changed",
+          scope: "org",
+          orgId,
+        }),
+      maxUploadBytes: effectiveFileMaxBytes(config),
+    });
+    ctx.billing.notifications = new BillingNotifications(
+      ctx.billing.rows,
+      ctx.accounts.mailer,
+      (id) => ctx.accounts.store.accountById(id),
+      config.billing.webReturnUrl ?? config.billing.siteUrl,
+    );
+    ctx.gifts = new Gifts(
+      ctx.billing,
+      ctx.billing.rows,
+      {
+        delivery: new GiftDelivery(
+          ctx.billing.rows,
+          new SecretBox(config.platformSecretsKey),
+          ctx.accounts.mailer,
+          config.billing.webReturnUrl ?? config.billing.siteUrl,
+        ),
+        // A local, enabled person who hasn't blocked the buyer (nor been blocked by them): the same answer for anyone else.
+        canReceive: (recipient, buyer) => {
+          const u = availableUser(ctx, recipient);
+          return (
+            !!u &&
+            u.home_server_id === null &&
+            !(buyer && blockedEitherWay(ctx, recipient, buyer))
+          );
+        },
+        notify: (userId) =>
+          ctx.hub.sendToUser(userId, {
+            t: "entitlements.changed",
+            scope: "account",
+          }),
+      },
+      app.log,
+    );
+    if (ctx.billing.provider instanceof PayPalProvider)
+      ctx.billing.cardSubscriptions = new CardSubscriptions(
+        ctx.billing,
+        new CardVault(
+          ctx.billing.rows,
+          ctx.billing.provider,
+          new SecretBox(config.platformSecretsKey),
+          new URL(
+            "/settings/billing",
+            config.billing.webReturnUrl ?? config.billing.siteUrl,
+          ).href,
+        ),
+      );
+    ctx.collectibleCommerce = new CollectibleCommerce(ctx);
+    ctx.billing.webhooks.payments = {
+      applyCheckout: (w, provider, snapshot, t) =>
+        ctx.collectibleCommerce.applyCheckout(w, provider, snapshot, t) ??
+        ctx.billing.cardSubscriptions?.applyCheckout(
+          w,
+          provider,
+          snapshot,
+          t,
+        ) ??
+        ctx.billing.sparkPurchases.applyCheckout(w, provider, snapshot, t) ??
+        ctx.gifts.applyCheckout(w, provider, snapshot, t),
+      applyPayment: (w, provider, payment, t) =>
+        ctx.collectibleCommerce.applyPayment(w, provider, payment, t) ??
+        ctx.billing.cardSubscriptions?.applyPayment(w, provider, payment, t) ??
+        ctx.billing.sparkPurchases.applyPayment(w, provider, payment, t) ??
+        ctx.gifts.applyPayment(w, provider, payment, t),
     };
-    ctx.hub.onDeviceOffline = (deviceId, openedAt) => push.disconnected(deviceId, openedAt);
-    // Added before the WebSocket plugin's own preClose, which closes every socket: shutting down wakes nobody.
-    app.addHook("preClose", (done) => {
-      push.stop();
-      done();
+    ctx.play = config.billing.play
+      ? new PlayBilling(ctx.billing, ctx.gifts, config.billing.play, app.log)
+      : null;
+    ctx.billing.onChange = (owner) => {
+      if (owner.kind === "org")
+        ctx.hub.sendToUsers(orgMemberIds(ctx.ws, owner.orgId), {
+          t: "entitlements.changed",
+          scope: "org",
+          orgId: owner.orgId,
+        });
+      else {
+        const userIds = new Set([
+          ...ctx.billing.subscriptions.ownerUserIds(owner.accountId),
+          ...ctx.billing.grants.userIdsOf(owner.accountId),
+          ...ctx.billing.sparkPurchases.userIdsOf(owner.accountId),
+        ]);
+        const changedOrgs = new Set<string>();
+        for (const userId of userIds) {
+          ctx.hub.sendToUser(userId, {
+            t: "entitlements.changed",
+            scope: "account",
+          });
+          for (const assignment of ctx.mojo.assignmentsOf(userId))
+            changedOrgs.add(assignment.org_id);
+        }
+        for (const orgId of changedOrgs) ctx.mojo.notifyOrg(orgId);
+      }
+    };
+    // A workspace's subscription adds its plan's limits between operator overrides and server-wide limits.
+    ctx.entitlements = new Entitlements(
+      config.entitlements,
+      { db, rows: ctx.ws },
+      (orgId, t) => ctx.billing.subscriptions.planLimits(orgId, t),
+    );
+    ctx.usage = new UsageMeter(ctx.identity, ctx.ws, ctx.files, ctx.calls);
+    ctx.quotas = new QuotaEngine(ctx.platform, Date.now, (scope, t) =>
+      ctx.billing.quotaPlanFor(scope, t),
+    );
+    // AI and AI Workforce were removed in API 0.47.0 (docs/AI_REMOVAL.md): their tables stay, unread.
+    // Activity, traffic, concurrency and resources (docs/ANALYTICS_DEFINITIONS.md): written once a minute.
+    ctx.telemetry = new Telemetry(ctx);
+    await afterDatabaseActivation(ctx.databaseCutover, async () => {
+      await ctx.telemetry.init();
+      await ctx.telemetry.recordVersion(VERSION);
+      if (config.telemetryTickMs > 0)
+        ctx.telemetry.start(config.telemetryTickMs);
     });
-  }
+    app.addHook("onClose", async () => ctx.telemetry.stop());
+    ctx.reminders = new ReminderService(ctx);
+    await afterDatabaseActivation(ctx.databaseCutover, () =>
+      ctx.reminders.start(config.reminderTickMs),
+    );
+    app.addHook("onClose", async () => ctx.reminders.stop());
+    app.addHook("onClose", async () => ctx.hub.closePresence());
+    ctx.meetings = new MeetingService(ctx);
+    await afterDatabaseActivation(ctx.databaseCutover, () =>
+      ctx.meetings.start(config.workflowTickMs > 0 ? 30_000 : 0),
+    );
+    app.addHook("onClose", async () => ctx.meetings.stop());
+    // Branches and teams become roles and categories once (docs/COMMUNITY_REBUILD_2026-10-21.md §6); idempotent. A
+    // conversion of SQLite's data: with communities in MongoDB it ran long before, and SQLite's copy is left alone.
+    if (ctx.ws.backend === "sqlite") {
+      const migrated = runCommunityMigration(ctx);
+      if (migrated.converted > 0)
+        app.log.info(
+          { ...migrated },
+          "community migration converted branches and teams",
+        );
+    }
 
-  // Every finished request, by route template (never the raw URL, which carries ids), for the health view.
-  app.addHook("onResponse", async (req, reply) => {
-    ctx.metrics.recordRequest(req.method, req.routeOptions?.url ?? "unmatched", reply.statusCode, reply.elapsedTime);
-    ctx.telemetry.onResponse(req, reply);
-    // Requests per person per day (docs/QUOTAS.md): observed and warned only, and only once an operator governs it.
-    if (req.auth && ctx.quotas.hasPolicies("api.requests")) await ctx.quotas.charge("api.requests", scopesFor(req.auth.userId, null), 1);
-  });
+    if (config.fcm && !config.push)
+      ctx.hub.onQueuedOffline = (deviceId) => ctx.fcm?.queued(deviceId);
+    if (config.trustProxy === true) {
+      app.log.warn(
+        "TRUST_PROXY=true believes X-Forwarded-For entries clients send themselves, so per-address limits can be dodged. Set the proxy's addresses instead, e.g. TRUST_PROXY=loopback,uniquelocal (docs/ABUSE_CONTROLS.md)",
+      );
+    }
+    if (config.federation)
+      ctx.federation = new Federation(ctx, config.federation);
+    if (config.fcm) {
+      // Firebase wake-ups (docs/PUSH_FCM.md) beside UnifiedPush; the hub's hooks call both (set before UnifiedPush's).
+      const fcm = new FcmService(ctx.identity, ctx.hub, config.fcm, app.log);
+      fcm.metrics = ctx.metrics;
+      ctx.fcm = fcm;
+      app.addHook("preClose", (done) => {
+        fcm.stop();
+        done();
+      });
+    }
+    if (config.push) {
+      const push = new PushService(ctx, config.push, opts.push);
+      ctx.push = push;
+      ctx.hub.onQueuedOffline = (deviceId) => {
+        push.queued(deviceId);
+        ctx.fcm?.queued(deviceId);
+      };
+      ctx.hub.onDeviceOffline = (deviceId, openedAt) =>
+        push.disconnected(deviceId, openedAt);
+      // Added before the WebSocket plugin's own preClose, which closes every socket: shutting down wakes nobody.
+      app.addHook("preClose", (done) => {
+        push.stop();
+        done();
+      });
+    }
 
-  // Attachment uploads are streamed to disk by their route (size and quota enforced while reading),
-  // so the raw request stream is passed through instead of being buffered in memory.
-  app.addContentTypeParser("application/octet-stream", (_req, payload, done) => done(null, payload));
-  // LiveKit webhooks: keep the raw string, the signature covers the exact bytes.
-  app.addContentTypeParser("application/webhook+json", { parseAs: "string" }, (_req, body, done) => done(null, body));
+    // Every finished request, by route template (never the raw URL, which carries ids), for the health view.
+    app.addHook("onResponse", async (req, reply) => {
+      ctx.metrics.recordRequest(
+        req.method,
+        req.routeOptions?.url ?? "unmatched",
+        reply.statusCode,
+        reply.elapsedTime,
+      );
+      ctx.telemetry.onResponse(req, reply);
+      // Requests per person per day (docs/QUOTAS.md): observed and warned only, and only once an operator governs it.
+      if (req.auth && ctx.quotas.hasPolicies("api.requests"))
+        await ctx.quotas.charge(
+          "api.requests",
+          scopesFor(req.auth.userId, null),
+          1,
+        );
+    });
 
-  // Cross-origin browser apps (WEB_ORIGINS): only the listed origins get CORS answers; everyone else gets none, so their
-  // pages can't read this API's responses. No cookies are used, so CORS here never carries ambient credentials.
-  if (config.webOrigins.length) {
-    const allowed = new Set(config.webOrigins);
+    // Attachment uploads are streamed to disk by their route (size and quota enforced while reading),
+    // so the raw request stream is passed through instead of being buffered in memory.
+    app.addContentTypeParser(
+      "application/octet-stream",
+      (_req, payload, done) => done(null, payload),
+    );
+    // LiveKit webhooks: keep the raw string, the signature covers the exact bytes.
+    app.addContentTypeParser(
+      "application/webhook+json",
+      { parseAs: "string" },
+      (_req, body, done) => done(null, body),
+    );
+
+    // Cross-origin browser apps (WEB_ORIGINS): only the listed origins get CORS answers; everyone else gets none, so their
+    // pages can't read this API's responses. No cookies are used, so CORS here never carries ambient credentials.
+    if (config.webOrigins.length) {
+      const allowed = new Set(config.webOrigins);
+      app.addHook("onRequest", async (req, reply) => {
+        const origin = req.headers.origin;
+        if (!origin || !allowed.has(origin)) return;
+        reply
+          .header("access-control-allow-origin", origin)
+          .header("vary", "Origin");
+        if (req.method === "OPTIONS") {
+          return reply
+            .header(
+              "access-control-allow-methods",
+              "GET, POST, PUT, PATCH, DELETE",
+            )
+            .header(
+              "access-control-allow-headers",
+              "authorization, content-type, x-meldiq-client",
+            )
+            .header("access-control-max-age", "600")
+            .code(204)
+            .send();
+        }
+      });
+    }
+
+    // Maintenance mode (docs/PLATFORM_CONTROLS.md): app requests answer 503 until an operator turns it off in the console.
+    // After the CORS answer, so web apps can read the message; before rate limiting, so waiting apps don't use it up.
     app.addHook("onRequest", async (req, reply) => {
-      const origin = req.headers.origin;
-      if (!origin || !allowed.has(origin)) return;
-      reply.header("access-control-allow-origin", origin).header("vary", "Origin");
-      if (req.method === "OPTIONS") {
-        return reply
-          .header("access-control-allow-methods", "GET, POST, PUT, PATCH, DELETE")
-          .header("access-control-allow-headers", "authorization, content-type, x-meldiq-client")
-          .header("access-control-max-age", "600")
-          .code(204)
-          .send();
-      }
+      const blocked = maintenanceError(ctx.platform, req.url);
+      if (!blocked) return;
+      reply.header("retry-after", String(MAINTENANCE_RETRY_SECONDS));
+      throw blocked;
     });
-  }
 
-  // Maintenance mode (docs/PLATFORM_CONTROLS.md): app requests answer 503 until an operator turns it off in the console.
-  // After the CORS answer, so web apps can read the message; before rate limiting, so waiting apps don't use it up.
-  app.addHook("onRequest", async (req, reply) => {
-    const blocked = maintenanceError(ctx.platform, req.url);
-    if (!blocked) return;
-    reply.header("retry-after", String(MAINTENANCE_RETRY_SECONDS));
-    throw blocked;
-  });
-
-  if (ctx.redis) app.addHook("onRequest", async (req) => {
-    if (req.url.split("?")[0] !== "/healthz" && ctx.redis!.client.status !== "ready") {
-      throw new ApiError(503, "unavailable", "Shared request limits are temporarily unavailable.");
-    }
-  });
-  await app.register(rateLimit, {
-    global: true,
-    ...(ctx.redis ? { redis: ctx.redis.client, nameSpace: `${config.redis!.prefix}:http:`, skipOnError: false } : {}),
-    max: config.rateLimitPerMinute,
-    timeWindow: "1 minute",
-    keyGenerator: async (req) => {
-      // Unavailable account store: limit by network for now; the route's own check answers 503.
-      const auth = await authenticateRequest(ctx, req).catch(() => null);
-      // Without a session: per network, an IPv4 address or an IPv6 /64 (one phone or home holds a whole /64).
-      return auth ? `u:${auth.userId}` : `ip:${networkKey(req.ip)}`;
-    },
-  });
-  if (ctx.redis) app.addHook("onRequest", async (req, reply) => {
-    if (req.url.split("?")[0] === "/healthz") return;
-    try {
-      const result = await ctx.redis!.rateLimit(["http-ip", networkKey(req.ip)], Math.max(config.rateLimitPerMinute * 10, 1), 60_000);
-      if (!result.allowed) {
-        reply.header("retry-after", String(Math.ceil(result.retryAfterMs / 1000)));
-        throw new ApiError(429, "rate_limited", "Too many requests, slow down");
-      }
-    } catch (error) {
-      if (error instanceof ApiError) throw error;
-      throw new ApiError(503, "unavailable", "The server cannot check request limits right now. Try again shortly.");
-    }
-  });
-  await app.register(websocket, { options: { maxPayload: 64 * 1024 } });
-
-  app.setErrorHandler((err, req, reply) => {
-    if (err instanceof ApiError) {
-      return reply.code(err.statusCode).send({
-        error: { code: err.code, message: err.message, details: err.details },
+    if (ctx.redis)
+      app.addHook("onRequest", async (req) => {
+        if (
+          req.url.split("?")[0] !== "/healthz" &&
+          ctx.redis!.client.status !== "ready"
+        ) {
+          throw new ApiError(
+            503,
+            "unavailable",
+            "Shared request limits are temporarily unavailable.",
+          );
+        }
       });
-    }
-    // MongoDB unreachable (its domains can't be served): a clear, retryable answer, details only in the log.
-    if (err instanceof MongoNetworkError || err instanceof MongoServerSelectionError) {
-      req.log.error({ errorType: err.name }, "MongoDB unavailable");
-      return reply.code(503).send({
-        error: {
-          code: "unavailable",
-          message: "The server can't reach its database right now. Try again in a moment.",
-        },
-      });
-    }
-    if (ctx.redis && ctx.redis.client.status !== "ready") {
-      return reply.code(503).send({ error: { code: "unavailable", message: "Shared infrastructure is temporarily unavailable." } });
-    }
-    const status = (err as { statusCode?: number }).statusCode ?? 500;
-    if (status === 429)
-      return reply.code(429).send({
-        error: {
-          code: "rate_limited",
-          message: "Too many requests, slow down",
-        },
-      });
-    if (status === 413)
-      return reply.code(413).send({
-        error: { code: "too_large", message: "Request is too large" },
-      });
-    if (status >= 400 && status < 500) {
-      return reply.code(status).send({
-        error: { code: "bad_request", message: (err as Error).message },
-      });
-    }
-    opts.onUnhandledError?.(err);
-    req.log.error({ err }, "unhandled error");
-    return reply.code(500).send({
-      error: {
-        code: "internal",
-        message: "Something went wrong on the server",
+    await app.register(rateLimit, {
+      global: true,
+      ...(ctx.redis
+        ? {
+            redis: ctx.redis.client,
+            nameSpace: `${config.redis!.prefix}:http:`,
+            skipOnError: false,
+          }
+        : {}),
+      max: config.rateLimitPerMinute,
+      timeWindow: "1 minute",
+      keyGenerator: async (req) => {
+        // Unavailable account store: limit by network for now; the route's own check answers 503.
+        const auth = await authenticateRequest(ctx, req).catch(() => null);
+        // Without a session: per network, an IPv4 address or an IPv6 /64 (one phone or home holds a whole /64).
+        return auth ? `u:${auth.userId}` : `ip:${networkKey(req.ip)}`;
       },
     });
-  });
-
-  app.get("/healthz", { config: { rateLimit: false } }, async (_req, reply) => {
-    if (postgres) await postgres.database.query("SELECT 1");
-    else db.prepare("SELECT 1").get();
-    // MongoDB, when the server uses it: unreachable means the domains it holds can't be served.
-    const mongodb = ctx.mongo ? await ctx.mongo.ping() : null;
-    const redis = ctx.redis ? await ctx.redis.ping() : null;
-    if (mongodb === false || redis === false) reply.code(503);
-    // Public: says nothing about usage (the online-device count was removed, D28).
-    return {
-      ok: mongodb !== false && redis !== false,
-      version: VERSION,
-      time: now(),
-      livekit: !!ctx.livekit,
-      mongodb,
-      ...(postgres ? { postgres: true, databaseMode: "supabase" } : {}),
-      ...(ctx.redis ? { redis } : {}),
-    };
-  });
-
-  // Public: who runs Meldiq and its policies, as set in the console (docs/SITE_DETAILS.md). Cached briefly.
-  app.get("/v2/site/details", async (_req, reply) => {
-    reply.header("cache-control", "public, max-age=60");
-    return readSiteDetails(ctx.platform);
-  });
-
-  // Public, non-sensitive server info for client setup screens. Additive only: clients ignore unknown fields.
-  app.get("/v1/server-info", async () => ({
-    name: "Meldiq relay",
-    infoVersion: SERVER_INFO_VERSION,
-    api: API_VERSION,
-    minClientApi: MIN_CLIENT_API,
-    instanceName: config.instanceName,
-    // Apps that predate "closed" know only invite and open: closed shows as invite there, so they ask for a code.
-    registration: signupMode(ctx.platform, config.registrationMode) === "open" ? "open" : "invite",
-    signups: signupMode(ctx.platform, config.registrationMode),
-    maintenance: ctx.databaseCutover?.held?{enabled:true,message:CUTOVER_MESSAGE}:(({ enabled, message }) => ({ enabled, message }))(readControl(ctx.platform, "maintenance")),
-    // Federation (additive): this server's global identity, if it federates.
-    federation: ctx.federation
-      ? {
-          domain: ctx.federation.domain,
-          serverId: ctx.federation.serverId,
-          protocols: ["griip-fed/1"],
+    if (ctx.redis)
+      app.addHook("onRequest", async (req, reply) => {
+        if (req.url.split("?")[0] === "/healthz") return;
+        try {
+          const result = await ctx.redis!.rateLimit(
+            ["http-ip", networkKey(req.ip)],
+            Math.max(config.rateLimitPerMinute * 10, 1),
+            60_000,
+          );
+          if (!result.allowed) {
+            reply.header(
+              "retry-after",
+              String(Math.ceil(result.retryAfterMs / 1000)),
+            );
+            throw new ApiError(
+              429,
+              "rate_limited",
+              "Too many requests, slow down",
+            );
+          }
+        } catch (error) {
+          if (error instanceof ApiError) throw error;
+          throw new ApiError(
+            503,
+            "unavailable",
+            "The server cannot check request limits right now. Try again shortly.",
+          );
         }
-      : null,
-    version: VERSION,
-    calling: !!ctx.livekit,
-    queueTtlSeconds: config.queueTtlSeconds,
-    attachmentMaxBytes: config.attachmentMaxBytes,
-    // Orbit 2.0: the largest file a person may send, in bytes of the file itself (apps check it before encrypting).
-    fileMaxBytes: effectiveFileMaxBytes(config),
-    // Orbit 2.0 accounts: whether new accounts can be verified (an email transport is set up) and the migration window.
-    accounts: {
-      registration: ctx.accounts.mailer.available,
-      legacyLogin: config.accounts.legacy.login,
-      legacyRegistration: config.accounts.legacy.registration,
-      legacyMigration: config.accounts.legacy.migration,
-      // Only when codes can be emailed: a required move with no email would trap people at the code step.
-      legacyMigrationRequired: config.accounts.legacy.migrationRequired && ctx.accounts.mailer.available,
-    },
-    attachmentTtlSeconds: config.attachmentTtlSeconds,
-    encryption: "griip-envelope-v1 (HPKE X25519/HKDF-SHA256/AES-256-GCM + Ed25519)",
-    // What this server supports beyond API 1, so apps can say "this server needs an update" instead of failing
-    // (servers before 2026-10-17 have no list). Additive: names are never reused.
-    features: serverFeatures(config, ctx.blobs.direct !== null),
-    // Encrypted message history and kept files (docs/MESSAGE_HISTORY.md). Says nothing about where files are stored.
-    history: config.history.enabled ? { maxItemBytes: config.history.maxItemBytes } : null,
-    attachmentKeepDays: config.attachmentKeepDays,
-    // Push wake-ups (docs/BACKGROUND_DELIVERY.md): the push servers a device's distributor app must use.
-    push: config.push ? { unifiedPushHosts: config.push.unifiedPushHosts } : null,
-    // Passkeys (docs/PASSKEYS.md): a web app shows them only when its own origin is listed (it is its own relying party).
-    passkeys: ctx.accounts.passkeys.available ? { webOrigins: ctx.accounts.passkeys.webOrigins } : null,
-  }));
+      });
+    await app.register(websocket, { options: { maxPayload: 64 * 1024 } });
 
-  for (const r of [
-    authRoutes,
-    userRoutes,
-    profileMediaRoutes,
-    gifRoutes,
-    bugReportRoutes,
-    orgRoutes,
-    addMembersRoutes,
-    roleRoutes,
-    conversationRoutes,
-    messageRoutes,
-    serverMessagesRoutes,
-    messageCollections,
-    callRoutes,
-    attachmentRoutes,
-    historyRoutes,
-    pushRoutes,
-    preferenceRoutes,
-    activityRoutes,
-    decorationRoutes,
-    collectionRoutes,
-    pinRoutes,
-    reminderRoutes,
-    reportRoutes,
-    applicationRoutes,
-    connectionRoutes,
-    onboardingRoutes,
-    guideRoutes,
-    communityRulesRoutes,
-    communityPermissionsRoutes,
-    communitySafetyRoutes,
-    voiceModerationRoutes,
-    expressionRoutes,
-    discordRoutes,
-    leaveManyRoutes,
-    pointsRoutes,
-    leaderboardRoutes,
-    creatorRoutes,
-    linkedAccountRoutes,
-    oauthRoutes,
-    botRoutes,
-    communityLobbyRoutes,
-    webhookRoutes,
-    reactionRoleRoutes,
-    ticketRoutes,
-    officialBotRoutes,
-    discoveryRoutes,
-    communityTemplateRoutes,
-    botDirectoryRoutes,
-    wsRoutes,
-  ]) {
-    await app.register(async (scope) => r(scope, ctx));
-  }
-  // Community parity A3: the community settings routes.
-  await app.register(async (scope) => communitySettingsRoutes(scope, ctx));
-  await app.register(async (scope) => opsRoutes(scope, ctx, VERSION));
-  await app.register(async (scope) => searchRoutes(scope, ctx));
-  await app.register(async (scope) => meetingRoutes(scope, ctx));
-  await app.register(async (scope) => communityRoutes(scope, ctx));
-  await app.register(async (scope) => experimentRoutes(scope, ctx));
-  await app.register(async (scope) => accountRoutes(scope, ctx, ctx.accounts));
-  await app.register(async (scope) => socialRoutes(scope, ctx));
-  await app.register(async (scope) => billingRoutes(scope, ctx));
-  // The Platform Admin Console's /admin/v1 (only with ADMIN_CONSOLE_ORIGIN set; its own sessions, roles and audit).
-  await app.register(async scope => operationalUserRoutes(scope, ctx));
-  await app.register(async scope => collectibleCommerceUserRoutes(scope, ctx));
-  await registerPlatformAdmin(app, ctx, VERSION);
-  if (opts.supabase) {
-    const verifier = new SupabaseAccessVerifier(opts.supabase.projectUrl, postgres!.database, opts.supabase.keys);
-    const auth = new SupabaseDeviceAuth(ctx, verifier);
-    ctx.supabaseAuth = auth;
-    await app.register(async scope => {
-      await registerSupabaseIdentity(scope, ctx, auth);
-      await registerSupabaseTransport(scope, {postgres: postgres!.database, verifier, authorizeRealtime: async (principal, id) => {
-        if (!auth.device(principal)) throw new ApiError(403, "device_required", "Authorize this device before connecting");
-        const conversation = ctx.authz.requireMember(id, principal.userId);
-        return {presence: true, typing: ctx.authz.canPost(conversation, principal.userId)};
-      }});
+    app.setErrorHandler((err, req, reply) => {
+      if (err instanceof ApiError) {
+        return reply.code(err.statusCode).send({
+          error: { code: err.code, message: err.message, details: err.details },
+        });
+      }
+      // MongoDB unreachable (its domains can't be served): a clear, retryable answer, details only in the log.
+      if (
+        err instanceof MongoNetworkError ||
+        err instanceof MongoServerSelectionError
+      ) {
+        req.log.error({ errorType: err.name }, "MongoDB unavailable");
+        return reply.code(503).send({
+          error: {
+            code: "unavailable",
+            message:
+              "The server can't reach its database right now. Try again in a moment.",
+          },
+        });
+      }
+      if (ctx.redis && ctx.redis.client.status !== "ready") {
+        return reply.code(503).send({
+          error: {
+            code: "unavailable",
+            message: "Shared infrastructure is temporarily unavailable.",
+          },
+        });
+      }
+      const status = (err as { statusCode?: number }).statusCode ?? 500;
+      if (status === 429)
+        return reply.code(429).send({
+          error: {
+            code: "rate_limited",
+            message: "Too many requests, slow down",
+          },
+        });
+      if (status === 413)
+        return reply.code(413).send({
+          error: { code: "too_large", message: "Request is too large" },
+        });
+      if (status >= 400 && status < 500) {
+        return reply.code(status).send({
+          error: { code: "bad_request", message: (err as Error).message },
+        });
+      }
+      opts.onUnhandledError?.(err);
+      req.log.error({ err }, "unhandled error");
+      return reply.code(500).send({
+        error: {
+          code: "internal",
+          message: "Something went wrong on the server",
+        },
+      });
     });
-  }
-  const fed = ctx.federation;
-  if (fed) {
-    await app.register(async (scope) => federationPeerRoutes(scope, ctx, fed));
-    await app.register(async (scope) => federationClientRoutes(scope, ctx, fed));
-  }
-  return { app, ctx };
+
+    app.get(
+      "/healthz",
+      { config: { rateLimit: false } },
+      async (_req, reply) => {
+        if (postgres) await postgres.database.query("SELECT 1");
+        else db.prepare("SELECT 1").get();
+        // MongoDB, when the server uses it: unreachable means the domains it holds can't be served.
+        const mongodb = ctx.mongo ? await ctx.mongo.ping() : null;
+        const redis = ctx.redis ? await ctx.redis.ping() : null;
+        if (mongodb === false || redis === false) reply.code(503);
+        // Public: says nothing about usage (the online-device count was removed, D28).
+        return {
+          ok: mongodb !== false && redis !== false,
+          version: VERSION,
+          time: now(),
+          livekit: !!ctx.livekit,
+          mongodb,
+          ...(postgres ? { postgres: true, databaseMode: "supabase" } : {}),
+          ...(ctx.redis ? { redis } : {}),
+        };
+      },
+    );
+
+    // Public: who runs Meldiq and its policies, as set in the console (docs/SITE_DETAILS.md). Cached briefly.
+    app.get("/v2/site/details", async (_req, reply) => {
+      reply.header("cache-control", "public, max-age=60");
+      return readSiteDetails(ctx.platform);
+    });
+
+    // Public, non-sensitive server info for client setup screens. Additive only: clients ignore unknown fields.
+    app.get("/v1/server-info", async () => ({
+      name: "Meldiq relay",
+      infoVersion: SERVER_INFO_VERSION,
+      api: API_VERSION,
+      minClientApi: MIN_CLIENT_API,
+      instanceName: config.instanceName,
+      // Apps that predate "closed" know only invite and open: closed shows as invite there, so they ask for a code.
+      registration:
+        signupMode(ctx.platform, config.registrationMode) === "open"
+          ? "open"
+          : "invite",
+      signups: signupMode(ctx.platform, config.registrationMode),
+      maintenance: ctx.databaseCutover?.held
+        ? { enabled: true, message: CUTOVER_MESSAGE }
+        : (({ enabled, message }) => ({ enabled, message }))(
+            readControl(ctx.platform, "maintenance"),
+          ),
+      // Federation (additive): this server's global identity, if it federates.
+      federation: ctx.federation
+        ? {
+            domain: ctx.federation.domain,
+            serverId: ctx.federation.serverId,
+            protocols: ["griip-fed/1"],
+          }
+        : null,
+      version: VERSION,
+      calling: !!ctx.livekit,
+      queueTtlSeconds: config.queueTtlSeconds,
+      attachmentMaxBytes: config.attachmentMaxBytes,
+      // Orbit 2.0: the largest file a person may send, in bytes of the file itself (apps check it before encrypting).
+      fileMaxBytes: effectiveFileMaxBytes(config),
+      // Orbit 2.0 accounts: whether new accounts can be verified (an email transport is set up) and the migration window.
+      accounts: {
+        registration: ctx.accounts.mailer.available,
+        legacyLogin: config.accounts.legacy.login,
+        legacyRegistration: config.accounts.legacy.registration,
+        legacyMigration: config.accounts.legacy.migration,
+        // Only when codes can be emailed: a required move with no email would trap people at the code step.
+        legacyMigrationRequired:
+          config.accounts.legacy.migrationRequired &&
+          ctx.accounts.mailer.available,
+      },
+      attachmentTtlSeconds: config.attachmentTtlSeconds,
+      encryption:
+        "griip-envelope-v1 (HPKE X25519/HKDF-SHA256/AES-256-GCM + Ed25519)",
+      // What this server supports beyond API 1, so apps can say "this server needs an update" instead of failing
+      // (servers before 2026-10-17 have no list). Additive: names are never reused.
+      features: serverFeatures(config, ctx.blobs.direct !== null),
+      // Encrypted message history and kept files (docs/MESSAGE_HISTORY.md). Says nothing about where files are stored.
+      history: config.history.enabled
+        ? { maxItemBytes: config.history.maxItemBytes }
+        : null,
+      attachmentKeepDays: config.attachmentKeepDays,
+      // Push wake-ups (docs/BACKGROUND_DELIVERY.md): the push servers a device's distributor app must use.
+      push: config.push
+        ? { unifiedPushHosts: config.push.unifiedPushHosts }
+        : null,
+      // Passkeys (docs/PASSKEYS.md): a web app shows them only when its own origin is listed (it is its own relying party).
+      passkeys: ctx.accounts.passkeys.available
+        ? { webOrigins: ctx.accounts.passkeys.webOrigins }
+        : null,
+    }));
+
+    for (const r of [
+      authRoutes,
+      userRoutes,
+      profileMediaRoutes,
+      gifRoutes,
+      bugReportRoutes,
+      orgRoutes,
+      addMembersRoutes,
+      roleRoutes,
+      conversationRoutes,
+      messageRoutes,
+      serverMessagesRoutes,
+      messageCollections,
+      callRoutes,
+      attachmentRoutes,
+      historyRoutes,
+      pushRoutes,
+      preferenceRoutes,
+      activityRoutes,
+      decorationRoutes,
+      collectionRoutes,
+      pinRoutes,
+      reminderRoutes,
+      reportRoutes,
+      applicationRoutes,
+      partnerRoutes,
+      connectionRoutes,
+      onboardingRoutes,
+      guideRoutes,
+      communityRulesRoutes,
+      communityPermissionsRoutes,
+      communitySafetyRoutes,
+      voiceModerationRoutes,
+      expressionRoutes,
+      discordRoutes,
+      leaveManyRoutes,
+      pointsRoutes,
+      leaderboardRoutes,
+      creatorRoutes,
+      linkedAccountRoutes,
+      oauthRoutes,
+      botRoutes,
+      communityLobbyRoutes,
+      webhookRoutes,
+      reactionRoleRoutes,
+      ticketRoutes,
+      officialBotRoutes,
+      discoveryRoutes,
+      communityTemplateRoutes,
+      botDirectoryRoutes,
+      wsRoutes,
+    ]) {
+      await app.register(async (scope) => r(scope, ctx));
+    }
+    // Community parity A3: the community settings routes.
+    await app.register(async (scope) => communitySettingsRoutes(scope, ctx));
+    await app.register(async (scope) => opsRoutes(scope, ctx, VERSION));
+    await app.register(async (scope) => searchRoutes(scope, ctx));
+    await app.register(async (scope) => meetingRoutes(scope, ctx));
+    await app.register(async (scope) => communityRoutes(scope, ctx));
+    await app.register(async (scope) => experimentRoutes(scope, ctx));
+    await app.register(async (scope) =>
+      accountRoutes(scope, ctx, ctx.accounts),
+    );
+    await app.register(async (scope) => socialRoutes(scope, ctx));
+    await app.register(async (scope) => billingRoutes(scope, ctx));
+    // The Platform Admin Console's /admin/v1 (only with ADMIN_CONSOLE_ORIGIN set; its own sessions, roles and audit).
+    await app.register(async (scope) => operationalUserRoutes(scope, ctx));
+    await app.register(async (scope) =>
+      collectibleCommerceUserRoutes(scope, ctx),
+    );
+    await registerPlatformAdmin(app, ctx, VERSION);
+    if (opts.supabase) {
+      const verifier = new SupabaseAccessVerifier(
+        opts.supabase.projectUrl,
+        postgres!.database,
+        opts.supabase.keys,
+      );
+      const auth = new SupabaseDeviceAuth(ctx, verifier);
+      ctx.supabaseAuth = auth;
+      await app.register(async (scope) => {
+        await registerSupabaseIdentity(scope, ctx, auth);
+        await registerSupabaseTransport(scope, {
+          postgres: postgres!.database,
+          verifier,
+          authorizeRealtime: async (principal, id) => {
+            if (!auth.device(principal))
+              throw new ApiError(
+                403,
+                "device_required",
+                "Authorize this device before connecting",
+              );
+            const conversation = ctx.authz.requireMember(id, principal.userId);
+            return {
+              presence: true,
+              typing: ctx.authz.canPost(conversation, principal.userId),
+            };
+          },
+        });
+      });
+    }
+    const fed = ctx.federation;
+    if (fed) {
+      await app.register(async (scope) =>
+        federationPeerRoutes(scope, ctx, fed),
+      );
+      await app.register(async (scope) =>
+        federationClientRoutes(scope, ctx, fed),
+      );
+    }
+    return { app, ctx };
   } catch (error) {
     if (opts.postgres) {
       await app.close().catch(() => undefined);
@@ -882,7 +1390,10 @@ export async function buildApp(
 }
 
 /** Feature names in /v1/server-info (2026-10-17 onwards). */
-export function serverFeatures(config: Config, directUploads = false): string[] {
+export function serverFeatures(
+  config: Config,
+  directUploads = false,
+): string[] {
   const f = [
     "profiles",
     "profile-revisions",
@@ -954,6 +1465,19 @@ export function serverFeatures(config: Config, directUploads = false): string[] 
     "forum-guidelines",
     // Batch B8b: repeating events, onboarding questions, the community guide.
     "event-repeat",
+    "event-occurrence-scope",
+    "event-external-location",
+    "event-covers",
+    "role-asset-icons",
+    "paged-community-directory",
+    "bulk-role-members",
+    "community-reports",
+    "voice-channel-chat",
+    "partner-applications",
+    "administrative-audit-changes",
+    "forum-collections",
+    "forum-tag-policy",
+    "event-management",
     "onboarding",
     "community-guide",
     // Batch B9: a community's own emoji and stickers.
@@ -1003,6 +1527,9 @@ export function serverFeatures(config: Config, directUploads = false): string[] 
     // API 0.57.0 (docs/SERVER_MESSAGES.md): messages stored and served by the server (/v2/messages).
     "server-messages",
     "message-collections",
+    "filtered-message-search",
+    "quick-reactions",
+    "connection-request-notes",
     // API 0.61.0 (docs/PROFILE_DECORATIONS.md): Meldiq's own decorations and reviewed community ones (/v2/decorations).
     "profile-decorations",
     "profile-collectibles",
@@ -1037,7 +1564,8 @@ export function serverFeatures(config: Config, directUploads = false): string[] 
   if (config.communityRules) f.push("rules-channel");
   // Community parity A1 (docs/COMMUNITY_PERMISSIONS.md): @everyone defaults, nicknames, role extras and order, channel
   // options and stages, and the new message permissions (COMMUNITY_PERMISSIONS=off switches it off).
-  if (config.communityPermissions) f.push("community-permissions", "community-profiles");
+  if (config.communityPermissions)
+    f.push("community-permissions", "community-profiles");
   // Community parity A3 (docs/COMMUNITY_SETTINGS_API.md): never-expiring and custom invite links, community links, the
   // background tint and onboarding's "must finish" (COMMUNITY_SETTINGS=off switches it off).
   if (config.communitySettings) f.push("community-settings");
@@ -1045,7 +1573,8 @@ export function serverFeatures(config: Config, directUploads = false): string[] 
   // gate, voice bans and server mutes (COMMUNITY_SAFETY=off switches it off).
   if (config.communitySafety) f.push("community-safety");
   // Community parity B (docs/COMMUNITY_PARITY_API.md): the community lobby (COMMUNITY_LOBBY=off switches it off).
-  if (config.communityLobby.enabled) f.push("community-lobby");
+  if (config.communityLobby.enabled)
+    f.push("community-lobby", "lobby-responsive-order");
   // Community parity batch C (docs/COMMUNITY_PARITY_API.md › Posting tools): CHANNEL_WEBHOOKS, REACTION_ROLES and
   // COMMUNITY_TICKETS=off switch each off.
   if (config.postingTools.webhooks) f.push("channel-webhooks");
@@ -1058,7 +1587,8 @@ export function serverFeatures(config: Config, directUploads = false): string[] 
   if (config.discovery.enabled) f.push("discovery-listing");
   if (config.discovery.templates) f.push("template-links");
   if (config.discovery.botDirectory) f.push("bot-directory");
-  if (config.discovery.enabled && config.discovery.promote) f.push("discovery-promote");
+  if (config.discovery.enabled && config.discovery.promote)
+    f.push("discovery-promote");
   if (config.accounts.legacy.migration) f.push("legacy-migration");
   if (directUploads) f.push("direct-upload");
   if (config.history.enabled) f.push("history");

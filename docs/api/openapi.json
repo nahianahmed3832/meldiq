@@ -12,6 +12,12 @@
   ],
   "tags": [
     {
+      "name": "community"
+    },
+    {
+      "name": "platform-admin"
+    },
+    {
       "name": "staging-auth"
     },
     {
@@ -91,9 +97,6 @@
     },
     {
       "name": "discord-import"
-    },
-    {
-      "name": "community"
     },
     {
       "name": "applications"
@@ -181,6 +184,686 @@
     }
   ],
   "paths": {
+    "/v1/orgs/{orgId}/partner-application": {
+      "get": {
+        "tags": [
+          "community"
+        ],
+        "summary": "Private partner application for the current community owner.",
+        "operationId": "getV1OrgsOrgIdPartnerApplication",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "application": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "orgId": {
+                              "type": "string"
+                            },
+                            "statement": {
+                              "type": "string"
+                            },
+                            "checklist": {
+                              "type": "object",
+                              "properties": {
+                                "guidelines": {
+                                  "type": "boolean",
+                                  "const": true
+                                },
+                                "moderation": {
+                                  "type": "boolean",
+                                  "const": true
+                                },
+                                "safety": {
+                                  "type": "boolean",
+                                  "const": true
+                                },
+                                "activity": {
+                                  "type": "boolean",
+                                  "const": true
+                                }
+                              },
+                              "required": [
+                                "guidelines",
+                                "moderation",
+                                "safety",
+                                "activity"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "submitted",
+                                "approved",
+                                "declined"
+                              ]
+                            },
+                            "rev": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "submittedAt": {
+                              "type": "number"
+                            },
+                            "reviewedAt": {
+                              "type": [
+                                "number",
+                                "null"
+                              ]
+                            },
+                            "reviewNote": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "orgId",
+                            "statement",
+                            "checklist",
+                            "status",
+                            "rev",
+                            "submittedAt",
+                            "reviewedAt",
+                            "reviewNote"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "application"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "community"
+        ],
+        "summary": "Submit or revise an unreviewed application, or resubmit after a decline; no automatic badge.",
+        "operationId": "putV1OrgsOrgIdPartnerApplication",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "application": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "orgId": {
+                              "type": "string"
+                            },
+                            "statement": {
+                              "type": "string"
+                            },
+                            "checklist": {
+                              "type": "object",
+                              "properties": {
+                                "guidelines": {
+                                  "type": "boolean",
+                                  "const": true
+                                },
+                                "moderation": {
+                                  "type": "boolean",
+                                  "const": true
+                                },
+                                "safety": {
+                                  "type": "boolean",
+                                  "const": true
+                                },
+                                "activity": {
+                                  "type": "boolean",
+                                  "const": true
+                                }
+                              },
+                              "required": [
+                                "guidelines",
+                                "moderation",
+                                "safety",
+                                "activity"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "submitted",
+                                "approved",
+                                "declined"
+                              ]
+                            },
+                            "rev": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "submittedAt": {
+                              "type": "number"
+                            },
+                            "reviewedAt": {
+                              "type": [
+                                "number",
+                                "null"
+                              ]
+                            },
+                            "reviewNote": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "orgId",
+                            "statement",
+                            "checklist",
+                            "status",
+                            "rev",
+                            "submittedAt",
+                            "reviewedAt",
+                            "reviewNote"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "application"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, stale_revision, conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "baseRev": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "statement": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  },
+                  "checklist": {
+                    "type": "object",
+                    "properties": {
+                      "guidelines": {
+                        "type": "boolean",
+                        "const": true
+                      },
+                      "moderation": {
+                        "type": "boolean",
+                        "const": true
+                      },
+                      "safety": {
+                        "type": "boolean",
+                        "const": true
+                      },
+                      "activity": {
+                        "type": "boolean",
+                        "const": true
+                      }
+                    },
+                    "required": [
+                      "guidelines",
+                      "moderation",
+                      "safety",
+                      "activity"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "baseRev",
+                  "statement",
+                  "checklist"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/v1/partner-applications": {
+      "get": {
+        "tags": [
+          "platform-admin"
+        ],
+        "summary": "Private manual partner review queue.",
+        "operationId": "getAdminV1PartnerApplications",
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "applications": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "orgId": {
+                            "type": "string"
+                          },
+                          "statement": {
+                            "type": "string"
+                          },
+                          "checklist": {
+                            "type": "object",
+                            "properties": {
+                              "guidelines": {
+                                "type": "boolean",
+                                "const": true
+                              },
+                              "moderation": {
+                                "type": "boolean",
+                                "const": true
+                              },
+                              "safety": {
+                                "type": "boolean",
+                                "const": true
+                              },
+                              "activity": {
+                                "type": "boolean",
+                                "const": true
+                              }
+                            },
+                            "required": [
+                              "guidelines",
+                              "moderation",
+                              "safety",
+                              "activity"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "submitted",
+                              "approved",
+                              "declined"
+                            ]
+                          },
+                          "rev": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "submittedAt": {
+                            "type": "number"
+                          },
+                          "reviewedAt": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "reviewNote": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "orgId",
+                          "statement",
+                          "checklist",
+                          "status",
+                          "rev",
+                          "submittedAt",
+                          "reviewedAt",
+                          "reviewNote"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "nextAfter": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "applications",
+                    "nextAfter"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification."
+      }
+    },
+    "/admin/v1/partner-applications/{orgId}": {
+      "put": {
+        "tags": [
+          "platform-admin"
+        ],
+        "summary": "Record an explicit partner review; never assign a badge, entitlement or role.",
+        "operationId": "putAdminV1PartnerApplicationsOrgId",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "X-Meldiq-Admin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "application": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "orgId": {
+                              "type": "string"
+                            },
+                            "statement": {
+                              "type": "string"
+                            },
+                            "checklist": {
+                              "type": "object",
+                              "properties": {
+                                "guidelines": {
+                                  "type": "boolean",
+                                  "const": true
+                                },
+                                "moderation": {
+                                  "type": "boolean",
+                                  "const": true
+                                },
+                                "safety": {
+                                  "type": "boolean",
+                                  "const": true
+                                },
+                                "activity": {
+                                  "type": "boolean",
+                                  "const": true
+                                }
+                              },
+                              "required": [
+                                "guidelines",
+                                "moderation",
+                                "safety",
+                                "activity"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "submitted",
+                                "approved",
+                                "declined"
+                              ]
+                            },
+                            "rev": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "submittedAt": {
+                              "type": "number"
+                            },
+                            "reviewedAt": {
+                              "type": [
+                                "number",
+                                "null"
+                              ]
+                            },
+                            "reviewNote": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "orgId",
+                            "statement",
+                            "checklist",
+                            "status",
+                            "rev",
+                            "submittedAt",
+                            "reviewedAt",
+                            "reviewNote"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "application"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, stale_revision, conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://admin.meldiq.app"
+          }
+        ],
+        "description": "Console cookie authentication only. App bearer tokens are rejected. Mutations require the exact console Origin; sensitive operations require a recent passkey verification.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "baseRev": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "approved",
+                      "declined"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 10,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "baseRev",
+                  "status",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/v3/auth/legacy-link": {
       "post": {
         "tags": [
@@ -1380,6 +2063,48 @@
                     "profileStyle": {
                       "type": "object",
                       "properties": {
+                        "layout": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "order": {
+                                  "minItems": 3,
+                                  "maxItems": 3,
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "about",
+                                      "links",
+                                      "connections"
+                                    ]
+                                  }
+                                },
+                                "hidden": {
+                                  "maxItems": 3,
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "about",
+                                      "links",
+                                      "connections"
+                                    ]
+                                  }
+                                }
+                              },
+                              "required": [
+                                "order",
+                                "hidden"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "collectibles": {
                           "maxItems": 8,
                           "type": "array",
@@ -1646,6 +2371,48 @@
                     "profileStyle": {
                       "type": "object",
                       "properties": {
+                        "layout": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "order": {
+                                  "minItems": 3,
+                                  "maxItems": 3,
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "about",
+                                      "links",
+                                      "connections"
+                                    ]
+                                  }
+                                },
+                                "hidden": {
+                                  "maxItems": 3,
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "about",
+                                      "links",
+                                      "connections"
+                                    ]
+                                  }
+                                }
+                              },
+                              "required": [
+                                "order",
+                                "hidden"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "collectibles": {
                           "maxItems": 8,
                           "type": "array",
@@ -9806,7 +10573,19 @@
                             ]
                           },
                           "targetUserId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "targetCommunityId": {
                             "type": "string"
+                          },
+                          "communityNote": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
                           },
                           "reason": {
                             "type": "string"
@@ -9815,7 +10594,8 @@
                             "type": "string",
                             "enum": [
                               "message",
-                              "profile"
+                              "profile",
+                              "community"
                             ]
                           },
                           "messageId": {
@@ -10051,7 +10831,19 @@
                           ]
                         },
                         "targetUserId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "targetCommunityId": {
                           "type": "string"
+                        },
+                        "communityNote": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
                         },
                         "reason": {
                           "type": "string"
@@ -10060,7 +10852,8 @@
                           "type": "string",
                           "enum": [
                             "message",
-                            "profile"
+                            "profile",
+                            "community"
                           ]
                         },
                         "messageId": {
@@ -10242,7 +11035,19 @@
                           ]
                         },
                         "targetUserId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "targetCommunityId": {
                           "type": "string"
+                        },
+                        "communityNote": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
                         },
                         "reason": {
                           "type": "string"
@@ -10251,7 +11056,8 @@
                           "type": "string",
                           "enum": [
                             "message",
-                            "profile"
+                            "profile",
+                            "community"
                           ]
                         },
                         "messageId": {
@@ -12787,10 +13593,10 @@
           {
             "name": "q",
             "in": "query",
-            "required": true,
+            "required": false,
             "schema": {
+              "default": "",
               "type": "string",
-              "minLength": 1,
               "maxLength": 200
             }
           },
@@ -12801,6 +13607,107 @@
             "schema": {
               "type": "string",
               "maxLength": 64
+            }
+          },
+          {
+            "name": "orgId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "mentions",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "in",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "has",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(image|video|file|link)(,(image|video|file|link))*$"
+            }
+          },
+          {
+            "name": "pinned",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "cursorTs",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "cursorId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_-]+$"
             }
           },
           {
@@ -12891,6 +13798,106 @@
                         ],
                         "additionalProperties": false
                       }
+                    },
+                    "changes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "conversationId": {
+                            "type": "string"
+                          },
+                          "senderUserId": {
+                            "type": "string"
+                          },
+                          "senderDeviceId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "cls": {
+                            "type": "string",
+                            "enum": [
+                              "message",
+                              "control"
+                            ]
+                          },
+                          "payload": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          },
+                          "sentAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "serverTs": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "mentionAll": {
+                            "type": "boolean"
+                          },
+                          "importedBy": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "conversationId",
+                          "senderUserId",
+                          "senderDeviceId",
+                          "cls",
+                          "payload",
+                          "sentAt",
+                          "serverTs",
+                          "mentionAll",
+                          "importedBy"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "more": {
+                      "type": "boolean"
+                    },
+                    "nextCursor": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "serverTs": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "id": {
+                              "type": "string",
+                              "minLength": 8,
+                              "maxLength": 64,
+                              "pattern": "^[A-Za-z0-9_-]+$"
+                            }
+                          },
+                          "required": [
+                            "serverTs",
+                            "id"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -12932,7 +13939,51 @@
                 "media",
                 "files",
                 "threads",
-                "thread"
+                "thread",
+                "forum"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "latest",
+                "newest"
+              ]
+            }
+          },
+          {
+            "name": "tags",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 1299,
+              "pattern": "^[A-Za-z0-9_-]{1,64}(,[A-Za-z0-9_-]{1,64}){0,19}$"
+            }
+          },
+          {
+            "name": "match",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "any",
+                "all"
               ]
             }
           },
@@ -24300,6 +25351,48 @@
                         "profileStyle": {
                           "type": "object",
                           "properties": {
+                            "layout": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "order": {
+                                      "minItems": 3,
+                                      "maxItems": 3,
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string",
+                                        "enum": [
+                                          "about",
+                                          "links",
+                                          "connections"
+                                        ]
+                                      }
+                                    },
+                                    "hidden": {
+                                      "maxItems": 3,
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string",
+                                        "enum": [
+                                          "about",
+                                          "links",
+                                          "connections"
+                                        ]
+                                      }
+                                    }
+                                  },
+                                  "required": [
+                                    "order",
+                                    "hidden"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
                             "collectibles": {
                               "maxItems": 8,
                               "type": "array",
@@ -24971,6 +26064,48 @@
                         "profileStyle": {
                           "type": "object",
                           "properties": {
+                            "layout": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "order": {
+                                      "minItems": 3,
+                                      "maxItems": 3,
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string",
+                                        "enum": [
+                                          "about",
+                                          "links",
+                                          "connections"
+                                        ]
+                                      }
+                                    },
+                                    "hidden": {
+                                      "maxItems": 3,
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string",
+                                        "enum": [
+                                          "about",
+                                          "links",
+                                          "connections"
+                                        ]
+                                      }
+                                    }
+                                  },
+                                  "required": [
+                                    "order",
+                                    "hidden"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
                             "collectibles": {
                               "maxItems": 8,
                               "type": "array",
@@ -26507,6 +27642,48 @@
                     "profileStyle": {
                       "type": "object",
                       "properties": {
+                        "layout": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "order": {
+                                  "minItems": 3,
+                                  "maxItems": 3,
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "about",
+                                      "links",
+                                      "connections"
+                                    ]
+                                  }
+                                },
+                                "hidden": {
+                                  "maxItems": 3,
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "about",
+                                      "links",
+                                      "connections"
+                                    ]
+                                  }
+                                }
+                              },
+                              "required": [
+                                "order",
+                                "hidden"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "collectibles": {
                           "maxItems": 8,
                           "type": "array",
@@ -26763,6 +27940,48 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "layout": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "order": {
+                            "minItems": 3,
+                            "maxItems": 3,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "about",
+                                "links",
+                                "connections"
+                              ]
+                            }
+                          },
+                          "hidden": {
+                            "maxItems": 3,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "about",
+                                "links",
+                                "connections"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "order",
+                          "hidden"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "baseStyleRevision": {
                     "type": "string",
                     "pattern": "^[a-f0-9]{64}$"
@@ -27262,6 +28481,48 @@
                         "profileStyle": {
                           "type": "object",
                           "properties": {
+                            "layout": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "order": {
+                                      "minItems": 3,
+                                      "maxItems": 3,
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string",
+                                        "enum": [
+                                          "about",
+                                          "links",
+                                          "connections"
+                                        ]
+                                      }
+                                    },
+                                    "hidden": {
+                                      "maxItems": 3,
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string",
+                                        "enum": [
+                                          "about",
+                                          "links",
+                                          "connections"
+                                        ]
+                                      }
+                                    }
+                                  },
+                                  "required": [
+                                    "order",
+                                    "hidden"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
                             "collectibles": {
                               "maxItems": 8,
                               "type": "array",
@@ -30476,6 +31737,12 @@
                             "type": "integer",
                             "minimum": 0,
                             "maximum": 9007199254740991
+                          },
+                          "note": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
                           }
                         },
                         "required": [
@@ -30550,6 +31817,12 @@
                             "type": "integer",
                             "minimum": 0,
                             "maximum": 9007199254740991
+                          },
+                          "note": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
                           }
                         },
                         "required": [
@@ -30644,6 +31917,10 @@
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 64
+                      },
+                      "note": {
+                        "type": "string",
+                        "maxLength": 1200
                       }
                     },
                     "required": [
@@ -30658,6 +31935,10 @@
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 64
+                      },
+                      "note": {
+                        "type": "string",
+                        "maxLength": 1200
                       }
                     },
                     "required": [
@@ -31504,6 +32785,24 @@
                         "communityThemes": {
                           "type": "boolean"
                         },
+                        "quickReactions": {
+                          "minItems": 3,
+                          "maxItems": 5,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "👍",
+                              "❤️",
+                              "✅",
+                              "😂",
+                              "🔥",
+                              "🙏",
+                              "🎉",
+                              "👀"
+                            ]
+                          }
+                        },
                         "expressionFavorites": {
                           "maxItems": 100,
                           "type": "array",
@@ -31918,6 +33217,24 @@
                         "communityThemes": {
                           "type": "boolean"
                         },
+                        "quickReactions": {
+                          "minItems": 3,
+                          "maxItems": 5,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "👍",
+                              "❤️",
+                              "✅",
+                              "😂",
+                              "🔥",
+                              "🙏",
+                              "🎉",
+                              "👀"
+                            ]
+                          }
+                        },
                         "expressionFavorites": {
                           "maxItems": 100,
                           "type": "array",
@@ -32286,6 +33603,24 @@
                       },
                       "communityThemes": {
                         "type": "boolean"
+                      },
+                      "quickReactions": {
+                        "minItems": 3,
+                        "maxItems": 5,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": [
+                            "👍",
+                            "❤️",
+                            "✅",
+                            "😂",
+                            "🔥",
+                            "🙏",
+                            "🎉",
+                            "👀"
+                          ]
+                        }
                       },
                       "expressionFavorites": {
                         "maxItems": 100,
@@ -36085,6 +37420,34 @@
                               "string",
                               "null"
                             ]
+                          },
+                          "iconExpression": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "orgId": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "sha256": {
+                                "type": "string"
+                              },
+                              "animated": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "orgId",
+                              "name",
+                              "sha256",
+                              "animated"
+                            ],
+                            "additionalProperties": false
                           }
                         },
                         "required": [
@@ -37304,6 +38667,50 @@
               "type": "string",
               "maxLength": 40
             }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "OWNER",
+                "ADMIN",
+                "MEMBER",
+                "GUEST"
+              ]
+            }
+          },
+          {
+            "name": "roleId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 1024
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500
+            }
           }
         ],
         "responses": {
@@ -37438,6 +38845,48 @@
                           "profileStyle": {
                             "type": "object",
                             "properties": {
+                              "layout": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "order": {
+                                        "minItems": 3,
+                                        "maxItems": 3,
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "enum": [
+                                            "about",
+                                            "links",
+                                            "connections"
+                                          ]
+                                        }
+                                      },
+                                      "hidden": {
+                                        "maxItems": 3,
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "enum": [
+                                            "about",
+                                            "links",
+                                            "connections"
+                                          ]
+                                        }
+                                      }
+                                    },
+                                    "required": [
+                                      "order",
+                                      "hidden"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
                               "collectibles": {
                                 "maxItems": 8,
                                 "type": "array",
@@ -37775,6 +39224,34 @@
                                     "null"
                                   ]
                                 },
+                                "iconExpression": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "orgId": {
+                                      "type": "string"
+                                    },
+                                    "name": {
+                                      "type": "string"
+                                    },
+                                    "sha256": {
+                                      "type": "string"
+                                    },
+                                    "animated": {
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "orgId",
+                                    "name",
+                                    "sha256",
+                                    "animated"
+                                  ],
+                                  "additionalProperties": false
+                                },
                                 "hoist": {
                                   "type": "boolean",
                                   "const": true
@@ -37823,6 +39300,22 @@
                         ],
                         "additionalProperties": false
                       }
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "ownerCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "nextAfter": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
@@ -38770,6 +40263,34 @@
                                 "string",
                                 "null"
                               ]
+                            },
+                            "iconExpression": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "orgId": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "sha256": {
+                                  "type": "string"
+                                },
+                                "animated": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "orgId",
+                                "name",
+                                "sha256",
+                                "animated"
+                              ],
+                              "additionalProperties": false
                             }
                           },
                           "required": [
@@ -39723,6 +41244,9 @@
                               },
                               "name": {
                                 "type": "string"
+                              },
+                              "restricted": {
+                                "type": "boolean"
                               }
                             },
                             "required": [
@@ -39731,6 +41255,9 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        "requireForumTag": {
+                          "type": "boolean"
                         },
                         "guidelines": {
                           "type": [
@@ -39926,6 +41453,48 @@
                               "profileStyle": {
                                 "type": "object",
                                 "properties": {
+                                  "layout": {
+                                    "anyOf": [
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "order": {
+                                            "minItems": 3,
+                                            "maxItems": 3,
+                                            "type": "array",
+                                            "items": {
+                                              "type": "string",
+                                              "enum": [
+                                                "about",
+                                                "links",
+                                                "connections"
+                                              ]
+                                            }
+                                          },
+                                          "hidden": {
+                                            "maxItems": 3,
+                                            "type": "array",
+                                            "items": {
+                                              "type": "string",
+                                              "enum": [
+                                                "about",
+                                                "links",
+                                                "connections"
+                                              ]
+                                            }
+                                          }
+                                        },
+                                        "required": [
+                                          "order",
+                                          "hidden"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
                                   "collectibles": {
                                     "maxItems": 8,
                                     "type": "array",
@@ -40729,6 +42298,9 @@
                                 },
                                 "name": {
                                   "type": "string"
+                                },
+                                "restricted": {
+                                  "type": "boolean"
                                 }
                               },
                               "required": [
@@ -40737,6 +42309,9 @@
                               ],
                               "additionalProperties": false
                             }
+                          },
+                          "requireForumTag": {
+                            "type": "boolean"
                           },
                           "guidelines": {
                             "type": [
@@ -40932,6 +42507,48 @@
                                 "profileStyle": {
                                   "type": "object",
                                   "properties": {
+                                    "layout": {
+                                      "anyOf": [
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "order": {
+                                              "minItems": 3,
+                                              "maxItems": 3,
+                                              "type": "array",
+                                              "items": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "about",
+                                                  "links",
+                                                  "connections"
+                                                ]
+                                              }
+                                            },
+                                            "hidden": {
+                                              "maxItems": 3,
+                                              "type": "array",
+                                              "items": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "about",
+                                                  "links",
+                                                  "connections"
+                                                ]
+                                              }
+                                            }
+                                          },
+                                          "required": [
+                                            "order",
+                                            "hidden"
+                                          ],
+                                          "additionalProperties": false
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
                                     "collectibles": {
                                       "maxItems": 8,
                                       "type": "array",
@@ -41584,6 +43201,100 @@
         ]
       }
     },
+    "/v1/roles/{roleId}/members/bulk": {
+      "post": {
+        "tags": [
+          "roles"
+        ],
+        "summary": "Atomically assign or remove a role for up to 50 explicitly selected eligible members; owners stay protected.",
+        "operationId": "postV1RolesRoleIdMembersBulk",
+        "parameters": [
+          {
+            "name": "roleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "changed": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "changed"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "userIds": {
+                    "minItems": 1,
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    }
+                  },
+                  "add": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "userIds",
+                  "add"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/orgs/{orgId}/roles": {
       "get": {
         "tags": [
@@ -41634,6 +43345,7 @@
                               "workspace.usage.view",
                               "workspace.delete",
                               "workspace.transfer",
+                              "events.manage",
                               "members.view",
                               "members.invite",
                               "members.invites.manage",
@@ -41764,6 +43476,7 @@
                                 "workspace.usage.view",
                                 "workspace.delete",
                                 "workspace.transfer",
+                                "events.manage",
                                 "members.view",
                                 "members.invite",
                                 "members.invites.manage",
@@ -41819,6 +43532,7 @@
                                 "workspace.usage.view",
                                 "workspace.delete",
                                 "workspace.transfer",
+                                "events.manage",
                                 "members.view",
                                 "members.invite",
                                 "members.invites.manage",
@@ -41922,6 +43636,7 @@
                                 "workspace.usage.view",
                                 "workspace.delete",
                                 "workspace.transfer",
+                                "events.manage",
                                 "members.view",
                                 "members.invite",
                                 "members.invites.manage",
@@ -42026,6 +43741,7 @@
                                 "workspace.usage.view",
                                 "workspace.delete",
                                 "workspace.transfer",
+                                "events.manage",
                                 "members.view",
                                 "members.invite",
                                 "members.invites.manage",
@@ -42081,6 +43797,7 @@
                                 "workspace.usage.view",
                                 "workspace.delete",
                                 "workspace.transfer",
+                                "events.manage",
                                 "members.view",
                                 "members.invite",
                                 "members.invites.manage",
@@ -42188,6 +43905,12 @@
                           "extras": {
                             "type": "object",
                             "properties": {
+                              "iconExpressionId": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
                               "color2": {
                                 "type": [
                                   "string",
@@ -42313,6 +44036,7 @@
                               "workspace.usage.view",
                               "workspace.delete",
                               "workspace.transfer",
+                              "events.manage",
                               "members.view",
                               "members.invite",
                               "members.invites.manage",
@@ -42390,6 +44114,7 @@
                               "workspace.usage.view",
                               "workspace.delete",
                               "workspace.transfer",
+                              "events.manage",
                               "members.view",
                               "members.invite",
                               "members.invites.manage",
@@ -42445,6 +44170,7 @@
                               "workspace.usage.view",
                               "workspace.delete",
                               "workspace.transfer",
+                              "events.manage",
                               "members.view",
                               "members.invite",
                               "members.invites.manage",
@@ -42500,6 +44226,7 @@
                               "workspace.usage.view",
                               "workspace.delete",
                               "workspace.transfer",
+                              "events.manage",
                               "members.view",
                               "members.invite",
                               "members.invites.manage",
@@ -42664,6 +44391,7 @@
                               "workspace.usage.view",
                               "workspace.delete",
                               "workspace.transfer",
+                              "events.manage",
                               "members.view",
                               "members.invite",
                               "members.invites.manage",
@@ -42719,6 +44447,7 @@
                               "workspace.usage.view",
                               "workspace.delete",
                               "workspace.transfer",
+                              "events.manage",
                               "members.view",
                               "members.invite",
                               "members.invites.manage",
@@ -42826,6 +44555,12 @@
                         "extras": {
                           "type": "object",
                           "properties": {
+                            "iconExpressionId": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
                             "color2": {
                               "type": [
                                 "string",
@@ -43072,6 +44807,7 @@
                               "workspace.usage.view",
                               "workspace.delete",
                               "workspace.transfer",
+                              "events.manage",
                               "members.view",
                               "members.invite",
                               "members.invites.manage",
@@ -43127,6 +44863,7 @@
                               "workspace.usage.view",
                               "workspace.delete",
                               "workspace.transfer",
+                              "events.manage",
                               "members.view",
                               "members.invite",
                               "members.invites.manage",
@@ -43234,6 +44971,12 @@
                         "extras": {
                           "type": "object",
                           "properties": {
+                            "iconExpressionId": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
                             "color2": {
                               "type": [
                                 "string",
@@ -43620,6 +45363,7 @@
                           "workspace.usage.view",
                           "workspace.delete",
                           "workspace.transfer",
+                          "events.manage",
                           "members.view",
                           "members.invite",
                           "members.invites.manage",
@@ -43740,6 +45484,7 @@
                           "workspace.usage.view",
                           "workspace.delete",
                           "workspace.transfer",
+                          "events.manage",
                           "members.view",
                           "members.invite",
                           "members.invites.manage",
@@ -43874,6 +45619,34 @@
                               "string",
                               "null"
                             ]
+                          },
+                          "iconExpression": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "orgId": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "sha256": {
+                                "type": "string"
+                              },
+                              "animated": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "orgId",
+                              "name",
+                              "sha256",
+                              "animated"
+                            ],
+                            "additionalProperties": false
                           }
                         },
                         "required": [
@@ -43893,6 +45666,7 @@
                           "workspace.usage.view",
                           "workspace.delete",
                           "workspace.transfer",
+                          "events.manage",
                           "members.view",
                           "members.invite",
                           "members.invites.manage",
@@ -43960,6 +45734,7 @@
                           "workspace.usage.view",
                           "workspace.delete",
                           "workspace.transfer",
+                          "events.manage",
                           "members.view",
                           "members.invite",
                           "members.invites.manage",
@@ -44655,6 +46430,67 @@
                               "string",
                               "null"
                             ]
+                          },
+                          "changes": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "field": {
+                                  "type": "string"
+                                },
+                                "before": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "boolean"
+                                    },
+                                    {
+                                      "type": "null"
+                                    },
+                                    {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  ]
+                                },
+                                "after": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "boolean"
+                                    },
+                                    {
+                                      "type": "null"
+                                    },
+                                    {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "field",
+                                "before",
+                                "after"
+                              ],
+                              "additionalProperties": false
+                            }
                           }
                         },
                         "required": [
@@ -45069,6 +46905,7 @@
                               "workspace.usage.view",
                               "workspace.delete",
                               "workspace.transfer",
+                              "events.manage",
                               "members.view",
                               "members.invite",
                               "members.invites.manage",
@@ -45124,6 +46961,7 @@
                               "workspace.usage.view",
                               "workspace.delete",
                               "workspace.transfer",
+                              "events.manage",
                               "members.view",
                               "members.invite",
                               "members.invites.manage",
@@ -45179,6 +47017,7 @@
                               "workspace.usage.view",
                               "workspace.delete",
                               "workspace.transfer",
+                              "events.manage",
                               "members.view",
                               "members.invite",
                               "members.invites.manage",
@@ -45432,6 +47271,12 @@
                     "extras": {
                       "type": "object",
                       "properties": {
+                        "iconExpressionId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
                         "color2": {
                           "type": [
                             "string",
@@ -45518,6 +47363,18 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "iconExpressionId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "color2": {
                     "anyOf": [
                       {
@@ -55055,6 +56912,30 @@
                             "additionalProperties": false
                           }
                         },
+                        "phoneOrder": {
+                          "minItems": 11,
+                          "maxItems": 11,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "about",
+                              "main_channels",
+                              "live_now",
+                              "giveaways",
+                              "feed",
+                              "faq",
+                              "leaderboard",
+                              "pick_roles",
+                              "rules",
+                              "who_runs_it",
+                              "links"
+                            ]
+                          }
+                        },
+                        "ordersLinked": {
+                          "type": "boolean"
+                        },
                         "leaderboards": {
                           "type": "array",
                           "items": {
@@ -55848,6 +57729,30 @@
                             "additionalProperties": false
                           }
                         },
+                        "phoneOrder": {
+                          "minItems": 11,
+                          "maxItems": 11,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "about",
+                              "main_channels",
+                              "live_now",
+                              "giveaways",
+                              "feed",
+                              "faq",
+                              "leaderboard",
+                              "pick_roles",
+                              "rules",
+                              "who_runs_it",
+                              "links"
+                            ]
+                          }
+                        },
+                        "ordersLinked": {
+                          "type": "boolean"
+                        },
                         "leaderboards": {
                           "type": "array",
                           "items": {
@@ -56180,6 +58085,30 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        "phoneOrder": {
+                          "minItems": 11,
+                          "maxItems": 11,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "about",
+                              "main_channels",
+                              "live_now",
+                              "giveaways",
+                              "feed",
+                              "faq",
+                              "leaderboard",
+                              "pick_roles",
+                              "rules",
+                              "who_runs_it",
+                              "links"
+                            ]
+                          }
+                        },
+                        "ordersLinked": {
+                          "type": "boolean"
                         },
                         "leaderboards": {
                           "type": "array",
@@ -56520,6 +58449,30 @@
                       "additionalProperties": false
                     }
                   },
+                  "phoneOrder": {
+                    "minItems": 11,
+                    "maxItems": 11,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "about",
+                        "main_channels",
+                        "live_now",
+                        "giveaways",
+                        "feed",
+                        "faq",
+                        "leaderboard",
+                        "pick_roles",
+                        "rules",
+                        "who_runs_it",
+                        "links"
+                      ]
+                    }
+                  },
+                  "ordersLinked": {
+                    "type": "boolean"
+                  },
                   "leaderboards": {
                     "minItems": 1,
                     "maxItems": 3,
@@ -56767,6 +58720,30 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        "phoneOrder": {
+                          "minItems": 11,
+                          "maxItems": 11,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "about",
+                              "main_channels",
+                              "live_now",
+                              "giveaways",
+                              "feed",
+                              "faq",
+                              "leaderboard",
+                              "pick_roles",
+                              "rules",
+                              "who_runs_it",
+                              "links"
+                            ]
+                          }
+                        },
+                        "ordersLinked": {
+                          "type": "boolean"
                         },
                         "leaderboards": {
                           "type": "array",
@@ -57355,6 +59332,124 @@
                     ]
                   }
                 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/orgs/{orgId}/report": {
+      "post": {
+        "tags": [
+          "reports"
+        ],
+        "summary": "Privately report this community to Meldiq operators; repeat submissions return the first receipt.",
+        "operationId": "postV1OrgsOrgIdReport",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "open",
+                            "actioned",
+                            "dismissed"
+                          ]
+                        },
+                        "to": {
+                          "type": "string",
+                          "enum": [
+                            "community",
+                            "meldiq"
+                          ]
+                        },
+                        "repeated": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "status",
+                        "to",
+                        "repeated"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "report"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, report_limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "spam",
+                      "harassment",
+                      "harmful",
+                      "private_info",
+                      "illegal",
+                      "other"
+                    ]
+                  },
+                  "note": {
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "reason"
+                ],
+                "additionalProperties": false
               }
             }
           }
@@ -66001,6 +68096,9 @@
                                 },
                                 "name": {
                                   "type": "string"
+                                },
+                                "restricted": {
+                                  "type": "boolean"
                                 }
                               },
                               "required": [
@@ -66009,6 +68107,9 @@
                               ],
                               "additionalProperties": false
                             }
+                          },
+                          "requireForumTag": {
+                            "type": "boolean"
                           },
                           "guidelines": {
                             "type": [
@@ -66204,6 +68305,48 @@
                                 "profileStyle": {
                                   "type": "object",
                                   "properties": {
+                                    "layout": {
+                                      "anyOf": [
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "order": {
+                                              "minItems": 3,
+                                              "maxItems": 3,
+                                              "type": "array",
+                                              "items": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "about",
+                                                  "links",
+                                                  "connections"
+                                                ]
+                                              }
+                                            },
+                                            "hidden": {
+                                              "maxItems": 3,
+                                              "type": "array",
+                                              "items": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "about",
+                                                  "links",
+                                                  "connections"
+                                                ]
+                                              }
+                                            }
+                                          },
+                                          "required": [
+                                            "order",
+                                            "hidden"
+                                          ],
+                                          "additionalProperties": false
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
                                     "collectibles": {
                                       "maxItems": 8,
                                       "type": "array",
@@ -66959,6 +69102,9 @@
                               },
                               "name": {
                                 "type": "string"
+                              },
+                              "restricted": {
+                                "type": "boolean"
                               }
                             },
                             "required": [
@@ -66967,6 +69113,9 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        "requireForumTag": {
+                          "type": "boolean"
                         },
                         "guidelines": {
                           "type": [
@@ -67162,6 +69311,48 @@
                               "profileStyle": {
                                 "type": "object",
                                 "properties": {
+                                  "layout": {
+                                    "anyOf": [
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "order": {
+                                            "minItems": 3,
+                                            "maxItems": 3,
+                                            "type": "array",
+                                            "items": {
+                                              "type": "string",
+                                              "enum": [
+                                                "about",
+                                                "links",
+                                                "connections"
+                                              ]
+                                            }
+                                          },
+                                          "hidden": {
+                                            "maxItems": 3,
+                                            "type": "array",
+                                            "items": {
+                                              "type": "string",
+                                              "enum": [
+                                                "about",
+                                                "links",
+                                                "connections"
+                                              ]
+                                            }
+                                          }
+                                        },
+                                        "required": [
+                                          "order",
+                                          "hidden"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
                                   "collectibles": {
                                     "maxItems": 8,
                                     "type": "array",
@@ -67857,6 +70048,9 @@
                               },
                               "name": {
                                 "type": "string"
+                              },
+                              "restricted": {
+                                "type": "boolean"
                               }
                             },
                             "required": [
@@ -67865,6 +70059,9 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        "requireForumTag": {
+                          "type": "boolean"
                         },
                         "guidelines": {
                           "type": [
@@ -68060,6 +70257,48 @@
                               "profileStyle": {
                                 "type": "object",
                                 "properties": {
+                                  "layout": {
+                                    "anyOf": [
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "order": {
+                                            "minItems": 3,
+                                            "maxItems": 3,
+                                            "type": "array",
+                                            "items": {
+                                              "type": "string",
+                                              "enum": [
+                                                "about",
+                                                "links",
+                                                "connections"
+                                              ]
+                                            }
+                                          },
+                                          "hidden": {
+                                            "maxItems": 3,
+                                            "type": "array",
+                                            "items": {
+                                              "type": "string",
+                                              "enum": [
+                                                "about",
+                                                "links",
+                                                "connections"
+                                              ]
+                                            }
+                                          }
+                                        },
+                                        "required": [
+                                          "order",
+                                          "hidden"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
                                   "collectibles": {
                                     "maxItems": 8,
                                     "type": "array",
@@ -68655,12 +70894,18 @@
                         "name": {
                           "type": "string",
                           "maxLength": 20
+                        },
+                        "restricted": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
                         "name"
                       ]
                     }
+                  },
+                  "requireForumTag": {
+                    "type": "boolean"
                   },
                   "guidelines": {
                     "anyOf": [
@@ -68953,6 +71198,48 @@
                           "profileStyle": {
                             "type": "object",
                             "properties": {
+                              "layout": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "order": {
+                                        "minItems": 3,
+                                        "maxItems": 3,
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "enum": [
+                                            "about",
+                                            "links",
+                                            "connections"
+                                          ]
+                                        }
+                                      },
+                                      "hidden": {
+                                        "maxItems": 3,
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "enum": [
+                                            "about",
+                                            "links",
+                                            "connections"
+                                          ]
+                                        }
+                                      }
+                                    },
+                                    "required": [
+                                      "order",
+                                      "hidden"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
                               "collectibles": {
                                 "maxItems": 8,
                                 "type": "array",
@@ -69548,6 +71835,9 @@
                               },
                               "name": {
                                 "type": "string"
+                              },
+                              "restricted": {
+                                "type": "boolean"
                               }
                             },
                             "required": [
@@ -69556,6 +71846,9 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        "requireForumTag": {
+                          "type": "boolean"
                         },
                         "guidelines": {
                           "type": [
@@ -69751,6 +72044,48 @@
                               "profileStyle": {
                                 "type": "object",
                                 "properties": {
+                                  "layout": {
+                                    "anyOf": [
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "order": {
+                                            "minItems": 3,
+                                            "maxItems": 3,
+                                            "type": "array",
+                                            "items": {
+                                              "type": "string",
+                                              "enum": [
+                                                "about",
+                                                "links",
+                                                "connections"
+                                              ]
+                                            }
+                                          },
+                                          "hidden": {
+                                            "maxItems": 3,
+                                            "type": "array",
+                                            "items": {
+                                              "type": "string",
+                                              "enum": [
+                                                "about",
+                                                "links",
+                                                "connections"
+                                              ]
+                                            }
+                                          }
+                                        },
+                                        "required": [
+                                          "order",
+                                          "hidden"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
                                   "collectibles": {
                                     "maxItems": 8,
                                     "type": "array",
@@ -70626,6 +72961,9 @@
                               },
                               "name": {
                                 "type": "string"
+                              },
+                              "restricted": {
+                                "type": "boolean"
                               }
                             },
                             "required": [
@@ -70634,6 +72972,9 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        "requireForumTag": {
+                          "type": "boolean"
                         },
                         "guidelines": {
                           "type": [
@@ -70829,6 +73170,48 @@
                               "profileStyle": {
                                 "type": "object",
                                 "properties": {
+                                  "layout": {
+                                    "anyOf": [
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "order": {
+                                            "minItems": 3,
+                                            "maxItems": 3,
+                                            "type": "array",
+                                            "items": {
+                                              "type": "string",
+                                              "enum": [
+                                                "about",
+                                                "links",
+                                                "connections"
+                                              ]
+                                            }
+                                          },
+                                          "hidden": {
+                                            "maxItems": 3,
+                                            "type": "array",
+                                            "items": {
+                                              "type": "string",
+                                              "enum": [
+                                                "about",
+                                                "links",
+                                                "connections"
+                                              ]
+                                            }
+                                          }
+                                        },
+                                        "required": [
+                                          "order",
+                                          "hidden"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
                                   "collectibles": {
                                     "maxItems": 8,
                                     "type": "array",
@@ -71520,6 +73903,9 @@
                               },
                               "name": {
                                 "type": "string"
+                              },
+                              "restricted": {
+                                "type": "boolean"
                               }
                             },
                             "required": [
@@ -71528,6 +73914,9 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        "requireForumTag": {
+                          "type": "boolean"
                         },
                         "guidelines": {
                           "type": [
@@ -71723,6 +74112,48 @@
                               "profileStyle": {
                                 "type": "object",
                                 "properties": {
+                                  "layout": {
+                                    "anyOf": [
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "order": {
+                                            "minItems": 3,
+                                            "maxItems": 3,
+                                            "type": "array",
+                                            "items": {
+                                              "type": "string",
+                                              "enum": [
+                                                "about",
+                                                "links",
+                                                "connections"
+                                              ]
+                                            }
+                                          },
+                                          "hidden": {
+                                            "maxItems": 3,
+                                            "type": "array",
+                                            "items": {
+                                              "type": "string",
+                                              "enum": [
+                                                "about",
+                                                "links",
+                                                "connections"
+                                              ]
+                                            }
+                                          }
+                                        },
+                                        "required": [
+                                          "order",
+                                          "hidden"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
                                   "collectibles": {
                                     "maxItems": 8,
                                     "type": "array",
@@ -72666,6 +75097,9 @@
                                         },
                                         "name": {
                                           "type": "string"
+                                        },
+                                        "restricted": {
+                                          "type": "boolean"
                                         }
                                       },
                                       "required": [
@@ -72674,6 +75108,9 @@
                                       ],
                                       "additionalProperties": false
                                     }
+                                  },
+                                  "requireForumTag": {
+                                    "type": "boolean"
                                   },
                                   "guidelines": {
                                     "type": [
@@ -72869,6 +75306,48 @@
                                         "profileStyle": {
                                           "type": "object",
                                           "properties": {
+                                            "layout": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "order": {
+                                                      "minItems": 3,
+                                                      "maxItems": 3,
+                                                      "type": "array",
+                                                      "items": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                          "about",
+                                                          "links",
+                                                          "connections"
+                                                        ]
+                                                      }
+                                                    },
+                                                    "hidden": {
+                                                      "maxItems": 3,
+                                                      "type": "array",
+                                                      "items": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                          "about",
+                                                          "links",
+                                                          "connections"
+                                                        ]
+                                                      }
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "order",
+                                                    "hidden"
+                                                  ],
+                                                  "additionalProperties": false
+                                                },
+                                                {
+                                                  "type": "null"
+                                                }
+                                              ]
+                                            },
                                             "collectibles": {
                                               "maxItems": 8,
                                               "type": "array",
@@ -73549,6 +76028,9 @@
                                         },
                                         "name": {
                                           "type": "string"
+                                        },
+                                        "restricted": {
+                                          "type": "boolean"
                                         }
                                       },
                                       "required": [
@@ -73557,6 +76039,9 @@
                                       ],
                                       "additionalProperties": false
                                     }
+                                  },
+                                  "requireForumTag": {
+                                    "type": "boolean"
                                   },
                                   "guidelines": {
                                     "type": [
@@ -73752,6 +76237,48 @@
                                         "profileStyle": {
                                           "type": "object",
                                           "properties": {
+                                            "layout": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "order": {
+                                                      "minItems": 3,
+                                                      "maxItems": 3,
+                                                      "type": "array",
+                                                      "items": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                          "about",
+                                                          "links",
+                                                          "connections"
+                                                        ]
+                                                      }
+                                                    },
+                                                    "hidden": {
+                                                      "maxItems": 3,
+                                                      "type": "array",
+                                                      "items": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                          "about",
+                                                          "links",
+                                                          "connections"
+                                                        ]
+                                                      }
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "order",
+                                                    "hidden"
+                                                  ],
+                                                  "additionalProperties": false
+                                                },
+                                                {
+                                                  "type": "null"
+                                                }
+                                              ]
+                                            },
                                             "collectibles": {
                                               "maxItems": 8,
                                               "type": "array",
@@ -74313,6 +76840,597 @@
         ]
       }
     },
+    "/v1/meetings/{id}/cover": {
+      "put": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Replace or remove an authorized event cover at its current revision.",
+        "operationId": "putV1MeetingsIdCover",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "rev",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "meeting": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "orgId": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "description": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "room": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "name"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "externalLocation": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "visibilityChannel": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "occurrenceOverride": {
+                          "type": "boolean"
+                        },
+                        "startsAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "endsAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "timeZone": {
+                          "type": "string"
+                        },
+                        "organizer": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "participants": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "response": {
+                                "type": "string",
+                                "enum": [
+                                  "pending",
+                                  "accepted",
+                                  "declined",
+                                  "tentative"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name",
+                              "response"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "myResponse": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "pending",
+                                "accepted",
+                                "declined",
+                                "tentative"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "cancelled": {
+                          "type": "boolean"
+                        },
+                        "repeat": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "weekly",
+                                "biweekly",
+                                "monthly",
+                                "yearly"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "coverId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "canEdit": {
+                          "type": "boolean"
+                        },
+                        "rev": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "orgId",
+                        "title",
+                        "description",
+                        "room",
+                        "startsAt",
+                        "endsAt",
+                        "timeZone",
+                        "organizer",
+                        "participants",
+                        "myResponse",
+                        "cancelled",
+                        "repeat",
+                        "canEdit",
+                        "rev"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "meeting"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, stale_revision",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Replace or remove an authorized event cover at its current revision.",
+        "operationId": "deleteV1MeetingsIdCover",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "rev",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "meeting": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "orgId": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "description": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "room": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "name"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "externalLocation": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "visibilityChannel": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "occurrenceOverride": {
+                          "type": "boolean"
+                        },
+                        "startsAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "endsAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "timeZone": {
+                          "type": "string"
+                        },
+                        "organizer": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "participants": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "response": {
+                                "type": "string",
+                                "enum": [
+                                  "pending",
+                                  "accepted",
+                                  "declined",
+                                  "tentative"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name",
+                              "response"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "myResponse": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "pending",
+                                "accepted",
+                                "declined",
+                                "tentative"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "cancelled": {
+                          "type": "boolean"
+                        },
+                        "repeat": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "weekly",
+                                "biweekly",
+                                "monthly",
+                                "yearly"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "coverId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "canEdit": {
+                          "type": "boolean"
+                        },
+                        "rev": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "orgId",
+                        "title",
+                        "description",
+                        "room",
+                        "startsAt",
+                        "endsAt",
+                        "timeZone",
+                        "organizer",
+                        "participants",
+                        "myResponse",
+                        "cancelled",
+                        "repeat",
+                        "canEdit",
+                        "rev"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "meeting"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, stale_revision",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "get": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "An event cover, gated by current channel access.",
+        "operationId": "getV1MeetingsIdCover",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The bytes (or 302 to a storage URL)",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
     "/v1/orgs/{orgId}/meetings": {
       "get": {
         "tags": [
@@ -74404,6 +77522,34 @@
                                 "type": "null"
                               }
                             ]
+                          },
+                          "externalLocation": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "visibilityChannel": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "occurrenceOverride": {
+                            "type": "boolean"
                           },
                           "startsAt": {
                             "type": "integer",
@@ -74502,6 +77648,12 @@
                               {
                                 "type": "null"
                               }
+                            ]
+                          },
+                          "coverId": {
+                            "type": [
+                              "string",
+                              "null"
                             ]
                           },
                           "canEdit": {
@@ -74628,6 +77780,34 @@
                             }
                           ]
                         },
+                        "externalLocation": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "visibilityChannel": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "occurrenceOverride": {
+                          "type": "boolean"
+                        },
                         "startsAt": {
                           "type": "integer",
                           "minimum": 0,
@@ -74727,6 +77907,12 @@
                             }
                           ]
                         },
+                        "coverId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
                         "canEdit": {
                           "type": "boolean"
                         },
@@ -74790,6 +77976,18 @@
                   "roomId": {
                     "type": "string",
                     "maxLength": 64
+                  },
+                  "externalLocation": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "title": {
                     "type": "string",
@@ -74940,6 +78138,34 @@
                             }
                           ]
                         },
+                        "externalLocation": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "visibilityChannel": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "occurrenceOverride": {
+                          "type": "boolean"
+                        },
                         "startsAt": {
                           "type": "integer",
                           "minimum": 0,
@@ -75037,6 +78263,12 @@
                             {
                               "type": "null"
                             }
+                          ]
+                        },
+                        "coverId": {
+                          "type": [
+                            "string",
+                            "null"
                           ]
                         },
                         "canEdit": {
@@ -75162,6 +78394,34 @@
                             }
                           ]
                         },
+                        "externalLocation": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "visibilityChannel": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "occurrenceOverride": {
+                          "type": "boolean"
+                        },
                         "startsAt": {
                           "type": "integer",
                           "minimum": 0,
@@ -75261,6 +78521,12 @@
                             }
                           ]
                         },
+                        "coverId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
                         "canEdit": {
                           "type": "boolean"
                         },
@@ -75324,6 +78590,18 @@
                   "roomId": {
                     "type": "string",
                     "maxLength": 64
+                  },
+                  "externalLocation": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "title": {
                     "type": "string",
@@ -75394,6 +78672,14 @@
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 9007199254740991
+                  },
+                  "scope": {
+                    "default": "series",
+                    "type": "string",
+                    "enum": [
+                      "occurrence",
+                      "series"
+                    ]
                   }
                 },
                 "required": [
@@ -75415,7 +78701,7 @@
         "tags": [
           "meetings"
         ],
-        "summary": "Cancel a meeting (organizer or the room's managers).",
+        "summary": "Cancel a meeting or only its current occurrence (organizer or event managers).",
         "operationId": "postV1MeetingsIdCancel",
         "parameters": [
           {
@@ -75479,6 +78765,34 @@
                               "type": "null"
                             }
                           ]
+                        },
+                        "externalLocation": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "visibilityChannel": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "occurrenceOverride": {
+                          "type": "boolean"
                         },
                         "startsAt": {
                           "type": "integer",
@@ -75579,6 +78893,12 @@
                             }
                           ]
                         },
+                        "coverId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
                         "canEdit": {
                           "type": "boolean"
                         },
@@ -75631,7 +78951,32 @@
           {
             "bearer": []
           }
-        ]
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "scope": {
+                    "default": "series",
+                    "type": "string",
+                    "enum": [
+                      "occurrence",
+                      "series"
+                    ]
+                  },
+                  "rev": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/v1/meetings/{id}/respond": {
@@ -75704,6 +79049,34 @@
                             }
                           ]
                         },
+                        "externalLocation": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "visibilityChannel": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "occurrenceOverride": {
+                          "type": "boolean"
+                        },
                         "startsAt": {
                           "type": "integer",
                           "minimum": 0,
@@ -75803,6 +79176,12 @@
                             }
                           ]
                         },
+                        "coverId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
                         "canEdit": {
                           "type": "boolean"
                         },
@@ -75870,6 +79249,11 @@
                       "declined",
                       "tentative"
                     ]
+                  },
+                  "rev": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
                   }
                 },
                 "required": [

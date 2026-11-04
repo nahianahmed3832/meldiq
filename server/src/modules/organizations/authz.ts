@@ -1,8 +1,29 @@
-import type { Rows, RowWriter } from "../../infrastructure/database/rows/index.js";
-import { BASE_ROLE_PERMISSIONS, isPermission, type Permission, permissionDef } from "./permissions/catalog.js";
-import { type ChannelActor, channelPermissions, type Overwrite, parseCapabilities } from "./permissions/channel.js";
-import { type ChannelOptions, NO_CHANNEL_OPTIONS, readOnlyStops } from "./permissions/channelOptions.js";
-import { type Actor, effectivePermissions, type RoleGrant } from "./permissions/rules.js";
+import type {
+  Rows,
+  RowWriter,
+} from "../../infrastructure/database/rows/index.js";
+import {
+  BASE_ROLE_PERMISSIONS,
+  isPermission,
+  type Permission,
+  permissionDef,
+} from "./permissions/catalog.js";
+import {
+  type ChannelActor,
+  channelPermissions,
+  type Overwrite,
+  parseCapabilities,
+} from "./permissions/channel.js";
+import {
+  type ChannelOptions,
+  NO_CHANNEL_OPTIONS,
+  readOnlyStops,
+} from "./permissions/channelOptions.js";
+import {
+  type Actor,
+  effectivePermissions,
+  type RoleGrant,
+} from "./permissions/rules.js";
 import { forbidden, notFound } from "../../shared/errors.js";
 
 /**
@@ -12,7 +33,13 @@ import { forbidden, notFound } from "../../shared/errors.js";
  */
 
 /** What a timeout takes away in a community's channels. */
-export const TIMEOUT_TAKES: readonly Permission[] = ["messages.post", "messages.attach", "messages.announce", "voice.connect", "voice.speak"];
+export const TIMEOUT_TAKES: readonly Permission[] = [
+  "messages.post",
+  "messages.attach",
+  "messages.announce",
+  "voice.connect",
+  "voice.speak",
+];
 
 export type OrgRole = "OWNER" | "ADMIN" | "MEMBER" | "GUEST";
 
@@ -42,6 +69,7 @@ export interface ConversationRow {
   slowmode_sec?: number;
   /** A forum's tags, JSON [{id, name}] (migration 033). */
   forum_tags?: string | null;
+  forum_require_tag?: number;
 }
 
 /**
@@ -67,7 +95,11 @@ export interface AssignedRole extends RoleGrant {
 export function parsePermissionList(json: string): Permission[] {
   try {
     const v: unknown = JSON.parse(json);
-    return Array.isArray(v) ? v.filter((k): k is Permission => typeof k === "string" && isPermission(k)) : [];
+    return Array.isArray(v)
+      ? v.filter(
+          (k): k is Permission => typeof k === "string" && isPermission(k),
+        )
+      : [];
   } catch {
     return [];
   }
@@ -87,7 +119,8 @@ export class Authz {
   /** Community parity A1: the community's own defaults and channel options. Set by CommunityPermissions while it's on. */
   extras: AuthzExtras | null = null;
   /** Community parity A3: whether [userId] must finish [orgId]'s onboarding before posting. Set by CommunitySettings. */
-  mustFinishOnboarding: (orgId: string, userId: string) => boolean = () => false;
+  mustFinishOnboarding: (orgId: string, userId: string) => boolean = () =>
+    false;
   /** Community parity A3: whether custom invite links resolve (feature "community-settings"). Set by CommunitySettings. */
   inviteSlugsOn: () => boolean = () => false;
   /** Community parity A2 (feature "community-safety"): voice bans, server mutes and raid protection's slowmode. Set by CommunitySafety. */
@@ -101,16 +134,32 @@ export class Authz {
 
   /** The custom roles [userId] holds in [orgId] (archived roles grant and restrict nothing). */
   assignedRoles(orgId: string, userId: string): AssignedRole[] {
-    const roleIds = this.rows.all<{ role_id: string }>("org_role_members", { where: { org_id: orgId, user_id: userId } }).map((m) => m.role_id);
+    const roleIds = this.rows
+      .all<{ role_id: string }>("org_role_members", {
+        where: { org_id: orgId, user_id: userId },
+      })
+      .map((m) => m.role_id);
     if (roleIds.length === 0) return [];
-    const rows = this.rows.all<{ id: string; name: string; color: string | null; permissions: string; denies: string }>("org_roles", {
+    const rows = this.rows.all<{
+      id: string;
+      name: string;
+      color: string | null;
+      permissions: string;
+      denies: string;
+    }>("org_roles", {
       where: { id: { in: roleIds }, archived_at: null },
       orderBy: [
         ["position", "asc"],
         ["name", "asc"],
       ],
     });
-    return rows.map((r) => ({ id: r.id, name: r.name, color: r.color, permissions: parsePermissionList(r.permissions), denies: parsePermissionList(r.denies) }));
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      color: r.color,
+      permissions: parsePermissionList(r.permissions),
+      denies: parsePermissionList(r.denies),
+    }));
   }
 
   /**
@@ -126,9 +175,21 @@ export class Authz {
   }
 
   /** The member's base role and effective permissions, or null for someone outside the workspace. */
-  actor(orgId: string, userId: string): (Actor & { perms: Set<Permission> }) | null {
+  actor(
+    orgId: string,
+    userId: string,
+  ): (Actor & { perms: Set<Permission> }) | null {
     const base = this.orgRole(orgId, userId);
-    return base ? { base, perms: effectivePermissions(base, this.assignedRoles(orgId, userId), this.memberDefaults(orgId)) } : null;
+    return base
+      ? {
+          base,
+          perms: effectivePermissions(
+            base,
+            this.assignedRoles(orgId, userId),
+            this.memberDefaults(orgId),
+          ),
+        }
+      : null;
   }
 
   /**
@@ -136,7 +197,11 @@ export class Authz {
    * guest-safe parts count, so promoting them back brings the rest back: whoever promotes must reach that too.
    */
   permissionsAs(orgId: string, userId: string, base: OrgRole): Set<Permission> {
-    return effectivePermissions(base, this.assignedRoles(orgId, userId), this.memberDefaults(orgId));
+    return effectivePermissions(
+      base,
+      this.assignedRoles(orgId, userId),
+      this.memberDefaults(orgId),
+    );
   }
 
   /** The community's "@everyone" defaults (community parity A1), or null for the catalog's Member base set. */
@@ -146,47 +211,86 @@ export class Authz {
 
   /** What a base role holds in [orgId] before custom roles: Member follows the community's "@everyone" defaults. */
   basePermissions(orgId: string, base: OrgRole): ReadonlySet<Permission> {
-    return (base === "MEMBER" ? this.memberDefaults(orgId) : null) ?? BASE_ROLE_PERMISSIONS[base];
+    return (
+      (base === "MEMBER" ? this.memberDefaults(orgId) : null) ??
+      BASE_ROLE_PERMISSIONS[base]
+    );
   }
 
   /** A channel's options (community parity A1); all off outside channels and while the feature is off. */
   channelOptions(conv: ConversationRow): ChannelOptions {
-    return conv.type === "CHANNEL" && this.extras ? this.extras.channelOptions(conv.id) : NO_CHANNEL_OPTIONS;
+    return conv.type === "CHANNEL" && this.extras
+      ? this.extras.channelOptions(conv.id)
+      : NO_CHANNEL_OPTIONS;
   }
 
   /** An active custom role's grants and restrictions, or undefined when it's archived, deleted or elsewhere. */
   roleGrant(roleId: string, orgId: string): RoleGrant | undefined {
-    const r = this.rows.get<{ permissions: string; denies: string }>("org_roles", { id: roleId, org_id: orgId, archived_at: null });
-    return r ? { permissions: parsePermissionList(r.permissions), denies: parsePermissionList(r.denies) } : undefined;
+    const r = this.rows.get<{ permissions: string; denies: string }>(
+      "org_roles",
+      { id: roleId, org_id: orgId, archived_at: null },
+    );
+    return r
+      ? {
+          permissions: parsePermissionList(r.permissions),
+          denies: parsePermissionList(r.denies),
+        }
+      : undefined;
   }
 
   /** Members of the workspace who hold [permission] now (to tell them about something waiting for them). */
   workspaceMembersWith(orgId: string, permission: Permission): string[] {
-    const ids = this.rows.all<{ user_id: string }>("org_members", { where: { org_id: orgId } }).map((r) => r.user_id);
+    const ids = this.rows
+      .all<{ user_id: string }>("org_members", { where: { org_id: orgId } })
+      .map((r) => r.user_id);
     return ids.filter((id) => this.can(orgId, id, permission));
   }
 
   /** The workspace's active custom role ids. */
   workspaceRoleIds(orgId: string): string[] {
-    return this.rows.all<{ id: string }>("org_roles", { where: { org_id: orgId, archived_at: null } }).map((r) => r.id);
+    return this.rows
+      .all<{ id: string }>("org_roles", {
+        where: { org_id: orgId, archived_at: null },
+      })
+      .map((r) => r.id);
   }
 
   /** 404 for outsiders (the workspace's existence stays hidden), 403 without the permission. Returns the base role. */
-  requirePermission(orgId: string, userId: string, permission: Permission, message?: string): OrgRole {
+  requirePermission(
+    orgId: string,
+    userId: string,
+    permission: Permission,
+    message?: string,
+  ): OrgRole {
     const role = this.requireOrgMember(orgId, userId);
-    if (!this.can(orgId, userId, permission)) throw forbidden(message ?? "You don't have permission to do that in this workspace");
+    if (!this.can(orgId, userId, permission))
+      throw forbidden(
+        message ?? "You don't have permission to do that in this workspace",
+      );
     return role;
   }
 
   /** Platform restrictions apply independently of community owner/admin powers. Expired restrictions lift on read. */
   platformSuspended(orgId: string): boolean {
-    const row = this.rows.get<{ platform_suspended_at: number | null; platform_suspended_until: number | null }>("orgs", { id: orgId });
-    return row?.platform_suspended_at != null && (row.platform_suspended_until === null || row.platform_suspended_until > Date.now());
+    const row = this.rows.get<{
+      platform_suspended_at: number | null;
+      platform_suspended_until: number | null;
+    }>("orgs", { id: orgId });
+    return (
+      row?.platform_suspended_at != null &&
+      (row.platform_suspended_until === null ||
+        row.platform_suspended_until > Date.now())
+    );
   }
 
   orgRole(orgId: string, userId: string): OrgRole | null {
     if (this.platformSuspended(orgId)) return null;
-    return this.rows.get<{ role: OrgRole }>("org_members", { org_id: orgId, user_id: userId })?.role ?? null;
+    return (
+      this.rows.get<{ role: OrgRole }>("org_members", {
+        org_id: orgId,
+        user_id: userId,
+      })?.role ?? null
+    );
   }
 
   isOrgAdmin(orgId: string, userId: string): boolean {
@@ -203,12 +307,15 @@ export class Authz {
 
   requireOrgAdmin(orgId: string, userId: string): void {
     this.requireOrgMember(orgId, userId);
-    if (!this.isOrgAdmin(orgId, userId)) throw forbidden("Only organization owners and admins can do that");
+    if (!this.isOrgAdmin(orgId, userId))
+      throw forbidden("Only organization owners and admins can do that");
   }
 
   /** Every conversation of a community (its channels), for adding up what they hold. */
   conversationIdsOf(orgId: string): string[] {
-    return this.rows.all<{ id: string }>("conversations", { where: { org_id: orgId } }).map((r) => r.id);
+    return this.rows
+      .all<{ id: string }>("conversations", { where: { org_id: orgId } })
+      .map((r) => r.id);
   }
 
   conversation(id: string): ConversationRow | undefined {
@@ -216,7 +323,12 @@ export class Authz {
   }
 
   conversationRole(convId: string, userId: string): "ADMIN" | "MEMBER" | null {
-    return this.rows.get<{ role: "ADMIN" | "MEMBER" }>("conversation_members", { conversation_id: convId, user_id: userId })?.role ?? null;
+    return (
+      this.rows.get<{ role: "ADMIN" | "MEMBER" }>("conversation_members", {
+        conversation_id: convId,
+        user_id: userId,
+      })?.role ?? null
+    );
   }
 
   isMember(convId: string, userId: string): boolean {
@@ -226,12 +338,25 @@ export class Authz {
   }
 
   /** Overwrites on a category or a channel. */
-  overwrites(targetType: "category" | "channel", targetId: string): Overwrite[] {
+  overwrites(
+    targetType: "category" | "channel",
+    targetId: string,
+  ): Overwrite[] {
     const key = `${targetType}:${targetId}`;
     const cached = this.overwriteCache?.get(key);
     if (cached) return cached;
-    const rows = this.rows.all<{ subject: string; allow: string; deny: string }>("channel_overwrites", { where: { target_type: targetType, target_id: targetId } });
-    const list = rows.map((r) => ({ subject: r.subject, allow: parseCapabilities(r.allow), deny: parseCapabilities(r.deny) }));
+    const rows = this.rows.all<{
+      subject: string;
+      allow: string;
+      deny: string;
+    }>("channel_overwrites", {
+      where: { target_type: targetType, target_id: targetId },
+    });
+    const list = rows.map((r) => ({
+      subject: r.subject,
+      allow: parseCapabilities(r.allow),
+      deny: parseCapabilities(r.deny),
+    }));
     this.overwriteCache?.set(key, list);
     return list;
   }
@@ -250,8 +375,13 @@ export class Authz {
     if (!base) return null;
     const roles = this.assignedRoles(orgId, userId);
     const restricted = new Set<Permission>();
-    if (base !== "OWNER") for (const r of roles) for (const d of r.denies) if (permissionDef(d).restrictable) restricted.add(d);
-    const perms = new Set(effectivePermissions(base, roles, this.memberDefaults(orgId)));
+    if (base !== "OWNER")
+      for (const r of roles)
+        for (const d of r.denies)
+          if (permissionDef(d).restrictable) restricted.add(d);
+    const perms = new Set(
+      effectivePermissions(base, roles, this.memberDefaults(orgId)),
+    );
     // A timeout takes posting, files and voice away everywhere in the community; like a role's restriction, no channel
     // overwrite gives them back (docs/product/MELDIQ_FEATURE_GAP_MATRIX.md MOD-06).
     if (base !== "OWNER" && this.timeoutUntil(orgId, userId) !== null) {
@@ -265,14 +395,25 @@ export class Authz {
 
   /** When this member's timeout ends, or null when they aren't timed out. */
   timeoutUntil(orgId: string, userId: string): number | null {
-    const r = this.rows.get<{ timeout_until: number | null }>("org_members", { org_id: orgId, user_id: userId });
-    return r?.timeout_until && r.timeout_until > Date.now() ? r.timeout_until : null;
+    const r = this.rows.get<{ timeout_until: number | null }>("org_members", {
+      org_id: orgId,
+      user_id: userId,
+    });
+    return r?.timeout_until && r.timeout_until > Date.now()
+      ? r.timeout_until
+      : null;
   }
 
   /** Permissions inside a category (its overwrites applied): what creating channels there and editing it need. */
-  categoryPermissions(orgId: string, categoryId: string, userId: string): Set<Permission> {
+  categoryPermissions(
+    orgId: string,
+    categoryId: string,
+    userId: string,
+  ): Set<Permission> {
     const actor = this.channelActor(orgId, userId);
-    return actor ? channelPermissions(actor, [this.overwrites("category", categoryId)]) : new Set();
+    return actor
+      ? channelPermissions(actor, [this.overwrites("category", categoryId)])
+      : new Set();
   }
 
   /** Effective permissions in a community channel (category overwrites, then the channel's). Empty for outsiders. */
@@ -280,16 +421,21 @@ export class Authz {
     if (conv.type !== "CHANNEL" || !conv.org_id) return new Set();
     const actor = this.channelActor(conv.org_id, userId);
     if (!actor) return new Set();
-    const levels = [conv.category_id ? this.overwrites("category", conv.category_id) : [], this.overwrites("channel", conv.id)];
+    const levels = [
+      conv.category_id ? this.overwrites("category", conv.category_id) : [],
+      this.overwrites("channel", conv.id),
+    ];
     return channelPermissions(actor, levels);
   }
 
   /** May this user administer the channel/group (rename, members, archive, permissions)? */
   canManageConversation(conv: ConversationRow, userId: string): boolean {
     if (conv.type === "DM") return false;
-    if (conv.type === "GROUP") return this.conversationRole(conv.id, userId) === "ADMIN";
+    if (conv.type === "GROUP")
+      return this.conversationRole(conv.id, userId) === "ADMIN";
     if (!conv.org_id) return false;
-    if (this.channelPermissions(conv, userId).has("channels.manage")) return true;
+    if (this.channelPermissions(conv, userId).has("channels.manage"))
+      return true;
     return this.conversationRole(conv.id, userId) === "ADMIN";
   }
 
@@ -326,7 +472,8 @@ export class Authz {
   /** Throws unless the user is a current member. Non-members get 404 to avoid leaking existence. */
   requireMember(convId: string, userId: string): ConversationRow {
     const conv = this.conversation(convId);
-    if (!conv || !this.isMember(conv.id, userId)) throw notFound("Conversation not found");
+    if (!conv || !this.isMember(conv.id, userId))
+      throw notFound("Conversation not found");
     return conv;
   }
 
@@ -338,15 +485,24 @@ export class Authz {
     const perms = this.channelPermissions(conv, userId);
     if (!perms.has("messages.post")) return false;
     // API 0.65.0: only people who can edit the community post in its rules channel (whatever its kind).
-    if (this.isRulesChannel(conv)) return this.can(conv.org_id, userId, "workspace.edit");
+    if (this.isRulesChannel(conv))
+      return this.can(conv.org_id, userId, "workspace.edit");
     if (this.readOnlyFor(conv, userId)) return false;
-    if (conv.kind === "ANNOUNCEMENT") return perms.has("messages.announce") || this.canManageConversation(conv, userId);
+    if (conv.kind === "ANNOUNCEMENT")
+      return (
+        perms.has("messages.announce") ||
+        this.canManageConversation(conv, userId)
+      );
     return true;
   }
 
   /** Whether [conv] is its community's rules channel (API 0.65.0). */
   isRulesChannel(conv: ConversationRow): boolean {
-    return conv.type === "CHANNEL" && !!conv.org_id && this.rulesChannelId(conv.org_id) === conv.id;
+    return (
+      conv.type === "CHANNEL" &&
+      !!conv.org_id &&
+      this.rulesChannelId(conv.org_id) === conv.id
+    );
   }
 
   /**
@@ -354,8 +510,14 @@ export class Authz {
    * out does them; everywhere else they follow posting.
    */
   canReact(conv: ConversationRow, userId: string): boolean {
-    if (!this.isRulesChannel(conv) && !this.readOnlyFor(conv, userId)) return this.canPost(conv, userId);
-    return !conv.archived_at && this.isMember(conv.id, userId) && (this.timeoutUntil(conv.org_id!, userId) === null || this.orgRole(conv.org_id!, userId) === "OWNER");
+    if (!this.isRulesChannel(conv) && !this.readOnlyFor(conv, userId))
+      return this.canPost(conv, userId);
+    return (
+      !conv.archived_at &&
+      this.isMember(conv.id, userId) &&
+      (this.timeoutUntil(conv.org_id!, userId) === null ||
+        this.orgRole(conv.org_id!, userId) === "OWNER")
+    );
   }
 
   /**
@@ -375,7 +537,10 @@ export class Authz {
    */
   moderatesMessages(conv: ConversationRow, userId: string): boolean {
     if (conv.type !== "CHANNEL" || !conv.org_id) return false;
-    return this.canManageConversation(conv, userId) || this.channelPermissions(conv, userId).has("messages.manage");
+    return (
+      this.canManageConversation(conv, userId) ||
+      this.channelPermissions(conv, userId).has("messages.manage")
+    );
   }
 
   /**
@@ -384,16 +549,29 @@ export class Authz {
    */
   historySince(conv: ConversationRow, userId: string): number | null {
     if (!this.extras || conv.type !== "CHANNEL" || !conv.org_id) return null;
-    if (this.channelPermissions(conv, userId).has("messages.history")) return null;
-    return this.rows.get<{ joined_at: number }>("conversation_members", { conversation_id: conv.id, user_id: userId })?.joined_at ?? null;
+    if (this.channelPermissions(conv, userId).has("messages.history"))
+      return null;
+    return (
+      this.rows.get<{ joined_at: number }>("conversation_members", {
+        conversation_id: conv.id,
+        user_id: userId,
+      })?.joined_at ?? null
+    );
   }
 
   /**
    * API 0.46.0: the tag [userId] may show from [orgId] (its letters and the community's accent), or null when they
    * aren't a member or it has no tag. Accounts ask here, so community tables stay this module's.
    */
-  communityTag(orgId: string, userId: string): { text: string; color: string | null } | null {
-    const row = this.orgRole(orgId, userId) ? this.rows.get<{ tag: string | null; accent: string | null }>("orgs", { id: orgId }) : undefined;
+  communityTag(
+    orgId: string,
+    userId: string,
+  ): { text: string; color: string | null } | null {
+    const row = this.orgRole(orgId, userId)
+      ? this.rows.get<{ tag: string | null; accent: string | null }>("orgs", {
+          id: orgId,
+        })
+      : undefined;
     return row?.tag ? { text: row.tag, color: row.accent ?? null } : null;
   }
 
@@ -401,9 +579,19 @@ export class Authz {
    * Batch B4: until when a community has paused [what] (joining by invitation or openly; new DMs between its
    * members), or null when it hasn't (or the pause ended).
    */
-  pausedUntil(orgId: string, what: "invites" | "dms", at: number): number | null {
-    const row = this.rows.get<{ invites_paused_until: number | null; dms_paused_until: number | null }>("orgs", { id: orgId });
-    const until = (what === "invites" ? row?.invites_paused_until : row?.dms_paused_until) ?? null;
+  pausedUntil(
+    orgId: string,
+    what: "invites" | "dms",
+    at: number,
+  ): number | null {
+    const row = this.rows.get<{
+      invites_paused_until: number | null;
+      dms_paused_until: number | null;
+    }>("orgs", { id: orgId });
+    const until =
+      (what === "invites"
+        ? row?.invites_paused_until
+        : row?.dms_paused_until) ?? null;
     return until !== null && until > at ? until : null;
   }
 
@@ -413,7 +601,10 @@ export class Authz {
    */
   slowmodeExempt(conv: ConversationRow, userId: string): boolean {
     if (conv.type !== "CHANNEL" || !conv.org_id) return true;
-    return this.moderatesMessages(conv, userId) || this.can(conv.org_id, userId, "messages.bypass_slowmode");
+    return (
+      this.moderatesMessages(conv, userId) ||
+      this.can(conv.org_id, userId, "messages.bypass_slowmode")
+    );
   }
 
   /** When [userId] may post their next message in [conv] under slowmode; null when they may post now or it's off. */
@@ -421,7 +612,10 @@ export class Authz {
     // Raid protection may slow a channel down for a while beyond its own slowmode (community parity A2).
     const sec = Math.max(conv.slowmode_sec ?? 0, this.autoSlowmodeSec(conv.id));
     if (sec <= 0 || this.slowmodeExempt(conv, userId)) return null;
-    const row = this.rows.get<{ last_post_at: number | null }>("conversation_members", { conversation_id: conv.id, user_id: userId });
+    const row = this.rows.get<{ last_post_at: number | null }>(
+      "conversation_members",
+      { conversation_id: conv.id, user_id: userId },
+    );
     const next = (row?.last_post_at ?? 0) + sec * 1000;
     return next > at ? next : null;
   }
@@ -431,7 +625,11 @@ export class Authz {
     if (!this.canPost(conv, userId)) return false;
     if (conv.type !== "CHANNEL" || !conv.org_id) return true;
     // Community parity A1: a text-only channel takes files only from its moderators.
-    if (this.channelOptions(conv).textOnly && !this.moderatesMessages(conv, userId)) return false;
+    if (
+      this.channelOptions(conv).textOnly &&
+      !this.moderatesMessages(conv, userId)
+    )
+      return false;
     return this.channelPermissions(conv, userId).has("messages.attach");
   }
 
@@ -451,12 +649,19 @@ export class Authz {
     if (this.voiceMuted(conv.org_id, userId)) return false;
     if (!this.channelPermissions(conv, userId).has("voice.speak")) return false;
     // Community parity A1: on a stage, people listen until a moderator lets them speak.
-    return !this.channelOptions(conv).stage || this.moderatesStage(conv, userId) || !!this.extras?.isStageSpeaker(conv.id, userId);
+    return (
+      !this.channelOptions(conv).stage ||
+      this.moderatesStage(conv, userId) ||
+      !!this.extras?.isStageSpeaker(conv.id, userId)
+    );
   }
 
   /** Who runs a stage (community parity A1, A2): its managers and holders of `voice.mute_members` there. */
   moderatesStage(conv: ConversationRow, userId: string): boolean {
-    return this.canManageConversation(conv, userId) || this.channelPermissions(conv, userId).has("voice.mute_members");
+    return (
+      this.canManageConversation(conv, userId) ||
+      this.channelPermissions(conv, userId).has("voice.mute_members")
+    );
   }
 
   /**
@@ -465,17 +670,25 @@ export class Authz {
    * memberships they are no longer allowed. Guests keep the channels a manager added them to; private channels keep
    * their members unless an overwrite takes `channels.view` away. Returns the ids of conversations they were removed from.
    */
-  revalidateChannelMemberships(w: RowWriter, orgId: string, userId: string): string[] {
+  revalidateChannelMemberships(
+    w: RowWriter,
+    orgId: string,
+    userId: string,
+  ): string[] {
     const role = this.orgRole(orgId, userId);
     const removed: string[] = [];
     for (const conv of this.memberChannels(orgId, userId)) {
       let keep: boolean;
       if (role === null) keep = false;
       else if (role === "GUEST") keep = true;
-      else if (conv.kind === "PRIVATE") keep = this.channelPermissions(conv, userId).has("channels.view");
+      else if (conv.kind === "PRIVATE")
+        keep = this.channelPermissions(conv, userId).has("channels.view");
       else keep = this.scopeEligible(conv, userId);
       if (!keep) {
-        w.delete("conversation_members", { conversation_id: conv.id, user_id: userId });
+        w.delete("conversation_members", {
+          conversation_id: conv.id,
+          user_id: userId,
+        });
         removed.push(conv.id);
       }
     }
@@ -489,15 +702,25 @@ export class Authz {
    */
   demoteToGuest(w: RowWriter, orgId: string, userId: string): string[] {
     const rows = this.memberChannels(orgId, userId);
-    for (const r of rows) w.delete("conversation_members", { conversation_id: r.id, user_id: userId });
+    for (const r of rows)
+      w.delete("conversation_members", {
+        conversation_id: r.id,
+        user_id: userId,
+      });
     return rows.map((r) => r.id);
   }
 
   /** The community's channels [userId] is a member of. */
   private memberChannels(orgId: string, userId: string): ConversationRow[] {
-    const ids = this.rows.all<{ conversation_id: string }>("conversation_members", { where: { user_id: userId } }).map((m) => m.conversation_id);
+    const ids = this.rows
+      .all<{ conversation_id: string }>("conversation_members", {
+        where: { user_id: userId },
+      })
+      .map((m) => m.conversation_id);
     if (ids.length === 0) return [];
-    return this.rows.all<ConversationRow>("conversations", { where: { id: { in: ids }, org_id: orgId, type: "CHANNEL" } });
+    return this.rows.all<ConversationRow>("conversations", {
+      where: { id: { in: ids }, org_id: orgId, type: "CHANNEL" },
+    });
   }
 
   /**
@@ -524,24 +747,72 @@ export class Authz {
    */
   canSeePresence(viewerId: string, targetId: string): boolean {
     if (viewerId === targetId) return true;
-    const conversations = this.rows.all<{ conversation_id: string }>("conversation_members", { where: { user_id: viewerId } }).map((m) => m.conversation_id);
-    if (conversations.length && this.rows.count("conversation_members", { conversation_id: { in: conversations }, user_id: targetId }) > 0) return true;
-    const orgs = this.rows.all<{ org_id: string }>("org_members", { where: { user_id: viewerId, role: { ne: "GUEST" } } }).map((m) => m.org_id);
-    return orgs.length > 0 && this.rows.count("org_members", { org_id: { in: orgs }, user_id: targetId }) > 0;
+    const conversations = this.rows
+      .all<{ conversation_id: string }>("conversation_members", {
+        where: { user_id: viewerId },
+      })
+      .map((m) => m.conversation_id);
+    if (
+      conversations.length &&
+      this.rows.count("conversation_members", {
+        conversation_id: { in: conversations },
+        user_id: targetId,
+      }) > 0
+    )
+      return true;
+    const orgs = this.rows
+      .all<{ org_id: string }>("org_members", {
+        where: { user_id: viewerId, role: { ne: "GUEST" } },
+      })
+      .map((m) => m.org_id);
+    return (
+      orgs.length > 0 &&
+      this.rows.count("org_members", {
+        org_id: { in: orgs },
+        user_id: targetId,
+      }) > 0
+    );
   }
 
   /** Auto-join the public and announcement channels a person may now see. Returns the channels joined. */
-  autoJoinScope(w: RowWriter, orgId: string, userId: string, now: number): string[] {
+  autoJoinScope(
+    w: RowWriter,
+    orgId: string,
+    userId: string,
+    now: number,
+  ): string[] {
     const role = this.orgRole(orgId, userId);
     if (!role || role === "GUEST") return [];
-    const mine = new Set(this.rows.all<{ conversation_id: string }>("conversation_members", { where: { user_id: userId } }).map((m) => m.conversation_id));
+    const mine = new Set(
+      this.rows
+        .all<{ conversation_id: string }>("conversation_members", {
+          where: { user_id: userId },
+        })
+        .map((m) => m.conversation_id),
+    );
     const rows = this.rows
-      .all<ConversationRow>("conversations", { where: { org_id: orgId, type: "CHANNEL", archived_at: null, $or: [{ kind: "ANNOUNCEMENT" }, { auto_join: 1 }] } })
+      .all<ConversationRow>("conversations", {
+        where: {
+          org_id: orgId,
+          type: "CHANNEL",
+          archived_at: null,
+          $or: [{ kind: "ANNOUNCEMENT" }, { auto_join: 1 }],
+        },
+      })
       .filter((c) => !mine.has(c.id));
     const joined: string[] = [];
     for (const conv of rows) {
       if (this.scopeEligible(conv, userId)) {
-        w.insert("conversation_members", { conversation_id: conv.id, user_id: userId, role: "MEMBER", joined_at: now }, { orIgnore: true });
+        w.insert(
+          "conversation_members",
+          {
+            conversation_id: conv.id,
+            user_id: userId,
+            role: "MEMBER",
+            joined_at: now,
+          },
+          { orIgnore: true },
+        );
         joined.push(conv.id);
       }
     }
@@ -552,9 +823,15 @@ export class Authz {
    * After an access change that can touch many people (a role's members, an overwrite, a channel move): re-check and
    * auto-join every member of the community. Returns, per person, the channels they lost.
    */
-  reconcileCommunity(w: RowWriter, orgId: string, now: number): Map<string, string[]> {
+  reconcileCommunity(
+    w: RowWriter,
+    orgId: string,
+    now: number,
+  ): Map<string, string[]> {
     const lost = new Map<string, string[]>();
-    const members = this.rows.all<{ user_id: string }>("org_members", { where: { org_id: orgId } }).map((r) => r.user_id);
+    const members = this.rows
+      .all<{ user_id: string }>("org_members", { where: { org_id: orgId } })
+      .map((r) => r.user_id);
     // Nothing that decides access changes while this runs (the caller holds the write transaction), so overwrites and
     // each person's roles are read once instead of once per channel.
     this.overwriteCache = new Map();

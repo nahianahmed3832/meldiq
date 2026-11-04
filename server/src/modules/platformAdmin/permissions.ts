@@ -3,10 +3,18 @@
  * permission not listed for a role is refused. Platform roles never grant anything inside a community, and community
  * roles never grant anything here.
  */
-export const PLATFORM_ROLES = ["super_admin", "operations_admin", "platform_moderator", "support_admin", "billing_admin", "auditor"] as const;
+export const PLATFORM_ROLES = [
+  "super_admin",
+  "operations_admin",
+  "platform_moderator",
+  "support_admin",
+  "billing_admin",
+  "auditor",
+] as const;
 export type PlatformRole = (typeof PLATFORM_ROLES)[number];
 
 export const PERMISSIONS = [
+  "partners.review",
   "announcements.manage",
   "orgs.ownership.request",
   "reports.view",
@@ -63,6 +71,7 @@ export type Permission = (typeof PERMISSIONS)[number];
 
 /** Actions that need a passkey check in the last few minutes and a written reason (ADMIN_REAUTH_MINUTES). */
 export const SENSITIVE: ReadonlySet<Permission> = new Set([
+  "partners.review",
   "collectibles.manage",
   "announcements.manage",
   "orgs.ownership.request",
@@ -184,7 +193,12 @@ const GRANTS: Readonly<Record<PlatformRole, ReadonlySet<Permission>>> = {
     "billing.manage",
     "billing.events.replay",
   ]),
-  auditor: new Set<Permission>([...READ_EVERYTHING, "audit.view", "admins.view", "exports.create"]),
+  auditor: new Set<Permission>([
+    ...READ_EVERYTHING,
+    "audit.view",
+    "admins.view",
+    "exports.create",
+  ]),
 };
 
 export function isPlatformRole(role: string): role is PlatformRole {
@@ -200,14 +214,23 @@ export function permissionsOf(role: PlatformRole): Permission[] {
 }
 
 /** Optional per-admin allowlist may only reduce the selected role's powers. Invalid persisted JSON fails closed. */
-export function effectivePermissions(grant: { role: PlatformRole; permissions?: string | null }): Permission[] {
+export function effectivePermissions(grant: {
+  role: PlatformRole;
+  permissions?: string | null;
+}): Permission[] {
   const defaults = permissionsOf(grant.role);
-  if (grant.role === "super_admin" || grant.permissions == null) return defaults;
+  if (grant.role === "super_admin" || grant.permissions == null)
+    return defaults;
   try {
     const value: unknown = JSON.parse(grant.permissions);
-    return Array.isArray(value) ? defaults.filter((p) => value.includes(p)) : [];
+    return Array.isArray(value)
+      ? defaults.filter((p) => value.includes(p))
+      : [];
   } catch {
     return [];
   }
 }
-export const allowed = (grant: { role: PlatformRole; permissions?: string | null }, permission: Permission): boolean => effectivePermissions(grant).includes(permission);
+export const allowed = (
+  grant: { role: PlatformRole; permissions?: string | null },
+  permission: Permission,
+): boolean => effectivePermissions(grant).includes(permission);

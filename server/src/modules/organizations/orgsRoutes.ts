@@ -26,27 +26,69 @@ import {
   OrgUpdateBody,
 } from "../../shared/contracts/http/orgs.js";
 import { memberView } from "../accounts/profile.js";
-import { ApiError, badRequest, conflict, forbidden, notFound } from "../../shared/errors.js";
-import { humanCode, newId, now, sha256Hex } from "../../shared/utilities/util.js";
+import {
+  ApiError,
+  badRequest,
+  conflict,
+  forbidden,
+  notFound,
+} from "../../shared/errors.js";
+import {
+  humanCode,
+  newId,
+  now,
+  sha256Hex,
+} from "../../shared/utilities/util.js";
 import { activityAlert, noteJoin } from "./activityAlerts.js";
 import { checkChannelOptions } from "./communityPermissions/channelSettings.js";
 import { joinQuestions } from "./applicationsRoutes.js";
 import { guideOf } from "./guideRoutes.js";
 import { onboardingOn } from "./onboardingRoutes.js";
-import { INVITE_PROBLEMS, inviteAlreadySatisfied, joinOrgByInvite, lookupOrgInvite, NEVER_EXPIRES_AT, NO_USE_LIMIT, orgInviteProblem } from "./invites.js";
+import {
+  INVITE_PROBLEMS,
+  inviteAlreadySatisfied,
+  joinOrgByInvite,
+  lookupOrgInvite,
+  NEVER_EXPIRES_AT,
+  NO_USE_LIMIT,
+  orgInviteProblem,
+} from "./invites.js";
 import { userSummary } from "../auth/routes.js";
-import { deleteBlobNow, processBlobDeletes, queueBlobDelete } from "../files/routes.js";
+import {
+  deleteBlobNow,
+  processBlobDeletes,
+  queueBlobDelete,
+} from "../files/routes.js";
 import { bannerBlobId, photoBlobId, storePhoto } from "../accounts/photos.js";
 import { readCommunityImage, withImageType } from "./communityImages.js";
 import { evictRemovedMember } from "../calls/routes.js";
-import { conversationView, liveCallsOf } from "../messaging/conversationsRoutes.js";
-import { orgRoleChangeRefusal, removalAllowed, titleChangeAllowed } from "./roleRules.js";
-import { createCommunityStart, type TemplateId, templateList } from "./communityStart.js";
+import {
+  conversationView,
+  liveCallsOf,
+} from "../messaging/conversationsRoutes.js";
+import {
+  orgRoleChangeRefusal,
+  removalAllowed,
+  titleChangeAllowed,
+} from "./roleRules.js";
+import {
+  createCommunityStart,
+  type TemplateId,
+  templateList,
+} from "./communityStart.js";
 import { roleAssignmentRefusal } from "./permissions/rules.js";
 import { categoryViews } from "./communityRoutes.js";
+import { roleIconOf } from "./communityPermissions/roleExtras.js";
+import { auditChanges } from "./adminChanges.js";
 
 /** The contract's template ids are the ones communityStart.ts creates (checked when the server compiles). */
-const templateIdsMatch: [(typeof COMMUNITY_TEMPLATE_IDS)[number]] extends [TemplateId] ? ([TemplateId] extends [(typeof COMMUNITY_TEMPLATE_IDS)[number]] ? true : never) : never = true;
+const templateIdsMatch: [(typeof COMMUNITY_TEMPLATE_IDS)[number]] extends [
+  TemplateId,
+]
+  ? [TemplateId] extends [(typeof COMMUNITY_TEMPLATE_IDS)[number]]
+    ? true
+    : never
+  : never = true;
 void templateIdsMatch;
 
 export function slugify(name: string): string {
@@ -62,7 +104,15 @@ export function slugify(name: string): string {
 export type InviteStatus = "active" | "revoked" | "expired" | "used_up";
 
 /** An invitation's one state at [t]: revoked, else expired, else used up, else active. */
-export function inviteStatus(r: { revoked_at: number | null; expires_at: number; uses: number; max_uses: number }, t: number): InviteStatus {
+export function inviteStatus(
+  r: {
+    revoked_at: number | null;
+    expires_at: number;
+    uses: number;
+    max_uses: number;
+  },
+  t: number,
+): InviteStatus {
   if (r.revoked_at) return "revoked";
   if (r.expires_at <= t) return "expired";
   if (r.uses >= r.max_uses) return "used_up";
@@ -91,7 +141,8 @@ export function orgSummary(ctx: AppContext, org: any, userId: string) {
     // API 0.46.0: the tag members may wear by their names.
     tag: org.tag ?? null,
     // Round 7 guest policy (docs/WORKSPACE_C5.md).
-    guestsAllowed: org.guests_allowed === undefined ? true : !!org.guests_allowed,
+    guestsAllowed:
+      org.guests_allowed === undefined ? true : !!org.guests_allowed,
     guestMaxDays: org.guest_max_days ?? null,
     // Every workspace is a community since the rebuild; the field stays for apps that read it.
     kind: "community",
@@ -106,7 +157,8 @@ export function orgSummary(ctx: AppContext, org: any, userId: string) {
     // Batch B8b: the community guide (members only), and whether onboarding questions are on.
     guide: ctx.authz.orgRole(org.id, userId) ? guideOf(ctx, org, userId) : null,
     onboarding: onboardingOn(ctx, org.id),
-    activityAlerts: org.activity_alerts === undefined ? true : !!org.activity_alerts,
+    activityAlerts:
+      org.activity_alerts === undefined ? true : !!org.activity_alerts,
     activityAlert: activityAlert(ctx, org, userId, Date.now()),
     // API 0.65.0: the rules channel (members only; absent without a rules channel or rules).
     ...(role ? ctx.communityRules.summary(org.id, userId) : {}),
@@ -126,14 +178,29 @@ export function orgSummary(ctx: AppContext, org: any, userId: string) {
  * meeting invitations, personal arrangement), tells everyone concerned and records why: "left", "removed" or "banned"
  * by [actorId], or "expired" (a guest's end date, actorId null). Callers check permissions first.
  */
-export async function removeFromWorkspace(ctx: AppContext, orgId: string, userId: string, actorId: string | null, reason: "left" | "removed" | "expired" | "banned") {
+export async function removeFromWorkspace(
+  ctx: AppContext,
+  orgId: string,
+  userId: string,
+  actorId: string | null,
+  reason: "left" | "removed" | "expired" | "banned",
+) {
   const { authz } = ctx;
   const role = authz.orgRole(orgId, userId);
   if (!role) return;
   const affected = await ctx.ws.write((w) => {
-    w.delete("channel_overwrites", { org_id: orgId, subject: `user:${userId}` });
-    const meetings = w.all<{ id: string }>("meetings", { where: { org_id: orgId } }).map((m) => m.id);
-    if (meetings.length) w.delete("meeting_participants", { user_id: userId, meeting_id: { in: meetings } });
+    w.delete("channel_overwrites", {
+      org_id: orgId,
+      subject: `user:${userId}`,
+    });
+    const meetings = w
+      .all<{ id: string }>("meetings", { where: { org_id: orgId } })
+      .map((m) => m.id);
+    if (meetings.length)
+      w.delete("meeting_participants", {
+        user_id: userId,
+        meeting_id: { in: meetings },
+      });
     w.delete("org_members", { org_id: orgId, user_id: userId });
     return authz.revalidateChannelMemberships(w, orgId, userId);
   });
@@ -143,7 +210,12 @@ export async function removeFromWorkspace(ctx: AppContext, orgId: string, userId
   await ctx.communitySettings.forgetMember(orgId, userId);
   await ctx.communitySafety.forgetMember(orgId, userId);
   await ctx.lobby.forgetMember(orgId, userId);
-  const action = { left: "member.leave", removed: "member.remove", expired: "member.expire", banned: "member.ban" }[reason];
+  const action = {
+    left: "member.leave",
+    removed: "member.remove",
+    expired: "member.expire",
+    banned: "member.ban",
+  }[reason];
   ctx.audit({ actorId, orgId, action, target: userId });
   notifyOrg(ctx, orgId);
   for (const c of affected) notifyConversation(ctx, c, [userId]);
@@ -153,16 +225,29 @@ export async function removeFromWorkspace(ctx: AppContext, orgId: string, userId
 
 /** Members who should be told that something in this org changed. */
 function orgMemberIds(ctx: AppContext, orgId: string): string[] {
-  return ctx.ws.all<{ user_id: string }>("org_members", { where: { org_id: orgId } }).map((r) => r.user_id);
+  return ctx.ws
+    .all<{ user_id: string }>("org_members", { where: { org_id: orgId } })
+    .map((r) => r.user_id);
 }
 
 export function notifyOrg(ctx: AppContext, orgId: string) {
   ctx.hub.sendToUsers(orgMemberIds(ctx, orgId), { t: "org.updated", orgId });
 }
 
-export function notifyConversation(ctx: AppContext, convId: string, extraUserIds: string[] = []) {
-  const ids = ctx.ws.all<{ user_id: string }>("conversation_members", { where: { conversation_id: convId } }).map((r) => r.user_id);
-  ctx.hub.sendToUsers(new Set([...ids, ...extraUserIds]), { t: "conv.updated", conversationId: convId });
+export function notifyConversation(
+  ctx: AppContext,
+  convId: string,
+  extraUserIds: string[] = [],
+) {
+  const ids = ctx.ws
+    .all<{ user_id: string }>("conversation_members", {
+      where: { conversation_id: convId },
+    })
+    .map((r) => r.user_id);
+  ctx.hub.sendToUsers(new Set([...ids, ...extraUserIds]), {
+    t: "conv.updated",
+    conversationId: convId,
+  });
 }
 
 export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
@@ -170,7 +255,8 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
   const { authz, db } = ctx;
 
   const ws = ctx.ws;
-  const ownerCount = (orgId: string): number => ws.count("org_members", { org_id: orgId, role: "OWNER" });
+  const ownerCount = (orgId: string): number =>
+    ws.count("org_members", { org_id: orgId, role: "OWNER" });
   const orgRow = (orgId: string) => ws.get<any>("orgs", { id: orgId });
 
   // ───────────── Organisations ─────────────
@@ -180,23 +266,43 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const body = parse(OrgCreateBody, req.body);
     requireStanding(ctx.safety, userId, "create_community");
     // Community parity E: a template link's code is checked before anything is made (404 template_not_found).
-    const fromTemplate = body.templateCode ? ctx.communityTemplates.snapshotFor(body.templateCode) : null;
+    const fromTemplate = body.templateCode
+      ? ctx.communityTemplates.snapshotFor(body.templateCode)
+      : null;
     const id = newId("o");
     const t = now();
     // Checked inside the write unit, so two simultaneous taps (or two people picking the same name) can't both pass.
     const prior = await ws.write((w) => {
       // Idempotent: the app sends one request id per create form, so a retry or a double tap returns the first result.
       if (body.requestId) {
-        const earlier = w.get("orgs", { created_by: userId, create_request_id: body.requestId });
+        const earlier = w.get("orgs", {
+          created_by: userId,
+          create_request_id: body.requestId,
+        });
         if (earlier) return earlier;
       }
       // One person owning two workspaces with the same name can't tell them apart: refuse, and point at the existing one.
-      const owned = w.all<{ org_id: string }>("org_members", { where: { user_id: userId, role: "OWNER" } }).map((m) => m.org_id);
+      const owned = w
+        .all<{ org_id: string }>("org_members", {
+          where: { user_id: userId, role: "OWNER" },
+        })
+        .map((m) => m.org_id);
       const wanted = body.name.trim().toLowerCase();
-      const sameName = w.all<{ id: string; name: string }>("orgs", { where: { id: { in: owned } } }).find((o) => o.name.trim().toLowerCase() === wanted);
-      if (sameName) throw new ApiError(409, "org_name_taken", `You already own a community called "${body.name.trim()}". Open it, or choose another name.`, { orgId: sameName.id });
+      const sameName = w
+        .all<{ id: string; name: string }>("orgs", {
+          where: { id: { in: owned } },
+        })
+        .find((o) => o.name.trim().toLowerCase() === wanted);
+      if (sameName)
+        throw new ApiError(
+          409,
+          "org_name_taken",
+          `You already own a community called "${body.name.trim()}". Open it, or choose another name.`,
+          { orgId: sameName.id },
+        );
       let slug = slugify(body.name);
-      if (w.get("orgs", { slug })) slug = `${slug}-${humanCode(4).toLowerCase()}`;
+      if (w.get("orgs", { slug }))
+        slug = `${slug}-${humanCode(4).toLowerCase()}`;
       w.insert("orgs", {
         id,
         name: body.name,
@@ -211,27 +317,51 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
         join_policy: body.joinPolicy ?? "invite",
         rules: body.rules ?? null,
       });
-      w.insert("org_members", { org_id: id, user_id: userId, role: "OWNER", joined_at: t });
+      w.insert("org_members", {
+        org_id: id,
+        user_id: userId,
+        role: "OWNER",
+        joined_at: t,
+      });
       // A community a synthetic load-test account creates is a load-test community: the only kind such accounts join.
       markSyntheticOrg(ctx.identity, w, id, userId);
       return null;
     });
     if (prior) return { org: orgSummary(ctx, prior, userId) };
-    ctx.audit({ actorId: userId, orgId: id, action: "org.create", target: id, detail: `visibility=${body.visibility ?? "private"}` });
+    ctx.audit({
+      actorId: userId,
+      orgId: id,
+      action: "org.create",
+      target: id,
+      detail: `visibility=${body.visibility ?? "private"}`,
+    });
     // A community starts with its welcome, announcements, general, introductions and lounge channels in two
     // categories, so the first member who joins finds somewhere to go.
-    if (fromTemplate) await ctx.communityTemplates.build(id, userId, fromTemplate.templateId, fromTemplate.snapshot);
+    if (fromTemplate)
+      await ctx.communityTemplates.build(
+        id,
+        userId,
+        fromTemplate.templateId,
+        fromTemplate.snapshot,
+      );
     else await createCommunityStart(ctx, id, userId, body.template);
     return { org: orgSummary(ctx, orgRow(id), userId) };
   });
 
   // The starter templates a new community can begin with (batch B2): categories and channel names, for the create form.
-  app.get("/v1/community-templates", auth, async () => ({ templates: templateList() }));
+  app.get("/v1/community-templates", auth, async () => ({
+    templates: templateList(),
+  }));
 
   app.get("/v1/orgs", auth, async (req) => {
     const { userId } = me(req);
-    const mine = ws.all<{ org_id: string }>("org_members", { where: { user_id: userId } }).map((m) => m.org_id);
-    const rows = ws.all("orgs", { where: { id: { in: mine } }, orderBy: [["name", "asc"]] });
+    const mine = ws
+      .all<{ org_id: string }>("org_members", { where: { user_id: userId } })
+      .map((m) => m.org_id);
+    const rows = ws.all("orgs", {
+      where: { id: { in: mine } },
+      orderBy: [["name", "asc"]],
+    });
     return { orgs: rows.map((o) => orgSummary(ctx, o, userId)) };
   });
 
@@ -242,7 +372,11 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const role = authz.requireOrgMember(orgId, userId);
     const org = orgRow(orgId);
     const perms = authz.permissions(orgId, userId);
-    const channelCount = ws.count("conversations", { org_id: orgId, type: "CHANNEL", archived_at: null });
+    const channelCount = ws.count("conversations", {
+      org_id: orgId,
+      type: "CHANNEL",
+      archived_at: null,
+    });
     const categories = categoryViews(ctx, orgId, userId);
     return {
       org: orgSummary(ctx, org, userId),
@@ -252,11 +386,19 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
       departments: [],
       teams: [],
       categories,
-      stats: { members: orgSummary(ctx, org, userId).memberCount, teams: 0, channels: channelCount, branches: 0, categories: categories.length },
+      stats: {
+        members: orgSummary(ctx, org, userId).memberCount,
+        teams: 0,
+        channels: channelCount,
+        branches: 0,
+        categories: categories.length,
+      },
       permissions: {
         canManageOrg: perms.has("workspace.edit"),
         canInvite: perms.has("members.invite"),
-        canCreateChannels: perms.has("channels.create") || categories.some((c) => c.canCreateChannels),
+        canCreateChannels:
+          perms.has("channels.create") ||
+          categories.some((c) => c.canCreateChannels),
         canManageChannels: perms.has("channels.manage"),
         canBan: perms.has("members.ban"),
         canViewDirectory: perms.has("members.view"),
@@ -282,39 +424,92 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
         effective: [...perms].sort(),
       },
       // The custom roles the caller holds here (name and colour, for their own profile).
-      myRoles: authz.assignedRoles(orgId, userId).map((r) => ({ id: r.id, name: r.name, color: r.color })),
+      myRoles: authz
+        .assignedRoles(orgId, userId)
+        .map((r) => ({ id: r.id, name: r.name, color: r.color })),
     };
   });
 
   app.patch("/v1/orgs/:orgId", auth, async (req) => {
     const { userId } = me(req);
     const { orgId } = parse(OrgParams, req.params);
-    authz.requirePermission(orgId, userId, "workspace.edit", "Only people who can edit the workspace can do that");
+    authz.requirePermission(
+      orgId,
+      userId,
+      "workspace.edit",
+      "Only people who can edit the workspace can do that",
+    );
     const body = parse(OrgUpdateBody, req.body);
     const o = orgRow(orgId);
     // Listing a community publicly or opening it to anyone changes who can find and enter it: owners decide that.
-    const opening = (body.visibility && body.visibility !== o.visibility) || (body.joinPolicy && body.joinPolicy !== o.join_policy);
-    if (opening && authz.orgRole(orgId, userId) !== "OWNER") throw forbidden("Only owners can change who can find and join this community");
+    const opening =
+      (body.visibility && body.visibility !== o.visibility) ||
+      (body.joinPolicy && body.joinPolicy !== o.join_policy);
+    if (opening && authz.orgRole(orgId, userId) !== "OWNER")
+      throw forbidden(
+        "Only owners can change who can find and join this community",
+      );
     await ws.write((w) =>
       w.update(
         "orgs",
         { id: orgId },
         {
           name: body.name ?? o.name,
-          description: body.description === undefined ? o.description : body.description,
+          description:
+            body.description === undefined ? o.description : body.description,
           visibility: body.visibility ?? o.visibility,
           join_policy: body.joinPolicy ?? o.join_policy,
           rules: body.rules === undefined ? o.rules : body.rules,
-          accent: body.accent === undefined ? o.accent : (body.accent?.toLowerCase() ?? null),
-          tag: body.tag === undefined ? (o.tag ?? null) : (body.tag?.toUpperCase() ?? null),
+          accent:
+            body.accent === undefined
+              ? o.accent
+              : (body.accent?.toLowerCase() ?? null),
+          tag:
+            body.tag === undefined
+              ? (o.tag ?? null)
+              : (body.tag?.toUpperCase() ?? null),
           updated_at: now(),
         },
       ),
     );
-    const recolored = body.accent !== undefined && (body.accent?.toLowerCase() ?? null) !== (o.accent ?? null);
-    ctx.audit({ actorId: userId, orgId, action: "org.update", detail: opening ? `visibility=${body.visibility ?? o.visibility} join=${body.joinPolicy ?? o.join_policy}` : undefined });
-    if (recolored) ctx.audit({ actorId: userId, orgId, action: "org.accent", detail: body.accent?.toLowerCase() ?? "removed" });
-    if (body.tag !== undefined && (body.tag?.toUpperCase() ?? null) !== (o.tag ?? null)) ctx.audit({ actorId: userId, orgId, action: "org.tag", detail: body.tag?.toUpperCase() ?? "removed" });
+    const recolored =
+      body.accent !== undefined &&
+      (body.accent?.toLowerCase() ?? null) !== (o.accent ?? null);
+    ctx.audit({
+      actorId: userId,
+      orgId,
+      action: "org.update",
+      detail: opening
+        ? `visibility=${body.visibility ?? o.visibility} join=${body.joinPolicy ?? o.join_policy}`
+        : undefined,
+      changes: auditChanges(o, {
+        visibility: body.visibility ?? o.visibility,
+        join_policy: body.joinPolicy ?? o.join_policy,
+        ...(body.accent !== undefined
+          ? { accent: body.accent?.toLowerCase() ?? null }
+          : {}),
+        ...(body.tag !== undefined
+          ? { tag: body.tag?.toUpperCase() ?? null }
+          : {}),
+      }),
+    });
+    if (recolored)
+      ctx.audit({
+        actorId: userId,
+        orgId,
+        action: "org.accent",
+        detail: body.accent?.toLowerCase() ?? "removed",
+      });
+    if (
+      body.tag !== undefined &&
+      (body.tag?.toUpperCase() ?? null) !== (o.tag ?? null)
+    )
+      ctx.audit({
+        actorId: userId,
+        orgId,
+        action: "org.tag",
+        detail: body.tag?.toUpperCase() ?? "removed",
+      });
     notifyOrg(ctx, orgId);
     return { org: orgSummary(ctx, orgRow(orgId), userId) };
   });
@@ -325,17 +520,28 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
   app.put("/v1/orgs/:orgId/photo", auth, async (req) => {
     const { userId } = me(req);
     const { orgId } = parse(OrgParams, req.params);
-    authz.requirePermission(orgId, userId, "workspace.edit", "Only people who can edit the workspace can change its photo");
+    authz.requirePermission(
+      orgId,
+      userId,
+      "workspace.edit",
+      "Only people who can edit the workspace can change its photo",
+    );
     const buf = await readCommunityImage(req, "icon", "Community icons");
-    const previous = (orgRow(orgId)?.photo_rev as number | null | undefined) ?? null;
+    const previous =
+      (orgRow(orgId)?.photo_rev as number | null | undefined) ?? null;
     const rev = Math.max(now(), (previous ?? 0) + 1);
     await storePhoto(ctx, photoBlobId(orgId, rev), buf);
     // The organisation may have been deleted while the photo uploaded: then the new blob is removed again.
-    if ((await ws.write((w) => w.update("orgs", { id: orgId }, { photo_rev: rev, updated_at: now() }))) === 0) {
+    if (
+      (await ws.write((w) =>
+        w.update("orgs", { id: orgId }, { photo_rev: rev, updated_at: now() }),
+      )) === 0
+    ) {
       await deleteBlobNow(ctx, "profile-photos", photoBlobId(orgId, rev));
       throw notFound("Organization not found");
     }
-    if (previous) await deleteBlobNow(ctx, "profile-photos", photoBlobId(orgId, previous));
+    if (previous)
+      await deleteBlobNow(ctx, "profile-photos", photoBlobId(orgId, previous));
     ctx.audit({ actorId: userId, orgId, action: "org.photo" });
     notifyOrg(ctx, orgId);
     return { photoRev: rev };
@@ -344,12 +550,24 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
   app.delete("/v1/orgs/:orgId/photo", auth, async (req) => {
     const { userId } = me(req);
     const { orgId } = parse(OrgParams, req.params);
-    authz.requirePermission(orgId, userId, "workspace.edit", "Only people who can edit the workspace can change its photo");
+    authz.requirePermission(
+      orgId,
+      userId,
+      "workspace.edit",
+      "Only people who can edit the workspace can change its photo",
+    );
     const previous = orgRow(orgId).photo_rev as number | null;
-    await ws.write((w) => w.update("orgs", { id: orgId }, { photo_rev: null, updated_at: now() }));
+    await ws.write((w) =>
+      w.update("orgs", { id: orgId }, { photo_rev: null, updated_at: now() }),
+    );
     if (previous) {
       await deleteBlobNow(ctx, "profile-photos", photoBlobId(orgId, previous));
-      ctx.audit({ actorId: userId, orgId, action: "org.photo", detail: "removed" });
+      ctx.audit({
+        actorId: userId,
+        orgId,
+        action: "org.photo",
+        detail: "removed",
+      });
       notifyOrg(ctx, orgId);
     }
     return { photoRev: null };
@@ -358,14 +576,29 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
   app.get("/v1/orgs/:orgId/photo", auth, async (req, reply) => {
     const { userId } = me(req);
     const { orgId } = parse(OrgParams, req.params);
-    const org = ws.get<{ visibility: string; photo_rev: number | null }>("orgs", { id: orgId });
+    const org = ws.get<{ visibility: string; photo_rev: number | null }>(
+      "orgs",
+      { id: orgId },
+    );
     // Discovery previews use the same signed-in public-community access as banners.
-    if (!org || (org.visibility !== "public" && !authz.orgRole(orgId, userId)) || authz.isBanned(orgId, userId)) throw notFound("No photo");
+    if (
+      !org ||
+      (org.visibility !== "public" && !authz.orgRole(orgId, userId)) ||
+      authz.isBanned(orgId, userId)
+    )
+      throw notFound("No photo");
     const rev = org.photo_rev;
-    const stream = rev ? await ctx.blobs.get("profile-photos", photoBlobId(orgId, rev)) : null;
+    const stream = rev
+      ? await ctx.blobs.get("profile-photos", photoBlobId(orgId, rev))
+      : null;
     if (!stream) throw notFound("No photo");
     const { type, body } = await withImageType(stream);
-    return reply.header("content-type", type).header("x-content-type-options", "nosniff").header("cache-control", "private, max-age=3600").header("etag", `"${rev}"`).send(body);
+    return reply
+      .header("content-type", type)
+      .header("x-content-type-options", "nosniff")
+      .header("cache-control", "private, max-age=3600")
+      .header("etag", `"${rev}"`)
+      .send(body);
   });
 
   // ───────────── Community banner (API 0.44.0, docs/COMMUNITY_BRANDING.md) ─────────────
@@ -374,17 +607,28 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
   app.put("/v1/orgs/:orgId/banner", auth, async (req) => {
     const { userId } = me(req);
     const { orgId } = parse(OrgParams, req.params);
-    authz.requirePermission(orgId, userId, "workspace.edit", "Only people who can edit the community can change its banner");
+    authz.requirePermission(
+      orgId,
+      userId,
+      "workspace.edit",
+      "Only people who can edit the community can change its banner",
+    );
     const buf = await readCommunityImage(req, "banner", "Banners");
-    const previous = (orgRow(orgId)?.banner_rev as number | null | undefined) ?? null;
+    const previous =
+      (orgRow(orgId)?.banner_rev as number | null | undefined) ?? null;
     const rev = Math.max(now(), (previous ?? 0) + 1);
     await storePhoto(ctx, bannerBlobId(orgId, rev), buf);
     // The community may have been deleted while the banner uploaded: then the new blob is removed again.
-    if ((await ws.write((w) => w.update("orgs", { id: orgId }, { banner_rev: rev, updated_at: now() }))) === 0) {
+    if (
+      (await ws.write((w) =>
+        w.update("orgs", { id: orgId }, { banner_rev: rev, updated_at: now() }),
+      )) === 0
+    ) {
       await deleteBlobNow(ctx, "profile-photos", bannerBlobId(orgId, rev));
       throw notFound("Organization not found");
     }
-    if (previous) await deleteBlobNow(ctx, "profile-photos", bannerBlobId(orgId, previous));
+    if (previous)
+      await deleteBlobNow(ctx, "profile-photos", bannerBlobId(orgId, previous));
     ctx.audit({ actorId: userId, orgId, action: "org.banner" });
     notifyOrg(ctx, orgId);
     return { bannerRev: rev };
@@ -393,30 +637,62 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
   app.delete("/v1/orgs/:orgId/banner", auth, async (req) => {
     const { userId } = me(req);
     const { orgId } = parse(OrgParams, req.params);
-    authz.requirePermission(orgId, userId, "workspace.edit", "Only people who can edit the community can change its banner");
+    authz.requirePermission(
+      orgId,
+      userId,
+      "workspace.edit",
+      "Only people who can edit the community can change its banner",
+    );
     const previous = orgRow(orgId).banner_rev as number | null;
-    await ws.write((w) => w.update("orgs", { id: orgId }, { banner_rev: null, updated_at: now() }));
+    await ws.write((w) =>
+      w.update("orgs", { id: orgId }, { banner_rev: null, updated_at: now() }),
+    );
     if (previous) {
       await deleteBlobNow(ctx, "profile-photos", bannerBlobId(orgId, previous));
-      ctx.audit({ actorId: userId, orgId, action: "org.banner", detail: "removed" });
+      ctx.audit({
+        actorId: userId,
+        orgId,
+        action: "org.banner",
+        detail: "removed",
+      });
       notifyOrg(ctx, orgId);
     }
     return { bannerRev: null };
   });
 
-  const sendBanner = async (reply: FastifyReply, orgId: string, rev: number | null, cache: string) => {
-    const stream = rev ? await ctx.blobs.get("profile-photos", bannerBlobId(orgId, rev)) : null;
+  const sendBanner = async (
+    reply: FastifyReply,
+    orgId: string,
+    rev: number | null,
+    cache: string,
+  ) => {
+    const stream = rev
+      ? await ctx.blobs.get("profile-photos", bannerBlobId(orgId, rev))
+      : null;
     if (!stream) throw notFound("No banner");
     const { type, body } = await withImageType(stream);
-    return reply.header("content-type", type).header("x-content-type-options", "nosniff").header("cache-control", cache).header("etag", `"${rev}"`).send(body);
+    return reply
+      .header("content-type", type)
+      .header("x-content-type-options", "nosniff")
+      .header("cache-control", cache)
+      .header("etag", `"${rev}"`)
+      .send(body);
   };
 
   app.get("/v1/orgs/:orgId/banner", auth, async (req, reply) => {
     const { userId } = me(req);
     const { orgId } = parse(OrgParams, req.params);
-    const o = ws.get<{ visibility: string; banner_rev: number | null }>("orgs", { id: orgId });
+    const o = ws.get<{ visibility: string; banner_rev: number | null }>(
+      "orgs",
+      { id: orgId },
+    );
     // Members, or anyone signed in for a community listed in Discover (which shows it); otherwise it doesn't exist.
-    if (!o || (o.visibility !== "public" && !authz.orgRole(orgId, userId)) || authz.isBanned(orgId, userId)) throw notFound("No banner");
+    if (
+      !o ||
+      (o.visibility !== "public" && !authz.orgRole(orgId, userId)) ||
+      authz.isBanned(orgId, userId)
+    )
+      throw notFound("No banner");
     return sendBanner(reply, orgId, o.banner_rev, "private, max-age=3600");
   });
 
@@ -444,12 +720,58 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const { userId } = me(req);
     const { orgId } = parse(OrgParams, req.params);
     const role = authz.requireOrgMember(orgId, userId);
-    if (role === "GUEST") throw forbidden("Guests cannot browse the member list");
-    if (!authz.can(orgId, userId, "members.view")) throw forbidden("Your role doesn't include the member directory");
-    const { q } = parse(MemberSearchQuery, req.query);
+    if (role === "GUEST")
+      throw forbidden("Guests cannot browse the member list");
+    if (!authz.can(orgId, userId, "members.view"))
+      throw forbidden("Your role doesn't include the member directory");
+    const query = parse(MemberSearchQuery, req.query);
+    const { q, role: baseFilter, roleId, after, limit } = query;
+    if (
+      roleId &&
+      !ws.get("org_roles", { id: roleId, org_id: orgId, archived_at: null })
+    )
+      throw badRequest("Unknown community role");
+    const assigned = roleId
+      ? new Set(
+          ws
+            .all<{ user_id: string }>("org_role_members", {
+              where: { org_id: orgId, role_id: roleId },
+            })
+            .map((r) => r.user_id),
+        )
+      : null;
+    const cursorScope = JSON.stringify([
+      q?.toLowerCase() ?? "",
+      baseFilter ?? null,
+      roleId ?? null,
+    ]);
+    let cursor: [number, string, string] | null = null;
+    if (after) {
+      try {
+        const decoded = JSON.parse(Buffer.from(after, "base64url").toString());
+        if (
+          decoded.scope !== cursorScope ||
+          !Array.isArray(decoded.at) ||
+          decoded.at.length !== 3 ||
+          !Number.isInteger(decoded.at[0]) ||
+          typeof decoded.at[1] !== "string" ||
+          typeof decoded.at[2] !== "string"
+        )
+          throw Error();
+        cursor = decoded.at;
+      } catch {
+        throw badRequest("Invalid member directory cursor");
+      }
+    }
     // Memberships (community rows) joined with people (SQLite), filtered and ordered as the SQL did.
     const term = q ? q.toLowerCase() : "";
-    const memberships = ws.all<{ user_id: string; role: string; title: string | null; expires_at: number | null; timeout_until: number | null }>("org_members", {
+    const memberships = ws.all<{
+      user_id: string;
+      role: string;
+      title: string | null;
+      expires_at: number | null;
+      timeout_until: number | null;
+    }>("org_members", {
       where: { org_id: orgId },
     });
     const people = mapByIds<any>(
@@ -459,29 +781,107 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
       memberships.map((m) => m.user_id),
     );
     const rank: Record<string, number> = { OWNER: 0, ADMIN: 1, MEMBER: 2 };
-    const rows = memberships
+    const matching = memberships
       .flatMap((m) => {
         const u = people.get(m.user_id);
-        return u ? [{ ...u, org_role: m.role, title: m.title, expires_at: m.expires_at, timeout_until: m.timeout_until }] : [];
+        return u
+          ? [
+              {
+                ...u,
+                org_role: m.role,
+                title: m.title,
+                expires_at: m.expires_at,
+                timeout_until: m.timeout_until,
+              },
+            ]
+          : [];
       })
-      .filter((u) => !term || likeContains(u.display_name, term) || likeContains(u.username, term))
-      .sort((a, b) => (rank[a.org_role] ?? 3) - (rank[b.org_role] ?? 3) || compareText(a.display_name, b.display_name))
-      .slice(0, 500);
+      .filter(
+        (u) =>
+          (!baseFilter || u.org_role === baseFilter) &&
+          (!assigned || assigned.has(u.id)),
+      )
+      .filter(
+        (u) =>
+          !term ||
+          likeContains(u.display_name, term) ||
+          likeContains(u.username, term),
+      )
+      .sort(
+        (a, b) =>
+          (rank[a.org_role] ?? 3) - (rank[b.org_role] ?? 3) ||
+          compareText(a.display_name, b.display_name) ||
+          compareText(a.id, b.id),
+      );
+    const page = matching
+      .filter(
+        (u) =>
+          !cursor ||
+          (rank[u.org_role] ?? 3) > cursor[0] ||
+          ((rank[u.org_role] ?? 3) === cursor[0] &&
+            (compareText(u.display_name, cursor[1]) > 0 ||
+              (compareText(u.display_name, cursor[1]) === 0 &&
+                compareText(u.id, cursor[2]) > 0))),
+      )
+      .slice(0, limit + 1);
+    const rows = page.slice(0, limit);
+    const last = rows.at(-1);
+    const nextAfter =
+      page.length > limit && last
+        ? Buffer.from(
+            JSON.stringify({
+              scope: cursorScope,
+              at: [rank[last.org_role] ?? 3, last.display_name, last.id],
+            }),
+          ).toString("base64url")
+        : null;
     // Custom roles (docs/WORKSPACE_ROLES.md): names and colours only; what each grants is on GET /v1/orgs/:id/roles.
     const roles = new Map(
-      ws.all<{ id: string; name: string; color: string | null; hoist: number; position: number }>("org_roles", { where: { org_id: orgId, archived_at: null } }).map((r) => [r.id, r]),
+      ws
+        .all<{
+          id: string;
+          name: string;
+          color: string | null;
+          hoist: number;
+          position: number;
+        }>("org_roles", { where: { org_id: orgId, archived_at: null } })
+        .map((r) => [r.id, r]),
     );
     const roleRows = ws
-      .all<{ user_id: string; role_id: string }>("org_role_members", { where: { org_id: orgId } })
+      .all<{ user_id: string; role_id: string }>("org_role_members", {
+        where: { org_id: orgId },
+      })
       .flatMap((m) => {
         const r = roles.get(m.role_id);
-        return r ? [{ user_id: m.user_id, id: r.id, name: r.name, color: r.color, hoist: r.hoist, position: r.position }] : [];
+        return r
+          ? [
+              {
+                user_id: m.user_id,
+                id: r.id,
+                name: r.name,
+                color: r.color,
+                hoist: r.hoist,
+                position: r.position,
+              },
+            ]
+          : [];
       })
       .sort((a, b) => a.position - b.position || compareText(a.name, b.name));
     // Community parity A1: nicknames, and roles' second colours (absent while the feature is off).
     const nicknames = ctx.communityPermissions.nicknamesOf(orgId);
-    const color2 = new Map([...roles.keys()].map((id) => [id, ctx.communityPermissions.roleExtras(id)?.color2 ?? null]));
+    const color2 = new Map(
+      [...roles.keys()].map((id) => [
+        id,
+        ctx.communityPermissions.roleExtras(id)?.color2 ?? null,
+      ]),
+    );
+    const icons = new Map(
+      [...roles.keys()].map((id) => [id, roleIconOf(ctx, id)]),
+    );
     return {
+      total: matching.length,
+      ownerCount: ownerCount(orgId),
+      nextAfter,
       members: rows.map((u) =>
         memberView(ctx, userId, u, {
           ...userSummary(u),
@@ -490,7 +890,8 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
           // Round 7: a guest's membership end date (docs/WORKSPACE_C5.md), null without one.
           expiresAt: u.expires_at ?? null,
           // A timeout still running (docs/product/MELDIQ_FEATURE_GAP_MATRIX.md MOD-06), null without one.
-          timeoutUntil: u.timeout_until && u.timeout_until > now() ? u.timeout_until : null,
+          timeoutUntil:
+            u.timeout_until && u.timeout_until > now() ? u.timeout_until : null,
           // Empty since branches and teams became roles; kept for apps that read them.
           branches: [],
           teams: [],
@@ -501,10 +902,13 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
               id: r.id,
               name: r.name,
               color: r.color,
+              ...(icons.get(r.id) ? { iconExpression: icons.get(r.id) } : {}),
               ...(r.hoist === 1 ? { hoist: true, position: r.position } : {}),
               ...(color2.get(r.id) ? { color2: color2.get(r.id)! } : {}),
             })),
-          ...(ctx.communityPermissions.enabled ? { nickname: nicknames.get(u.id) ?? null } : {}),
+          ...(ctx.communityPermissions.enabled
+            ? { nickname: nicknames.get(u.id) ?? null }
+            : {}),
         }),
       ),
     };
@@ -524,26 +928,63 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     // owner; admins (and `members.roles`) switch members and guests, admins may step down; nobody else changes roles.
     if (body.role && body.role !== targetRole) {
       // The actor must reach the person both as they are and as they'd be (a guest's held roles count again once promoted).
-      const reach = new Set([...targetPerms, ...authz.permissionsAs(p.orgId, p.userId, body.role)]);
-      const refusal = orgRoleChangeRefusal(actorNow, targetRole, body.role, self, ownerCount(p.orgId), reach);
-      if (refusal) throw refusal.status === 409 ? conflict(refusal.message) : forbidden(refusal.message);
+      const reach = new Set([
+        ...targetPerms,
+        ...authz.permissionsAs(p.orgId, p.userId, body.role),
+      ]);
+      const refusal = orgRoleChangeRefusal(
+        actorNow,
+        targetRole,
+        body.role,
+        self,
+        ownerCount(p.orgId),
+        reach,
+      );
+      if (refusal)
+        throw refusal.status === 409
+          ? conflict(refusal.message)
+          : forbidden(refusal.message);
     }
-    if (body.title !== undefined && !titleChangeAllowed(actorNow, targetRole, self, targetPerms)) {
+    if (
+      body.title !== undefined &&
+      !titleChangeAllowed(actorNow, targetRole, self, targetPerms)
+    ) {
       throw forbidden("You can't change this person's title");
     }
     const removedFrom = await ws.write((w) => {
       const removed: string[] = [];
-      if (body.role) w.update("org_members", { org_id: p.orgId, user_id: p.userId }, { role: body.role });
-      if (body.title !== undefined) w.update("org_members", { org_id: p.orgId, user_id: p.userId }, { title: body.title });
+      if (body.role)
+        w.update(
+          "org_members",
+          { org_id: p.orgId, user_id: p.userId },
+          { role: body.role },
+        );
+      if (body.title !== undefined)
+        w.update(
+          "org_members",
+          { org_id: p.orgId, user_id: p.userId },
+          { title: body.title },
+        );
       if (body.role) {
         // Guests only keep what a manager grants them explicitly after the demotion.
-        if (body.role === "GUEST" && targetRole !== "GUEST") removed.push(...authz.demoteToGuest(w, p.orgId, p.userId));
-        else removed.push(...authz.revalidateChannelMemberships(w, p.orgId, p.userId));
+        if (body.role === "GUEST" && targetRole !== "GUEST")
+          removed.push(...authz.demoteToGuest(w, p.orgId, p.userId));
+        else
+          removed.push(
+            ...authz.revalidateChannelMemberships(w, p.orgId, p.userId),
+          );
         authz.autoJoinScope(w, p.orgId, p.userId, now());
       }
       return removed;
     });
-    if (body.role) ctx.audit({ actorId: actor, orgId: p.orgId, action: "member.role", target: p.userId, detail: `${targetRole}→${body.role}` });
+    if (body.role)
+      ctx.audit({
+        actorId: actor,
+        orgId: p.orgId,
+        action: "member.role",
+        target: p.userId,
+        detail: `${targetRole}→${body.role}`,
+      });
     notifyOrg(ctx, p.orgId);
     // The person's devices drop the channels; members refresh them. Envelopes still addressed to
     // the person's devices are refused by the recipient-set check (409 device_mismatch).
@@ -559,7 +1000,14 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const targetRole = authz.orgRole(p.orgId, p.userId);
     if (!targetRole) throw notFound("Member not found");
     const self = actor === p.userId;
-    if (!self && !removalAllowed(authz.actor(p.orgId, actor)!, targetRole, authz.permissions(p.orgId, p.userId))) {
+    if (
+      !self &&
+      !removalAllowed(
+        authz.actor(p.orgId, actor)!,
+        targetRole,
+        authz.permissions(p.orgId, p.userId),
+      )
+    ) {
       throw forbidden(
         actorRole === "ADMIN"
           ? "Admins cannot remove owners or admins"
@@ -568,8 +1016,15 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
             : "Only owners and admins can remove people",
       );
     }
-    if (targetRole === "OWNER" && ownerCount(p.orgId) <= 1) throw conflict("Transfer ownership before the last owner leaves");
-    await removeFromWorkspace(ctx, p.orgId, p.userId, actor, self ? "left" : "removed");
+    if (targetRole === "OWNER" && ownerCount(p.orgId) <= 1)
+      throw conflict("Transfer ownership before the last owner leaves");
+    await removeFromWorkspace(
+      ctx,
+      p.orgId,
+      p.userId,
+      actor,
+      self ? "left" : "removed",
+    );
     return { ok: true };
   });
 
@@ -580,24 +1035,50 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const body = parse(InviteCreateBody, req.body);
     requireStanding(ctx.safety, actor, "invite");
     const actorRole = authz.requireOrgMember(orgId, actor);
-    const policy = ws.get<{ guests_allowed: number; guest_max_days: number | null }>("orgs", { id: orgId });
-    if (body.role === "GUEST" && policy && !policy.guests_allowed) throw conflict("This community doesn't allow guests");
-    if (body.role !== "GUEST" && body.guestDays) throw badRequest("Only guest invitations have an end date");
-    const guestDays = body.role === "GUEST" ? (policy?.guest_max_days ? Math.min(body.guestDays ?? policy.guest_max_days, policy.guest_max_days) : (body.guestDays ?? null)) : null;
-    if (body.branchId || body.teamId) throw badRequest("Branches and teams are now roles: invite with a role instead");
-    if (body.role === "ADMIN" && actorRole !== "OWNER") throw forbidden("Only owners can invite admins");
-    if (!authz.canIssueInvite(orgId, actor, body.role)) throw forbidden("Your role doesn't include inviting people");
+    const policy = ws.get<{
+      guests_allowed: number;
+      guest_max_days: number | null;
+    }>("orgs", { id: orgId });
+    if (body.role === "GUEST" && policy && !policy.guests_allowed)
+      throw conflict("This community doesn't allow guests");
+    if (body.role !== "GUEST" && body.guestDays)
+      throw badRequest("Only guest invitations have an end date");
+    const guestDays =
+      body.role === "GUEST"
+        ? policy?.guest_max_days
+          ? Math.min(
+              body.guestDays ?? policy.guest_max_days,
+              policy.guest_max_days,
+            )
+          : (body.guestDays ?? null)
+        : null;
+    if (body.branchId || body.teamId)
+      throw badRequest(
+        "Branches and teams are now roles: invite with a role instead",
+      );
+    if (body.role === "ADMIN" && actorRole !== "OWNER")
+      throw forbidden("Only owners can invite admins");
+    if (!authz.canIssueInvite(orgId, actor, body.role))
+      throw forbidden("Your role doesn't include inviting people");
     // Community parity A3: member invitations may never expire and have no use limit; admin and guest ones keep both.
     const neverExpires = body.expiresInHours === null;
     const noUseLimit = body.maxUses === null;
     if (neverExpires || noUseLimit) {
       ctx.communitySettings.requireEnabled();
-      if (body.role !== "MEMBER") throw badRequest("Only member invitations can last forever or have no use limit");
+      if (body.role !== "MEMBER")
+        throw badRequest(
+          "Only member invitations can last forever or have no use limit",
+        );
     }
     const grantRoleId = body.roleId ?? null;
     if (grantRoleId) {
-      if (body.role === "GUEST") throw badRequest("Guest invitations can't give a role");
-      const r = ws.get<{ permissions: string; denies: string }>("org_roles", { id: grantRoleId, org_id: orgId, archived_at: null });
+      if (body.role === "GUEST")
+        throw badRequest("Guest invitations can't give a role");
+      const r = ws.get<{ permissions: string; denies: string }>("org_roles", {
+        id: grantRoleId,
+        org_id: orgId,
+        archived_at: null,
+      });
       if (!r) throw badRequest("Unknown role");
       // The same rule as assigning it to someone by hand.
       const refusal = roleAssignmentRefusal(
@@ -608,12 +1089,16 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
           denies: parsePermissionList(r.denies),
         },
       );
-      if (refusal) throw new ApiError(refusal.status, refusal.code, refusal.message);
+      if (refusal)
+        throw new ApiError(refusal.status, refusal.code, refusal.message);
     }
     const code = humanCode(12);
     const id = newId("inv");
     const t = now();
-    const expiresAt = body.expiresInHours === null ? NEVER_EXPIRES_AT : t + body.expiresInHours * 3600_000;
+    const expiresAt =
+      body.expiresInHours === null
+        ? NEVER_EXPIRES_AT
+        : t + body.expiresInHours * 3600_000;
     const maxUses = body.maxUses ?? NO_USE_LIMIT;
     await ws.write((w) =>
       w.insert("invitations", {
@@ -632,7 +1117,13 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
         grant_role_id: grantRoleId,
       }),
     );
-    ctx.audit({ actorId: actor, orgId, action: "invite.create", target: id, detail: body.role });
+    ctx.audit({
+      actorId: actor,
+      orgId,
+      action: "invite.create",
+      target: id,
+      detail: body.role,
+    });
     return {
       invite: {
         id,
@@ -656,7 +1147,11 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const { orgId } = parse(OrgParams, req.params);
     authz.requireOrgMember(orgId, actor);
     const isAdmin = authz.can(orgId, actor, "members.invites.manage");
-    const invites = ws.all<any>("invitations", { where: { org_id: orgId }, orderBy: [["created_at", "desc"]], limit: 100 });
+    const invites = ws.all<any>("invitations", {
+      where: { org_id: orgId },
+      orderBy: [["created_at", "desc"]],
+      limit: 100,
+    });
     const creators = mapByIds<{ id: string; display_name: string }>(
       ctx.identity,
       "users",
@@ -664,7 +1159,10 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
       invites.map((i) => i.created_by),
       "id, display_name",
     );
-    const rows = invites.map((i) => ({ ...i, creator_name: creators.get(i.created_by)?.display_name ?? null }));
+    const rows = invites.map((i) => ({
+      ...i,
+      creator_name: creators.get(i.created_by)?.display_name ?? null,
+    }));
     const t = now();
     return {
       invites: rows
@@ -698,9 +1196,20 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const inv = ws.get<any>("invitations", { id });
     if (!inv) throw notFound("Invite not found");
     authz.requireOrgMember(inv.org_id, actor);
-    if (inv.created_by !== actor && !authz.can(inv.org_id, actor, "members.invites.manage")) throw forbidden();
-    await ws.write((w) => w.update("invitations", { id, revoked_at: null }, { revoked_at: now() }));
-    ctx.audit({ actorId: actor, orgId: inv.org_id, action: "invite.revoke", target: id });
+    if (
+      inv.created_by !== actor &&
+      !authz.can(inv.org_id, actor, "members.invites.manage")
+    )
+      throw forbidden();
+    await ws.write((w) =>
+      w.update("invitations", { id, revoked_at: null }, { revoked_at: now() }),
+    );
+    ctx.audit({
+      actorId: actor,
+      orgId: inv.org_id,
+      action: "invite.revoke",
+      target: id,
+    });
     return { ok: true };
   });
 
@@ -712,7 +1221,10 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     return inv!;
   };
 
-  const inviteRate = { preHandler: requireAuth(ctx), config: { rateLimit: { max: 20, timeWindow: "1 minute" } } };
+  const inviteRate = {
+    preHandler: requireAuth(ctx),
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+  };
 
   app.post("/v1/invites/preview", inviteRate, async (req) => {
     const { code } = parse(InviteCodeBody, req.body);
@@ -736,7 +1248,11 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
       team: null,
       grantRole: inv.grant_role_id
         ? (() => {
-            const r = ws.get<{ id: string; name: string; color: string | null }>("org_roles", { id: inv.grant_role_id, archived_at: null });
+            const r = ws.get<{
+              id: string;
+              name: string;
+              color: string | null;
+            }>("org_roles", { id: inv.grant_role_id, archived_at: null });
             return r ? { id: r.id, name: r.name, color: r.color } : null;
           })()
         : null,
@@ -750,43 +1266,71 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
    * Batch B4b: what the meldiq.app/invite page shows before anyone signs in. Only the community's name, description and
    * size, never its channels or members; the same problem codes as the signed-in preview. Rate limited per address.
    */
-  app.get("/v1/invites/:code/public", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (req) => {
-    const { code } = parse(InviteCodeParams, req.params);
-    const inv = findInvite(code);
-    const org = ws.get<{ id: string; name: string; description: string | null; accent: string | null; banner_rev: number | null; photo_rev: number | null }>("orgs", {
-      id: inv.org_id,
-    })!;
-    return {
-      community: {
-        name: org.name,
-        description: org.description,
-        memberCount: ws.count("org_members", { org_id: org.id }),
-        accent: org.accent ?? null,
-        banner: org.banner_rev !== null,
-        photo: org.photo_rev !== null,
-      },
-      invitesPaused: !!authz.pausedUntil(inv.org_id, "invites", now()),
-    };
-  });
+  app.get(
+    "/v1/invites/:code/public",
+    { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } },
+    async (req) => {
+      const { code } = parse(InviteCodeParams, req.params);
+      const inv = findInvite(code);
+      const org = ws.get<{
+        id: string;
+        name: string;
+        description: string | null;
+        accent: string | null;
+        banner_rev: number | null;
+        photo_rev: number | null;
+      }>("orgs", {
+        id: inv.org_id,
+      })!;
+      return {
+        community: {
+          name: org.name,
+          description: org.description,
+          memberCount: ws.count("org_members", { org_id: org.id }),
+          accent: org.accent ?? null,
+          banner: org.banner_rev !== null,
+          photo: org.photo_rev !== null,
+        },
+        invitesPaused: !!authz.pausedUntil(inv.org_id, "invites", now()),
+      };
+    },
+  );
 
   /** The invitation's community banner (API 0.44.0), for the invite page and the app's preview: a usable code only. */
-  app.get("/v1/invites/:code/banner", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (req, reply) => {
-    const { code } = parse(InviteCodeParams, req.params);
-    const inv = findInvite(code);
-    const rev = (orgRow(inv.org_id)?.banner_rev as number | null | undefined) ?? null;
-    return sendBanner(reply, inv.org_id, rev, "public, max-age=300");
-  });
+  app.get(
+    "/v1/invites/:code/banner",
+    { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } },
+    async (req, reply) => {
+      const { code } = parse(InviteCodeParams, req.params);
+      const inv = findInvite(code);
+      const rev =
+        (orgRow(inv.org_id)?.banner_rev as number | null | undefined) ?? null;
+      return sendBanner(reply, inv.org_id, rev, "public, max-age=300");
+    },
+  );
 
   /** The invitation's community icon (API 0.46.0), for the invite page: a usable code only, like the banner. */
-  app.get("/v1/invites/:code/photo", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (req, reply) => {
-    const { code } = parse(InviteCodeParams, req.params);
-    const inv = findInvite(code);
-    const rev = (orgRow(inv.org_id)?.photo_rev as number | null | undefined) ?? null;
-    const stream = rev ? await ctx.blobs.get("profile-photos", photoBlobId(inv.org_id, rev)) : null;
-    if (!stream) throw notFound("No photo");
-    const { type, body } = await withImageType(stream);
-    return reply.header("content-type", type).header("x-content-type-options", "nosniff").header("cache-control", "public, max-age=300").header("etag", `"${rev}"`).send(body);
-  });
+  app.get(
+    "/v1/invites/:code/photo",
+    { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } },
+    async (req, reply) => {
+      const { code } = parse(InviteCodeParams, req.params);
+      const inv = findInvite(code);
+      const rev =
+        (orgRow(inv.org_id)?.photo_rev as number | null | undefined) ?? null;
+      const stream = rev
+        ? await ctx.blobs.get("profile-photos", photoBlobId(inv.org_id, rev))
+        : null;
+      if (!stream) throw notFound("No photo");
+      const { type, body } = await withImageType(stream);
+      return reply
+        .header("content-type", type)
+        .header("x-content-type-options", "nosniff")
+        .header("cache-control", "public, max-age=300")
+        .header("etag", `"${rev}"`)
+        .send(body);
+    },
+  );
 
   app.post("/v1/invites/accept", inviteRate, async (req) => {
     const userId = me(req).userId;
@@ -800,18 +1344,43 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
       const known = lookupOrgInvite(w, code);
       // Already joined through this invite (a retry or a double tap): succeed again without using it up, even if
       // that first accept took its last use. Grants nothing the person doesn't already have.
-      if (known && inviteAlreadySatisfied(authz, w, known, userId)) return { orgId: known.org_id, inviteId: known.id, role: authz.orgRole(known.org_id, userId)!, repeated: true };
-      return { ...joinOrgByInvite(ctx, w, findInvite(code, w), userId, t), repeated: false };
+      if (known && inviteAlreadySatisfied(authz, w, known, userId))
+        return {
+          orgId: known.org_id,
+          inviteId: known.id,
+          role: authz.orgRole(known.org_id, userId)!,
+          repeated: true,
+        };
+      return {
+        ...joinOrgByInvite(ctx, w, findInvite(code, w), userId, t),
+        repeated: false,
+      };
     });
     if (!result.repeated) {
-      ctx.audit({ actorId: userId, orgId: result.orgId, action: "invite.accept", target: result.inviteId, detail: result.role });
+      ctx.audit({
+        actorId: userId,
+        orgId: result.orgId,
+        action: "invite.accept",
+        target: result.inviteId,
+        detail: result.role,
+      });
       notifyOrg(ctx, result.orgId);
       await noteJoin(ctx, result.orgId, t);
       // API 0.65.0: the inviter earns points once this person has stayed 7 days.
-      const inviter = ws.get<{ created_by: string }>("invitations", { id: result.inviteId })?.created_by;
-      if (inviter) await ctx.points.noteInviteJoin(inviter, userId, result.orgId, t).catch((err) => req.log.warn({ err }, "points: invite join not noted"));
+      const inviter = ws.get<{ created_by: string }>("invitations", {
+        id: result.inviteId,
+      })?.created_by;
+      if (inviter)
+        await ctx.points
+          .noteInviteJoin(inviter, userId, result.orgId, t)
+          .catch((err) =>
+            req.log.warn({ err }, "points: invite join not noted"),
+          );
     }
-    return { org: orgSummary(ctx, orgRow(result.orgId), userId), alreadyMember: result.repeated };
+    return {
+      org: orgSummary(ctx, orgRow(result.orgId), userId),
+      alreadyMember: result.repeated,
+    };
   });
 
   // ───────────── Channels ─────────────
@@ -820,19 +1389,38 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const { orgId } = parse(OrgParams, req.params);
     const body = parse(ChannelCreateBody, req.body);
     authz.requireOrgMember(orgId, actor);
-    if (body.scope !== "ORG") throw badRequest("Branches and teams are now roles and categories: create the channel in a category");
-    if (body.voice && body.kind === "ANNOUNCEMENT") throw badRequest("A voice channel can be public or private, not an announcement channel");
-    if (body.voice && body.format === "forum") throw badRequest("A voice channel can't be a forum");
+    if (body.scope !== "ORG")
+      throw badRequest(
+        "Branches and teams are now roles and categories: create the channel in a category",
+      );
+    if (body.voice && body.kind === "ANNOUNCEMENT")
+      throw badRequest(
+        "A voice channel can be public or private, not an announcement channel",
+      );
+    if (body.voice && body.format === "forum")
+      throw badRequest("A voice channel can't be a forum");
     // Community parity A1: options are checked before anything is created.
-    const options = { textOnly: body.textOnly, noGifs: body.noGifs, stage: body.stage, readOnly: body.readOnly, posterRoleIds: body.posterRoleIds };
+    const options = {
+      textOnly: body.textOnly,
+      noGifs: body.noGifs,
+      stage: body.stage,
+      readOnly: body.readOnly,
+      posterRoleIds: body.posterRoleIds,
+    };
     if (Object.values(options).some((v) => v !== undefined)) {
       ctx.communityPermissions.requireEnabled();
       checkChannelOptions(ctx, orgId, body.voice, options);
     }
     const categoryId = body.categoryId ?? null;
     if (categoryId) {
-      if (!ws.get("channel_categories", { id: categoryId, org_id: orgId })) throw badRequest("Unknown category");
-      if (!authz.can(orgId, actor, "channels.create") && !authz.categoryPermissions(orgId, categoryId, actor).has("channels.create")) {
+      if (!ws.get("channel_categories", { id: categoryId, org_id: orgId }))
+        throw badRequest("Unknown category");
+      if (
+        !authz.can(orgId, actor, "channels.create") &&
+        !authz
+          .categoryPermissions(orgId, categoryId, actor)
+          .has("channels.create")
+      ) {
         throw forbidden("You can't create channels in this category");
       }
     } else if (!authz.can(orgId, actor, "channels.create")) {
@@ -841,14 +1429,35 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const id = newId("c");
     const t = now();
     // Public channels are joined by everyone who may see them unless the creator opts out (autoJoin: false).
-    const autoJoin = body.kind === "ANNOUNCEMENT" ? true : body.kind === "PRIVATE" ? false : (body.autoJoin ?? true);
+    const autoJoin =
+      body.kind === "ANNOUNCEMENT"
+        ? true
+        : body.kind === "PRIVATE"
+          ? false
+          : (body.autoJoin ?? true);
     await ws.write((w) => {
       // The limits are checked inside the unit, so two creates can't both take the last place.
-      if (categoryId && w.count("conversations", { category_id: categoryId }) >= CHANNEL_LIMITS.perCategory) {
-        throw conflict(`A category holds at most ${CHANNEL_LIMITS.perCategory} channels`);
+      if (
+        categoryId &&
+        w.count("conversations", { category_id: categoryId }) >=
+          CHANNEL_LIMITS.perCategory
+      ) {
+        throw conflict(
+          `A category holds at most ${CHANNEL_LIMITS.perCategory} channels`,
+        );
       }
-      if (w.count("conversations", { org_id: orgId, type: "CHANNEL" }) >= CHANNEL_LIMITS.perCommunity) throw conflict(`A community has at most ${CHANNEL_LIMITS.perCommunity} channels`);
-      const last = w.get<{ position: number }>("conversations", { org_id: orgId, type: "CHANNEL", category_id: categoryId }, [["position", "desc"]]);
+      if (
+        w.count("conversations", { org_id: orgId, type: "CHANNEL" }) >=
+        CHANNEL_LIMITS.perCommunity
+      )
+        throw conflict(
+          `A community has at most ${CHANNEL_LIMITS.perCommunity} channels`,
+        );
+      const last = w.get<{ position: number }>(
+        "conversations",
+        { org_id: orgId, type: "CHANNEL", category_id: categoryId },
+        [["position", "desc"]],
+      );
       const position = (last?.position ?? -1) + 1;
       w.insert("conversations", {
         id,
@@ -869,11 +1478,19 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
         format: body.format,
         slowmode_sec: body.slowmodeSec ?? 0,
       });
-      w.insert("conversation_members", { conversation_id: id, user_id: actor, role: "ADMIN", joined_at: t });
+      w.insert("conversation_members", {
+        conversation_id: id,
+        user_id: actor,
+        role: "ADMIN",
+        joined_at: t,
+      });
       const conv = authz.conversation(id)!;
       const addIds = new Set(body.memberIds);
       if (autoJoin) {
-        for (const r of w.all<{ user_id: string }>("org_members", { where: { org_id: orgId } })) addIds.add(r.user_id);
+        for (const r of w.all<{ user_id: string }>("org_members", {
+          where: { org_id: orgId },
+        }))
+          addIds.add(r.user_id);
       }
       for (const uid of addIds) {
         if (uid === actor) continue;
@@ -881,20 +1498,50 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
         const role = authz.orgRole(orgId, uid);
         // Explicitly listed people may be added to a private channel (and guests anywhere); everyone else must be able
         // to see the channel through its permissions.
-        const eligible = authz.scopeEligible(conv, uid) || (explicit && (role === "GUEST" || (body.kind === "PRIVATE" && role !== null && authz.channelPermissions(conv, uid).has("channels.view"))));
+        const eligible =
+          authz.scopeEligible(conv, uid) ||
+          (explicit &&
+            (role === "GUEST" ||
+              (body.kind === "PRIVATE" &&
+                role !== null &&
+                authz.channelPermissions(conv, uid).has("channels.view"))));
         if (eligible) {
-          w.insert("conversation_members", { conversation_id: id, user_id: uid, role: "MEMBER", joined_at: t }, { orIgnore: true });
+          w.insert(
+            "conversation_members",
+            { conversation_id: id, user_id: uid, role: "MEMBER", joined_at: t },
+            { orIgnore: true },
+          );
         } else if (explicit) {
-          throw conflict("Cannot add someone who can't see this channel", { userId: uid });
+          throw conflict("Cannot add someone who can't see this channel", {
+            userId: uid,
+          });
         }
       }
     });
-    ctx.audit({ actorId: actor, orgId, action: body.voice ? "voice_room.create" : "channel.create", target: id, detail: `${body.kind} ${body.name}` });
-    await ctx.communityPermissions.updateChannel(authz.conversation(id)!, actor, options, true);
+    ctx.audit({
+      actorId: actor,
+      orgId,
+      action: body.voice ? "voice_room.create" : "channel.create",
+      target: id,
+      detail: `${body.kind} ${body.name}`,
+    });
+    await ctx.communityPermissions.updateChannel(
+      authz.conversation(id)!,
+      actor,
+      options,
+      true,
+    );
     notifyConversation(ctx, id);
     notifyOrg(ctx, orgId);
     const channel = authz.conversation(id)!;
-    return { channel: conversationView(ctx, channel, actor, await liveCallsOf(ctx, [channel])) };
+    return {
+      channel: conversationView(
+        ctx,
+        channel,
+        actor,
+        await liveCallsOf(ctx, [channel]),
+      ),
+    };
   });
 
   /** Browse channels visible to the caller (joined + joinable public ones). */
@@ -903,19 +1550,37 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const { orgId } = parse(OrgParams, req.params);
     authz.requireOrgMember(orgId, actor);
     const { q, includeArchived } = parse(ChannelListQuery, req.query);
-    const rows = ws.all<ConversationRow>("conversations", { where: { org_id: orgId, type: "CHANNEL" }, orderBy: [["name", "asc"]] });
+    const rows = ws.all<ConversationRow>("conversations", {
+      where: { org_id: orgId, type: "CHANNEL" },
+      orderBy: [["name", "asc"]],
+    });
     const shown = rows
-      .filter((c) => (includeArchived === "true" || !c.archived_at) && authz.canViewChannel(c, actor))
-      .filter((c) => !q || (c.name ?? "").toLowerCase().includes(q.toLowerCase()) || (c.topic ?? "").toLowerCase().includes(q.toLowerCase()));
+      .filter(
+        (c) =>
+          (includeArchived === "true" || !c.archived_at) &&
+          authz.canViewChannel(c, actor),
+      )
+      .filter(
+        (c) =>
+          !q ||
+          (c.name ?? "").toLowerCase().includes(q.toLowerCase()) ||
+          (c.topic ?? "").toLowerCase().includes(q.toLowerCase()),
+      );
     const live = await liveCallsOf(ctx, shown);
-    return { channels: shown.map((c) => conversationView(ctx, c, actor, live)) };
+    return {
+      channels: shown.map((c) => conversationView(ctx, c, actor, live)),
+    };
   });
 
   // ───────────── Activity ─────────────
   // Non-admins see an event only if they could see its target in the org structure (GET /v1/orgs/:id)
   // or the conversation itself. The target is looked up live, so older audit rows without any scope
   // information are filtered the same way; a target that no longer exists is hidden.
-  const activityVisibleTo = (r: { action: string; target: string | null }, viewer: string, orgId: string): boolean => {
+  const activityVisibleTo = (
+    r: { action: string; target: string | null },
+    viewer: string,
+    orgId: string,
+  ): boolean => {
     const target = r.target ?? "";
     switch (r.action) {
       case "category.create":
@@ -944,18 +1609,35 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const role = authz.requireOrgMember(orgId, actor);
     if (role === "GUEST") throw forbidden();
     const isAdmin = authz.can(orgId, actor, "audit.view");
-    const rows = ws.all<any>("audit_log", { where: { org_id: orgId }, orderBy: [["id", "desc"]], limit: 500 });
+    const rows = ws.all<any>("audit_log", {
+      where: { org_id: orgId },
+      orderBy: [["id", "desc"]],
+      limit: 500,
+    });
     const names = new Map<string, string>();
     const nameOf = (id: string | null) => {
       if (!id) return null;
-      if (!names.has(id)) names.set(id, ctx.identity.get<{ display_name: string }>("users", { id })?.display_name ?? "Someone");
+      if (!names.has(id))
+        names.set(
+          id,
+          ctx.identity.get<{ display_name: string }>("users", { id })
+            ?.display_name ?? "Someone",
+        );
       return names.get(id)!;
     };
     return {
       activity: rows
         .filter((r) => isAdmin || activityVisibleTo(r, actor, orgId))
         .slice(0, 60)
-        .map((r) => ({ id: r.id, at: r.at, action: r.action, actorId: r.actor_id, actorName: nameOf(r.actor_id), target: r.target, detail: r.detail })),
+        .map((r) => ({
+          id: r.id,
+          at: r.at,
+          action: r.action,
+          actorId: r.actor_id,
+          actorName: nameOf(r.actor_id),
+          target: r.target,
+          detail: r.detail,
+        })),
     };
   });
 }
@@ -965,45 +1647,83 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
 export async function eraseWorkspace(
   ctx: AppContext,
   orgId: string,
-  authorization: { kind: "owner"; userId: string } | { kind: "platform"; accountId: string },
+  authorization:
+    { kind: "owner"; userId: string } | { kind: "platform"; accountId: string },
   body: { confirmName: string; requestId?: string },
 ) {
   const { ws, authz } = ctx;
   const platform = authorization.kind === "platform";
-  const actor = authorization.kind === "owner" ? authorization.userId : `platform:${authorization.accountId}`;
-  const previous = () => ws.get<{ deleted_by: string; request_id: string | null; members: number; channels: number; files: number }>("org_deletions", { org_id: orgId });
+  const actor =
+    authorization.kind === "owner"
+      ? authorization.userId
+      : `platform:${authorization.accountId}`;
+  const previous = () =>
+    ws.get<{
+      deleted_by: string;
+      request_id: string | null;
+      members: number;
+      channels: number;
+      files: number;
+    }>("org_deletions", { org_id: orgId });
   const replay = () => {
     const d = previous();
-    if (d && body.requestId && d.request_id === body.requestId && d.deleted_by === actor) {
-      return { deleted: true, orgId, members: d.members, channels: d.channels, files: d.files };
+    if (
+      d &&
+      body.requestId &&
+      d.request_id === body.requestId &&
+      d.deleted_by === actor
+    ) {
+      return {
+        deleted: true,
+        orgId,
+        members: d.members,
+        channels: d.channels,
+        files: d.files,
+      };
     }
     throw notFound("Organization not found");
   };
   if (previous()) return replay();
   if (!platform) {
     const role = authz.requireOrgMember(orgId, actor);
-    if (role !== "OWNER") throw forbidden("Only an owner can delete the organization");
+    if (role !== "OWNER")
+      throw forbidden("Only an owner can delete the organization");
   }
   const org = ws.get<{ name: string }>("orgs", { id: orgId });
   if (!org) throw notFound("Organization not found");
-  if (body.confirmName.trim() !== org.name.trim()) throw new ApiError(400, "confirm_mismatch", "Type the organization's name exactly as it appears to delete it");
+  if (body.confirmName.trim() !== org.name.trim())
+    throw new ApiError(
+      400,
+      "confirm_mismatch",
+      "Type the organization's name exactly as it appears to delete it",
+    );
   // The files store may not be SQLite: what the channels hold is read before the transaction (and their records go
   // inside it, through ctx.files.forgetConversation).
   const files = await ctx.files.attachmentIdsIn(authz.conversationIdsOf(orgId));
   // Calls may not be in SQLite either: the live rooms to close are read before the transaction too.
-  const rooms = (await ctx.calls.liveIn(authz.conversationIdsOf(orgId))).map((c) => c.room_name);
+  const rooms = (await ctx.calls.liveIn(authz.conversationIdsOf(orgId))).map(
+    (c) => c.room_name,
+  );
 
   const result = await ws.write((w) => {
     // Checked again inside the write unit: a concurrent delete may have just finished.
     if (!w.get("orgs", { id: orgId })) return null;
     if (!platform && authz.orgRole(orgId, actor) !== "OWNER") return null;
-    const members = w.all<{ user_id: string }>("org_members", { where: { org_id: orgId } }).map((r) => r.user_id);
-    const channels = w.all<{ id: string }>("conversations", { where: { org_id: orgId } }).map((r) => r.id);
+    const members = w
+      .all<{ user_id: string }>("org_members", { where: { org_id: orgId } })
+      .map((r) => r.user_id);
+    const channels = w
+      .all<{ id: string }>("conversations", { where: { org_id: orgId } })
+      .map((r) => r.id);
     const channelMembers = new Map<string, string[]>();
     for (const c of channels) {
       channelMembers.set(
         c,
-        w.all<{ user_id: string }>("conversation_members", { where: { conversation_id: c } }).map((r) => r.user_id),
+        w
+          .all<{ user_id: string }>("conversation_members", {
+            where: { conversation_id: c },
+          })
+          .map((r) => r.user_id),
       );
       // Rows without a foreign key to the conversation; its files' bytes are scheduled for deletion and its open
       // uploads abandoned (their objects or parts are removed by the retention job).
@@ -1011,11 +1731,23 @@ export async function eraseWorkspace(
       ctx.files.forgetConversation(c);
       w.delete("mention_all_events", { conversation_id: c });
     }
-    const o = w.get<{ photo_rev: number | null; banner_rev: number | null }>("orgs", { id: orgId })!;
-    if (o.photo_rev) queueBlobDelete(ctx, "profile-photos", photoBlobId(orgId, o.photo_rev));
-    if (o.banner_rev) queueBlobDelete(ctx, "profile-photos", bannerBlobId(orgId, o.banner_rev));
+    const o = w.get<{ photo_rev: number | null; banner_rev: number | null }>(
+      "orgs",
+      { id: orgId },
+    )!;
+    if (o.photo_rev)
+      queueBlobDelete(ctx, "profile-photos", photoBlobId(orgId, o.photo_rev));
+    if (o.banner_rev)
+      queueBlobDelete(ctx, "profile-photos", bannerBlobId(orgId, o.banner_rev));
+    for (const m of w.all<{ cover_id: string | null }>("meetings", {
+      where: { org_id: orgId },
+    }))
+      if (m.cover_id) queueBlobDelete(ctx, "profile-photos", m.cover_id);
     // Batch B9: the community's own emoji and stickers.
-    for (const e of w.all<{ id: string }>("community_expressions", { where: { org_id: orgId } })) queueBlobDelete(ctx, "profile-photos", e.id);
+    for (const e of w.all<{ id: string }>("community_expressions", {
+      where: { org_id: orgId },
+    }))
+      queueBlobDelete(ctx, "profile-photos", e.id);
     // Cascades to org_members, roles, categories, overwrites, bans, invitations, the old branch and team rows, and
     // the community's conversations (members, attachment rows, calls and call participants).
     w.delete("orgs", { id: orgId });
@@ -1034,7 +1766,8 @@ export async function eraseWorkspace(
   if (!result) return replay();
   // SQLite cascaded its calls with the channels; a call store elsewhere removes them itself.
   await ctx.calls.forgetConversations([...result.channelMembers.keys()]);
-  for (const c of result.channelMembers.keys()) await ctx.messages.deleteConversation(c);
+  for (const c of result.channelMembers.keys())
+    await ctx.messages.deleteConversation(c);
   await ctx.prefs.deleteForWorkspace(orgId);
   await ctx.reports.deleteForOrg(orgId);
   await ctx.communityRules.removeOrg(orgId);
@@ -1045,14 +1778,26 @@ export async function eraseWorkspace(
     orgId,
     action: "org.delete",
     target: orgId,
-    detail: JSON.stringify({ members: result.members.length, channels: result.channelMembers.size, files: result.files.length }),
+    detail: JSON.stringify({
+      members: result.members.length,
+      channels: result.channelMembers.size,
+      files: result.files.length,
+    }),
   });
   // Every device updates: apps from before this change refresh the organization list and each channel (now 404, so
   // they show it as left); newer apps also get org.deleted.
-  for (const [c, ids] of result.channelMembers) ctx.hub.sendToUsers(new Set(ids), { t: "conv.updated", conversationId: c });
+  for (const [c, ids] of result.channelMembers)
+    ctx.hub.sendToUsers(new Set(ids), { t: "conv.updated", conversationId: c });
   ctx.hub.sendToUsers(new Set(result.members), { t: "org.updated", orgId });
   ctx.hub.sendToUsers(new Set(result.members), { t: "org.deleted", orgId });
-  for (const room of result.rooms) await ctx.livekit?.deleteRoom(room).catch(() => {});
+  for (const room of result.rooms)
+    await ctx.livekit?.deleteRoom(room).catch(() => {});
   await processBlobDeletes(ctx).catch(() => 0);
-  return { deleted: true, orgId, members: result.members.length, channels: result.channelMembers.size, files: result.files.length };
+  return {
+    deleted: true,
+    orgId,
+    members: result.members.length,
+    channels: result.channelMembers.size,
+    files: result.files.length,
+  };
 }

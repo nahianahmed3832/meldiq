@@ -26,6 +26,7 @@ import { bugReportRoutes } from "./bugReports.js";
 import { historyRoutes } from "./history.js";
 import { messagingRoutes } from "./messaging.js";
 import { serverMessagesRoutes } from "./serverMessages.js";
+import { partnerContracts } from "./partners.js";
 import { systemRoutes } from "./system.js";
 import { creatorRoutes } from "./creators.js";
 import { linkedAccountRoutes } from "./linkedAccounts.js";
@@ -44,6 +45,7 @@ export const ErrorEnvelope = z.strictObject({
 
 /** The documented routes. Routes not listed yet are still checked for the error envelope by the test suite. */
 export const ROUTE_CONTRACTS: readonly RouteContract[] = [
+  ...partnerContracts,
   ...supabaseAuthRoutes,
   ...collectibleRoutes,
   ...paymentMethodRoutes,

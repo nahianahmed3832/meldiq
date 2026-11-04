@@ -10,6 +10,24 @@ import { route } from "./route.js";
  */
 
 export const NotifyLevel = z.enum(["all", "mentions", "none"]);
+export const QUICK_REACTION_CHOICES = [
+  "👍",
+  "❤️",
+  "✅",
+  "😂",
+  "🔥",
+  "🙏",
+  "🎉",
+  "👀",
+] as const;
+export const QuickReactions = z
+  .array(z.enum(QUICK_REACTION_CHOICES))
+  .min(3)
+  .max(5)
+  .refine(
+    (items) => new Set(items).size === items.length,
+    "Choose distinct reactions",
+  );
 
 export const PREFS_LIMITS = {
   starred: 200,
@@ -137,6 +155,7 @@ const prefsFields = {
   hidden: z.array(zConversationId).max(PREFS_LIMITS.hidden).optional(),
   /** Community parity A3, personal document only: show communities' accent and background tint (false: Meldiq's own). */
   communityThemes: z.boolean().optional(),
+  quickReactions: QuickReactions.optional(),
   expressionFavorites: z
     .array(z.string().regex(/^(emj|stk)_[A-Za-z0-9_-]{1,40}$/))
     .max(100)
@@ -168,7 +187,9 @@ export const PreferencesView = z.strictObject({
   updatedAt: zTime.nullable(),
   prefs: z.strictObject({
     ...prefsFields,
-    sections: z.array(z.strictObject(NavSection.shape)).max(PREFS_LIMITS.sections),
+    sections: z
+      .array(z.strictObject(NavSection.shape))
+      .max(PREFS_LIMITS.sections),
   }),
 });
 
@@ -177,7 +198,8 @@ export const preferenceRoutes = [
     method: "GET",
     url: "/v1/me/preferences/:workspaceId",
     tag: "preferences",
-    summary: 'Your navigation preferences for a workspace ("personal" or a community you belong to).',
+    summary:
+      'Your navigation preferences for a workspace ("personal" or a community you belong to).',
     auth: true,
     params: WorkspaceParams,
     response: PreferencesView,
@@ -187,7 +209,8 @@ export const preferenceRoutes = [
     method: "PUT",
     url: "/v1/me/preferences/:workspaceId",
     tag: "preferences",
-    summary: "Replace your navigation preferences for a workspace, based on revision baseRev (409 with the current copy if it changed).",
+    summary:
+      "Replace your navigation preferences for a workspace, based on revision baseRev (409 with the current copy if it changed).",
     auth: true,
     params: WorkspaceParams,
     body: PreferencesBody,

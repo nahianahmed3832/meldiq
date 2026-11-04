@@ -241,10 +241,15 @@ describe("the console's code", () => {
           ),
           file,
         ).toBe(false);
-        // No sealer, reporter identity, notes or content access.
+        // Ordinary reports expose no sealer, reporter identity, notes or content. The approved whole-community
+        // flow has one narrow evidence projection, tested alongside ordinary-report privacy in community_reports.
         expect(
           /reportSealer\.|\.content\b|\.note\b|reporter_id/.test(
             text
+              .replace(
+                /r\.target_org_id \? \{ targetCommunityId: r\.target_org_id, communityNote: r\.note \} : \{\}/g,
+                "approvedCommunityEvidence",
+              )
               .replace(/b\.note/g, "internalNote")
               .replace(
                 /p\.account\.user_id === report\.reporter_id/g,
