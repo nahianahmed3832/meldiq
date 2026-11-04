@@ -42,6 +42,7 @@ export const BotPermissionList = z
 export const BotManifestUpdate = z.strictObject({
   permissions: BotPermissionList,
   rev: z.number().int().nonnegative(),
+  voicePublicKey: z.string().trim().regex(/^[A-Za-z0-9+/]{43}=$/).nullable().optional(),
 });
 export const BotInstallationApproval = z.strictObject({
   permissions: BotPermissionList,
@@ -52,6 +53,8 @@ export const BotPermissionManifest = z.strictObject({
   botId: z.string(),
   permissions: BotPermissionList,
   rev: z.number().int().nonnegative(),
+  voicePublicKey: z.string().nullable().optional(),
+  voiceKeyFingerprint: z.string().nullable().optional(),
 });
 export const BotPermissionInstallation = z.strictObject({
   orgId: z.string(),

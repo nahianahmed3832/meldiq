@@ -12,12 +12,14 @@ import type { Bot } from "./store.js";
 import { isBotUser } from "../accounts/index.js";
 import type { RowWriter } from "../../infrastructure/database/rows/index.js";
 import { newId } from "../../shared/utilities/util.js";
+import { botVoiceFingerprint, validateBotVoicePublicKey } from "./voiceKeys.js";
 
 type Requested = {
   bot_id: string;
   permissions: string;
   rev: number;
   updated_at: number;
+  voice_public_key?: string | null;
 };
 type Approved = {
   org_id: string;
@@ -66,7 +68,8 @@ export class BotPermissions {
     const row = this.bots.ctx.ws.get<Requested>("bot_requested_permissions", {
       bot_id: botId,
     });
-    return { botId, permissions: read(row?.permissions), rev: row?.rev ?? 0 };
+    const voicePublicKey = row?.voice_public_key ?? null;
+    return { botId, permissions: read(row?.permissions), rev: row?.rev ?? 0, voicePublicKey, voiceKeyFingerprint: botVoiceFingerprint(voicePublicKey) };
   }
 
   async update(
@@ -77,6 +80,7 @@ export class BotPermissions {
     const bot = await this.bots.store.bot(botId);
     if (!bot || bot.ownerId !== ownerId)
       throw notFound("You have no bot with that id");
+    validateBotVoicePublicKey(body.voicePublicKey);
     await this.bots.ctx.ws.write((w) => {
       const prior = w.get<Requested>("bot_requested_permissions", {
         bot_id: botId,
@@ -91,6 +95,7 @@ export class BotPermissions {
         permissions: JSON.stringify(body.permissions),
         rev: body.rev + 1,
         updated_at: this.bots.clock(),
+        ...(body.voicePublicKey === undefined ? {} : { voice_public_key: body.voicePublicKey }),
       };
       w.upsert(
         "bot_requested_permissions",
@@ -230,6 +235,15 @@ export class BotPermissions {
       throw forbidden(
         "This bot installation has not been approved for that action",
       );
+  }
+
+  /** Unlike the ordinary scope intersection, media key approval binds the exact current manifest revision. */
+  approvedVoiceKey(bot: Bot, orgId: string) {
+    this.require(bot, orgId, "voice.connect");
+    const manifest = this.manifest(bot.id);
+    if (!manifest.voicePublicKey || this.installation(orgId, bot.id).manifestRev !== manifest.rev)
+      throw forbidden("A manager must review the current bot voice encryption key before it can join media");
+    return { publicKey: manifest.voicePublicKey, fingerprint: manifest.voiceKeyFingerprint!, revision: manifest.rev };
   }
 
   async prepareCredential(

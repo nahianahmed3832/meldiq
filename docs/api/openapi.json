@@ -1328,6 +1328,18 @@
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991
+                        },
+                        "voicePublicKey": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "voiceKeyFingerprint": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
                         }
                       },
                       "required": [
@@ -1693,6 +1705,18 @@
                       "type": "integer",
                       "minimum": 0,
                       "maximum": 9007199254740991
+                    },
+                    "voicePublicKey": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "voiceKeyFingerprint": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
@@ -1782,6 +1806,18 @@
                       "type": "integer",
                       "minimum": 0,
                       "maximum": 9007199254740991
+                    },
+                    "voicePublicKey": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "voiceKeyFingerprint": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
@@ -1846,6 +1882,17 @@
                     "type": "integer",
                     "minimum": 0,
                     "maximum": 9007199254740991
+                  },
+                  "voicePublicKey": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9+/]{43}=$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [

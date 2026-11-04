@@ -2036,6 +2036,7 @@ export const SCHEMA: readonly TableShape[] = [
       {"name":"permissions","type":"TEXT","notNull":true,"default":"[]"},
       {"name":"rev","type":"INTEGER","notNull":true,"default":1},
       {"name":"updated_at","type":"INTEGER","notNull":true},
+      {"name":"voice_public_key","type":"TEXT","notNull":false},
     ],
     primaryKey: ["bot_id"],
     indexes: [],
