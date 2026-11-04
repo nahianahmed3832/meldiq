@@ -102,7 +102,7 @@ describe("bot voice public key approval", () => {
       h.ctx.identity.all("devices", { where: { user_id: botId } }),
     ).toEqual([]);
     expect(
-      h.ctx.identity.all("sessions", { where: { user_id: botId } }),
+      h.ctx.ephemeral.all("sessions", { where: { user_id: botId } }),
     ).toEqual([]);
     expect(
       Object.keys(

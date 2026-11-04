@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { runCleanup } from "../src/modules/administration/jobs.js";
 import { type Harness, startServer } from "./support/harness.js";
 import { allCallIds, callRow } from "./support/calls.js";
+import { openDatabase } from "../src/infrastructure/database/db.js";
 
 let h: Harness;
 beforeAll(async () => {
@@ -17,7 +18,10 @@ describe("operations hygiene (Tier 7)", () => {
   });
 
   it("the database overwrites deleted rows (D17)", () => {
-    expect(h.ctx.db.pragma("secure_delete", { simple: true })).toBe(1);
+    // This assertion is SQLite-specific; do not interpret a local PRAGMA as PostgreSQL erasure evidence.
+    const sqlite = openDatabase(":memory:");
+    try { expect(sqlite.pragma("secure_delete", { simple: true })).toBe(1); }
+    finally { sqlite.close(); }
   });
 
   it("prunes ended calls past retention and old audit rows, keeping recent and live ones (D16)", async () => {

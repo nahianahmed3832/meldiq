@@ -21,7 +21,7 @@ const ids = async (c: GriipClient) => ((await c.req("GET", "/v1/conversations"))
 
 beforeAll(async () => {
   if (!sqliteWorkspace) return;
-  h = await startServer();
+  h = await startServer({ MONGODB_DOMAINS: "" });
   owner = await h.client("mowner");
   branchManager = await h.client("mbranchmgr");
   branchMember = await h.client("mbranchmember");

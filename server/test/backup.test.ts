@@ -12,7 +12,7 @@ let dir: string;
 /** The snapshot is of SQLite: it holds the people only while identity lives there (not in MongoDB mode). */
 const sqliteUsers = () => (h.ctx.identity.backend === "sqlite" ? 2 : 0);
 beforeAll(async () => {
-  h = await startServer();
+  h = await startServer({ MONGODB_DOMAINS: "" });
   dir = fs.mkdtempSync(path.join(os.tmpdir(), "griip-backup-"));
 });
 afterAll(async () => {

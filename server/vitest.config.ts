@@ -14,6 +14,7 @@ export default defineConfig({
     hookTimeout: 90000,
     pool: "forks",
     // A local MongoDB replica set for the MongoDB tests (test/support/mongoGlobal.ts).
-    globalSetup: process.env.MELDIQ_TEST_PG_URL ? [] : ["test/support/mongoGlobal.ts"],
+    // Explicit MongoDB backend/migration tests still need their owned replica set in a PostgreSQL parity run.
+    globalSetup: ["test/support/mongoGlobal.ts"],
   },
 });

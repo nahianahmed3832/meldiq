@@ -100,7 +100,7 @@ describe("the trial program in the console", () => {
     const plans = (await h.app.inject({ method: "GET", url: "/v2/billing/plans" })).json();
     expect(PublicPlans.safeParse(plans).success).toBe(true);
     expect(plans.trial).toEqual({ planKey: "plus", days: 14, referralDays: 30, referralYearlyCapDays: 90 });
-    const audit = h.ctx.db.prepare("SELECT reason, detail FROM platform_audit WHERE action = 'billing.program_update' ORDER BY id DESC LIMIT 1").get() as any;
+    const audit = h.ctx.platform.get<{ reason: string; detail: string }>("platform_audit", { action: "billing.program_update" }, [["id", "desc"]])!;
     expect(audit.reason).toBe(REASON);
     expect(JSON.parse(audit.detail).before).toContain('"source":"environment"');
 
@@ -141,7 +141,7 @@ describe("the trial program in the console", () => {
     const page = await as("billing_admin").expect(200, "GET", `/admin/v1/billing/grants?account=${pat.accountId}&state=active`);
     expect(AdminMojoGrantsPage.safeParse(page).success).toBe(true);
     expect(page.grants.map((g: any) => g.id)).toEqual([now.grant.id]);
-    const audits = h.ctx.db.prepare("SELECT action FROM platform_audit WHERE target_id = ? ORDER BY id").all(pat.accountId) as { action: string }[];
+    const audits = h.ctx.platform.all<{ action: string }>("platform_audit", { where: { target_id: pat.accountId }, orderBy: [["id", "asc"]] });
     expect(audits.map((a) => a.action)).toEqual(["billing.grant_give", "billing.grant_end", "billing.grant_end", "billing.grant_give"]);
   });
 
@@ -228,7 +228,7 @@ describe("the trial program in the console", () => {
       expect(catalog.version).toBe(r.body.catalogVersion);
       expect(catalog.plans.find((p: any) => p.key === "free")).toMatchObject({ messageChars: 800, uploadBytes: 25_000_000 });
       expect(catalog.spark.levels[1]).toMatchObject({ level: 1, sparks: 3 });
-      const audit = h.ctx.db.prepare("SELECT reason, detail FROM platform_audit WHERE action = 'mojo.controls_update' ORDER BY id DESC LIMIT 1").get() as any;
+      const audit = h.ctx.platform.get<{ reason: string; detail: string }>("platform_audit", { action: "mojo.controls_update" }, [["id", "desc"]])!;
       expect(JSON.parse(audit.detail)).toMatchObject({ enforceBefore: "environment", enforceAfter: "on", enforcedBefore: false, enforcedAfter: true });
     });
 
@@ -269,7 +269,7 @@ describe("the trial program in the console", () => {
       expect(r.body.plans.map((p: any) => p.listPriceMinor)).toEqual([0, 299, 499]);
       const catalog = (await h.app.inject({ method: "GET", url: "/v2/mojo/catalog" })).json();
       expect(catalog.plans.map((p: any) => p.listPriceMinor)).toEqual([0, 499]);
-      const audit = h.ctx.db.prepare("SELECT reason, detail FROM platform_audit WHERE action = 'mojo.prices_update' ORDER BY id DESC LIMIT 1").get() as any;
+      const audit = h.ctx.platform.get<{ reason: string; detail: string }>("platform_audit", { action: "mojo.prices_update" }, [["id", "desc"]])!;
       expect(audit.reason).toBe("Owner's plan prices for launch");
       expect(JSON.parse(audit.detail)).toMatchObject({ goBefore: 199, goAfter: 299, plusBefore: 499, plusAfter: 499, provider: "none" });
       // Saving the limits keeps the prices: they change only here.

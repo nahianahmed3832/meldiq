@@ -71,7 +71,10 @@ export async function startServer(
   // Google Play with a fake Developer API and test signing keys (test/play.test.ts).
   if (opts.play) config.billing = { ...config.billing, play: opts.play };
   const contracts = contractCheck();
-  const postgresHarness = opts.postgres ? null : await preparePostgresHarness();
+  // A global PostgreSQL parity run uses PostgreSQL by default. Respect tests that explicitly select a legacy
+  // backend (including MONGODB_DOMAINS="" for SQLite restart/backup tests) instead of silently replacing it.
+  const explicitBackend = Object.hasOwn(env, "MONGODB_DOMAINS") || Object.hasOwn(env, "MONGODB_URI");
+  const postgresHarness = opts.postgres || explicitBackend ? null : await preparePostgresHarness();
   let built: BuiltApp;
   let reportedPostgresFailure = false;
   try {

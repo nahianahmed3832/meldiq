@@ -10,7 +10,7 @@ import { type Harness, startServer } from "./support/harness.js";
  */
 let h: Harness;
 beforeAll(async () => {
-  h = await startServer();
+  h = await startServer({ MONGODB_DOMAINS: "" });
 });
 afterAll(async () => h.close());
 

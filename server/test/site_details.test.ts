@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { SITE_DETAILS_DEFAULTS, siteDetailsFromDb } from "../src/app/siteDetails.js";
+import { SITE_DETAILS_DEFAULTS, readSiteDetails, siteDetailsFromDb } from "../src/app/siteDetails.js";
 import { PlanCatalog } from "../src/modules/billing/catalog.js";
 import { publishMojoPlans } from "../src/modules/billing/stripeSetup.js";
 import { AdminSiteDetails, SiteDetails } from "../src/shared/contracts/http/platformAdminInsights.js";
@@ -70,13 +70,14 @@ describe("site and legal details", () => {
     expect(saved.updatedBy.accountId).toBe(admins.super_admin!.account.accountId);
     expect((await publicDetails()).body.operator.address).toBe(filled.operator.address);
 
-    const audit = h.ctx.db.prepare("SELECT reason, detail FROM platform_audit WHERE action = 'site.update' ORDER BY id DESC LIMIT 1").get() as { reason: string; detail: string };
+    const audit = h.ctx.platform.get<{ reason: string; detail: string }>("platform_audit", { action: "site.update" }, [["id", "desc"]])!;
     expect(audit.reason).toBe(REASON);
     expect(JSON.parse(audit.detail)).toMatchObject({ "operator.address": `null -> "${filled.operator.address}"`, legalUpdatedOn: "2026-10-28 -> 2026-10-29" });
     expect(JSON.parse(audit.detail)).not.toHaveProperty("operator.legalName");
 
-    // The operator CLI reads the grace period when it publishes Mojo Go and Plus.
-    expect(siteDetailsFromDb(h.ctx.db).policies.failedPaymentGraceDays).toBe(7);
+    expect(readSiteDetails(h.ctx.platform).policies.failedPaymentGraceDays).toBe(7);
+    // The legacy SQLite CLI uses its direct DB reader; the PostgreSQL API uses the platform repository above.
+    if (!h.ctx.postgres) expect(siteDetailsFromDb(h.ctx.db).policies.failedPaymentGraceDays).toBe(7);
     const catalog = new PlanCatalog(h.ctx.billing.rows);
     await publishMojoPlans(catalog, "stripe", { go: "price_go", plus: "price_plus", spark: "price_spark" }, "test", Date.now(), 7);
     expect(catalog.current(catalog.byKey("plus")!.id)!.grace_days).toBe(7);
