@@ -34,6 +34,7 @@ const add = (
 };
 // This allowlist deliberately contains no account/session, ownership, billing or platform-administrator endpoints.
 add(["PATCH"], "/v1/users/me", null, "self");
+add(["PUT", "DELETE"], "/v1/users/me/photo", null, "self");
 add(["PUT", "DELETE"], "/v1/users/me/avatar-media", null, "self");
 add(["PUT", "DELETE"], "/v1/users/me/profile-banner", null, "self");
 add(["GET"], "/v1/orgs/:orgId/channels", "channels.read", "org");

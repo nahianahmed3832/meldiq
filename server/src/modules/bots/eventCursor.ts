@@ -40,10 +40,15 @@ export class BotEventCursor {
     const iv = crypto.randomBytes(12);
     const cipher = crypto.createCipheriv("aes-256-gcm", this.key, iv);
     cipher.setAAD(Buffer.from(`meldiq.bot.events.v1:${botId}`));
-    const body = Buffer.concat([
-      cipher.update(JSON.stringify({ v: 1, position, issuedAt: now })),
-      cipher.final(),
-    ]);
+    const value = Buffer.from(
+      JSON.stringify({ v: 1, position, issuedAt: now }),
+    );
+    if (value.length > 128)
+      throw new Error("Bot cursor position exceeds its encoding limit");
+    // Fixed-size plaintext also hides the number of digits in the global journal position.
+    const padded = Buffer.alloc(128, 0x20);
+    value.copy(padded);
+    const body = Buffer.concat([cipher.update(padded), cipher.final()]);
     return (
       "be1." +
       Buffer.concat([iv, body, cipher.getAuthTag()]).toString("base64url")

@@ -217,6 +217,42 @@ describe.skipIf(!process.env.MELDIQ_TEST_PG_URL)(
       expect(await connect().close()).toBe(4401);
     });
 
+    it("renews a quiet connection's resume cursor without disclosing position length", async () => {
+      const connection = await identify();
+      const initial = (await connection.frame("events")).cursor as string;
+      const clock = h.ctx.bots.clock;
+      try {
+        h.ctx.bots.clock = () => Date.now() + 6 * 86_400_000;
+        connection.ws.send(JSON.stringify({ op: "heartbeat", nonce: "day-6" }));
+        const first = await connection.frame("heartbeat_ack");
+        expect(first.cursor).not.toBe(initial);
+        expect(first.cursor.length).toBe(initial.length);
+        h.ctx.bots.clock = () => Date.now() + 12 * 86_400_000;
+        connection.ws.send(
+          JSON.stringify({ op: "heartbeat", nonce: "day-12" }),
+        );
+        await vi.waitFor(() =>
+          expect(
+            connection.frames.some(
+              (frame) =>
+                frame.op === "heartbeat_ack" && frame.nonce === "day-12",
+            ),
+          ).toBe(true),
+        );
+        const cursor = connection.frames.find(
+          (frame) => frame.op === "heartbeat_ack" && frame.nonce === "day-12",
+        )!.cursor;
+        connection.ws.close();
+        await connection.close();
+        const resumed = await identify(cursor);
+        resumed.ws.close();
+        await resumed.close();
+      } finally {
+        connection.ws.terminate();
+        h.ctx.bots.clock = clock;
+      }
+    });
+
     it("closes promptly on rotation and installation revocation; old credentials cannot resume", async () => {
       const prior = await identify();
       const cursor = (await prior.frame("events")).cursor;

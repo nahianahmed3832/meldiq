@@ -1,0 +1,61 @@
+# Meldiq native bot clients — preview
+
+These are first-party source clients for Meldiq's native bot API, not a vendor-compatible protocol or a published package. JavaScript uses Node.js22.4+ built-in fetch/WebSocket; Python3.10+ uses the standard library for HTTP and long polling. The API's generated contracts remain authoritative: `docs/api/openapi.json` and `docs/api/bot-gateway.schema.json`.
+
+Check `/v1/server-info` for `bots`, `bot-permissions` and, on PostgreSQL, `bot-event-gateway`. The expanded API is a candidate until its release is approved. No bot code is hosted by Meldiq.
+
+1. Make a bot in Settings → Developer and keep its token in your bot process's environment. The token is shown once; rotating it revokes the old credential and closes its gateway sessions.
+2. Request the access your bot needs in Developer → the bot's Permissions. For event-driven text bots this normally includes Events and Read earlier messages.
+3. A community manager adds the bot and approves its requested access in Community settings → Integrations → Permissions. New requests do not expand an existing approval automatically.
+4. Give it only the native roles/channel access it needs. Approval does not grant native roles, bypass denials or confer owner/administrator powers. A scoped SDK request can still correctly receive403.
+
+Existing text sends and slash commands retain their native baseline. Advanced administration, history, reactions and event delivery need the corresponding approval. Bot DMs, rich interactive components and voice participation are still separate unfinished slices of the broader platform; these clients do not claim those capabilities. Avatar/banner uploads use the existing native MIME, size, processing and storage policies.
+
+## JavaScript
+
+Import `MeldiqBot` from `javascript/index.mjs`. No npm installation or third-party dependency is required. Configure `apiOrigin` with the direct authoritative API origin and `token` with the bot token; HTTPS is required except on loopback for local tests.
+
+```js
+import { MeldiqBot } from "./javascript/index.mjs";
+
+const bot = new MeldiqBot({
+  apiOrigin: process.env.MELDIQ_API_ORIGIN,
+  token: process.env.MELDIQ_BOT_TOKEN,
+});
+const { bot: identity } = await bot.me();
+const { communities } = await bot.communities();
+// Generic native calls stay inside this API origin and /v2/bot/ namespace.
+const page = await bot.request("GET", `/v2/bot/conversations/${channelId}/messages?limit=20`);
+```
+
+Use a stable caller-chosen `messageId` when retrying a text send. The SDK does not automatically retry mutations. `MeldiqBotError` exposes `status`, `code` and optional `retryAfterMs`; it does not retain a request, token or redirected URL. Requests have bounded timeouts and response budgets; paginate large responses.
+
+`uploadAvatar(bytes)` accepts native GIF/WebP/short-clip input; pass `{ animated:false }` for a native still JPEG photo. `uploadBanner(bytes)` accepts the native JPEG/GIF/WebP banner formats. Servers validate the bytes and current limits; the client does not invent new quotas or transcode files.
+
+### Durable gateway consumers
+
+```js
+const gateway = await bot.openGateway({
+  cursor: previouslyCommittedCursor,
+  onBatch: async (events, { signal }) => {
+    for (const event of events) await handleOnceByEventId(event.id, event, signal);
+  },
+  onCursor: async (cursor) => saveCursorAfterSuccessfulHandling(cursor),
+});
+const end = await gateway.closed;
+if (end.error) handleConnectionFailure(end.error, gateway.cursor);
+```
+
+Events contain IDs and bounded metadata. Read current message content through approved native history; deleted text, historic edit bodies and private protocol controls are not returned by bot history. Delivery is at least once: deduplicate by stable event ID, and persist a cursor only after its batch succeeds. A handler failure preserves the previous committed cursor. Heartbeat renewal is checkpointed behind already-received batches, so it cannot skip an unfinished handler. RPC replies are handled separately, allowing a handler to await `gateway.request("self")` without deadlocking its batch.
+
+Gateway RPC is limited to `self`, `communities` and `events`. Use native HTTP for other operations. `setPresence` controls only this bot's gateway presence. No human device/session or user WebSocket grant is created. The client has bounded frame/consumer queues; handlers should use their abort signal for bounded external I/O.
+
+Resume using the last committed opaque cursor after a network failure or service restart. Token/approval revocation requires current credentials and approval; the client does not silently reconnect with a revoked credential. Replay lasts seven days. An expired cursor is explicit410; decide whether to start a fresh feed and reconcile application state. Back up the API's private `DATA_DIR/bot-event-cursor.key` with its database for server recovery. The operator's bounded retention job runs even while bots are offline.
+
+## Python
+
+Import `MeldiqBot` and `MeldiqBotError` from `python/meldiq_bot.py`. `me`, `communities`, `events`, `send`, `set_commands`, `interactions`, `reply`, `upload_avatar`, `upload_banner` and generic native `request` mirror the HTTP operations. Python currently uses HTTP/long polling; the JavaScript client supplies the gateway implementation. Redirects are refused in both clients so an authorization header cannot be forwarded to another origin.
+
+`examples/commands.mjs` and `examples/commands.py` run a small native slash-command bot on infrastructure you control. They register a command, long-poll leased interactions and send an ephemeral reply. They never automatically DM people or create a paid service.
+
+Implementation references: [Node's native WebSocket client](https://github.com/nodejs/learn/blob/main/pages/getting-started/websocket.md), [Python urllib redirect handling](https://docs.python.org/3.11/library/urllib.request.html#urllib.request.HTTPRedirectHandler.redirect_request).

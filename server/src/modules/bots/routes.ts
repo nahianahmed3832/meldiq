@@ -48,6 +48,18 @@ const minute = (max: number) => ({
 export default async function botRoutes(app: FastifyInstance, ctx: AppContext) {
   const svc = ctx.bots;
   registerBotGateway(app, svc);
+  // Replay retention runs even when installed bots are offline and no one reads the journal.
+  const retention = setInterval(() => {
+    void svc.events.maintain();
+  }, 60_000);
+  retention.unref();
+  app.addHook("onReady", async () => {
+    await svc.events.maintain();
+  });
+  app.addHook("preClose", async () => {
+    clearInterval(retention);
+    await svc.events.settled();
+  });
   const person = { preHandler: requireAuth(ctx), config: minute(60) };
   const bot = (max: number) => ({
     preHandler: requireBot(ctx),

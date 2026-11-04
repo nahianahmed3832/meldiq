@@ -96779,6 +96779,102 @@
         }
       }
     },
+    "/v2/bot/users/me/photo": {
+      "put": {
+        "tags": [
+          "Bots"
+        ],
+        "summary": "Bot adapter: Set your profile photo: a JPEG of at most 512 KB, sent as application/octet-stream. Own bot identity only.",
+        "operationId": "putV2BotUsersMePhoto",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "photoRev": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "photoRev"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: too_large, storage_unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bot": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Bots"
+        ],
+        "summary": "Bot adapter: Remove your profile photo. Own bot identity only.",
+        "operationId": "deleteV2BotUsersMePhoto",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "photoRev": {
+                      "type": "null"
+                    }
+                  },
+                  "required": [
+                    "photoRev"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bot": []
+          }
+        ]
+      }
+    },
     "/v2/bot/users/me/avatar-media": {
       "put": {
         "tags": [

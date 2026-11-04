@@ -29,6 +29,7 @@ describe("opaque bot replay cursors", () => {
       fs.statSync(path.join(dir, "bot-event-cursor.key")).mode & 0o777,
     ).toBe(0o600);
     expect(cursor).not.toContain("9007199254740999");
+    expect(first.seal("bot-1", "1", 1).length).toBe(cursor.length);
   });
   it("rejects another bot, tampering, future positions' timestamps and expired cursors", () => {
     const codec = new BotEventCursor(folder());

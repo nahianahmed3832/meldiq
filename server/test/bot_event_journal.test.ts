@@ -64,17 +64,44 @@ describe.skipIf(!process.env.MELDIQ_TEST_PG_URL)(
 
     it("keeps direct authenticated clients out while the existing API role can read replay metadata", async () => {
       const db = h.ctx.postgres!.database;
-      for (const table of ["bot_event_journal", "bot_installation_boundaries"]) {
-        await expect(db.transaction(async () => {
-          await db.query("SET LOCAL ROLE authenticated");
-          await db.query(`SELECT 1 FROM meldiq_private.${table}`);
-        })).rejects.toMatchObject({ code: "42501" });
+      for (const table of [
+        "bot_event_journal",
+        "bot_installation_boundaries",
+      ]) {
+        await expect(
+          db.transaction(async () => {
+            await db.query("SET LOCAL ROLE authenticated");
+            await db.query(`SELECT 1 FROM meldiq_private.${table}`);
+          }),
+        ).rejects.toMatchObject({ code: "42501" });
       }
       const result = await db.transaction(async () => {
         await db.query("SET LOCAL ROLE meldiq_api");
         return db.query("SELECT id FROM meldiq_private.bot_event_journal");
       });
       expect(result.rows).toHaveLength(1);
+    });
+
+    it("cleans expired replay data without a connected bot or a feed read", async () => {
+      const db = h.ctx.postgres!.database;
+      await db.query(
+        "UPDATE meldiq_private.bot_event_journal SET expires_at=0",
+      );
+      const clock = h.ctx.bots.clock;
+      h.ctx.bots.clock = () => Date.now() + 60_001;
+      try {
+        await h.ctx.bots.events.maintain();
+      } finally {
+        h.ctx.bots.clock = clock;
+      }
+      expect(
+        (await db.query("SELECT id FROM meldiq_private.bot_event_journal"))
+          .rows,
+      ).toEqual([]);
+      expect(
+        (await db.query("SELECT last_seq FROM meldiq_private.bot_event_clock"))
+          .rows[0]!.last_seq,
+      ).toBeGreaterThan(0);
     });
   },
 );

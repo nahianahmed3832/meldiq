@@ -100,6 +100,11 @@ export class BotEvents {
     return (this.cursor ??= new BotEventCursor(this.bots.ctx.config.dataDir));
   }
 
+  renewCursor(botId: string, cursor: string): string {
+    const now = this.bots.clock();
+    return this.codec().seal(botId, this.codec().open(botId, cursor, now), now);
+  }
+
   async fresh(bot: Bot): Promise<Bot> {
     const current = await this.bots.store.bot(bot.id);
     if (!current || current.tokenHash !== bot.tokenHash)
@@ -255,17 +260,31 @@ export class BotEvents {
   }
 
   /** Bounded operational queue cleanup; it never changes message, file, call or audit retention. */
+  async maintain(): Promise<void> {
+    if (!this.supported()) return;
+    this.prune(this.bots.clock());
+    await this.cleanup;
+  }
+
+  async settled(): Promise<void> {
+    await this.cleanup;
+  }
+
   private prune(now: number) {
     if (now < this.cleanupAt || this.cleanup) return;
     this.cleanupAt = now + 60_000;
-    this.cleanup = this.database()
-      .query(
-        `DELETE FROM meldiq_private.bot_event_journal WHERE seq IN (
-      SELECT seq FROM meldiq_private.bot_event_journal WHERE expires_at<=$1 ORDER BY expires_at LIMIT 1000
-    )`,
-        [now],
-      )
-      .then(() => {})
+    this.cleanup = (async () => {
+      const deadline = Date.now() + 2_000;
+      for (let batch = 0; batch < 10; batch++) {
+        const result = await this.database().query(
+          `DELETE FROM meldiq_private.bot_event_journal WHERE seq IN (
+          SELECT seq FROM meldiq_private.bot_event_journal WHERE expires_at<=$1 ORDER BY expires_at LIMIT 10000
+        )`,
+          [now],
+        );
+        if ((result.rowCount ?? 0) < 10_000 || Date.now() >= deadline) break;
+      }
+    })()
       .catch(() => {
         this.cleanupAt = 0;
       })

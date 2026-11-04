@@ -341,6 +341,11 @@ export function registerBotGateway(
           await fresh(session);
           if (parsed.op === "heartbeat") {
             session.lastHeartbeat = Date.now();
+            if (session.cursor)
+              session.cursor = bots.events.renewCursor(
+                session.bot!.id,
+                session.cursor,
+              );
             send(session, {
               op: "heartbeat_ack",
               nonce: parsed.nonce ?? null,
