@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { BotVoiceKeyRequest } from "./botVoice.js";
 
 /**
  * The WebSocket contract (`/v1/ws`): every frame the server sends and every frame it accepts, as one discriminated
@@ -69,6 +70,8 @@ export const CallWire = z.strictObject({
   voiceRoom: z.boolean(),
   /** Voice rooms: people with a raised hand, in the order they raised it. */
   hands: z.array(id),
+  /** Active voice-room clients may seal the room key to these explicitly approved bot recipients. */
+  botVoice: z.array(BotVoiceKeyRequest).max(128).optional(),
   /** Live calls: people sharing their screen now, from the media server (servers from 2026-10-26; older ones leave it out). */
   sharing: z.array(id).optional(),
   /** Ended calls only. */

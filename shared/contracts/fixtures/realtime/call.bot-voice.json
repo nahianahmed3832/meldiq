@@ -1,0 +1,37 @@
+{
+  "t": "call",
+  "event": "updated",
+  "call": {
+    "id": "call_2yDA9hzqBJinDKFgtbToGQ",
+    "conversationId": "c_cLCoHQ70gEwNycZx9bSDHw",
+    "conversationType": "CHANNEL",
+    "createdBy": "u_Xy0YHl4Ck_kadi3cE2Dwmg",
+    "video": false,
+    "state": "ACTIVE",
+    "createdAt": 1793826190103,
+    "answeredAt": 1793826190103,
+    "alertedAt": null,
+    "endedAt": null,
+    "endReason": null,
+    "participants": [
+      {
+        "userId": "u_Xy0YHl4Ck_kadi3cE2Dwmg",
+        "deviceId": "d_eT8UVLmUpqAHBOxcK-V1Yw",
+        "joinedAt": 1793826190110
+      }
+    ],
+    "voiceRoom": true,
+    "hands": [],
+    "botVoice": [
+      {
+        "leaseId": "botvoice_zrkHMUqzDCoQvOs67cLVKw",
+        "botId": "u_X8u8ViPgASPVOgVXhTxwVQ",
+        "publicKey": "yvv85vxkpzk36CeSA49jb/mLznHZm6ohNSzi/wLEuzQ=",
+        "fingerprint": "e241eea7e8a9f091f40bbe5a4720a6e9d8d9886fe617333330a7fa8dfee20319",
+        "manifestRev": 1,
+        "expiresAt": 1793826250125
+      }
+    ],
+    "sharing": []
+  }
+}

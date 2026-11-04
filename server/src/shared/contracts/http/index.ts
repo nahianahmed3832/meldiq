@@ -36,6 +36,7 @@ import type { RouteContract } from "./route.js";
 import { BOT_DOMAIN_ADAPTERS } from "./botDomainAdapters.js";
 import { botPlatformContracts } from "./botPlatform.js";
 import { botMessageContracts } from "./botMessages.js";
+import { botVoiceRoutes } from "./botVoice.js";
 
 export type { RouteContract } from "./route.js";
 
@@ -52,6 +53,7 @@ export const ErrorEnvelope = z.strictObject({
 const NATIVE_ROUTE_CONTRACTS: readonly RouteContract[] = [
   ...botPlatformContracts,
   ...botMessageContracts,
+  ...botVoiceRoutes,
   ...partnerContracts,
   ...managedPollContracts,
   ...threadLifecycleContracts,

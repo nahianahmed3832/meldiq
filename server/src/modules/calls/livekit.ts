@@ -1,4 +1,4 @@
-import { AccessToken, RoomServiceClient, TrackType, WebhookReceiver, type WebhookEvent } from "livekit-server-sdk";
+import { AccessToken, RoomServiceClient, TrackSource, TrackType, WebhookReceiver, type WebhookEvent } from "livekit-server-sdk";
 import type { Config } from "../../app/config.js";
 
 /**
@@ -22,6 +22,13 @@ export class LiveKitService {
 
   get publicUrl(): string {
     return this.cfg.publicUrl;
+  }
+
+  /** Bot media capabilities have no data, video, screen or metadata publishing and expire in one minute. */
+  async botToken(p: { room: string; identity: string; name: string; metadata: string; canPublish: boolean }): Promise<string> {
+    const at = new AccessToken(this.cfg.apiKey, this.cfg.apiSecret, { identity: p.identity, name: p.name, metadata: p.metadata, ttl: "60s" });
+    at.addGrant({ room: p.room, roomJoin: true, canPublish: p.canPublish, canPublishSources: [TrackSource.MICROPHONE], canSubscribe: true, canPublishData: false, canUpdateOwnMetadata: false });
+    return at.toJwt();
   }
 
   /** [canPublish] false: a listener (voice channels where the person may not speak), who can still receive and send data. */
@@ -95,9 +102,9 @@ export class LiveKitService {
    * Lets [identity] publish, or stops it (community parity A2: a server mute). LiveKit unpublishes its tracks at once when
    * publishing is taken away; the other grants stay as the token gave them. "absent" when they aren't in the room.
    */
-  async setCanPublish(room: string, identity: string, canPublish: boolean): Promise<"updated" | "absent" | "error"> {
+  async setCanPublish(room: string, identity: string, canPublish: boolean, canPublishData = true): Promise<"updated" | "absent" | "error"> {
     try {
-      const permission = { canPublish, canSubscribe: true, canPublishData: true, canUpdateMetadata: false };
+      const permission = { canPublish, canSubscribe: true, canPublishData, canUpdateMetadata: false, ...(identity.split(".")[1]?.startsWith("botvoice_") ? { canPublishSources: [TrackSource.MICROPHONE] } : {}) };
       await withTimeout(this.rooms.updateParticipant(room, identity, { permission }));
       return "updated";
     } catch (e) {

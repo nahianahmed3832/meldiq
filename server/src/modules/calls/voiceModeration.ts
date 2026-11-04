@@ -56,7 +56,8 @@ export async function applyVoiceSpeaking(ctx: AppContext, orgId: string, userId:
     if (!conv) continue;
     const canSpeak = ctx.authz.canSpeakInVoice(conv, userId);
     for (const d of await devicesIn(ctx, c, userId)) {
-      const r = await ctx.livekit.setCanPublish(c.room_name, `${userId}.${d}`, canSpeak);
+      const botMedia = d.startsWith("botvoice_");
+      const r = botMedia ? await ctx.livekit.setCanPublish(c.room_name, `${userId}.${d}`, canSpeak && ctx.bots.voice.maySpeak(userId, d), false) : await ctx.livekit.setCanPublish(c.room_name, `${userId}.${d}`, canSpeak);
       if (r === "updated") n++;
       if (r === "error") ctx.log.warn({ callId: c.id }, "voice moderation: LiveKit unreachable, the next token carries the change");
     }
@@ -71,6 +72,7 @@ export async function disconnectFromCommunityVoice(ctx: AppContext, orgId: strin
   for (const c of await liveVoiceCalls(ctx, orgId)) {
     const devices = await devicesIn(ctx, c, userId);
     for (const d of devices) {
+      ctx.bots.voice.withdraw(userId, d);
       await ctx.livekit?.removeParticipant(c.room_name, `${userId}.${d}`);
       await ctx.calls.leave(c.id, d, now());
       ctx.hub.sendToDevice(d, { t: "call", event: "ended", call: { ...(await callView(ctx, c)), endReason: "removed" } });

@@ -149,14 +149,21 @@ describe.skipIf(!process.env.MELDIQ_TEST_PG_URL)(
       }
     });
 
-    it("keeps the previous cursor when a handler fails and permits replay of the unhandled event", async () => {
+    it("keeps the last successful checkpoint when a handler fails and permits replay of the unhandled event", async () => {
       const cursor = (await client.events()).cursor;
       const id = "sdk-failing-handler";
+      let checkpoint = cursor;
+      let failedBatchCheckpoint: string | undefined;
       const gateway = await client.openGateway({
         cursor,
+        onCursor: (next: string) => {
+          checkpoint = next;
+        },
         onBatch: async (events: { sourceId: string }[]) => {
-          if (events.some((event) => event.sourceId === id))
+          if (events.some((event) => event.sourceId === id)) {
+            failedBatchCheckpoint = checkpoint;
             throw new Error("private handler details must not escape");
+          }
         },
       });
       await vi.waitFor(() => expect(typeof gateway.cursor).toBe("string"));
@@ -170,12 +177,18 @@ describe.skipIf(!process.env.MELDIQ_TEST_PG_URL)(
       const closed = await gateway.closed;
       expect(closed.error).toMatchObject({ code: "consumer_failed" });
       expect(String(closed.error)).not.toContain("private handler details");
-      expect(gateway.cursor).toBe(committed);
-      expect(
-        (await client.events({ cursor: committed })).events.some(
-          (event: { sourceId: string }) => event.sourceId === id,
-        ),
-      ).toBe(true);
+      expect(failedBatchCheckpoint).toBeDefined();
+      expect(gateway.cursor).toBe(failedBatchCheckpoint);
+      // Successful empty batches may renew the opaque cursor after `committed`.
+      // Both the earlier checkpoint and the client's final one must replay the
+      // event whose handler failed.
+      for (const replayCursor of [committed, gateway.cursor]) {
+        expect(
+          (await client.events({ cursor: replayCursor })).events.some(
+            (event: { sourceId: string }) => event.sourceId === id,
+          ),
+        ).toBe(true);
+      }
     });
 
     it("surfaces revocation instead of automatically reconnecting with the old credential", async () => {

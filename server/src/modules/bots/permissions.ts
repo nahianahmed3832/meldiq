@@ -243,7 +243,7 @@ export class BotPermissions {
     const manifest = this.manifest(bot.id);
     if (!manifest.voicePublicKey || this.installation(orgId, bot.id).manifestRev !== manifest.rev)
       throw forbidden("A manager must review the current bot voice encryption key before it can join media");
-    return { publicKey: manifest.voicePublicKey, fingerprint: manifest.voiceKeyFingerprint!, revision: manifest.rev };
+    return { publicKey: manifest.voicePublicKey, fingerprint: manifest.voiceKeyFingerprint!, revision: manifest.rev, installationKey: this.installationKey(orgId, bot.id) };
   }
 
   async prepareCredential(

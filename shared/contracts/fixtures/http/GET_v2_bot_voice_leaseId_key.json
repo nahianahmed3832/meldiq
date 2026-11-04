@@ -1,0 +1,14 @@
+{
+  "leaseId": "botvoice_zrkHMUqzDCoQvOs67cLVKw",
+  "botId": "u_X8u8ViPgASPVOgVXhTxwVQ",
+  "callId": "call_2yDA9hzqBJinDKFgtbToGQ",
+  "channelId": "c_cLCoHQ70gEwNycZx9bSDHw",
+  "manifestRev": 1,
+  "expiresAt": 1793826250125,
+  "key": {
+    "enc": "NovksQkRe2gFzq0INByfyeEBwtXjTZUwJqTaW4YX2C0=",
+    "ct": "5y0ehmbQypgUfDcP5muOruClT25SMh3u/UYa5Xv9JUgufrGgCboeskc6Vm0St2gD",
+    "senderUserId": "u_Xy0YHl4Ck_kadi3cE2Dwmg",
+    "at": 1793826190168
+  }
+}

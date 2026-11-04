@@ -84,6 +84,7 @@ export function contractCheck(): ContractCheck {
       if (!r.success) return note(`frame ${(e as { t?: string }).t}`, r.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; "));
       sample(`realtime/${e.t === "call" ? `call.${e.event}` : e.t}`, e);
       if (e.t === "interaction.reply" && "componentLabel" in e) sample("realtime/interaction.reply.component", e);
+      if (e.t === "call" && e.call.botVoice?.length) sample("realtime/call.bot-voice", e);
     },
   };
   return {

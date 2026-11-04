@@ -155,6 +155,32 @@ export class MeldiqBot {
       body: { commands },
     });
   }
+  joinVoice(channelId, { requestId = crypto.randomUUID(), signal } = {}) {
+    return this.request("POST", "/v2/bot/voice", {
+      body: { channelId, requestId },
+      signal,
+    });
+  }
+  voiceKey(leaseId, options) {
+    return this.request("GET", `/v2/bot/voice/${enc(leaseId)}/key`, options);
+  }
+  renewVoice(leaseId, options) {
+    return this.request(
+      "POST",
+      `/v2/bot/voice/${enc(leaseId)}/heartbeat`,
+      options,
+    );
+  }
+  voiceConnected(leaseId, options) {
+    return this.request(
+      "POST",
+      `/v2/bot/voice/${enc(leaseId)}/connected`,
+      options,
+    );
+  }
+  leaveVoice(leaseId, options) {
+    return this.request("DELETE", `/v2/bot/voice/${enc(leaseId)}`, options);
+  }
   interactions({ wait = 20, signal } = {}) {
     return this.request(
       "GET",

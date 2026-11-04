@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "media_unavailable",
+    "message": "Bot media removal is waiting for the media server"
+  }
+}

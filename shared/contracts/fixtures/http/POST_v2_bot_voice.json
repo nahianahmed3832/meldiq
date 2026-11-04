@@ -1,0 +1,18 @@
+{
+  "leaseId": "botvoice_zrkHMUqzDCoQvOs67cLVKw",
+  "botId": "u_X8u8ViPgASPVOgVXhTxwVQ",
+  "callId": "call_2yDA9hzqBJinDKFgtbToGQ",
+  "channelId": "c_cLCoHQ70gEwNycZx9bSDHw",
+  "manifestRev": 1,
+  "expiresAt": 1793826250125,
+  "media": {
+    "url": "wss://media.example.test",
+    "token": "<redacted>",
+    "room": "griip-c692054f9437da606a4bdca8",
+    "canSpeak": false,
+    "limits": {
+      "screen": [],
+      "voiceKbps": 48
+    }
+  }
+}

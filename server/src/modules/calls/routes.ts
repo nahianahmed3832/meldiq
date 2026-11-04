@@ -71,6 +71,7 @@ export async function callView(ctx: AppContext, c: CallRow): Promise<CallWire> {
     // Voice rooms (round 6): the call is the room's, and people may raise a hand to speak.
     voiceRoom: !!c.room,
     hands,
+    ...(c.room && c.state === "ACTIVE" ? { botVoice: ctx.bots?.voice?.requests(c) ?? [] } : {}),
     // Live calls: who is sharing their screen now (LiveKit's account, current participants only; screenShares.ts).
     ...(c.state !== "ENDED" ? { sharing: sharersOf(ctx, c.id, participants) } : {}),
     // Ended calls only (older apps ignore it): who connected, for the call history line in the conversation.
@@ -146,6 +147,7 @@ export async function endCallRow(ctx: AppContext, c: CallRow, reason: string): P
   const t = now();
   // Ends it and marks its devices as left, unless another request ended it first.
   if (!(await ctx.calls.end(c.id, t, reason))) return;
+  ctx.bots?.voice?.revokeCall(c.id);
   // Observability (UI-003): the call's id, why it ended and how long it lasted; never names, identities or media.
   ctx.log.info({ callId: c.id, reason, seconds: c.answered_at ? Math.round((t - c.answered_at) / 1000) : 0 }, "call ended");
   forgetSharing(ctx, c.id);
@@ -164,6 +166,7 @@ export function callAdmission(ctx: AppContext, conversationId: string): (userId:
   return (userId, deviceId) => {
     if (!ctx.ws.get("conversation_members", { conversation_id: conversationId, user_id: userId })) return false;
     if (voiceChannel && !ctx.authz.canConnectVoice(voiceChannel, userId)) return false;
+    if (deviceId.startsWith("botvoice_")) return ctx.bots.voice.admitted(userId, deviceId, conversationId);
     const d = ctx.identity.get<{ revoked_at: number | null }>("devices", { id: deviceId, user_id: userId });
     return !!d && !d.revoked_at && !!ctx.identity.get("users", { id: userId, disabled_at: null });
   };
@@ -176,7 +179,7 @@ export function callAdmission(ctx: AppContext, conversationId: string): (userId:
  */
 export async function assertCallHasRoom(ctx: AppContext, c: CallRow, identity: string): Promise<void> {
   const fromLiveKit = ctx.livekit ? await ctx.livekit.participantIdentities(c.room_name) : null;
-  const identities = fromLiveKit ?? (await ctx.calls.present(c.id)).map((r) => `${r.user_id}.${r.device_id}`);
+  const identities = [...(fromLiveKit ?? (await ctx.calls.present(c.id)).map((r) => `${r.user_id}.${r.device_id}`)), ...(ctx.bots?.voice?.reserved(c.id) ?? [])];
   const others = new Set(identities.filter((i) => i !== identity)).size;
   if (others >= ctx.config.callMaxParticipants) {
     ctx.log.info({ callId: c.id, others }, "call: join refused, call is full");
@@ -546,6 +549,7 @@ export default async function callRoutes(app: FastifyInstance, ctx: AppContext) 
         const r = ctx.livekit ? await ctx.livekit.muteAudio(c.room_name, identity) : "error";
         if (r === "error") throw new ApiError(503, "media_unavailable", "The media server couldn't be reached. Try again.");
       } else if (body.action === "remove") {
+        ctx.bots.voice.withdraw(body.userId, d);
         await ctx.livekit?.removeParticipant(c.room_name, identity);
         await ctx.calls.leave(c.id, d, now());
         ctx.hub.sendToDevice(d, { t: "call", event: "ended", call: { ...(await callView(ctx, c)), endReason: "removed" } });
@@ -623,11 +627,20 @@ export default async function callRoutes(app: FastifyInstance, ctx: AppContext) 
     if (!c) return { ok: true };
     const identity = event.participant?.identity ?? "";
     const [pUser, pDevice] = identity.split(".");
-    if (event.event === "participant_joined" && pUser && pDevice && !callAdmission(ctx, c.conversation_id)(pUser, pDevice)) {
+    if (event.event === "participant_joined" && pUser && pDevice && (c.state === "ENDED" || !callAdmission(ctx, c.conversation_id)(pUser, pDevice))) {
       // Joined with a token issued before they were removed (tokens live 10 minutes): send them out again.
       await ctx.livekit.removeParticipant(roomName, identity);
       ctx.hub.sendToDevice(pDevice, { t: "call", event: "ended", call: { ...(await callView(ctx, c)), endReason: "removed" } });
     } else if (event.event === "participant_joined" && pUser && pDevice) {
+      if (pDevice.startsWith("botvoice_")) {
+        const result = await ctx.livekit.setCanPublish(roomName, identity, ctx.bots.voice.maySpeak(pUser, pDevice), false);
+        if (result === "error") {
+          ctx.bots.voice.withdraw(pUser, pDevice);
+          await ctx.livekit.removeParticipant(roomName, identity);
+          return reply.code(503).send({ error: { code: "media_unavailable", message: "Bot media permissions could not be applied" } });
+        }
+        if (result === "absent") return { ok: true };
+      }
       await ctx.calls.join(c.id, pUser, pDevice, now(), true);
       await replaceOtherDevices(ctx, c, pUser, pDevice);
       const count = await presentUserCount(ctx, c.id);

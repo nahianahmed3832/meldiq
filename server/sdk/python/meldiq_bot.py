@@ -1,5 +1,6 @@
 """Meldiq's native Bot HTTP API. Python 3.10+, standard library only."""
 import json
+import uuid
 import posixpath
 import urllib.error
 import urllib.parse
@@ -88,6 +89,21 @@ class MeldiqBot:
 
     def set_commands(self, commands):
         return self.request("PUT", "/v2/bot/commands", {"commands": commands})
+
+    def join_voice(self, channel_id, request_id=None):
+        return self.request("POST", "/v2/bot/voice", {"channelId": channel_id, "requestId": request_id or str(uuid.uuid4())})
+
+    def voice_key(self, lease_id):
+        return self.request("GET", "/v2/bot/voice/" + urllib.parse.quote(lease_id, safe="") + "/key")
+
+    def renew_voice(self, lease_id):
+        return self.request("POST", "/v2/bot/voice/" + urllib.parse.quote(lease_id, safe="") + "/heartbeat")
+
+    def voice_connected(self, lease_id):
+        return self.request("POST", "/v2/bot/voice/" + urllib.parse.quote(lease_id, safe="") + "/connected")
+
+    def leave_voice(self, lease_id):
+        return self.request("DELETE", "/v2/bot/voice/" + urllib.parse.quote(lease_id, safe=""))
 
     def send_direct(self, user_id, content, message_id=None, *, reply_to=None, embeds=None, buttons=None, components=None, components_ttl_seconds=None):
         return self.request("POST", "/v2/bot/users/" + urllib.parse.quote(user_id, safe="") + "/dm", self._message_body(content, message_id, reply_to, embeds, buttons, components, components_ttl_seconds))

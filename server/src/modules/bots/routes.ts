@@ -34,6 +34,8 @@ import {
 import { BOT_CHANGELOG } from "./changelog.js";
 import { requireBotManager } from "../organizations/index.js";
 import { registerBotGateway } from "./gateway.js";
+import { BotVoiceJoinBody, BotVoiceParams, BotVoiceShareParams } from "../../shared/contracts/http/botVoice.js";
+import { BotVoicePacket } from "../../shared/contracts/botVoice.js";
 import {
   BotMessageTarget,
   BotReactionTarget,
@@ -62,9 +64,11 @@ export default async function botRoutes(app: FastifyInstance, ctx: AppContext) {
   app.addHook("onReady", async () => {
     await svc.events.maintain();
     await svc.interactions.maintain();
+    svc.voice.start();
   });
   app.addHook("preClose", async () => {
     clearInterval(retention);
+    await svc.voice.stop();
     await svc.events.settled();
     await svc.interactions.settled();
   });
@@ -194,6 +198,13 @@ export default async function botRoutes(app: FastifyInstance, ctx: AppContext) {
       return reply.code(201).send(result);
     },
   );
+
+  app.post("/v2/bot/voice", bot(30), async (req) => { const body = parse(BotVoiceJoinBody, req.body); return svc.voice.join(theBot(req), body.channelId, body.requestId); });
+  app.get("/v2/bot/voice/:leaseId/key", bot(120), async (req) => svc.voice.key(theBot(req), parse(BotVoiceParams, req.params).leaseId));
+  app.post("/v2/bot/voice/:leaseId/heartbeat", bot(60), async (req) => svc.voice.heartbeat(theBot(req), parse(BotVoiceParams, req.params).leaseId));
+  app.post("/v2/bot/voice/:leaseId/connected", bot(30), async (req) => svc.voice.connected(theBot(req), parse(BotVoiceParams, req.params).leaseId));
+  app.delete("/v2/bot/voice/:leaseId", bot(30), async (req) => svc.voice.leave(theBot(req), parse(BotVoiceParams, req.params).leaseId));
+  app.post("/v1/calls/:callId/bot-voice/:leaseId/key", person, async (req) => { const { callId, leaseId } = parse(BotVoiceShareParams, req.params); const actor = me(req); return svc.voice.share(callId, leaseId, actor.userId, actor.deviceId, parse(BotVoicePacket, req.body)); });
 
   app.get("/v2/bot/me", bot(120), async (req) => svc.api.self(theBot(req)));
   app.post("/v2/bot/users/:userId/dm", bot(30), async (req) => {

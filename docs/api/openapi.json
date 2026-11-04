@@ -15,6 +15,9 @@
       "name": "Bots"
     },
     {
+      "name": "calls"
+    },
+    {
       "name": "community"
     },
     {
@@ -64,9 +67,6 @@
     },
     {
       "name": "files"
-    },
-    {
-      "name": "calls"
     },
     {
       "name": "accounts"
@@ -2682,6 +2682,643 @@
                 },
                 "required": [
                   "messageIds"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/bot/voice": {
+      "post": {
+        "tags": [
+          "Bots"
+        ],
+        "summary": "Join an existing native voice room with approved public key and a dedicated short-lived bot media lease.",
+        "operationId": "postV2BotVoice",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "leaseId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "botId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "callId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "channelId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "manifestRev": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "expiresAt": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "media": {
+                      "type": "object",
+                      "properties": {
+                        "url": {
+                          "type": "string"
+                        },
+                        "token": {
+                          "type": "string",
+                          "description": "One-minute room-scoped bot token, initially receive-only. Current SFU admission enables approved microphone publishing."
+                        },
+                        "room": {
+                          "type": "string"
+                        },
+                        "canSpeak": {
+                          "type": "boolean"
+                        },
+                        "limits": {
+                          "type": "object",
+                          "properties": {
+                            "screen": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "width": {
+                                    "type": "integer",
+                                    "minimum": -9007199254740991,
+                                    "maximum": 9007199254740991
+                                  },
+                                  "height": {
+                                    "type": "integer",
+                                    "minimum": -9007199254740991,
+                                    "maximum": 9007199254740991
+                                  },
+                                  "fps": {
+                                    "type": "integer",
+                                    "minimum": -9007199254740991,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "width",
+                                  "height",
+                                  "fps"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "voiceKbps": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "screen",
+                            "voiceKbps"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "url",
+                        "token",
+                        "room",
+                        "canSpeak"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "leaseId",
+                    "botId",
+                    "callId",
+                    "channelId",
+                    "manifestRev",
+                    "expiresAt",
+                    "media"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, conflict, rate_limited, media_unavailable, bot_events_unavailable, voice_banned, call_full",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bot": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "channelId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "requestId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  }
+                },
+                "required": [
+                  "channelId",
+                  "requestId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/bot/voice/{leaseId}/key": {
+      "get": {
+        "tags": [
+          "Bots"
+        ],
+        "summary": "The current lease's HPKE-wrapped call key, or null while waiting for a connected human client.",
+        "operationId": "getV2BotVoiceLeaseIdKey",
+        "parameters": [
+          {
+            "name": "leaseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "leaseId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "botId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "callId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "channelId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "manifestRev": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "expiresAt": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "key": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "enc": {
+                              "type": "string",
+                              "pattern": "^[A-Za-z0-9+/]{43}=$"
+                            },
+                            "ct": {
+                              "type": "string",
+                              "pattern": "^[A-Za-z0-9+/]{64}$"
+                            },
+                            "senderUserId": {
+                              "type": "string"
+                            },
+                            "at": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "enc",
+                            "ct",
+                            "senderUserId",
+                            "at"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "leaseId",
+                    "botId",
+                    "callId",
+                    "channelId",
+                    "manifestRev",
+                    "expiresAt",
+                    "key"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, conflict, rate_limited, media_unavailable, bot_events_unavailable, voice_banned, call_full",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bot": []
+          }
+        ]
+      }
+    },
+    "/v2/bot/voice/{leaseId}/heartbeat": {
+      "post": {
+        "tags": [
+          "Bots"
+        ],
+        "summary": "Renew a currently authorized bot media lease; never revives a withdrawn lease.",
+        "operationId": "postV2BotVoiceLeaseIdHeartbeat",
+        "parameters": [
+          {
+            "name": "leaseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "leaseId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "botId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "callId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "channelId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "manifestRev": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "expiresAt": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "leaseId",
+                    "botId",
+                    "callId",
+                    "channelId",
+                    "manifestRev",
+                    "expiresAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, conflict, rate_limited, media_unavailable, bot_events_unavailable, voice_banned, call_full",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bot": []
+          }
+        ]
+      }
+    },
+    "/v2/bot/voice/{leaseId}/connected": {
+      "post": {
+        "tags": [
+          "Bots"
+        ],
+        "summary": "Confirm actual SFU presence of this bot media identity.",
+        "operationId": "postV2BotVoiceLeaseIdConnected",
+        "parameters": [
+          {
+            "name": "leaseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "leaseId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "botId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "callId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "channelId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "manifestRev": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "expiresAt": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "canSpeak": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "leaseId",
+                    "botId",
+                    "callId",
+                    "channelId",
+                    "manifestRev",
+                    "expiresAt",
+                    "canSpeak"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, conflict, rate_limited, media_unavailable, bot_events_unavailable, voice_banned, call_full",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bot": []
+          }
+        ]
+      }
+    },
+    "/v2/bot/voice/{leaseId}": {
+      "delete": {
+        "tags": [
+          "Bots"
+        ],
+        "summary": "Close this bot's media admission and leave the existing voice room.",
+        "operationId": "deleteV2BotVoiceLeaseId",
+        "parameters": [
+          {
+            "name": "leaseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "left": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "left"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, conflict, rate_limited, media_unavailable, bot_events_unavailable, voice_banned, call_full",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bot": []
+          }
+        ]
+      }
+    },
+    "/v1/calls/{callId}/bot-voice/{leaseId}/key": {
+      "post": {
+        "tags": [
+          "calls"
+        ],
+        "summary": "A connected human client seals the room key to the currently approved bot public key. Ciphertext is memory-only.",
+        "operationId": "postV1CallsCallIdBotVoiceLeaseIdKey",
+        "parameters": [
+          {
+            "name": "leaseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "callId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accepted": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "accepted"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, conflict, rate_limited, media_unavailable, bot_events_unavailable, voice_banned, call_full",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enc": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9+/]{43}=$"
+                  },
+                  "ct": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9+/]{64}$"
+                  }
+                },
+                "required": [
+                  "enc",
+                  "ct"
                 ],
                 "additionalProperties": false
               }
@@ -20451,6 +21088,52 @@
                             "maxLength": 128
                           }
                         },
+                        "botVoice": {
+                          "maxItems": 128,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "leaseId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "botId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "publicKey": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9+/]{43}=$"
+                              },
+                              "fingerprint": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{64}$"
+                              },
+                              "manifestRev": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "expiresAt": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "leaseId",
+                              "botId",
+                              "publicKey",
+                              "fingerprint",
+                              "manifestRev",
+                              "expiresAt"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
                         "sharing": {
                           "type": "array",
                           "items": {
@@ -20780,6 +21463,52 @@
                               "maxLength": 128
                             }
                           },
+                          "botVoice": {
+                            "maxItems": 128,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "leaseId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64
+                                },
+                                "botId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64
+                                },
+                                "publicKey": {
+                                  "type": "string",
+                                  "pattern": "^[A-Za-z0-9+/]{43}=$"
+                                },
+                                "fingerprint": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{64}$"
+                                },
+                                "manifestRev": {
+                                  "type": "integer",
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "expiresAt": {
+                                  "type": "integer",
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "leaseId",
+                                "botId",
+                                "publicKey",
+                                "fingerprint",
+                                "manifestRev",
+                                "expiresAt"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
                           "sharing": {
                             "type": "array",
                             "items": {
@@ -21034,6 +21763,52 @@
                               "maxLength": 128
                             }
                           },
+                          "botVoice": {
+                            "maxItems": 128,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "leaseId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64
+                                },
+                                "botId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64
+                                },
+                                "publicKey": {
+                                  "type": "string",
+                                  "pattern": "^[A-Za-z0-9+/]{43}=$"
+                                },
+                                "fingerprint": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{64}$"
+                                },
+                                "manifestRev": {
+                                  "type": "integer",
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "expiresAt": {
+                                  "type": "integer",
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "leaseId",
+                                "botId",
+                                "publicKey",
+                                "fingerprint",
+                                "manifestRev",
+                                "expiresAt"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
                           "sharing": {
                             "type": "array",
                             "items": {
@@ -21272,6 +22047,52 @@
                             "maxLength": 128
                           }
                         },
+                        "botVoice": {
+                          "maxItems": 128,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "leaseId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "botId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "publicKey": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9+/]{43}=$"
+                              },
+                              "fingerprint": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{64}$"
+                              },
+                              "manifestRev": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "expiresAt": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "leaseId",
+                              "botId",
+                              "publicKey",
+                              "fingerprint",
+                              "manifestRev",
+                              "expiresAt"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
                         "sharing": {
                           "type": "array",
                           "items": {
@@ -21507,6 +22328,52 @@
                             "type": "string",
                             "minLength": 1,
                             "maxLength": 128
+                          }
+                        },
+                        "botVoice": {
+                          "maxItems": 128,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "leaseId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "botId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "publicKey": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9+/]{43}=$"
+                              },
+                              "fingerprint": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{64}$"
+                              },
+                              "manifestRev": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "expiresAt": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "leaseId",
+                              "botId",
+                              "publicKey",
+                              "fingerprint",
+                              "manifestRev",
+                              "expiresAt"
+                            ],
+                            "additionalProperties": false
                           }
                         },
                         "sharing": {
@@ -21819,6 +22686,52 @@
                             "maxLength": 128
                           }
                         },
+                        "botVoice": {
+                          "maxItems": 128,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "leaseId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "botId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "publicKey": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9+/]{43}=$"
+                              },
+                              "fingerprint": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{64}$"
+                              },
+                              "manifestRev": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "expiresAt": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "leaseId",
+                              "botId",
+                              "publicKey",
+                              "fingerprint",
+                              "manifestRev",
+                              "expiresAt"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
                         "sharing": {
                           "type": "array",
                           "items": {
@@ -22072,6 +22985,52 @@
                             "type": "string",
                             "minLength": 1,
                             "maxLength": 128
+                          }
+                        },
+                        "botVoice": {
+                          "maxItems": 128,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "leaseId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "botId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "publicKey": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9+/]{43}=$"
+                              },
+                              "fingerprint": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{64}$"
+                              },
+                              "manifestRev": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "expiresAt": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "leaseId",
+                              "botId",
+                              "publicKey",
+                              "fingerprint",
+                              "manifestRev",
+                              "expiresAt"
+                            ],
+                            "additionalProperties": false
                           }
                         },
                         "sharing": {
@@ -22339,6 +23298,52 @@
                             "maxLength": 128
                           }
                         },
+                        "botVoice": {
+                          "maxItems": 128,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "leaseId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "botId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "publicKey": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9+/]{43}=$"
+                              },
+                              "fingerprint": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{64}$"
+                              },
+                              "manifestRev": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "expiresAt": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "leaseId",
+                              "botId",
+                              "publicKey",
+                              "fingerprint",
+                              "manifestRev",
+                              "expiresAt"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
                         "sharing": {
                           "type": "array",
                           "items": {
@@ -22576,6 +23581,52 @@
                             "maxLength": 128
                           }
                         },
+                        "botVoice": {
+                          "maxItems": 128,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "leaseId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "botId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "publicKey": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9+/]{43}=$"
+                              },
+                              "fingerprint": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{64}$"
+                              },
+                              "manifestRev": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "expiresAt": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "leaseId",
+                              "botId",
+                              "publicKey",
+                              "fingerprint",
+                              "manifestRev",
+                              "expiresAt"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
                         "sharing": {
                           "type": "array",
                           "items": {
@@ -22811,6 +23862,52 @@
                             "type": "string",
                             "minLength": 1,
                             "maxLength": 128
+                          }
+                        },
+                        "botVoice": {
+                          "maxItems": 128,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "leaseId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "botId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "publicKey": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9+/]{43}=$"
+                              },
+                              "fingerprint": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{64}$"
+                              },
+                              "manifestRev": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "expiresAt": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "leaseId",
+                              "botId",
+                              "publicKey",
+                              "fingerprint",
+                              "manifestRev",
+                              "expiresAt"
+                            ],
+                            "additionalProperties": false
                           }
                         },
                         "sharing": {
@@ -23070,6 +24167,52 @@
                             "maxLength": 128
                           }
                         },
+                        "botVoice": {
+                          "maxItems": 128,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "leaseId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "botId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "publicKey": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9+/]{43}=$"
+                              },
+                              "fingerprint": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{64}$"
+                              },
+                              "manifestRev": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "expiresAt": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "leaseId",
+                              "botId",
+                              "publicKey",
+                              "fingerprint",
+                              "manifestRev",
+                              "expiresAt"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
                         "sharing": {
                           "type": "array",
                           "items": {
@@ -23305,6 +24448,52 @@
                             "type": "string",
                             "minLength": 1,
                             "maxLength": 128
+                          }
+                        },
+                        "botVoice": {
+                          "maxItems": 128,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "leaseId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "botId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "publicKey": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9+/]{43}=$"
+                              },
+                              "fingerprint": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{64}$"
+                              },
+                              "manifestRev": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "expiresAt": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "leaseId",
+                              "botId",
+                              "publicKey",
+                              "fingerprint",
+                              "manifestRev",
+                              "expiresAt"
+                            ],
+                            "additionalProperties": false
                           }
                         },
                         "sharing": {
