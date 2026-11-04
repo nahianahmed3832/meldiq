@@ -3,6 +3,7 @@ import { botChannels, membershipsOf } from "../organizations/index.js";
 import type { BotService } from "./service.js";
 import type { Bot } from "./store.js";
 import { BotEventCursor, BOT_REPLAY_MS } from "./eventCursor.js";
+import { BotEventPage } from "../../shared/contracts/http/botPlatform.js";
 
 type Grant = {
   org: string;
@@ -55,7 +56,13 @@ export class BotEvents {
     this.notify();
   }
   authorityKey(bot: Bot): string {
-    return JSON.stringify(this.grants(bot));
+    const revisions = membershipsOf(this.bots.ctx.ws, bot.id)
+      .map((row) => [
+        row.org_id,
+        this.bots.permissions.revisionKey(row.org_id, bot.id),
+      ])
+      .sort((a, b) => a[0].localeCompare(b[0]));
+    return JSON.stringify({ grants: this.grants(bot), revisions });
   }
   communities(bot: Bot): string[] {
     return membershipsOf(this.bots.ctx.ws, bot.id).map((row) => row.org_id);
@@ -112,42 +119,47 @@ export class BotEvents {
     ) => result.push({ org, channel, kind, since });
     for (const membership of membershipsOf(ctx.ws, bot.id)) {
       const org = membership.org_id;
-      const approval = permissions.installation(org, bot.id);
-      const since = Math.max(
-        approval.approvedAt ?? this.bots.clock(),
-        membership.joined_at ?? 0,
-      );
       // Command arguments are already explicitly addressed to this bot. Current channel membership still applies.
       for (const channel of botChannels(ctx, org, bot.id)) {
-        add(org, channel.id, "command", membership.joined_at ?? 0);
+        if (channel.canPost)
+          add(
+            org,
+            channel.id,
+            "command",
+            Math.max(
+              membership.joined_at ?? 0,
+              ctx.authz.memberSince(channel.id, bot.id) ?? 0,
+            ),
+          );
         if (!permissions.allows(bot, org, "events.read")) continue;
         const conv = ctx.authz.conversation(channel.id)!;
         if (permissions.allows(bot, org, "messages.history")) {
-          const historySince = Math.max(
-            since,
-            ctx.authz.historySince(conv, bot.id) ?? 0,
-          );
+          const historySince = ctx.authz.historySince(conv, bot.id) ?? 0;
           for (const kind of ["message", "reaction_add", "reaction_remove"])
             add(org, channel.id, kind, historySince);
         }
         if (
           permissions.allows(bot, org, "voice.connect") &&
+          !ctx.authz.voiceBanned(org, bot.id) &&
           ctx.authz.channelPermissions(conv, bot.id).has("voice.connect")
         ) {
           for (const kind of ["voice_join", "voice_leave"])
-            add(org, channel.id, kind, since);
+            add(org, channel.id, kind, 0);
         }
       }
       if (!permissions.allows(bot, org, "events.read")) continue;
-      if (permissions.allows(bot, org, "members.read"))
+      if (
+        permissions.allows(bot, org, "members.read") &&
+        ctx.authz.permissions(org, bot.id).has("members.view")
+      )
         for (const kind of ["member_join", "member_leave"])
-          add(org, null, kind, since);
+          add(org, null, kind, 0);
       if (
         permissions.allows(bot, org, "members.invite") &&
         ctx.authz.permissions(org, bot.id).has("members.invites.manage")
       ) {
         for (const kind of ["invite_create", "invite_delete"])
-          add(org, null, kind, since);
+          add(org, null, kind, 0);
       }
     }
     if (result.length > 20_000)
@@ -172,6 +184,7 @@ export class BotEvents {
     const position = cursor ? this.codec().open(bot.id, cursor, now) : "0";
     for (let attempt = 0; attempt < 3; attempt++) {
       const grants = JSON.stringify(this.grants(bot));
+      const authority = this.authorityKey(bot);
       const result = await db.query<{
         watermark: string;
         events: JournalEvent[];
@@ -185,11 +198,19 @@ export class BotEvents {
           SELECT j.id,j.seq::text,j.kind,j.org_id,j.conversation_id,j.actor_id,j.target_id,j.source_id,j.metadata,j.created_at
           FROM meldiq_private.bot_event_journal j
           WHERE j.seq>$1::bigint AND j.seq<=clock.last_seq AND j.expires_at>$4 AND j.created_at>=$4-$6
-          AND (j.kind<>'command' OR EXISTS (SELECT 1 FROM meldiq.bot_interactions i WHERE i.id=j.source_id AND i.bot_id=$2 AND i.expires_at>$4 AND i.state<>'replied'))
+          AND (j.kind<>'command' OR EXISTS (
+            SELECT 1 FROM meldiq.bot_interactions i
+            JOIN meldiq.conversation_members recipient ON recipient.conversation_id=i.conversation_id AND recipient.user_id=i.bot_id AND recipient.joined_at<=i.created_at
+            JOIN meldiq.conversation_members sender ON sender.conversation_id=i.conversation_id AND sender.user_id=i.user_id AND sender.joined_at<=i.created_at
+            JOIN meldiq.org_members member ON member.org_id=i.org_id AND member.user_id=i.user_id AND member.joined_at<=i.created_at
+            WHERE i.id=j.source_id AND i.bot_id=$2 AND i.expires_at>$4 AND i.state<>'replied' AND (member.expires_at IS NULL OR member.expires_at>$4)
+          ))
           AND ((j.kind='test' AND j.target_bot_id=$2) OR (
             (j.target_bot_id IS NULL OR j.target_bot_id=$2) AND EXISTS (
               SELECT 1 FROM grants g WHERE g.org=j.org_id AND g.channel IS NOT DISTINCT FROM j.conversation_id
-              AND g.kind=j.kind AND j.created_at>=g.since
+              AND g.kind=j.kind
+              AND (j.kind='command' OR EXISTS (SELECT 1 FROM meldiq_private.bot_installation_boundaries boundary
+                WHERE boundary.org_id=j.org_id AND boundary.bot_id=$2 AND j.seq>boundary.after_seq))
               AND (j.kind NOT IN ('message','reaction_add','reaction_remove') OR EXISTS (
                 SELECT 1 FROM meldiq.message_events m WHERE m.id=CASE WHEN j.kind='message' THEN j.source_id ELSE j.target_id END
                 AND m.conversation_id=j.conversation_id AND m.audience='all' AND m.server_ts>=g.since
@@ -201,7 +222,7 @@ export class BotEvents {
         [position, bot.id, grants, now, limit + 1, BOT_REPLAY_MS],
       );
       await this.fresh(bot);
-      if (JSON.stringify(this.grants(bot)) !== grants) continue;
+      if (this.authorityKey(bot) !== authority) continue;
       const row = result.rows[0];
       if (!row || BigInt(position) > BigInt(row.watermark))
         throw new ApiError(400, "bad_request", "Invalid bot event cursor");
@@ -209,7 +230,7 @@ export class BotEvents {
       const selected = row.events.slice(0, limit);
       const next = more ? selected.at(-1)!.seq : row.watermark;
       this.prune(now);
-      return {
+      return BotEventPage.parse({
         events: selected.map(({ seq: _seq, ...event }) => ({
           id: event.id,
           type: event.kind,
@@ -224,7 +245,7 @@ export class BotEvents {
         cursor: this.codec().seal(bot.id, next, now),
         more,
         replayWindowSeconds: BOT_REPLAY_MS / 1000,
-      };
+      });
     }
     throw new ApiError(
       409,

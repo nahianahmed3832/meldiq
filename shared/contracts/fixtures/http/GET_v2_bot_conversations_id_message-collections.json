@@ -1,0 +1,42 @@
+{
+  "messages": [
+    {
+      "id": "f19222dd-d6d0-4acf-9c13-f7e40a88970c",
+      "conversationId": "c_Mo6LdcxoBtjlc8DIv1luiQ",
+      "senderUserId": "u_2JN76JetRNCEcLUMu9cj0A",
+      "senderDeviceId": "d_y2VdTM9rkY1FeluKDasQ_A",
+      "cls": "message",
+      "payload": {
+        "type": "text",
+        "text": "pin target"
+      },
+      "sentAt": 1793811892141,
+      "serverTs": 1793811892142,
+      "mentionAll": false,
+      "importedBy": null
+    }
+  ],
+  "context": [],
+  "threads": [],
+  "more": false,
+  "nextCursor": null,
+  "historySince": null,
+  "changes": [
+    {
+      "id": "m_1f-yqnMqDaPdRq_HSM_aOA",
+      "conversationId": "c_Mo6LdcxoBtjlc8DIv1luiQ",
+      "senderUserId": "u_XWdCdeOmPj5CDTRtDOZ3UQ",
+      "senderDeviceId": null,
+      "cls": "control",
+      "payload": {
+        "type": "pin",
+        "target": "f19222dd-d6d0-4acf-9c13-f7e40a88970c",
+        "pinned": true
+      },
+      "sentAt": 1793811892157,
+      "serverTs": 1793811892157,
+      "mentionAll": false,
+      "importedBy": null
+    }
+  ]
+}

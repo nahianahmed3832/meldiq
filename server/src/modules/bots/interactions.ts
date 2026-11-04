@@ -1,8 +1,18 @@
 import type { ServerResponse } from "node:http";
 import type { FastifyBaseLogger } from "fastify";
 import type { z } from "zod/v4";
-import { type BotCommand, INTERACTION_TTL_MS, type InteractionBody, type ReplyBody } from "../../shared/contracts/http/bots.js";
-import { ApiError, badRequest, forbidden, notFound } from "../../shared/errors.js";
+import {
+  type BotCommand,
+  INTERACTION_TTL_MS,
+  type InteractionBody,
+  type ReplyBody,
+} from "../../shared/contracts/http/bots.js";
+import {
+  ApiError,
+  badRequest,
+  forbidden,
+  notFound,
+} from "../../shared/errors.js";
 import { newId } from "../../shared/utilities/util.js";
 import { botsAmong, requireStanding } from "../accounts/index.js";
 import { sendServerMessage } from "../messaging/index.js";
@@ -24,9 +34,13 @@ const PURGE_EVERY_MS = 10 * 60_000;
 const USER_ID = /^[A-Za-z0-9_-]{3,64}$/;
 
 /** [options] checked against [cmd]'s: known names, the right types, required ones present. */
-function checkOptions(cmd: BotCommand, options: Record<string, OptionValue>): Record<string, OptionValue> {
+function checkOptions(
+  cmd: BotCommand,
+  options: Record<string, OptionValue>,
+): Record<string, OptionValue> {
   for (const name of Object.keys(options)) {
-    if (!cmd.options.some((o) => o.name === name)) throw badRequest(`/${cmd.name} has no option "${name}"`);
+    if (!cmd.options.some((o) => o.name === name))
+      throw badRequest(`/${cmd.name} has no option "${name}"`);
   }
   for (const o of cmd.options) {
     const v = options[o.name];
@@ -35,8 +49,17 @@ function checkOptions(cmd: BotCommand, options: Record<string, OptionValue>): Re
       continue;
     }
     const ok =
-      o.type === "number" ? typeof v === "number" && Number.isFinite(v) : o.type === "boolean" ? typeof v === "boolean" : o.type === "user" ? typeof v === "string" && USER_ID.test(v) : typeof v === "string";
-    if (!ok) throw badRequest(`"${o.name}" must be a ${o.type === "user" ? "user id" : o.type}`);
+      o.type === "number"
+        ? typeof v === "number" && Number.isFinite(v)
+        : o.type === "boolean"
+          ? typeof v === "boolean"
+          : o.type === "user"
+            ? typeof v === "string" && USER_ID.test(v)
+            : typeof v === "string";
+    if (!ok)
+      throw badRequest(
+        `"${o.name}" must be a ${o.type === "user" ? "user id" : o.type}`,
+      );
   }
   return options;
 }
@@ -61,16 +84,36 @@ export class Interactions {
   }
 
   /** The commands of the bots in [orgId] a member may run (in [channelId]: only bots that can post there). */
-  async orgCommands(userId: string, orgId: string, channelId: string | undefined) {
+  async orgCommands(
+    userId: string,
+    orgId: string,
+    channelId: string | undefined,
+  ) {
     const { authz } = this.ctx;
     authz.requireOrgMember(orgId, userId);
     const conv = channelId ? authz.conversation(channelId) : undefined;
-    if (channelId && (!conv || conv.org_id !== orgId || !authz.canViewChannel(conv, userId))) throw notFound("No such channel in this community");
-    const bots = (await this.bots.store.botsByIds(botsAmong(this.ctx, orgMemberIds(this.ctx.ws, orgId)))).filter((b) => !conv || (authz.isMember(conv.id, b.id) && authz.canPost(conv, b.id)));
+    if (
+      channelId &&
+      (!conv || conv.org_id !== orgId || !authz.canViewChannel(conv, userId))
+    )
+      throw notFound("No such channel in this community");
+    const bots = (
+      await this.bots.store.botsByIds(
+        botsAmong(this.ctx, orgMemberIds(this.ctx.ws, orgId)),
+      )
+    ).filter(
+      (b) =>
+        !conv || (authz.isMember(conv.id, b.id) && authz.canPost(conv, b.id)),
+    );
     const names = this.bots.names(bots.map((b) => b.id));
     return {
       commands: bots.flatMap((b) =>
-        b.commands.map((c) => ({ ...c, botId: b.id, botUsername: names.get(b.id)?.username ?? "", botDisplayName: names.get(b.id)?.displayName ?? "" })),
+        b.commands.map((c) => ({
+          ...c,
+          botId: b.id,
+          botUsername: names.get(b.id)?.username ?? "",
+          botDisplayName: names.get(b.id)?.displayName ?? "",
+        })),
       ),
     };
   }
@@ -80,19 +123,46 @@ export class Interactions {
     const { authz } = this.ctx;
     requireStanding(this.ctx.safety, userId, "send_message");
     const conv = authz.requireMember(body.channelId, userId);
-    if (conv.type !== "CHANNEL" || !conv.org_id) throw badRequest("Slash commands work in community channels");
-    if (!authz.canPost(conv, userId)) throw forbidden("You can't post in this channel");
-    if (authz.mustFinishOnboarding(conv.org_id, userId)) throw new ApiError(403, "onboarding_not_finished", "Finish this community's onboarding before you post or react", { orgId: conv.org_id });
-    if (authz.mustAgreeRules(conv.org_id, userId)) throw new ApiError(403, "rules_not_agreed", "Agree to this community's rules before you post or react", { orgId: conv.org_id });
+    if (conv.type !== "CHANNEL" || !conv.org_id)
+      throw badRequest("Slash commands work in community channels");
+    if (!authz.canPost(conv, userId))
+      throw forbidden("You can't post in this channel");
+    if (authz.mustFinishOnboarding(conv.org_id, userId))
+      throw new ApiError(
+        403,
+        "onboarding_not_finished",
+        "Finish this community's onboarding before you post or react",
+        { orgId: conv.org_id },
+      );
+    if (authz.mustAgreeRules(conv.org_id, userId))
+      throw new ApiError(
+        403,
+        "rules_not_agreed",
+        "Agree to this community's rules before you post or react",
+        { orgId: conv.org_id },
+      );
     // Community parity A2: running a command is posting (the lock and the verification level apply).
     await this.ctx.communitySafety.admitPost(conv, userId, "post", false);
     const bot = await this.bots.store.bot(body.botId);
-    if (!bot || !authz.orgRole(conv.org_id, bot.id) || !authz.isMember(conv.id, bot.id)) throw new ApiError(404, "bot_not_here", "That bot isn't in this channel");
+    if (
+      !bot ||
+      !authz.orgRole(conv.org_id, bot.id) ||
+      !authz.isMember(conv.id, bot.id)
+    )
+      throw new ApiError(404, "bot_not_here", "That bot isn't in this channel");
+    await this.bots.requireActive(bot);
+    if (!authz.canPost(conv, bot.id))
+      throw forbidden("This bot cannot answer in this channel");
     const cmd = bot.commands.find((c) => c.name === body.command);
     if (!cmd) throw notFound(`That bot has no /${body.command} command`);
     const t = this.bots.clock();
     await this.purgeNowAndThen(t);
-    if ((await this.bots.store.openCount(bot.id, t)) >= OPEN_LIMIT) throw new ApiError(429, "rate_limited", "This bot has too many commands waiting. Try again in a minute.");
+    if ((await this.bots.store.openCount(bot.id, t)) >= OPEN_LIMIT)
+      throw new ApiError(
+        429,
+        "rate_limited",
+        "This bot has too many commands waiting. Try again in a minute.",
+      );
     const i: Interaction = {
       id: newId("ix"),
       botId: bot.id,
@@ -109,11 +179,23 @@ export class Interactions {
     };
     await this.bots.store.addInteraction(i);
     this.bots.waiters.notify(bot.id);
-    return { interaction: { id: i.id, botId: i.botId, command: i.command, createdAt: i.createdAt, expiresAt: i.expiresAt } };
+    return {
+      interaction: {
+        id: i.id,
+        botId: i.botId,
+        command: i.command,
+        createdAt: i.createdAt,
+        expiresAt: i.expiresAt,
+      },
+    };
   }
 
   /** What a bot polls: interactions due now, or (waiting up to [waitS] seconds) the first ones that come. */
-  async poll(bot: Bot, waitS: number, connection: Pick<ServerResponse, "once">) {
+  async poll(
+    bot: Bot,
+    waitS: number,
+    connection: Pick<ServerResponse, "once">,
+  ) {
     const deadline = this.bots.clock() + waitS * 1000;
     // The response closes before it's sent only when the bot hung up: stop waiting, take nothing more.
     let gone = false;
@@ -137,34 +219,115 @@ export class Interactions {
       interactions: due.flatMap((i) => {
         const n = names.get(i.userId);
         return n
-          ? [{ id: i.id, command: i.command, options: i.options, user: { id: i.userId, ...n }, channelId: i.conversationId, communityId: i.orgId, createdAt: i.createdAt, expiresAt: i.expiresAt }]
+          ? [
+              {
+                id: i.id,
+                command: i.command,
+                options: i.options,
+                user: { id: i.userId, ...n },
+                channelId: i.conversationId,
+                communityId: i.orgId,
+                createdAt: i.createdAt,
+                expiresAt: i.expiresAt,
+              },
+            ]
           : [];
       }),
     };
   }
 
-  private claim(bot: Bot): Promise<Interaction[]> {
+  private async claim(bot: Bot): Promise<Interaction[]> {
+    await this.bots.events.fresh(bot);
     const t = this.bots.clock();
-    return this.bots.store.claim(bot.id, t, t - REDELIVER_MS, BATCH);
+    const claimed = await this.bots.store.claim(
+      bot.id,
+      t,
+      t - REDELIVER_MS,
+      BATCH,
+    );
+    await this.bots.events.fresh(bot);
+    return claimed.filter((interaction) => this.visible(bot, interaction));
+  }
+
+  private visible(bot: Bot, interaction: Interaction): boolean {
+    const authz = this.ctx.authz,
+      conv = authz.conversation(interaction.conversationId);
+    return (
+      !!conv &&
+      conv.type === "CHANNEL" &&
+      conv.org_id === interaction.orgId &&
+      authz.isMember(conv.id, bot.id) &&
+      authz.isMember(conv.id, interaction.userId) &&
+      authz.canPost(conv, bot.id) &&
+      interaction.createdAt >=
+        (authz.memberSince(conv.id, bot.id) ?? Infinity) &&
+      interaction.createdAt >=
+        (authz.memberSince(conv.id, interaction.userId) ?? Infinity)
+    );
   }
 
   /** The bot's answer: a message in the channel from the bot, or (ephemeral) a realtime frame to that person only. */
-  async reply(bot: Bot, id: string, body: z.infer<typeof ReplyBody>, log: FastifyBaseLogger) {
+  async reply(
+    bot: Bot,
+    id: string,
+    body: z.infer<typeof ReplyBody>,
+    log: FastifyBaseLogger,
+  ) {
     const i = await this.bots.store.interaction(id);
-    if (!i || i.botId !== bot.id) throw notFound("This bot has no interaction with that id");
+    if (!i || i.botId !== bot.id)
+      throw notFound("This bot has no interaction with that id");
+    if (!this.visible(bot, i))
+      throw notFound("This interaction is no longer available here");
     const t = this.bots.clock();
     const outcome = await this.bots.store.answer(id, bot.id, t);
-    if (outcome === "missing") throw notFound("This bot has no interaction with that id");
-    if (outcome === "answered") throw new ApiError(409, "interaction_answered", "This command was answered already");
-    if (outcome === "expired") throw new ApiError(410, "interaction_expired", "This command waited more than 15 minutes and expired");
-    if (body.ephemeral) {
-      this.ctx.hub.sendToUser(i.userId, { t: "interaction.reply", interactionId: i.id, conversationId: i.conversationId, botId: bot.id, command: i.command, content: body.content, at: t });
-      return { interactionId: i.id, ephemeral: true, messageId: null };
-    }
+    if (outcome === "missing")
+      throw notFound("This bot has no interaction with that id");
+    if (outcome === "answered")
+      throw new ApiError(
+        409,
+        "interaction_answered",
+        "This command was answered already",
+      );
+    if (outcome === "expired")
+      throw new ApiError(
+        410,
+        "interaction_expired",
+        "This command waited more than 15 minutes and expired",
+      );
     const messageId = newId("m");
-    const payload = { type: "text", text: body.content, interaction: { id: i.id, command: i.command, userId: i.userId } };
+    const payload = {
+      type: "text",
+      text: body.content,
+      interaction: { id: i.id, command: i.command, userId: i.userId },
+    };
     try {
-      await sendServerMessage(this.ctx, { userId: bot.id, deviceId: null }, { conversationId: i.conversationId, messageId, cls: "message", sentAt: t, payload }, log);
+      await this.bots.events.fresh(bot);
+      if (!this.visible(bot, i))
+        throw notFound("This interaction is no longer available here");
+      if (body.ephemeral) {
+        this.ctx.hub.sendToUser(i.userId, {
+          t: "interaction.reply",
+          interactionId: i.id,
+          conversationId: i.conversationId,
+          botId: bot.id,
+          command: i.command,
+          content: body.content,
+          at: t,
+        });
+        return { interactionId: i.id, ephemeral: true, messageId: null };
+      }
+      await sendServerMessage(
+        this.ctx,
+        { userId: bot.id, deviceId: null },
+        {
+          conversationId: i.conversationId,
+          messageId,
+          cls: "message",
+          sentAt: t,
+          payload,
+        },
+        log,
+      );
     } catch (e) {
       // Not posted (the bot lost its posting rights, slowmode…): it may answer again.
       await this.bots.store.reopen(i.id);

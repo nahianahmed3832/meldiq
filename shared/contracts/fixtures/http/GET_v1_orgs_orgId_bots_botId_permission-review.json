@@ -1,0 +1,26 @@
+{
+  "manifest": {
+    "botId": "u_de6KOOzYFRUCUPwxc_8vpw",
+    "permissions": [
+      "channels.read",
+      "channels.manage",
+      "members.ban"
+    ],
+    "rev": 1
+  },
+  "installation": {
+    "orgId": "o_w-T9aE3xnoqEJB1Audqr5A",
+    "botId": "u_de6KOOzYFRUCUPwxc_8vpw",
+    "permissions": [
+      "channels.read",
+      "channels.manage"
+    ],
+    "manifestRev": 1,
+    "rev": 1,
+    "approvedBy": "u_qIM9FcIcDFPjGfTwK-uPiA",
+    "approvedAt": 1793811893142
+  },
+  "approvable": [
+    "channels.read"
+  ]
+}

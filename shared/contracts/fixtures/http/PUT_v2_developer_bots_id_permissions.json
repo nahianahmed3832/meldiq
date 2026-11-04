@@ -1,0 +1,9 @@
+{
+  "botId": "u_TNclq-r_RBHwjE_gnf__cg",
+  "permissions": [
+    "events.read",
+    "messages.history",
+    "members.read"
+  ],
+  "rev": 1
+}

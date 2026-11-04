@@ -1,0 +1,23 @@
+{
+  "messages": [
+    {
+      "id": "9cf7de98-c3c3-4cd0-b62e-5e90c3ac0335",
+      "conversationId": "c_Mo6LdcxoBtjlc8DIv1luiQ",
+      "senderUserId": "u_2JN76JetRNCEcLUMu9cj0A",
+      "senderDeviceId": "d_y2VdTM9rkY1FeluKDasQ_A",
+      "cls": "message",
+      "payload": {
+        "type": "text",
+        "text": "current text",
+        "title": "current title"
+      },
+      "sentAt": 1793811892088,
+      "serverTs": 1793811892092,
+      "mentionAll": false,
+      "importedBy": null
+    }
+  ],
+  "changes": [],
+  "more": false,
+  "nextCursor": null
+}

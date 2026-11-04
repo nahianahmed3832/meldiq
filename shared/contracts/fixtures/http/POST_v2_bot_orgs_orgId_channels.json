@@ -1,0 +1,73 @@
+{
+  "channel": {
+    "id": "c_UpH-8KICQT0rVh_RdZo-6w",
+    "type": "CHANNEL",
+    "orgId": "o_w-T9aE3xnoqEJB1Audqr5A",
+    "scope": "ORG",
+    "scopeId": null,
+    "scopeName": "Scoped bot lab",
+    "categoryId": null,
+    "categoryName": null,
+    "categoryPosition": null,
+    "position": 0,
+    "format": "text",
+    "forumTags": [],
+    "guidelines": null,
+    "kind": "PUBLIC",
+    "name": "approved-bot-channel",
+    "topic": null,
+    "archived": false,
+    "photoRev": null,
+    "createdAt": 1793811893167,
+    "updatedAt": 1793811893167,
+    "memberCount": 3,
+    "members": [
+      {
+        "id": "u_qIM9FcIcDFPjGfTwK-uPiA",
+        "username": "platformowner1",
+        "displayName": "platformowner",
+        "avatarColor": 0,
+        "statusText": null,
+        "statusEmoji": null,
+        "homeServer": null,
+        "role": "MEMBER",
+        "online": false,
+        "presence": "offline",
+        "notificationsPaused": false
+      },
+      {
+        "id": "u_rRhkKGJbThhDPk17ye5KzA",
+        "username": "platformmember2",
+        "displayName": "platformmember",
+        "avatarColor": 0,
+        "statusText": null,
+        "statusEmoji": null,
+        "homeServer": null,
+        "role": "MEMBER",
+        "online": false,
+        "presence": "offline",
+        "notificationsPaused": false
+      }
+    ],
+    "joined": true,
+    "myRole": "ADMIN",
+    "canPost": true,
+    "canAttach": true,
+    "canManage": true,
+    "canManageAccess": false,
+    "canMentionAll": true,
+    "activeCall": null,
+    "voice": false,
+    "slowmodeSec": 0,
+    "slowmodeExempt": true,
+    "nextPostAt": null,
+    "options": {
+      "textOnly": false,
+      "noGifs": false,
+      "stage": false,
+      "readOnly": false,
+      "posterRoleIds": []
+    },
+    "federation": null
+  }
+}

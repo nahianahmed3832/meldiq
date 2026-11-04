@@ -479,6 +479,11 @@ export class Authz {
     return conv;
   }
 
+  /** Membership incarnation bound for commands and other private, short-lived interactions. */
+  memberSince(convId: string, userId: string): number | null {
+    return this.rows.get<{ joined_at: number }>("conversation_members", { conversation_id: convId, user_id: userId })?.joined_at ?? null;
+  }
+
   canPost(conv: ConversationRow, userId: string): boolean {
     if (conv.archived_at) return false;
     if (!this.isMember(conv.id, userId)) return false;

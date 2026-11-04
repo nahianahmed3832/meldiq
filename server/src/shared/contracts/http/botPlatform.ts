@@ -104,6 +104,20 @@ export const BotEventPage = z.strictObject({
 export const botPlatformContracts = [
   route({
     method: "GET",
+    url: "/v1/orgs/:orgId/bots/:botId/permission-review",
+    tag: "Bots",
+    auth: true,
+    params: installed,
+    response: z.strictObject({
+      manifest: BotPermissionManifest,
+      installation: BotPermissionInstallation,
+      approvable: BotPermissionList,
+    }),
+    summary:
+      "Installed-bot permission review for a current community manager, including private bots. Lists only permissions this manager may approve.",
+  }),
+  route({
+    method: "GET",
     url: "/v2/bot/events",
     tag: "Bots",
     auth: true,

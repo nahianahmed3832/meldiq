@@ -83,10 +83,36 @@
           },
           "action": {
             "type": "string",
-            "enum": [
-              "self",
-              "communities"
-            ]
+            "const": "self"
+          },
+          "data": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "op",
+          "requestId",
+          "action"
+        ],
+        "additionalProperties": false
+      },
+      {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "const": "request"
+          },
+          "requestId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "action": {
+            "type": "string",
+            "const": "communities"
           },
           "data": {
             "type": "object",

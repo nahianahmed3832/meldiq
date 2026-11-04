@@ -35,6 +35,7 @@ import { linkedAccountRoutes } from "./linkedAccounts.js";
 import type { RouteContract } from "./route.js";
 import { BOT_DOMAIN_ADAPTERS } from "./botDomainAdapters.js";
 import { botPlatformContracts } from "./botPlatform.js";
+import { botMessageContracts } from "./botMessages.js";
 
 export type { RouteContract } from "./route.js";
 
@@ -50,6 +51,7 @@ export const ErrorEnvelope = z.strictObject({
 /** The documented routes. Routes not listed yet are still checked for the error envelope by the test suite. */
 const NATIVE_ROUTE_CONTRACTS: readonly RouteContract[] = [
   ...botPlatformContracts,
+  ...botMessageContracts,
   ...partnerContracts,
   ...managedPollContracts,
   ...threadLifecycleContracts,
@@ -89,6 +91,7 @@ export const ROUTE_CONTRACTS: readonly RouteContract[] = [
   ...BOT_DOMAIN_ADAPTERS.map((adapter): RouteContract => {
     const source = NATIVE_ROUTE_CONTRACTS.find((item) => item.method === adapter.method && item.url === adapter.source);
     if (!source) throw new Error(`Missing native contract for bot adapter ${adapter.method} ${adapter.source}`);
-    return { ...source, url: adapter.url, auth: true, scheme: "bot", tag: "Bots", summary: `Bot adapter: ${source.summary} ${adapter.scope ? `Requires approved ${adapter.scope} scope and current native authority.` : "Own bot identity only."}` };
+    const projection = adapter.source.startsWith("/v2/conversations/") ? " Bot pages project current text, omit deleted messages and exclude historic edits and private protocol controls." : "";
+    return { ...source, url: adapter.url, auth: true, scheme: "bot", tag: "Bots", summary: `Bot adapter: ${source.summary} ${adapter.scope ? `Requires approved ${adapter.scope} scope and current native authority.` : "Own bot identity only."}${projection}` };
   }),
 ];

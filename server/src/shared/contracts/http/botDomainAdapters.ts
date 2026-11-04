@@ -53,6 +53,19 @@ add(
 add(["POST"], "/v1/orgs/:orgId/channels", "channels.manage", "org");
 add(["GET"], "/v1/conversations/:id", "channels.read", "conversation");
 add(
+  ["GET"],
+  "/v1/conversations/:id/overwrites",
+  "channels.read",
+  "conversation",
+);
+add(
+  ["PUT"],
+  "/v1/conversations/:id/overwrites",
+  "channels.manage",
+  "conversation",
+);
+add(["PUT"], "/v1/users/me/presence", null, "self");
+add(
   ["PATCH", "DELETE"],
   "/v1/conversations/:id",
   "channels.manage",

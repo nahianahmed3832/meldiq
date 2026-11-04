@@ -1,0 +1,9 @@
+{
+  "botId": "u_UNX4E9_2cYSjLWqNyOwdKA",
+  "permissions": [
+    "channels.read",
+    "channels.manage",
+    "members.ban"
+  ],
+  "rev": 1
+}

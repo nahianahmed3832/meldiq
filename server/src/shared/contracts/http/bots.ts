@@ -225,7 +225,7 @@ export const botRoutes = [
     errors: ["not_found", "forbidden", "slowmode", "message_too_long"],
   }),
   bot({ method: "PATCH", url: "/v2/bot/messages/:messageId", summary: "Edit one of the bot's own messages.", params: MessageParams, body: BotEditBody, response: SendMessageResult, errors: ["not_found", "not_yours"] }),
-  bot({ method: "DELETE", url: "/v2/bot/messages/:messageId", summary: "Delete one of the bot's own messages.", params: MessageParams, response: SendMessageResult, errors: ["not_found", "not_yours"] }),
+  bot({ method: "DELETE", url: "/v2/bot/messages/:messageId", summary: "Delete the bot's own message, or another sender's message only with approved messages.manage and current native moderation authority.", params: MessageParams, response: SendMessageResult, errors: ["not_found", "not_yours"] }),
   bot({ method: "GET", url: "/v2/bot/commands", summary: "The bot's slash commands.", response: CommandsResult }),
   bot({ method: "PUT", url: "/v2/bot/commands", summary: "Replace the bot's slash commands (up to 100, each with up to 25 options).", body: CommandsBody, response: CommandsResult }),
   bot({

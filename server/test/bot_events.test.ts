@@ -188,6 +188,38 @@ describe.skipIf(!process.env.MELDIQ_TEST_PG_URL)(
       });
     });
 
+    it("uses a commit-ordered approval boundary rather than API/DB wall-clock agreement", async () => {
+      await approve([]);
+      const db = h.ctx.postgres!.database;
+      const old = await owner.send(channelId, {
+        type: "text",
+        text: "before renewed consent",
+      });
+      // Another installation could already be journaling this community. A targeted fixture captures that old row.
+      await db.query(
+        "SELECT meldiq_private.emit_bot_event('message',$1,$2,$3,NULL,$4,$5)",
+        [orgId, channelId, owner.userId, old.messageId, botId],
+      );
+      const clock = h.ctx.bots.clock;
+      h.ctx.bots.clock = () => Date.now() + 60_000;
+      try {
+        await approve(permissions);
+        const current = await owner.send(channelId, {
+          type: "text",
+          text: "after consent despite clock skew",
+        });
+        const page = await request();
+        expect(
+          page.body.events.map((event: { sourceId: string }) => event.sourceId),
+        ).toContain(current.messageId);
+        expect(
+          page.body.events.map((event: { sourceId: string }) => event.sourceId),
+        ).not.toContain(old.messageId);
+      } finally {
+        h.ctx.bots.clock = clock;
+      }
+    });
+
     it("rejects cross-bot/tampered cursors and old credentials after rotation", async () => {
       const page = await request();
       expect(

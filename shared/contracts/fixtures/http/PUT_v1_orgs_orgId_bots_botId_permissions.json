@@ -1,0 +1,13 @@
+{
+  "orgId": "o_CFKyB4LlJvBVCTqJ0lnBTA",
+  "botId": "u_TNclq-r_RBHwjE_gnf__cg",
+  "permissions": [
+    "events.read",
+    "messages.history",
+    "members.read"
+  ],
+  "manifestRev": 1,
+  "rev": 1,
+  "approvedBy": "u_64l4XMC6GS1usj_si9CqiQ",
+  "approvedAt": 1793811889264
+}

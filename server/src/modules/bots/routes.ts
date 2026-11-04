@@ -29,6 +29,12 @@ import {
 } from "../../shared/contracts/http/botPlatform.js";
 import { requireBotManager } from "../organizations/index.js";
 import { registerBotGateway } from "./gateway.js";
+import {
+  BotMessageTarget,
+  BotReactionTarget,
+  BotBulkTarget,
+  BotBulkBody,
+} from "../../shared/contracts/http/botMessages.js";
 
 const minute = (max: number) => ({
   rateLimit: { max, timeWindow: "1 minute" },
@@ -103,6 +109,14 @@ export default async function botRoutes(app: FastifyInstance, ctx: AppContext) {
     requireBotManager(ctx, orgId, me(req).userId);
     return svc.permissions.installation(orgId, botId);
   });
+  app.get(
+    "/v1/orgs/:orgId/bots/:botId/permission-review",
+    person,
+    async (req) => {
+      const { orgId, botId } = parse(OrgBotParams, req.params);
+      return svc.permissions.review(me(req).userId, orgId, botId);
+    },
+  );
   app.put("/v1/orgs/:orgId/bots/:botId/permissions", person, async (req) => {
     const { orgId, botId } = parse(OrgBotParams, req.params);
     return svc.permissions.approve(
@@ -153,6 +167,62 @@ export default async function botRoutes(app: FastifyInstance, ctx: AppContext) {
   );
 
   app.get("/v2/bot/me", bot(120), async (req) => svc.api.self(theBot(req)));
+  app.get(
+    "/v2/bot/channels/:channelId/messages/:messageId/reactions",
+    bot(60),
+    async (req) => {
+      const { channelId, messageId } = parse(BotMessageTarget, req.params);
+      return svc.messages.reactions(theBot(req), channelId, messageId);
+    },
+  );
+  for (const method of ["PUT", "DELETE"] as const) {
+    app.route({
+      method,
+      url: "/v2/bot/channels/:channelId/messages/:messageId/reactions/:emoji",
+      ...bot(60),
+      handler: async (req) => {
+        const { channelId, messageId, emoji } = parse(
+          BotReactionTarget,
+          req.params,
+        );
+        return svc.messages.react(
+          theBot(req),
+          channelId,
+          messageId,
+          emoji,
+          method === "PUT",
+          req.log,
+        );
+      },
+    });
+    app.route({
+      method,
+      url: "/v2/bot/channels/:channelId/messages/:messageId/pin",
+      ...bot(60),
+      handler: async (req) => {
+        const { channelId, messageId } = parse(BotMessageTarget, req.params);
+        return svc.messages.pin(
+          theBot(req),
+          channelId,
+          messageId,
+          method === "PUT",
+          req.log,
+        );
+      },
+    });
+  }
+  app.post(
+    "/v2/bot/channels/:channelId/messages/bulk-delete",
+    bot(10),
+    async (req) => {
+      return svc.messages.bulkDelete(
+        theBot(req),
+        parse(BotBulkTarget, req.params).channelId,
+        parse(BotBulkBody, req.body).messageIds,
+        req.log,
+      );
+    },
+  );
   app.get("/v2/bot/events", bot(120), async (req) => {
     const query = parse(BotEventsQuery, req.query);
     return svc.events.page(theBot(req), query.cursor, query.limit);

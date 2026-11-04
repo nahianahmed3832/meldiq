@@ -26,6 +26,7 @@ import type { Bot, BotStore } from "./store.js";
 import { Waiters } from "./waiters.js";
 import { BotPermissions } from "./permissions.js";
 import { BotEvents } from "./events.js";
+import { BotMessages } from "./messages.js";
 
 /** Bot tokens: "mqb_" and 43 base64url characters. */
 export const BOT_TOKEN_PREFIX = "mqb";
@@ -67,6 +68,7 @@ export class BotService {
   readonly api = new BotApi(this);
   readonly permissions = new BotPermissions(this);
   readonly events = new BotEvents(this);
+  readonly messages = new BotMessages(this);
 
   constructor(
     readonly ctx: AppContext,
@@ -220,6 +222,7 @@ export class BotService {
       tokenRotatedAt: this.clock(),
     }))!;
     this.events.invalidate(bot.id);
+    this.waiters.notify(bot.id);
     this.ctx.audit({
       actorId: ownerId,
       action: "bot.token_rotate",
@@ -283,6 +286,7 @@ export class BotService {
     if (!(await this.store.bot(botId))) throw notFound("No bot with that id");
     const removed = await removeBotMember(this.ctx, orgId, botId, actorId);
     if (removed) this.events.invalidate(botId);
+    if (removed) this.waiters.notify(botId);
     return { removed };
   }
 

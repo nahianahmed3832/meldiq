@@ -123,6 +123,23 @@ export class BotPermissions {
     };
   }
 
+  review(actorId: string, orgId: string, botId: string) {
+    const ctx = this.bots.ctx;
+    requireBotManager(ctx, orgId, actorId);
+    ctx.authz.requireOrgMember(orgId, botId);
+    const manifest = this.manifest(botId);
+    const actorPermissions = ctx.authz.permissions(orgId, actorId);
+    return {
+      manifest,
+      installation: this.installation(orgId, botId),
+      approvable: manifest.permissions.filter(
+        (permission) =>
+          READ_SCOPES.has(permission) ||
+          actorPermissions.has(permission as never),
+      ),
+    };
+  }
+
   async approve(
     actorId: string,
     orgId: string,
@@ -389,5 +406,17 @@ export class BotPermissions {
         bot_id: botId,
       })?.install_key ?? ""
     );
+  }
+
+  revisionKey(orgId: string, botId: string): string {
+    const row = this.bots.ctx.ws.get<Approved>("bot_installation_permissions", {
+      org_id: orgId,
+      bot_id: botId,
+    });
+    return JSON.stringify([
+      this.manifest(botId).rev,
+      row?.install_key ?? null,
+      row?.rev ?? 0,
+    ]);
   }
 }

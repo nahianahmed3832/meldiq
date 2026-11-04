@@ -1,0 +1,20 @@
+{
+  "events": [
+    {
+      "id": "0501c404-bf9c-40c0-8db4-2e5e62e4d89e",
+      "type": "message",
+      "communityId": "o_CFKyB4LlJvBVCTqJ0lnBTA",
+      "channelId": "c_D8kmpmy_Us6q905zsytm0Q",
+      "actorId": "u_64l4XMC6GS1usj_si9CqiQ",
+      "targetId": null,
+      "sourceId": "0288cc08-8ed9-4866-9536-2fa323c7c048",
+      "data": {
+        "messageId": "0288cc08-8ed9-4866-9536-2fa323c7c048"
+      },
+      "createdAt": 1793811889274
+    }
+  ],
+  "cursor": "be1.U5djlrQCdUmp1eQ6sZFLppIlNWPoGPnt47hb757TE0BAki61fnxfoZPAimW3SMeRUP_CyWx6lzmRSw8B1UoR3Jf-q0DCrr0uBi34",
+  "more": true,
+  "replayWindowSeconds": 604800
+}

@@ -1,0 +1,15 @@
+{
+  "deleted": [
+    "4128bd44-5f33-4724-95b6-191201720b71"
+  ],
+  "failed": [
+    {
+      "messageId": "57786629-39b2-4bf7-8b6a-d829dd3951fa",
+      "code": "not_found"
+    },
+    {
+      "messageId": "unknown-message",
+      "code": "not_found"
+    }
+  ]
+}

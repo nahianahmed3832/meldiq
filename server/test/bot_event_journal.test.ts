@@ -64,12 +64,12 @@ describe.skipIf(!process.env.MELDIQ_TEST_PG_URL)(
 
     it("keeps direct authenticated clients out while the existing API role can read replay metadata", async () => {
       const db = h.ctx.postgres!.database;
-      await expect(
-        db.transaction(async () => {
+      for (const table of ["bot_event_journal", "bot_installation_boundaries"]) {
+        await expect(db.transaction(async () => {
           await db.query("SET LOCAL ROLE authenticated");
-          await db.query("SELECT id FROM meldiq_private.bot_event_journal");
-        }),
-      ).rejects.toMatchObject({ code: "42501" });
+          await db.query(`SELECT 1 FROM meldiq_private.${table}`);
+        })).rejects.toMatchObject({ code: "42501" });
+      }
       const result = await db.transaction(async () => {
         await db.query("SET LOCAL ROLE meldiq_api");
         return db.query("SELECT id FROM meldiq_private.bot_event_journal");

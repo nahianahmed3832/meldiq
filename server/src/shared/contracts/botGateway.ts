@@ -19,7 +19,13 @@ export const BotGatewayClientFrame = z.union([
   z.strictObject({
     op: z.literal("request"),
     requestId: z.string().min(1).max(64),
-    action: z.enum(["self", "communities"]),
+    action: z.literal("self"),
+    data: z.strictObject({}).optional(),
+  }),
+  z.strictObject({
+    op: z.literal("request"),
+    requestId: z.string().min(1).max(64),
+    action: z.literal("communities"),
     data: z.strictObject({}).optional(),
   }),
   z.strictObject({
