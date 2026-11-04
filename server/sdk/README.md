@@ -9,7 +9,9 @@ Check `/v1/server-info` for `bots`, `bot-permissions` and, on PostgreSQL, `bot-e
 3. A community manager adds the bot and approves its requested access in Community settings → Integrations → Permissions. New requests do not expand an existing approval automatically.
 4. Give it only the native roles/channel access it needs. Approval does not grant native roles, bypass denials or confer owner/administrator powers. A scoped SDK request can still correctly receive403.
 
-Existing text sends and slash commands retain their native baseline. Advanced administration, history, reactions and event delivery need the corresponding approval. Bot DMs, rich interactive components and voice participation are still separate unfinished slices of the broader platform; these clients do not claim those capabilities. Avatar/banner uploads use the existing native MIME, size, processing and storage policies.
+Existing text sends and slash commands retain their native baseline. Advanced administration, history, reactions and community event delivery need the corresponding approval. Rich interactive components and voice participation remain unfinished slices of the broader platform. Avatar/banner uploads use the existing native MIME, size, processing and storage policies.
+
+Personal bot DMs require the `direct_messages` request and the recipient's explicit consent in the bot profile. Community approval and bot ownership cannot authorize outreach to another person. `sendDirect(userId,content,{messageId})` (JavaScript) and `send_direct(user_id,content,message_id=...)` (Python) use only an existing personal approval. Replies produce self-addressed `dm_message` ID events; read current content through `/v2/bot/conversations/:id/messages`. Revocation or a block stops sends, history and replay; unblocking does not restore approval. Changing the requested manifest requires fresh personal review. Renewed consent starts a fresh conversation; prior revoked history remains available to the person but inaccessible to the bot. These conversations support messages, not calls.
 
 ## JavaScript
 

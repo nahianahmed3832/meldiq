@@ -5,6 +5,7 @@ export type BotResource =
   | "self"
   | "org"
   | "conversation"
+  | "history"
   | "role"
   | "category"
   | "expression"
@@ -43,7 +44,7 @@ add(
   ["GET"],
   "/v2/conversations/:id/messages",
   "messages.history",
-  "conversation",
+  "history",
 );
 add(
   ["GET"],

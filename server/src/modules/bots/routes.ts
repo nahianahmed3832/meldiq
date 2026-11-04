@@ -28,6 +28,8 @@ import {
   BotInstallationApproval,
   BotInventoryQuery,
   BotTestEventBody,
+  BotDmConsentBody,
+  BotDmUserParams,
 } from "../../shared/contracts/http/botPlatform.js";
 import { BOT_CHANGELOG } from "./changelog.js";
 import { requireBotManager } from "../organizations/index.js";
@@ -107,6 +109,19 @@ export default async function botRoutes(app: FastifyInstance, ctx: AppContext) {
   app.get("/v2/bots/:botId", person, async (req) =>
     svc.lookup(me(req).userId, parse(BotIdParams, req.params).botId),
   );
+  app.get("/v2/bots/:botId/direct-messages", person, async (req) =>
+    svc.directMessages.review(
+      me(req).userId,
+      parse(BotIdParams, req.params).botId,
+    ),
+  );
+  app.put("/v2/bots/:botId/direct-messages", person, async (req) =>
+    svc.directMessages.update(
+      me(req).userId,
+      parse(BotIdParams, req.params).botId,
+      parse(BotDmConsentBody, req.body),
+    ),
+  );
   app.get("/v2/bots/:botId/permissions", person, async (req) => {
     const botId = parse(BotIdParams, req.params).botId;
     await svc.lookup(me(req).userId, botId);
@@ -182,6 +197,20 @@ export default async function botRoutes(app: FastifyInstance, ctx: AppContext) {
   );
 
   app.get("/v2/bot/me", bot(120), async (req) => svc.api.self(theBot(req)));
+  app.post("/v2/bot/users/:userId/dm", bot(30), async (req) => {
+    const actor = theBot(req);
+    const conversationId = svc.directMessages.conversation(
+      actor,
+      parse(BotDmUserParams, req.params).userId,
+    );
+    const sent = await svc.api.send(
+      actor,
+      conversationId,
+      parse(BotMessageBody, req.body),
+      req.log,
+    );
+    return { ...sent, conversationId };
+  });
   app.get("/v2/bot/changelog", bot(60), async () => BOT_CHANGELOG);
   app.get("/v2/bot/webhooks", bot(60), async (req) => {
     const q = parse(BotInventoryQuery, req.query);

@@ -190,6 +190,302 @@
     }
   ],
   "paths": {
+    "/v2/bots/{botId}/direct-messages": {
+      "get": {
+        "tags": [
+          "Bots"
+        ],
+        "summary": "This person's own bot-DM consent and the bot's requested access. Community managers cannot consent on another person's behalf.",
+        "operationId": "getV2BotsBotIdDirectMessages",
+        "parameters": [
+          {
+            "name": "botId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "botId": {
+                      "type": "string"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "conversationId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "rev": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "manifestRev": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "requested": {
+                      "type": "boolean"
+                    },
+                    "noticeVersion": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "botId",
+                    "enabled",
+                    "conversationId",
+                    "rev",
+                    "manifestRev",
+                    "requested",
+                    "noticeVersion"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Bots"
+        ],
+        "summary": "Explicit recipient-controlled bot-DM consent, revision checked against current requested access and notice. Revocation stops sends/history/replay; renewed consent starts a fresh conversation.",
+        "operationId": "putV2BotsBotIdDirectMessages",
+        "parameters": [
+          {
+            "name": "botId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "botId": {
+                      "type": "string"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "conversationId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "rev": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "manifestRev": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "requested": {
+                      "type": "boolean"
+                    },
+                    "noticeVersion": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "botId",
+                    "enabled",
+                    "conversationId",
+                    "rev",
+                    "manifestRev",
+                    "requested",
+                    "noticeVersion"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: stale_revision, bot_events_unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "rev": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "manifestRev": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "noticeVersion": {
+                    "type": "string",
+                    "maxLength": 80
+                  }
+                },
+                "required": [
+                  "enabled",
+                  "rev",
+                  "manifestRev",
+                  "noticeVersion"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/bot/users/{userId}/dm": {
+      "post": {
+        "tags": [
+          "Bots"
+        ],
+        "summary": "Send a native text DM only to a person who explicitly enabled this bot's current requested DM access. Cannot initiate unsolicited messages or enter a person-to-person DM.",
+        "operationId": "postV2BotUsersUserIdDm",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "messageId": {
+                      "type": "string"
+                    },
+                    "serverTs": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "duplicate": {
+                      "type": "boolean"
+                    },
+                    "conversationId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "messageId",
+                    "serverTs",
+                    "duplicate",
+                    "conversationId"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bot": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "content": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4000
+                  },
+                  "replyTo": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "messageId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{8,64}$"
+                  }
+                },
+                "required": [
+                  "content"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/v2/bot/changelog": {
       "get": {
         "tags": [
@@ -859,6 +1155,7 @@
                             "type": "string",
                             "enum": [
                               "message",
+                              "dm_message",
                               "reaction_add",
                               "reaction_remove",
                               "member_join",

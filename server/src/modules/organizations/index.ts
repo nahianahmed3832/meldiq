@@ -58,7 +58,7 @@ export {
 
 export { REPORT_RETENTION_MS } from "./reports/routes.js";
 
-export { notifyOrg } from "./orgsRoutes.js";
+export { notifyOrg, notifyConversation } from "./orgsRoutes.js";
 export { applyOwnershipApproval } from "./ownershipApprovals.js";
 export { partnerView, type PartnerRow } from "./partnerApplications.js";
 

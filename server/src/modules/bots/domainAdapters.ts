@@ -19,9 +19,15 @@ function resourceOrg(
   if (adapter.resource === "org") return p.orgId;
   const id = p.roleId ?? p.id;
   const conversation =
-    adapter.resource === "conversation" ? ctx.authz.conversation(id) : null;
+    adapter.resource === "conversation" || adapter.resource === "history"
+      ? ctx.authz.conversation(id)
+      : null;
+  if (adapter.resource === "history" && conversation?.type === "DM") {
+    ctx.bots.directMessages.require(theBot(req), id);
+    return null;
+  }
   const org =
-    adapter.resource === "conversation"
+    adapter.resource === "conversation" || adapter.resource === "history"
       ? conversation?.type === "CHANNEL"
         ? conversation.org_id
         : null

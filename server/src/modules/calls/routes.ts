@@ -419,6 +419,8 @@ export default async function callRoutes(app: FastifyInstance, ctx: AppContext) 
     const { userId, deviceId } = me(req);
     const body = parse(CallCreateBody, req.body);
     const conv = authz.requireMember(body.conversationId, userId);
+    if (conv.type === "DM" && conv.dm_key?.startsWith("botdm|"))
+      throw forbidden("This bot conversation supports messages only");
     if (conv.archived_at) throw conflict("This channel is archived");
     // Batch B6: nobody rings through a message request; the recipient accepts it first.
     if (conv.type === "DM" && (await ctx.relationships.request(conv.id))) {

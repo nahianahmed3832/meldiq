@@ -195,6 +195,8 @@ export class BotEvents {
           add(org, null, kind, 0);
       }
     }
+    for (const consent of this.bots.directMessages.grants(bot.id))
+      add("", consent.conversation_id, "dm_message", 0);
     if (result.length > 20_000)
       throw new ApiError(
         429,
@@ -239,6 +241,10 @@ export class BotEvents {
             WHERE i.id=j.source_id AND i.bot_id=$2 AND i.expires_at>$4 AND i.state<>'replied' AND (member.expires_at IS NULL OR member.expires_at>$4)
           ))
           AND ((j.kind='test' AND j.target_bot_id=$2) OR (
+            j.kind='dm_message' AND j.target_bot_id=$2 AND EXISTS (
+              SELECT 1 FROM grants g WHERE g.kind='dm_message' AND g.channel=j.conversation_id
+            )
+          ) OR (
             (j.target_bot_id IS NULL OR j.target_bot_id=$2) AND EXISTS (
               SELECT 1 FROM grants g WHERE g.org=j.org_id AND g.channel IS NOT DISTINCT FROM j.conversation_id
               AND g.kind=j.kind

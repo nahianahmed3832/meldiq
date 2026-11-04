@@ -137,6 +137,10 @@ export class BotMessages {
 
   private channel(bot: Bot, channelId: string, scope: BotPlatformScope) {
     const conv = this.bots.ctx.authz.requireMember(channelId, bot.id);
+    if (conv.type === "DM" && scope === "messages.history") {
+      this.bots.directMessages.require(bot, channelId);
+      return conv;
+    }
     if (conv.type !== "CHANNEL" || !conv.org_id)
       throw notFound("Channel not found");
     this.bots.permissions.require(bot, conv.org_id, scope);

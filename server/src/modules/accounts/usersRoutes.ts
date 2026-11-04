@@ -576,6 +576,7 @@ export default async function userRoutes(
       ctx.hub.sendToUsers(new Set([userId, other]), {
         t: "connections.updated",
       });
+    await ctx.bots.directMessages.revokeBlocked(userId, other);
     announceOwnSettingsChange(ctx, userId);
     return { blocked: true };
   });

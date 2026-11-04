@@ -43,6 +43,7 @@ export function admitConversation(
   if (cls === "message") requireStanding(ctx.safety, userId, "send_message");
   const { authz } = ctx;
   const conv = authz.requireMember(conversationId, userId);
+  if (conv.type === "DM") ctx.bots.directMessages.admit(conversationId);
   const reacting = cls === "control" && !!opts.type && REACTING.has(opts.type);
   const voiceControl =
     conv.voice === 1 &&

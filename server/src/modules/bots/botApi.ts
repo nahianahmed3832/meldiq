@@ -71,7 +71,7 @@ export class BotApi {
     return page;
   }
 
-  /** A message to a community channel the bot is in (DMs and groups never have bots). */
+  /** Community messages retain native role checks; personal messages additionally require recipient consent. */
   send(
     bot: Bot,
     channelId: string,
@@ -79,8 +79,9 @@ export class BotApi {
     log: FastifyBaseLogger,
   ) {
     const conv = this.bots.ctx.authz.conversation(channelId);
-    if (!conv || conv.type !== "CHANNEL")
+    if (!conv || !["CHANNEL", "DM"].includes(conv.type))
       throw notFound("Conversation not found");
+    if (conv.type === "DM") this.bots.directMessages.require(bot, conv.id);
     const payload = {
       type: "text",
       text: body.content,
@@ -132,6 +133,7 @@ export class BotApi {
   ) {
     const target = await this.bots.ctx.messages.get(messageId);
     if (!target) throw notFound("No such message");
+    await this.bots.events.fresh(bot);
     if (payload.type === "delete" && target.sender_user_id !== bot.id) {
       const conv = this.bots.ctx.authz.requireMember(
         target.conversation_id,

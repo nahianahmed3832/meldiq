@@ -1,6 +1,8 @@
 import { z } from "zod/v4";
 import { route } from "./route.js";
 import { WebhookView } from "./webhooks.js";
+import { BotMessageBody } from "./bots.js";
+import { SendMessageResult } from "./serverMessages.js";
 
 /** Approval limits a bot's existing community roles; it never grants those roles or bypasses their denials. */
 export const BOT_PLATFORM_SCOPES = [
@@ -75,6 +77,24 @@ export const BotInventoryQuery = z.strictObject({
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });
 export const BotTestEventBody = z.strictObject({ testId: z.uuid() });
+export const BotDmConsentBody = z.strictObject({
+  enabled: z.boolean(),
+  rev: z.number().int().nonnegative(),
+  manifestRev: z.number().int().nonnegative(),
+  noticeVersion: z.string().max(80),
+});
+export const BotDmConsentView = z.strictObject({
+  botId: z.string(),
+  enabled: z.boolean(),
+  conversationId: z.string().nullable(),
+  rev: z.number().int().nonnegative(),
+  manifestRev: z.number().int().nonnegative(),
+  requested: z.boolean(),
+  noticeVersion: z.string(),
+});
+export const BotDmUserParams = z.strictObject({
+  userId: z.string().min(1).max(64),
+});
 export const BotEventPage = z.strictObject({
   events: z
     .array(
@@ -82,6 +102,7 @@ export const BotEventPage = z.strictObject({
         id: z.uuid(),
         type: z.enum([
           "message",
+          "dm_message",
           "reaction_add",
           "reaction_remove",
           "member_join",
@@ -108,6 +129,40 @@ export const BotEventPage = z.strictObject({
   replayWindowSeconds: z.number(),
 });
 export const botPlatformContracts = [
+  route({
+    method: "GET",
+    url: "/v2/bots/:botId/direct-messages",
+    tag: "Bots",
+    auth: true,
+    params: botId,
+    response: BotDmConsentView,
+    summary:
+      "This person's own bot-DM consent and the bot's requested access. Community managers cannot consent on another person's behalf.",
+  }),
+  route({
+    method: "PUT",
+    url: "/v2/bots/:botId/direct-messages",
+    tag: "Bots",
+    auth: true,
+    params: botId,
+    body: BotDmConsentBody,
+    response: BotDmConsentView,
+    errors: ["stale_revision", "bot_events_unavailable"],
+    summary:
+      "Explicit recipient-controlled bot-DM consent, revision checked against current requested access and notice. Revocation stops sends/history/replay; renewed consent starts a fresh conversation.",
+  }),
+  route({
+    method: "POST",
+    url: "/v2/bot/users/:userId/dm",
+    tag: "Bots",
+    auth: true,
+    scheme: "bot",
+    params: BotDmUserParams,
+    body: BotMessageBody,
+    response: SendMessageResult.extend({ conversationId: z.string() }),
+    summary:
+      "Send a native text DM only to a person who explicitly enabled this bot's current requested DM access. Cannot initiate unsolicited messages or enter a person-to-person DM.",
+  }),
   route({
     method: "GET",
     url: "/v2/bot/changelog",

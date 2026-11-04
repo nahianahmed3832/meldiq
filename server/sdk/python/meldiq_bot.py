@@ -85,6 +85,9 @@ class MeldiqBot:
     def set_commands(self, commands):
         return self.request("PUT", "/v2/bot/commands", {"commands": commands})
 
+    def send_direct(self, user_id, content, message_id=None):
+        return self.request("POST", "/v2/bot/users/" + urllib.parse.quote(user_id, safe="") + "/dm", {"content": content, **({"messageId": message_id} if message_id else {})})
+
     def interactions(self, wait=20):
         return self.request("GET", "/v2/bot/interactions?" + urllib.parse.urlencode({"wait": wait}))
 

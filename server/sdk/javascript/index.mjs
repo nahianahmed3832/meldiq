@@ -107,6 +107,16 @@ export class MeldiqBot {
       signal,
     });
   }
+  sendDirect(userId, content, { messageId, replyTo, signal } = {}) {
+    return this.request("POST", `/v2/bot/users/${enc(userId)}/dm`, {
+      body: {
+        content,
+        ...(messageId ? { messageId } : {}),
+        ...(replyTo ? { replyTo } : {}),
+      },
+      signal,
+    });
+  }
   setCommands(commands, options = {}) {
     return this.request("PUT", "/v2/bot/commands", {
       ...options,

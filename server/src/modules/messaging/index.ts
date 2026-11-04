@@ -29,3 +29,4 @@ export {
 } from "./channelRows.js";
 
 export { erasePrivateMessagingState } from "./privateState.js";
+export { createBotDirectConversation, closeBotDirectConversation } from "./botDirectConversations.js";

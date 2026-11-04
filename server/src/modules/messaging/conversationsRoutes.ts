@@ -5,6 +5,7 @@ import { writeChannelOptions } from "../organizations/index.js";
 import {
   requireStanding,
   requireSyntheticScopeForPeople,
+  isBotUser,
 } from "../accounts/index.js";
 import {
   availableUser,
@@ -111,7 +112,7 @@ export function conversationView(
   let members: object[] | undefined;
   if (c.type !== "CHANNEL" || memberCount <= 12) {
     members = memberUsers<any>(ctx, c.id)
-      .filter(({ user }) => user.kind === "person")
+      .filter(({ user }) => user.kind === "person" || (c.type === "DM" && c.dm_key?.startsWith("botdm|") && isBotUser(ctx, user.id)))
       .sort((a, b) => a.member.joined_at - b.member.joined_at)
       .slice(0, 12)
       .map(({ member, user }) =>
@@ -174,7 +175,7 @@ export function conversationView(
     members,
     joined: myRole !== null,
     myRole,
-    canPost: authz.canPost(c, userId),
+    canPost: authz.canPost(c, userId) && (c.type !== "DM" || ctx.bots.directMessages.postingAllowed(c.id)),
     // While this person is timed out in the community: when it ends (the app says why it can't post).
     ...(c.org_id && authz.timeoutUntil(c.org_id, userId)
       ? { timedOutUntil: authz.timeoutUntil(c.org_id, userId) }
@@ -428,7 +429,7 @@ export default async function conversationRoutes(
     )
       throw notFound("Conversation not found");
     const rows = memberUsers<any>(ctx, id)
-      .filter(({ user }) => user.kind === "person")
+      .filter(({ user }) => user.kind === "person" || (c.type === "DM" && c.dm_key?.startsWith("botdm|") && isBotUser(ctx, user.id)))
       .sort(
         (a, b) =>
           compareText(a.member.role, b.member.role) ||

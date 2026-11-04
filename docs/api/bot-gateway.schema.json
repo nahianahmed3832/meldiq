@@ -255,6 +255,7 @@
                   "type": "string",
                   "enum": [
                     "message",
+                    "dm_message",
                     "reaction_add",
                     "reaction_remove",
                     "member_join",

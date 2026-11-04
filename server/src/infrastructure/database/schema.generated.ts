@@ -1906,6 +1906,29 @@ export const SCHEMA: readonly TableShape[] = [
     autoincrement: false,
   },
   {
+    name: "bot_dm_consents",
+    columns: [
+      {"name":"bot_id","type":"TEXT","notNull":true},
+      {"name":"user_id","type":"TEXT","notNull":true},
+      {"name":"conversation_id","type":"TEXT","notNull":false},
+      {"name":"enabled","type":"INTEGER","notNull":true},
+      {"name":"manifest_rev","type":"INTEGER","notNull":true},
+      {"name":"notice_version","type":"TEXT","notNull":true},
+      {"name":"rev","type":"INTEGER","notNull":true},
+      {"name":"approved_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["bot_id","user_id"],
+    indexes: [
+      {"name":"sqlite_autoindex_bot_dm_consents_1","columns":["conversation_id"],"unique":true,"nocase":false,"partialNotNull":["conversation_id"]},
+    ],
+    foreignKeys: [
+      {"columns":["conversation_id"],"table":"conversations","references":["id"],"onDelete":"CASCADE"},
+      {"columns":["user_id"],"table":"users","references":["id"],"onDelete":"CASCADE"},
+      {"columns":["bot_id"],"table":"users","references":["id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
     name: "bot_giveaways",
     columns: [
       {"name":"id","type":"TEXT","notNull":true},

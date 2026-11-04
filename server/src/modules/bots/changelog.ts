@@ -9,6 +9,7 @@ export const BOT_CHANGELOG = {
         "Requested manifests and explicit installation approval intersect with current native community authority.",
         "ID-only seven-day replay, opaque bot-bound cursors and a dedicated authenticated gateway.",
         "Current message history, moderation, reactions, pins, commands and native community controller adapters.",
+        "Recipient-controlled personal messages, explicit bot-profile consent and revocation-safe private message events.",
         "First-party JavaScript and Python source clients; no hosted bot execution.",
       ],
     },

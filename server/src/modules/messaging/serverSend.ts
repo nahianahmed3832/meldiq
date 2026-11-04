@@ -464,6 +464,8 @@ export async function sendServerMessage(
       ? await withThreadLock(ctx, lifecycleRoot, submit)
       : await submit();
   } catch (err) {
+    if ((err as { code?: string })?.code === "PBDM1")
+      throw new ApiError(403, "forbidden", "Direct messages with this bot are not enabled");
     if (
       atomicRelay &&
       !committed &&
