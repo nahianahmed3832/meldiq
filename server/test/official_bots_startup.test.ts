@@ -5,13 +5,16 @@ import { expect, it } from "vitest";
 import { buildApp, type BuiltApp } from "../src/app/server.js";
 import { dayBefore, dayOf } from "../src/modules/officialBots/wordyGame.js";
 import { startServer, type Harness } from "./support/harness.js";
+import { preparePostgresHarness } from "./support/postgres.js";
+import { MeldiqPostgres } from "../src/infrastructure/database/postgres/client.js";
 
 it("processes a persisted Wordy community on its first startup tick after billing is ready", async () => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "meldiq-bot-startup-"));
   let first: Harness | null = null;
   let restarted: BuiltApp | null = null;
+  const postgres = await preparePostgresHarness();
   try {
-    first = await startServer({ DATA_DIR: dataDir, MONGODB_URI: "", MONGODB_DOMAINS: "" });
+    first = await startServer({ DATA_DIR: dataDir, MONGODB_URI: "", MONGODB_DOMAINS: "" }, postgres ? { postgres: postgres.database } : {});
     const owner = await first.client("startupowner");
     const { org } = await owner.req("POST", "/v1/orgs", { name: "Startup bots" });
     const { conversations } = await owner.req("GET", "/v1/conversations");
@@ -22,7 +25,7 @@ it("processes a persisted Wordy community on its first startup tick after billin
     await first.ctx.ws.write((w) => w.delete("bot_wordy_recaps", { org_id: org.id, day: yesterday }));
     const config = first.ctx.config;
     await first.close(); first = null;
-    restarted = await buildApp(config, { logger: false });
+    restarted = await buildApp(config, { logger: false, ...(postgres ? { postgres: new MeldiqPostgres(postgres.database.config) } : {}) });
     await restarted.app.ready();
     await restarted.ctx.officialBots.settled();
     expect(restarted.ctx.ws.get("bot_wordy_recaps", { org_id: org.id, day: yesterday })).toBeDefined();
@@ -30,6 +33,7 @@ it("processes a persisted Wordy community on its first startup tick after billin
   } finally {
     if (first) await first.close();
     if (restarted) { await restarted.app.close(); restarted.ctx.db.close(); }
+    await postgres?.close();
     fs.rmSync(dataDir, { recursive: true, force: true });
   }
 });

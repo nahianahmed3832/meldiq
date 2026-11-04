@@ -1902,6 +1902,24 @@ export const SCHEMA: readonly TableShape[] = [
     autoincrement: false,
   },
   {
+    name: "bot_installation_permissions",
+    columns: [
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"bot_id","type":"TEXT","notNull":true},
+      {"name":"permissions","type":"TEXT","notNull":true,"default":"[]"},
+      {"name":"manifest_rev","type":"INTEGER","notNull":true},
+      {"name":"rev","type":"INTEGER","notNull":true},
+      {"name":"approved_by","type":"TEXT","notNull":true},
+      {"name":"approved_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["org_id","bot_id"],
+    indexes: [],
+    foreignKeys: [
+      {"columns":["org_id","bot_id"],"table":"org_members","references":["org_id","user_id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
     name: "bot_levels",
     columns: [
       {"name":"org_id","type":"TEXT","notNull":true},
@@ -1935,6 +1953,21 @@ export const SCHEMA: readonly TableShape[] = [
       {"name":"idx_bot_listings_listed","columns":["listed"],"unique":false,"nocase":false,"partialNotNull":null},
     ],
     foreignKeys: [],
+    autoincrement: false,
+  },
+  {
+    name: "bot_requested_permissions",
+    columns: [
+      {"name":"bot_id","type":"TEXT","notNull":true},
+      {"name":"permissions","type":"TEXT","notNull":true,"default":"[]"},
+      {"name":"rev","type":"INTEGER","notNull":true,"default":1},
+      {"name":"updated_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["bot_id"],
+    indexes: [],
+    foreignKeys: [
+      {"columns":["bot_id"],"table":"users","references":["id"],"onDelete":"CASCADE"},
+    ],
     autoincrement: false,
   },
   {

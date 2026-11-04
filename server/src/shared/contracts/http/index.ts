@@ -33,6 +33,8 @@ import { systemRoutes } from "./system.js";
 import { creatorRoutes } from "./creators.js";
 import { linkedAccountRoutes } from "./linkedAccounts.js";
 import type { RouteContract } from "./route.js";
+import { BOT_DOMAIN_ADAPTERS } from "./botDomainAdapters.js";
+import { botPlatformContracts } from "./botPlatform.js";
 
 export type { RouteContract } from "./route.js";
 
@@ -46,7 +48,8 @@ export const ErrorEnvelope = z.strictObject({
 });
 
 /** The documented routes. Routes not listed yet are still checked for the error envelope by the test suite. */
-export const ROUTE_CONTRACTS: readonly RouteContract[] = [
+const NATIVE_ROUTE_CONTRACTS: readonly RouteContract[] = [
+  ...botPlatformContracts,
   ...partnerContracts,
   ...managedPollContracts,
   ...threadLifecycleContracts,
@@ -79,4 +82,13 @@ export const ROUTE_CONTRACTS: readonly RouteContract[] = [
   ...creatorRoutes,
   ...linkedAccountRoutes,
   ...developerRoutes,
+];
+
+export const ROUTE_CONTRACTS: readonly RouteContract[] = [
+  ...NATIVE_ROUTE_CONTRACTS,
+  ...BOT_DOMAIN_ADAPTERS.map((adapter): RouteContract => {
+    const source = NATIVE_ROUTE_CONTRACTS.find((item) => item.method === adapter.method && item.url === adapter.source);
+    if (!source) throw new Error(`Missing native contract for bot adapter ${adapter.method} ${adapter.source}`);
+    return { ...source, url: adapter.url, auth: true, scheme: "bot", tag: "Bots", summary: `Bot adapter: ${source.summary} ${adapter.scope ? `Requires approved ${adapter.scope} scope and current native authority.` : "Own bot identity only."}` };
+  }),
 ];

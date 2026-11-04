@@ -22,6 +22,8 @@ import { OrgParams } from "../../shared/contracts/http/orgs.js";
 import { parse } from "../../shared/validation/index.js";
 import { me, requireAuth } from "../auth/index.js";
 import { perBot, requireBot, theBot } from "./auth.js";
+import { BotManifestUpdate, BotInstallationApproval } from "../../shared/contracts/http/botPlatform.js";
+import { requireBotManager } from "../organizations/index.js";
 
 const minute = (max: number) => ({ rateLimit: { max, timeWindow: "1 minute" } });
 
@@ -47,6 +49,21 @@ export default async function botRoutes(app: FastifyInstance, ctx: AppContext) {
   app.delete("/v2/developer/bots/:id", { ...person, config: minute(10) }, async (req) => svc.remove(me(req).userId, parse(BotParams, req.params).id));
   app.post("/v2/developer/bots/:id/token", { ...person, config: minute(10) }, async (req) => svc.rotateToken(me(req).userId, parse(BotParams, req.params).id));
   app.get("/v2/bots/:botId", person, async (req) => svc.lookup(me(req).userId, parse(BotIdParams, req.params).botId));
+  app.get("/v2/bots/:botId/permissions", person, async (req) => {
+    const botId = parse(BotIdParams, req.params).botId;
+    await svc.lookup(me(req).userId, botId);
+    return svc.permissions.manifest(botId);
+  });
+  app.put("/v2/developer/bots/:id/permissions", person, async (req) => svc.permissions.update(me(req).userId, parse(BotParams, req.params).id, parse(BotManifestUpdate, req.body)));
+  app.get("/v1/orgs/:orgId/bots/:botId/permissions", person, async (req) => {
+    const { orgId, botId } = parse(OrgBotParams, req.params);
+    requireBotManager(ctx, orgId, me(req).userId);
+    return svc.permissions.installation(orgId, botId);
+  });
+  app.put("/v1/orgs/:orgId/bots/:botId/permissions", person, async (req) => {
+    const { orgId, botId } = parse(OrgBotParams, req.params);
+    return svc.permissions.approve(me(req).userId, orgId, botId, parse(BotInstallationApproval, req.body));
+  });
 
   app.post("/v1/orgs/:orgId/bots", { ...person, config: minute(20) }, async (req) => svc.install(me(req).userId, parse(OrgParams, req.params).orgId, parse(InstallBody, req.body).botId));
   app.delete("/v1/orgs/:orgId/bots/:botId", { ...person, config: minute(20) }, async (req) => {

@@ -3,3 +3,4 @@ export { BotService } from "./service.js";
 export { MemoryBotStore, type BotStore } from "./store.js";
 export { MongoBotStore } from "./mongoStore.js";
 export { default as botRoutes } from "./routes.js";
+export { installBotDomainAdapters } from "./domainAdapters.js";

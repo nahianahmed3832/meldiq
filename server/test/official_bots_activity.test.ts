@@ -30,7 +30,7 @@ describe("levels", () => {
   });
 });
 
-describe.each([
+describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
   ["sqlite", {}],
   ["mongodb", { MONGODB_DOMAINS: WORKSPACE_IN_MONGO }],
 ] as const)("official bots following a community in %s", (_backend, env) => {

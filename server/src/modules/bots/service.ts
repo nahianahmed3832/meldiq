@@ -9,6 +9,7 @@ import { BotApi } from "./botApi.js";
 import { Interactions } from "./interactions.js";
 import type { Bot, BotStore } from "./store.js";
 import { Waiters } from "./waiters.js";
+import { BotPermissions } from "./permissions.js";
 
 /** Bot tokens: "mqb_" and 43 base64url characters. */
 export const BOT_TOKEN_PREFIX = "mqb";
@@ -24,6 +25,7 @@ export class BotService {
   readonly waiters = new Waiters();
   readonly interactions = new Interactions(this);
   readonly api = new BotApi(this);
+  readonly permissions = new BotPermissions(this);
 
   constructor(
     readonly ctx: AppContext,

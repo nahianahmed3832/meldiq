@@ -60,6 +60,7 @@ export const partnerContracts = [
   route({
     method: "GET",
     url: "/admin/v1/partner-applications",
+    requires: "admin_console",
     tag: "platform-admin",
     summary: "Private manual partner review queue.",
     auth: true,
@@ -73,6 +74,7 @@ export const partnerContracts = [
   route({
     method: "PUT",
     url: "/admin/v1/partner-applications/:orgId",
+    requires: "admin_console",
     tag: "platform-admin",
     summary:
       "Record an explicit partner review; never assign a badge, entitlement or role.",

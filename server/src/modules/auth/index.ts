@@ -76,12 +76,19 @@ export function bearer(req: FastifyRequest): string | undefined {
   return h.slice(7).trim();
 }
 
+const sessionAuthenticationHooks = new WeakSet<Function>();
+/** Bot controller adapters replace this one credential gate while retaining the domain's other hooks. */
+export function isSessionAuthenticationHook(hook: unknown): boolean {
+  return typeof hook === "function" && sessionAuthenticationHooks.has(hook);
+}
 export function requireAuth(ctx: AppContext) {
-  return async (req: FastifyRequest) => {
+  const hook = async (req: FastifyRequest) => {
     const auth = await authenticateRequest(ctx, req);
     if (!auth) throw unauthorized();
     req.auth = auth;
   };
+  sessionAuthenticationHooks.add(hook);
+  return hook;
 }
 
 export function me(req: FastifyRequest): AuthInfo {

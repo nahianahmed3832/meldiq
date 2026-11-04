@@ -14,7 +14,7 @@ const WORKSPACE_IN_MONGO = "preferences,reports,relationships,history,accounts,f
 const STARTUP_MS = 120_000;
 const code = (e: { error: { code: string } }) => e.error.code;
 
-describe.each([
+describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
   ["sqlite", {}],
   ["mongodb", { MONGODB_DOMAINS: WORKSPACE_IN_MONGO }],
 ] as const)("bot directory with communities in %s", (_backend, env) => {

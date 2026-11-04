@@ -196,6 +196,7 @@ import {
 import {
   BotService,
   botRoutes,
+  installBotDomainAdapters,
   MemoryBotStore,
   MongoBotStore,
 } from "../modules/bots/index.js";
@@ -518,6 +519,7 @@ export async function buildApp(
         await r?.close();
       }
     });
+    installBotDomainAdapters(app, ctx);
     for (const r of [
       ctx.identity,
       ctx.platform,

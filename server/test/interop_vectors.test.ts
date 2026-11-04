@@ -17,7 +17,7 @@ import { keyFingerprint } from "../src/shared/utilities/crypto.js";
 import { canonical, ed25519FromSeed, GriipClient, newX25519, sign, suite, verify } from "./support/griipClient.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const FILE = path.resolve(here, "../../android/app/src/test/resources/griip-envelope-v1-vectors.json");
+const FILE = process.env.MELDIQ_INTEROP_VECTOR_FILE ?? path.resolve(here, "../../android/app/src/test/resources/griip-envelope-v1-vectors.json");
 const HPKE_INFO = new TextEncoder().encode("griip-envelope-v1/key");
 const b64 = (b: Buffer | Uint8Array) => Buffer.from(b).toString("base64");
 
