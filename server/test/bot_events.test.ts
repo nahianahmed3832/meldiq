@@ -10,10 +10,16 @@ describe.skipIf(!process.env.MELDIQ_TEST_PG_URL)(
       botId: string,
       token: string,
       orgId: string,
-      channelId: string;
+      channelId: string,
+      inviteRole: string;
     let manifestRev = 0,
       approvalRev = 0;
-    const permissions = ["events.read", "messages.history", "members.read"];
+    const permissions = [
+      "events.read",
+      "messages.history",
+      "members.read",
+      "members.invite",
+    ];
     const request = async (cursor?: string, limit = 50) => {
       const response = await fetch(
         `${h.baseUrl}/v2/bot/events?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
@@ -49,6 +55,13 @@ describe.skipIf(!process.env.MELDIQ_TEST_PG_URL)(
       botId = created.bot.id;
       token = created.token;
       await owner.req("POST", `/v1/orgs/${orgId}/bots`, { botId });
+      inviteRole = (
+        await owner.req("POST", `/v1/orgs/${orgId}/roles`, {
+          name: "Invite feed reviewer",
+          permissions: ["members.invites.manage"],
+        })
+      ).role.id;
+      await owner.req("PUT", `/v1/roles/${inviteRole}/members/${botId}`);
       await approve(permissions);
     });
     afterAll(async () => {
@@ -186,6 +199,73 @@ describe.skipIf(!process.env.MELDIQ_TEST_PG_URL)(
         messageId: message.messageId,
         emoji: "👍",
       });
+    });
+
+    it("journals real invitation and membership lifecycles without invitation secrets", async () => {
+      const start = await request();
+      const peer = await h.client("eventfeedpeer");
+      const { invite } = await owner.req("POST", `/v1/orgs/${orgId}/invites`, {
+        role: "MEMBER",
+      });
+      await peer.req("POST", "/v1/invites/accept", { code: invite.code });
+      await owner.req("DELETE", `/v1/orgs/${orgId}/members/${peer.userId}`);
+      await owner.req("DELETE", `/v1/invites/${invite.id}`);
+      const page = await request(start.body.cursor);
+      expect(page.status).toBe(200);
+      expect(
+        page.body.events.map((event: { type: string; sourceId: string }) => [
+          event.type,
+          event.sourceId,
+        ]),
+      ).toEqual([
+        ["invite_create", invite.id],
+        ["member_join", peer.userId],
+        ["member_leave", peer.userId],
+        ["invite_delete", invite.id],
+      ]);
+      for (const event of page.body.events) {
+        expect(event).not.toHaveProperty("seq");
+        expect(event.data).toEqual({});
+      }
+      const serialized = JSON.stringify(page.body);
+      expect(serialized).not.toContain(invite.code);
+      expect(serialized).not.toContain(invite.code.replaceAll("-", ""));
+      expect(serialized).not.toContain("code_hash");
+      expect(serialized).not.toContain("code_hint");
+    });
+
+    it("withholds invitation events after either native role or scope withdrawal", async () => {
+      let cursor = (await request()).body.cursor;
+      await owner.req("DELETE", `/v1/roles/${inviteRole}/members/${botId}`);
+      const first = (
+        await owner.req("POST", `/v1/orgs/${orgId}/invites`, { role: "MEMBER" })
+      ).invite;
+      await owner.req("DELETE", `/v1/invites/${first.id}`);
+      let page = await request(cursor);
+      expect(page.body.events).toEqual([]);
+      cursor = page.body.cursor;
+      await owner.req("PUT", `/v1/roles/${inviteRole}/members/${botId}`);
+      const visible = (
+        await owner.req("POST", `/v1/orgs/${orgId}/invites`, { role: "MEMBER" })
+      ).invite;
+      page = await request(cursor);
+      expect(
+        page.body.events.map((event: { type: string; sourceId: string }) => [
+          event.type,
+          event.sourceId,
+        ]),
+      ).toEqual([["invite_create", visible.id]]);
+      cursor = page.body.cursor;
+      await approve(
+        permissions.filter((permission) => permission !== "members.invite"),
+      );
+      await owner.req("DELETE", `/v1/invites/${visible.id}`);
+      const hidden = (
+        await owner.req("POST", `/v1/orgs/${orgId}/invites`, { role: "MEMBER" })
+      ).invite;
+      await owner.req("DELETE", `/v1/invites/${hidden.id}`);
+      expect((await request(cursor)).body.events).toEqual([]);
+      await approve(permissions);
     });
 
     it("uses a commit-ordered approval boundary rather than API/DB wall-clock agreement", async () => {
