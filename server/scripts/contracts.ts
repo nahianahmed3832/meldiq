@@ -5,6 +5,8 @@ import { VERSION } from "../src/app/server.js";
 import { ROUTE_CONTRACTS } from "../src/shared/contracts/http/index.js";
 import { buildOpenApi, buildRealtimeSchema } from "../src/shared/contracts/openapi.js";
 import { ServerEvent } from "../src/shared/contracts/realtime.js";
+import { BotGatewayClientFrame, BotGatewayServerFrame } from "../src/shared/contracts/botGateway.js";
+import { z } from "zod/v4";
 
 /** Writes docs/api/openapi.json and docs/api/realtime.schema.json from src/shared/contracts. */
 export const API_DOCS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "docs", "api");
@@ -52,6 +54,7 @@ export function renderContracts(): Record<string, string> {
   return {
     "openapi.json": `${JSON.stringify(buildOpenApi(VERSION), null, 2)}\n`,
     "realtime.schema.json": `${JSON.stringify(buildRealtimeSchema(), null, 2)}\n`,
+    "bot-gateway.schema.json": `${JSON.stringify({ version: 1, client: z.toJSONSchema(BotGatewayClientFrame), server: z.toJSONSchema(BotGatewayServerFrame) }, null, 2)}\n`,
     "COVERAGE.md": coverage(),
   };
 }

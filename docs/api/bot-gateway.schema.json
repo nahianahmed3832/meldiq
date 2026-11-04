@@ -1,0 +1,440 @@
+{
+  "version": 1,
+  "client": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "anyOf": [
+      {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "enum": [
+              "identify",
+              "resume"
+            ]
+          },
+          "token": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "cursor": {
+            "type": "string",
+            "maxLength": 640
+          }
+        },
+        "required": [
+          "op",
+          "token"
+        ],
+        "additionalProperties": false
+      },
+      {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "const": "heartbeat"
+          },
+          "nonce": {
+            "type": "string",
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "op"
+        ],
+        "additionalProperties": false
+      },
+      {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "const": "presence"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "online",
+              "idle",
+              "dnd",
+              "offline"
+            ]
+          }
+        },
+        "required": [
+          "op",
+          "status"
+        ],
+        "additionalProperties": false
+      },
+      {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "const": "request"
+          },
+          "requestId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "self",
+              "communities"
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "op",
+          "requestId",
+          "action"
+        ],
+        "additionalProperties": false
+      },
+      {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "const": "request"
+          },
+          "requestId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "action": {
+            "type": "string",
+            "const": "events"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "cursor": {
+                "type": "string",
+                "maxLength": 640
+              },
+              "limit": {
+                "default": 50,
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              }
+            },
+            "required": [
+              "limit"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "op",
+          "requestId",
+          "action",
+          "data"
+        ],
+        "additionalProperties": false
+      }
+    ]
+  },
+  "server": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "anyOf": [
+      {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "const": "hello"
+          },
+          "version": {
+            "type": "number",
+            "const": 1
+          },
+          "heartbeatIntervalMs": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "authTimeoutMs": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "maxFrameBytes": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "op",
+          "version",
+          "heartbeatIntervalMs",
+          "authTimeoutMs",
+          "maxFrameBytes"
+        ],
+        "additionalProperties": false
+      },
+      {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "resumed"
+            ]
+          },
+          "botId": {
+            "type": "string"
+          },
+          "version": {
+            "type": "number",
+            "const": 1
+          }
+        },
+        "required": [
+          "op",
+          "botId",
+          "version"
+        ],
+        "additionalProperties": false
+      },
+      {
+        "type": "object",
+        "properties": {
+          "events": {
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "message",
+                    "reaction_add",
+                    "reaction_remove",
+                    "member_join",
+                    "member_leave",
+                    "invite_create",
+                    "invite_delete",
+                    "voice_join",
+                    "voice_leave",
+                    "command",
+                    "test"
+                  ]
+                },
+                "communityId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "channelId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "actorId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "targetId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "sourceId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "data": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                },
+                "createdAt": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "id",
+                "type",
+                "communityId",
+                "channelId",
+                "actorId",
+                "targetId",
+                "sourceId",
+                "data",
+                "createdAt"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "cursor": {
+            "type": "string",
+            "maxLength": 640
+          },
+          "more": {
+            "type": "boolean"
+          },
+          "replayWindowSeconds": {
+            "type": "number"
+          },
+          "op": {
+            "type": "string",
+            "const": "events"
+          },
+          "sequence": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "events",
+          "cursor",
+          "more",
+          "replayWindowSeconds",
+          "op",
+          "sequence"
+        ],
+        "additionalProperties": false
+      },
+      {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "const": "heartbeat_ack"
+          },
+          "nonce": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "op",
+          "nonce"
+        ],
+        "additionalProperties": false
+      },
+      {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "const": "presence_ack"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "online",
+              "idle",
+              "dnd",
+              "offline"
+            ]
+          }
+        },
+        "required": [
+          "op",
+          "status"
+        ],
+        "additionalProperties": false
+      },
+      {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "const": "response"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "data": {}
+        },
+        "required": [
+          "op",
+          "requestId",
+          "ok",
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "const": "response"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "ok": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "op",
+          "requestId",
+          "ok",
+          "error"
+        ],
+        "additionalProperties": false
+      }
+    ]
+  }
+}

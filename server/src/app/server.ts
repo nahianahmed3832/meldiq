@@ -235,6 +235,7 @@ export const SERVER_INFO_VERSION = 1;
  * (/admin/v1/users?q=…): its query strings are never logged, so no address or search ends up in the logs.
  */
 export function logUrl(url: string): string {
+  if (url.startsWith("/v2/bot/gateway")) return url.split("?")[0];
   if (url.startsWith("/v2/auth/social/")) return url.split("?")[0];
   if (url.startsWith("/admin/")) return url.split("?")[0];
   // A webhook's address holds its secret token (community parity batch C): never logged.
@@ -1566,7 +1567,9 @@ export function serverFeatures(
     // (tokens, slash commands, interactions by long poll).
     "oauth-apps",
     "bots",
+    "bot-permissions",
   ];
+  if (config.databaseMode === "supabase") f.push("bot-event-gateway");
   // API 0.65.0 (docs/SETTINGS_PARITY_API.md): a community's rules channel, its numbered rules and agreeing to them
   // before posting (COMMUNITY_RULES=off switches it off).
   if (config.communityRules) f.push("rules-channel");

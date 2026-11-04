@@ -1873,6 +1873,39 @@ export const SCHEMA: readonly TableShape[] = [
     autoincrement: false,
   },
   {
+    name: "bot_credential_revisions",
+    columns: [
+      {"name":"bot_id","type":"TEXT","notNull":true},
+      {"name":"owner_id","type":"TEXT","notNull":true},
+      {"name":"token_hash","type":"TEXT","notNull":true},
+      {"name":"created_at","type":"INTEGER","notNull":true},
+      {"name":"active","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["bot_id"],
+    indexes: [
+      {"name":"bot_credential_owner","columns":["owner_id","active","created_at","bot_id"],"unique":false,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [],
+    autoincrement: false,
+  },
+  {
+    name: "bot_derived_credentials",
+    columns: [
+      {"name":"credential_id","type":"TEXT","notNull":true},
+      {"name":"bot_id","type":"TEXT","notNull":true},
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"bot_token_hash","type":"TEXT","notNull":true},
+      {"name":"created_at","type":"INTEGER","notNull":true},
+      {"name":"install_key","type":"TEXT","notNull":true,"default":""},
+    ],
+    primaryKey: ["credential_id"],
+    indexes: [],
+    foreignKeys: [
+      {"columns":["credential_id"],"table":"channel_webhooks","references":["id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
     name: "bot_giveaways",
     columns: [
       {"name":"id","type":"TEXT","notNull":true},
@@ -1911,11 +1944,29 @@ export const SCHEMA: readonly TableShape[] = [
       {"name":"rev","type":"INTEGER","notNull":true},
       {"name":"approved_by","type":"TEXT","notNull":true},
       {"name":"approved_at","type":"INTEGER","notNull":true},
+      {"name":"install_key","type":"TEXT","notNull":true,"default":""},
     ],
     primaryKey: ["org_id","bot_id"],
     indexes: [],
     foreignKeys: [
       {"columns":["org_id","bot_id"],"table":"org_members","references":["org_id","user_id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
+    name: "bot_invite_credentials",
+    columns: [
+      {"name":"invite_id","type":"TEXT","notNull":true},
+      {"name":"bot_id","type":"TEXT","notNull":true},
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"bot_token_hash","type":"TEXT","notNull":true},
+      {"name":"install_key","type":"TEXT","notNull":true},
+      {"name":"created_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["invite_id"],
+    indexes: [],
+    foreignKeys: [
+      {"columns":["invite_id"],"table":"invitations","references":["id"],"onDelete":"CASCADE"},
     ],
     autoincrement: false,
   },

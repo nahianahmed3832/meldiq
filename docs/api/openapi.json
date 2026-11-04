@@ -190,6 +190,165 @@
     }
   ],
   "paths": {
+    "/v2/bot/events": {
+      "get": {
+        "tags": [
+          "Bots"
+        ],
+        "summary": "Durable, bot-bound ID-only event replay, filtered by current scopes, installation, native roles and channel history. Seven-day operational replay; PostgreSQL required.",
+        "operationId": "getV2BotEvents",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 640
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "events": {
+                      "maxItems": 100,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "message",
+                              "reaction_add",
+                              "reaction_remove",
+                              "member_join",
+                              "member_leave",
+                              "invite_create",
+                              "invite_delete",
+                              "voice_join",
+                              "voice_leave",
+                              "command",
+                              "test"
+                            ]
+                          },
+                          "communityId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "channelId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "actorId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "targetId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "sourceId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "data": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          },
+                          "createdAt": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "type",
+                          "communityId",
+                          "channelId",
+                          "actorId",
+                          "targetId",
+                          "sourceId",
+                          "data",
+                          "createdAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "cursor": {
+                      "type": "string",
+                      "maxLength": 640
+                    },
+                    "more": {
+                      "type": "boolean"
+                    },
+                    "replayWindowSeconds": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "events",
+                    "cursor",
+                    "more",
+                    "replayWindowSeconds"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: bot_cursor_expired, bot_events_unavailable, stale_revision",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bot": []
+          }
+        ]
+      }
+    },
     "/v2/bots/{botId}/permissions": {
       "get": {
         "tags": [
@@ -98118,6 +98277,1534 @@
         }
       }
     },
+    "/v2/bot/orgs/{orgId}": {
+      "get": {
+        "tags": [
+          "Bots"
+        ],
+        "summary": "Bot adapter: A community with its categories, figures and what the caller may do there. Requires approved communities.read scope and current native authority.",
+        "operationId": "getV2BotOrgsOrgId",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "org": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "slug": {
+                          "type": "string"
+                        },
+                        "description": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "myRole": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "OWNER",
+                                "ADMIN",
+                                "MEMBER",
+                                "GUEST"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "memberCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "photoRev": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "accent": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "bannerRev": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "tag": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "guestsAllowed": {
+                          "type": "boolean"
+                        },
+                        "guestMaxDays": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "kind": {
+                          "type": "string",
+                          "const": "community"
+                        },
+                        "visibility": {
+                          "type": "string",
+                          "enum": [
+                            "private",
+                            "public"
+                          ]
+                        },
+                        "joinPolicy": {
+                          "type": "string",
+                          "enum": [
+                            "invite",
+                            "open"
+                          ]
+                        },
+                        "rules": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "invitesPausedUntil": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "dmsPausedUntil": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "joinQuestions": {
+                          "anyOf": [
+                            {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "guide": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "welcome": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "tasks": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "title": {
+                                        "type": "string"
+                                      },
+                                      "channelId": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "title",
+                                      "channelId"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "resources": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "title": {
+                                        "type": "string"
+                                      },
+                                      "channelId": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "title",
+                                      "channelId"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                }
+                              },
+                              "required": [
+                                "welcome",
+                                "tasks",
+                                "resources"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "onboarding": {
+                          "type": "boolean"
+                        },
+                        "activityAlerts": {
+                          "type": "boolean"
+                        },
+                        "activityAlert": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "const": "joins"
+                                },
+                                "count": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "at": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "count",
+                                "at"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "rulesChannel": {
+                          "type": "object",
+                          "properties": {
+                            "channelId": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "required": {
+                              "type": "boolean"
+                            },
+                            "count": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "agreedAt": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "mustAgree": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "channelId",
+                            "required",
+                            "count",
+                            "agreedAt",
+                            "mustAgree"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "background": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "links": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "label": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "label",
+                              "url"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "inviteSlug": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "onboardingRequired": {
+                          "type": "boolean"
+                        },
+                        "onboardingDone": {
+                          "type": "boolean"
+                        },
+                        "startChannelId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "mustFinishOnboarding": {
+                          "type": "boolean"
+                        },
+                        "lockedUntil": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "safety": {
+                          "type": "object",
+                          "properties": {
+                            "verificationLevel": {
+                              "type": "string",
+                              "enum": [
+                                "none",
+                                "low",
+                                "medium",
+                                "high"
+                              ]
+                            },
+                            "newAccountGate": {
+                              "type": "string",
+                              "enum": [
+                                "off",
+                                "10m",
+                                "1h",
+                                "1d",
+                                "7d"
+                              ]
+                            },
+                            "raidProtection": {
+                              "type": "boolean"
+                            },
+                            "lockedUntil": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "lockReason": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "manual",
+                                    "raid"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "verificationLevel",
+                            "newAccountGate",
+                            "raidProtection",
+                            "lockedUntil",
+                            "lockReason"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "lobby": {
+                          "type": "object",
+                          "properties": {
+                            "enabled": {
+                              "type": "boolean"
+                            },
+                            "seen": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "enabled",
+                            "seen"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "tickets": {
+                          "type": "object",
+                          "properties": {
+                            "panels": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "name"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "maxOpenPerPerson": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            },
+                            "openByMe": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "panels",
+                            "maxOpenPerPerson",
+                            "openByMe"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "slug",
+                        "description",
+                        "myRole",
+                        "memberCount",
+                        "createdAt",
+                        "photoRev",
+                        "accent",
+                        "bannerRev",
+                        "tag",
+                        "guestsAllowed",
+                        "guestMaxDays",
+                        "kind",
+                        "visibility",
+                        "joinPolicy",
+                        "rules",
+                        "invitesPausedUntil",
+                        "dmsPausedUntil",
+                        "joinQuestions",
+                        "guide",
+                        "onboarding",
+                        "activityAlerts",
+                        "activityAlert"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "branches": {
+                      "maxItems": 0,
+                      "type": "array",
+                      "items": {
+                        "not": {}
+                      }
+                    },
+                    "departments": {
+                      "maxItems": 0,
+                      "type": "array",
+                      "items": {
+                        "not": {}
+                      }
+                    },
+                    "teams": {
+                      "maxItems": 0,
+                      "type": "array",
+                      "items": {
+                        "not": {}
+                      }
+                    },
+                    "categories": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "position": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "channelCount": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "canManage": {
+                            "type": "boolean"
+                          },
+                          "canCreateChannels": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "position",
+                          "channelCount",
+                          "canManage",
+                          "canCreateChannels"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "stats": {
+                      "type": "object",
+                      "properties": {
+                        "members": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "teams": {
+                          "type": "number",
+                          "const": 0
+                        },
+                        "channels": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "branches": {
+                          "type": "number",
+                          "const": 0
+                        },
+                        "categories": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "members",
+                        "teams",
+                        "channels",
+                        "branches",
+                        "categories"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "permissions": {
+                      "type": "object",
+                      "properties": {
+                        "canManageOrg": {
+                          "type": "boolean"
+                        },
+                        "canInvite": {
+                          "type": "boolean"
+                        },
+                        "canCreateChannels": {
+                          "type": "boolean"
+                        },
+                        "canManageChannels": {
+                          "type": "boolean"
+                        },
+                        "canBan": {
+                          "type": "boolean"
+                        },
+                        "canViewDirectory": {
+                          "type": "boolean"
+                        },
+                        "isOwner": {
+                          "type": "boolean"
+                        },
+                        "canLeave": {
+                          "type": "boolean"
+                        },
+                        "canRestore": {
+                          "type": "boolean",
+                          "const": false
+                        },
+                        "canViewRoles": {
+                          "type": "boolean"
+                        },
+                        "canManageRoles": {
+                          "type": "boolean"
+                        },
+                        "canAssignRoles": {
+                          "type": "boolean"
+                        },
+                        "canViewAudit": {
+                          "type": "boolean"
+                        },
+                        "canViewUsage": {
+                          "type": "boolean"
+                        },
+                        "canViewApps": {
+                          "type": "boolean",
+                          "const": false
+                        },
+                        "canManageWorkflows": {
+                          "type": "boolean",
+                          "const": false
+                        },
+                        "canManageGroups": {
+                          "type": "boolean",
+                          "const": false
+                        },
+                        "canManageDevelopers": {
+                          "type": "boolean",
+                          "const": false
+                        },
+                        "canManageApps": {
+                          "type": "boolean",
+                          "const": false
+                        },
+                        "canManagePolicies": {
+                          "type": "boolean",
+                          "const": false
+                        },
+                        "canTransferOwnership": {
+                          "type": "boolean"
+                        },
+                        "effective": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "canManageOrg",
+                        "canInvite",
+                        "canCreateChannels",
+                        "canManageChannels",
+                        "canBan",
+                        "canViewDirectory",
+                        "isOwner",
+                        "canLeave",
+                        "canRestore",
+                        "canViewRoles",
+                        "canManageRoles",
+                        "canAssignRoles",
+                        "canViewAudit",
+                        "canViewUsage",
+                        "canViewApps",
+                        "canManageWorkflows",
+                        "canManageGroups",
+                        "canManageDevelopers",
+                        "canManageApps",
+                        "canManagePolicies",
+                        "canTransferOwnership",
+                        "effective"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "myRoles": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "color": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "iconExpression": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "orgId": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "sha256": {
+                                "type": "string"
+                              },
+                              "animated": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "orgId",
+                              "name",
+                              "sha256",
+                              "animated"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "color"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "org",
+                    "branches",
+                    "departments",
+                    "teams",
+                    "categories",
+                    "stats",
+                    "permissions",
+                    "myRoles"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bot": []
+          }
+        ]
+      }
+    },
+    "/v2/bot/conversations/{id}/messages": {
+      "get": {
+        "tags": [
+          "Bots"
+        ],
+        "summary": "Bot adapter: A conversation's history, newest first, with the changes to those messages and each other member's newest read receipt. Requires approved messages.history scope and current native authority.",
+        "operationId": "getV2BotConversationsIdMessages",
+        "parameters": [
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "beforeId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          },
+          {
+            "name": "around",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "messages": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "conversationId": {
+                            "type": "string"
+                          },
+                          "senderUserId": {
+                            "type": "string"
+                          },
+                          "senderDeviceId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "cls": {
+                            "type": "string",
+                            "enum": [
+                              "message",
+                              "control"
+                            ]
+                          },
+                          "payload": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          },
+                          "sentAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "serverTs": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "mentionAll": {
+                            "type": "boolean"
+                          },
+                          "importedBy": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "conversationId",
+                          "senderUserId",
+                          "senderDeviceId",
+                          "cls",
+                          "payload",
+                          "sentAt",
+                          "serverTs",
+                          "mentionAll",
+                          "importedBy"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "changes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "conversationId": {
+                            "type": "string"
+                          },
+                          "senderUserId": {
+                            "type": "string"
+                          },
+                          "senderDeviceId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "cls": {
+                            "type": "string",
+                            "enum": [
+                              "message",
+                              "control"
+                            ]
+                          },
+                          "payload": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          },
+                          "sentAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "serverTs": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "mentionAll": {
+                            "type": "boolean"
+                          },
+                          "importedBy": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "conversationId",
+                          "senderUserId",
+                          "senderDeviceId",
+                          "cls",
+                          "payload",
+                          "sentAt",
+                          "serverTs",
+                          "mentionAll",
+                          "importedBy"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "more": {
+                      "type": "boolean"
+                    },
+                    "nextCursor": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "serverTs": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "id": {
+                              "type": "string",
+                              "minLength": 8,
+                              "maxLength": 64,
+                              "pattern": "^[A-Za-z0-9_-]+$"
+                            }
+                          },
+                          "required": [
+                            "serverTs",
+                            "id"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "messages",
+                    "changes",
+                    "more"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bot": []
+          }
+        ]
+      }
+    },
+    "/v2/bot/conversations/{id}/message-collections": {
+      "get": {
+        "tags": [
+          "Bots"
+        ],
+        "summary": "Bot adapter: Authoritative paged pins, media, files, thread index or a thread's replies. Membership and history visibility apply; never marks messages read. Requires approved messages.history scope and current native authority.",
+        "operationId": "getV2BotConversationsIdMessageCollections",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "main",
+                "pins",
+                "media",
+                "files",
+                "threads",
+                "thread",
+                "forum"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "latest",
+                "newest"
+              ]
+            }
+          },
+          {
+            "name": "tags",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 1299,
+              "pattern": "^[A-Za-z0-9_-]{1,64}(,[A-Za-z0-9_-]{1,64}){0,19}$"
+            }
+          },
+          {
+            "name": "match",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "any",
+                "all"
+              ]
+            }
+          },
+          {
+            "name": "root",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "beforeId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          },
+          {
+            "name": "around",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "historySince": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "messages": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "conversationId": {
+                            "type": "string"
+                          },
+                          "senderUserId": {
+                            "type": "string"
+                          },
+                          "senderDeviceId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "cls": {
+                            "type": "string",
+                            "enum": [
+                              "message",
+                              "control"
+                            ]
+                          },
+                          "payload": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          },
+                          "sentAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "serverTs": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "mentionAll": {
+                            "type": "boolean"
+                          },
+                          "importedBy": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "conversationId",
+                          "senderUserId",
+                          "senderDeviceId",
+                          "cls",
+                          "payload",
+                          "sentAt",
+                          "serverTs",
+                          "mentionAll",
+                          "importedBy"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "context": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "conversationId": {
+                            "type": "string"
+                          },
+                          "senderUserId": {
+                            "type": "string"
+                          },
+                          "senderDeviceId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "cls": {
+                            "type": "string",
+                            "enum": [
+                              "message",
+                              "control"
+                            ]
+                          },
+                          "payload": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          },
+                          "sentAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "serverTs": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "mentionAll": {
+                            "type": "boolean"
+                          },
+                          "importedBy": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "conversationId",
+                          "senderUserId",
+                          "senderDeviceId",
+                          "cls",
+                          "payload",
+                          "sentAt",
+                          "serverTs",
+                          "mentionAll",
+                          "importedBy"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "changes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "conversationId": {
+                            "type": "string"
+                          },
+                          "senderUserId": {
+                            "type": "string"
+                          },
+                          "senderDeviceId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "cls": {
+                            "type": "string",
+                            "enum": [
+                              "message",
+                              "control"
+                            ]
+                          },
+                          "payload": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          },
+                          "sentAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "serverTs": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "mentionAll": {
+                            "type": "boolean"
+                          },
+                          "importedBy": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "conversationId",
+                          "senderUserId",
+                          "senderDeviceId",
+                          "cls",
+                          "payload",
+                          "sentAt",
+                          "serverTs",
+                          "mentionAll",
+                          "importedBy"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "threads": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "rootId": {
+                            "type": "string",
+                            "minLength": 8,
+                            "maxLength": 64,
+                            "pattern": "^[A-Za-z0-9_-]+$"
+                          },
+                          "replyCount": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "lastReplyTs": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "rootId",
+                          "replyCount",
+                          "lastReplyTs"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "more": {
+                      "type": "boolean"
+                    },
+                    "nextCursor": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "serverTs": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "id": {
+                              "type": "string",
+                              "minLength": 8,
+                              "maxLength": 64,
+                              "pattern": "^[A-Za-z0-9_-]+$"
+                            }
+                          },
+                          "required": [
+                            "serverTs",
+                            "id"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "historySince",
+                    "messages",
+                    "context",
+                    "changes",
+                    "threads",
+                    "more",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bot": []
+          }
+        ]
+      }
+    },
     "/v2/bot/conversations/{id}": {
       "get": {
         "tags": [
@@ -104361,7 +106048,7 @@
         "tags": [
           "Bots"
         ],
-        "summary": "Bot adapter: Change a member's base role or title. Requires approved members.remove scope and current native authority.",
+        "summary": "Bot adapter: Change a member's base role or title. Requires approved roles.manage scope and current native authority.",
         "operationId": "patchV2BotOrgsOrgIdMembersUserId",
         "parameters": [
           {
@@ -108367,6 +110054,8 @@
               "code": {
                 "type": "string",
                 "enum": [
+                  "bot_cursor_expired",
+                  "bot_events_unavailable",
                   "account_link_required",
                   "social_state_invalid",
                   "social_flow_expired",
@@ -108719,6 +110408,18 @@
     }
   },
   "x-error-codes": {
+    "bot_cursor_expired": {
+      "status": [
+        410
+      ],
+      "meaning": "The bot replay cursor expired. Start a fresh event feed."
+    },
+    "bot_events_unavailable": {
+      "status": [
+        503
+      ],
+      "meaning": "Durable bot events are unavailable on this database adapter."
+    },
     "account_link_required": {
       "status": [
         409

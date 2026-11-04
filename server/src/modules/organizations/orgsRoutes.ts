@@ -1100,7 +1100,8 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
         ? NEVER_EXPIRES_AT
         : t + body.expiresInHours * 3600_000;
     const maxUses = body.maxUses ?? NO_USE_LIMIT;
-    await ws.write((w) =>
+    const credential = await ctx.bots.permissions.prepareInvite(actor, orgId, req.bot?.tokenHash);
+    await ws.write((w) => {
       w.insert("invitations", {
         id,
         org_id: orgId,
@@ -1115,8 +1116,9 @@ export default async function orgRoutes(app: FastifyInstance, ctx: AppContext) {
         expires_at: expiresAt,
         guest_days: guestDays,
         grant_role_id: grantRoleId,
-      }),
-    );
+      });
+      ctx.bots.permissions.bindInvite(w, id, body.role, credential);
+    });
     ctx.audit({
       actorId: actor,
       orgId,

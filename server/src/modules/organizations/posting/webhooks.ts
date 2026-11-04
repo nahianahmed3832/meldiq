@@ -92,8 +92,9 @@ export class Webhooks {
     return { webhooks: this.views(rows), limit: WEBHOOK_LIMITS.perChannel };
   }
 
-  async create(orgId: string, channelId: string, userId: string, wanted?: string) {
+  async create(orgId: string, channelId: string, userId: string, wanted?: string, botCredentialHash?: string) {
     const conv = this.channelFor(orgId, channelId, userId);
+    const binding = await this.ctx.bots.permissions.prepareCredential(userId, orgId, botCredentialHash);
     if (!webhookChannel(conv, orgId)) throw new ApiError(400, "webhook_channel", "Webhooks post in text, announcement and forum channels");
     const full = () => this.ctx.ws.count("channel_webhooks", { channel_id: channelId }) >= WEBHOOK_LIMITS.perChannel;
     const limit = () => new ApiError(409, "webhook_limit", `A channel can have up to ${WEBHOOK_LIMITS.perChannel} webhooks. Delete one to make another.`, { limit: WEBHOOK_LIMITS.perChannel });
@@ -107,6 +108,7 @@ export class Webhooks {
       // Checked again inside the unit, so two requests can't both take the last place.
       if (w.count("channel_webhooks", { channel_id: channelId }) >= WEBHOOK_LIMITS.perChannel) throw limit();
       w.insert("channel_webhooks", { ...row });
+      this.ctx.bots.permissions.bindCredential(w, row.id, binding);
     });
     this.ctx.audit({ actorId: userId, orgId, action: "webhook.create", target: row.id, detail: `${name} in ${channelId}` });
     return { ...this.one(row), token };
@@ -156,11 +158,15 @@ export class Webhooks {
     return { stream, rev: w.avatar_rev };
   }
 
-  async rotate(orgId: string, channelId: string, webhookId: string, userId: string) {
+  async rotate(orgId: string, channelId: string, webhookId: string, userId: string, botCredentialHash?: string) {
     this.channelFor(orgId, channelId, userId);
     this.row(channelId, webhookId);
     const token = newSecret(WEBHOOK_TOKEN_PREFIX);
-    await this.ctx.ws.write((w) => w.update("channel_webhooks", { id: webhookId }, { token_hash: secretHash(token), token_rotated_at: now() }));
+    const binding = await this.ctx.bots.permissions.prepareCredential(userId, orgId, botCredentialHash);
+    await this.ctx.ws.write((w) => {
+      w.update("channel_webhooks", { id: webhookId }, { token_hash: secretHash(token), token_rotated_at: now() });
+      this.ctx.bots.permissions.bindCredential(w, webhookId, binding);
+    });
     this.ctx.audit({ actorId: userId, orgId, action: "webhook.token_rotate", target: webhookId });
     return { ...this.one(this.row(channelId, webhookId)), token };
   }
@@ -190,6 +196,13 @@ export class Webhooks {
   }
 
   private async post(w: WebhookRow, body: WebhookMessageBody, log: FastifyBaseLogger) {
+    try {
+      const botActor = await this.ctx.bots.permissions.credentialActor(w.id);
+      if (botActor) this.channelFor(w.org_id, w.channel_id, botActor);
+    } catch (error) {
+      if (error instanceof ApiError && error.statusCode < 500) throw notFound("No webhook at that address");
+      throw error;
+    }
     const conv = this.ctx.authz.conversation(w.channel_id);
     if (!conv) throw notFound("No webhook at that address");
     const payload = webhookPayload(body, { id: w.id, name: w.name, avatarUrl: avatarUrlOf(w) }, conv.format === "forum");

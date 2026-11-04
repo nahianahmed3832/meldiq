@@ -83,6 +83,7 @@ export function orgInviteProblem(authz: Authz, inv: OrgInviteRow | undefined): I
   if (inv.revoked_at) return "invite_revoked";
   if (inv.expires_at <= now()) return "invite_expired";
   if (inv.uses >= inv.max_uses) return "invite_used_up";
+  if (!authz.inviteCredentialValid(inv.id, inv.created_by, inv.org_id)) return "invite_unavailable";
   if (!authz.canIssueInvite(inv.org_id, inv.created_by, inv.role)) return "invite_unavailable";
   if (inv.grant_role_id && !creatorMayStillGrant(authz, inv)) return "invite_unavailable";
   return null;

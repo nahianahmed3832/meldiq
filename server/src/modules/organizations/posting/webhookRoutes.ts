@@ -51,7 +51,7 @@ export default async function webhookRoutes(app: FastifyInstance, ctx: AppContex
   app.post(base, { ...auth, config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (req, reply) => {
     const p = channel(req);
     const body = parse(WebhookCreateBody, req.body ?? {});
-    return reply.code(201).send(await hooks.create(p.orgId, p.channelId, me(req).userId, body.name));
+    return reply.code(201).send(await hooks.create(p.orgId, p.channelId, me(req).userId, body.name, req.bot?.tokenHash));
   });
   app.patch(`${base}/:webhookId`, auth, async (req) => {
     const p = one(req);
@@ -67,7 +67,7 @@ export default async function webhookRoutes(app: FastifyInstance, ctx: AppContex
   });
   app.post(`${base}/:webhookId/token`, { ...auth, config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (req) => {
     const p = one(req);
-    return hooks.rotate(p.orgId, p.channelId, p.webhookId, me(req).userId);
+    return hooks.rotate(p.orgId, p.channelId, p.webhookId, me(req).userId, req.bot?.tokenHash);
   });
   app.delete(`${base}/:webhookId`, auth, async (req) => {
     const p = one(req);

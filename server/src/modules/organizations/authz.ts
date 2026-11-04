@@ -111,6 +111,8 @@ export function parsePermissionList(json: string): Permission[] {
  */
 export class Authz {
   constructor(private readonly rows: Rows) {}
+  /** Bot-owned transferable credentials retain the bot's current token, scope and plan restrictions. */
+  inviteCredentialValid: (inviteId: string, creatorId: string, orgId: string) => boolean = () => true;
 
   /** API 0.65.0 (feature "rules-channel"): the community's rules channel id, or null. Set by CommunityRules. */
   rulesChannelId: (orgId: string) => string | null = () => null;

@@ -22,6 +22,10 @@ function resourceOrg(ctx: AppContext, adapter: BotDomainAdapter, req: FastifyReq
  * There is no internal HTTP request, human access token or parallel implementation of community authorization.
  */
 export function installBotDomainAdapters(app: FastifyInstance, ctx: AppContext): void {
+  // One transient wake-up for successful authoritative writes; replay remains durable across restarts.
+  app.addHook("onResponse", async (req, reply) => {
+    if (!["GET", "HEAD", "OPTIONS"].includes(req.method) && reply.statusCode < 400) ctx.bots?.events.notify();
+  });
   app.addHook("onRoute", function (options) {
     if (options.url.startsWith("/v2/bot/")) return;
     const methods = Array.isArray(options.method) ? options.method : [options.method];

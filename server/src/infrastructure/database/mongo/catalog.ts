@@ -194,6 +194,9 @@ export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
   org_partner_applications: "workspace",
   bot_requested_permissions: "workspace",
   bot_installation_permissions: "workspace",
+  bot_derived_credentials: "workspace",
+  bot_credential_revisions: "workspace",
+  bot_invite_credentials: "workspace",
   // Batch B8b: onboarding questions and members' answers (configuration of a community, like roles).
   community_onboarding: "workspace",
   // Batch B9: a community's own emoji and stickers (their images are profile-photos blobs).
