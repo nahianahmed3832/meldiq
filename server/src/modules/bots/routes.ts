@@ -26,7 +26,10 @@ import {
   BotEventsQuery,
   BotManifestUpdate,
   BotInstallationApproval,
+  BotInventoryQuery,
+  BotTestEventBody,
 } from "../../shared/contracts/http/botPlatform.js";
+import { BOT_CHANGELOG } from "./changelog.js";
 import { requireBotManager } from "../organizations/index.js";
 import { registerBotGateway } from "./gateway.js";
 import {
@@ -179,6 +182,23 @@ export default async function botRoutes(app: FastifyInstance, ctx: AppContext) {
   );
 
   app.get("/v2/bot/me", bot(120), async (req) => svc.api.self(theBot(req)));
+  app.get("/v2/bot/changelog", bot(60), async () => BOT_CHANGELOG);
+  app.get("/v2/bot/webhooks", bot(60), async (req) => {
+    const q = parse(BotInventoryQuery, req.query);
+    return svc.api.webhooks(theBot(req), q.after, q.limit);
+  });
+  app.get("/v2/bot/orgs/:orgId/voice", bot(60), async (req) => {
+    const q = parse(BotInventoryQuery, req.query);
+    return svc.api.voice(
+      theBot(req),
+      parse(OrgParams, req.params).orgId,
+      q.after,
+      q.limit,
+    );
+  });
+  app.post("/v2/bot/events/test", bot(10), async (req) =>
+    svc.events.test(theBot(req), parse(BotTestEventBody, req.body).testId),
+  );
   app.get(
     "/v2/bot/channels/:channelId/messages/:messageId/reactions",
     bot(60),

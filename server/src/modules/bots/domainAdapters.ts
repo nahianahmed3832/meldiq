@@ -7,6 +7,7 @@ import {
 import { isSessionAuthenticationHook } from "../auth/index.js";
 import { notFound } from "../../shared/errors.js";
 import { perBot, requireBot, theBot } from "./auth.js";
+import { botResourceCommunity } from "../organizations/index.js";
 
 function resourceOrg(
   ctx: AppContext,
@@ -16,23 +17,20 @@ function resourceOrg(
   const p = req.params as Record<string, string>;
   if (adapter.resource === "self") return null;
   if (adapter.resource === "org") return p.orgId;
-  const table = {
-    conversation: "conversations",
-    role: "org_roles",
-    category: "channel_categories",
-    expression: "community_expressions",
-    meeting: "meetings",
-  }[adapter.resource];
-  const row = ctx.ws.get<{ org_id: string | null; type?: string }>(table, {
-    id: p.roleId ?? p.id,
-  });
+  const id = p.roleId ?? p.id;
+  const conversation =
+    adapter.resource === "conversation" ? ctx.authz.conversation(id) : null;
+  const org =
+    adapter.resource === "conversation"
+      ? conversation?.type === "CHANNEL"
+        ? conversation.org_id
+        : null
+      : adapter.resource === "meeting"
+        ? ctx.meetings.communityOf(id)
+        : botResourceCommunity(ctx.ws, adapter.resource, id);
   // Community adapters cannot enter a person's DMs/groups, including through a guessed resource id.
-  if (
-    !row?.org_id ||
-    (adapter.resource === "conversation" && row.type !== "CHANNEL")
-  )
-    throw notFound("Resource not found");
-  return row.org_id;
+  if (!org) throw notFound("Resource not found");
+  return org;
 }
 
 /**

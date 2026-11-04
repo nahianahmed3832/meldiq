@@ -1,0 +1,15 @@
+{
+  "protocolVersion": 1,
+  "entries": [
+    {
+      "version": "1.0-preview",
+      "date": "2026-11-05",
+      "changes": [
+        "Requested manifests and explicit installation approval intersect with current native community authority.",
+        "ID-only seven-day replay, opaque bot-bound cursors and a dedicated authenticated gateway.",
+        "Current message history, moderation, reactions, pins, commands and native community controller adapters.",
+        "First-party JavaScript and Python source clients; no hosted bot execution."
+      ]
+    }
+  ]
+}

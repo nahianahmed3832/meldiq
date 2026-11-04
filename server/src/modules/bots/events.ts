@@ -105,6 +105,34 @@ export class BotEvents {
     return this.codec().seal(botId, this.codec().open(botId, cursor, now), now);
   }
 
+  /** Self-addressed diagnostic only. Serialized on the journal clock so concurrent retries produce one event. */
+  async test(bot: Bot, testId: string) {
+    const db = this.database();
+    const result = await db.transaction(async () => {
+      await db.query(
+        "SELECT last_seq FROM meldiq_private.bot_event_clock WHERE singleton=1 FOR UPDATE",
+      );
+      await this.fresh(bot);
+      const prior = await db.query<{ id: string }>(
+        "SELECT id FROM meldiq_private.bot_event_journal WHERE kind='test' AND target_bot_id=$1 AND source_id=$2 AND expires_at>$3 LIMIT 1",
+        [bot.id, testId, this.bots.clock()],
+      );
+      if (prior.rows[0])
+        return { id: prior.rows[0].id, testId, duplicate: true };
+      await db.query(
+        "SELECT meldiq_private.emit_bot_event('test',NULL,NULL,$1,NULL,$2,$1)",
+        [bot.id, testId],
+      );
+      const made = await db.query<{ id: string }>(
+        "SELECT id FROM meldiq_private.bot_event_journal WHERE kind='test' AND target_bot_id=$1 AND source_id=$2 ORDER BY seq DESC LIMIT 1",
+        [bot.id, testId],
+      );
+      return { id: made.rows[0]!.id, testId, duplicate: false };
+    });
+    this.notify();
+    return result;
+  }
+
   async fresh(bot: Bot): Promise<Bot> {
     const current = await this.bots.store.bot(bot.id);
     if (!current || current.tokenHash !== bot.tokenHash)

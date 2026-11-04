@@ -11,3 +11,4 @@ export {
 } from "./voiceModeration.js";
 
 export { eventCoverIds } from "./eventAssets.js";
+export { botVoiceInventory } from "./botInventory.js";

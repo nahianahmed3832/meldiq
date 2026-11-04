@@ -10,6 +10,7 @@ import { sendServerMessage } from "../messaging/index.js";
 import { botChannels, membershipsOf } from "../organizations/index.js";
 import type { BotService } from "./service.js";
 import type { Bot } from "./store.js";
+import { botVoiceInventory } from "../calls/index.js";
 
 /**
  * What a bot does with its token (API 0.65.0): read who it is and where it is, and send, edit and delete its own
@@ -41,6 +42,33 @@ export class BotApi {
         channels: botChannels(ctx, m.org_id, bot.id),
       })),
     };
+  }
+
+  webhooks(bot: Bot, after: string | undefined, limit: number) {
+    const { ctx, permissions } = this.bots;
+    const approved = membershipsOf(ctx.ws, bot.id)
+      .map((m) => m.org_id)
+      .filter((org) => permissions.allows(bot, org, "webhooks.manage"));
+    return ctx.webhooks.inventory(bot.id, approved, after, limit);
+  }
+
+  async voice(
+    bot: Bot,
+    orgId: string,
+    after: string | undefined,
+    limit: number,
+  ) {
+    this.bots.permissions.require(bot, orgId, "voice.connect");
+    const page = await botVoiceInventory(
+      this.bots.ctx,
+      bot.id,
+      orgId,
+      after,
+      limit,
+    );
+    await this.bots.events.fresh(bot);
+    this.bots.permissions.require(bot, orgId, "voice.connect");
+    return page;
   }
 
   /** A message to a community channel the bot is in (DMs and groups never have bots). */

@@ -76,6 +76,11 @@ export class MeetingService {
     return this.ctx.ws.get<MeetingRow>("meetings", { id });
   }
 
+  /** Internal adapter routing only; get/update still enforce the viewer's current room authority. */
+  communityOf(id: string): string | null {
+    return this.load(id)?.org_id ?? null;
+  }
+
   private participants(id: string): { user_id: string; response: string }[] {
     return this.ctx.ws.all<{ user_id: string; response: string }>(
       "meeting_participants",

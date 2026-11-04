@@ -1,5 +1,6 @@
 import { z } from "zod/v4";
 import { route } from "./route.js";
+import { WebhookView } from "./webhooks.js";
 
 /** Approval limits a bot's existing community roles; it never grants those roles or bypasses their denials. */
 export const BOT_PLATFORM_SCOPES = [
@@ -69,6 +70,11 @@ export const BotEventsQuery = z.strictObject({
   cursor: z.string().max(640).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });
+export const BotInventoryQuery = z.strictObject({
+  after: z.string().min(1).max(64).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+export const BotTestEventBody = z.strictObject({ testId: z.uuid() });
 export const BotEventPage = z.strictObject({
   events: z
     .array(
@@ -102,6 +108,79 @@ export const BotEventPage = z.strictObject({
   replayWindowSeconds: z.number(),
 });
 export const botPlatformContracts = [
+  route({
+    method: "GET",
+    url: "/v2/bot/changelog",
+    tag: "Bots",
+    auth: true,
+    scheme: "bot",
+    response: z.strictObject({
+      protocolVersion: z.literal(1),
+      entries: z.array(
+        z.strictObject({
+          version: z.string(),
+          date: z.string(),
+          changes: z.array(z.string()),
+        }),
+      ),
+    }),
+    summary:
+      "Native bot protocol and capability history of this server; no vendor compatibility promise.",
+  }),
+  route({
+    method: "GET",
+    url: "/v2/bot/webhooks",
+    tag: "Bots",
+    auth: true,
+    scheme: "bot",
+    query: BotInventoryQuery,
+    response: z.strictObject({
+      webhooks: z.array(WebhookView).max(100),
+      next: z.string().nullable(),
+    }),
+    summary:
+      "Paginated sanitized webhook inventory across currently approved communities and manageable, visible channels. Never includes tokens or hashes.",
+  }),
+  route({
+    method: "GET",
+    url: "/v2/bot/orgs/:orgId/voice",
+    tag: "Bots",
+    auth: true,
+    scheme: "bot",
+    params: z.strictObject({ orgId: z.string().min(1).max(64) }),
+    query: BotInventoryQuery,
+    response: z.strictObject({
+      channels: z
+        .array(
+          z.strictObject({
+            id: z.string(),
+            name: z.string(),
+            callId: z.string().nullable(),
+            participants: z.array(z.string()),
+          }),
+        )
+        .max(100),
+      next: z.string().nullable(),
+    }),
+    summary:
+      "Currently joinable community voice rooms and participant account ids, requiring approved voice.connect and current native room authority. No media credentials.",
+  }),
+  route({
+    method: "POST",
+    url: "/v2/bot/events/test",
+    tag: "Bots",
+    auth: true,
+    scheme: "bot",
+    body: BotTestEventBody,
+    response: z.strictObject({
+      id: z.uuid(),
+      testId: z.uuid(),
+      duplicate: z.boolean(),
+    }),
+    errors: ["bot_events_unavailable"],
+    summary:
+      "Emit a self-addressed ID-only diagnostic event. A caller testId is idempotent during the seven-day retained event window. No other bot can receive it.",
+  }),
   route({
     method: "GET",
     url: "/v1/orgs/:orgId/bots/:botId/permission-review",

@@ -1,0 +1,17 @@
+{
+  "channels": [
+    {
+      "id": "c_ozIboaPN3R3JrPgdByzAQw",
+      "name": "Voice inventory",
+      "callId": null,
+      "participants": []
+    },
+    {
+      "id": "c_qugvW4hFldv-3c4yrDPGFg",
+      "name": "lounge",
+      "callId": null,
+      "participants": []
+    }
+  ],
+  "next": null
+}
