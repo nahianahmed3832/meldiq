@@ -90,13 +90,14 @@ describe.skipIf(!process.env.MELDIQ_TEST_PG_URL)(
       callId: string,
       room: string,
       recipient: CryptoKeyPair,
-      leaseId: string;
+      leaseId: string,
+      voiceCursor: string;
     const suite = new CipherSuite({
       kem: new DhkemX25519HkdfSha256(),
       kdf: new HkdfSha256(),
       aead: new Aes256Gcm(),
     });
-    const permissions = ["voice.connect"];
+    const permissions = ["voice.connect", "events.read"];
     const request = async (method: string, path: string, body?: unknown) => {
       const r = await fetch(h.baseUrl + path, {
         method,
@@ -360,10 +361,29 @@ describe.skipIf(!process.env.MELDIQ_TEST_PG_URL)(
         (await request("POST", `/v2/bot/voice/${leaseId}/connected`)).status,
       ).toBe(403);
       sfu.add(room, `${botId}.${leaseId}`);
+      voiceCursor = (await request("GET", "/v2/bot/events")).body.cursor;
       expect(
         (await request("POST", `/v2/bot/voice/${leaseId}/connected`)).status,
       ).toBe(200);
       expect(sfu.updates.at(-1)).toEqual([`${botId}.${leaseId}`, false, false]);
+      const feed = await request(
+        "GET",
+        `/v2/bot/events?cursor=${encodeURIComponent(voiceCursor)}`,
+      );
+      expect(feed.status).toBe(200);
+      expect(feed.body.events).toMatchObject([
+        {
+          type: "voice_join",
+          actorId: botId,
+          channelId,
+          sourceId: callId,
+          data: { callId },
+        },
+      ]);
+      expect(feed.body.events).toHaveLength(1);
+      expect(JSON.stringify(feed.body)).not.toContain(room);
+      expect(JSON.stringify(feed.body)).not.toContain(leaseId);
+      voiceCursor = feed.body.cursor;
     });
     it("withdraws admission and ciphertext while retaining failed SFU removal for retry", async () => {
       sfu.failRemove = true;
@@ -385,6 +405,21 @@ describe.skipIf(!process.env.MELDIQ_TEST_PG_URL)(
       expect(await sfu.participantIdentities(room)).not.toContain(
         `${botId}.${leaseId}`,
       );
+      const feed = await request(
+        "GET",
+        `/v2/bot/events?cursor=${encodeURIComponent(voiceCursor)}`,
+      );
+      expect(feed.status).toBe(200);
+      expect(feed.body.events).toMatchObject([
+        {
+          type: "voice_leave",
+          actorId: botId,
+          channelId,
+          sourceId: callId,
+          data: { callId },
+        },
+      ]);
+      expect(feed.body.events).toHaveLength(1);
     });
     it("expires leases, recovers orphan peers and rejects old leases after token rotation", async () => {
       let made = await join();
