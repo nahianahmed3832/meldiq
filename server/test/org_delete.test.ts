@@ -68,7 +68,7 @@ describe("deleting an organization", () => {
     await expectStatus(member.req("GET", `/v1/attachments/${fileId}`), 404);
     expect(fs.existsSync(path.join(h.dir, "attachments", fileId))).toBe(false);
     for (const t of ["org_members", "invitations", "branches", "teams", "channel_categories", "channel_overwrites", "org_bans", "org_roles"]) {
-      expect((h.ctx.db.prepare(`SELECT COUNT(*) n FROM ${t} WHERE org_id = ?`).get(orgId) as { n: number }).n).toBe(0);
+      expect(h.ctx.ws.count(t, { org_id: orgId })).toBe(0);
     }
     await expect.poll(() => queuedCount(h, (r) => r.conversation_id === channel)).toBe(0);
     // Untouched.

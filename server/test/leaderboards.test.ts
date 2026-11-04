@@ -8,7 +8,7 @@ import {
 import type { CallParticipantRow } from "../src/modules/calls/store.js";
 
 const DAY = 86400_000;
-describe.each([
+const backends = process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}] as const] : [
   ["sqlite", {}],
   [
     "mongodb",
@@ -17,7 +17,8 @@ describe.each([
         "accounts,preferences,reports,relationships,history,files,relay,billing,workspace,conversations,calls",
     },
   ],
-] as const)("leaderboards on %s", (_backend, env) => {
+] as const;
+describe.each(backends)("leaderboards on %s", (_backend, env) => {
   let h: Harness, alice: GriipClient, bob: GriipClient, carol: GriipClient;
   let general: string, secret: string, voice: string, hiddenVoice: string;
   beforeAll(async () => {
@@ -241,16 +242,20 @@ describe.each([
     expect(b.entries).toMatchObject([{ user: { id: alice.userId }, value: 3 }]);
   });
   it("counts credited invites only", async () => {
-    for (const state of ["credited", "pending", "lapsed", "capped"] as const)
+    for (const state of ["credited", "pending", "lapsed", "capped"] as const) {
+      // The ledger allows one credited invite per joiner/community. Use real distinct fixture communities.
+      const orgId = (await alice.req("POST", "/v1/orgs", { name: `Invite ${state}` })).org.id;
       await h.ctx.points.store.addInvite({
         id: `inv-${state}`,
         inviterId: alice.userId,
         joinerId: bob.userId,
-        orgId: "test",
+        orgId,
         joinedAt: Date.now() - 8 * DAY,
         state,
         settledAt: Date.now(),
       });
+    }
+    expect(await h.ctx.points.store.leaderboard("invites")).toEqual([{ userId: alice.userId, count: 1 }]);
     const b = await alice.req("GET", "/v2/leaderboards?metric=invites");
     expect(b.entries).toMatchObject([{ user: { id: alice.userId }, value: 1 }]);
   });

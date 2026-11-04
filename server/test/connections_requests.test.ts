@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { loadConfig } from "../src/app/config.js";
 import type { GriipClient } from "./support/griipClient.js";
 import { expectStatus, type Harness, startServer } from "./support/harness.js";
@@ -128,6 +128,46 @@ describe("message requests", () => {
 });
 
 describe("connections", () => {
+  it("accepts concurrent retries once and emits one relationship change", async () => {
+    const [sender, recipient] = [gil, cat];
+    await sender.req("POST", "/v1/connections", { userId: recipient.userId });
+    const announced = vi.spyOn(h.ctx.hub, "sendToUsers");
+    try {
+      const results = await Promise.all(Array.from({ length: 3 }, () => recipient.req("POST", `/v1/connections/${sender.userId}/accept`)));
+      expect(results.map((r) => r.state)).toEqual(["accepted", "accepted", "accepted"]);
+      expect(announced.mock.calls.filter(([, frame]) => frame.t === "connections.updated")).toHaveLength(1);
+      expect((await recipient.req("GET", "/v1/connections")).connected.map((u: { id: string }) => u.id)).toEqual([sender.userId]);
+    } finally {
+      announced.mockRestore();
+    }
+  });
+
+  it("does not resurrect a request removed while acceptance is waiting", async () => {
+    const [sender, recipient] = [gil, eve];
+    await sender.req("POST", "/v1/connections", { userId: recipient.userId });
+    const accept = h.ctx.relationships.acceptConnection.bind(h.ctx.relationships);
+    let release!: () => void;
+    let entered!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    const waiting = new Promise<void>((resolve) => { entered = resolve; });
+    const transition = vi.spyOn(h.ctx.relationships, "acceptConnection").mockImplementationOnce(async (...args) => {
+      entered();
+      await held;
+      return accept(...args);
+    });
+    try {
+      const result = expectStatus(recipient.req("POST", `/v1/connections/${sender.userId}/accept`), 404);
+      await waiting;
+      await sender.req("DELETE", `/v1/connections/${recipient.userId}`);
+      release();
+      await result;
+      expect(await h.ctx.relationships.connection(sender.userId, recipient.userId)).toBeNull();
+    } finally {
+      release();
+      transition.mockRestore();
+    }
+  });
+
   it("go from request to accepted, by id or username, and repeating changes nothing", async () => {
     expect((await ben.req("POST", "/v1/connections", { username: `@${cat.username}` })).state).toBe("pending");
     expect((await ben.req("POST", "/v1/connections", { userId: cat.userId })).state).toBe("pending");
@@ -138,6 +178,9 @@ describe("connections", () => {
     await expectStatus(ann.req("POST", `/v1/connections/${ben.userId}/accept`), 404);
     await expectStatus(ben.req("POST", `/v1/connections/${cat.userId}/accept`), 404);
     await cat.req("POST", `/v1/connections/${ben.userId}/accept`);
+    const accepted = await h.ctx.relationships.connection(cat.userId, ben.userId);
+    expect((await cat.req("POST", `/v1/connections/${ben.userId}/accept`)).state).toBe("accepted");
+    expect(await h.ctx.relationships.connection(cat.userId, ben.userId)).toEqual(accepted);
     expect((await ben.req("GET", "/v1/connections")).connected.map((u: { id: string }) => u.id)).toEqual([cat.userId]);
   });
 

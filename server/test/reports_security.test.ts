@@ -48,11 +48,10 @@ describe("reports", () => {
     expect(q.reports[0]).not.toHaveProperty("reporter");
     expect(q.reports[0]).not.toHaveProperty("reporterId");
     // Sealed at rest: the stored row doesn't contain the text.
-    const raw = (h.ctx.mongo?.owns("reports")
-      ? await h.ctx.mongo.db.collection("reports").findOne({ _id: r.report.id as never })
-      : h.ctx.db.prepare("SELECT content FROM reports WHERE id = ?").get(r.report.id)) as { content: string };
-    expect(raw.content.startsWith("r1.")).toBe(true);
-    expect(raw.content).not.toContain("rude");
+    const raw = await h.ctx.reports.get(r.report.id);
+    expect(raw).not.toBeNull();
+    expect(raw!.content?.startsWith("r1.")).toBe(true);
+    expect(raw!.content).not.toContain("rude");
   });
 
   it("returns the first report when the same message is reported again", async () => {
@@ -110,8 +109,9 @@ describe("reports", () => {
   it("deletes closed reports 90 days after they were handled", async () => {
     const closed = (await queue(mod, "closed")).reports[0].id;
     const old = Date.now() - 91 * 86_400_000;
-    if (h.ctx.mongo?.owns("reports")) await h.ctx.mongo.db.collection("reports").updateOne({ _id: closed as never }, { $set: { handled_at: old } });
-    else h.ctx.db.prepare("UPDATE reports SET handled_at = ? WHERE id = ?").run(old, closed);
+    const row = (await h.ctx.reports.get(closed))!;
+    const aged = await h.ctx.reports.setStatus(closed, row.status, row.handled_by!, row.handled_note, old);
+    expect(aged?.handled_at).toBe(old);
     const r = await runCleanup(h.ctx);
     expect(r.reportsPurged).toBe(1);
     expect(await h.ctx.reports.get(closed)).toBeNull();

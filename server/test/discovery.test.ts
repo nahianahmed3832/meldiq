@@ -17,10 +17,11 @@ const STARTUP_MS = 120_000;
 const code = (e: { error: { code: string } }) => e.error.code;
 const ids = (cards: { id: string }[]) => cards.map((c) => c.id);
 
-describe.each([
+const backends = process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}] as const] : [
   ["sqlite", {}],
   ["mongodb", { MONGODB_DOMAINS: WORKSPACE_IN_MONGO }],
-] as const)("discovery with communities in %s", (_backend, env) => {
+] as const;
+describe.each(backends)("discovery with communities in %s", (_backend, env) => {
   let h: Harness;
   let owner: GriipClient, small: GriipClient, other: GriipClient, viewer: GriipClient, joiner: GriipClient;
   let members: GriipClient[];

@@ -20,10 +20,11 @@ const readsIn = (page: { changes: Change[] }) => page.changes.filter((c) => c.pa
  * message (`{ type: "read", upTo }`), so history's changes, chosen by target, never carried it: an app that rebuilds a
  * conversation from history (the web app on every page load) never learned the other person had read it.
  */
-describe.each([
+const backends = process.env.MELDIQ_TEST_PG_URL ? [["postgresql", ""]] : [
   ["sqlite", ""],
   ["mongodb", "history"],
-])("history carries the other members' read receipts (%s)", (_backend, domains) => {
+];
+describe.each(backends)("history carries the other members' read receipts (%s)", (_backend, domains) => {
   let h: Harness;
   let alice: GriipClient, bob: GriipClient;
   let dm: string;

@@ -233,7 +233,8 @@ describe("ActivityService", () => {
   });
 });
 
-describe("activities in MongoDB", () => {
+// This persistence assertion inspects a MongoDB collection, not the PostgreSQL activity adapter.
+describe.skipIf(!!process.env.MELDIQ_TEST_PG_URL)("activities in MongoDB", () => {
   let m: Harness;
   beforeAll(async () => {
     m = await startServer({ MONGODB_DOMAINS: "accounts,preferences" }, { mailer });

@@ -22,10 +22,11 @@ async function feedPost(h: Harness, token: string, body: unknown): Promise<{ sta
   return { status: res.status, json: await res.json() };
 }
 
-describe.each([
+const backends = process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}] as const] : [
   ["sqlite", {}],
   ["mongodb", { MONGODB_DOMAINS: `${PRODUCTION_DOMAINS},workspace,conversations,calls` }],
-] as const)("community lobby kept in %s", (backend, env) => {
+] as const;
+describe.each(backends)("community lobby kept in %s", (backend, env) => {
   let h: Harness;
   let owner: GriipClient, admin: GriipClient, mod: GriipClient, member: GriipClient, outsider: GriipClient;
   let orgId: string, otherOrg: string, general: string, art: string, secret: string, voice: string, hiddenVoice: string, foreign: string;

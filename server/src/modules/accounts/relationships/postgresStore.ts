@@ -20,6 +20,9 @@ export class PostgresRelationshipStore implements RelationshipStore {
   async deleteConnection(x: string, y: string): Promise<boolean> {
     return (await this.db.query("DELETE FROM meldiq.connections WHERE pair=$1", [pairOf(x, y).pair])).rowCount === 1;
   }
+  async acceptConnection(recipient: string, from: string, at: number): Promise<boolean> {
+    return (await this.db.query("UPDATE meldiq.connections SET state='accepted',accepted_at=$3 WHERE pair=$1 AND state='pending' AND requested_by=$2", [pairOf(recipient, from).pair, from, at])).rowCount === 1;
+  }
   async request(conversationId: string): Promise<DmRequestRow | null> {
     return (await this.db.query<DmRequestRow>("SELECT * FROM meldiq.dm_requests WHERE conversation_id=$1", [conversationId])).rows[0] ?? null;
   }

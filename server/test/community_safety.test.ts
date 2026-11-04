@@ -20,10 +20,11 @@ const react = (c: GriipClient, conv: string, target: string) => c.send(conv, { t
 const read = (c: GriipClient, conv: string, upTo: number) => c.send(conv, { type: "read", upTo }, "control", `d_safe_${++n}_${Date.now()}`);
 const err = (e: { error: { code: string; details?: Record<string, unknown> } }) => e.error;
 
-describe.each([
+const backends = process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}] as const] : [
   ["memory", {}],
   ["mongodb", { MONGODB_DOMAINS: `${PRODUCTION_DOMAINS},workspace,conversations,calls` }],
-] as const)("community safety kept in %s", (_backend, env) => {
+] as const;
+describe.each(backends)("community safety kept in %s", (_backend, env) => {
   let h: Harness;
   let owner: GriipClient, admin: GriipClient, mod: GriipClient, member: GriipClient, helper: GriipClient;
   let orgId: string, invite: string, general: string, lounge: string;

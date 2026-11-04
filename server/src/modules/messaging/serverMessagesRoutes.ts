@@ -32,6 +32,12 @@ function historySinceOf(ctx: AppContext, userId: string): (conversationId: strin
   };
 }
 
+/** Stored membership rows can survive a platform suspension. Aggregate endpoints must use current authority too. */
+function currentConversationIds(ctx: AppContext, userId: string): string[] {
+  return ctx.ws.all<{ conversation_id: string }>("conversation_members", { where: { user_id: userId } })
+    .map((r) => r.conversation_id).filter((id) => ctx.authz.isMember(id, userId));
+}
+
 export default async function serverMessagesRoutes(app: FastifyInstance, ctx: AppContext) {
   const auth = { preHandler: requireAuth(ctx) };
 
@@ -94,7 +100,7 @@ export default async function serverMessagesRoutes(app: FastifyInstance, ctx: Ap
 
   app.get("/v2/messages/summary", auth, async (req) => {
     const { userId } = me(req);
-    const mine = ctx.ws.all<{ conversation_id: string }>("conversation_members", { where: { user_id: userId } }).map((r) => r.conversation_id);
+    const mine = currentConversationIds(ctx, userId);
     const list = await ctx.messages.summaries(mine, userId, UNREAD_CAP);
     const since = historySinceOf(ctx, userId);
     return {
@@ -113,7 +119,7 @@ export default async function serverMessagesRoutes(app: FastifyInstance, ctx: Ap
     const q = parse(SearchQuery, req.query);
     const mine = q.conversationId
       ? [ctx.authz.requireMember(q.conversationId, userId).id]
-      : ctx.ws.all<{ conversation_id: string }>("conversation_members", { where: { user_id: userId } }).map((r) => r.conversation_id);
+      : currentConversationIds(ctx, userId);
     const hits = await ctx.messages.search(mine, q.q, q.limit);
     const since = historySinceOf(ctx, userId);
     return { messages: hits.filter((e) => e.server_ts >= (since(e.conversation_id) ?? 0)).map(eventToWire) };

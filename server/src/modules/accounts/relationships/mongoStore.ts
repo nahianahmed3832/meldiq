@@ -48,6 +48,9 @@ export class MongoRelationshipStore implements RelationshipStore {
   async deleteConnection(x: string, y: string): Promise<boolean> {
     return (await this.connections.deleteOne({ _id: pairOf(x, y).pair }, { session: this.mongo.session() })).deletedCount > 0;
   }
+  async acceptConnection(recipient: string, from: string, at: number): Promise<boolean> {
+    return (await this.connections.updateOne({ _id: pairOf(recipient, from).pair, state: "pending", requested_by: from }, { $set: { state: "accepted", accepted_at: at } }, { session: this.mongo.session() })).modifiedCount === 1;
+  }
 
   async request(conversationId: string): Promise<DmRequestRow | null> {
     return this.strip(await this.requests.findOne({ _id: conversationId }, { session: this.mongo.session() }));

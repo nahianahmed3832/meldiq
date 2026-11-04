@@ -76,10 +76,11 @@ export default async function connectionRoutes(app: FastifyInstance, ctx: AppCon
   app.post("/v1/connections/:userId/accept", auth, async (req) => {
     const userId = me(req).userId;
     const { userId: from } = parse(ConnectionUserParams, req.params);
-    const row = await rel.connection(userId, from);
-    if (!row || row.state !== "pending" || row.requested_by === userId || blockedEitherWay(ctx, userId, from)) throw notFound("Request not found");
-    await rel.putConnection({ ...row, state: "accepted", accepted_at: now() });
-    changed(userId, from);
+    if (blockedEitherWay(ctx, userId, from)) throw notFound("Request not found");
+    // A retry after a lost response succeeds without changing its timestamp or emitting another event. The
+    // conditional update also prevents a stale accept from recreating a request removed on another device.
+    if (await rel.acceptConnection(userId, from, now())) changed(userId, from);
+    else if ((await rel.connection(userId, from))?.state !== "accepted") throw notFound("Request not found");
     return { state: "accepted" };
   });
 

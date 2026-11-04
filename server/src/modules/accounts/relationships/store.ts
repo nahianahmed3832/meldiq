@@ -47,6 +47,8 @@ export interface RelationshipStore {
   connectionsOf(userId: string): Promise<ConnectionRow[]>;
   /** Inserts or replaces the pair's row. */
   putConnection(row: ConnectionRow): Promise<void>;
+  /** Accepts only an existing pending request from [from] to [recipient]. No upsert; true only on transition. */
+  acceptConnection(recipient: string, from: string, at: number): Promise<boolean>;
   deleteConnection(x: string, y: string): Promise<boolean>;
   request(conversationId: string): Promise<DmRequestRow | null>;
   createRequest(row: DmRequestRow): Promise<void>;
@@ -90,6 +92,11 @@ export class SqliteRelationshipStore implements RelationshipStore {
 
   async deleteConnection(x: string, y: string): Promise<boolean> {
     return this.db.prepare("DELETE FROM connections WHERE pair = ?").run(pairOf(x, y).pair).changes > 0;
+  }
+
+  async acceptConnection(recipient: string, from: string, at: number): Promise<boolean> {
+    return this.db.prepare("UPDATE connections SET state = 'accepted', accepted_at = ? WHERE pair = ? AND state = 'pending' AND requested_by = ?")
+      .run(at, pairOf(recipient, from).pair, from).changes === 1;
   }
 
   async request(conversationId: string): Promise<DmRequestRow | null> {
