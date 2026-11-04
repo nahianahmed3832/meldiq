@@ -141,7 +141,13 @@ export type ShowableBadge = (typeof SHOWABLE_BADGES)[number];
  * one by id (docs/PROFILE_DECORATIONS.md, GET /v2/decorations). Older apps show only the classic ones.
  */
 const zWornDecoration = z.string().regex(/^(?:[a-z0-9-]{2,32}|c_[a-z0-9]{16})$/, "Not a decoration id");
+export const PROFILE_SECTIONS = ["about", "links", "connections"] as const;
+export const ProfileLayout = z.strictObject({
+  order: z.array(z.enum(PROFILE_SECTIONS)).length(3).refine((items) => new Set(items).size === 3, "Each profile section must appear once"),
+  hidden: z.array(z.enum(PROFILE_SECTIONS)).max(3).refine((items) => new Set(items).size === items.length, "Hidden sections must be unique"),
+});
 export const ProfileStyleBody = z.object({
+  layout: ProfileLayout.nullable().optional(),
   baseStyleRevision: z
     .string()
     .regex(/^[a-f0-9]{64}$/)
@@ -167,6 +173,7 @@ export const ProfileStyleBody = z.object({
     .optional(),
 });
 export const ProfileStyle = z.strictObject({
+  layout: ProfileLayout.nullable().optional(),
   collectibles: z.array(CollectibleLook).max(8).optional(),
   decoration: zWornDecoration.nullable(),
   effect: z.enum(PROFILE_EFFECTS).nullable(),

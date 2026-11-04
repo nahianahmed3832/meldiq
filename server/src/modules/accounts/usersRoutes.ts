@@ -3,7 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { deleteBlobNow } from "../files/routes.js";
 import { photoBlobId, readJpegBody, storePhoto } from "./photos.js";
 import { type AppContext } from "../../app/context.js";
-import { styleRevision, wornTag } from "./profileMedia.js";
+import { styleOf, styleRevision, wornTag } from "./profileMedia.js";
 import { isBugHunter } from "./bugReports.js";
 import type { ProfilePin } from "../../shared/contracts/http/pins.js";
 import { me, requireAuth } from "../auth/index.js";
@@ -379,7 +379,7 @@ export default async function userRoutes(app: FastifyInstance, ctx: AppContext) 
         // API 0.64.0: pins (Meldiq's for milestones, communities' own); someone they blocked sees none.
         ...pinsField(r.blockedByTarget ? [] : ctx.pins.profilePins(u.id, viewer)),
         // API 0.65.0 batch B: Steam, AniList, Last.fm and Trakt, the ones they show (none for someone they blocked).
-        ...(await ctx.linkedAccounts.profileField(u.id, r.blockedByTarget)),
+        ...(await ctx.linkedAccounts.profileField(u.id, r.blockedByTarget || (!r.self && (styleOf(u).layout?.hidden.includes("connections") ?? false)))),
       },
     };
   });

@@ -299,6 +299,7 @@ export default async function profileMediaRoutes(app: FastifyInstance, ctx: AppC
       const keep = <T>(sent: T | undefined, was: T) => (sent === undefined ? was : sent);
       const theme = themeOf(body, current);
       const next: Style = {
+        ...(body.layout !== undefined ? { layout: body.layout } : current.layout ? { layout: current.layout } : {}),
         ...(current.collectibles
           ? {
               collectibles: current.collectibles.filter(

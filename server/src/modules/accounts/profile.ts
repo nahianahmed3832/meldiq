@@ -1,4 +1,4 @@
-import { profileMediaView, wornTag } from "./profileMedia.js";
+import { profileMediaView, styleOf, wornTag } from "./profileMedia.js";
 import { holdsBadge } from "./badges.js";
 import type { AppContext } from "../../app/context.js";
 import { Audience as AudienceEnum, PHONE, PresenceMode as PresenceModeEnum, validBirthday } from "../../shared/contracts/http/users.js";
@@ -158,6 +158,7 @@ export function notificationsPaused(u: Pick<ProfileRow, "notifications_paused_un
  */
 export function profileView(u: ProfileRow, r: Relation, ctx?: AppContext) {
   const p = privacyOf(u);
+  const hidden = r.self ? [] : (styleOf(u).layout?.hidden ?? []);
   const show = (f: PrivacyField) => allows(p[f], r);
   const view: Record<string, unknown> = {
     id: u.id,
@@ -174,8 +175,8 @@ export function profileView(u: ProfileRow, r: Relation, ctx?: AppContext) {
   if (show("bio") && (status.text || status.emoji) && status.expiresAt) view.statusExpiresAt = status.expiresAt;
   if (show("bio") && u.pronouns) view.pronouns = u.pronouns;
   // API 0.46.0: About me and links, under the bio's setting.
-  if (show("bio") && u.about_me) view.aboutMe = u.about_me;
-  const links = show("bio") ? linksOf(u) : [];
+  if (show("bio") && !hidden.includes("about") && u.about_me) view.aboutMe = u.about_me;
+  const links = show("bio") && !hidden.includes("links") ? linksOf(u) : [];
   if (links.length) view.links = links;
   if (show("name")) {
     if (u.first_name) view.firstName = u.first_name;

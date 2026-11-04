@@ -2,12 +2,14 @@ import { CollectibleLook } from "../../shared/contracts/http/collectibles.js";
 import { createHash } from "node:crypto";
 import type { AppContext } from "../../app/context.js";
 import { DECORATION_ID } from "../../shared/contracts/http/decorations.js";
-import { NAME_EFFECTS, NAME_FONTS, PROFILE_DECORATIONS, PROFILE_EFFECTS, SHOWABLE_BADGES, type ShowableBadge } from "../../shared/contracts/http/users.js";
+import { NAME_EFFECTS, NAME_FONTS, PROFILE_DECORATIONS, PROFILE_EFFECTS, SHOWABLE_BADGES, ProfileLayout, type ShowableBadge } from "../../shared/contracts/http/users.js";
+import type { z } from "zod/v4";
 
 /** Profile media and style as stored on a user row (API 0.45.0, docs/PROFILE_MEDIA.md); routes in profileMediaRoutes.ts. */
 export type AvatarMedia = { kind: "gif" | "webp" | "video"; rev: number };
 export type Banner = { kind: "jpeg" | "gif" | "webp"; rev: number };
 export type Style = {
+  layout?: z.infer<typeof ProfileLayout> | null;
   collectibles?: CollectibleLook[];
   decoration: string | null;
   effect: string | null;
@@ -42,7 +44,9 @@ export const bannerOf = (u: { profile_banner?: string | null }) => parseJson<Ban
 export function styleOf(u: { profile_style?: string | null }): Style {
   const s = parseJson<Partial<Style>>(u.profile_style) ?? {};
   const looks = CollectibleLook.array().max(8).safeParse(s.collectibles);
+  const layout = ProfileLayout.safeParse(s.layout);
   return {
+    ...(layout.success ? { layout: layout.data } : {}),
     ...(looks.success && looks.data.length ? { collectibles: looks.data } : {}),
     // A classic frame, or (API 0.61.0) one of Meldiq's own or a community one; one taken down is cleared from its wearers.
     decoration: typeof s.decoration === "string" && (PROFILE_DECORATIONS.includes(s.decoration as never) || DECORATION_ID.test(s.decoration)) ? s.decoration : null,

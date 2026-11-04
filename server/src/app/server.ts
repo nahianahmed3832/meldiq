@@ -979,6 +979,7 @@ export function serverFeatures(config: Config, directUploads = false): string[] 
     "community-branding",
     // API 0.45.0: animated avatars, profile banners and profile style (docs/PROFILE_MEDIA.md).
     "profile-media",
+    "profile-layout",
     // API 0.45.0: GIF search through this server (GET /v1/gifs/status says whether a provider is set up; docs/GIFS.md).
     "gif-search",
     // API 0.46.0 (docs/PROFILE_MEDIA.md): name fonts, colours and effects; community tags worn by names; member lists
