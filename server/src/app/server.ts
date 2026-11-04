@@ -126,6 +126,8 @@ import callRoutes from "../modules/calls/routes.js";
 import conversationRoutes from "../modules/messaging/conversationsRoutes.js";
 import historyRoutes from "../modules/messaging/history/routes.js";
 import messageCollections from "../modules/messaging/messageCollections.js";
+import threadRoutes from "../modules/messaging/threadRoutes.js";
+import managedPollRoutes from "../modules/messaging/managedPolls.js";
 import serverMessagesRoutes from "../modules/messaging/serverMessagesRoutes.js";
 import { MongoMessageStore } from "../modules/messaging/store/mongoStore.js";
 import { SqliteMessageStore } from "../modules/messaging/store/messageStore.js";
@@ -1280,6 +1282,8 @@ export async function buildApp(
       conversationRoutes,
       messageRoutes,
       serverMessagesRoutes,
+      managedPollRoutes,
+      threadRoutes,
       messageCollections,
       callRoutes,
       attachmentRoutes,
@@ -1471,6 +1475,8 @@ export function serverFeatures(
     "role-asset-icons",
     "paged-community-directory",
     "bulk-role-members",
+    "managed-polls",
+    "thread-lifecycle",
     "community-reports",
     "voice-channel-chat",
     "partner-applications",

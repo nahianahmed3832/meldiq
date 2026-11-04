@@ -15,9 +15,9 @@ import { parse } from "../../shared/validation/index.js";
 import type { EventRepeat } from "../organizations/eventRepeat.js";
 import sharp from "sharp";
 import { z } from "zod/v4";
-import { readCommunityImage } from "../organizations/communityImages.js";
-import { storePhoto } from "../accounts/photos.js";
-import { deleteBlobNow } from "../files/routes.js";
+import { readCommunityImage } from "../organizations/index.js";
+import { storePhoto } from "../accounts/index.js";
+import { deleteBlobNow } from "../files/index.js";
 import { badRequest, notFound } from "../../shared/errors.js";
 import { newId } from "../../shared/utilities/util.js";
 

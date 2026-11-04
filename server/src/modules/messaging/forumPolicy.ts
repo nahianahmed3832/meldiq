@@ -1,5 +1,5 @@
 import type { AppContext } from "../../app/context.js";
-import type { ConversationRow } from "../organizations/authz.js";
+import type { ConversationRow } from "../organizations/index.js";
 import type { MessageEvent } from "./store/messageStore.js";
 import { forumTags } from "./conversationsRoutes.js";
 import { badRequest, forbidden } from "../../shared/errors.js";

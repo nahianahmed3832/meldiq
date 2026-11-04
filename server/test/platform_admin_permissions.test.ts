@@ -247,7 +247,7 @@ describe("the console's code", () => {
           /reportSealer\.|\.content\b|\.note\b|reporter_id/.test(
             text
               .replace(
-                /r\.target_org_id \? \{ targetCommunityId: r\.target_org_id, communityNote: r\.note \} : \{\}/g,
+                /r\.target_org_id\s*\?\s*\{\s*targetCommunityId:\s*r\.target_org_id,\s*communityNote:\s*r\.note\s*\}\s*:\s*\{\}/g,
                 "approvedCommunityEvidence",
               )
               .replace(/b\.note/g, "internalNote")

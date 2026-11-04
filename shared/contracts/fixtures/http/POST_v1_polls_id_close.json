@@ -1,0 +1,52 @@
+{
+  "id": "m_quiz_1793792972351",
+  "poll": {
+    "version": 1,
+    "question": "Which answer?",
+    "options": [
+      {
+        "id": "o1",
+        "text": "First"
+      },
+      {
+        "id": "o2",
+        "text": "Second"
+      }
+    ],
+    "multi": false,
+    "quiz": true,
+    "reveal": "after_close"
+  },
+  "closed": true,
+  "rev": 4,
+  "mine": null,
+  "total": 2,
+  "counts": [
+    {
+      "id": "o1",
+      "votes": 1
+    },
+    {
+      "id": "o2",
+      "votes": 1
+    }
+  ],
+  "voters": [
+    {
+      "userId": null,
+      "choices": [
+        "o2"
+      ]
+    },
+    {
+      "userId": "u_PbCJOJSu6Ah_YeiI0iFccw",
+      "choices": [
+        "o1"
+      ]
+    }
+  ],
+  "correctOptionIds": [
+    "o2"
+  ],
+  "canClose": false
+}

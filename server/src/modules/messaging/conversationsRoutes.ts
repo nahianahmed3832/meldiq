@@ -1,6 +1,7 @@
+import {eventCoverIds} from "../calls/index.js";
 import type { FastifyInstance } from "fastify";
-import { auditChanges } from "../organizations/adminChanges.js";
-import { writeChannelOptions } from "../organizations/communityPermissions/channelSettings.js";
+import { auditChanges } from "../organizations/index.js";
+import { writeChannelOptions } from "../organizations/index.js";
 import {
   requireStanding,
   requireSyntheticScopeForPeople,
@@ -894,10 +895,7 @@ export default async function conversationRoutes(
       ctx.relay.forgetConversation(id);
       w.delete("mention_all_events", { conversation_id: id });
       w.delete("channel_overwrites", { target_type: "channel", target_id: id });
-      for (const m of w.all<{ cover_id: string | null }>("meetings", {
-        where: { room_id: id },
-      }))
-        if (m.cover_id) queueBlobDelete(ctx, "profile-photos", m.cover_id);
+      for (const coverId of eventCoverIds(w,id))queueBlobDelete(ctx,"profile-photos",coverId);
       w.delete("conversations", { id });
       return { members, files, rooms };
     });

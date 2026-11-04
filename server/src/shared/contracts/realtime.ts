@@ -37,11 +37,20 @@ export type QueueItemWire = z.infer<typeof QueueItemWire>;
 export const CallState = z.enum(["RINGING", "ACTIVE", "ENDED"]);
 export type CallState = z.infer<typeof CallState>;
 
-export const CallParticipantWire = z.strictObject({ userId: id, deviceId: id, joinedAt: time });
+export const CallParticipantWire = z.strictObject({
+  userId: id,
+  deviceId: id,
+  joinedAt: time,
+});
 export type CallParticipantWire = z.infer<typeof CallParticipantWire>;
 
 /** Who took part in an ended call, merged over rejoins (the call history line). */
-export const CallAttendanceWire = z.strictObject({ userId: id, joinedAt: time, leftAt: time, seconds: z.number().int().nonnegative() });
+export const CallAttendanceWire = z.strictObject({
+  userId: id,
+  joinedAt: time,
+  leftAt: time,
+  seconds: z.number().int().nonnegative(),
+});
 export type CallAttendanceWire = z.infer<typeof CallAttendanceWire>;
 
 export const CallWire = z.strictObject({
@@ -87,7 +96,15 @@ export type ActivityWire = z.infer<typeof ActivityWire>;
 
 // ───────────── Server → client ─────────────
 
-export const CallEventName = z.enum(["ring", "started", "updated", "ended", "declined", "dismissed", "alerted"]);
+export const CallEventName = z.enum([
+  "ring",
+  "started",
+  "updated",
+  "ended",
+  "declined",
+  "dismissed",
+  "alerted",
+]);
 export type CallEventName = z.infer<typeof CallEventName>;
 
 /** Extra fields some call events carry. */
@@ -105,34 +122,96 @@ const orgId = { orgId: id };
 const meeting = { ...orgId, meetingId: id, startsAt: time };
 
 export const ServerEvent = z.discriminatedUnion("t", [
-  z.strictObject({ t: z.literal("hello"), userId: id, deviceId: id, serverTime: time }),
+  z.strictObject({
+    t: z.literal("hello"),
+    userId: id,
+    deviceId: id,
+    serverTime: time,
+  }),
   z.strictObject({ t: z.literal("pong"), serverTime: time }),
   /** Queue items: live (`backlog` absent) or a backlog batch after connecting (`backlog: true`, acknowledged with it). */
-  z.strictObject({ t: z.literal("queue"), items: z.array(QueueItemWire), more: z.boolean(), backlog: z.literal(true).optional() }),
+  z.strictObject({
+    t: z.literal("queue"),
+    items: z.array(QueueItemWire),
+    more: z.boolean(),
+    backlog: z.literal(true).optional(),
+  }),
   /** The backlog has been sent completely. */
   z.strictObject({ t: z.literal("queue.drained") }),
   z.strictObject({ t: z.literal("typing"), c: id, u: id, on: z.boolean() }),
-  z.strictObject({ t: z.literal("presence"), userId: id, online: z.boolean(), presence: PresenceState, lastSeenAt: time.nullable() }),
+  z.strictObject({
+    t: z.literal("presence"),
+    userId: id,
+    online: z.boolean(),
+    presence: PresenceState,
+    lastSeenAt: time.nullable(),
+  }),
   /** API 0.56.0: someone started or stopped playing (null: nothing to show, also while they appear offline). */
-  z.strictObject({ t: z.literal("activity"), userId: id, activity: ActivityWire.nullable() }),
+  z.strictObject({
+    t: z.literal("activity"),
+    userId: id,
+    activity: ActivityWire.nullable(),
+  }),
   z.discriminatedUnion("event", [
-    z.strictObject({ t: z.literal("call"), event: CallEventName, call: CallWire, ...callEventExtras }),
+    z.strictObject({
+      t: z.literal("call"),
+      event: CallEventName,
+      call: CallWire,
+      ...callEventExtras,
+    }),
     /** Voice rooms: a moderator muted this person, lowered their hand or removed them. */
-    z.strictObject({ t: z.literal("call"), event: z.literal("moderated"), action: z.enum(["mute", "lower_hand", "remove"]), call: CallWire }),
+    z.strictObject({
+      t: z.literal("call"),
+      event: z.literal("moderated"),
+      action: z.enum(["mute", "lower_hand", "remove"]),
+      call: CallWire,
+    }),
   ]),
   /** Reload the conversation (membership, settings, or it's gone). */
+  z.strictObject({
+    t: z.literal("thread.updated"),
+    conversationId: id,
+    rootId: id,
+    rev: z.number().int().nonnegative(),
+  }),
+  z.strictObject({
+    t: z.literal("thread.preference"),
+    conversationId: id,
+    rootId: id,
+    following: z.boolean(),
+  }),
+  z.strictObject({
+    t: z.literal("poll.updated"),
+    conversationId: id,
+    messageId: id,
+    rev: z.number().int().positive(),
+  }),
   z.strictObject({ t: z.literal("conv.updated"), conversationId: id }),
   /** Reload the community. */
   z.strictObject({ t: z.literal("org.updated"), ...orgId }),
   z.strictObject({ t: z.literal("org.deleted"), ...orgId }),
   /** Moderators: the number of open reports changed. */
-  z.strictObject({ t: z.literal("org.reports"), ...orgId, open: z.number().int().nonnegative() }),
+  z.strictObject({
+    t: z.literal("org.reports"),
+    ...orgId,
+    open: z.number().int().nonnegative(),
+  }),
   /** Approvers: join applications changed. */
   z.strictObject({ t: z.literal("org.applications"), ...orgId }),
   /** The applicant: their application was decided. */
-  z.strictObject({ t: z.literal("org.application"), ...orgId, status: z.enum(["approved", "denied"]) }),
+  z.strictObject({
+    t: z.literal("org.application"),
+    ...orgId,
+    status: z.enum(["approved", "denied"]),
+  }),
   /** Safety moderators: an activity alert (a burst of joins). */
-  z.strictObject({ t: z.literal("org.alert"), ...orgId, kind: z.literal("joins"), count: z.number().int().positive(), at: time }),
+  z.strictObject({
+    t: z.literal("org.alert"),
+    ...orgId,
+    kind: z.literal("joins"),
+    count: z.number().int().positive(),
+    at: time,
+  }),
   /** Someone's devices changed: refresh their keys before encrypting to them. */
   z.strictObject({ t: z.literal("devices.changed"), userId: id }),
   /**
@@ -143,14 +222,40 @@ export const ServerEvent = z.discriminatedUnion("t", [
   z.strictObject({ t: z.literal("user.updated"), userId: id }),
   z.strictObject({ t: z.literal("connections.updated") }),
   // docs/BILLING.md › Entitlements API: refetch GET /v2/billing/entitlements.
-  z.strictObject({ t: z.literal("entitlements.changed"), scope: z.enum(["account", "org"]), orgId: id.optional() }),
-  z.strictObject({ t: z.literal("prefs.updated"), workspaceId: id, rev: z.number().int().nonnegative() }),
-  z.strictObject({ t: z.literal("reminders.changed"), id, rev: z.number().int().nonnegative().optional(), deleted: z.literal(true).optional() }),
-  z.strictObject({ t: z.literal("reminder.due"), id, occurrenceAt: time, firedAt: time }),
+  z.strictObject({
+    t: z.literal("entitlements.changed"),
+    scope: z.enum(["account", "org"]),
+    orgId: id.optional(),
+  }),
+  z.strictObject({
+    t: z.literal("prefs.updated"),
+    workspaceId: id,
+    rev: z.number().int().nonnegative(),
+  }),
+  z.strictObject({
+    t: z.literal("reminders.changed"),
+    id,
+    rev: z.number().int().nonnegative().optional(),
+    deleted: z.literal(true).optional(),
+  }),
+  z.strictObject({
+    t: z.literal("reminder.due"),
+    id,
+    occurrenceAt: time,
+    firedAt: time,
+  }),
   z.strictObject({ t: z.literal("meeting.updated"), ...meeting }),
   z.strictObject({ t: z.literal("meeting.soon"), ...meeting }),
   // API 0.65.0 batch B: a bot's ephemeral answer to a slash command, sent only to the person who ran it (never stored).
-  z.strictObject({ t: z.literal("interaction.reply"), interactionId: z.string(), conversationId: id, botId: id, command: z.string(), content: z.string(), at: time }),
+  z.strictObject({
+    t: z.literal("interaction.reply"),
+    interactionId: z.string(),
+    conversationId: id,
+    botId: id,
+    command: z.string(),
+    content: z.string(),
+    at: time,
+  }),
 ]);
 export type ServerEvent = z.infer<typeof ServerEvent>;
 export type ServerEventName = ServerEvent["t"];
@@ -162,7 +267,11 @@ export const ClientEvent = z.discriminatedUnion("t", [
   z.strictObject({ t: z.literal("auth"), token: z.string() }),
   z.strictObject({ t: z.literal("ping") }),
   /** Acknowledge queue items (at most 500 ids per frame); `backlog: true` asks for the next backlog batch. */
-  z.strictObject({ t: z.literal("ack"), ids: z.array(z.number().int()), backlog: z.boolean().optional() }),
+  z.strictObject({
+    t: z.literal("ack"),
+    ids: z.array(z.number().int()),
+    backlog: z.boolean().optional(),
+  }),
   z.strictObject({ t: z.literal("typing"), c: id, on: z.boolean() }),
 ]);
 export type ClientEvent = z.infer<typeof ClientEvent>;

@@ -1,0 +1,37 @@
+{
+  "id": "m_quiz_1793792972351",
+  "poll": {
+    "version": 1,
+    "question": "Which answer?",
+    "options": [
+      {
+        "id": "o1",
+        "text": "First"
+      },
+      {
+        "id": "o2",
+        "text": "Second"
+      }
+    ],
+    "multi": false,
+    "quiz": true,
+    "reveal": "after_close"
+  },
+  "closed": false,
+  "rev": 1,
+  "mine": null,
+  "total": 0,
+  "counts": [
+    {
+      "id": "o1",
+      "votes": 0
+    },
+    {
+      "id": "o2",
+      "votes": 0
+    }
+  ],
+  "voters": [],
+  "correctOptionIds": null,
+  "canClose": true
+}

@@ -3642,6 +3642,43 @@ export const SCHEMA: readonly TableShape[] = [
     autoincrement: true,
   },
   {
+    name: "managed_poll_votes",
+    columns: [
+      {"name":"message_id","type":"TEXT","notNull":true},
+      {"name":"user_id","type":"TEXT","notNull":true},
+      {"name":"choices","type":"TEXT","notNull":true},
+      {"name":"anonymous","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["message_id","user_id"],
+    indexes: [],
+    foreignKeys: [
+      {"columns":["message_id"],"table":"managed_polls","references":["message_id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
+    name: "managed_polls",
+    columns: [
+      {"name":"message_id","type":"TEXT","notNull":true},
+      {"name":"conversation_id","type":"TEXT","notNull":true},
+      {"name":"sender_id","type":"TEXT","notNull":true},
+      {"name":"definition","type":"TEXT","notNull":true},
+      {"name":"answer_key","type":"TEXT","notNull":false},
+      {"name":"fingerprint","type":"TEXT","notNull":true},
+      {"name":"closed_at","type":"INTEGER","notNull":false},
+      {"name":"rev","type":"INTEGER","notNull":true,"default":1},
+      {"name":"created_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["message_id"],
+    indexes: [
+      {"name":"managed_poll_conversation","columns":["conversation_id"],"unique":false,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [
+      {"columns":["conversation_id"],"table":"conversations","references":["id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
     name: "meeting_participants",
     columns: [
       {"name":"meeting_id","type":"TEXT","notNull":true},
@@ -3732,6 +3769,37 @@ export const SCHEMA: readonly TableShape[] = [
       {"name":"idx_message_events_page","columns":["conversation_id","cls","server_ts"],"unique":false,"nocase":false,"partialNotNull":null},
     ],
     foreignKeys: [],
+    autoincrement: false,
+  },
+  {
+    name: "message_threads",
+    columns: [
+      {"name":"root_id","type":"TEXT","notNull":true},
+      {"name":"conversation_id","type":"TEXT","notNull":true},
+      {"name":"author_id","type":"TEXT","notNull":true},
+      {"name":"root_ts","type":"INTEGER","notNull":true},
+      {"name":"closed","type":"INTEGER","notNull":true,"default":0},
+      {"name":"locked","type":"INTEGER","notNull":true,"default":0},
+      {"name":"delete_requested","type":"INTEGER","notNull":true,"default":0},
+      {"name":"delete_parent","type":"INTEGER","notNull":true,"default":0},
+      {"name":"deleted_at","type":"INTEGER","notNull":false},
+      {"name":"deletion_actor","type":"TEXT","notNull":false},
+      {"name":"deletion_device","type":"TEXT","notNull":false},
+      {"name":"deletion_error","type":"TEXT","notNull":false},
+      {"name":"delete_cursor_ts","type":"INTEGER","notNull":false},
+      {"name":"delete_cursor_id","type":"TEXT","notNull":false},
+      {"name":"pending_target","type":"TEXT","notNull":false},
+      {"name":"deleted_replies","type":"INTEGER","notNull":true,"default":0},
+      {"name":"rev","type":"INTEGER","notNull":true,"default":0},
+      {"name":"updated_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["root_id"],
+    indexes: [
+      {"name":"thread_delete_pending","columns":["delete_requested","deleted_at","deletion_error"],"unique":false,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [
+      {"columns":["conversation_id"],"table":"conversations","references":["id"],"onDelete":"CASCADE"},
+    ],
     autoincrement: false,
   },
   {
@@ -5190,6 +5258,25 @@ export const SCHEMA: readonly TableShape[] = [
     primaryKey: ["kind"],
     indexes: [],
     foreignKeys: [],
+    autoincrement: false,
+  },
+  {
+    name: "thread_preferences",
+    columns: [
+      {"name":"root_id","type":"TEXT","notNull":true},
+      {"name":"user_id","type":"TEXT","notNull":true},
+      {"name":"conversation_id","type":"TEXT","notNull":true},
+      {"name":"following","type":"INTEGER","notNull":true},
+      {"name":"updated_at","type":"INTEGER","notNull":true},
+    ],
+    primaryKey: ["root_id","user_id"],
+    indexes: [
+      {"name":"thread_preferences_account","columns":["user_id"],"unique":false,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [
+      {"columns":["conversation_id"],"table":"conversations","references":["id"],"onDelete":"CASCADE"},
+      {"columns":["root_id"],"table":"message_threads","references":["root_id"],"onDelete":"CASCADE"},
+    ],
     autoincrement: false,
   },
   {

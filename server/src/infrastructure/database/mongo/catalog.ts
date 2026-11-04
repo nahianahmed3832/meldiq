@@ -94,6 +94,10 @@ export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
   account_email_changes: "safety",
   account_warnings: "safety",
   bug_reports: "safety",
+  message_threads: "workspace",
+  thread_preferences: "workspace",
+  managed_polls: "workspace",
+  managed_poll_votes: "workspace",
   nav_preferences: "preferences",
   // Apps and connected accounts (2026-10-19): removed with the community rebuild; the tables stay (src/retiredData.ts).
   integration_installs: "integrations",

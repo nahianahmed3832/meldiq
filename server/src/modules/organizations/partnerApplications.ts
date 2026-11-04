@@ -7,7 +7,12 @@ import {
   PartnerSubmission,
   PartnerChecklist,
 } from "../../shared/contracts/http/partners.js";
-import { ApiError, conflict, notFound } from "../../shared/errors.js";
+import {
+  ApiError,
+  conflict,
+  notFound,
+  forbidden,
+} from "../../shared/errors.js";
 import { now } from "../../shared/utilities/util.js";
 export interface PartnerRow {
   org_id: string;
@@ -86,5 +91,60 @@ export default async function partnerRoutes(
       return partnerView(next);
     });
     return { application };
+  });
+}
+
+/** Only the permission-guarded operator surface calls this internal projection. */
+export function listPartnerApplications(
+  ctx: AppContext,
+  q: { after?: string; limit: number },
+) {
+  const rows = ctx.ws.all<PartnerRow>("org_partner_applications", {
+    where: {
+      status: "submitted",
+      ...(q.after ? { org_id: { gt: q.after } } : {}),
+    },
+    orderBy: [["org_id", "asc"]],
+    limit: q.limit + 1,
+  });
+  return {
+    applications: rows.slice(0, q.limit).map(partnerView),
+    nextAfter: rows.length > q.limit ? rows[q.limit - 1].org_id : null,
+  };
+}
+export async function reviewPartnerApplication(
+  ctx: AppContext,
+  orgId: string,
+  actor: { accountId: string; userId: string | null },
+  body: { baseRev: number; status: "approved" | "declined"; reason: string },
+) {
+  return ctx.ws.write((w) => {
+    const prior = w.get<PartnerRow>("org_partner_applications", {
+      org_id: orgId,
+    });
+    if (!prior) throw notFound("Application not found");
+    if (
+      actor.userId === prior.submitted_by ||
+      (actor.userId && ctx.authz.orgRole(orgId, actor.userId) === "OWNER")
+    )
+      throw forbidden("Another operator must review this application");
+    if (prior.rev !== body.baseRev)
+      throw new ApiError(
+        409,
+        "stale_revision",
+        "This application changed. Reload before reviewing.",
+      );
+    if (prior.status !== "submitted")
+      throw conflict("This application was already reviewed");
+    const next = {
+      ...prior,
+      status: body.status,
+      rev: prior.rev + 1,
+      reviewed_at: now(),
+      reviewed_by: actor.accountId,
+      review_note: body.reason,
+    };
+    w.update("org_partner_applications", { org_id: orgId }, next);
+    return partnerView(next);
   });
 }

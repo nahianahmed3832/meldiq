@@ -1,3 +1,4 @@
+import {messageFilterIdentities} from "../accounts/index.js";
 import type { AppContext } from "../../app/context.js";
 import type { MessageSearchQuery } from "../../shared/contracts/http/serverMessages.js";
 import type { MessageEvent } from "./store/messageStore.js";
@@ -26,15 +27,7 @@ export function searchPeople(
   if (query === undefined) return null;
   const name = query.replace(/^@/, "").toLowerCase();
   if (name === "me" || name === "you") return [viewer];
-  return ctx.identity
-    .all<{ id: string; username: string; display_name: string }>("users")
-    .filter(
-      (u) =>
-        u.id === query ||
-        u.username.toLowerCase().includes(name) ||
-        u.display_name.toLowerCase().includes(name),
-    )
-    .map((u) => u.id);
+  return messageFilterIdentities(ctx.identity,query,name);
 }
 const sqliteFunctions = new WeakSet<object>();
 const valid = (e: MessageEvent) => {

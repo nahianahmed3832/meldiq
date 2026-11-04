@@ -4,7 +4,11 @@ import type { AuthInfo } from "../auth/index.js";
 import { now } from "../../shared/utilities/util.js";
 import { IdentityService } from "./identity.js";
 import { LegacyMigrationService } from "./legacy.js";
-import { createMailer, type Mailer, meteredMailer } from "../../infrastructure/mail/mailer.js";
+import {
+  createMailer,
+  type Mailer,
+  meteredMailer,
+} from "../../infrastructure/mail/mailer.js";
 import { AccountService } from "./service.js";
 import { MongoAccountStore } from "./mongoStore.js";
 import { SqliteRows } from "../../infrastructure/database/rows/index.js";
@@ -27,7 +31,15 @@ export { gifInfo, type ImageInfo, sniff, webpInfo } from "./mediaFormats.js";
 export { requireStanding } from "./standing.js";
 // For the Platform Admin Console (modules/platformAdmin), which signs admins in with their account password.
 export type { AccountRow } from "./store.js";
-export { deleteOperatorAccount, insertOperatorAccount, listOperatorAccounts, type OperatorAccountRow, operatorAccount, staticCodeHash, updateOperatorVerification } from "./operatorAccounts.js";
+export {
+  deleteOperatorAccount,
+  insertOperatorAccount,
+  listOperatorAccounts,
+  type OperatorAccountRow,
+  operatorAccount,
+  staticCodeHash,
+  updateOperatorVerification,
+} from "./operatorAccounts.js";
 export { burnPasswordCheck, verifyPassword } from "./passwords.js";
 export {
   accountStateCounts,
@@ -53,14 +65,28 @@ export {
   userSummary,
 } from "./platformQueries.js";
 /** API 0.65.0: what the points module's quests read, and profile change notices (a new level shows on profiles). */
-export { type AccountFacts, accountFacts, createdBefore } from "./questFacts.js";
+export {
+  type AccountFacts,
+  accountFacts,
+  createdBefore,
+} from "./questFacts.js";
 export { announceProfileChange } from "./profileEvents.js";
 /** Community parity B: people as the lobby lists them, and how many of a community appear online. */
-export { onlineCount, type PersonCard, personCards, leaderboardIdentity } from "./peopleCards.js";
+export {
+  onlineCount,
+  type PersonCard,
+  personCards,
+  leaderboardIdentity,
+} from "./peopleCards.js";
 export { privacyOf } from "./profile.js";
 export { avatarMediaOf, styleOf } from "./profileMedia.js";
 /** Who may reach whom (connections, blocks, messaging settings): for other modules' consent checks. */
-export { availableUser, blockedEitherWay, dmDecision, sharesCommunity } from "./relationships/rules.js";
+export {
+  availableUser,
+  blockedEitherWay,
+  dmDecision,
+  sharesCommunity,
+} from "./relationships/rules.js";
 
 /**
  * Orbit 2.0 accounts (docs/ORBIT_2_ARCHITECTURE_2026-10-18.md): email-and-password sign-in, sessions, device setup,
@@ -94,24 +120,52 @@ export class Accounts {
   ) {
     this.identityRows = ctx.identity;
     // MONGODB_DOMAINS includes "accounts": the account rows live in MongoDB (docs/MONGODB.md).
-    this.store = opts.store ?? (ctx.mongo?.owns("accounts") ? new MongoAccountStore(ctx.mongo, ctx.identity) : new SqliteAccountStore(ctx.db, sqliteIdentity(ctx.identity)));
+    this.store =
+      opts.store ??
+      (ctx.mongo?.owns("accounts")
+        ? new MongoAccountStore(ctx.mongo, ctx.identity)
+        : new SqliteAccountStore(ctx.db, sqliteIdentity(ctx.identity)));
     this.mailer = opts.mailer ?? createMailer(ctx.config.accounts.mail);
-    this.service = new AccountService(ctx, this.store, meteredMailer(this.mailer, ctx.metrics));
+    this.service = new AccountService(
+      ctx,
+      this.store,
+      meteredMailer(this.mailer, ctx.metrics),
+    );
     this.identity = new IdentityService(ctx, this.service);
     this.legacy = new LegacyMigrationService(ctx, this.service);
     this.workspaces = new WorkspaceService(ctx, this.store);
-    const recoveryStore = opts.recoveryStore ?? (ctx.mongo?.owns("accounts") ? new MongoRecoveryStore(ctx.mongo) : new SqliteRecoveryStore(ctx.db));
+    const recoveryStore =
+      opts.recoveryStore ??
+      (ctx.mongo?.owns("accounts")
+        ? new MongoRecoveryStore(ctx.mongo)
+        : new SqliteRecoveryStore(ctx.db));
     this.recovery = new RecoveryService(ctx, this.service, recoveryStore);
-    const keyBackupStore = opts.keyBackupStore ?? (ctx.mongo?.owns("accounts") ? new MongoKeyBackupStore(ctx.mongo) : new SqliteKeyBackupStore(ctx.db));
+    const keyBackupStore =
+      opts.keyBackupStore ??
+      (ctx.mongo?.owns("accounts")
+        ? new MongoKeyBackupStore(ctx.mongo)
+        : new SqliteKeyBackupStore(ctx.db));
     this.keyBackups = new KeyBackupService(ctx, this.service, keyBackupStore);
     // Passkeys are kept in SQLite in either mode (migration 045 explains why there is no foreign key).
     this.passkeys = new PasskeyService(ctx, this.service);
     this.totp = new TotpService(ctx, ctx.config.platformSecretsKey);
-    this.service.secondFactor = (accountId, code) => this.totp.checkSignIn(accountId, code);
+    this.service.secondFactor = (accountId, code) =>
+      this.totp.checkSignIn(accountId, code);
     this.emailChange = new EmailChangeService(ctx, this.service);
-    const acceptedPostgres = this.store.backend === "postgres" && ctx.config.databaseMode === "supabase" &&
-      ctx.postgres?.database.config.environment === "production" && !!ctx.postgres.database.config.productionAcceptance;
-    if (ctx.config.socialAuth?.providers.length && ctx.config.accounts.appEnv === "production" && this.store.backend !== "mongodb" && !acceptedPostgres) throw new Error("Production social sign-in requires a verified PostgreSQL runtime or the existing MongoDB accounts domain; no account database is migrated automatically");
+    const acceptedPostgres =
+      this.store.backend === "postgres" &&
+      ctx.config.databaseMode === "supabase" &&
+      ctx.postgres?.database.config.environment === "production" &&
+      !!ctx.postgres.database.config.productionAcceptance;
+    if (
+      ctx.config.socialAuth?.providers.length &&
+      ctx.config.accounts.appEnv === "production" &&
+      this.store.backend !== "mongodb" &&
+      !acceptedPostgres
+    )
+      throw new Error(
+        "Production social sign-in requires a verified PostgreSQL runtime or the existing MongoDB accounts domain; no account database is migrated automatically",
+      );
     this.social = new SocialAuth(ctx, ctx.config.socialAuth);
   }
 
@@ -146,14 +200,30 @@ export class Accounts {
   }
 
   async purgeExpired(): Promise<number> {
-    return (await this.store.purgeExpired(now())) + (await this.recovery.purgeExpired()) + (await this.keyBackups.purgeExpired()) + (await this.social.store.purge());
+    return (
+      (await this.store.purgeExpired(now())) +
+      (await this.recovery.purgeExpired()) +
+      (await this.keyBackups.purgeExpired()) +
+      (await this.social.store.purge())
+    );
   }
 }
 
 // Account deletion for the Platform Admin Console (the same erasure people trigger themselves; docs/ACCOUNT_DELETION.md).
-export { eraseAccount, eraseBotIdentity, soleOwnedWorkspaces } from "./deletion.js";
+export {
+  eraseAccount,
+  eraseBotIdentity,
+  soleOwnedWorkspaces,
+} from "./deletion.js";
 // API 0.65.0 batch B: bot accounts (modules/bots) and what "Log in with Meldiq" apps may see (modules/oauth).
-export { BOT_KIND, botsAmong, createBotIdentity, isBotUser, renameBotIdentity, setBotPhoto } from "./botIdentity.js";
+export {
+  BOT_KIND,
+  botsAmong,
+  createBotIdentity,
+  isBotUser,
+  renameBotIdentity,
+  setBotPhoto,
+} from "./botIdentity.js";
 export { type AppIdentity, appIdentity, photoBytes } from "./appIdentity.js";
 
 // Load-test provisioning (docs/LOADTEST_PROVISIONING.md), used by auth, organizations and messaging.
@@ -171,11 +241,19 @@ export {
   type QuotaState,
 } from "./loadtest.js";
 // Community photos made from a Discord server's icon (modules/organizations/discord).
-export { MAX_PHOTO_BYTES, photoBlobId, readJpegBody, storePhoto } from "./photos.js";
+export {
+  MAX_PHOTO_BYTES,
+  photoBlobId,
+  readJpegBody,
+  storePhoto,
+} from "./photos.js";
 
 /** Accounts in SQLite keep their identity rows there too (the startup check refuses identity in MongoDB without them). */
 function sqliteIdentity(identity: AppContext["identity"]): SqliteRows {
-  if (!(identity instanceof SqliteRows)) throw new Error("Accounts in SQLite need the identity domain in SQLite too");
+  if (!(identity instanceof SqliteRows))
+    throw new Error(
+      "Accounts in SQLite need the identity domain in SQLite too",
+    );
   return identity;
 }
 
@@ -184,11 +262,21 @@ export { profileAudience } from "./profileAudience.js";
 // Profile collection operator surface: account-owned metadata and approved artwork only.
 export { CollectionService } from "./collectibles/service.js";
 export { ASSET_MAX, processAsset, serveAsset } from "./collectibles/assets.js";
-export { createCollectibleUpload, completeCollectibleUpload } from "./collectibles/uploads.js";
+export {
+  createCollectibleUpload,
+  completeCollectibleUpload,
+} from "./collectibles/uploads.js";
 export { readBody as readProfileMediaBody } from "./profileMediaRoutes.js";
-
 
 export { available, INVENTORY, applySlot } from "./collectibles/service.js";
 export { announceOwnSettingsChange } from "./profileEvents.js";
-export { standingOf, revokeWarning, warningRecord, standingWarnings, issueStandingWarning } from "./standing.js";
+export {
+  standingOf,
+  revokeWarning,
+  warningRecord,
+  standingWarnings,
+  issueStandingWarning,
+} from "./standing.js";
 export { fulfillCollectiblePayment } from "./collectibles/payments.js";
+
+export { messageFilterIdentities } from "./searchIdentities.js";

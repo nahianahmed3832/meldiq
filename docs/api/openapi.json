@@ -18,6 +18,9 @@
       "name": "platform-admin"
     },
     {
+      "name": "messages"
+    },
+    {
       "name": "staging-auth"
     },
     {
@@ -862,6 +865,1371 @@
             }
           }
         }
+      }
+    },
+    "/v1/polls/{id}": {
+      "get": {
+        "tags": [
+          "messages"
+        ],
+        "summary": "Current authorized poll totals; anonymous ballots omit identities and quiz answers remain hidden until close.",
+        "operationId": "getV1PollsId",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "poll": {
+                      "type": "object",
+                      "properties": {
+                        "version": {
+                          "default": 1,
+                          "type": "number",
+                          "const": 1
+                        },
+                        "question": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 300
+                        },
+                        "options": {
+                          "minItems": 2,
+                          "maxItems": 10,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9_-]{1,16}$"
+                              },
+                              "text": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 100
+                              },
+                              "emoji": {
+                                "type": "string",
+                                "maxLength": 16
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "text"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "multi": {
+                          "default": false,
+                          "type": "boolean"
+                        },
+                        "endsAt": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "quiz": {
+                          "default": false,
+                          "type": "boolean"
+                        },
+                        "reveal": {
+                          "default": "after_close",
+                          "type": "string",
+                          "const": "after_close"
+                        }
+                      },
+                      "required": [
+                        "version",
+                        "question",
+                        "options",
+                        "multi",
+                        "quiz",
+                        "reveal"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "closed": {
+                      "type": "boolean"
+                    },
+                    "rev": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "mine": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "choices": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9_-]{1,16}$"
+                              }
+                            },
+                            "anonymous": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "choices",
+                            "anonymous"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "counts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9_-]{1,16}$"
+                          },
+                          "votes": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "votes"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "voters": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "userId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "choices": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "pattern": "^[A-Za-z0-9_-]{1,16}$"
+                            }
+                          }
+                        },
+                        "required": [
+                          "userId",
+                          "choices"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "correctOptionIds": {
+                      "anyOf": [
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9_-]{1,16}$"
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "canClose": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "poll",
+                    "closed",
+                    "rev",
+                    "mine",
+                    "total",
+                    "counts",
+                    "voters",
+                    "correctOptionIds",
+                    "canClose"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/polls/{id}/vote": {
+      "put": {
+        "tags": [
+          "messages"
+        ],
+        "summary": "Replace or remove this member's choices, respecting membership, posting rights and server expiry.",
+        "operationId": "putV1PollsIdVote",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "poll": {
+                      "type": "object",
+                      "properties": {
+                        "version": {
+                          "default": 1,
+                          "type": "number",
+                          "const": 1
+                        },
+                        "question": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 300
+                        },
+                        "options": {
+                          "minItems": 2,
+                          "maxItems": 10,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9_-]{1,16}$"
+                              },
+                              "text": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 100
+                              },
+                              "emoji": {
+                                "type": "string",
+                                "maxLength": 16
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "text"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "multi": {
+                          "default": false,
+                          "type": "boolean"
+                        },
+                        "endsAt": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "quiz": {
+                          "default": false,
+                          "type": "boolean"
+                        },
+                        "reveal": {
+                          "default": "after_close",
+                          "type": "string",
+                          "const": "after_close"
+                        }
+                      },
+                      "required": [
+                        "version",
+                        "question",
+                        "options",
+                        "multi",
+                        "quiz",
+                        "reveal"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "closed": {
+                      "type": "boolean"
+                    },
+                    "rev": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "mine": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "choices": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9_-]{1,16}$"
+                              }
+                            },
+                            "anonymous": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "choices",
+                            "anonymous"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "counts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9_-]{1,16}$"
+                          },
+                          "votes": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "votes"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "voters": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "userId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "choices": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "pattern": "^[A-Za-z0-9_-]{1,16}$"
+                            }
+                          }
+                        },
+                        "required": [
+                          "userId",
+                          "choices"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "correctOptionIds": {
+                      "anyOf": [
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9_-]{1,16}$"
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "canClose": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "poll",
+                    "closed",
+                    "rev",
+                    "mine",
+                    "total",
+                    "counts",
+                    "voters",
+                    "correctOptionIds",
+                    "canClose"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "choices": {
+                    "maxItems": 10,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9_-]{1,16}$"
+                    }
+                  },
+                  "anonymous": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "choices"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/polls/{id}/close": {
+      "post": {
+        "tags": [
+          "messages"
+        ],
+        "summary": "Idempotently close an authored poll and reveal quiz answers.",
+        "operationId": "postV1PollsIdClose",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "poll": {
+                      "type": "object",
+                      "properties": {
+                        "version": {
+                          "default": 1,
+                          "type": "number",
+                          "const": 1
+                        },
+                        "question": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 300
+                        },
+                        "options": {
+                          "minItems": 2,
+                          "maxItems": 10,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9_-]{1,16}$"
+                              },
+                              "text": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 100
+                              },
+                              "emoji": {
+                                "type": "string",
+                                "maxLength": 16
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "text"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "multi": {
+                          "default": false,
+                          "type": "boolean"
+                        },
+                        "endsAt": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "quiz": {
+                          "default": false,
+                          "type": "boolean"
+                        },
+                        "reveal": {
+                          "default": "after_close",
+                          "type": "string",
+                          "const": "after_close"
+                        }
+                      },
+                      "required": [
+                        "version",
+                        "question",
+                        "options",
+                        "multi",
+                        "quiz",
+                        "reveal"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "closed": {
+                      "type": "boolean"
+                    },
+                    "rev": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "mine": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "choices": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9_-]{1,16}$"
+                              }
+                            },
+                            "anonymous": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "choices",
+                            "anonymous"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "counts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9_-]{1,16}$"
+                          },
+                          "votes": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "votes"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "voters": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "userId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "choices": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "pattern": "^[A-Za-z0-9_-]{1,16}$"
+                            }
+                          }
+                        },
+                        "required": [
+                          "userId",
+                          "choices"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "correctOptionIds": {
+                      "anyOf": [
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9_-]{1,16}$"
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "canClose": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "poll",
+                    "closed",
+                    "rev",
+                    "mine",
+                    "total",
+                    "counts",
+                    "voters",
+                    "correctOptionIds",
+                    "canClose"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/threads/{id}": {
+      "get": {
+        "tags": [
+          "messages"
+        ],
+        "summary": "Community thread authority, lifecycle and this account's follow preference.",
+        "operationId": "getV1ThreadsId",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rootId": {
+                      "type": "string"
+                    },
+                    "conversationId": {
+                      "type": "string"
+                    },
+                    "authorId": {
+                      "type": "string"
+                    },
+                    "rev": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "deletesParent": {
+                      "type": "boolean"
+                    },
+                    "closed": {
+                      "type": "boolean"
+                    },
+                    "locked": {
+                      "type": "boolean"
+                    },
+                    "deleting": {
+                      "type": "boolean"
+                    },
+                    "deleted": {
+                      "type": "boolean"
+                    },
+                    "deletionError": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "access_changed",
+                            "retry_required"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "deletedReplies": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "canReply": {
+                      "type": "boolean"
+                    },
+                    "canClose": {
+                      "type": "boolean"
+                    },
+                    "canLock": {
+                      "type": "boolean"
+                    },
+                    "canDelete": {
+                      "type": "boolean"
+                    },
+                    "following": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "rootId",
+                    "conversationId",
+                    "authorId",
+                    "rev",
+                    "deletesParent",
+                    "closed",
+                    "locked",
+                    "deleting",
+                    "deleted",
+                    "deletionError",
+                    "deletedReplies",
+                    "canReply",
+                    "canClose",
+                    "canLock",
+                    "canDelete",
+                    "following"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "messages"
+        ],
+        "summary": "Root authors close/reopen; channel thread managers may also lock/unlock. Stale writes are rejected.",
+        "operationId": "patchV1ThreadsId",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rootId": {
+                      "type": "string"
+                    },
+                    "conversationId": {
+                      "type": "string"
+                    },
+                    "authorId": {
+                      "type": "string"
+                    },
+                    "rev": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "deletesParent": {
+                      "type": "boolean"
+                    },
+                    "closed": {
+                      "type": "boolean"
+                    },
+                    "locked": {
+                      "type": "boolean"
+                    },
+                    "deleting": {
+                      "type": "boolean"
+                    },
+                    "deleted": {
+                      "type": "boolean"
+                    },
+                    "deletionError": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "access_changed",
+                            "retry_required"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "deletedReplies": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "canReply": {
+                      "type": "boolean"
+                    },
+                    "canClose": {
+                      "type": "boolean"
+                    },
+                    "canLock": {
+                      "type": "boolean"
+                    },
+                    "canDelete": {
+                      "type": "boolean"
+                    },
+                    "following": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "rootId",
+                    "conversationId",
+                    "authorId",
+                    "rev",
+                    "deletesParent",
+                    "closed",
+                    "locked",
+                    "deleting",
+                    "deleted",
+                    "deletionError",
+                    "deletedReplies",
+                    "canReply",
+                    "canClose",
+                    "canLock",
+                    "canDelete",
+                    "following"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, stale_revision, conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "baseRev": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "closed": {
+                    "type": "boolean"
+                  },
+                  "locked": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "baseRev"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/threads/{id}/delete": {
+      "post": {
+        "tags": [
+          "messages"
+        ],
+        "summary": "Begin or resume bounded durable deletion of a community thread. Text parents remain; forum parents are deleted last.",
+        "operationId": "postV1ThreadsIdDelete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rootId": {
+                      "type": "string"
+                    },
+                    "conversationId": {
+                      "type": "string"
+                    },
+                    "authorId": {
+                      "type": "string"
+                    },
+                    "rev": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "deletesParent": {
+                      "type": "boolean"
+                    },
+                    "closed": {
+                      "type": "boolean"
+                    },
+                    "locked": {
+                      "type": "boolean"
+                    },
+                    "deleting": {
+                      "type": "boolean"
+                    },
+                    "deleted": {
+                      "type": "boolean"
+                    },
+                    "deletionError": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "access_changed",
+                            "retry_required"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "deletedReplies": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "canReply": {
+                      "type": "boolean"
+                    },
+                    "canClose": {
+                      "type": "boolean"
+                    },
+                    "canLock": {
+                      "type": "boolean"
+                    },
+                    "canDelete": {
+                      "type": "boolean"
+                    },
+                    "following": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "rootId",
+                    "conversationId",
+                    "authorId",
+                    "rev",
+                    "deletesParent",
+                    "closed",
+                    "locked",
+                    "deleting",
+                    "deleted",
+                    "deletionError",
+                    "deletedReplies",
+                    "canReply",
+                    "canClose",
+                    "canLock",
+                    "canDelete",
+                    "following"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, stale_revision",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "baseRev": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "deleteParent": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "baseRev",
+                  "deleteParent"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/threads/{id}/follow": {
+      "put": {
+        "tags": [
+          "messages"
+        ],
+        "summary": "Account-synced follow or explicit opt-out, without changing channel membership.",
+        "operationId": "putV1ThreadsIdFollow",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rootId": {
+                      "type": "string"
+                    },
+                    "following": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "rootId",
+                    "following"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "following": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "following"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/thread-preferences": {
+      "get": {
+        "tags": [
+          "messages"
+        ],
+        "summary": "Only this account's currently authorized thread preferences.",
+        "operationId": "getV1MeThreadPreferences",
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "nextAfter": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "preferences": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "rootId": {
+                            "type": "string"
+                          },
+                          "conversationId": {
+                            "type": "string"
+                          },
+                          "following": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "rootId",
+                          "conversationId",
+                          "following"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "nextAfter",
+                    "preferences"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
       }
     },
     "/v3/auth/legacy-link": {

@@ -1,3 +1,16 @@
+import {
+  prepareManagedPoll,
+  reserveManagedPoll,
+  validateLegacyPollControl,
+  settlePollDeletion,
+} from "./managedPolls.js";
+import {
+  admitThreadReply,
+  verifyThreadDeletionGrant,
+  withThreadLock,
+  settleThreadRootDeletion,
+} from "./threadManagement.js";
+import { threadRootOf } from "./store/messageStore.js";
 import { admitForumMetadata } from "./forumPolicy.js";
 import {
   messageAttachments,
@@ -71,6 +84,8 @@ export interface Sender {
    * may put embeds, buttons and webhook details in a payload.
    */
   channelGrant?: string;
+  /** Internal, scoped cleanup only; never read from request bodies. */
+  threadGrant?: string;
 }
 
 /**
@@ -88,25 +103,44 @@ export async function sendServerMessage(
 ): Promise<{ messageId: string; serverTs: number; duplicate: boolean }> {
   const { userId, deviceId } = sender;
   const relayDevice = deviceId ?? `bot-${userId}`;
-  const payload = JSON.stringify(m.payload);
-  if (Buffer.byteLength(payload) > MAX_PAYLOAD_BYTES)
+  const inputPayload = JSON.stringify(m.payload);
+  if (Buffer.byteLength(inputPayload) > MAX_PAYLOAD_BYTES)
     throw new ApiError(413, "message_too_long", "That message is too large");
+  const managedPoll = prepareManagedPoll(m);
+  const payload = JSON.stringify(m.payload);
   const granted = sender.channelGrant !== undefined;
   if (!granted) refusePostingTools(m.payload);
-  const conv = granted
-    ? admitGranted(
-        ctx,
-        m.conversationId,
-        sender.channelGrant!,
-        m.cls,
-        m.payload.type,
-      )
-    : admitConversation(ctx, userId, m.conversationId, m.cls, {
-        type: m.payload.type,
-        bot: deviceId === null,
-      });
+  const deletion = sender.threadGrant
+    ? m.cls === "control" &&
+      m.payload.type === "delete" &&
+      typeof m.payload.target === "string"
+      ? await verifyThreadDeletionGrant(
+          ctx,
+          m.conversationId,
+          sender.threadGrant,
+          m.payload.target,
+          userId,
+        )
+      : (() => {
+          throw badRequest("A thread grant only deletes its own messages");
+        })()
+    : null;
+  const conv =
+    deletion ??
+    (granted
+      ? admitGranted(
+          ctx,
+          m.conversationId,
+          sender.channelGrant!,
+          m.cls,
+          m.payload.type,
+        )
+      : admitConversation(ctx, userId, m.conversationId, m.cls, {
+          type: m.payload.type,
+          bot: deviceId === null,
+        }));
   // A webhook isn't a member: the community's lock and verification level are for people (community parity A2).
-  if (!granted)
+  if (!granted && !deletion)
     await admitCommunity(ctx, conv, userId, m.cls, {
       type: m.payload.type,
       bot: deviceId === null,
@@ -149,6 +183,14 @@ export async function sendServerMessage(
         log.warn({ err }, "attachment publication retry failed"),
       );
     }
+    const accepted: SendMessage = {
+      ...m,
+      cls: prior.cls,
+      audience: prior.audience === "self" ? "self" : undefined,
+      payload: JSON.parse(prior.payload) as SendMessage["payload"],
+    };
+    await settlePollDeletion(ctx, accepted);
+    await settleThreadRootDeletion(ctx, accepted);
     return {
       messageId: m.messageId,
       serverTs: prior.server_ts,
@@ -165,7 +207,20 @@ export async function sendServerMessage(
     if (earlier) return earlier;
   }
   let committed = false;
+  const controlTarget =
+    m.cls === "control" &&
+    ["edit", "vote"].includes(type) &&
+    typeof m.payload.target === "string"
+      ? await ctx.messages.get(m.payload.target)
+      : null;
+  const lifecycleRoot =
+    m.cls === "message" && typeof m.payload.threadRoot === "string"
+      ? m.payload.threadRoot
+      : controlTarget
+        ? threadRootOf(controlTarget)
+        : null;
   const submit = async () => {
+    if (lifecycleRoot) await admitThreadReply(ctx, conv, userId, lifecycleRoot);
     if (m.cls === "message")
       await admitForumMetadata(ctx, conv, userId, m.payload);
 
@@ -184,8 +239,18 @@ export async function sendServerMessage(
     // Community parity A1: a channel's moderators also delete other people's messages.
     const target =
       typeof m.payload.target === "string" ? m.payload.target : null;
+    if (
+      m.cls === "control" &&
+      target &&
+      ["edit", "vote", "poll_close"].includes(type) &&
+      ctx.ws.get("managed_polls", {
+        message_id: target,
+        conversation_id: conv.id,
+      })
+    )
+      throw badRequest("Use the managed poll controls in a current app");
     if (m.cls === "control" && target && AUTHOR_ONLY.has(type)) {
-      const t = await ctx.messages.get(target);
+      const t = controlTarget ?? (await ctx.messages.get(target));
       if (!t || t.conversation_id !== conv.id)
         throw new ApiError(
           404,
@@ -194,7 +259,10 @@ export async function sendServerMessage(
         );
       if (
         t.sender_user_id !== userId &&
-        !(type === "delete" && moderatesMessage(ctx, conv, userId, t))
+        !(
+          type === "delete" &&
+          (deletion || moderatesMessage(ctx, conv, userId, t))
+        )
       ) {
         throw new ApiError(
           403,
@@ -205,23 +273,36 @@ export async function sendServerMessage(
       if (type === "edit")
         await admitForumMetadata(ctx, conv, userId, m.payload, t);
     }
+    await validateLegacyPollControl(ctx, m, userId);
     if (m.cls === "message" && target)
       throw badRequest("A message can't target another one");
     // Community parity A1: what a message may carry in this channel (links, polls, threads, new reactions, pins...). A
     // webhook's post was checked by the webhook's own limits instead.
-    if (!granted) await admitChannelContent(ctx, conv, userId, m);
+    if (!granted && !deletion) await admitChannelContent(ctx, conv, userId, m);
 
-    const { request, quietFor, dropFor, mentionAll } = await admitPost(
-      ctx,
-      conv,
-      userId,
-      m.cls,
-      m.mentionAll === true,
-    );
+    const { request, quietFor, dropFor, mentionAll } = deletion
+      ? {
+          request: null,
+          quietFor: new Set<string>(),
+          dropFor: new Set<string>(),
+          mentionAll: false,
+        }
+      : await admitPost(ctx, conv, userId, m.cls, m.mentionAll === true);
+    if (m.cls === "message" && lifecycleRoot) {
+      const mentions = Array.isArray(m.payload.mentions)
+        ? m.payload.mentions
+        : [];
+      for (const pref of ctx.ws.all<{ user_id: string }>("thread_preferences", {
+        where: { root_id: lifecycleRoot, following: 0 },
+      })) {
+        if (!mentions.includes(pref.user_id)) quietFor.add(pref.user_id);
+      }
+    }
     const selfOnly = m.audience === "self";
     if (selfOnly && m.cls !== "control")
       throw badRequest("Only controls can be sent to your own devices alone");
 
+    if (managedPoll) await reserveManagedPoll(ctx, m, userId, managedPoll);
     const t = now();
     const event: MessageEvent = {
       id: m.messageId,
@@ -374,10 +455,14 @@ export async function sendServerMessage(
         })
         .catch((err) => log.warn({ err }, "points: message not counted"));
     }
+    await settlePollDeletion(ctx, m);
+    await settleThreadRootDeletion(ctx, m);
     return { messageId: m.messageId, serverTs: t, duplicate: false };
   };
   try {
-    return await submit();
+    return lifecycleRoot
+      ? await withThreadLock(ctx, lifecycleRoot, submit)
+      : await submit();
   } catch (err) {
     if (
       atomicRelay &&

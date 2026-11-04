@@ -7,7 +7,7 @@ import type {
   RowWriter,
 } from "../../infrastructure/database/rows/index.js";
 import { compareText } from "../../shared/utilities/sqlText.js";
-import { conversationPeers } from "../messaging/index.js";
+import { erasePrivateMessagingState, conversationPeers } from "../messaging/index.js";
 import { photoBlobId } from "./photos.js";
 import { processBlobDeletes, queueBlobDelete } from "../files/routes.js";
 import { revokeDevices } from "../auth/routes.js";
@@ -161,7 +161,7 @@ export async function eraseAccount(
   await ctx.identity.write((w) =>
     w.delete("profile_collectible_uploads", { actor_id: account.id }),
   );
-  if(userId)await eraseOperationalUserData(ctx,userId,account.id);
+  if (userId) await eraseOperationalUserData(ctx, userId, account.id);
   await accounts.store.deleteAccount(account.id);
   // Counts only: the email, username and profile are gone, and the audit log mustn't keep them.
   ctx.audit({
@@ -201,6 +201,9 @@ async function eraseIdentity(
   t: number,
 ): Promise<AccountDeletionResult> {
   const { ws } = ctx;
+  await ws.write((w) => {
+    erasePrivateMessagingState(w,userId);
+  });
   const orgs = ws
     .all<{ org_id: string }>("org_members", { where: { user_id: userId } })
     .map((m) => m.org_id);
@@ -314,7 +317,7 @@ async function eraseIdentity(
     w.delete("profile_collectible_inventory", { user_id: userId });
     w.delete("profile_collectible_transactions", { user_id: userId });
   });
-  await eraseOperationalUserData(ctx,userId);
+  await eraseOperationalUserData(ctx, userId);
   await deleteHistoryAfterCommit(ctx, userId, "account deleted");
 
   ctx.hub.disconnectUser(userId, "account deleted");

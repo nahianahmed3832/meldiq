@@ -61,3 +61,11 @@ export { REPORT_RETENTION_MS } from "./reports/routes.js";
 export { notifyOrg } from "./orgsRoutes.js";
 export { applyOwnershipApproval } from "./ownershipApprovals.js";
 export { partnerView, type PartnerRow } from "./partnerApplications.js";
+
+export { readCommunityImage } from "./communityImages.js";
+export { auditChanges } from "./adminChanges.js";
+export { writeChannelOptions } from "./communityPermissions/channelSettings.js";
+export {
+  listPartnerApplications,
+  reviewPartnerApplication,
+} from "./partnerApplications.js";

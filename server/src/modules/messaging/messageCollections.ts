@@ -435,6 +435,29 @@ async function changes(
   return pageChanges(targeted, reads);
 }
 
+/** Reuses the same authorized native page (including tombstones) for bounded administrative thread cleanup. */
+export async function authorizedCollectionPage(
+  ctx: AppContext,
+  cid: string,
+  userId: string,
+  q: CollectionQuery,
+) {
+  const conv = ctx.authz.requireMember(cid, userId),
+    since = ctx.authz.historySince(conv, userId);
+  if (q.kind === "forum" && (conv.format !== "forum" || conv.voice))
+    throw badRequest("This is not a forum channel");
+  if (q.kind === "forum") await metadataReady(ctx);
+  const page =
+    q.kind === "forum"
+      ? await forumPage(ctx, cid, userId, since, q)
+      : ctx.postgres
+        ? await postgresCollectionPage(ctx, cid, userId, since, q)
+        : ctx.messages.backend === "mongodb"
+          ? await mongoPage(ctx, cid, userId, since, q)
+          : sqlitePage(ctx, cid, userId, since, q);
+  return { page, historySince: since };
+}
+
 export default async function messageCollections(
   app: FastifyInstance,
   ctx: AppContext,

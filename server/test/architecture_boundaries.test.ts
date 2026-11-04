@@ -21,7 +21,8 @@ import { describe, expect, it } from "vitest";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SRC = path.resolve(here, "..", "src");
 const ALLOWLIST = path.join(here, "architecture_boundaries.allowlist.json");
-const SPEC = /(?:\bfrom\s*["']|\bimport\s*\(\s*["']|\bimport\s+["'])(\.{1,2}\/[^"']+)["']/g;
+const SPEC =
+  /(?:\bfrom\s*["']|\bimport\s*\(\s*["']|\bimport\s+["'])(\.{1,2}\/[^"']+)["']/g;
 
 const walk = (dir: string): string[] =>
   fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
@@ -30,11 +31,14 @@ const walk = (dir: string): string[] =>
     return p.endsWith(".ts") ? [p] : [];
   });
 
-type Area = { kind: "shared" | "infrastructure" | "app" | "entry" } | { kind: "module"; name: string };
+type Area =
+  | { kind: "shared" | "infrastructure" | "app" | "entry" }
+  | { kind: "module"; name: string };
 
 function areaOf(rel: string): Area {
   const [top, second] = rel.split("/");
-  if (top === "shared" || top === "infrastructure" || top === "app") return { kind: top };
+  if (top === "shared" || top === "infrastructure" || top === "app")
+    return { kind: top };
   if (top === "modules" && second) return { kind: "module", name: second };
   return { kind: "entry" };
 }
@@ -61,7 +65,9 @@ function currentViolations(): string[] {
   for (const file of walk(SRC)) {
     const from = path.relative(SRC, file).split(path.sep).join("/");
     for (const m of fs.readFileSync(file, "utf8").matchAll(SPEC)) {
-      const target = path.resolve(path.dirname(file), m[1]!).replace(/\.js$/, ".ts");
+      const target = path
+        .resolve(path.dirname(file), m[1]!)
+        .replace(/\.js$/, ".ts");
       if (!target.startsWith(SRC + path.sep)) continue;
       const to = path.relative(SRC, target).split(path.sep).join("/");
       if (violates(from, to)) found.add(`${from} -> ${to}`);
@@ -75,8 +81,14 @@ function currentViolations(): string[] {
  * modules belong to administration, which keeps them for `admin retired-data`.
  */
 const TABLE_OWNERS: Readonly<Record<string, string>> = {
-  ...owned("billing", "spark_purchases billing_card_setups billing_payment_methods billing_card_mandates billing_card_charges billing_card_charge_attempts billing_commerce_orders billing_promotion_settings billing_promotion_state billing_promotion_events billing_coupons billing_coupon_uses mojo_gift_deliveries billing_notification_jobs mojo_gift_credits billing_promotions billing_promotion_redemptions collectible_orders"),
-  ...owned("platformAdmin","platform_notices platform_notice_receipts platform_appeals platform_ownership_requests platform_appeal_challenges"),
+  ...owned(
+    "billing",
+    "spark_purchases billing_card_setups billing_payment_methods billing_card_mandates billing_card_charges billing_card_charge_attempts billing_commerce_orders billing_promotion_settings billing_promotion_state billing_promotion_events billing_coupons billing_coupon_uses mojo_gift_deliveries billing_notification_jobs mojo_gift_credits billing_promotions billing_promotion_redemptions collectible_orders",
+  ),
+  ...owned(
+    "platformAdmin",
+    "platform_notices platform_notice_receipts platform_appeals platform_ownership_requests platform_appeal_challenges",
+  ),
   ...owned("auth", "auth_challenges sessions pairing_requests"),
   ...owned(
     "accounts",
@@ -89,7 +101,7 @@ const TABLE_OWNERS: Readonly<Record<string, string>> = {
   ...owned(
     "organizations",
     "orgs org_members org_roles org_role_members channel_categories channel_overwrites org_bans invitations audit_log " +
-      "join_applications community_expressions community_onboarding onboarding_answers community_migration_runs " +
+      "org_partner_applications join_applications community_expressions community_onboarding onboarding_answers community_migration_runs " +
       "org_deletions reports branches branch_members departments teams team_members " +
       "discord_oauth_states discord_connections discord_imports discord_import_items " +
       // Community parity A1 (migration 069).
@@ -104,12 +116,27 @@ const TABLE_OWNERS: Readonly<Record<string, string>> = {
       "community_discovery community_templates bot_listings discovery_boosts promoted_bookings discovery_visits discovery_clicks",
   ),
   // Community parity batch D, official bots (migration 074, then 076 for giveaways, alerts and Wordy).
-  ...owned("officialBots", "bot_runtime_events official_bots official_bots_plus bot_levels bot_afk bot_starboard bot_giveaways bot_alert_watches bot_wordy_games bot_wordy_stats bot_wordy_recaps"),
+  ...owned(
+    "officialBots",
+    "bot_runtime_events official_bots official_bots_plus bot_levels bot_afk bot_starboard bot_giveaways bot_alert_watches bot_wordy_games bot_wordy_stats bot_wordy_recaps",
+  ),
   // Community parity A3 (migration 071).
-  ...owned("organizations", "community_settings community_vanity_invites community_standard_invites onboarding_completions"),
-  ...owned("messaging", "conversations conversation_members mention_all_events delivery_queue delivery_queue_rebuilt submitted_messages history_accounts history_items message_events"),
-  ...owned("files", "attachments attachment_uploads abandoned_uploads pending_blob_deletes"),
-  ...owned("calls", "calls call_participants call_hands meetings meeting_participants"),
+  ...owned(
+    "organizations",
+    "community_settings community_vanity_invites community_standard_invites onboarding_completions",
+  ),
+  ...owned(
+    "messaging",
+    "managed_polls managed_poll_votes message_threads thread_preferences conversations conversation_members mention_all_events delivery_queue delivery_queue_rebuilt submitted_messages history_accounts history_items message_events",
+  ),
+  ...owned(
+    "files",
+    "attachments attachment_uploads abandoned_uploads pending_blob_deletes",
+  ),
+  ...owned(
+    "calls",
+    "calls call_participants call_hands meetings meeting_participants",
+  ),
   ...owned("notifications", "push_endpoints fcm_tokens"),
   ...owned(
     "administration",
@@ -119,7 +146,10 @@ const TABLE_OWNERS: Readonly<Record<string, string>> = {
       "integration_channel_events integration_credentials integration_deliveries integration_hooks integration_installs " +
       "integration_jobs integration_oauth_states integration_policies integration_subscriptions",
   ),
-  ...owned("federation", "federation_blocks federation_domains federation_inbox federation_nonces federation_outbox federation_peers"),
+  ...owned(
+    "federation",
+    "federation_blocks federation_domains federation_inbox federation_nonces federation_outbox federation_peers",
+  ),
   // The Platform Admin Console (migration 046).
   ...owned(
     "platformAdmin",
@@ -128,7 +158,10 @@ const TABLE_OWNERS: Readonly<Record<string, string>> = {
       "platform_restrictions",
   ),
   // Platform Admin 2.0 (migration 048).
-  ...owned("telemetry", "activity_daily telemetry_epochs traffic_user_daily presence_samples presence_hourly resource_samples resource_hourly session_clients"),
+  ...owned(
+    "telemetry",
+    "activity_daily telemetry_epochs traffic_user_daily presence_samples presence_hourly resource_samples resource_hourly session_clients",
+  ),
   // Billing (migration 061).
   ...owned(
     "billing",
@@ -140,8 +173,14 @@ const TABLE_OWNERS: Readonly<Record<string, string>> = {
       // Migration 067: Mojo run from the console.
       "billing_program mojo_controls billing_grant_notes",
   ),
-  ...owned("quotas", "quota_plans quota_plan_members quota_policies quota_counters quota_reservations quota_events"),
-  ...owned("ai", "ai_providers ai_models ai_usage ai_model_capabilities ai_routing"),
+  ...owned(
+    "quotas",
+    "quota_plans quota_plan_members quota_policies quota_counters quota_reservations quota_events",
+  ),
+  ...owned(
+    "ai",
+    "ai_providers ai_models ai_usage ai_model_capabilities ai_routing",
+  ),
   // AI Workforce 1.0 (migration 049).
   ...owned(
     "workforce",
@@ -165,7 +204,11 @@ const TABLE_REF =
 /** Where any table may be touched: wiring, entrypoints, and the database tools that copy every table. */
 function mayTouchAnyTable(rel: string): boolean {
   const area = areaOf(rel);
-  return area.kind === "app" || area.kind === "entry" || rel.startsWith("infrastructure/database/");
+  return (
+    area.kind === "app" ||
+    area.kind === "entry" ||
+    rel.startsWith("infrastructure/database/")
+  );
 }
 
 function currentTableViolations(): string[] {
@@ -187,12 +230,18 @@ function currentTableViolations(): string[] {
 const TABLE_ALLOWLIST = path.join(here, "architecture_tables.allowlist.json");
 
 function checkAgainst(file: string, now: string[], what: string): void {
-  if (process.env.MELDIQ_WRITE_BOUNDARY_ALLOWLIST === "1") fs.writeFileSync(file, `${JSON.stringify(now, null, 2)}\n`);
-  const allowed = new Set<string>(JSON.parse(fs.readFileSync(file, "utf8")) as string[]);
+  if (process.env.MELDIQ_WRITE_BOUNDARY_ALLOWLIST === "1")
+    fs.writeFileSync(file, `${JSON.stringify(now, null, 2)}\n`);
+  const allowed = new Set<string>(
+    JSON.parse(fs.readFileSync(file, "utf8")) as string[],
+  );
   const added = now.filter((v) => !allowed.has(v));
   const gone = [...allowed].filter((v) => !now.includes(v));
   expect(added, `new ${what} that break the ownership rules`).toEqual([]);
-  expect(gone, `allowlisted ${what} that no longer exist: remove them from the allowlist`).toEqual([]);
+  expect(
+    gone,
+    `allowlisted ${what} that no longer exist: remove them from the allowlist`,
+  ).toEqual([]);
 }
 
 describe("architecture boundaries", () => {
@@ -208,7 +257,11 @@ describe("architecture boundaries", () => {
     const migrations = path.resolve(here, "..", "migrations");
     const created = fs
       .readdirSync(migrations)
-      .flatMap((f) => [...fs.readFileSync(path.join(migrations, f), "utf8").matchAll(/CREATE TABLE (?:IF NOT EXISTS )?([a-z_]+)/g)])
+      .flatMap((f) => [
+        ...fs
+          .readFileSync(path.join(migrations, f), "utf8")
+          .matchAll(/CREATE TABLE (?:IF NOT EXISTS )?([a-z_]+)/g),
+      ])
       .map((m) => m[1]!);
     expect(created.filter((t) => !TABLE_OWNERS[t])).toEqual([]);
   });

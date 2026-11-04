@@ -26,6 +26,8 @@ import { bugReportRoutes } from "./bugReports.js";
 import { historyRoutes } from "./history.js";
 import { messagingRoutes } from "./messaging.js";
 import { serverMessagesRoutes } from "./serverMessages.js";
+import { threadLifecycleContracts } from "./threadLifecycle.js";
+import { managedPollContracts } from "./managedPolls.js";
 import { partnerContracts } from "./partners.js";
 import { systemRoutes } from "./system.js";
 import { creatorRoutes } from "./creators.js";
@@ -46,6 +48,8 @@ export const ErrorEnvelope = z.strictObject({
 /** The documented routes. Routes not listed yet are still checked for the error envelope by the test suite. */
 export const ROUTE_CONTRACTS: readonly RouteContract[] = [
   ...partnerContracts,
+  ...managedPollContracts,
+  ...threadLifecycleContracts,
   ...supabaseAuthRoutes,
   ...collectibleRoutes,
   ...paymentMethodRoutes,

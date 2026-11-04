@@ -749,6 +749,97 @@
           "properties": {
             "t": {
               "type": "string",
+              "const": "thread.updated"
+            },
+            "conversationId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "rootId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "rev": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "t",
+            "conversationId",
+            "rootId",
+            "rev"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "t": {
+              "type": "string",
+              "const": "thread.preference"
+            },
+            "conversationId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "rootId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "following": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "t",
+            "conversationId",
+            "rootId",
+            "following"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "t": {
+              "type": "string",
+              "const": "poll.updated"
+            },
+            "conversationId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "messageId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "rev": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "t",
+            "conversationId",
+            "messageId",
+            "rev"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "t": {
+              "type": "string",
               "const": "conv.updated"
             },
             "conversationId": {
