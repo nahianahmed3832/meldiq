@@ -408,6 +408,22 @@ export class BotPermissions {
     );
   }
 
+  /** Seed only absent denial records; a removed/rotated credential must never be resurrected. */
+  async ensureCredentials(bot: Bot) {
+    const peers = await this.bots.store.botsOf(bot.ownerId);
+    await this.bots.ctx.ws.write((w) => {
+      for (const peer of peers) if (!w.get("bot_credential_revisions", { bot_id: peer.id }))
+        w.insert("bot_credential_revisions", { bot_id: peer.id, owner_id: peer.ownerId, token_hash: peer.tokenHash, created_at: peer.createdAt, active: 1 });
+    });
+  }
+  currentCredential(botId: string, tokenHash: string): boolean {
+    const { ctx } = this.bots;
+    const row = ctx.ws.get<CredentialRevision>("bot_credential_revisions", { bot_id: botId });
+    if (!row?.active || row.token_hash !== tokenHash || ctx.accounts.identityBlocked(botId)) return false;
+    const limits = ctx.mojo.limitsOf(row.owner_id);
+    return !limits || ctx.ws.all<CredentialRevision>("bot_credential_revisions", { where: { owner_id: row.owner_id, active: 1 }, orderBy: [["created_at", "asc"], ["bot_id", "asc"]], limit: limits.bots }).some((peer) => peer.bot_id === botId);
+  }
+
   revisionKey(orgId: string, botId: string): string {
     const row = this.bots.ctx.ws.get<Approved>("bot_installation_permissions", {
       org_id: orgId,

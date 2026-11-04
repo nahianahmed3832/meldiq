@@ -28,6 +28,7 @@ import { BotPermissions } from "./permissions.js";
 import { BotEvents } from "./events.js";
 import { BotMessages } from "./messages.js";
 import { BotDirectMessages } from "./directMessages.js";
+import { BotComponents } from "./components.js";
 
 /** Bot tokens: "mqb_" and 43 base64url characters. */
 export const BOT_TOKEN_PREFIX = "mqb";
@@ -71,6 +72,7 @@ export class BotService {
   readonly events = new BotEvents(this);
   readonly messages = new BotMessages(this);
   readonly directMessages = new BotDirectMessages(this);
+  readonly components = new BotComponents(this);
 
   constructor(
     readonly ctx: AppContext,

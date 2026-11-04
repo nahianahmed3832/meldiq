@@ -19,7 +19,7 @@ interface InteractionDoc {
   _id: string;
   bot_id: string;
   user_id: string;
-  org_id: string;
+  org_id: string | null;
   conversation_id: string;
   command: string;
   options: Record<string, OptionValue>;
@@ -106,7 +106,8 @@ export class MongoBotStore implements BotStore {
     await this.interactions.deleteMany({ bot_id: id });
   }
 
-  async addInteraction(i: Interaction): Promise<void> {
+  async addInteraction(i: Interaction, admit?: () => void): Promise<void> {
+    admit?.();
     await this.interactions.insertOne({
       _id: i.id,
       bot_id: i.botId,
@@ -158,6 +159,9 @@ export class MongoBotStore implements BotStore {
 
   async deleteInteractionsOf(userId: string): Promise<void> {
     await this.interactions.deleteMany({ user_id: userId });
+  }
+  async deleteInteractionsBetween(botId: string, userId: string): Promise<void> {
+    await this.interactions.deleteMany({ bot_id: botId, user_id: userId });
   }
 
   async purgeExpired(at: number): Promise<number> {

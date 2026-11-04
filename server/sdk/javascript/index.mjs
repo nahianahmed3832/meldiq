@@ -97,22 +97,54 @@ export class MeldiqBot {
     });
     return this.request("GET", `/v2/bot/events?${query}`, { signal });
   }
-  send(channelId, content, { messageId, replyTo, signal } = {}) {
+  send(
+    channelId,
+    content,
+    {
+      messageId,
+      replyTo,
+      embeds,
+      buttons,
+      components,
+      componentsTtlSeconds,
+      signal,
+    } = {},
+  ) {
     return this.request("POST", `/v2/bot/channels/${enc(channelId)}/messages`, {
       body: {
         content,
         ...(messageId ? { messageId } : {}),
         ...(replyTo ? { replyTo } : {}),
+        ...(embeds ? { embeds } : {}),
+        ...(buttons ? { buttons } : {}),
+        ...(components ? { components } : {}),
+        ...(componentsTtlSeconds !== undefined ? { componentsTtlSeconds } : {}),
       },
       signal,
     });
   }
-  sendDirect(userId, content, { messageId, replyTo, signal } = {}) {
+  sendDirect(
+    userId,
+    content,
+    {
+      messageId,
+      replyTo,
+      embeds,
+      buttons,
+      components,
+      componentsTtlSeconds,
+      signal,
+    } = {},
+  ) {
     return this.request("POST", `/v2/bot/users/${enc(userId)}/dm`, {
       body: {
         content,
         ...(messageId ? { messageId } : {}),
         ...(replyTo ? { replyTo } : {}),
+        ...(embeds ? { embeds } : {}),
+        ...(buttons ? { buttons } : {}),
+        ...(components ? { components } : {}),
+        ...(componentsTtlSeconds !== undefined ? { componentsTtlSeconds } : {}),
       },
       signal,
     });

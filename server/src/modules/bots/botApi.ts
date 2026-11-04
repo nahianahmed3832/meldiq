@@ -72,7 +72,7 @@ export class BotApi {
   }
 
   /** Community messages retain native role checks; personal messages additionally require recipient consent. */
-  send(
+  async send(
     bot: Bot,
     channelId: string,
     body: z.infer<typeof BotMessageBody>,
@@ -82,14 +82,17 @@ export class BotApi {
     if (!conv || !["CHANNEL", "DM"].includes(conv.type))
       throw notFound("Conversation not found");
     if (conv.type === "DM") this.bots.directMessages.require(bot, conv.id);
+    if (body.embeds?.length || body.buttons?.length || body.components?.length) await this.bots.permissions.ensureCredentials(bot);
+    const rich = this.bots.components.rich(bot, conv.id, body);
     const payload = {
       type: "text",
       text: body.content,
       ...(body.replyTo ? { replyTo: body.replyTo } : {}),
+      ...rich,
     };
     return sendServerMessage(
       this.bots.ctx,
-      { userId: bot.id, deviceId: null },
+      { userId: bot.id, deviceId: null, ...(rich ? { botContent: true as const, beforeCommit: () => this.bots.components.admitPublish(bot, conv.id, payload) } : {}) },
       {
         conversationId: conv.id,
         messageId: body.messageId ?? newId("m"),

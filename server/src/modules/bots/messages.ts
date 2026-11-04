@@ -18,6 +18,7 @@ const MESSAGE_FIELDS = new Set([
   "tags",
   "embeds",
   "buttons",
+  "botComponents",
   "webhook",
   "textFromEmbeds",
   "giveaway",

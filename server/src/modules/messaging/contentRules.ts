@@ -1,4 +1,5 @@
 import type { AppContext } from "../../app/context.js";
+import { botRichText } from "../../shared/contracts/http/botComponents.js";
 import type { SendMessage } from "../../shared/contracts/http/serverMessages.js";
 import { ApiError, type ErrorCode } from "../../shared/errors.js";
 import { type MessageEvent, threadRootOf } from "./store/messageStore.js";
@@ -40,6 +41,8 @@ export interface Content {
   emojiOrgs: string[];
   threadRoot: string | null;
   roleMentions: string[];
+  /** Validated rich bot boxes, link buttons and interactive controls. */
+  rich?: boolean;
 }
 
 const obj = (v: unknown): Record<string, unknown> | null =>
@@ -55,8 +58,9 @@ export function readContent(p: Payload): Content {
     .map(obj)
     .flatMap((e) => (e && str(e.orgId) ? [str(e.orgId)!] : []));
   return {
-    text: str(p.text) ?? "",
+    text: p.embeds || p.buttons || p.botComponents ? botRichText(p) : str(p.text) ?? "",
     link: !!obj(p.link),
+    rich: list(p.embeds).length > 0 || list(p.buttons).length > 0 || !!obj(p.botComponents),
     poll: !!obj(p.poll) || !!obj(p.managedPoll),
     gifUrl: obj(p.gif) ? (str(obj(p.gif)!.url) ?? "") : null,
     sticker: !!obj(p.sticker) || !!obj(p.customSticker),
@@ -99,12 +103,12 @@ function optionRefusal(
   const gifLinks = linksIn(c.text, null).some(isGifLink);
   if (
     s.textOnly &&
-    ((isMessage && (c.attachments > 0 || c.gifUrl !== null || c.sticker)) ||
+    ((isMessage && (c.attachments > 0 || c.gifUrl !== null || c.sticker || c.rich)) ||
       gifLinks)
   ) {
     return no(
       "text_only_channel",
-      "This channel is for text only: no files, GIFs or stickers",
+      "This channel is for text only: no files, GIFs, stickers or rich bot controls",
     );
   }
   if (s.noGifs && (c.gifUrl !== null || gifLinks))
@@ -173,6 +177,16 @@ export function reactionsOn(changes: readonly MessageEvent[]): Set<string> {
 const refuse = (r: Refusal | null): void => {
   if (r) throw new ApiError(403, r.code, r.message);
 };
+
+/** Synchronous native content rules, also usable at a bot's final write boundary. */
+export function admitCurrentChannelContent(ctx: AppContext, conv: Conv, userId: string, p: Payload, isMessage: boolean): void {
+  if (!ctx.communityPermissions.enabled || conv.type !== "CHANNEL" || !conv.org_id) return;
+  const options = ctx.authz.channelOptions(conv);
+  const sender: Sender = { perms: ctx.authz.channelPermissions(conv, userId), orgId: conv.org_id, moderates: ctx.authz.moderatesMessages(conv, userId), textOnly: options.textOnly, noGifs: options.noGifs };
+  const content = readContent(p);
+  refuse(contentRefusal(content, sender, isMessage));
+  admitRoleMentions(ctx, conv, content.roleMentions, sender);
+}
 
 /** A new reaction needs `messages.react`; joining one already on the message doesn't. */
 async function admitReaction(
@@ -291,8 +305,7 @@ export async function admitChannelContent(
   const isMessage = m.cls === "message";
   if (isMessage || type === "edit") {
     const c = readContent(m.payload);
-    refuse(contentRefusal(c, s, isMessage));
-    admitRoleMentions(ctx, conv, c.roleMentions, s);
+    admitCurrentChannelContent(ctx, conv, userId, m.payload, isMessage);
     if (isMessage && c.threadRoot)
       await admitThread(ctx, conv, c.threadRoot, s);
     return;

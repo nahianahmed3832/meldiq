@@ -254,6 +254,7 @@ export const ServerEvent = z.discriminatedUnion("t", [
     botId: id,
     command: z.string(),
     content: z.string(),
+    componentLabel: z.string().max(80).optional(),
     at: time,
   }),
 ]);

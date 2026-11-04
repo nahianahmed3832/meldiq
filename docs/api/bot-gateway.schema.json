@@ -265,6 +265,7 @@
                     "voice_join",
                     "voice_leave",
                     "command",
+                    "interaction",
                     "test"
                   ]
                 },

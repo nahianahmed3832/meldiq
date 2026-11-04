@@ -154,11 +154,11 @@ export async function admitCommunity(
 }
 
 /** Payload fields only posting tools write (community parity batch C): what people's apps send never carries them. */
-const POSTING_TOOL_FIELDS = ["embeds", "buttons", "webhook"] as const;
+const POSTING_TOOL_FIELDS = ["embeds", "buttons", "webhook", "botComponents"] as const;
 
 /** Refuses a payload from a person or a bot that carries embeds, buttons or webhook details. */
-export function refusePostingTools(payload: Record<string, unknown>): void {
-  const field = POSTING_TOOL_FIELDS.find((f) => payload[f] !== undefined);
+export function refusePostingTools(payload: Record<string, unknown>, botContent = false): void {
+  const field = POSTING_TOOL_FIELDS.find((f) => payload[f] !== undefined && !(botContent && ["embeds", "buttons", "botComponents"].includes(f)));
   if (field)
     throw badRequest(
       `Only webhooks and the community's own posts can carry "${field}"`,

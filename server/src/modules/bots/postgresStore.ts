@@ -1,6 +1,9 @@
 import type { MeldiqPostgres } from "../../infrastructure/database/postgres/client.js";
 import { PostgresDocuments } from "../../infrastructure/database/postgres/documents.js";
 import type { AnswerOutcome, Bot, BotStore, Interaction } from "./store.js";
+import { MAX_PENDING_BOT_INTERACTIONS } from "../../shared/contracts/http/bots.js";
+import { ApiError } from "../../shared/errors.js";
+import { DuplicateDocument } from "../../infrastructure/database/documents.js";
 
 const decode = <T>(row: Record<string, unknown>): T => Object.fromEntries(Object.entries(row).map(([key, value]) => [key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase()), value])) as T;
 
@@ -23,7 +26,13 @@ export class PostgresBotStore implements BotStore {
     return this.bots.update(id, {}, patch);
   }
   async deleteBot(id: string): Promise<void> { await this.bots.take(id); }
-  async addInteraction(interaction: Interaction): Promise<void> { await this.interactions.insert(interaction); }
+  async addInteraction(interaction: Interaction, admit?: () => void): Promise<void> { await this.db.transaction(async () => {
+    await this.db.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`meldiq-bot-pending:${interaction.botId}`]);
+    if (await this.interactions.get(interaction.id)) throw new DuplicateDocument("Duplicate interaction");
+    if (await this.openCount(interaction.botId, interaction.createdAt) >= MAX_PENDING_BOT_INTERACTIONS) throw new ApiError(429, "rate_limited", "This bot has too many interactions waiting");
+    admit?.();
+    await this.interactions.insert(interaction);
+  }); }
   async openCount(botId: string, at: number): Promise<number> {
     return (await this.db.query<{count: number}>("SELECT count(*) AS count FROM meldiq.bot_interactions WHERE bot_id=$1 AND state<>'replied' AND expires_at>$2", [botId, at])).rows[0].count;
   }
@@ -43,7 +52,11 @@ export class PostgresBotStore implements BotStore {
   }
   async reopen(id: string): Promise<void> { await this.interactions.update(id, {}, {state: "delivered", repliedAt: null}); }
   async deleteInteractionsOf(userId: string): Promise<void> { await this.interactions.deleteMany({userId}); }
+  async deleteInteractionsBetween(botId: string, userId: string): Promise<void> { await this.db.transaction(async () => {
+    await this.db.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`meldiq-bot-pending:${botId}`]);
+    await this.interactions.deleteMany({botId, userId});
+  }); }
   async purgeExpired(at: number): Promise<number> {
-    return (await this.db.query("DELETE FROM meldiq.bot_interactions WHERE expires_at<=$1", [at])).rowCount ?? 0;
+    return (await this.db.query("DELETE FROM meldiq.bot_interactions WHERE id IN (SELECT id FROM meldiq.bot_interactions WHERE expires_at<=$1 ORDER BY expires_at,id LIMIT 10000)", [at])).rowCount ?? 0;
   }
 }

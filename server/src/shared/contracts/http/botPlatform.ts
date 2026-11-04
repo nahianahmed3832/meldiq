@@ -112,6 +112,7 @@ export const BotEventPage = z.strictObject({
           "voice_join",
           "voice_leave",
           "command",
+          "interaction",
           "test",
         ]),
         communityId: z.string().nullable(),

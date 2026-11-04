@@ -28,6 +28,7 @@ import { now } from "../../shared/utilities/util.js";
 import { rowsByIds } from "../../infrastructure/database/byIds.js";
 import { ExistingEvent } from "../../infrastructure/database/rows/postgresRows.js";
 import { PostgresRelayStore } from "./relay/postgresStore.js";
+import { botRichText } from "../../shared/contracts/http/botComponents.js";
 import { DuplicateSubmission, type QueueInsert } from "./relay/store.js";
 import type { MessageEvent } from "./store/messageStore.js";
 import { memberUsers } from "./memberUsers.js";
@@ -77,6 +78,10 @@ export function eventToWire(e: MessageEvent): StoredEvent {
 export interface Sender {
   userId: string;
   deviceId: string | null;
+  /** Internal Bot API approval; native membership, channel and content rules still apply. Never read from a body. */
+  botContent?: true;
+  /** Internal synchronous recheck run inside the native PostgreSQL writer's acceptance unit. */
+  beforeCommit?: () => void;
   /**
    * Posting tools (community parity batch C): a webhook or a community's "Tickets" account, which is a member nowhere.
    * The caller has checked that it may post in this one channel (a webhook's token, a manager's request), so
@@ -109,7 +114,7 @@ export async function sendServerMessage(
   const managedPoll = prepareManagedPoll(m);
   const payload = JSON.stringify(m.payload);
   const granted = sender.channelGrant !== undefined;
-  if (!granted) refusePostingTools(m.payload);
+  if (!granted) refusePostingTools(m.payload, sender.botContent === true);
   const deletion = sender.threadGrant
     ? m.cls === "control" &&
       m.payload.type === "delete" &&
@@ -149,7 +154,7 @@ export async function sendServerMessage(
   // Meldiq Mojo: the plan's characters per message and per edit, counted as people count them (posting tools set
   // their own limits).
   const limits = granted ? null : ctx.mojo.limitsOf(userId);
-  const text = typeof m.payload.text === "string" ? m.payload.text : "";
+  const text = sender.botContent ? botRichText(m.payload) : typeof m.payload.text === "string" ? m.payload.text : "";
   if (
     limits &&
     COUNTED.has(type) &&
@@ -381,8 +386,9 @@ export async function sendServerMessage(
       expires_at: expiresAt,
     };
     if (atomicRelay) {
-      queued = await atomicRelay.acceptEvent(event, submission, items);
+      queued = await atomicRelay.acceptEvent(event, submission, items, sender.beforeCommit);
     } else {
+      sender.beforeCommit?.();
       if (!(await ctx.messages.add(event))) {
         const dup = await retry();
         if (dup) return dup;

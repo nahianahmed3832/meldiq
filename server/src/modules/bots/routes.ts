@@ -56,14 +56,17 @@ export default async function botRoutes(app: FastifyInstance, ctx: AppContext) {
   // Replay retention runs even when installed bots are offline and no one reads the journal.
   const retention = setInterval(() => {
     void svc.events.maintain();
+    void svc.interactions.maintain().catch(() => ctx.log.warn({ component: "bot_interactions" }, "Bot interaction cleanup failed; retry scheduled"));
   }, 60_000);
   retention.unref();
   app.addHook("onReady", async () => {
     await svc.events.maintain();
+    await svc.interactions.maintain();
   });
   app.addHook("preClose", async () => {
     clearInterval(retention);
     await svc.events.settled();
+    await svc.interactions.settled();
   });
   const person = { preHandler: requireAuth(ctx), config: minute(60) };
   const bot = (max: number) => ({
@@ -185,15 +188,11 @@ export default async function botRoutes(app: FastifyInstance, ctx: AppContext) {
   app.post(
     "/v2/interactions",
     { ...person, config: minute(30) },
-    async (req, reply) =>
-      reply
-        .code(201)
-        .send(
-          await svc.interactions.run(
-            me(req).userId,
-            parse(InteractionBody, req.body),
-          ),
-        ),
+    async (req, reply) => {
+      const body = parse(InteractionBody, req.body);
+      const result = "kind" in body ? await svc.components.run(me(req).userId, body) : await svc.interactions.run(me(req).userId, body);
+      return reply.code(201).send(result);
+    },
   );
 
   app.get("/v2/bot/me", bot(120), async (req) => svc.api.self(theBot(req)));

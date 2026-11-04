@@ -1248,6 +1248,10 @@
             "content": {
               "type": "string"
             },
+            "componentLabel": {
+              "type": "string",
+              "maxLength": 80
+            },
             "at": {
               "type": "integer",
               "minimum": 0,

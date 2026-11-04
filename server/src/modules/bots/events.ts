@@ -154,7 +154,7 @@ export class BotEvents {
       const org = membership.org_id;
       // Command arguments are already explicitly addressed to this bot. Current channel membership still applies.
       for (const channel of botChannels(ctx, org, bot.id)) {
-        if (channel.canPost)
+        if (channel.canPost) {
           add(
             org,
             channel.id,
@@ -164,6 +164,8 @@ export class BotEvents {
               ctx.authz.memberSince(channel.id, bot.id) ?? 0,
             ),
           );
+          if (permissions.allows(bot, org, "messages.post")) add(org, channel.id, "interaction", Math.max(membership.joined_at ?? 0, ctx.authz.memberSince(channel.id, bot.id) ?? 0));
+        }
         if (!permissions.allows(bot, org, "events.read")) continue;
         const conv = ctx.authz.conversation(channel.id)!;
         if (permissions.allows(bot, org, "messages.history")) {
@@ -195,8 +197,10 @@ export class BotEvents {
           add(org, null, kind, 0);
       }
     }
-    for (const consent of this.bots.directMessages.grants(bot.id))
+    for (const consent of this.bots.directMessages.grants(bot.id)) {
       add("", consent.conversation_id, "dm_message", 0);
+      add("", consent.conversation_id, "interaction", 0);
+    }
     if (result.length > 20_000)
       throw new ApiError(
         429,
@@ -240,9 +244,19 @@ export class BotEvents {
             JOIN meldiq.org_members member ON member.org_id=i.org_id AND member.user_id=i.user_id AND member.joined_at<=i.created_at
             WHERE i.id=j.source_id AND i.bot_id=$2 AND i.expires_at>$4 AND i.state<>'replied' AND (member.expires_at IS NULL OR member.expires_at>$4)
           ))
+          AND (j.kind<>'interaction' OR EXISTS (
+            SELECT 1 FROM meldiq.bot_interactions i
+            JOIN meldiq.conversation_members recipient ON recipient.conversation_id=i.conversation_id AND recipient.user_id=i.bot_id AND recipient.joined_at<=i.created_at
+            JOIN meldiq.conversation_members sender ON sender.conversation_id=i.conversation_id AND sender.user_id=i.user_id AND sender.joined_at<=i.created_at
+            JOIN meldiq.message_events source ON source.id=i.component->>'messageId' AND source.conversation_id=i.conversation_id AND source.sender_user_id=i.bot_id AND source.cls='message' AND source.audience='all' AND source.imported_by IS NULL
+            WHERE i.id=j.source_id AND i.bot_id=$2 AND i.expires_at>$4 AND i.state<>'replied' AND i.component IS NOT NULL
+            AND ((source.payload::jsonb)->'botComponents'->>'expiresAt')::bigint>$4
+            AND (i.org_id IS NULL OR EXISTS (SELECT 1 FROM meldiq.org_members member WHERE member.org_id=i.org_id AND member.user_id=i.user_id AND member.joined_at<=i.created_at AND (member.expires_at IS NULL OR member.expires_at>$4)))
+            AND NOT EXISTS (SELECT 1 FROM meldiq.message_events removed WHERE removed.conversation_id=i.conversation_id AND removed.target=source.id AND removed.type='delete' AND removed.audience='all')
+          ))
           AND ((j.kind='test' AND j.target_bot_id=$2) OR (
-            j.kind='dm_message' AND j.target_bot_id=$2 AND EXISTS (
-              SELECT 1 FROM grants g WHERE g.kind='dm_message' AND g.channel=j.conversation_id
+            j.kind IN ('dm_message','interaction') AND j.target_bot_id=$2 AND EXISTS (
+              SELECT 1 FROM grants g WHERE g.org='' AND g.kind=j.kind AND g.channel=j.conversation_id
             )
           ) OR (
             (j.target_bot_id IS NULL OR j.target_bot_id=$2) AND EXISTS (
@@ -321,6 +335,7 @@ export class BotEvents {
     })()
       .catch(() => {
         this.cleanupAt = 0;
+        this.bots.ctx.log.warn({ component: "bot_replay" }, "Bot replay cleanup failed; retry scheduled");
       })
       .finally(() => {
         this.cleanup = undefined;

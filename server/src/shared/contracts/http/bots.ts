@@ -3,6 +3,8 @@ import { zUsername } from "./auth.js";
 import { zCount, zTime } from "./primitives.js";
 import { route } from "./route.js";
 import { SendMessageResult } from "./serverMessages.js";
+import { BotComponentList, BotComponentInvocation, ComponentInteractionBody } from "./botComponents.js";
+import { WebhookEmbedInput, LinkButtonInput } from "./webhooks.js";
 
 /**
  * Bots people make (API 0.65.0, settings parity batch B, docs/SETTINGS_PARITY_API.md). A bot is an account of its own
@@ -19,6 +21,7 @@ export const MAX_POLL_WAIT_S = 25;
 /** How long a command waits for the bot's answer. */
 export const INTERACTION_TTL_MS = 15 * 60_000;
 export const MAX_CONTENT = 4000;
+export const MAX_PENDING_BOT_INTERACTIONS = 500;
 
 const zCommandName = z.string().regex(COMMAND_NAME, "1–32 characters: a–z, 0–9 and -");
 const zDescription = z.string().trim().min(1).max(100);
@@ -109,15 +112,17 @@ export const OrgCommand = BotCommand.extend({ botId: z.string(), botUsername: z.
 export const OrgCommands = z.strictObject({ commands: z.array(OrgCommand) });
 
 const zOptionValue = z.union([z.string().max(1000), z.number(), z.boolean()]);
-export const InteractionBody = z.strictObject({
+export const CommandInteractionBody = z.strictObject({
   channelId: z.string().max(64),
   botId: z.string().min(1).max(64),
   command: zCommandName,
   /** Option name → value, checked against the command's options (a "user" option takes a user id). */
   options: z.record(z.string().max(32), zOptionValue).default({}),
 });
+export const InteractionBody = z.union([CommandInteractionBody, ComponentInteractionBody]);
 export const InteractionCreated = z.strictObject({
   interaction: z.strictObject({ id: z.string(), botId: z.string(), command: z.string(), createdAt: zTime, expiresAt: zTime }),
+  duplicate: z.boolean().optional(),
 });
 
 export const BotSelf = z.strictObject({
@@ -135,6 +140,10 @@ export const BotMessageBody = z.strictObject({
   replyTo: z.string().max(64).optional(),
   /** Your own id for the message (8–64 of [A-Za-z0-9_-]): sending it again is answered as a duplicate. */
   messageId: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/).optional(),
+  embeds: z.array(WebhookEmbedInput).max(10).optional(),
+  buttons: z.array(LinkButtonInput).max(5).optional(),
+  components: BotComponentList.optional(),
+  componentsTtlSeconds: z.number().int().min(60).max(86400).optional(),
 });
 export const BotEditBody = z.strictObject({ content: zContent });
 
@@ -145,10 +154,11 @@ export const BotInteraction = z.strictObject({
   options: z.record(z.string(), zOptionValue),
   user: z.strictObject({ id: z.string(), username: z.string(), displayName: z.string() }),
   channelId: z.string(),
-  communityId: z.string(),
+  communityId: z.string().nullable(),
   createdAt: zTime,
   /** Answer before this (15 minutes after the command). */
   expiresAt: zTime,
+  component: BotComponentInvocation.optional(),
 });
 export const BotInteractions = z.strictObject({ interactions: z.array(BotInteraction) });
 export const InteractionParams = z.strictObject({ id: z.string().min(1).max(64) });

@@ -1,4 +1,5 @@
 import type { BotCommand } from "../../shared/contracts/http/bots.js";
+import type { BotComponentInvocation } from "../../shared/contracts/http/botComponents.js";
 
 /** A bot people made. Its id is its account's user id; only its token's hash is kept. */
 export interface Bot {
@@ -19,7 +20,7 @@ export interface Interaction {
   id: string;
   botId: string;
   userId: string;
-  orgId: string;
+  orgId: string | null;
   conversationId: string;
   command: string;
   options: Record<string, OptionValue>;
@@ -28,6 +29,7 @@ export interface Interaction {
   expiresAt: number;
   deliveredAt: number | null;
   repliedAt: number | null;
+  component?: BotComponentInvocation | null;
 }
 
 export type AnswerOutcome = "ok" | "missing" | "expired" | "answered";
@@ -47,7 +49,7 @@ export interface BotStore {
   updateBot(id: string, patch: Partial<Pick<Bot, "public" | "tokenHash" | "tokenRotatedAt" | "commands">>): Promise<Bot | null>;
   /** Removes the bot and its interactions. */
   deleteBot(id: string): Promise<void>;
-  addInteraction(i: Interaction): Promise<void>;
+  addInteraction(i: Interaction, admit?: () => void): Promise<void>;
   /** Interactions of [botId] still waiting to be answered. */
   openCount(botId: string, at: number): Promise<number>;
   /**
@@ -61,6 +63,7 @@ export interface BotStore {
   /** Back to delivered (its answer couldn't be posted), so the bot can answer again. */
   reopen(id: string): Promise<void>;
   deleteInteractionsOf(userId: string): Promise<void>;
+  deleteInteractionsBetween(botId: string, userId: string): Promise<void>;
   purgeExpired(at: number): Promise<number>;
 }
 
@@ -108,7 +111,8 @@ export class MemoryBotStore implements BotStore {
     for (const [k, i] of this.interactions) if (i.botId === id) this.interactions.delete(k);
   }
 
-  async addInteraction(i: Interaction): Promise<void> {
+  async addInteraction(i: Interaction, admit?: () => void): Promise<void> {
+    admit?.();
     this.interactions.set(i.id, copyInteraction(i));
   }
 
@@ -146,6 +150,9 @@ export class MemoryBotStore implements BotStore {
 
   async deleteInteractionsOf(userId: string): Promise<void> {
     for (const [k, i] of this.interactions) if (i.userId === userId) this.interactions.delete(k);
+  }
+  async deleteInteractionsBetween(botId: string, userId: string): Promise<void> {
+    for (const [id, interaction] of this.interactions) if (interaction.botId === botId && interaction.userId === userId) this.interactions.delete(id);
   }
 
   async purgeExpired(at: number): Promise<number> {

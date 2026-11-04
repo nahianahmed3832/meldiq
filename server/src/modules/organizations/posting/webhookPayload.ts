@@ -77,11 +77,7 @@ function textFromEmbeds(embeds: readonly PayloadEmbed[]): string {
 
 /** The payload a webhook posts, for a channel that is a forum when [forum]. Throws 400 for what the schema can't see. */
 export function webhookPayload(body: WebhookMessageBody, as: PostedAs, forum: boolean): Record<string, unknown> & { type: string } {
-  const embeds = (body.embeds ?? []).map(embedOf);
-  if (embeds.reduce((n, e) => n + embedTextLength(e), 0) > WEBHOOK_LIMITS.embedText) {
-    throw badRequest("Invalid request", [{ path: "embeds", message: `The boxes can hold up to ${WEBHOOK_LIMITS.embedText} characters together` }]);
-  }
-  const buttons = buttonsOf(body);
+  const { embeds, buttons } = richPostFields(body);
   const content = body.content ?? "";
   if (!nonEmpty(content) && embeds.length === 0) throw badRequest("Invalid request", [{ path: "content", message: "Add some text or a box before posting" }]);
   const title = body.thread_name?.trim();
@@ -96,4 +92,14 @@ export function webhookPayload(body: WebhookMessageBody, as: PostedAs, forum: bo
     ...(nonEmpty(content) ? {} : { textFromEmbeds: true }),
     webhook: { id: as.id, name: body.username?.trim() || as.name, avatarUrl: body.avatar_url ?? as.avatarUrl },
   };
+}
+
+/** Shared validated native boxes/link buttons, without creating a webhook identity or bypassing posting authority. */
+export function richPostFields(body: WebhookMessageBody) {
+  const embeds = (body.embeds ?? []).map(embedOf);
+  if (embeds.reduce((n, e) => n + embedTextLength(e), 0) > WEBHOOK_LIMITS.embedText) {
+    throw badRequest("Invalid request", [{ path: "embeds", message: `The boxes can hold up to ${WEBHOOK_LIMITS.embedText} characters together` }]);
+  }
+  const buttons = buttonsOf(body);
+  return { embeds, buttons };
 }

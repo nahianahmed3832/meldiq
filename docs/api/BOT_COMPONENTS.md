@@ -1,0 +1,15 @@
+# Native interactive bot messages
+
+Candidate implementation, not deployed. Requires the authoritative PostgreSQL adapter and coordinated Web migration `20261105003200_bot_components.sql`. Older clients continue to read the ordinary text. The `bot-components` feature bit identifies support.
+
+Bots may send validated native boxes, link buttons and up to five source-bound button/select/form controls through the existing message endpoint. Community rich posts require requested and approved `messages.post`, plus current native posting authority. Personal posts additionally require the recipient's current bot-DM consent. Ordinary text retains its released native-role baseline. There is no webhook impersonation or posting-authority bypass.
+
+Controls use the existing leased interaction queue and reply route. Human submissions use `/v2/interactions` with `kind: component`, a stable retry ID and source message/custom IDs. The actual sender, current source visibility, membership incarnation, posting authority, onboarding/rules, blocks, disabled/expiry state and consent determine access. Unknown selections/fields, conflicting retry IDs and prototype-shaped IDs are rejected. Form input is private to its actor and addressed bot; journals contain IDs, not submitted values. Replies may be ephemeral to that actor.
+
+Native text-only/link/GIF/heading restrictions and character quotas apply to all visible rich text and link targets. Current token, plan, scope and native content authority are rechecked inside message acceptance. Per-bot queue insertion and pair withdrawal share an advisory transaction lock; an in-process withdrawal revision prevents an in-flight request surviving block/unblock. Blocks delete pending pair data in either direction. There are no human sessions, account devices or user WebSocket grants for a bot.
+
+Controls expire in 60 seconds to 24 hours (one hour default). Submission reply leases last at most 15 minutes and never outlive their control. The shared pending limit remains 500. Maintenance removes expired private interaction rows after a one-hour grace, even with no connected bot, in bounded batches with redacted failure reporting. Inputs are bounded to five fields, 1000 UTF-16 code units per field and 4000 total, with a 32 KiB JSONB storage ceiling.
+
+The JavaScript and Python source clients accept the same native rich fields. See `server/sdk/README.md` and generated OpenAPI for exact shapes. These are first-party source clients, not vendor-protocol compatibility, hosted execution or registry publication.
+
+Validation at this checkpoint: component/native-policy workflow 4 files / 46 tests; SDK/architecture/schema 3 files / 16 tests; journal/native-message/contracts 4 files / 33 tests; component/gateway/journal/cursor 4 files / 25 tests. These suites overlap and must not be summed as unique tests. API typecheck passed. Chromium, Firefox, WebKit and phone-width browser workflows passed against fresh local PostgreSQL with Auth/Realtime test stubs. Physical devices, hosted provider operation and coordinated release acceptance remain pending.

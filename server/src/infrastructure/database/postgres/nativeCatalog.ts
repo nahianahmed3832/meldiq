@@ -23,7 +23,7 @@ export const NATIVE_TABLES:TableSpec[]=[
   table("oauth_grants","identity",fields("app_id user_id","created_at updated_at","","","","","scopes"),{app_id:"oauth_apps",user_id:"users"}),
   table("oauth_tokens","identity",fields("app_id user_id access_hash refresh_hash","access_expires_at refresh_expires_at created_at rotated_at","previous_refresh_hash","","confidential","","scopes"),{app_id:"oauth_apps",user_id:"users"}),
   table("bots","identity",fields("owner_id token_hash","created_at token_rotated_at","","","public","commands"),{owner_id:"users"}),
-  table("bot_interactions","identity",fields("bot_id user_id org_id conversation_id command state","created_at expires_at","","delivered_at replied_at","","options"),{bot_id:"bots",user_id:"users",org_id:"orgs",conversation_id:"conversations"}),
+  table("bot_interactions","identity",[...fields("bot_id user_id conversation_id command state","created_at expires_at","org_id","delivered_at replied_at","","options"),column("component","JSONB",false)],{bot_id:"bots",user_id:"users",org_id:"orgs",conversation_id:"conversations"}),
   table("profile_decorations","identity",fields("creator_id name status format","size created_at wearers","reviewed_by reason","reviewed_at","animated"),{creator_id:"users"}),
   // Favorites also refer to built-in catalog IDs and intentionally survive a decoration being taken down.
   table("decoration_favorites","identity",fields("user_id decoration_id","created_at"),{user_id:"users"}),

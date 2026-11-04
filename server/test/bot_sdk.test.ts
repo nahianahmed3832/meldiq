@@ -213,6 +213,54 @@ describe.skipIf(!process.env.MELDIQ_TEST_PG_URL)(
       });
     });
 
+    it("sends native interactive controls through both source clients", async () => {
+      const permissions = ["events.read", "messages.history", "messages.post"];
+      await owner.req("PUT", `/v2/developer/bots/${botId}/permissions`, {
+        permissions,
+        rev: 1,
+      });
+      await owner.req("PUT", `/v1/orgs/${orgId}/bots/${botId}/permissions`, {
+        permissions,
+        manifestRev: 2,
+        rev: 1,
+      });
+      const sent = await client.send(channelId, "SDK button", {
+        components: [{ type: "button", customId: "confirm", label: "Confirm" }],
+        componentsTtlSeconds: 60,
+      });
+      expect(
+        JSON.parse((await h.ctx.messages.get(sent.messageId))!.payload)
+          .botComponents.items[0].customId,
+      ).toBe("confirm");
+      const program = `import os,sys,json
+sys.path.insert(0,os.environ['MELDIQ_TEST_SDK_DIR'])
+from meldiq_bot import MeldiqBot
+bot=MeldiqBot(os.environ['MELDIQ_TEST_API'],os.environ['MELDIQ_TEST_BOT_TOKEN'])
+sent=bot.send(os.environ['MELDIQ_TEST_CHANNEL'],'Python SDK form',components=[{'type':'form','customId':'note','label':'Note','fields':[{'id':'note','label':'Note'}]}],components_ttl_seconds=60)
+print(json.dumps({'messageId':sent['messageId']}))`;
+      const result = await promisify(execFile)("python3", ["-c", program], {
+        env: {
+          ...process.env,
+          MELDIQ_TEST_SDK_DIR: path.resolve(
+            import.meta.dirname,
+            "../sdk/python",
+          ),
+          MELDIQ_TEST_API: h.baseUrl,
+          MELDIQ_TEST_BOT_TOKEN: token,
+          MELDIQ_TEST_CHANNEL: channelId,
+        },
+        timeout: 30_000,
+      });
+      const payload = JSON.parse(
+        (await h.ctx.messages.get(JSON.parse(result.stdout).messageId))!
+          .payload,
+      );
+      expect(payload.botComponents.items[0]).toMatchObject({
+        type: "form",
+        customId: "note",
+      });
+    });
+
     it("does not follow a redirect carrying the bot authorization header", async () => {
       let destinationRequests = 0;
       const destination = createServer((_req, res) => {

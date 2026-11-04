@@ -9,7 +9,7 @@ Check `/v1/server-info` for `bots`, `bot-permissions` and, on PostgreSQL, `bot-e
 3. A community manager adds the bot and approves its requested access in Community settings → Integrations → Permissions. New requests do not expand an existing approval automatically.
 4. Give it only the native roles/channel access it needs. Approval does not grant native roles, bypass denials or confer owner/administrator powers. A scoped SDK request can still correctly receive403.
 
-Existing text sends and slash commands retain their native baseline. Advanced administration, history, reactions and community event delivery need the corresponding approval. Rich interactive components and voice participation remain unfinished slices of the broader platform. Avatar/banner uploads use the existing native MIME, size, processing and storage policies.
+Existing text sends and slash commands retain their native baseline. Advanced administration, history, reactions and community event delivery need the corresponding approval. Rich messages and controls additionally require `messages.post` approval, labelled “Rich messages and controls” in the UI. Voice participation remains an unfinished slice of the broader platform. Avatar/banner uploads use the existing native MIME, size, processing and storage policies.
 
 Personal bot DMs require the `direct_messages` request and the recipient's explicit consent in the bot profile. Community approval and bot ownership cannot authorize outreach to another person. `sendDirect(userId,content,{messageId})` (JavaScript) and `send_direct(user_id,content,message_id=...)` (Python) use only an existing personal approval. Replies produce self-addressed `dm_message` ID events; read current content through `/v2/bot/conversations/:id/messages`. Revocation or a block stops sends, history and replay; unblocking does not restore approval. Changing the requested manifest requires fresh personal review. Renewed consent starts a fresh conversation; prior revoked history remains available to the person but inaccessible to the bot. These conversations support messages, not calls.
 
@@ -59,5 +59,35 @@ Resume using the last committed opaque cursor after a network failure or service
 Import `MeldiqBot` and `MeldiqBotError` from `python/meldiq_bot.py`. `me`, `communities`, `events`, `send`, `set_commands`, `interactions`, `reply`, `upload_avatar`, `upload_banner` and generic native `request` mirror the HTTP operations. Python currently uses HTTP/long polling; the JavaScript client supplies the gateway implementation. Redirects are refused in both clients so an authorization header cannot be forwarded to another origin.
 
 `examples/commands.mjs` and `examples/commands.py` run a small native slash-command bot on infrastructure you control. They register a command, long-poll leased interactions and send an ephemeral reply. They never automatically DM people or create a paid service.
+
+## Interactive messages
+
+On servers advertising `bot-components`, both `send` and `sendDirect` accept `embeds`, link `buttons` and interactive `components`. Python uses the same keyword arguments with `components_ttl_seconds` for JavaScript's `componentsTtlSeconds`. Normal membership, channel content rules and plan limits still apply. Personal messages also require current recipient consent.
+
+```js
+await bot.send(channelId, "Choose what to share with this helper.", {
+  messageId: stableMessageId,
+  componentsTtlSeconds: 3600,
+  components: [
+    { type: "button", customId: "confirm", label: "Confirm" },
+    { type: "select", customId: "category", label: "Category", options: [
+      { value: "question", label: "Question" }, { value: "feedback", label: "Feedback" },
+    ] },
+    { type: "form", customId: "note", label: "Send feedback", fields: [
+      { id: "note", label: "Your feedback", style: "paragraph", maxLength: 500 },
+    ] },
+  ],
+});
+for (const interaction of (await bot.interactions()).interactions) {
+  if (!interaction.component) continue; // Ordinary slash command.
+  // component contains source messageId, customId, type and private values/fields.
+  // Handle only known IDs. Do not log private inputs or treat them as executable code.
+  await bot.reply(interaction.id, "Thank you. Your input was received.", { ephemeral: true });
+}
+```
+
+Messages allow up to five uniquely named controls. A select has at most25 options; a form has at most five fields,1000 UTF-16 code units per field and4000 total. Controls expire after one hour by default (60seconds to24hours configurable); each submission has at most15minutes for a reply. Disabled/expired/deleted/inaccessible source controls refuse new submissions. Blocks withdraw pending inputs and unblocking does not restore them. Approval, native membership, history boundaries and recipient consent are rechecked before delivery and replies.
+
+Component submissions use the existing leased interaction queue. The bot event journal emits an `interaction` ID notice, never the form values; fetch the private input through `interactions()`. Inputs are sent to the addressed bot and its developer. They are not community messages. Expired queue data is removed by a bounded maintenance job after a one-hour retention grace, including while the bot is offline. The browser retains unsent form fields only while that form is open. This is not a recording or a hosted-code feature.
 
 Implementation references: [Node's native WebSocket client](https://github.com/nodejs/learn/blob/main/pages/getting-started/websocket.md), [Python urllib redirect handling](https://docs.python.org/3.11/library/urllib.request.html#urllib.request.HTTPRedirectHandler.redirect_request).

@@ -1,0 +1,10 @@
+{
+  "t": "interaction.reply",
+  "interactionId": "9d5de138-05da-4c31-9a62-b3bcdbefc1f1",
+  "conversationId": "c_MvxfDuVQCkPYa2DfzyJn6w",
+  "botId": "u_ZkXQwcdButKplKbe556kOA",
+  "command": "Confirm choice",
+  "componentLabel": "Confirm choice",
+  "content": "Private control acknowledgement",
+  "at": 1793821125817
+}

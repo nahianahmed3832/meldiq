@@ -65,6 +65,7 @@ export { partnerView, type PartnerRow } from "./partnerApplications.js";
 export { readCommunityImage } from "./communityImages.js";
 export { auditChanges } from "./adminChanges.js";
 export { botResourceCommunity } from "./botResources.js";
+export { richPostFields } from "./posting/webhookPayload.js";
 export { writeChannelOptions } from "./communityPermissions/channelSettings.js";
 export {
   listPartnerApplications,

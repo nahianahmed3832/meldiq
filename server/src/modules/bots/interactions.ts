@@ -4,7 +4,8 @@ import type { z } from "zod/v4";
 import {
   type BotCommand,
   INTERACTION_TTL_MS,
-  type InteractionBody,
+  MAX_PENDING_BOT_INTERACTIONS,
+  type CommandInteractionBody,
   type ReplyBody,
 } from "../../shared/contracts/http/bots.js";
 import {
@@ -14,14 +15,15 @@ import {
   notFound,
 } from "../../shared/errors.js";
 import { newId } from "../../shared/utilities/util.js";
-import { botsAmong, requireStanding } from "../accounts/index.js";
+import { botsAmong } from "../accounts/index.js";
+import { admitInteractionActor } from "./interactionAccess.js";
 import { sendServerMessage } from "../messaging/index.js";
 import { orgMemberIds } from "../organizations/index.js";
 import type { BotService } from "./service.js";
 import type { Bot, Interaction, OptionValue } from "./store.js";
 
 /** Commands waiting for one bot at most: past this, people are asked to try again. */
-const OPEN_LIMIT = 500;
+const OPEN_LIMIT = MAX_PENDING_BOT_INTERACTIONS;
 /** Interactions handed out per poll. */
 const BATCH = 50;
 /** A command handed out but not answered is handed out again after this long (a bot that crashed mid-way). */
@@ -70,8 +72,22 @@ function checkOptions(
  */
 export class Interactions {
   private lastPurge = 0;
+  private cleanup?: Promise<void>;
+  /** In-flight submissions cannot survive a block/unblock round trip. No request survives a process restart. */
+  private withdrawalRevision = 0;
+  accessRevision() { return this.withdrawalRevision; }
 
   constructor(private readonly bots: BotService) {}
+  async revokeBlocked(actorId: string, botId: string) {
+    this.withdrawalRevision++;
+    await this.bots.store.deleteInteractionsBetween(botId, actorId);
+    await this.bots.store.deleteInteractionsBetween(actorId, botId);
+    this.bots.waiters.notify(botId);
+    this.bots.waiters.notify(actorId);
+    this.bots.events.notify();
+  }
+  async maintain() { await this.purgeNowAndThen(this.bots.clock()); }
+  async settled() { await this.cleanup; }
 
   private get ctx() {
     return this.bots.ctx;
@@ -119,30 +135,12 @@ export class Interactions {
   }
 
   /** Someone runs a command: they must be able to post in the channel, and the bot must be in it. */
-  async run(userId: string, body: z.infer<typeof InteractionBody>) {
+  async run(userId: string, body: z.infer<typeof CommandInteractionBody>) {
     const { authz } = this.ctx;
-    requireStanding(this.ctx.safety, userId, "send_message");
     const conv = authz.requireMember(body.channelId, userId);
     if (conv.type !== "CHANNEL" || !conv.org_id)
       throw badRequest("Slash commands work in community channels");
-    if (!authz.canPost(conv, userId))
-      throw forbidden("You can't post in this channel");
-    if (authz.mustFinishOnboarding(conv.org_id, userId))
-      throw new ApiError(
-        403,
-        "onboarding_not_finished",
-        "Finish this community's onboarding before you post or react",
-        { orgId: conv.org_id },
-      );
-    if (authz.mustAgreeRules(conv.org_id, userId))
-      throw new ApiError(
-        403,
-        "rules_not_agreed",
-        "Agree to this community's rules before you post or react",
-        { orgId: conv.org_id },
-      );
-    // Community parity A2: running a command is posting (the lock and the verification level apply).
-    await this.ctx.communitySafety.admitPost(conv, userId, "post", false);
+    await admitInteractionActor(this.ctx, userId, conv);
     const bot = await this.bots.store.bot(body.botId);
     if (
       !bot ||
@@ -229,6 +227,7 @@ export class Interactions {
                 communityId: i.orgId,
                 createdAt: i.createdAt,
                 expiresAt: i.expiresAt,
+                ...(i.component ? { component: i.component } : {}),
               },
             ]
           : [];
@@ -246,10 +245,16 @@ export class Interactions {
       BATCH,
     );
     await this.bots.events.fresh(bot);
-    return claimed.filter((interaction) => this.visible(bot, interaction));
+    const visible = await Promise.all(claimed.map((interaction) => this.visible(bot, interaction)));
+    await this.bots.events.fresh(bot);
+    return claimed.filter((interaction, index) => visible[index] && (interaction.component ? this.bots.components.current(bot, interaction) : this.currentCommand(bot, interaction)));
   }
 
-  private visible(bot: Bot, interaction: Interaction): boolean {
+  private async visible(bot: Bot, interaction: Interaction): Promise<boolean> {
+    if (interaction.component) return this.bots.components.visible(bot, interaction);
+    return this.currentCommand(bot, interaction);
+  }
+  private currentCommand(bot: Bot, interaction: Interaction): boolean {
     const authz = this.ctx.authz,
       conv = authz.conversation(interaction.conversationId);
     return (
@@ -276,7 +281,7 @@ export class Interactions {
     const i = await this.bots.store.interaction(id);
     if (!i || i.botId !== bot.id)
       throw notFound("This bot has no interaction with that id");
-    if (!this.visible(bot, i))
+    if (!(await this.visible(bot, i)))
       throw notFound("This interaction is no longer available here");
     const t = this.bots.clock();
     const outcome = await this.bots.store.answer(id, bot.id, t);
@@ -302,7 +307,10 @@ export class Interactions {
     };
     try {
       await this.bots.events.fresh(bot);
-      if (!this.visible(bot, i))
+      if (!(await this.visible(bot, i)))
+        throw notFound("This interaction is no longer available here");
+      await this.bots.events.fresh(bot);
+      if (!(i.component ? this.bots.components.current(bot, i) : this.currentCommand(bot, i)))
         throw notFound("This interaction is no longer available here");
       if (body.ephemeral) {
         this.ctx.hub.sendToUser(i.userId, {
@@ -311,6 +319,7 @@ export class Interactions {
           conversationId: i.conversationId,
           botId: bot.id,
           command: i.command,
+          ...(i.component ? { componentLabel: i.component.label } : {}),
           content: body.content,
           at: t,
         });
@@ -337,8 +346,16 @@ export class Interactions {
   }
 
   private async purgeNowAndThen(t: number): Promise<void> {
+    if (this.cleanup) return this.cleanup;
     if (t - this.lastPurge < PURGE_EVERY_MS) return;
     this.lastPurge = t;
-    await this.bots.store.purgeExpired(t - KEEP_EXPIRED_MS);
+    this.cleanup = (async () => {
+      const deadline = Date.now() + 2_000;
+      for (let batch = 0; batch < 10; batch++) {
+        const removed = await this.bots.store.purgeExpired(t - KEEP_EXPIRED_MS);
+        if (removed < 10_000 || Date.now() >= deadline) break;
+      }
+    })().catch((error) => { this.lastPurge = 0; throw error; }).finally(() => { this.cleanup = undefined; });
+    await this.cleanup;
   }
 }
