@@ -42,6 +42,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.meldiq.android.ui.theme.Griip
 import com.meldiq.android.ui.theme.Motion
+import com.meldiq.android.ui.icons.MeldiqIcon
 
 private val BarHeight = 64.dp
 private val BarShape = RoundedCornerShape(32.dp)
@@ -102,9 +103,19 @@ private fun NavTab(item: NavItem, selected: Boolean, modifier: Modifier, onTap: 
         verticalArrangement = Arrangement.Center,
     ) {
         Box(Modifier.clip(ItemShape).background(pill).padding(horizontal = 18.dp, vertical = 4.dp)) {
-            val glyph = item.glyph
-            if (glyph != null) Icon(androidx.compose.ui.res.painterResource(glyph), null, tint = iconTint, modifier = Modifier.size(22.dp))
-            else Icon(if (selected) item.selectedIcon else item.icon, null, tint = iconTint, modifier = Modifier.size(22.dp))
+            val semanticIcon = when (item.route) {
+                "home" -> MeldiqIcon.NavigationHome
+                "chats" -> MeldiqIcon.NavigationMessages
+                "activity" -> MeldiqIcon.NavigationActivity
+                "you" -> MeldiqIcon.NavigationProfile
+                else -> null
+            }
+            if (semanticIcon != null) MeldiqIcon(semanticIcon, tint = iconTint)
+            else {
+                val glyph = item.glyph
+                if (glyph != null) Icon(androidx.compose.ui.res.painterResource(glyph), null, tint = iconTint, modifier = Modifier.size(24.dp))
+                else Icon(if (selected) item.selectedIcon else item.icon, null, tint = iconTint, modifier = Modifier.size(24.dp))
+            }
             if (item.badge > 0) {
                 Box(
                     Modifier.align(Alignment.TopEnd).offset(x = 12.dp, y = (-6).dp).heightIn(min = 16.dp).widthIn(min = 16.dp)
