@@ -1,0 +1,16 @@
+{
+  "parts": [
+    {
+      "n": 1,
+      "etag": "\"9e268a46dbb5756900d6fef388bc4159\"",
+      "size": 5242880,
+      "sha256": "jpcEEm6YrBYxfMQjPDnzSeklDjtcvDCyUwe+TLgL/jo="
+    },
+    {
+      "n": 2,
+      "etag": "\"a9cda8763118530c73578a5522565540\"",
+      "size": 1048592,
+      "sha256": "UjfnmofqmXIWngNkvmaxE6XRs2TAzeelcfVR7eG3WGQ="
+    }
+  ]
+}

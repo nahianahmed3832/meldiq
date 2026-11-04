@@ -98,7 +98,18 @@ export function contractCheck(): ContractCheck {
   };
 }
 
-function redact(v: unknown): unknown {
+export function redact(v: unknown): unknown {
+  if (typeof v === "string" && /^https?:\/\//.test(v)) {
+    try {
+      const url = new URL(v);
+      let changed = false;
+      for (const name of [...url.searchParams.keys()])
+        if (/^(?:X-Amz-Credential|X-Amz-Signature|X-Amz-Security-Token|AWSAccessKeyId|Signature)$/i.test(name)) {
+          url.searchParams.set(name, "<redacted>"); changed = true;
+        }
+      if (changed) return url.toString();
+    } catch { /* Not a URL: preserve ordinary fixture text. */ }
+  }
   if (typeof v === "string" && /#gift=[A-Za-z0-9_-]{43}/.test(v)) return v.replace(/#gift=[A-Za-z0-9_-]{43}/g, "#gift=<redacted>");
   if (Array.isArray(v)) return v.map(redact);
   if (v && typeof v === "object") {

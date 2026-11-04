@@ -47,7 +47,8 @@ export class BotComponents {
     const advanced = !!(
       body.embeds?.length ||
       body.buttons?.length ||
-      body.components?.length
+      body.components?.length ||
+      body.attachments?.length
     );
     if (!advanced) return null;
     this.supported();
@@ -58,6 +59,7 @@ export class BotComponents {
       buttons: body.buttons,
     });
     return {
+      ...(body.attachments?.length ? { attachments: body.attachments } : {}),
       ...(embeds.length ? { embeds } : {}),
       ...(buttons.length ? { buttons } : {}),
       ...(body.components?.length

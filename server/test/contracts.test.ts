@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { API_DOCS, fixtureName, renderContracts } from "../scripts/contracts.js";
 import { ErrorEnvelope, ROUTE_CONTRACTS } from "../src/shared/contracts/http/index.js";
 import { ServerEvent } from "../src/shared/contracts/realtime.js";
-import { FIXTURES } from "./support/contracts.js";
+import { FIXTURES, redact } from "./support/contracts.js";
 import { type Harness, startServer } from "./support/harness.js";
 
 /**
@@ -35,6 +35,15 @@ describe("contracts", () => {
       .map((c) => `${c.method} ${c.url}`)
       .filter((r) => !h.contracts.routes.has(r));
     expect(missing).toEqual([]);
+  });
+
+  it("excludes signed storage credentials and ordinary tokens from fixtures", () => {
+    const value = redact({ token: "synthetic-token", parts: [{ upload: { url: "https://storage.example.test/object?X-Amz-Credential=synthetic-access&X-Amz-Signature=synthetic-signature&X-Amz-Security-Token=synthetic-session&partNumber=2", headers: {} } }] }) as { token: string; parts: { upload: { url: string } }[] };
+    expect(value.token).toBe("<redacted>");
+    const url = new URL(value.parts[0].upload.url);
+    expect(url.searchParams.get("partNumber")).toBe("2");
+    for (const name of ["X-Amz-Credential", "X-Amz-Signature", "X-Amz-Security-Token"]) expect(url.searchParams.get(name)).toBe("<redacted>");
+    expect(JSON.stringify(value)).not.toContain("synthetic-");
   });
 
   it("documents at least the client-critical areas (the count only goes up)", () => {

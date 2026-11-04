@@ -94,6 +94,7 @@ export const ROUTE_CONTRACTS: readonly RouteContract[] = [
     const source = NATIVE_ROUTE_CONTRACTS.find((item) => item.method === adapter.method && item.url === adapter.source);
     if (!source) throw new Error(`Missing native contract for bot adapter ${adapter.method} ${adapter.source}`);
     const projection = adapter.source.startsWith("/v2/conversations/") ? " Bot pages project current text, omit deleted messages and exclude historic edits and private protocol controls." : "";
-    return { ...source, url: adapter.url, auth: true, scheme: "bot", tag: "Bots", summary: `Bot adapter: ${source.summary} ${adapter.scope ? `Requires approved ${adapter.scope} scope and current native authority.` : "Own bot identity only."}${projection}` };
+    const summary = adapter.resource === "file" ? "Download native encrypted file bytes/ranges on a currently authorized API stream; no human media grant or redirect." : source.summary;
+    return { ...source, url: adapter.url, auth: true, scheme: "bot", tag: "Bots", summary: `Bot adapter: ${summary} ${adapter.scope ? `Requires approved ${adapter.scope} scope and current native authority.` : "Own bot identity only."}${projection}` };
   }),
 ];

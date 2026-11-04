@@ -7,6 +7,8 @@ declare module "fastify" {
   interface FastifyRequest {
     /** The bot a /v2/bot/… request authenticated as (Authorization: Bot <token>). */
     bot?: Bot;
+    /** Native file controller rechecks this current bot capability after asynchronous work and per stream chunk. */
+    botFileAdmission?: () => void;
   }
 }
 

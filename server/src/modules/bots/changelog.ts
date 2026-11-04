@@ -12,6 +12,7 @@ export const BOT_CHANGELOG = {
         "Recipient-controlled personal messages, explicit bot-profile consent and revocation-safe private message events.",
         "Native rich controls with private, source-bound leased interactions and current-access checks.",
         "Community voice preview: reviewed public encryption keys, separate media leases, transient HPKE handoff and durable removal-only metadata.",
+        "Separate file upload/read approvals, native encrypted upload/publication and revocation-checked streaming downloads; existing grants do not expand automatically.",
         "First-party JavaScript and Python source clients; no hosted bot execution.",
       ],
     },

@@ -8,13 +8,26 @@ import { isSessionAuthenticationHook } from "../auth/index.js";
 import { notFound } from "../../shared/errors.js";
 import { perBot, requireBot, theBot } from "./auth.js";
 import { botResourceCommunity } from "../organizations/index.js";
+import { botFileContext } from "../files/index.js";
+import { ConversationQuery, UploadStartBody } from "../../shared/contracts/http/files.js";
+import { parse } from "../../shared/validation/index.js";
 
-function resourceOrg(
+async function resourceOrg(
   ctx: AppContext,
   adapter: BotDomainAdapter,
   req: FastifyRequest,
-): string | null {
+): Promise<string | null> {
   const p = req.params as Record<string, string>;
+  if (adapter.resource === "file" || adapter.resource === "fileQuery" || adapter.resource === "fileBody" || adapter.resource === "fileUpload") {
+    const bot = theBot(req);
+    const file = adapter.resource === "fileQuery" ? { conversationId: parse(ConversationQuery, req.query).conversationId }
+      : adapter.resource === "fileBody" ? { conversationId: parse(UploadStartBody, req.body).conversationId }
+        : await botFileContext(ctx, p.id, bot.id, adapter.resource === "fileUpload");
+    await ctx.bots.permissions.ensureCredentials(bot);
+    await ctx.bots.events.fresh(bot);
+    req.botFileAdmission = ctx.bots.files.admission(bot, file.conversationId, adapter.scope as "files.upload" | "files.read", "createdAt" in file ? file.createdAt : undefined);
+    return null;
+  }
   if (adapter.resource === "self") return null;
   if (adapter.resource === "org") return p.orgId;
   const id = p.roleId ?? p.id;
@@ -75,7 +88,7 @@ export function installBotDomainAdapters(
         );
       const allowed = async (req: FastifyRequest) => {
         const bot = theBot(req);
-        const orgId = resourceOrg(ctx, adapter, req);
+        const orgId = await resourceOrg(ctx, adapter, req);
         if (orgId && adapter.scope)
           ctx.bots.permissions.require(bot, orgId, adapter.scope);
         // This identity exists only on this bot route. It is never a device/session credential or user WS grant.
@@ -97,7 +110,13 @@ export function installBotDomainAdapters(
                   value,
                 );
               }
-            : options.handler,
+            : adapter.resource.startsWith("file") && adapter.resource !== "file"
+              ? async function (req, reply) {
+                  const value = await options.handler.call(this, req, reply);
+                  req.botFileAdmission?.();
+                  return value;
+                }
+              : options.handler,
         method: adapter.method,
         url: adapter.url,
         path: adapter.url,

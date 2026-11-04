@@ -59,6 +59,8 @@ const READ_SCOPES = new Set([
   "events.read",
   "direct_messages",
 ]);
+const nativePermission = (permission: BotPlatformScope) =>
+  permission === "files.upload" ? "messages.attach" : permission === "files.read" ? "messages.history" : permission;
 
 /** Requested scopes, installation approval, then current native roles/channel authority: all must allow an action. */
 export class BotPermissions {
@@ -140,7 +142,7 @@ export class BotPermissions {
       approvable: manifest.permissions.filter(
         (permission) =>
           READ_SCOPES.has(permission) ||
-          actorPermissions.has(permission as never),
+          actorPermissions.has(nativePermission(permission) as never),
       ),
     };
   }
@@ -184,7 +186,7 @@ export class BotPermissions {
           throw forbidden("The bot did not request this permission");
         if (
           !READ_SCOPES.has(permission) &&
-          !actorPermissions.has(permission as never)
+          !actorPermissions.has(nativePermission(permission) as never)
         )
           throw forbidden("You cannot approve a permission you do not hold");
       }
@@ -413,6 +415,10 @@ export class BotPermissions {
       .some((row) => row.bot_id === binding.bot_id);
   }
 
+  /** Internal current installation identity; never part of a public response. */
+  installationIdentity(orgId: string, botId: string): string {
+    return this.installationKey(orgId, botId);
+  }
   private installationKey(orgId: string, botId: string): string {
     return (
       this.bots.ctx.ws.get<Approved>("bot_installation_permissions", {

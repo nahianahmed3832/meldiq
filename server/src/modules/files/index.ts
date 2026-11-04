@@ -8,3 +8,4 @@ export { deleteBlobNow } from "./routes.js";
 
 // Message publication validates and retains completed encrypted attachments.
 export { messageAttachments, retainMessageAttachments } from "./messageAttachments.js";
+export { botFileContext } from "./botAccess.js";

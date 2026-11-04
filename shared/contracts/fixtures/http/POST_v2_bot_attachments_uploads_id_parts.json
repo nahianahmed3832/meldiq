@@ -1,0 +1,28 @@
+{
+  "parts": [
+    {
+      "n": 1,
+      "upload": {
+        "method": "PUT",
+        "url": "http://127.0.0.1:61782/bot-files/orbit/attachments/a_7Pia0zDEy-B1C774WGf47w?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=%3Credacted%3E&X-Amz-Date=20261104T220642Z&X-Amz-Expires=900&X-Amz-Signature=%3Credacted%3E&X-Amz-SignedHeaders=content-length%3Bhost%3Bx-amz-checksum-sha256&partNumber=1&uploadId=cb80169d-eff5-451a-b897-499fb3fdde03&x-id=UploadPart",
+        "headers": {
+          "content-length": "5242880",
+          "x-amz-checksum-sha256": "jpcEEm6YrBYxfMQjPDnzSeklDjtcvDCyUwe+TLgL/jo="
+        },
+        "expiresAt": 1793830902963
+      }
+    },
+    {
+      "n": 2,
+      "upload": {
+        "method": "PUT",
+        "url": "http://127.0.0.1:61782/bot-files/orbit/attachments/a_7Pia0zDEy-B1C774WGf47w?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=%3Credacted%3E&X-Amz-Date=20261104T220642Z&X-Amz-Expires=900&X-Amz-Signature=%3Credacted%3E&X-Amz-SignedHeaders=content-length%3Bhost%3Bx-amz-checksum-sha256&partNumber=2&uploadId=cb80169d-eff5-451a-b897-499fb3fdde03&x-id=UploadPart",
+        "headers": {
+          "content-length": "1048592",
+          "x-amz-checksum-sha256": "UjfnmofqmXIWngNkvmaxE6XRs2TAzeelcfVR7eG3WGQ="
+        },
+        "expiresAt": 1793830902963
+      }
+    }
+  ]
+}

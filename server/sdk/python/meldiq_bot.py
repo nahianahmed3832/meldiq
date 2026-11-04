@@ -2,6 +2,9 @@
 import json
 import uuid
 import posixpath
+import re
+import http.client
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -37,7 +40,7 @@ class MeldiqBot:
         self.max_response_bytes = max_response_bytes
         self._opener = urllib.request.build_opener(_NoRedirect())
 
-    def request(self, method, path, body=None, raw=None):
+    def _response(self, method, path, body=None, raw=None, binary=False, byte_range=None):
         url = urllib.parse.urljoin(self.api_origin + "/", path)
         parsed = urllib.parse.urlsplit(url)
         decoded_path = urllib.parse.unquote(parsed.path)
@@ -45,7 +48,11 @@ class MeldiqBot:
             raise ValueError("Only native /v2/bot/ paths on the configured origin are allowed")
         if method not in ("GET", "POST", "PUT", "PATCH", "DELETE") or (body is not None and raw is not None):
             raise ValueError("Invalid bot request")
-        headers = {"Authorization": "Bot " + self._token, "Accept": "application/json"}
+        if byte_range is not None and (method != "GET" or not isinstance(byte_range, str) or not re.fullmatch(r"bytes=\d+-\d*", byte_range)):
+            raise ValueError("Invalid attachment range")
+        headers = {"Authorization": "Bot " + self._token, "Accept": "application/octet-stream" if binary else "application/json"}
+        if byte_range is not None:
+            headers["Range"] = byte_range
         data = raw if raw is not None else json.dumps(body).encode() if body is not None else None
         if data is not None:
             headers["Content-Type"] = "application/octet-stream" if raw is not None else "application/json"
@@ -56,20 +63,70 @@ class MeldiqBot:
             response = error
         except (urllib.error.URLError, TimeoutError, OSError):
             raise MeldiqBotError(0, "network_error", "The bot API request failed or timed out") from None
-        with response:
+        return response
+
+    def _decode_response(self, response):
+        try:
             value = response.read(self.max_response_bytes + 1)
-            if len(value) > self.max_response_bytes:
-                raise MeldiqBotError(response.status, "response_too_large", "Request a smaller page; the client response budget was exceeded")
-            try:
-                result = json.loads(value)
-            except (ValueError, UnicodeError):
-                raise MeldiqBotError(response.status, "invalid_response", "The bot API response was not valid JSON") from None
-            if not 200 <= response.status < 300:
-                envelope = result.get("error", {}) if isinstance(result, dict) else {}
-                retry = response.headers.get("Retry-After")
-                retry = min(int(retry), 86400) if retry and retry.isdigit() else None
-                raise MeldiqBotError(response.status, envelope.get("code", "request_failed"), envelope.get("message", "The bot API refused the request"), retry)
-            return result
+        except (OSError, http.client.HTTPException):
+            raise MeldiqBotError(0, "network_error", "The bot API response was interrupted") from None
+        if len(value) > self.max_response_bytes:
+            raise MeldiqBotError(response.status, "response_too_large", "Request a smaller page; the client response budget was exceeded")
+        try:
+            result = json.loads(value)
+        except (ValueError, UnicodeError):
+            raise MeldiqBotError(response.status, "invalid_response", "The bot API response was not valid JSON") from None
+        if not 200 <= response.status < 300:
+            envelope = result.get("error", {}) if isinstance(result, dict) else {}
+            retry = response.headers.get("Retry-After")
+            retry = min(int(retry), 86400) if retry and retry.isdigit() else None
+            raise MeldiqBotError(response.status, envelope.get("code", "request_failed"), envelope.get("message", "The bot API refused the request"), retry)
+        return result
+
+    def request(self, method, path, body=None, raw=None):
+        with self._response(method, path, body=body, raw=raw) as response:
+            return self._decode_response(response)
+
+    def upload_attachment(self, channel_id, ciphertext):
+        if not isinstance(ciphertext, (bytes, bytearray, memoryview)) or not len(ciphertext):
+            raise ValueError("Encrypted attachment bytes are required")
+        return self.request("POST", "/v2/bot/attachments?" + urllib.parse.urlencode({"conversationId": channel_id}), raw=ciphertext)
+
+    def start_upload(self, channel_id, size, sha256):
+        return self.request("POST", "/v2/bot/attachments/uploads", {"conversationId": channel_id, "size": size, "sha256": sha256})
+
+    def upload_url(self, upload_id):
+        return self.request("POST", "/v2/bot/attachments/uploads/" + urllib.parse.quote(upload_id, safe="") + "/url")
+
+    def sign_upload_parts(self, upload_id, parts):
+        return self.request("POST", "/v2/bot/attachments/uploads/" + urllib.parse.quote(upload_id, safe="") + "/parts", {"parts": parts})
+
+    def uploaded_parts(self, upload_id):
+        return self.request("GET", "/v2/bot/attachments/uploads/" + urllib.parse.quote(upload_id, safe="") + "/parts")
+
+    def complete_upload(self, upload_id, parts=None):
+        return self.request("POST", "/v2/bot/attachments/uploads/" + urllib.parse.quote(upload_id, safe="") + "/complete", {"parts": parts} if parts is not None else {})
+
+    def cancel_upload(self, upload_id):
+        return self.request("DELETE", "/v2/bot/attachments/uploads/" + urllib.parse.quote(upload_id, safe=""))
+
+    def download_attachment(self, attachment_id, byte_range=None, chunk_size=65536):
+        if not isinstance(chunk_size, int) or not 1024 <= chunk_size <= 1024 * 1024:
+            raise ValueError("Invalid download chunk size")
+        deadline = time.monotonic() + self.timeout
+        try:
+            with self._response("GET", "/v2/bot/attachments/" + urllib.parse.quote(attachment_id, safe=""), binary=True, byte_range=byte_range) as response:
+                if not 200 <= response.status < 300:
+                    self._decode_response(response)
+                while True:
+                    chunk = response.read(chunk_size)
+                    if time.monotonic() > deadline:
+                        raise MeldiqBotError(0, "download_failed", "The attachment download timed out")
+                    if not chunk:
+                        break
+                    yield chunk
+        except (OSError, http.client.HTTPException):
+            raise MeldiqBotError(0, "download_failed", "The attachment download was interrupted") from None
 
     def me(self):
         return self.request("GET", "/v2/bot/me")
@@ -80,12 +137,12 @@ class MeldiqBot:
     def events(self, cursor=None, limit=50):
         return self.request("GET", "/v2/bot/events?" + urllib.parse.urlencode({"limit": limit, **({"cursor": cursor} if cursor else {})}))
 
-    def _message_body(self, content, message_id, reply_to, embeds, buttons, components, components_ttl_seconds):
-        optional = {"messageId": message_id, "replyTo": reply_to, "embeds": embeds, "buttons": buttons, "components": components, "componentsTtlSeconds": components_ttl_seconds}
+    def _message_body(self, content, message_id, reply_to, embeds, buttons, components, components_ttl_seconds, attachments=None):
+        optional = {"messageId": message_id, "replyTo": reply_to, "embeds": embeds, "buttons": buttons, "components": components, "componentsTtlSeconds": components_ttl_seconds, "attachments": attachments}
         return {"content": content, **{key: value for key, value in optional.items() if value is not None}}
 
-    def send(self, channel_id, content, message_id=None, *, reply_to=None, embeds=None, buttons=None, components=None, components_ttl_seconds=None):
-        return self.request("POST", "/v2/bot/channels/" + urllib.parse.quote(channel_id, safe="") + "/messages", self._message_body(content, message_id, reply_to, embeds, buttons, components, components_ttl_seconds))
+    def send(self, channel_id, content, message_id=None, *, reply_to=None, embeds=None, buttons=None, components=None, components_ttl_seconds=None, attachments=None):
+        return self.request("POST", "/v2/bot/channels/" + urllib.parse.quote(channel_id, safe="") + "/messages", self._message_body(content, message_id, reply_to, embeds, buttons, components, components_ttl_seconds, attachments))
 
     def set_commands(self, commands):
         return self.request("PUT", "/v2/bot/commands", {"commands": commands})

@@ -30,6 +30,7 @@ import { BotMessages } from "./messages.js";
 import { BotDirectMessages } from "./directMessages.js";
 import { BotComponents } from "./components.js";
 import { BotVoice } from "./voice.js";
+import { BotFiles } from "./files.js";
 
 /** Bot tokens: "mqb_" and 43 base64url characters. */
 export const BOT_TOKEN_PREFIX = "mqb";
@@ -75,6 +76,7 @@ export class BotService {
   readonly directMessages = new BotDirectMessages(this);
   readonly components = new BotComponents(this);
   readonly voice = new BotVoice(this);
+  readonly files = new BotFiles(this);
 
   constructor(
     readonly ctx: AppContext,

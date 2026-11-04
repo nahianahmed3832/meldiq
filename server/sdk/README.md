@@ -107,3 +107,30 @@ Use a media SDK supporting LiveKit frame encryption. Native Meldiq's shared key 
 Renew with `renewVoice(leaseId)` roughly every15seconds while connected; leases expire after60seconds without renewal. Keep the stable request ID for a retry of the same join. Use `leaveVoice(leaseId)` to close admission and remove the participant. The Python HTTP methods are `join_voice`, `voice_key`, `voice_connected`, `renew_voice` and `leave_voice`; Python has no first-party media/HPKE helper in this preview.
 
 The room key is relayed only as bounded HPKE ciphertext, bound to the call, channel, bot, lease and reviewed manifest revision. Ciphertext stays in API memory for the lease and is excluded from message history and journals. Rotation, uninstall, expiry, native restrictions and changed approval close access. Failed SFU removal is retained for retry. A private durable ledger contains only bot/lease/call/room removal metadata, with no credentials, ciphertext or media keys, so restart and account/call deletion cannot lose cleanup work. A bot/operator can process media it is approved to hear; treat that media as private user data.
+
+## Community file sharing preview
+
+Request `files.upload` and/or `files.read` and have the community manager approve them. Old message/history approvals do not grant either new scope. Uploading also needs the bot's current native posting/attachment authority. Publishing a file reference needs `messages.post` and `files.upload`. These scopes do not change plan limits, storage quotas or existing retention. Personal bot chats do not accept files in this preview.
+
+The API stores native encrypted bytes and validates completed objects before publishing references. Current v2 reference keys are visible to the Meldiq relay under the existing protocol; this is not server-resistant E2EE. The optional dependency-free Node helper uses the native whole-object AES-256-GCM format:
+
+```js
+import { encryptAttachmentBytes, decryptAttachmentBytes } from "./javascript/attachments.mjs";
+
+// sourceBytes is data your operator process is authorized to share.
+const encrypted = encryptAttachmentBytes(sourceBytes, { name: "report.bin", mime: "application/octet-stream" });
+const stored = await bot.uploadAttachment(channelId, encrypted.bytes);
+const reference = { ...encrypted.reference, id: stored.id };
+await bot.send(channelId, "Report", { messageId: stableMessageId, attachments: [reference] });
+const chunks = [];
+for await (const chunk of bot.downloadAttachment(stored.id)) chunks.push(chunk);
+const original = decryptAttachmentBytes(Buffer.concat(chunks), reference);
+```
+
+The convenience crypto helper buffers at most 64 MiB. For larger files use native streaming/chunk encryption and direct upload sessions; this helper limit does not reduce the API's existing plan allowance. A streamed download yields ciphertext chunks without buffering the whole file. Its optional `{range:"bytes=0-65535",signal}` follows native ranged-download semantics. Breaking the JavaScript iterator cancels its response. Verify the complete native checksum and authentication tag before using decrypted output; discard interrupted downloads. Chunked references need the native chunk-aware decoder, rather than the whole-object helper above.
+
+JavaScript offers `startUpload(channelId,ciphertextSize,sha256)`, `uploadUrl(uploadId)`, `signUploadParts(uploadId,parts)`, `uploadedParts(uploadId)`, `completeUpload(uploadId,parts?)` and `cancelUpload(uploadId)`. A single session returns `upload`; a multipart session returns its part size/count and the signing method supplies each part's `upload`. PUT ciphertext using only each returned signed URL's method/headers. Do not add the bot Authorization header to storage requests. Verify the returned status/checksum, complete the native session, then publish the reference. No automatic mutation retry runs; use the same native session or message ID for an explicit retry. Presigned URLs have their native short lifetime; API renewal, completion and publication still require current authority.
+
+Python has corresponding `upload_attachment`, `start_upload`, `upload_url`, `sign_upload_parts`, `uploaded_parts`, `complete_upload`, `cancel_upload` and `download_attachment` methods. Supply already encrypted bytes; the standard-library client does not provide Python AES-GCM. `download_attachment(id,byte_range=None,chunk_size=65536)` yields ciphertext. Close its generator when stopping early. Request timeouts, origin/namespace validation, redirect refusal and sanitized errors apply to both clients. A revoked in-flight download closes before completing the file.
+
+Control-plane and local storage stand-in tests are distinct from real Frankfurt transfer performance and physical-client acceptance. This preview adds no hosted execution, plaintext server encryption, antivirus/scanning claim or quota/pricing change. Format/transport references: [Node authenticated encryption](https://nodejs.org/docs/latest-v22.x/api/crypto.html#ciphergetauthtag), [Node stream iteration](https://nodejs.org/docs/latest-v22.x/api/webstreams.html#async-iteration), [Python URL requests](https://docs.python.org/3.10/library/urllib.request.html).

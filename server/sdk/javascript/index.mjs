@@ -31,10 +31,18 @@ export class MeldiqBot {
     this.timeoutMs = timeoutMs;
     this.maxResponseBytes = maxResponseBytes;
   }
-  async request(method, path, { body, bytes, signal } = {}) {
+  async #response(
+    method,
+    path,
+    { body, bytes, signal, binary = false, range } = {},
+  ) {
     if (
       !["GET", "POST", "PUT", "PATCH", "DELETE"].includes(method) ||
-      (body !== undefined && bytes !== undefined)
+      (body !== undefined && bytes !== undefined) ||
+      (range !== undefined &&
+        (method !== "GET" ||
+          typeof range !== "string" ||
+          !/^bytes=\d+-\d*$/.test(range)))
     )
       throw new TypeError("Invalid bot request");
     const url = target(this.apiOrigin, path);
@@ -48,7 +56,8 @@ export class MeldiqBot {
           : AbortSignal.timeout(this.timeoutMs),
         headers: {
           authorization: `Bot ${this.#token}`,
-          accept: "application/json",
+          accept: binary ? "application/octet-stream" : "application/json",
+          ...(range !== undefined ? { range } : {}),
           ...(bytes
             ? { "content-type": "application/octet-stream" }
             : body !== undefined
@@ -70,19 +79,108 @@ export class MeldiqBot {
         "The bot API request failed or timed out",
       );
     }
+    return response;
+  }
+  #refused(response, data) {
+    const retry = Number(response.headers.get("retry-after"));
+    return new MeldiqBotError(
+      response.status,
+      data?.error?.code ?? "request_failed",
+      data?.error?.message ?? "The bot API refused the request",
+      Number.isFinite(retry) && retry > 0
+        ? Math.min(retry, 86400) * 1000
+        : undefined,
+    );
+  }
+  async request(method, path, options) {
+    const response = await this.#response(method, path, options);
     const data = await readJson(response, this.maxResponseBytes);
-    if (!response.ok) {
-      const retry = Number(response.headers.get("retry-after"));
+    if (!response.ok) throw this.#refused(response, data);
+    return data;
+  }
+  uploadAttachment(channelId, ciphertext, { signal } = {}) {
+    if (!(ciphertext instanceof Uint8Array) || !ciphertext.byteLength)
+      throw new TypeError("Encrypted attachment bytes are required");
+    return this.request(
+      "POST",
+      `/v2/bot/attachments?conversationId=${enc(channelId)}`,
+      { bytes: ciphertext, signal },
+    );
+  }
+  startUpload(channelId, size, sha256, options = {}) {
+    return this.request("POST", "/v2/bot/attachments/uploads", {
+      ...options,
+      body: { conversationId: channelId, size, sha256 },
+    });
+  }
+  uploadUrl(id, options) {
+    return this.request(
+      "POST",
+      `/v2/bot/attachments/uploads/${enc(id)}/url`,
+      options,
+    );
+  }
+  signUploadParts(id, parts, options = {}) {
+    return this.request(
+      "POST",
+      `/v2/bot/attachments/uploads/${enc(id)}/parts`,
+      { ...options, body: { parts } },
+    );
+  }
+  uploadedParts(id, options) {
+    return this.request(
+      "GET",
+      `/v2/bot/attachments/uploads/${enc(id)}/parts`,
+      options,
+    );
+  }
+  completeUpload(id, parts, options = {}) {
+    return this.request(
+      "POST",
+      `/v2/bot/attachments/uploads/${enc(id)}/complete`,
+      { ...options, body: parts ? { parts } : {} },
+    );
+  }
+  cancelUpload(id, options) {
+    return this.request(
+      "DELETE",
+      `/v2/bot/attachments/uploads/${enc(id)}`,
+      options,
+    );
+  }
+  /** Async bytes; breaking iteration cancels the response. No redirect or automatic retry forwards the bot token. */
+  async *downloadAttachment(id, { signal, range } = {}) {
+    const response = await this.#response(
+      "GET",
+      `/v2/bot/attachments/${enc(id)}`,
+      { signal, range, binary: true },
+    );
+    if (!response.ok)
+      throw this.#refused(
+        response,
+        await readJson(response, this.maxResponseBytes),
+      );
+    if (!response.body)
       throw new MeldiqBotError(
-        response.status,
-        data?.error?.code ?? "request_failed",
-        data?.error?.message ?? "The bot API refused the request",
-        Number.isFinite(retry) && retry > 0
-          ? Math.min(retry, 86400) * 1000
-          : undefined,
+        0,
+        "invalid_response",
+        "The attachment response had no body",
+      );
+    try {
+      for await (const chunk of response.body) yield chunk;
+    } catch {
+      if (signal?.aborted)
+        throw new MeldiqBotError(
+          0,
+          "aborted",
+          "The attachment download was cancelled",
+        );
+      throw new MeldiqBotError(
+        0,
+        "download_failed",
+        "The attachment download was interrupted",
       );
     }
-    return data;
   }
   me(options) {
     return this.request("GET", "/v2/bot/me", options);
@@ -107,6 +205,7 @@ export class MeldiqBot {
       buttons,
       components,
       componentsTtlSeconds,
+      attachments,
       signal,
     } = {},
   ) {
@@ -119,6 +218,7 @@ export class MeldiqBot {
         ...(buttons ? { buttons } : {}),
         ...(components ? { components } : {}),
         ...(componentsTtlSeconds !== undefined ? { componentsTtlSeconds } : {}),
+        ...(attachments ? { attachments } : {}),
       },
       signal,
     });

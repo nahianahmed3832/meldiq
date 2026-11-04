@@ -1,4 +1,4 @@
-import type { FastifyRequest } from "fastify";
+import type { FastifyRequest, preHandlerAsyncHookHandler } from "fastify";
 import type { AppContext } from "../../app/context.js";
 import { ApiError, unauthorized } from "../../shared/errors.js";
 import { now, sha256Hex } from "../../shared/utilities/util.js";
@@ -81,14 +81,18 @@ const sessionAuthenticationHooks = new WeakSet<Function>();
 export function isSessionAuthenticationHook(hook: unknown): boolean {
   return typeof hook === "function" && sessionAuthenticationHooks.has(hook);
 }
+/** Mark a controller-owned session/delegated-session credential gate for scoped native adapters. */
+export function sessionCredentialGate<T extends preHandlerAsyncHookHandler>(hook: T): T {
+  sessionAuthenticationHooks.add(hook);
+  return hook;
+}
 export function requireAuth(ctx: AppContext) {
   const hook = async (req: FastifyRequest) => {
     const auth = await authenticateRequest(ctx, req);
     if (!auth) throw unauthorized();
     req.auth = auth;
   };
-  sessionAuthenticationHooks.add(hook);
-  return hook;
+  return sessionCredentialGate(hook);
 }
 
 export function me(req: FastifyRequest): AuthInfo {

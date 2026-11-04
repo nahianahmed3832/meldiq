@@ -1569,7 +1569,7 @@ export function serverFeatures(
     "bots",
     "bot-permissions",
   ];
-  if (config.databaseMode === "supabase") f.push("bot-event-gateway", "bot-direct-messages", "bot-components", "bot-voice-v1");
+  if (config.databaseMode === "supabase") f.push("bot-event-gateway", "bot-direct-messages", "bot-components", "bot-voice-v1", "bot-files-v1");
   // API 0.65.0 (docs/SETTINGS_PARITY_API.md): a community's rules channel, its numbered rules and agreeing to them
   // before posting (COMMUNITY_RULES=off switches it off).
   if (config.communityRules) f.push("rules-channel");

@@ -5,6 +5,7 @@ import { route } from "./route.js";
 import { SendMessageResult } from "./serverMessages.js";
 import { BotComponentList, BotComponentInvocation, ComponentInteractionBody } from "./botComponents.js";
 import { WebhookEmbedInput, LinkButtonInput } from "./webhooks.js";
+import { MessageAttachment } from "../attachments.js";
 
 /**
  * Bots people make (API 0.65.0, settings parity batch B, docs/SETTINGS_PARITY_API.md). A bot is an account of its own
@@ -144,6 +145,7 @@ export const BotMessageBody = z.strictObject({
   buttons: z.array(LinkButtonInput).max(5).optional(),
   components: BotComponentList.optional(),
   componentsTtlSeconds: z.number().int().min(60).max(86400).optional(),
+  attachments: z.array(MessageAttachment).max(10).optional(),
 });
 export const BotEditBody = z.strictObject({ content: zContent });
 

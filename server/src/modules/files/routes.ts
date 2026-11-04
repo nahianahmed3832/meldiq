@@ -14,7 +14,7 @@ import { pipeline } from "node:stream/promises";
 import type { FastifyInstance } from "fastify";
 import { hasNewAccountLimits, HOUR_MS, limitedUserIds, SlidingWindow } from "../../app/middleware/abuse.js";
 import { type AppContext } from "../../app/context.js";
-import { authenticateToken, bearer, me, requireAuth } from "../auth/index.js";
+import { authenticateToken, bearer, me, requireAuth, sessionCredentialGate } from "../auth/index.js";
 import { parse } from "../../shared/validation/index.js";
 import type { PresignedRequest } from "../../infrastructure/storage/blobstore.js";
 import type { BlobKind } from "../../infrastructure/storage/index.js";
@@ -238,6 +238,7 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
     try {
       const limit = new Transform({
         transform(chunk: Buffer, _enc, cb) {
+          try { req.botFileAdmission?.(); } catch (error) { cb(error as Error); return; }
           size += chunk.length;
           hash.update(chunk);
           if (size > planMax) cb(uploadLimit(plainMax));
@@ -257,9 +258,12 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
       try {
         const digest = hash.digest("hex");
         storedHash = Buffer.from(digest, "hex").toString("base64");
+        req.botFileAdmission?.();
         await blobs.putFile("attachments", id, tmp, size, digest);
+        req.botFileAdmission?.();
       } catch (e) {
         await fs.promises.rm(tmp, { force: true });
+        if (e instanceof ApiError) { await deleteBlobNow(ctx, "attachments", id); throw e; }
         ctx.log.error({ err: e }, "attachment store write failed");
         throw new ApiError(503, "storage_unavailable", "The server couldn't store the file. Try again in a moment.");
       }
@@ -293,7 +297,7 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
     return { id, size, expiresAt };
   });
 
-  app.get("/v1/attachments/:id", { preHandler: async (req, reply) => {
+  app.get("/v1/attachments/:id", { preHandler: sessionCredentialGate(async (req, reply) => {
     const ticket = req.headers["x-meldiq-media-grant"];
     if (ticket === undefined) return auth.preHandler(req);
     reply.header("cache-control", "private, no-store");
@@ -303,16 +307,17 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
     const principal = session && await authenticateToken(ctx, session);
     if (!principal) throw notFound("Attachment not found or expired");
     req.auth = principal;
-  } }, async (req, reply) => {
+  }) }, async (req, reply) => {
     const { userId } = me(req);
     const { id } = parse(idParams, req.params);
     const { proxy } = parse(AttachmentDownloadQuery, req.query);
     const a = await files.attachment(id);
+    req.botFileAdmission?.();
     // Same 404 for unknown, expired and unauthorised: no oracle for guessing ids.
     if (!a || a.expires_at <= now() || !ctx.authz.isMember(a.conversation_id, userId) || (a.pending_message_until != null && a.uploader_user_id !== userId)) throw notFound("Attachment not found or expired");
     reply.header("cache-control", "private, no-store");
     const delivery = cfg.storage.delivery;
-    if (delivery && proxy !== "1" && !req.headers["x-meldiq-media-grant"] && await blobs.presignedGet("attachments", a.id)) {
+    if (!req.bot && delivery && proxy !== "1" && !req.headers["x-meldiq-media-grant"] && await blobs.presignedGet("attachments", a.id)) {
       return reply.redirect(mediaUrl(delivery, id, bearer(req)!, now()), 302);
     }
     // Usage (round 7): bytes asked for, whether served here or from S3 (a range counts its own length).
@@ -322,13 +327,23 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
     const asked = headOnly ? 0 : askedRange ? Math.max(0, (askedRange[2] === "" ? a.size - 1 : Math.min(Number(askedRange[2]), a.size - 1)) - Number(askedRange[1]) + 1) : a.size;
     const downloadQuota = await ctx.quotas.charge("files.download_bytes", scopesFor(userId, orgOf), asked);
     if (!downloadQuota.allowed) throw refusal(downloadQuota);
+    req.botFileAdmission?.();
     ctx.usage?.add(orgOf, "files.download_bytes", asked);
     ctx.telemetry?.activity.addTraffic(userId, "files.download", asked, now());
     // S3 with presigned downloads: after the checks above, a link valid for a few minutes (the client follows it; its
     // Range header still applies). The bucket itself stays private.
-    const direct = proxy === "1" ? null : await blobs.presignedGet("attachments", a.id, headOnly);
+    const direct = req.bot || proxy === "1" ? null : await blobs.presignedGet("attachments", a.id, headOnly);
     if (direct) return reply.redirect(direct, 302);
     reply.header("accept-ranges", "bytes");
+    const admittedStream = (source: Readable) => {
+      const admit = req.botFileAdmission;
+      if (!admit) return source;
+      try { admit(); } catch (error) { source.destroy(); throw error; }
+      return Readable.from((async function* () {
+        try { for await (const chunk of source) { admit(); yield chunk; } }
+        finally { source.destroy(); }
+      })());
+    };
     // Resumable downloads (T2.6): a single "bytes=start-[end]" range, checked after membership.
     const range = /^bytes=(\d+)-(\d*)$/.exec(String(req.headers.range ?? ""));
     if (req.headers.range !== undefined && range) {
@@ -345,17 +360,19 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
       }
       const part = await blobs.get("attachments", a.id, { start, end });
       if (!part) throw notFound("Attachment not found or expired");
+      const stream = admittedStream(part);
       reply.code(206);
       reply.header("content-type", "application/octet-stream");
       reply.header("content-range", `bytes ${start}-${end}/${a.size}`);
       reply.header("content-length", String(end - start + 1));
-      return reply.send(part);
+      return reply.send(stream);
     }
     const all = await blobs.get("attachments", a.id);
     if (!all) throw notFound("Attachment not found or expired");
+    const stream = admittedStream(all);
     reply.header("content-type", "application/octet-stream");
     reply.header("content-length", String(a.size));
-    return reply.send(all);
+    return reply.send(stream);
   });
 
   // Keep a file for encrypted history (docs/MESSAGE_HISTORY.md): any member may ask for a file of their conversation to
@@ -460,6 +477,7 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
       await checkQuotas(uploaderOf(userId, conv.org_id), body.size, 0);
       await quotaAdmit(uploaderOf(userId, conv.org_id), body.size, 0, id, expiresAt - t + 60 * 60_000);
       starts.record(userId, t);
+      req.botFileAdmission?.();
       await files.startUpload({
         id,
         user_id: userId,
@@ -587,6 +605,7 @@ export default async function attachmentRoutes(app: FastifyInstance, ctx: AppCon
       await blobs.previousUploads.publish(u.id,u.size,u.sha256).catch(e => storeFailure(e,"promote-previous-upload"));
     }
     // Exactly one of this and the expiry job wins: the attachment exists only if this upload session was still open.
+    req.botFileAdmission?.();
     const recorded = await files.completeUpload(u.id, {
       id: u.id,
       conversation_id: conv.id,

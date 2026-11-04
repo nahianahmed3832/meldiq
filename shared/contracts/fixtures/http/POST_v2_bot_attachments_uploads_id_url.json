@@ -1,0 +1,14 @@
+{
+  "upload": {
+    "method": "PUT",
+    "url": "http://127.0.0.1:61782/bot-files/orbit/attachments/a_ajgh-wC_ix_KaNNevtd8CA?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=%3Credacted%3E&X-Amz-Date=20261104T220642Z&X-Amz-Expires=900&X-Amz-Signature=%3Credacted%3E&X-Amz-SignedHeaders=content-length%3Bcontent-type%3Bhost%3Bif-none-match%3Bx-amz-checksum-sha256%3Bx-amz-server-side-encryption&x-id=PutObject",
+    "headers": {
+      "content-length": "528",
+      "content-type": "application/octet-stream",
+      "x-amz-checksum-sha256": "mw/cFaOhcPV80gA2cEHFAcVDrvdzxvGOHqDlxm+2VUs=",
+      "if-none-match": "*",
+      "x-amz-server-side-encryption": "AES256"
+    },
+    "expiresAt": 1793830902920
+  }
+}

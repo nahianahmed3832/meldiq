@@ -9,7 +9,11 @@ export type BotResource =
   | "role"
   | "category"
   | "expression"
-  | "meeting";
+  | "meeting"
+  | "fileQuery"
+  | "fileBody"
+  | "fileUpload"
+  | "file";
 export interface BotDomainAdapter {
   method: RouteContract["method"];
   source: string;
@@ -151,4 +155,11 @@ add(
   "voice.move_members",
   "org",
 );
+add(["POST"], "/v1/attachments", "files.upload", "fileQuery");
+add(["POST"], "/v1/attachments/uploads", "files.upload", "fileBody");
+add(["POST"], "/v1/attachments/uploads/:id/url", "files.upload", "fileUpload");
+add(["GET", "POST"], "/v1/attachments/uploads/:id/parts", "files.upload", "fileUpload");
+add(["POST"], "/v1/attachments/uploads/:id/complete", "files.upload", "fileUpload");
+add(["DELETE"], "/v1/attachments/uploads/:id", "files.upload", "fileUpload");
+add(["GET"], "/v1/attachments/:id", "files.read", "file");
 export const BOT_DOMAIN_ADAPTERS: readonly BotDomainAdapter[] = routes;

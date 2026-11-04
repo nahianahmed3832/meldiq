@@ -837,6 +837,115 @@
                     "type": "integer",
                     "minimum": 60,
                     "maximum": 86400
+                  },
+                  "attachments": {
+                    "maxItems": 10,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        },
+                        "name": {
+                          "type": "string",
+                          "maxLength": 512
+                        },
+                        "mime": {
+                          "type": "string",
+                          "maxLength": 255
+                        },
+                        "size": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "key": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9+/]{43}=$"
+                        },
+                        "nonce": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9+/]{16}$"
+                        },
+                        "sha256": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9+/]{43}=$"
+                        },
+                        "chunk": {
+                          "type": "integer",
+                          "minimum": 1024,
+                          "maximum": 16777216
+                        },
+                        "thumbnail": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 128
+                                },
+                                "name": {
+                                  "type": "string",
+                                  "maxLength": 512
+                                },
+                                "mime": {
+                                  "type": "string",
+                                  "enum": [
+                                    "image/jpeg",
+                                    "image/png",
+                                    "image/webp"
+                                  ]
+                                },
+                                "size": {
+                                  "type": "integer",
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 131072
+                                },
+                                "key": {
+                                  "type": "string",
+                                  "pattern": "^[A-Za-z0-9+/]{43}=$"
+                                },
+                                "nonce": {
+                                  "type": "string",
+                                  "pattern": "^[A-Za-z0-9+/]{16}$"
+                                },
+                                "sha256": {
+                                  "type": "string",
+                                  "pattern": "^[A-Za-z0-9+/]{43}=$"
+                                },
+                                "chunk": {}
+                              },
+                              "required": [
+                                "id",
+                                "name",
+                                "mime",
+                                "size",
+                                "key",
+                                "nonce",
+                                "sha256"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "mime",
+                        "size",
+                        "key",
+                        "nonce",
+                        "sha256"
+                      ]
+                    }
                   }
                 },
                 "required": [
@@ -1293,7 +1402,7 @@
                           "type": "string"
                         },
                         "permissions": {
-                          "maxItems": 23,
+                          "maxItems": 25,
                           "type": "array",
                           "items": {
                             "type": "string",
@@ -1313,6 +1422,8 @@
                               "messages.manage",
                               "messages.react",
                               "messages.post",
+                              "files.upload",
+                              "files.read",
                               "expressions.manage",
                               "members.invite",
                               "voice.connect",
@@ -1359,7 +1470,7 @@
                           "type": "string"
                         },
                         "permissions": {
-                          "maxItems": 23,
+                          "maxItems": 25,
                           "type": "array",
                           "items": {
                             "type": "string",
@@ -1379,6 +1490,8 @@
                               "messages.manage",
                               "messages.react",
                               "messages.post",
+                              "files.upload",
+                              "files.read",
                               "expressions.manage",
                               "members.invite",
                               "voice.connect",
@@ -1425,7 +1538,7 @@
                       "additionalProperties": false
                     },
                     "approvable": {
-                      "maxItems": 23,
+                      "maxItems": 25,
                       "type": "array",
                       "items": {
                         "type": "string",
@@ -1445,6 +1558,8 @@
                           "messages.manage",
                           "messages.react",
                           "messages.post",
+                          "files.upload",
+                          "files.read",
                           "expressions.manage",
                           "members.invite",
                           "voice.connect",
@@ -1670,7 +1785,7 @@
                       "type": "string"
                     },
                     "permissions": {
-                      "maxItems": 23,
+                      "maxItems": 25,
                       "type": "array",
                       "items": {
                         "type": "string",
@@ -1690,6 +1805,8 @@
                           "messages.manage",
                           "messages.react",
                           "messages.post",
+                          "files.upload",
+                          "files.read",
                           "expressions.manage",
                           "members.invite",
                           "voice.connect",
@@ -1771,7 +1888,7 @@
                       "type": "string"
                     },
                     "permissions": {
-                      "maxItems": 23,
+                      "maxItems": 25,
                       "type": "array",
                       "items": {
                         "type": "string",
@@ -1791,6 +1908,8 @@
                           "messages.manage",
                           "messages.react",
                           "messages.post",
+                          "files.upload",
+                          "files.read",
                           "expressions.manage",
                           "members.invite",
                           "voice.connect",
@@ -1847,7 +1966,7 @@
                 "type": "object",
                 "properties": {
                   "permissions": {
-                    "maxItems": 23,
+                    "maxItems": 25,
                     "type": "array",
                     "items": {
                       "type": "string",
@@ -1867,6 +1986,8 @@
                         "messages.manage",
                         "messages.react",
                         "messages.post",
+                        "files.upload",
+                        "files.read",
                         "expressions.manage",
                         "members.invite",
                         "voice.connect",
@@ -1950,7 +2071,7 @@
                       "type": "string"
                     },
                     "permissions": {
-                      "maxItems": 23,
+                      "maxItems": 25,
                       "type": "array",
                       "items": {
                         "type": "string",
@@ -1970,6 +2091,8 @@
                           "messages.manage",
                           "messages.react",
                           "messages.post",
+                          "files.upload",
+                          "files.read",
                           "expressions.manage",
                           "members.invite",
                           "voice.connect",
@@ -2071,7 +2194,7 @@
                       "type": "string"
                     },
                     "permissions": {
-                      "maxItems": 23,
+                      "maxItems": 25,
                       "type": "array",
                       "items": {
                         "type": "string",
@@ -2091,6 +2214,8 @@
                           "messages.manage",
                           "messages.react",
                           "messages.post",
+                          "files.upload",
+                          "files.read",
                           "expressions.manage",
                           "members.invite",
                           "voice.connect",
@@ -2156,7 +2281,7 @@
                 "type": "object",
                 "properties": {
                   "permissions": {
-                    "maxItems": 23,
+                    "maxItems": 25,
                     "type": "array",
                     "items": {
                       "type": "string",
@@ -2176,6 +2301,8 @@
                         "messages.manage",
                         "messages.react",
                         "messages.post",
+                        "files.upload",
+                        "files.read",
                         "expressions.manage",
                         "members.invite",
                         "voice.connect",
@@ -97480,6 +97607,115 @@
                     "type": "integer",
                     "minimum": 60,
                     "maximum": 86400
+                  },
+                  "attachments": {
+                    "maxItems": 10,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        },
+                        "name": {
+                          "type": "string",
+                          "maxLength": 512
+                        },
+                        "mime": {
+                          "type": "string",
+                          "maxLength": 255
+                        },
+                        "size": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "key": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9+/]{43}=$"
+                        },
+                        "nonce": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9+/]{16}$"
+                        },
+                        "sha256": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9+/]{43}=$"
+                        },
+                        "chunk": {
+                          "type": "integer",
+                          "minimum": 1024,
+                          "maximum": 16777216
+                        },
+                        "thumbnail": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 128
+                                },
+                                "name": {
+                                  "type": "string",
+                                  "maxLength": 512
+                                },
+                                "mime": {
+                                  "type": "string",
+                                  "enum": [
+                                    "image/jpeg",
+                                    "image/png",
+                                    "image/webp"
+                                  ]
+                                },
+                                "size": {
+                                  "type": "integer",
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 131072
+                                },
+                                "key": {
+                                  "type": "string",
+                                  "pattern": "^[A-Za-z0-9+/]{43}=$"
+                                },
+                                "nonce": {
+                                  "type": "string",
+                                  "pattern": "^[A-Za-z0-9+/]{16}$"
+                                },
+                                "sha256": {
+                                  "type": "string",
+                                  "pattern": "^[A-Za-z0-9+/]{43}=$"
+                                },
+                                "chunk": {}
+                              },
+                              "required": [
+                                "id",
+                                "name",
+                                "mime",
+                                "size",
+                                "key",
+                                "nonce",
+                                "sha256"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "mime",
+                        "size",
+                        "key",
+                        "nonce",
+                        "sha256"
+                      ]
+                    }
                   }
                 },
                 "required": [
@@ -114222,6 +114458,793 @@
           },
           "default": {
             "description": "Error. Codes: not_found, forbidden, bad_request, feature_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bot": []
+          }
+        ]
+      }
+    },
+    "/v2/bot/attachments": {
+      "post": {
+        "tags": [
+          "Bots"
+        ],
+        "summary": "Bot adapter: Upload an encrypted file in one request through the server (small files; large ones use /v1/attachments/uploads). Requires approved files.upload scope and current native authority.",
+        "operationId": "postV2BotAttachments",
+        "parameters": [
+          {
+            "name": "conversationId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "size": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "expiresAt": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "size",
+                    "expiresAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, too_large, storage_full, too_many_uploads, quota_exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bot": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/bot/attachments/uploads": {
+      "post": {
+        "tags": [
+          "Bots"
+        ],
+        "summary": "Bot adapter: Start a direct upload to storage: one presigned PUT, or a multipart upload. Requires approved files.upload scope and current native authority.",
+        "operationId": "postV2BotAttachmentsUploads",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "uploadId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        },
+                        "mode": {
+                          "type": "string",
+                          "const": "single"
+                        },
+                        "upload": {
+                          "type": "object",
+                          "properties": {
+                            "method": {
+                              "type": "string",
+                              "const": "PUT"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "headers": {
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "additionalProperties": {
+                                "type": "string"
+                              }
+                            },
+                            "expiresAt": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "method",
+                            "url",
+                            "headers",
+                            "expiresAt"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "expiresAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "uploadId",
+                        "mode",
+                        "upload",
+                        "expiresAt"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "uploadId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        },
+                        "mode": {
+                          "type": "string",
+                          "const": "multipart"
+                        },
+                        "partSize": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "partCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "expiresAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "uploadId",
+                        "mode",
+                        "partSize",
+                        "partCount",
+                        "expiresAt"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, too_large, storage_full, too_many_uploads, quota_exceeded, direct_upload_unavailable, storage_unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bot": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "conversationId": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "size": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9+/]{43}=$"
+                  }
+                },
+                "required": [
+                  "conversationId",
+                  "size",
+                  "sha256"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/bot/attachments/uploads/{id}/url": {
+      "post": {
+        "tags": [
+          "Bots"
+        ],
+        "summary": "Bot adapter: A fresh presigned PUT for a single-mode upload (the first one expired). Requires approved files.upload scope and current native authority.",
+        "operationId": "postV2BotAttachmentsUploadsIdUrl",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "upload": {
+                      "type": "object",
+                      "properties": {
+                        "method": {
+                          "type": "string",
+                          "const": "PUT"
+                        },
+                        "url": {
+                          "type": "string"
+                        },
+                        "headers": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        },
+                        "expiresAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "method",
+                        "url",
+                        "headers",
+                        "expiresAt"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "upload"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, upload_expired, storage_unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bot": []
+          }
+        ]
+      }
+    },
+    "/v2/bot/attachments/uploads/{id}/parts": {
+      "get": {
+        "tags": [
+          "Bots"
+        ],
+        "summary": "Bot adapter: The parts storage already has (to resume an interrupted upload). Requires approved files.upload scope and current native authority.",
+        "operationId": "getV2BotAttachmentsUploadsIdParts",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "parts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "n": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "etag": {
+                            "type": "string"
+                          },
+                          "size": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "sha256": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "n",
+                          "etag",
+                          "size",
+                          "sha256"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "parts"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, upload_expired, storage_unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bot": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Bots"
+        ],
+        "summary": "Bot adapter: Presign parts of a multipart upload (at most 100 per request). Requires approved files.upload scope and current native authority.",
+        "operationId": "postV2BotAttachmentsUploadsIdParts",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "parts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "n": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "upload": {
+                            "type": "object",
+                            "properties": {
+                              "method": {
+                                "type": "string",
+                                "const": "PUT"
+                              },
+                              "url": {
+                                "type": "string"
+                              },
+                              "headers": {
+                                "type": "object",
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "additionalProperties": {
+                                  "type": "string"
+                                }
+                              },
+                              "expiresAt": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "method",
+                              "url",
+                              "headers",
+                              "expiresAt"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "n",
+                          "upload"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "parts"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, upload_expired, storage_unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bot": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "parts": {
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "n": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 10000
+                        },
+                        "size": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "sha256": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9+/]{43}=$"
+                        }
+                      },
+                      "required": [
+                        "n",
+                        "size",
+                        "sha256"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "parts"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/bot/attachments/uploads/{id}/complete": {
+      "post": {
+        "tags": [
+          "Bots"
+        ],
+        "summary": "Bot adapter: Finish an upload: checked against its size and checksums, then usable in an envelope. Idempotent. Requires approved files.upload scope and current native authority.",
+        "operationId": "postV2BotAttachmentsUploadsIdComplete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "size": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "expiresAt": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "size",
+                    "expiresAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, forbidden, not_uploaded, upload_incomplete, upload_corrupt, upload_expired, storage_unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bot": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "parts": {
+                    "maxItems": 10000,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "n": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 9007199254740991
+                        },
+                        "etag": {
+                          "type": "string",
+                          "maxLength": 200
+                        },
+                        "sha256": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9+/]{43}=$"
+                        }
+                      },
+                      "required": [
+                        "n",
+                        "etag",
+                        "sha256"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/bot/attachments/uploads/{id}": {
+      "delete": {
+        "tags": [
+          "Bots"
+        ],
+        "summary": "Bot adapter: Cancel an upload. Requires approved files.upload scope and current native authority.",
+        "operationId": "deleteV2BotAttachmentsUploadsId",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bot": []
+          }
+        ]
+      }
+    },
+    "/v2/bot/attachments/{id}": {
+      "get": {
+        "tags": [
+          "Bots"
+        ],
+        "summary": "Bot adapter: Download native encrypted file bytes/ranges on a currently authorized API stream; no human media grant or redirect. Requires approved files.read scope and current native authority.",
+        "operationId": "getV2BotAttachmentsId",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "proxy",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The bytes (or 302 to a storage URL)",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found, range_not_satisfiable",
             "content": {
               "application/json": {
                 "schema": {

@@ -82,7 +82,8 @@ export class BotApi {
     if (!conv || !["CHANNEL", "DM"].includes(conv.type))
       throw notFound("Conversation not found");
     if (conv.type === "DM") this.bots.directMessages.require(bot, conv.id);
-    if (body.embeds?.length || body.buttons?.length || body.components?.length) await this.bots.permissions.ensureCredentials(bot);
+    if (body.embeds?.length || body.buttons?.length || body.components?.length || body.attachments?.length) await this.bots.permissions.ensureCredentials(bot);
+    const fileAdmission = body.attachments?.length ? this.bots.files.admission(bot, conv.id, "files.upload") : undefined;
     const rich = this.bots.components.rich(bot, conv.id, body);
     const payload = {
       type: "text",
@@ -92,7 +93,7 @@ export class BotApi {
     };
     return sendServerMessage(
       this.bots.ctx,
-      { userId: bot.id, deviceId: null, ...(rich ? { botContent: true as const, beforeCommit: () => this.bots.components.admitPublish(bot, conv.id, payload) } : {}) },
+      { userId: bot.id, deviceId: null, ...(rich ? { botContent: true as const, beforeCommit: () => { this.bots.components.admitPublish(bot, conv.id, payload); fileAdmission?.(); } } : {}) },
       {
         conversationId: conv.id,
         messageId: body.messageId ?? newId("m"),
