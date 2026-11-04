@@ -186,6 +186,28 @@ describe.skipIf(!process.env.MELDIQ_TEST_PG_URL)(
         (await owner.req("GET", `/v1/conversations/${channel.id}`)).conversation
           .name,
       ).toBe("bot-edited-channel");
+      await request("PUT", `/conversations/${channel.id}/overwrites`, {
+        subject: `user:${member.userId}`,
+        allow: [],
+        deny: [],
+      });
+      expect(
+        (await request("GET", `/conversations/${channel.id}/overwrites`))
+          .overwrites,
+      ).not.toContainEqual(
+        expect.objectContaining({ subject: `user:${member.userId}` }),
+      );
+      await request("PUT", `/categories/${category.id}/overwrites`, {
+        subject: `user:${member.userId}`,
+        allow: [],
+        deny: [],
+      });
+      expect(
+        (await request("GET", `/categories/${category.id}/overwrites`))
+          .overwrites,
+      ).not.toContainEqual(
+        expect.objectContaining({ subject: `user:${member.userId}` }),
+      );
       await request("DELETE", `/conversations/${channel.id}`, {
         confirmName: "bot-edited-channel",
       });

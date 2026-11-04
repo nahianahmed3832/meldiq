@@ -120,6 +120,47 @@ describe("approved bot message operations", () => {
     expect(JSON.stringify(native)).toContain("superseded-private-text");
   });
 
+  it("reads current context around a message without following anchors into another community", async () => {
+    await owner.send(channelId, { type: "text", text: "before anchor" });
+    const anchor = await owner.send(channelId, {
+      type: "text",
+      text: "old anchor text",
+    });
+    await owner.send(
+      channelId,
+      { type: "edit", target: anchor.messageId, text: "current anchor text" },
+      "control",
+    );
+    await owner.send(channelId, { type: "text", text: "after anchor" });
+    const page = await request(
+      "GET",
+      `/v2/bot/conversations/${channelId}/messages?around=${encodeURIComponent(anchor.messageId)}&limit=3`,
+    );
+    expect(page.status).toBe(200);
+    expect(
+      [...page.body.messages, ...(page.body.context ?? [])].find(
+        (message: { id: string }) => message.id === anchor.messageId,
+      )?.payload.text,
+    ).toBe("current anchor text");
+    expect(JSON.stringify(page.body)).not.toContain("old anchor text");
+    const foreignOrg = (
+      await owner.req("POST", "/v1/orgs", { name: "Unrelated anchor" })
+    ).org.id;
+    const foreignChannel = (
+      await owner.req("GET", `/v1/orgs/${foreignOrg}/channels`)
+    ).channels[0].id;
+    const foreign = await owner.send(foreignChannel, {
+      type: "text",
+      text: "foreign anchor payload",
+    });
+    const denied = await request(
+      "GET",
+      `/v2/bot/conversations/${channelId}/messages?around=${encodeURIComponent(foreign.messageId)}`,
+    );
+    expect(denied.status).toBe(404);
+    expect(JSON.stringify(denied.body)).not.toContain("foreign anchor payload");
+  });
+
   it("adds/removes this bot's reaction and returns the current aggregate", async () => {
     const message = await owner.send(channelId, {
       type: "text",
