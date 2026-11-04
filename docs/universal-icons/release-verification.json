@@ -1,0 +1,35 @@
+{
+  "status": "unsigned-release-bundle-verified",
+  "versionName": "0.5.5",
+  "versionCode": 34,
+  "taskSourceCommit": "4e0dcccd86eb615b8cadb467a8fc6ef22f09c07f",
+  "workspaceHasPreexistingAndroidChanges": true,
+  "signed": false,
+  "playPublished": false,
+  "bundle": "/Volumes/code_files/meldiq_android/android/app/build/outputs/bundle/release/app-release.aab",
+  "bytes": 71569200,
+  "sha256": "0f272e3263471c4ea531ea67d60a41f066e765138b24cea4be61ebfa1f344d94",
+  "bundledLicenceNotice": true,
+  "requiredPilotResources": [
+    "mi_navigation_home",
+    "mi_navigation_messages",
+    "mi_navigation_activity",
+    "mi_navigation_profile"
+  ],
+  "requiredPilotResourcesPresent": true,
+  "debugKotlinAndResources": "passed",
+  "nativeGraphicsVectorsRendered": 33,
+  "releaseBuild": "passed",
+  "releaseBuildTime": "9m 24s on retry",
+  "buildFlags": [
+    "--no-daemon",
+    "--max-workers=2",
+    "-Xmx4g",
+    "-XX:+UseParallelGC",
+    "-XX:ActiveProcessorCount=4"
+  ],
+  "initialAttempt": "Canceled after optimizer pressure in the default 3GB heap; the 4GB command-only retry passed.",
+  "productionSigningConfiguration": "manual owner signing; no automated Play upload configured",
+  "mapping": "/Volumes/code_files/meldiq_android/android/app/build/outputs/mapping/release/mapping.txt",
+  "mappingSha256": "a2b000a3e54e804ddd6dc9d20a087a1df820a34e21af7ae00ff62eb34db3bd41"
+}
