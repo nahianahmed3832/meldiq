@@ -1,0 +1,21 @@
+{
+  "ticket": {
+    "channelId": "c_KrivRnMtv-Zyf3dv60JWFA",
+    "number": 2,
+    "name": "ticket-2-tkmember3",
+    "panelId": "tp_zXEES1N1DG8WPEF7n4Yr0g",
+    "panelName": "Support",
+    "opener": {
+      "id": "u_TvjWKO3B8XYZuwd6A6XWAQ",
+      "username": "tkmember3",
+      "displayName": "tkmember"
+    },
+    "about": "Someone keeps sending me spam in DMs",
+    "openedAt": 1793859876116,
+    "closedAt": null,
+    "closedBy": null,
+    "claimedBy": null,
+    "revision": 2,
+    "joined": true
+  }
+}
