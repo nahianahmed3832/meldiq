@@ -141,7 +141,7 @@ export interface AccountStore {
    * the device id; the account gets [userId] and the session that device. Null when the account already has an
    * identity (nothing is made).
    */
-  linkIdentity(accountId: string, userId: string, sessionId: string, at: number, createRows: (w: RowWriter) => string): Promise<string | null>;
+  linkIdentity(accountId: string, userId: string, sessionId: string, at: number, createRows: (w: RowWriter) => string, signupAcceptance?: string): Promise<string | null>;
   /** Clears a link to an identity whose rows don't exist (a link interrupted half-way). False when it doesn't qualify. */
   releaseIdentity(accountId: string, userId: string, at: number): Promise<boolean>;
   /** [deviceRows] makes or changes identity rows and returns the device the session is then bound to. */
@@ -422,13 +422,14 @@ export class SqliteAccountStore implements AccountStore {
     }
   }
 
-  async linkIdentity(accountId: string, userId: string, sessionId: string, at: number, createRows: (w: RowWriter) => string): Promise<string | null> {
+  async linkIdentity(accountId: string, userId: string, sessionId: string, at: number, createRows: (w: RowWriter) => string, signupAcceptance?: string): Promise<string | null> {
     // One synchronous transaction: the check and the writes can't interleave with another request.
     return this.db.transaction(() => {
       const current = this.db.prepare("SELECT user_id FROM accounts WHERE id = ?").get(accountId) as { user_id: string | null } | undefined;
       if (!current || current.user_id) return null;
       const deviceId = this.identity.writeSync(createRows);
-      this.db.prepare("UPDATE accounts SET user_id = ?, updated_at = ? WHERE id = ?").run(userId, at, accountId);
+      this.db.prepare("UPDATE accounts SET user_id = ?, updated_at = ?, signup_policy_acceptance = coalesce(?, signup_policy_acceptance) WHERE id = ?")
+        .run(userId, at, signupAcceptance ?? null, accountId);
       this.db.prepare("UPDATE account_sessions SET device_id = ? WHERE id = ?").run(deviceId, sessionId);
       return deviceId;
     })();

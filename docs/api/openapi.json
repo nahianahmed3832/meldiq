@@ -28496,6 +28496,39 @@
                     "minLength": 88,
                     "maxLength": 88,
                     "pattern": "^[A-Za-z0-9+/]+={0,2}$"
+                  },
+                  "policyAcceptance": {
+                    "type": "object",
+                    "properties": {
+                      "termsRevision": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+                      },
+                      "privacyRevision": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+                      },
+                      "ageAtLeast13": {
+                        "type": "boolean",
+                        "const": true
+                      },
+                      "termsAccepted": {
+                        "type": "boolean",
+                        "const": true
+                      },
+                      "privacyAcknowledged": {
+                        "type": "boolean",
+                        "const": true
+                      }
+                    },
+                    "required": [
+                      "termsRevision",
+                      "privacyRevision",
+                      "ageAtLeast13",
+                      "termsAccepted",
+                      "privacyAcknowledged"
+                    ],
+                    "additionalProperties": false
                   }
                 },
                 "required": [
@@ -28632,6 +28665,39 @@
                     "minLength": 88,
                     "maxLength": 88,
                     "pattern": "^[A-Za-z0-9+/]+={0,2}$"
+                  },
+                  "policyAcceptance": {
+                    "type": "object",
+                    "properties": {
+                      "termsRevision": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+                      },
+                      "privacyRevision": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+                      },
+                      "ageAtLeast13": {
+                        "type": "boolean",
+                        "const": true
+                      },
+                      "termsAccepted": {
+                        "type": "boolean",
+                        "const": true
+                      },
+                      "privacyAcknowledged": {
+                        "type": "boolean",
+                        "const": true
+                      }
+                    },
+                    "required": [
+                      "termsRevision",
+                      "privacyRevision",
+                      "ageAtLeast13",
+                      "termsAccepted",
+                      "privacyAcknowledged"
+                    ],
+                    "additionalProperties": false
                   }
                 },
                 "required": [

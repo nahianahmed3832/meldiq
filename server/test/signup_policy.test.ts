@@ -106,4 +106,32 @@ describe.each(process.env.MELDIQ_TEST_PG_URL ? ["postgres"] : ["sqlite", "mongod
   it("does not let legacy public registration bypass an enabled policy", async () => {
     await expectStatus(h.client("policylegacy"), 426);
   });
+
+  it("requires the account holder's declaration before operator-provisioned identity activation", async () => {
+    const client = new AccountClient(h.baseUrl, email("operator-policy"));
+    const row = await h.ctx.accounts.service.createByOperator({
+      id: `a_${secret()}`, name: "Operator provisioned", email: client.email, password: PASSWORD, verified: true,
+    });
+    expect(row?.signup_policy_acceptance).toBeFalsy();
+    await client.signIn();
+    const key = { identityKey: client.identityKeyB64 };
+    const device = await client.deviceBody("register", key);
+    await expectStatus(client.req("POST", "/v2/account/devices", device), 409);
+    await expectStatus(client.req("POST", "/v2/account/identity/reset", {
+      ...device, password: PASSWORD, policyAcceptance: { ...accepted, privacyRevision: "obsolete" },
+    }), 409);
+    expect(await h.ctx.accounts.store.accountById(row!.id)).toMatchObject({ user_id: null });
+    expect((await h.ctx.accounts.store.accountById(row!.id))?.signup_policy_acceptance).toBeFalsy();
+    const activated = await client.req("POST", "/v2/account/devices", { ...device, policyAcceptance: accepted });
+    expect(activated).toMatchObject({ userId: expect.any(String), deviceId: expect.any(String), result: "identity" });
+    const recorded = (await h.ctx.accounts.store.accountById(row!.id))!;
+    expect(recorded.user_id).toBe(activated.userId);
+    expect(JSON.parse(recorded.signup_policy_acceptance!)).toMatchObject({
+      termsRevision: release.terms.revision, privacyRevision: release.privacy.revision,
+      declaredMinimumAge: 13, entryPath: "operator-activation", recordedAt: expect.any(Number),
+    });
+    await client.signIn();
+    expect((await client.addThisDevice()).result).toBe("existing");
+    expect((await h.ctx.accounts.store.accountById(row!.id))?.signup_policy_acceptance).toBe(recorded.signup_policy_acceptance);
+  });
 });

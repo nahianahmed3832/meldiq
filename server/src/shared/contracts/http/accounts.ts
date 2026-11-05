@@ -98,9 +98,10 @@ export const EnrollDeviceBody = z.object({
   device: DeviceKeys,
   nonce: zNonce,
   signature: zSig,
+  policyAcceptance: RegistrationAttestation.optional(),
 });
 export type EnrollDeviceBody = z.infer<typeof EnrollDeviceBody>;
-export const ResetIdentityBody = z.object({ password: zPassword, identityKey: zKey, device: DeviceKeys, nonce: zNonce, signature: zSig });
+export const ResetIdentityBody = z.object({ password: zPassword, identityKey: zKey, device: DeviceKeys, nonce: zNonce, signature: zSig, policyAcceptance: RegistrationAttestation.optional() });
 export type ResetIdentityBody = z.infer<typeof ResetIdentityBody>;
 
 export const LegacyVerifyBody = z.object({ username: z.string().trim().toLowerCase().min(1).max(40), nonce: zNonce, signature: zSig });

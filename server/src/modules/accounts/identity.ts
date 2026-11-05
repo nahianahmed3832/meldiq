@@ -12,6 +12,7 @@ import { ApiError, badRequest } from "../../shared/errors.js";
 import { newId, now } from "../../shared/utilities/util.js";
 import type { DeviceKeys, EnrollDeviceBody, ResetIdentityBody } from "../../shared/contracts/http/accounts.js";
 import { consumeChallenge, type AccountService } from "./service.js";
+import { signupAcceptance } from "./registrationPolicy.js";
 import type { AccountRow, ActiveSession } from "./store.js";
 
 /** What setting up a device did: made the account's encryption identity, added a device to it, or found it already there. */
@@ -103,6 +104,8 @@ export class IdentityService {
 
   private async createIdentity(s: ActiveSession, a: AccountRow, body: EnrollDeviceBody): Promise<EnrollResponse> {
     if (!body.identityKey) throw new ApiError(400, "identity_required", "This account has no encryption keys yet: send the new identity key");
+    const policy = a.admitted_via === "operator" ? this.ctx.config.signupPolicy : null;
+    const acceptance = signupAcceptance(policy, body.policyAcceptance, "operator-activation", now());
     requireKeys(body.device, body.identityKey);
     const username = freeUsername(this.ctx, body.username, a.name);
     await requireProof(this.ctx, "register", body.device, body.nonce, body.signature);
@@ -126,7 +129,7 @@ export class IdentityService {
           limited_until: limitedUntil,
         });
         return insertDevice(w, userId, body.device, t);
-      });
+      }, acceptance ?? undefined);
     } catch (e) {
       throw uniqueConflict(e);
     }

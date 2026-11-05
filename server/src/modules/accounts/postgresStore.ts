@@ -55,7 +55,7 @@ export class PostgresAccountStore implements AccountStore {
       return writer.delete("accounts", {id}) === 1;
     });
   }
-  async linkIdentity(accountId: string, userId: string, sessionId: string, at: number, createRows: (writer: RowWriter) => string): Promise<string | null> {
+  async linkIdentity(accountId: string, userId: string, sessionId: string, at: number, createRows: (writer: RowWriter) => string, signupAcceptance?: string): Promise<string | null> {
     return this.rows.write(writer => {
       const current = writer.get<AccountRow>("accounts", {id: accountId});
       if (!current || current.user_id) return null;
@@ -64,7 +64,7 @@ export class PostgresAccountStore implements AccountStore {
       const deviceId = createRows(writer);
       const device = writer.get<{user_id: string}>("devices", {id: deviceId});
       if (device?.user_id !== userId) throw new Error("Identity device ownership mismatch");
-      writer.update("accounts", {id: accountId}, {user_id: userId, updated_at: at});
+      writer.update("accounts", {id: accountId}, {user_id: userId, updated_at: at, ...(signupAcceptance !== undefined ? {signup_policy_acceptance: signupAcceptance} : {})});
       writer.update("account_sessions", {id: sessionId}, {device_id: deviceId});
       return deviceId;
     });

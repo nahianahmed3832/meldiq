@@ -169,15 +169,23 @@ export class MongoAccountStore implements AccountStore {
     return res.deletedCount === 1;
   }
 
-  async linkIdentity(accountId: string, userId: string, sessionId: string, at: number, createRows: (w: RowWriter) => string): Promise<string | null> {
+  async linkIdentity(accountId: string, userId: string, sessionId: string, at: number, createRows: (w: RowWriter) => string, signupAcceptance?: string): Promise<string | null> {
     // Claim first: of two requests for one account, only one gets to create rows.
-    const claimed = await this.accounts.updateOne({ _id: accountId, user_id: null }, { $set: { user_id: userId, updated_at: at } }, this.o);
-    if (claimed.modifiedCount !== 1) return null;
+    const claimed = await this.accounts.findOneAndUpdate(
+      { _id: accountId, user_id: null },
+      { $set: { user_id: userId, updated_at: at, ...(signupAcceptance !== undefined ? { signup_policy_acceptance: signupAcceptance } : {}) } },
+      { ...this.o, returnDocument: "before" },
+    );
+    if (!claimed) return null;
     let deviceId: string;
     try {
       deviceId = await this.identity.write(createRows);
     } catch (e) {
-      await this.releaseIdentity(accountId, userId, at);
+      await this.accounts.updateOne(
+        { _id: accountId, user_id: userId },
+        { $set: { user_id: null, updated_at: at, ...(signupAcceptance !== undefined ? { signup_policy_acceptance: claimed.signup_policy_acceptance ?? null } : {}) } },
+        this.o,
+      );
       throw e;
     }
     // If this fails, the app's retry finds the device by its key and binds it (identity.ts › addDevice).
