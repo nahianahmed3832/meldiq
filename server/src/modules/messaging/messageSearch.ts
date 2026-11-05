@@ -50,8 +50,9 @@ export async function messageSearch(
     mentioned = searchPeople(ctx, viewer, q.mentions);
   if (!scope.length || senders?.length === 0 || mentioned?.length === 0)
     return emptySearch();
+  const excludedSenders = ctx.officialBots.starboardSearchExclusions(scope.map(({ id }) => id));
   if (ctx.messages.backend === "mongodb")
-    return mongoMessageSearch(ctx, scope, viewer, q, senders, mentioned);
+    return mongoMessageSearch(ctx, scope, viewer, q, senders, mentioned, excludedSenders);
   const pg = !!ctx.postgres;
   const values: unknown[] = [];
   const bind = (v: unknown) => {
@@ -153,8 +154,9 @@ export async function messageSearch(
     );
   }
   const limit = bind(q.limit + 1);
+  const excludeCopies = excludedSenders.length ? `AND m.sender_user_id NOT IN (${excludedSenders.map(bind).join(",")})` : "";
   const sql = `WITH candidates AS (SELECT m.*,${edit} AS _edit,${pin} AS _pinned FROM ${table} m
-    WHERE (${scoped}) AND m.cls='message' AND m.type='text' AND ${pg ? `jsonb_typeof(${original})='object'` : "CASE WHEN json_valid(m.payload) THEN json_type(m.payload)='object' ELSE 0 END"} AND (m.audience='all' OR m.sender_user_id=${who})
+    WHERE (${scoped}) AND m.cls='message' AND m.type='text' AND ${pg ? `jsonb_typeof(${original})='object'` : "CASE WHEN json_valid(m.payload) THEN json_type(m.payload)='object' ELSE 0 END"} AND (m.audience='all' OR m.sender_user_id=${who}) ${excludeCopies}
     AND NOT EXISTS(SELECT 1 FROM ${table} c WHERE c.conversation_id=m.conversation_id AND c.target=m.id AND c.cls='control' AND c.type='delete' AND ${seen}))
     SELECT m.* FROM candidates m WHERE ${where.join(" AND ") || "true"} ORDER BY m.server_ts DESC,m.id DESC LIMIT ${limit}`;
   const sqliteArgs = () =>

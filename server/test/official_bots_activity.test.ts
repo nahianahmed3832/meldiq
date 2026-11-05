@@ -450,5 +450,26 @@ describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
       expect(JSON.stringify(redacted)).not.toContain(marker);
       expect(redacted.payload.starboard).toBeUndefined();
     });
+
+    it("keeps Starboard snapshots out of search pagination and protects collection and thread context reads", async () => {
+      const source = (await owner.req("POST", `/v1/orgs/${orgId}/channels`, { name: "searchable-source", kind: "PUBLIC" })).channel.id;
+      const marker = "only the original should match this Starboard search";
+      const message = await say(ana, source, marker);
+      for (const voter of [ben, cai, dee]) await react(voter, source, message, "⭐");
+      await settle();
+      const copy = h.ctx.ws.get<{ star_message_id: string }>("bot_starboard", { message_id: message })!.star_message_id;
+      const collection = `/v2/conversations/${stars}/message-collections`;
+      const page = `${collection}?kind=main&around=${copy}&limit=10`;
+      const thread = `${collection}?kind=thread&root=${copy}&limit=10`;
+      expect(JSON.stringify(await dee.req("GET", page))).toContain(marker);
+      expect(JSON.stringify(await dee.req("GET", thread))).toContain(marker);
+      await owner.req("PUT", `/v1/conversations/${source}/overwrites`, { subject: `user:${dee.userId}`, allow: [], deny: ["channels.view"] });
+      for (const route of [page, thread]) expect(JSON.stringify(await dee.req("GET", route))).not.toContain(marker);
+      const search = `/v2/messages/search?q=${encodeURIComponent(marker)}&limit=1`;
+      expect(await dee.req("GET", search)).toEqual({ messages: [], changes: [], more: false, nextCursor: null });
+      const authorized = await owner.req("GET", search);
+      expect(authorized.messages.map((event: Stored) => event.id)).toEqual([message]);
+      expect(authorized).toMatchObject({ more: false, nextCursor: null });
+    });
   });
 });

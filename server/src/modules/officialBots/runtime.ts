@@ -50,6 +50,12 @@ export class OfficialBots {
     return protectStarboardHistory(this, viewer, messages, changes);
   }
 
+  /** Search uses originals so old copies and count edits cannot influence results or cursors. */
+  starboardSearchExclusions(channelIds: readonly string[]): string[] {
+    const orgs = new Set(channelIds.flatMap((id) => this.ctx.authz.conversation(id)?.org_id ?? []));
+    return [...orgs].flatMap((orgId) => this.rows.bot(orgId, "starboard")?.user_id ?? []);
+  }
+
   constructor(
     readonly ctx: AppContext,
     readonly enabled: boolean,

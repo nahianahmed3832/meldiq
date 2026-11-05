@@ -484,12 +484,17 @@ export default async function messageCollections(
       const edits = await changes(ctx, conv.id, userId, [
         ...new Set([...page.messages, ...page.context].map((e) => e.id)),
       ]);
+      const protectedPage = await ctx.officialBots.protectStarboardHistory(
+        userId,
+        [...page.messages, ...page.context].map(eventToWire),
+        edits.map(eventToWire),
+      );
       return {
         ...page,
         historySince: since,
-        messages: page.messages.map(eventToWire),
-        context: page.context.map(eventToWire),
-        changes: edits.map(eventToWire),
+        messages: protectedPage.messages.slice(0, page.messages.length),
+        context: protectedPage.messages.slice(page.messages.length),
+        changes: protectedPage.changes,
       };
     },
   );

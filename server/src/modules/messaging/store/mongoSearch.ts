@@ -146,6 +146,7 @@ export async function mongoMessageSearch(
   q: MessageSearchQuery,
   senders: string[] | null,
   mentioned: string[] | null,
+  excludedSenders: string[],
 ): Promise<SearchPage> {
   let backfill = ready.get(ctx);
   if (!backfill) {
@@ -171,6 +172,7 @@ export async function mongoMessageSearch(
     ],
   };
   if (senders) base.sender_user_id = { $in: senders };
+  if (excludedSenders.length) base.$and.push({ sender_user_id: { $nin: excludedSenders } });
   const bounds: Document = {};
   if (q.before !== undefined) bounds.$lt = q.before;
   if (q.after !== undefined) bounds.$gte = q.after;
