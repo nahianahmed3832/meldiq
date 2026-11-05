@@ -134,7 +134,28 @@ export const BotEventPage = z.strictObject({
   more: z.boolean(),
   replayWindowSeconds: z.number(),
 });
+export const BotWebhookConfigure = z.strictObject({ communityId: z.string().min(1).max(64), url: z.string().min(1).max(1024) });
+export const BotWebhookActivate = z.strictObject({ generation: z.uuid() });
+const webhookView = z.strictObject({
+  generation: z.uuid(), communityId: z.string(), url: z.string(), active: z.boolean(),
+  lastResult: z.enum(["delivered", "exhausted"]).nullable(), lastAt: z.number().nullable(), updatedAt: z.number(),
+});
+export const BotWebhookStatus = z.strictObject({ webhook: webhookView.nullable() });
+export const BotWebhookCreated = BotWebhookStatus.extend({ signingSecret: z.string().regex(/^[A-Za-z0-9_-]{43}$/) });
+export const BotWebhookRemoved = z.strictObject({ deleted: z.literal(true) });
 export const botPlatformContracts = [
+  route({ method: "GET", url: "/v2/developer/bots/:id/event-webhook", tag: "Bots", auth: true, params: owned,
+    response: BotWebhookStatus, errors: ["not_found", "bot_event_webhooks_unavailable"],
+    summary: "Show the owner's current outbound event destination, without the signing secret." }),
+  route({ method: "PUT", url: "/v2/developer/bots/:id/event-webhook", tag: "Bots", auth: true, params: owned,
+    body: BotWebhookConfigure, response: BotWebhookCreated, errors: ["not_found", "forbidden", "bot_event_webhooks_unavailable"],
+    summary: "Replace an outbound event destination for one approved community and issue a fresh signing secret." }),
+  route({ method: "POST", url: "/v2/developer/bots/:id/event-webhook/activate", tag: "Bots", auth: true, params: owned,
+    body: BotWebhookActivate, response: BotWebhookStatus, errors: ["not_found", "stale_revision", "forbidden", "bot_event_webhooks_unavailable"],
+    summary: "Prove the endpoint holds the signing secret before subscribing to new, authorized community event IDs." }),
+  route({ method: "DELETE", url: "/v2/developer/bots/:id/event-webhook", tag: "Bots", auth: true, params: owned,
+    response: BotWebhookRemoved, errors: ["not_found", "bot_event_webhooks_unavailable"],
+    summary: "Revoke the outbound destination and discard its pending delivery state." }),
   route({
     method: "GET",
     url: "/v2/bots/:botId/direct-messages",

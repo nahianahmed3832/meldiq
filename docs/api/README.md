@@ -20,7 +20,7 @@ cd server && npm run contracts
 ```
 
 Fixtures are refreshed by deleting the files to refresh and running the suite with `MELDIQ_WRITE_FIXTURES=1`.
-Credentials in them are replaced by `<redacted>`; ids and times are from test runs.
+Credentials in them are replaced by `<redacted>` or a schema-compatible dummy; ids and times are from test runs.
 
 **Rules for clients:**
 - Ignore fields and frame names you don't know; fields are only ever added within an API version.
@@ -31,11 +31,12 @@ Credentials in them are replaced by `<redacted>`; ids and times are from test ru
   app uses, every frame and every error, with `GriipJson` and with a stricter decoder (unknown enum values or nulls);
   the fixtures live outside the Gradle module, so run it with `--rerun` after they change (CI always runs it).
 
-**Coverage:** all 211 client-facing routes are documented, and the test suite has seen a real answer to every one of
-them match its schema ([`COVERAGE.md`](COVERAGE.md), generated). Not documented here, on purpose: the server-to-server
+**Coverage:** see the generated [route and frame coverage](COVERAGE.md). Not documented here, on purpose: the server-to-server
 federation protocol (`/fed/v1/*`, the core node, [`docs/FEDERATION_PROTOCOL.md`](../FEDERATION_PROTOCOL.md)), the
 LiveKit webhook (`POST /v1/livekit/webhook`) and the WebSocket upgrade itself (`GET /v1/ws`, whose frames are in
 `realtime.schema.json`). Frames not yet seen by a test: `prefs.updated`, `meeting.updated`, `meeting.soon`.
+
+The [bot SDK documentation](../../server/sdk/README.md#outbound-community-event-webhooks) describes the opt-in signed outbound event webhook, endpoint verification and retries.
 
 Validation messages: the input errors of documented routes now come from zod 4, so the wording of `details[].message`
 for built-in checks changed (custom messages didn't). Clients branch on `code` and show `message`, which are unchanged.

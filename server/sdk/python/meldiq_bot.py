@@ -1,4 +1,7 @@
 """Meldiq's native Bot HTTP API. Python 3.10+, standard library only."""
+import base64
+import hashlib
+import hmac
 import json
 import uuid
 import posixpath
@@ -8,6 +11,41 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+
+
+_EVENT_ID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}")
+
+
+def _webhook_key(secret):
+    if not isinstance(secret, str) or re.fullmatch(r"[A-Za-z0-9_-]{43}", secret) is None:
+        raise ValueError("Invalid event webhook signing secret")
+    raw = base64.urlsafe_b64decode(secret + "=")
+    if base64.urlsafe_b64encode(raw).decode("ascii") != secret + "=":
+        raise ValueError("Invalid event webhook signing secret")
+    return raw
+
+
+def verify_event_webhook(secret, delivery_id, timestamp, signature, body, now=None):
+    """Authenticate exact bytes and timestamp; deduplicate delivery_id durably before applying effects."""
+    if now is None:
+        now = int(time.time())
+    if (not isinstance(delivery_id, str) or _EVENT_ID.fullmatch(delivery_id) is None
+        or not isinstance(timestamp, str) or re.fullmatch(r"[1-9][0-9]{0,11}", timestamp) is None
+        or not isinstance(signature, str) or re.fullmatch(r"v1=[0-9a-f]{64}", signature) is None
+        or not isinstance(now, int) or abs(now - int(timestamp)) > 300
+        or not isinstance(body, bytes) or len(body) > 4096):
+        return False
+    message = f"meldiq.bot.webhook.v1\n{delivery_id}\n{timestamp}\n".encode("ascii") + body
+    expected = "v1=" + hmac.new(_webhook_key(secret), message, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(signature, expected)
+
+
+def event_webhook_proof(secret, nonce):
+    """Return as the exact text body for a verified endpoint.verify challenge."""
+    if not isinstance(nonce, str) or _EVENT_ID.fullmatch(nonce) is None:
+        raise ValueError("Invalid event webhook challenge")
+    message = ("meldiq.bot.webhook.verify.v1\n" + nonce).encode("ascii")
+    return "v1=" + hmac.new(_webhook_key(secret), message, hashlib.sha256).hexdigest()
 
 
 class MeldiqBotError(Exception):

@@ -217,10 +217,21 @@ export class BotEvents {
   }
 
   async page(bot: Bot, cursor?: string, limit = 50) {
-    const db = this.database();
-    await this.fresh(bot);
     const now = this.bots.clock();
     const position = cursor ? this.codec().open(bot.id, cursor, now) : "0";
+    const { events, next, more } = await this.pageAt(bot, position, now, limit);
+    return BotEventPage.parse({ events, cursor: this.codec().seal(bot.id, next, now), more, replayWindowSeconds: BOT_REPLAY_MS / 1000 });
+  }
+
+  /** Private numeric position, only for the trusted outbound worker. No DMs or interaction arguments. */
+  async webhookPage(bot: Bot, position: string, community: string) {
+    const { events, next } = await this.pageAt(bot, position, this.bots.clock(), 1, community);
+    return { event: events[0], next };
+  }
+
+  private async pageAt(bot: Bot, position: string, now: number, limit: number, community?: string) {
+    const db = this.database();
+    await this.fresh(bot);
     for (let attempt = 0; attempt < 3; attempt++) {
       const grants = JSON.stringify(this.grants(bot));
       const authority = this.authorityKey(bot);
@@ -237,6 +248,7 @@ export class BotEvents {
           SELECT j.id,j.seq::text,j.kind,j.org_id,j.conversation_id,j.actor_id,j.target_id,j.source_id,j.metadata,j.created_at
           FROM meldiq_private.bot_event_journal j
           WHERE j.seq>$1::bigint AND j.seq<=clock.last_seq AND j.expires_at>$4 AND j.created_at>=$4-$6
+          AND ($7::text IS NULL OR (j.org_id=$7 AND j.kind NOT IN ('command','interaction','dm_message','test')))
           AND (j.kind<>'command' OR EXISTS (
             SELECT 1 FROM meldiq.bot_interactions i
             JOIN meldiq.conversation_members recipient ON recipient.conversation_id=i.conversation_id AND recipient.user_id=i.bot_id AND recipient.joined_at<=i.created_at
@@ -272,7 +284,7 @@ export class BotEvents {
           )) ORDER BY j.seq LIMIT $5
         ) page
       ),'[]'::jsonb) AS events FROM clock`,
-        [position, bot.id, grants, now, limit + 1, BOT_REPLAY_MS],
+        [position, bot.id, grants, now, limit + 1, BOT_REPLAY_MS, community ?? null],
       );
       await this.fresh(bot);
       if (this.authorityKey(bot) !== authority) continue;
@@ -283,7 +295,7 @@ export class BotEvents {
       const selected = row.events.slice(0, limit);
       const next = more ? selected.at(-1)!.seq : row.watermark;
       this.prune(now);
-      return BotEventPage.parse({
+      return {
         events: selected.map(({ seq: _seq, ...event }) => ({
           id: event.id,
           type: event.kind,
@@ -295,10 +307,9 @@ export class BotEvents {
           data: event.metadata,
           createdAt: event.created_at,
         })),
-        cursor: this.codec().seal(bot.id, next, now),
+        next,
         more,
-        replayWindowSeconds: BOT_REPLAY_MS / 1000,
-      });
+      };
     }
     throw new ApiError(
       409,

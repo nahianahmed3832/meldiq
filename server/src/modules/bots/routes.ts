@@ -30,6 +30,8 @@ import {
   BotTestEventBody,
   BotDmConsentBody,
   BotDmUserParams,
+  BotWebhookActivate,
+  BotWebhookConfigure,
 } from "../../shared/contracts/http/botPlatform.js";
 import { BOT_CHANGELOG } from "./changelog.js";
 import { requireBotManager } from "../organizations/index.js";
@@ -65,9 +67,11 @@ export default async function botRoutes(app: FastifyInstance, ctx: AppContext) {
     await svc.events.maintain();
     await svc.interactions.maintain();
     svc.voice.start();
+    await svc.eventWebhooks.start();
   });
   app.addHook("preClose", async () => {
     clearInterval(retention);
+    await svc.eventWebhooks.stop();
     await svc.voice.stop();
     await svc.events.settled();
     await svc.interactions.settled();
@@ -113,6 +117,21 @@ export default async function botRoutes(app: FastifyInstance, ctx: AppContext) {
     async (req) =>
       svc.rotateToken(me(req).userId, parse(BotParams, req.params).id),
   );
+  const eventWebhook = "/v2/developer/bots/:id/event-webhook";
+  app.get(eventWebhook, person, async (req, reply) => {
+    reply.header("cache-control", "no-store");
+    return svc.eventWebhooks.get(me(req).userId, parse(BotParams, req.params).id);
+  });
+  app.put(eventWebhook, { ...person, config: minute(6) }, async (req, reply) => {
+    reply.header("cache-control", "no-store");
+    const { url, communityId } = parse(BotWebhookConfigure, req.body);
+    return svc.eventWebhooks.configure(me(req).userId, parse(BotParams, req.params).id, communityId, url);
+  });
+  app.post(`${eventWebhook}/activate`, { ...person, config: minute(6) }, async (req, reply) => {
+    reply.header("cache-control", "no-store");
+    return svc.eventWebhooks.activate(me(req).userId, parse(BotParams, req.params).id, parse(BotWebhookActivate, req.body).generation);
+  });
+  app.delete(eventWebhook, person, async (req) => svc.eventWebhooks.remove(me(req).userId, parse(BotParams, req.params).id));
   app.get("/v2/bots/:botId", person, async (req) =>
     svc.lookup(me(req).userId, parse(BotIdParams, req.params).botId),
   );

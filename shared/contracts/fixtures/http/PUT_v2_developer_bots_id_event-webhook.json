@@ -1,0 +1,12 @@
+{
+  "webhook": {
+    "generation": "f0825657-3b8e-4fe5-bda1-98622d122aea",
+    "communityId": "o_MIkGjokYEAfIMyNAsp-srw",
+    "url": "https://sink.meldiq.net/meldiq-events",
+    "active": false,
+    "lastResult": null,
+    "lastAt": null,
+    "updatedAt": 1793866172655
+  },
+  "signingSecret": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+}

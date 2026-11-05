@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
 import {
   credential,
   origin,
@@ -7,6 +8,32 @@ import {
 } from "./transport.mjs";
 import { BotGateway } from "./gateway.mjs";
 export { MeldiqBotError } from "./transport.mjs";
+
+const eventDeliveryId = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+function webhookKey(secret) {
+  if (typeof secret !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(secret)) throw new TypeError("Invalid event webhook signing secret");
+  const bytes = Buffer.from(secret, "base64url");
+  if (bytes.toString("base64url") !== secret) throw new TypeError("Invalid event webhook signing secret");
+  return bytes;
+}
+
+/** Authenticate exact bytes and timestamp. Use deliveryId as a durable deduplication key before applying side effects. */
+export function verifyEventWebhook(secret, { deliveryId, timestamp, signature }, body, now = Math.floor(Date.now() / 1000)) {
+  if (typeof deliveryId !== "string" || !eventDeliveryId.test(deliveryId) ||
+      typeof timestamp !== "string" || !/^[1-9][0-9]{0,11}$/.test(timestamp) ||
+      typeof signature !== "string" || !/^v1=[0-9a-f]{64}$/.test(signature) ||
+      !Number.isSafeInteger(now) || Math.abs(now - Number(timestamp)) > 300 ||
+      !(body instanceof Uint8Array) || body.byteLength > 4096) return false;
+  const expected = createHmac("sha256", webhookKey(secret)).update(`meldiq.bot.webhook.v1\n${deliveryId}\n${timestamp}\n`).update(body).digest();
+  return timingSafeEqual(Buffer.from(signature.slice(3), "hex"), expected);
+}
+
+/** Return as the exact text body for a verified endpoint.verify challenge. */
+export function eventWebhookProof(secret, nonce) {
+  if (typeof nonce !== "string" || !eventDeliveryId.test(nonce)) throw new TypeError("Invalid event webhook challenge");
+  return "v1=" + createHmac("sha256", webhookKey(secret)).update("meldiq.bot.webhook.verify.v1\n" + nonce).digest("hex");
+}
 
 const enc = encodeURIComponent;
 /** First-party native client. Tokens stay out of URLs, public fields, logs and redirect targets. */

@@ -1,3 +1,4 @@
+import { botWebhookConfig, type BotWebhookConfig } from "../modules/bots/webhookTransport.js";
 import { mediaDeliveryConfig } from "../infrastructure/storage/mediaDelivery.js";
 import { socialConfig, type SocialConfig } from "../modules/accounts/social/config.js";
 import { postgresConfig } from "../infrastructure/database/postgres/config.js";
@@ -45,6 +46,7 @@ function intFrom(env: NodeJS.ProcessEnv, name: string, def: number): number {
 const productionEnvironment = (env: NodeJS.ProcessEnv) => env.APP_ENV?.trim() === "production" || env.NODE_ENV?.trim() === "production";
 
 export interface Config {
+  botEventWebhooks: BotWebhookConfig | null;
   socialAuth: SocialConfig | null;
   host: string;
   port: number;
@@ -649,6 +651,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       tickets: switchedOn(env.COMMUNITY_TICKETS),
     },
     communityBots: switchedOn(env.COMMUNITY_BOTS),
+    botEventWebhooks: botWebhookConfig(env),
     youtubeApiKey: env.YOUTUBE_API_KEY?.trim() || null,
     discovery: {
       enabled: switchedOn(env.DISCOVERY),

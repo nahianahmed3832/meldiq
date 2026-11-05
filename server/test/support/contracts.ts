@@ -21,7 +21,7 @@ export const FIXTURES = path.resolve(here, "..", "..", "..", "shared", "contract
 
 const byRoute = new Map(ROUTE_CONTRACTS.map((c) => [`${c.method} ${c.url}`, c]));
 /** Fields whose values are credentials, even test ones: never written to fixtures. */
-const REDACT = new Set(["setupToken", "giftToken", "token", "accessToken", "refreshToken", "sessionToken", "codes", "recoveryCode", "secret", "clientSecret", "access_token", "refresh_token"]);
+const REDACT = new Set(["setupToken", "giftToken", "token", "accessToken", "refreshToken", "sessionToken", "codes", "recoveryCode", "secret", "signingSecret", "clientSecret", "access_token", "refresh_token"]);
 /** Server-to-server routes speak their own protocol (docs/FEDERATION_PROTOCOL.md). */
 const PEER_ROUTE = /^\/(fed|core)\//;
 
@@ -116,7 +116,7 @@ export function redact(v: unknown): unknown {
     return Object.fromEntries(
       Object.entries(v).map(([k, x]) => {
         if (!REDACT.has(k)) return [k, redact(x)];
-        if (typeof x === "string") return [k, "<redacted>"];
+        if (typeof x === "string") return [k, k === "signingSecret" ? "A".repeat(43) : "<redacted>"];
         if (Array.isArray(x) && x.every((e) => typeof e === "string")) return [k, x.map(() => "<redacted>")];
         return [k, redact(x)];
       }),

@@ -26,6 +26,7 @@ import type { Bot, BotStore } from "./store.js";
 import { Waiters } from "./waiters.js";
 import { BotPermissions } from "./permissions.js";
 import { BotEvents } from "./events.js";
+import { BotEventWebhooks } from "./eventWebhooks.js";
 import { BotMessages } from "./messages.js";
 import { BotDirectMessages } from "./directMessages.js";
 import { BotComponents } from "./components.js";
@@ -72,6 +73,7 @@ export class BotService {
   readonly api = new BotApi(this);
   readonly permissions = new BotPermissions(this);
   readonly events = new BotEvents(this);
+  readonly eventWebhooks = new BotEventWebhooks(this);
   readonly messages = new BotMessages(this);
   readonly directMessages = new BotDirectMessages(this);
   readonly components = new BotComponents(this);
@@ -190,7 +192,7 @@ export class BotService {
     return { bot: this.view(bot, this.names([bot.id])), token };
   }
 
-  private async owned(ownerId: string, id: string): Promise<Bot> {
+  async owned(ownerId: string, id: string): Promise<Bot> {
     const bot = await this.store.bot(id);
     if (!bot || bot.ownerId !== ownerId)
       throw notFound("You have no bot with that id");

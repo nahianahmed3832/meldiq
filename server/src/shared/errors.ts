@@ -54,6 +54,7 @@ const FEDERATION_ERROR_CODES = {
 
 export const ERROR_CODES = {
   bot_cursor_expired: { status: [410], meaning: "The bot replay cursor expired. Start a fresh event feed." },
+  bot_event_webhooks_unavailable: { status: [503], meaning: "Outbound bot event webhooks are not enabled." },
   bot_events_unavailable: { status: [503], meaning: "Durable bot events are unavailable on this database adapter." },
 
   account_link_required: { status: [409], meaning: "Sign in to the existing account and explicitly connect the provider." },
