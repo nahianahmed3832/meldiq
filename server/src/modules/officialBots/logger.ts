@@ -1,7 +1,7 @@
 import { createdBefore } from "../accounts/index.js";
 import type { MemberChanged, MessageDeleted, MessageEdited, RoleChanged } from "./events.js";
 import type { ActiveBot, OfficialBots } from "./runtime.js";
-import { ApiError } from "../../shared/errors.js";
+import { conflict } from "../../shared/errors.js";
 
 /** Accounts younger than this are flagged when they join. */
 export const NEW_ACCOUNT_MS = 7 * 24 * 60 * 60 * 1000;
@@ -44,7 +44,7 @@ function publicationGuard(rt: OfficialBots, bot: ActiveBot<"logger">, channelId:
     const current = rt.active(bot.orgId).logger;
     const destination = source ? current?.settings.channelId : current?.settings.memberChannelId ?? current?.settings.channelId;
     if (!current || current.userId !== bot.userId || destination !== channelId || (source && ignored(current, source)) || !privateLoggerChannel(rt, bot.orgId, channelId))
-      throw new ApiError(409, "official_bot_channel_invalid", "Choose a private text channel for Logger. This event was not published.");
+      throw conflict("Choose a private text channel for Logger. This event was not published.");
   };
 }
 
