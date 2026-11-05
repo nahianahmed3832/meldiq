@@ -13,6 +13,8 @@ import { DEFAULT_SETTINGS, effectiveSettings, isLiveBot, storedSettings } from "
 import { BotRows, type LevelRow } from "./store.js";
 import { TicketsSeam } from "./ticketsBot.js";
 import { type VideoSource, youtubeSource } from "./youtube.js";
+import { protectStarboardHistory } from "./starboard.js";
+import type { StoredEvent } from "../../shared/contracts/http/serverMessages.js";
 
 /** An official bot that is on in a community, with the settings it acts on now. */
 export interface ActiveBot<K extends LiveBotKey = LiveBotKey> {
@@ -43,6 +45,10 @@ export class OfficialBots {
   /** Where Alerts reads YouTube (YOUTUBE_API_KEY); null: Alerts is unavailable. Tests put a fake here. */
   videoSource: VideoSource | null;
   private tail: Promise<void> = Promise.resolve();
+
+  protectStarboardHistory(viewer: string, messages: StoredEvent[], changes?: StoredEvent[]) {
+    return protectStarboardHistory(this, viewer, messages, changes);
+  }
 
   constructor(
     readonly ctx: AppContext,

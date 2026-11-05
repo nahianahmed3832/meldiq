@@ -98,9 +98,9 @@ export default async function serverMessagesRoutes(
       // Community parity A1: without `messages.history`, a channel's history starts when the person joined it.
       const shown = pageSince(page, ctx.authz.historySince(conv, userId));
       const oldest = shown.messages.at(-1);
+      const protectedHistory = await ctx.officialBots.protectStarboardHistory(userId, shown.messages.map(eventToWire), shown.changes.map(eventToWire));
       return {
-        messages: shown.messages.map(eventToWire),
-        changes: shown.changes.map(eventToWire),
+        ...protectedHistory,
         more: shown.more,
         nextCursor:
           shown.more && oldest
@@ -165,17 +165,17 @@ export default async function serverMessagesRoutes(
     const mine = currentConversationIds(ctx, userId);
     const list = await ctx.messages.summaries(mine, userId, UNREAD_CAP);
     const since = historySinceOf(ctx, userId);
+    const rows = list.map((c) => ({
+      conversationId: c.conversation_id,
+      last: c.last && c.last.server_ts >= (since(c.conversation_id) ?? 0) ? eventToWire(c.last) : null,
+      readUpTo: c.read_up_to,
+      unread: c.unread,
+      mentions: c.mentions,
+    }));
+    const { messages } = await ctx.officialBots.protectStarboardHistory(userId, rows.flatMap((row) => row.last ? [row.last] : []));
+    const protectedById = new Map(messages.map((last) => [last.id, last]));
     return {
-      conversations: list.map((c) => ({
-        conversationId: c.conversation_id,
-        last:
-          c.last && c.last.server_ts >= (since(c.conversation_id) ?? 0)
-            ? eventToWire(c.last)
-            : null,
-        readUpTo: c.read_up_to,
-        unread: c.unread,
-        mentions: c.mentions,
-      })),
+      conversations: rows.map((row) => ({ ...row, last: row.last ? protectedById.get(row.last.id) ?? null : null })),
     };
   });
 

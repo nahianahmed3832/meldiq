@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { MeldiqPostgres } from "../../../infrastructure/database/postgres/client.js";
-import { type ConversationSummary, type HistoryPage, type MessageActivity, type MessageEvent, type MessageStore, PAGE_READERS, pageChanges } from "./messageStore.js";
+import { type ConversationSummary, type HistoryPage, type MessageActivity, type MessageEvent, type MessageOrigin, type MessageStore, PAGE_READERS, pageChanges } from "./messageStore.js";
 
 const columns = "id, conversation_id, sender_user_id, sender_device_id, cls, type, target, audience, payload, sent_at, server_ts, mention_all, imported_by";
 const visible = "(audience = 'all' OR sender_user_id = $2)";
@@ -14,6 +14,13 @@ export class PostgresMessageStore implements MessageStore {
   constructor(private readonly db: MeldiqPostgres) {}
   async get(id: string): Promise<MessageEvent | null> {
     return (await this.db.query<MessageEvent>(`SELECT ${columns} FROM meldiq.message_events WHERE id = $1`, [id])).rows[0] ?? null;
+  }
+  async activeOrigins(ids: readonly string[]): Promise<MessageOrigin[]> {
+    if (!ids.length) return [];
+    return (await this.db.query<MessageOrigin>(`SELECT s.id,s.conversation_id,s.server_ts FROM meldiq.message_events s
+      WHERE s.id=ANY($1::text[]) AND s.cls='message' AND s.audience='all'
+      AND NOT EXISTS (SELECT 1 FROM meldiq.message_events d WHERE d.conversation_id=s.conversation_id
+        AND d.target=s.id AND d.cls='control' AND d.type='delete' AND d.audience='all')`, [ids])).rows;
   }
   private async insert(event: MessageEvent): Promise<boolean> {
     const values = columns.split(", ").map(c => event[c as keyof MessageEvent]);

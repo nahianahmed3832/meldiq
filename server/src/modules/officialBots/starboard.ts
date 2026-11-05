@@ -5,6 +5,7 @@ import type { ReactionChanged } from "./events.js";
 import { unping } from "./logger.js";
 import type { ActiveBot, OfficialBots } from "./runtime.js";
 import type { StarRow } from "./store.js";
+import type { StoredEvent } from "../../shared/contracts/http/serverMessages.js";
 
 /** The star emoji everyone may use; a community with Bots+ may pick its own instead. */
 export const STAR_EMOJI: readonly string[] = ["⭐", "🌟"];
@@ -20,6 +21,45 @@ interface Original {
 
 class StarboardScopeChanged extends Error {}
 
+function mayReadSource(rt: OfficialBots, source: NonNullable<ReturnType<OfficialBots["ctx"]["authz"]["conversation"]>>, id: string, serverTs: number): boolean {
+  if (!source.org_id || !rt.ctx.authz.isMember(source.id, id)) return false;
+  // A permission write can precede membership reconciliation for ordinary channel members.
+  if (rt.ctx.authz.orgRole(source.org_id, id) !== "GUEST" && !rt.ctx.authz.scopeEligible(source, id)) return false;
+  const since = rt.ctx.authz.historySince(source, id);
+  return since === null || serverTs >= since;
+}
+
+/** Preserve a page's order/cursor while withholding a copy and its old edits from an unauthorized reader. */
+export async function protectStarboardHistory(rt: OfficialBots, viewer: string, messages: StoredEvent[], changes: StoredEvent[] = []) {
+  const hidden = new Set<string>();
+  const copies: { event: StoredEvent; row: StarRow }[] = [];
+  for (const event of messages) {
+    const origin = event.payload.starboard;
+    if (origin === undefined || event.senderDeviceId !== null || event.importedBy != null) continue;
+    const bot = rt.rows.byAccount(event.senderUserId);
+    if (bot?.bot_key !== "starboard") continue;
+    const pointer = origin && typeof origin === "object" && !Array.isArray(origin) ? origin as Record<string, unknown> : null;
+    const row = typeof pointer?.messageId === "string" ? rt.ctx.ws.get<StarRow>("bot_starboard", { message_id: pointer.messageId }) : undefined;
+    if (!row || row.star_message_id !== event.id || row.star_channel_id !== event.conversationId || row.channel_id !== pointer?.channelId || row.org_id !== bot.org_id) hidden.add(event.id);
+    else copies.push({ event, row });
+  }
+  if (copies.length) {
+    const originals = await rt.ctx.messages.activeOrigins([...new Set(copies.map(({ row }) => row.message_id))]);
+    const byId = new Map(originals.map((original) => [original.id, original]));
+    for (const { event, row } of copies) {
+      const original = byId.get(row.message_id);
+      const source = rt.ctx.authz.conversation(row.channel_id);
+      if (!original || original.conversation_id !== row.channel_id || !publicTextChannel(rt.ctx, source, row.org_id)
+        || !rt.ctx.authz.isMember(row.star_channel_id, viewer) || !mayReadSource(rt, source, viewer, original.server_ts)) hidden.add(event.id);
+    }
+  }
+  if (!hidden.size) return { messages, changes };
+  return {
+    messages: messages.map((event) => hidden.has(event.id) ? { ...event, mentionAll: false, payload: { type: "text", text: "Original message unavailable." } } : event),
+    changes: changes.filter(({ payload }) => typeof payload.target !== "string" || !hidden.has(payload.target) || payload.type === "delete"),
+  };
+}
+
 /** A public label can coexist with individual/category restrictions or a recent-join history boundary. */
 function mayMirror(rt: OfficialBots, bot: ActiveBot<"starboard">, o: Original, destination: string, prepared: readonly string[] = []): boolean {
   const current = rt.active(bot.orgId).starboard;
@@ -28,13 +68,7 @@ function mayMirror(rt: OfficialBots, bot: ActiveBot<"starboard">, o: Original, d
   const source = rt.ctx.authz.conversation(o.channelId);
   if (!publicTextChannel(rt.ctx, source, bot.orgId) || !rt.textChannel(bot.orgId, destination)) return false;
   const readers = [...new Set([...memberIds(rt.ctx, destination), ...prepared])];
-  return readers.length > 0 && readers.every((id) => {
-    if (!rt.ctx.authz.isMember(source.id, id)) return false;
-    // A permission write can precede the membership reconciliation for ordinary channel members.
-    if (rt.ctx.authz.orgRole(bot.orgId, id) !== "GUEST" && !rt.ctx.authz.scopeEligible(source, id)) return false;
-    const since = rt.ctx.authz.historySince(source, id);
-    return since === null || o.serverTs >= since;
-  });
+  return readers.length > 0 && readers.every((id) => mayReadSource(rt, source, id, o.serverTs));
 }
 
 function mirrorGuard(rt: OfficialBots, bot: ActiveBot<"starboard">, o: Original, destination: string): (audience: readonly string[]) => void {

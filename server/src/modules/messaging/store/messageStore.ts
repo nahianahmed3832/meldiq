@@ -51,6 +51,8 @@ export interface ConversationSummary {
   mentions: number;
 }
 
+export type MessageOrigin = Pick<MessageEvent, "id" | "conversation_id" | "server_ts">;
+
 export interface MessageStore {
   readonly backend: "sqlite" | "mongodb" | "postgres";
   get(id: string): Promise<MessageEvent | null>;
@@ -76,6 +78,8 @@ export interface MessageStore {
    * message's reactions hold.
    */
   changesTo(conversationId: string, targetId: string, type: string): Promise<MessageEvent[]>;
+  /** Public original-message metadata only; an accepted public deletion excludes the original. */
+  activeOrigins(ids: readonly string[]): Promise<MessageOrigin[]>;
   /** Other members’ public read markers, reused by every history/collection page. */
   readReceipts(conversationId: string, viewer: string): Promise<MessageEvent[]>;
   /** Community parity A1: whether a message after [since] replies in the thread of [rootId] (the thread exists). */
@@ -270,6 +274,17 @@ export class SqliteMessageStore implements MessageStore {
     for (const id of conversationIds) {
       const t = (q.get(id) as { t: number | null }).t;
       if (t !== null) out[id] = t;
+    }
+    return out;
+  }
+  async activeOrigins(ids: readonly string[]): Promise<MessageOrigin[]> {
+    const out: MessageOrigin[] = [];
+    for (let offset = 0; offset < ids.length; offset += 500) {
+      const keys = ids.slice(offset, offset + 500);
+      out.push(...this.db.prepare(`SELECT s.id,s.conversation_id,s.server_ts FROM message_events s
+        WHERE s.id IN (${keys.map(() => "?").join(",")}) AND s.cls='message' AND s.audience='all'
+        AND NOT EXISTS (SELECT 1 FROM message_events d WHERE d.conversation_id=s.conversation_id
+          AND d.target=s.id AND d.cls='control' AND d.type='delete' AND d.audience='all')`).all(...keys) as MessageOrigin[]);
     }
     return out;
   }

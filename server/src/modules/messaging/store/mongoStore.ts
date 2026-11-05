@@ -1,7 +1,7 @@
 import { retrievalMeta, type RetrievalMeta } from "./retrievalMeta.js";
 import type { Collection } from "mongodb";
 import type { MeldiqMongo } from "../../../infrastructure/database/mongo/client.js";
-import { type ConversationSummary, type HistoryPage, type MessageActivity, type MessageEvent, type MessageStore, mentionsOf, PAGE_READERS, pageChanges, threadRootOf } from "./messageStore.js";
+import { type ConversationSummary, type HistoryPage, type MessageActivity, type MessageEvent, type MessageOrigin, type MessageStore, mentionsOf, PAGE_READERS, pageChanges, threadRootOf } from "./messageStore.js";
 
 /** message_events: the SQLite row itself (same field names, docs/MONGODB.md §3), keyed by its id. */
 type EventDoc = MessageEvent & { _id: string; _retrieval?: RetrievalMeta };
@@ -26,6 +26,20 @@ export class MongoMessageStore implements MessageStore {
   async get(id: string): Promise<MessageEvent | null> {
     const d = await this.col.findOne({ _id: id }, { session: this.mongo.session() });
     return d ? toEvent(d) : null;
+  }
+  async activeOrigins(ids: readonly string[]): Promise<MessageOrigin[]> {
+    if (!ids.length) return [];
+    return this.col.aggregate<MessageOrigin>([
+      { $match: { _id: { $in: ids }, cls: "message", audience: "all" } },
+      { $lookup: { from: this.col.collectionName, let: { source: "$id", channel: "$conversation_id" }, pipeline: [
+        { $match: { cls: "control", type: "delete", audience: "all", $expr: { $and: [
+          { $eq: ["$target", "$$source"] }, { $eq: ["$conversation_id", "$$channel"] },
+        ] } } },
+        { $limit: 1 }, { $project: { _id: 1 } },
+      ], as: "deletions" } },
+      { $match: { "deletions.0": { $exists: false } } },
+      { $project: { _id: 0, id: 1, conversation_id: 1, server_ts: 1 } },
+    ], { session: this.mongo.session() }).toArray();
   }
 
   async add(e: MessageEvent): Promise<boolean> {

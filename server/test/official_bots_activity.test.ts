@@ -414,5 +414,41 @@ describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
         await owner.req("PUT", `/v1/conversations/${stars}/overwrites`, { subject: `user:${dee.userId}`, allow: [], deny: [] });
       }
     });
+
+    it("withholds the body and old count edits of a stored Starboard copy after source access is lost", async () => {
+      const source = (await owner.req("POST", `/v1/orgs/${orgId}/channels`, { name: "previously-readable", kind: "PUBLIC" })).channel.id;
+      const marker = "original source text that was previously readable";
+      const message = await say(ana, source, marker);
+      for (const voter of [ben, cai, dee]) await react(voter, source, message, "⭐");
+      await settle();
+      const copy = h.ctx.ws.get<{ star_message_id: string }>("bot_starboard", { message_id: message })!.star_message_id;
+      const before = await dee.req("GET", `/v2/conversations/${stars}/messages?around=${copy}&limit=20`);
+      expect(before.messages.find((event: Stored) => event.id === copy).payload.text).toContain(marker);
+      expect(before.changes.some((event: Stored) => event.payload.type === "edit" && event.payload.target === copy && event.payload.text?.includes(marker))).toBe(true);
+      await owner.req("PUT", `/v1/conversations/${source}/overwrites`, { subject: `user:${dee.userId}`, allow: [], deny: ["channels.view"] });
+      await expectStatus(dee.req("GET", `/v2/conversations/${source}/messages?limit=10`), 404);
+      const after = await dee.req("GET", `/v2/conversations/${stars}/messages?around=${copy}&limit=20`);
+      expect(JSON.stringify(after)).not.toContain(marker);
+      expect(JSON.stringify(await dee.req("GET", "/v2/messages/summary"))).not.toContain(marker);
+      expect(JSON.stringify(await owner.req("GET", `/v2/conversations/${stars}/messages?around=${copy}&limit=20`))).toContain(marker);
+    });
+
+    it("withholds an existing Starboard body and its source pointer when the original is deleted", async () => {
+      const source = (await owner.req("POST", `/v1/orgs/${orgId}/channels`, { name: "removed-original", kind: "PUBLIC" })).channel.id;
+      const marker = "source content removed after the board copied it";
+      const message = await say(ana, source, marker);
+      for (const voter of [ben, cai]) await react(voter, source, message, "⭐");
+      await settle();
+      const copy = h.ctx.ws.get<{ star_message_id: string }>("bot_starboard", { message_id: message })!.star_message_id;
+      const route = `/v2/conversations/${stars}/messages?around=${copy}&limit=20`;
+      const before = (await owner.req("GET", route)).messages.find((event: Stored) => event.id === copy);
+      expect(before.payload.text).toContain(marker);
+      expect(before.payload.starboard).toEqual({ channelId: source, messageId: message });
+      await send(ana, source, { type: "delete", target: message }, "control");
+      await settle();
+      const redacted = (await owner.req("GET", route)).messages.find((event: Stored) => event.id === copy);
+      expect(JSON.stringify(redacted)).not.toContain(marker);
+      expect(redacted.payload.starboard).toBeUndefined();
+    });
   });
 });
