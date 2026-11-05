@@ -471,5 +471,47 @@ describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
       expect(authorized.messages.map((event: Stored) => event.id)).toEqual([message]);
       expect(authorized).toMatchObject({ more: false, nextCursor: null });
     });
+
+    it("redacts queued Starboard bodies and old edits for a revoked reader in REST and WebSocket replay", async () => {
+      const source = (await owner.req("POST", `/v1/orgs/${orgId}/channels`, { name: "replay-source", kind: "PUBLIC" })).channel.id;
+      const marker = "synthetic private Starboard replay canary";
+      const message = await say(ana, source, marker);
+      for (const voter of [ben, cai, dee]) await react(voter, source, message, "⭐");
+      await settle();
+      const copy = h.ctx.ws.get<{ star_message_id: string }>("bot_starboard", { message_id: message })!.star_message_id;
+      const board = (items: { conversationId: string; id: number; payload: { event: Stored } }[]) => items.filter((item) => item.conversationId === stars && (item.payload.event?.id === copy || item.payload.event?.payload.target === copy));
+      const queued = async (c: GriipClient) => board((await c.req("GET", "/v1/queue?limit=200")).items);
+      const before = await queued(dee);
+      expect(before).toHaveLength(2);
+      expect(before.every((item) => item.payload.event.payload.text?.includes(marker))).toBe(true);
+      await owner.req("PUT", `/v1/conversations/${source}/overwrites`, { subject: `user:${dee.userId}`, allow: [], deny: ["channels.view"] });
+      const revoked = await queued(dee);
+      expect(revoked.map((item) => item.id)).toEqual(before.map((item) => item.id));
+      expect.soft(JSON.stringify(revoked)).not.toContain(marker);
+      expect.soft(JSON.stringify(revoked)).not.toContain(message);
+      expect(JSON.stringify(await queued(owner))).toContain(marker);
+
+      const start = dee.events.length;
+      await dee.connect();
+      try {
+        await dee.waitFor(() => dee.events.slice(start).some((event) => event.t === "queue.drained"));
+        const delivered = dee.events.slice(start).filter((event) => event.t === "queue").flatMap((event) => board(event.items));
+        expect(delivered.map((item) => item.id)).toEqual(before.map((item) => item.id));
+        expect.soft(JSON.stringify(delivered)).not.toContain(marker);
+        expect.soft(JSON.stringify(delivered)).not.toContain(message);
+      } finally {
+        await dee.disconnect();
+      }
+      // An edit can be on a different queue page, or the original copy can have been acknowledged already.
+      const ownerQueue = await queued(owner);
+      const original = ownerQueue.find((item) => item.payload.event.id === copy)!;
+      await owner.req("POST", "/v1/queue/ack", { ids: [original.id] });
+      expect(JSON.stringify(await queued(owner))).toContain(marker);
+      await send(ana, source, { type: "delete", target: message }, "control");
+      const afterDelete = await queued(owner);
+      expect(afterDelete).toHaveLength(1);
+      expect(afterDelete[0]!.payload.event.payload.target).toBe(copy);
+      expect(JSON.stringify(afterDelete)).not.toContain(marker);
+    });
   });
 });

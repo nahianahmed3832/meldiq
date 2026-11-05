@@ -776,6 +776,7 @@ export async function buildApp(
     // Community parity batch D (docs/COMMUNITY_PARITY_API.md › Official bots): official bots, kept in workspace rows
     // (migration 074). Registered after the stores' own onClose hooks, so queued bot work finishes before they close.
     ctx.officialBots = new OfficialBots(ctx, config.communityBots);
+    ctx.hub.projectReplay = (userId, rows) => ctx.officialBots.projectStarboardReplay(userId, rows);
     // Part 2: giveaways ending, Wordy recaps and Alerts' checks run on timers (stopped before the queue drains).
     // Paid bot features need the completed billing context before the first scheduled tick.
     app.addHook("onReady", async () => {

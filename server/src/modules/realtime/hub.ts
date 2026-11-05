@@ -86,6 +86,8 @@ export class Hub {
   recordsLastSeen: (userId: string) => boolean = () => true;
   /** A device's last socket closed; [openedAt] is when that socket opened. */
   onDeviceOffline: (deviceId: string, openedAt: number) => void = () => {};
+  /** Only rows with a derived access boundary need a read-side projection. */
+  projectReplay: (userId: string, rows: readonly QueueItemRow[]) => Promise<QueueItemRow[]> | null = () => null;
   /** Sees every frame before it is sent; the test harness checks them against the contract (test/support/contracts.ts). */
   observe: ((e: ServerEvent) => void) | null = null;
   /** Bytes sent to a person's sockets (modules/telemetry counts WebSocket traffic per person). */
@@ -312,22 +314,41 @@ export class Hub {
   private async sendBatch(conn: Conn, batchSize: number): Promise<void> {
     const rows = await this.relay.backlog(conn.deviceId, now(), batchSize + 1);
     if (conn.ws.readyState !== 1) return;
-    const more = rows.length > batchSize || conn.heldOverflow;
     const batch = rows.slice(0, batchSize);
+    const projected = this.projectReplay(conn.userId, batch);
+    const items = (projected ? await projected : batch).map(queueItemToWire);
+    if (conn.ws.readyState !== 1) return;
+    const more = rows.length > batchSize || conn.heldOverflow;
     for (const r of batch) conn.sentIds.add(r.id);
     if (conn.heldOverflow && rows.length <= batchSize) {
       // Too much arrived while flushing to hold: it's all in the queue, so one more batch picks it up.
       conn.heldOverflow = false;
       conn.held = [];
     }
-    this.sendOn(conn, this.encode({ t: "queue", items: batch.map(queueItemToWire), more, backlog: true }));
-    if (more) return;
-    // Everything from here to the switch below is synchronous, so a live item can't slip between the held ones and
-    // the next live push.
-    const late = conn.held.filter((r) => !conn.sentIds.has(r.id)).sort((a, b) => a.id - b.id);
-    conn.held = [];
+    this.sendOn(conn, this.encode({ t: "queue", items, more, backlog: true }));
+    if (more) {
+      if (!batch.length) conn.flushAgain = true;
+      return;
+    }
+    // Live pushes continue to wait in arrival order while an authorized replay batch is projected.
+    let sentLate = 0;
+    while (conn.held.length && !conn.heldOverflow) {
+      const late = conn.held.filter((r) => !conn.sentIds.has(r.id)).sort((a, b) => a.id - b.id);
+      conn.held = [];
+      if (!late.length) break;
+      const protectedLate = this.projectReplay(conn.userId, late);
+      const lateItems = (protectedLate ? await protectedLate : late).map(queueItemToWire);
+      if (conn.ws.readyState !== 1) return;
+      for (const r of late) conn.sentIds.add(r.id);
+      this.sendOn(conn, this.encode({ t: "queue", items: lateItems, more: false }));
+      sentLate += late.length;
+      if (sentLate >= HELD_LIMIT && conn.held.length) conn.heldOverflow = true;
+    }
+    if (conn.heldOverflow) {
+      conn.flushAgain = true;
+      return;
+    }
     conn.sentIds.clear();
-    if (late.length) this.sendOn(conn, this.encode({ t: "queue", items: late.map(queueItemToWire), more: false }));
     conn.flushing = false;
     this.sendOn(conn, this.encode({ t: "queue.drained" }));
   }

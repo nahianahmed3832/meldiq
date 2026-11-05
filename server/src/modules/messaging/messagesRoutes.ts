@@ -178,10 +178,12 @@ export default async function messageRoutes(app: FastifyInstance, ctx: AppContex
 
   // REST fallback for the WebSocket queue (used after reconnect if the socket is unavailable).
   app.get("/v1/queue", auth, async (req) => {
-    const { deviceId } = me(req);
+    const { userId, deviceId } = me(req);
     const { limit } = parse(QueueQuery, req.query);
     const rows = await ctx.relay.backlog(deviceId, now(), limit + 1);
-    return { items: rows.slice(0, limit).map(queueItemToWire), more: rows.length > limit };
+    const batch = rows.slice(0, limit);
+    const projected = ctx.officialBots.projectStarboardReplay(userId, batch);
+    return { items: (projected ? await projected : batch).map(queueItemToWire), more: rows.length > limit };
   });
 
   app.post("/v1/queue/ack", auth, async (req) => {

@@ -3,7 +3,7 @@ import type { BotSettings, LiveBotKey, OfficialBotKey } from "../../shared/contr
 import { ApiError } from "../../shared/errors.js";
 import { newId } from "../../shared/utilities/util.js";
 import { createBotIdentity, namesOf } from "../accounts/index.js";
-import { sendServerMessage } from "../messaging/index.js";
+import { sendServerMessage, type QueueItemRow } from "../messaging/index.js";
 import { catalogEntry } from "./catalog.js";
 import { handle } from "./dispatch.js";
 import { type BotEvent, fromAudit, fromMessage, type NotedAudit, type NotedMessage } from "./events.js";
@@ -14,6 +14,7 @@ import { BotRows, type LevelRow } from "./store.js";
 import { TicketsSeam } from "./ticketsBot.js";
 import { type VideoSource, youtubeSource } from "./youtube.js";
 import { protectStarboardHistory } from "./starboard.js";
+import { projectStarboardReplay } from "./starboardReplay.js";
 import type { StoredEvent } from "../../shared/contracts/http/serverMessages.js";
 
 /** An official bot that is on in a community, with the settings it acts on now. */
@@ -48,6 +49,10 @@ export class OfficialBots {
 
   protectStarboardHistory(viewer: string, messages: StoredEvent[], changes?: StoredEvent[]) {
     return protectStarboardHistory(this, viewer, messages, changes);
+  }
+
+  projectStarboardReplay(viewer: string, rows: readonly QueueItemRow[]) {
+    return projectStarboardReplay(this, viewer, rows);
   }
 
   /** Search uses originals so old copies and count edits cannot influence results or cursors. */
