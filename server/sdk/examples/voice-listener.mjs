@@ -36,6 +36,7 @@ try {
   prompt = undefined;
   lease = await bot.joinVoice(channelId, {
     requestId: crypto.randomUUID(),
+    waitForMember: true,
     signal: stop.signal,
   });
   renewal = setInterval(() => {
@@ -51,6 +52,8 @@ try {
     await new Promise((resolve) => setTimeout(resolve, 300));
   } while (!stop.signal.aborted && Date.now() < deadline);
   const keyText = await openVoiceKey(voice.keys, response);
+  const media = response.media ?? lease.media;
+  if (!media) throw new Error("No authorized media grant is available");
   room = new Room();
   room.on(RoomEvent.Disconnected, () => stop.abort());
   room.on(RoomEvent.TrackSubscribed, (track) => {
@@ -61,7 +64,7 @@ try {
         if (stop.signal.aborted) break;
     })().catch(() => stop.abort());
   });
-  await room.connect(lease.media.url, lease.media.token, {
+  await room.connect(media.url, media.token, {
     autoSubscribe: true,
     encryption: {
       keyProviderOptions: { sharedKey: new TextEncoder().encode(keyText) },

@@ -255,9 +255,18 @@ export class MeldiqBot {
       body: { commands },
     });
   }
-  joinVoice(channelId, { requestId = crypto.randomUUID(), signal } = {}) {
+  joinVoice(
+    channelId,
+    { requestId = crypto.randomUUID(), waitForMember = false, signal } = {},
+  ) {
+    if (typeof waitForMember !== "boolean")
+      throw new TypeError("waitForMember must be a boolean");
     return this.request("POST", "/v2/bot/voice", {
-      body: { channelId, requestId },
+      body: {
+        channelId,
+        requestId,
+        ...(waitForMember ? { waitForMember: true } : {}),
+      },
       signal,
     });
   }

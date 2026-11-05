@@ -199,7 +199,7 @@ export default async function botRoutes(app: FastifyInstance, ctx: AppContext) {
     },
   );
 
-  app.post("/v2/bot/voice", bot(30), async (req) => { const body = parse(BotVoiceJoinBody, req.body); return svc.voice.join(theBot(req), body.channelId, body.requestId); });
+  app.post("/v2/bot/voice", bot(30), async (req) => { const body = parse(BotVoiceJoinBody, req.body); return svc.voice.join(theBot(req), body.channelId, body.requestId, body.waitForMember); });
   app.get("/v2/bot/voice/:leaseId/key", bot(120), async (req) => svc.voice.key(theBot(req), parse(BotVoiceParams, req.params).leaseId));
   app.post("/v2/bot/voice/:leaseId/heartbeat", bot(60), async (req) => svc.voice.heartbeat(theBot(req), parse(BotVoiceParams, req.params).leaseId));
   app.post("/v2/bot/voice/:leaseId/connected", bot(30), async (req) => svc.voice.connected(theBot(req), parse(BotVoiceParams, req.params).leaseId));

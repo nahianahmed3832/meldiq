@@ -6,6 +6,12 @@ import { route } from "./route.js";
 export const BotVoiceJoinBody = z.strictObject({
   channelId: z.string().min(1).max(64),
   requestId: z.uuid(),
+  waitForMember: z
+    .boolean()
+    .default(false)
+    .describe(
+      "Opt in to a bounded pending lease when this authorized channel has no active native room. No media grant exists until a connected member supplies the encrypted key.",
+    ),
 });
 export const BotVoiceParams = z.strictObject({
   leaseId: z.string().min(1).max(64),
@@ -46,7 +52,7 @@ export const botVoiceRoutes = [
   botRoute(
     "POST",
     "/v2/bot/voice",
-    "Join an existing native voice room with approved public key and a dedicated short-lived bot media lease.",
+    "Join an existing native voice room, or explicitly wait for a member in an empty authorized channel, with an approved public key and bounded bot media lease.",
     BotVoiceLease.extend({
       media: MediaGrant.extend({
         token: z
@@ -54,7 +60,7 @@ export const botVoiceRoutes = [
           .describe(
             "One-minute room-scoped bot token, initially receive-only. Current SFU admission enables approved microphone publishing.",
           ),
-      }),
+      }).nullable(),
     }),
     BotVoiceJoinBody,
   ),
@@ -67,6 +73,11 @@ export const botVoiceRoutes = [
         senderUserId: z.string(),
         at: z.number().int(),
       }).nullable(),
+      media: MediaGrant.nullable()
+        .optional()
+        .describe(
+          "A formerly empty-channel lease receives its media grant here only after a connected member supplies the encrypted key. Existing-room clients retain their initial join grant.",
+        ),
     }),
   ),
   botRoute(

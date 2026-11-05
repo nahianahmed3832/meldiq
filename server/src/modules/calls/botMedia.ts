@@ -17,6 +17,7 @@ export async function prepareBotMedia(
   botId: string,
   channelId: string,
   participantId: string,
+  waitForMember = false,
 ) {
   requireFeature(ctx.platform, "calls", botId);
   const conv = ctx.authz.requireMember(channelId, botId);
@@ -37,12 +38,33 @@ export async function prepareBotMedia(
   const call = (await ctx.calls.liveIn([conv.id])).find(
     (row) => row.state === "ACTIVE" && row.room === 1 && !row.host_server_id,
   );
+  if (!call && waitForMember) return null;
   if (!call)
     throw new ApiError(
       409,
       "conflict",
       "A member must open this voice room before the bot joins",
     );
+  if (waitForMember) {
+    const present = await ctx.livekit.participantIdentities(call.room_name);
+    if (!present)
+      throw new ApiError(
+        503,
+        "media_unavailable",
+        "The media server could not confirm a connected member",
+      );
+    const admitted = callAdmission(ctx, conv.id);
+    const humanPresent = present.some((identity) => {
+      const [userId, deviceId] = identity.split(".");
+      return (
+        !!userId &&
+        !!deviceId &&
+        !isBotUser(ctx, userId) &&
+        admitted(userId, deviceId)
+      );
+    });
+    if (!humanPresent) return null;
+  }
   await assertCallHasRoom(ctx, call, `${botId}.${participantId}`);
   requireVoiceConnect(ctx, conv, botId);
   return call;
@@ -55,6 +77,8 @@ export async function issueBotMedia(
   participantId: string,
   canSpeak: boolean,
 ) {
+  if (!ctx.bots.voice.mayIssueMedia(botId, participantId, call.id))
+    throw forbidden("This bot media lease is not ready");
   if (!ctx.livekit)
     throw new ApiError(
       503,

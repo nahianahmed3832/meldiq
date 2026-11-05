@@ -19,10 +19,11 @@ export type BotVoicePacket = z.infer<typeof BotVoicePacket>;
 export const BotVoiceLease = z.strictObject({
   leaseId: id,
   botId: id,
-  callId: id,
+  callId: id.nullable(),
   channelId: id,
   manifestRev: z.number().int().positive(),
   expiresAt: z.number().int().positive(),
+  state: z.enum(["waiting_for_member", "waiting_for_key", "ready"]).optional(),
 });
 export const BOT_VOICE_HPKE_INFO = "meldiq-bot-voice-v1";
 export const botVoiceAad = (

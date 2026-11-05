@@ -2822,7 +2822,7 @@
         "tags": [
           "Bots"
         ],
-        "summary": "Join an existing native voice room with approved public key and a dedicated short-lived bot media lease.",
+        "summary": "Join an existing native voice room, or explicitly wait for a member in an empty authorized channel, with an approved public key and bounded bot media lease.",
         "operationId": "postV2BotVoice",
         "parameters": [],
         "responses": {
@@ -2844,9 +2844,16 @@
                       "maxLength": 64
                     },
                     "callId": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 64
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "channelId": {
                       "type": "string",
@@ -2863,78 +2870,93 @@
                       "exclusiveMinimum": 0,
                       "maximum": 9007199254740991
                     },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "waiting_for_member",
+                        "waiting_for_key",
+                        "ready"
+                      ]
+                    },
                     "media": {
-                      "type": "object",
-                      "properties": {
-                        "url": {
-                          "type": "string"
-                        },
-                        "token": {
-                          "type": "string",
-                          "description": "One-minute room-scoped bot token, initially receive-only. Current SFU admission enables approved microphone publishing."
-                        },
-                        "room": {
-                          "type": "string"
-                        },
-                        "canSpeak": {
-                          "type": "boolean"
-                        },
-                        "limits": {
+                      "anyOf": [
+                        {
                           "type": "object",
                           "properties": {
-                            "screen": {
-                              "type": "array",
-                              "items": {
-                                "type": "object",
-                                "properties": {
-                                  "id": {
-                                    "type": "string"
-                                  },
-                                  "width": {
-                                    "type": "integer",
-                                    "minimum": -9007199254740991,
-                                    "maximum": 9007199254740991
-                                  },
-                                  "height": {
-                                    "type": "integer",
-                                    "minimum": -9007199254740991,
-                                    "maximum": 9007199254740991
-                                  },
-                                  "fps": {
-                                    "type": "integer",
-                                    "minimum": -9007199254740991,
-                                    "maximum": 9007199254740991
+                            "url": {
+                              "type": "string"
+                            },
+                            "token": {
+                              "type": "string",
+                              "description": "One-minute room-scoped bot token, initially receive-only. Current SFU admission enables approved microphone publishing."
+                            },
+                            "room": {
+                              "type": "string"
+                            },
+                            "canSpeak": {
+                              "type": "boolean"
+                            },
+                            "limits": {
+                              "type": "object",
+                              "properties": {
+                                "screen": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "width": {
+                                        "type": "integer",
+                                        "minimum": -9007199254740991,
+                                        "maximum": 9007199254740991
+                                      },
+                                      "height": {
+                                        "type": "integer",
+                                        "minimum": -9007199254740991,
+                                        "maximum": 9007199254740991
+                                      },
+                                      "fps": {
+                                        "type": "integer",
+                                        "minimum": -9007199254740991,
+                                        "maximum": 9007199254740991
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "width",
+                                      "height",
+                                      "fps"
+                                    ],
+                                    "additionalProperties": false
                                   }
                                 },
-                                "required": [
-                                  "id",
-                                  "width",
-                                  "height",
-                                  "fps"
-                                ],
-                                "additionalProperties": false
-                              }
-                            },
-                            "voiceKbps": {
-                              "type": "integer",
-                              "minimum": -9007199254740991,
-                              "maximum": 9007199254740991
+                                "voiceKbps": {
+                                  "type": "integer",
+                                  "minimum": -9007199254740991,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "screen",
+                                "voiceKbps"
+                              ],
+                              "additionalProperties": false
                             }
                           },
                           "required": [
-                            "screen",
-                            "voiceKbps"
+                            "url",
+                            "token",
+                            "room",
+                            "canSpeak"
                           ],
                           "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
                         }
-                      },
-                      "required": [
-                        "url",
-                        "token",
-                        "room",
-                        "canSpeak"
-                      ],
-                      "additionalProperties": false
+                      ]
                     }
                   },
                   "required": [
@@ -2983,6 +3005,11 @@
                     "type": "string",
                     "format": "uuid",
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "waitForMember": {
+                    "default": false,
+                    "description": "Opt in to a bounded pending lease when this authorized channel has no active native room. No media grant exists until a connected member supplies the encrypted key.",
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -3034,9 +3061,16 @@
                       "maxLength": 64
                     },
                     "callId": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 64
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "channelId": {
                       "type": "string",
@@ -3052,6 +3086,14 @@
                       "type": "integer",
                       "exclusiveMinimum": 0,
                       "maximum": 9007199254740991
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "waiting_for_member",
+                        "waiting_for_key",
+                        "ready"
+                      ]
                     },
                     "key": {
                       "anyOf": [
@@ -3080,6 +3122,86 @@
                             "ct",
                             "senderUserId",
                             "at"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "media": {
+                      "description": "A formerly empty-channel lease receives its media grant here only after a connected member supplies the encrypted key. Existing-room clients retain their initial join grant.",
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "url": {
+                              "type": "string"
+                            },
+                            "token": {
+                              "type": "string"
+                            },
+                            "room": {
+                              "type": "string"
+                            },
+                            "canSpeak": {
+                              "type": "boolean"
+                            },
+                            "limits": {
+                              "type": "object",
+                              "properties": {
+                                "screen": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "width": {
+                                        "type": "integer",
+                                        "minimum": -9007199254740991,
+                                        "maximum": 9007199254740991
+                                      },
+                                      "height": {
+                                        "type": "integer",
+                                        "minimum": -9007199254740991,
+                                        "maximum": 9007199254740991
+                                      },
+                                      "fps": {
+                                        "type": "integer",
+                                        "minimum": -9007199254740991,
+                                        "maximum": 9007199254740991
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "width",
+                                      "height",
+                                      "fps"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "voiceKbps": {
+                                  "type": "integer",
+                                  "minimum": -9007199254740991,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "screen",
+                                "voiceKbps"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "url",
+                            "token",
+                            "room",
+                            "canSpeak"
                           ],
                           "additionalProperties": false
                         },
@@ -3159,9 +3281,16 @@
                       "maxLength": 64
                     },
                     "callId": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 64
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "channelId": {
                       "type": "string",
@@ -3177,6 +3306,14 @@
                       "type": "integer",
                       "exclusiveMinimum": 0,
                       "maximum": 9007199254740991
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "waiting_for_member",
+                        "waiting_for_key",
+                        "ready"
+                      ]
                     }
                   },
                   "required": [
@@ -3248,9 +3385,16 @@
                       "maxLength": 64
                     },
                     "callId": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 64
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "channelId": {
                       "type": "string",
@@ -3266,6 +3410,14 @@
                       "type": "integer",
                       "exclusiveMinimum": 0,
                       "maximum": 9007199254740991
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "waiting_for_member",
+                        "waiting_for_key",
+                        "ready"
+                      ]
                     },
                     "canSpeak": {
                       "type": "boolean"

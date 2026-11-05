@@ -147,8 +147,13 @@ class MeldiqBot:
     def set_commands(self, commands):
         return self.request("PUT", "/v2/bot/commands", {"commands": commands})
 
-    def join_voice(self, channel_id, request_id=None):
-        return self.request("POST", "/v2/bot/voice", {"channelId": channel_id, "requestId": request_id or str(uuid.uuid4())})
+    def join_voice(self, channel_id, request_id=None, *, wait_for_member=False):
+        if not isinstance(wait_for_member, bool):
+            raise TypeError("wait_for_member must be a boolean")
+        body = {"channelId": channel_id, "requestId": request_id or str(uuid.uuid4())}
+        if wait_for_member:
+            body["waitForMember"] = True
+        return self.request("POST", "/v2/bot/voice", body)
 
     def voice_key(self, lease_id):
         return self.request("GET", "/v2/bot/voice/" + urllib.parse.quote(lease_id, safe="") + "/key")
