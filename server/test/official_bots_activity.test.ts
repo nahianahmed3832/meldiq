@@ -1,8 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { levelOf, xpForLevel } from "../src/modules/officialBots/levels.js";
 import { PostgresRelayStore } from "../src/modules/messaging/relay/postgresStore.js";
 import type { GriipClient } from "./support/griipClient.js";
 import { expectStatus, type Harness, startServer } from "./support/harness.js";
+import { setAttachmentExpiry } from "./support/files.js";
 
 /**
  * Official bots that follow what happens (community parity batch D, docs/COMMUNITY_PARITY_API.md › Official bots):
@@ -512,6 +514,40 @@ describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
       expect(afterDelete).toHaveLength(1);
       expect(afterDelete[0]!.payload.event.payload.target).toBe(copy);
       expect(JSON.stringify(afterDelete)).not.toContain(marker);
+    });
+
+    it("shows an uploaded Starboard image only through the current readable original", async () => {
+      const source = (await owner.req("POST", `/v1/orgs/${orgId}/channels`, { name: "starred-image-source", kind: "PUBLIC" })).channel.id;
+      const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a+yYAAAAASUVORK5CYII=", "base64");
+      const key = randomBytes(32), nonce = randomBytes(12);
+      const cipher = createCipheriv("aes-256-gcm", key, nonce);
+      const encrypted = Buffer.concat([cipher.update(png), cipher.final(), cipher.getAuthTag()]);
+      const { id } = await ana.req("POST", `/v1/attachments?conversationId=${source}`, undefined, encrypted);
+      const ref = { id, name: "pixel.png", mime: "image/png", size: png.length, key: key.toString("base64"), nonce: nonce.toString("base64"), sha256: createHash("sha256").update(encrypted).digest("base64") };
+      const original = await say(ana, source, "an uploaded picture", { attachments: [ref] });
+      await expectStatus(send(ana, stars, { type: "text", text: "attempted cross-channel reuse", attachments: [ref] }), 400);
+      for (const voter of [ben, cai]) await react(voter, source, original, "⭐");
+      await settle();
+      const mirror = h.ctx.ws.get<{ star_message_id: string | null }>("bot_starboard", { message_id: original })?.star_message_id;
+      expect(mirror).toEqual(expect.any(String));
+      const board = `/v2/conversations/${stars}/messages?around=${mirror}&limit=20`;
+      const image = (await dee.req("GET", board)).messages.find((m: Stored) => m.id === mirror).payload.attachments[0];
+      expect(image).toMatchObject(ref);
+      const downloaded: Buffer = await dee.req("GET", `/v1/attachments/${image.id}`);
+      const decipher = createDecipheriv("aes-256-gcm", Buffer.from(image.key, "base64"), Buffer.from(image.nonce, "base64"));
+      decipher.setAuthTag(downloaded.subarray(-16));
+      expect(Buffer.concat([decipher.update(downloaded.subarray(0, -16)), decipher.final()])).toEqual(png);
+      expect(await h.ctx.files.attachment(id)).toMatchObject({ conversation_id: source, message_id: original });
+      await owner.req("PUT", `/v1/conversations/${source}/overwrites`, { subject: `user:${dee.userId}`, allow: [], deny: ["channels.view"] });
+      expect(JSON.stringify(await dee.req("GET", board))).not.toContain(id);
+      await expectStatus(dee.req("GET", `/v1/attachments/${id}`), 404);
+      expect(JSON.stringify(await owner.req("GET", board))).toContain(id);
+      await setAttachmentExpiry(h, [id], Date.now() - 1);
+      const expired = JSON.stringify(await owner.req("GET", board));
+      expect(expired).not.toContain(id);
+      expect(expired).toContain("an uploaded picture");
+      await send(ana, source, { type: "delete", target: original }, "control");
+      expect(JSON.stringify(await owner.req("GET", board))).not.toContain("an uploaded picture");
     });
   });
 });

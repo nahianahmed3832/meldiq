@@ -19,6 +19,10 @@ export class PostgresFileStore implements FileStore {
   async attachment(id: string): Promise<AttachmentRow | null> {
     return (await this.db.query<AttachmentRow>("SELECT * FROM meldiq.attachments WHERE id=$1", [id])).rows[0] ?? null;
   }
+  async attachmentRows(ids: readonly string[]): Promise<AttachmentRow[]> {
+    if (!ids.length) return [];
+    return (await this.db.query<AttachmentRow>("SELECT * FROM meldiq.attachments WHERE id=ANY($1::text[])", [ids])).rows;
+  }
   async recordAttachment(row: Omit<AttachmentRow, "kept">): Promise<void> {
     await this.db.query(`INSERT INTO meldiq.attachments (${attachmentColumns}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, attachmentValues(row));
   }

@@ -17,7 +17,7 @@ export class PostgresMessageStore implements MessageStore {
   }
   async activeOrigins(ids: readonly string[]): Promise<MessageOrigin[]> {
     if (!ids.length) return [];
-    return (await this.db.query<MessageOrigin>(`SELECT s.id,s.conversation_id,s.server_ts FROM meldiq.message_events s
+    return (await this.db.query<MessageOrigin>(`SELECT s.id,s.conversation_id,s.server_ts,s.sender_user_id,s.payload FROM meldiq.message_events s
       WHERE s.id=ANY($1::text[]) AND s.cls='message' AND s.audience='all'
       AND NOT EXISTS (SELECT 1 FROM meldiq.message_events d WHERE d.conversation_id=s.conversation_id
         AND d.target=s.id AND d.cls='control' AND d.type='delete' AND d.audience='all')`, [ids])).rows;

@@ -74,6 +74,7 @@ export const KEPT_FOREVER = 253_402_300_799_000;
 export interface FileStore {
   readonly backend: "sqlite" | "mongodb" | "postgres";
   attachment(id: string): Promise<AttachmentRow | null>;
+  attachmentRows(ids: readonly string[]): Promise<AttachmentRow[]>;
   recordAttachment(row: Omit<AttachmentRow, "kept">): Promise<void>;
   keep(id: string, expiresAt: number): Promise<void>;
   publish(id: string, messageId: string, expiresAt?: number): Promise<void>;
@@ -126,6 +127,15 @@ export class SqliteFileStore implements FileStore {
 
   async attachment(id: string): Promise<AttachmentRow | null> {
     return (this.db.prepare("SELECT * FROM attachments WHERE id = ?").get(id) as AttachmentRow | undefined) ?? null;
+  }
+
+  async attachmentRows(ids: readonly string[]): Promise<AttachmentRow[]> {
+    const rows: AttachmentRow[] = [];
+    for (let i = 0; i < ids.length; i += 500) {
+      const page = ids.slice(i, i + 500);
+      rows.push(...this.db.prepare(`SELECT * FROM attachments WHERE id IN (${page.map(() => "?").join(",")})`).all(...page) as AttachmentRow[]);
+    }
+    return rows;
   }
 
   async recordAttachment(r: Omit<AttachmentRow, "kept">): Promise<void> {

@@ -38,6 +38,11 @@ export class MongoFileStore implements FileStore {
     return d ? strip(d) : null;
   }
 
+  async attachmentRows(ids: readonly string[]): Promise<AttachmentRow[]> {
+    if (!ids.length) return [];
+    return (await this.attachments.find({ _id: { $in: [...ids] } }, { session: this.mongo.session() }).toArray()).map(strip);
+  }
+
   async recordAttachment(r: Omit<AttachmentRow, "kept">): Promise<void> {
     await this.attachments.insertOne({ _id: r.id, ...r, kept: 0 }, { session: this.mongo.session() });
   }

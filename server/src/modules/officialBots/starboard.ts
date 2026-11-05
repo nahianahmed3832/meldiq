@@ -6,6 +6,8 @@ import { unping } from "./logger.js";
 import type { ActiveBot, OfficialBots } from "./runtime.js";
 import type { StarRow } from "./store.js";
 import type { StoredEvent } from "../../shared/contracts/http/serverMessages.js";
+import { MessageAttachment } from "../../shared/contracts/attachments.js";
+import type { z } from "zod/v4";
 
 /** The star emoji everyone may use; a community with Bots+ may pick its own instead. */
 export const STAR_EMOJI: readonly string[] = ["⭐", "🌟"];
@@ -21,6 +23,23 @@ interface Original {
 
 class StarboardScopeChanged extends Error {}
 
+type Image = z.infer<typeof MessageAttachment>;
+function uploadedImage(payload: Record<string, unknown>): Image | null {
+  for (const raw of Array.isArray(payload.attachments) ? payload.attachments : []) {
+    const file = MessageAttachment.safeParse(raw);
+    if (file.success && file.data.mime.toLowerCase().startsWith("image/")) return file.data;
+  }
+  return null;
+}
+
+function sourceImage(payload: string): Image | null {
+  try {
+    return uploadedImage(JSON.parse(payload));
+  } catch {
+    return null;
+  }
+}
+
 function mayReadSource(rt: OfficialBots, source: NonNullable<ReturnType<OfficialBots["ctx"]["authz"]["conversation"]>>, id: string, serverTs: number): boolean {
   if (!source.org_id || !rt.ctx.authz.isMember(source.id, id)) return false;
   // A permission write can precede membership reconciliation for ordinary channel members.
@@ -32,6 +51,7 @@ function mayReadSource(rt: OfficialBots, source: NonNullable<ReturnType<Official
 /** Preserve a page's order/cursor while withholding a copy and its old edits from an unauthorized reader. */
 export async function protectStarboardHistory(rt: OfficialBots, viewer: string, messages: StoredEvent[], changes: StoredEvent[] = []) {
   const hidden = new Set<string>();
+  const images = new Map<string, Image>();
   const copies: { event: StoredEvent; row: StarRow }[] = [];
   for (const event of messages) {
     const origin = event.payload.starboard;
@@ -44,18 +64,58 @@ export async function protectStarboardHistory(rt: OfficialBots, viewer: string, 
     else copies.push({ event, row });
   }
   if (copies.length) {
-    const originals = await rt.ctx.messages.activeOrigins([...new Set(copies.map(({ row }) => row.message_id))]);
-    const byId = new Map(originals.map((original) => [original.id, original]));
-    for (const { event, row } of copies) {
-      const original = byId.get(row.message_id);
+    const ids = [...new Set(copies.map(({ row }) => row.message_id))];
+    const origins = await rt.ctx.messages.activeOrigins(ids);
+    const originalById = new Map(origins.map((o) => [o.id, o]));
+    const visibleOrigin = (event: StoredEvent, row: StarRow) => {
+      const origin = originalById.get(row.message_id);
       const source = rt.ctx.authz.conversation(row.channel_id);
-      if (!original || original.conversation_id !== row.channel_id || !publicTextChannel(rt.ctx, source, row.org_id)
-        || !rt.ctx.authz.isMember(row.star_channel_id, viewer) || !mayReadSource(rt, source, viewer, original.server_ts)) hidden.add(event.id);
+      return origin && origin.conversation_id === row.channel_id && origin.sender_user_id !== event.senderUserId
+        && publicTextChannel(rt.ctx, source, row.org_id) && rt.ctx.authz.isMember(row.star_channel_id, viewer)
+        && mayReadSource(rt, source, viewer, origin.server_ts) ? origin : null;
+    };
+    const candidates = new Map<string, Image>();
+    for (const { event, row } of copies) {
+      const origin = visibleOrigin(event, row);
+      const image = origin ? sourceImage(origin.payload) : null;
+      if (image) candidates.set(event.id, image);
+    }
+    const fileIds = [...new Set([...candidates.values()].flatMap((image) => [image.id, ...(image.thumbnail ? [image.thumbnail.id] : [])]))];
+    const files = new Map((fileIds.length ? await rt.ctx.files.attachmentRows(fileIds) : []).map((file) => [file.id, file]));
+    if (fileIds.length) {
+      // Access or deletion can change while checking storage. Check the original again before returning any bytes or keys.
+      const fresh = await rt.ctx.messages.activeOrigins(ids);
+      originalById.clear();
+      for (const origin of fresh) originalById.set(origin.id, origin);
+    }
+    const at = rt.clock();
+    const usable = (sourceId: string, ref: Omit<Image, "thumbnail">) => {
+      const file = files.get(ref.id);
+      const size = ref.size + (ref.chunk ? 16 * Math.max(1, Math.ceil(ref.size / ref.chunk)) : 16);
+      return !!file && file.conversation_id === sourceId && file.pending_message_until == null && file.expires_at > at
+        && file.size === size && (file.sha256 == null || file.sha256 === ref.sha256);
+    };
+    for (const { event, row } of copies) {
+      if (!visibleOrigin(event, row)) {
+        hidden.add(event.id);
+        continue;
+      }
+      const image = candidates.get(event.id);
+      if (!image || !usable(row.channel_id, image)) continue;
+      const { thumbnail, ...ref } = image;
+      images.set(event.id, thumbnail && usable(row.channel_id, thumbnail) ? image : ref);
     }
   }
-  if (!hidden.size) return { messages, changes };
+  if (!hidden.size && !images.size && !copies.some(({ event }) => event.payload.attachments !== undefined)) return { messages, changes };
+  const copyIds = new Set(copies.map(({ event }) => event.id));
   return {
-    messages: messages.map((event) => hidden.has(event.id) ? { ...event, mentionAll: false, payload: { type: "text", text: "Original message unavailable." } } : event),
+    messages: messages.map((event) => {
+      if (hidden.has(event.id)) return { ...event, mentionAll: false, payload: { type: "text", text: "Original message unavailable." } };
+      const image = images.get(event.id);
+      if (!copyIds.has(event.id) || (!image && event.payload.attachments === undefined)) return event;
+      const { attachments: _stored, ...payload } = event.payload;
+      return { ...event, payload: image ? { ...payload, attachments: [image] } : payload };
+    }),
     changes: changes.filter(({ payload }) => typeof payload.target !== "string" || !hidden.has(payload.target) || payload.type === "delete"),
   };
 }
@@ -103,14 +163,9 @@ function postText(rt: OfficialBots, o: Original, emoji: string, stars: number): 
   return `${emoji} ${stars} · ${rt.nameOf(o.author)} in #${channel}${body ? `\n${body}` : ""}`;
 }
 
-/** The first picture of the message: an image attachment, or a webhook box's image. */
-function firstImage(payload: Record<string, unknown>): {
-  attachments?: unknown[];
-  embeds?: unknown[];
-} {
-  const attachments = Array.isArray(payload.attachments) ? payload.attachments : [];
-  const image = attachments.find((a) => typeof (a as { mime?: unknown })?.mime === "string" && (a as { mime: string }).mime.startsWith("image/"));
-  if (image) return { attachments: [image] };
+/** Native uploads are projected on read from the original, never published into another channel. */
+function externalImage(payload: Record<string, unknown>): { embeds?: unknown[] } {
+  if (uploadedImage(payload)) return {};
   const embeds = Array.isArray(payload.embeds) ? (payload.embeds as { image?: { url?: unknown } }[]) : [];
   const url = embeds.find((e) => typeof e?.image?.url === "string")?.image?.url;
   return typeof url === "string" ? { embeds: [{ image: { url } }] } : {};
@@ -141,7 +196,7 @@ async function copy(rt: OfficialBots, bot: ActiveBot<"starboard">, o: Original, 
     type: "text",
     text: postText(rt, o, emoji, stars),
     starboard: { channelId: o.channelId, messageId: o.id },
-    ...firstImage(o.payload),
+    ...externalImage(o.payload),
     ...(link
       ? {
           buttons: [{ kind: "link", label: "Jump to message", emoji: null, url: link }],
@@ -166,7 +221,7 @@ export async function countStars(rt: OfficialBots, bot: ActiveBot<"starboard">, 
   if (!s.channelId || !emoji.includes(ev.emoji) || ev.conversationId === s.channelId || s.excludeChannelIds.includes(ev.conversationId)) return;
   if (!publicTextChannel(rt.ctx, rt.ctx.authz.conversation(ev.conversationId), bot.orgId)) return;
   const m = await rt.ctx.messages.get(ev.target);
-  if (!m || m.conversation_id !== ev.conversationId || m.cls !== "message") return;
+  if (!m || m.conversation_id !== ev.conversationId || m.cls !== "message" || m.sender_user_id === bot.userId) return;
   const o: Original = {
     id: m.id,
     channelId: m.conversation_id,
@@ -177,11 +232,11 @@ export async function countStars(rt: OfficialBots, bot: ActiveBot<"starboard">, 
   const stars = await starrers(rt, bot, o, emoji, ev);
   const known = rt.ctx.ws.get<StarRow>("bot_starboard", { message_id: o.id });
   if (!known) {
-    if (stars >= s.threshold) await copy(rt, bot, o, emoji[0]!, stars, ev.at);
+    if (stars >= s.threshold && (await rt.ctx.messages.activeOrigins([o.id])).length) await copy(rt, bot, o, emoji[0]!, stars, ev.at);
     return;
   }
   if (known.stars === stars || !known.star_message_id) return;
-  if (!mayMirror(rt, bot, o, known.star_channel_id)) return;
+  if (!mayMirror(rt, bot, o, known.star_channel_id) || !(await rt.ctx.messages.activeOrigins([o.id])).length) return;
   try {
     await rt.editPost(bot, known.star_channel_id, known.star_message_id, postText(rt, o, emoji[0]!, stars), {}, mirrorGuard(rt, bot, o, known.star_channel_id));
   } catch (error) {

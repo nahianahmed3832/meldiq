@@ -51,7 +51,7 @@ export interface ConversationSummary {
   mentions: number;
 }
 
-export type MessageOrigin = Pick<MessageEvent, "id" | "conversation_id" | "server_ts">;
+export type MessageOrigin = Pick<MessageEvent, "id" | "conversation_id" | "server_ts" | "sender_user_id" | "payload">;
 
 export interface MessageStore {
   readonly backend: "sqlite" | "mongodb" | "postgres";
@@ -281,7 +281,7 @@ export class SqliteMessageStore implements MessageStore {
     const out: MessageOrigin[] = [];
     for (let offset = 0; offset < ids.length; offset += 500) {
       const keys = ids.slice(offset, offset + 500);
-      out.push(...this.db.prepare(`SELECT s.id,s.conversation_id,s.server_ts FROM message_events s
+      out.push(...this.db.prepare(`SELECT s.id,s.conversation_id,s.server_ts,s.sender_user_id,s.payload FROM message_events s
         WHERE s.id IN (${keys.map(() => "?").join(",")}) AND s.cls='message' AND s.audience='all'
         AND NOT EXISTS (SELECT 1 FROM message_events d WHERE d.conversation_id=s.conversation_id
           AND d.target=s.id AND d.cls='control' AND d.type='delete' AND d.audience='all')`).all(...keys) as MessageOrigin[]);

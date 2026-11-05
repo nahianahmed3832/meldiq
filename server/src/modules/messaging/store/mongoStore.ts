@@ -38,7 +38,7 @@ export class MongoMessageStore implements MessageStore {
         { $limit: 1 }, { $project: { _id: 1 } },
       ], as: "deletions" } },
       { $match: { "deletions.0": { $exists: false } } },
-      { $project: { _id: 0, id: 1, conversation_id: 1, server_ts: 1 } },
+      { $project: { _id: 0, id: 1, conversation_id: 1, server_ts: 1, sender_user_id: 1, payload: 1 } },
     ], { session: this.mongo.session() }).toArray();
   }
 

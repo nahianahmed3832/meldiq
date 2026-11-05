@@ -52,7 +52,9 @@ async function protect(rt: OfficialBots, viewer: string, rows: readonly QueueIte
     const event = parsed.get(row.id);
     const target = event?.cls === "control" && typeof event.payload.target === "string" ? event.payload.target : null;
     const original = event ? visible.get(target ?? event.id) : undefined;
-    if (event && original?.conversationId === event.conversationId && original.senderUserId === event.senderUserId) return row;
+    if (event && original?.conversationId === event.conversationId && original.senderUserId === event.senderUserId) {
+      return event.cls === "message" && original !== event ? { ...row, payload: JSON.stringify({ v: 2, event: original }) } : row;
+    }
     // Keep the delivery item and acknowledgement id. An edit arriving in a later batch carries no historic text.
     const safe: StoredEvent = {
       id: row.message_id, conversationId: row.conversation_id, senderUserId: row.sender_user_id, senderDeviceId: null,
