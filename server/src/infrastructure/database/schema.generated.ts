@@ -5426,6 +5426,8 @@ export const SCHEMA: readonly TableShape[] = [
       {"name":"opened_at","type":"INTEGER","notNull":true},
       {"name":"closed_at","type":"INTEGER","notNull":false},
       {"name":"closed_by","type":"TEXT","notNull":false},
+      {"name":"claimed_by","type":"TEXT","notNull":false},
+      {"name":"revision","type":"INTEGER","notNull":true,"default":0},
     ],
     primaryKey: ["channel_id"],
     indexes: [

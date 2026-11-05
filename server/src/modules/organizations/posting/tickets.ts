@@ -45,6 +45,9 @@ export interface TicketRow {
   opened_at: number;
   closed_at: number | null;
   closed_by: string | null;
+  // Older Mongo rows can omit columns that were added to the relational schemas later.
+  claimed_by?: string | null;
+  revision?: number;
 }
 
 /** A channel a panel may post in: a live public or announcement text channel of [orgId]. */
@@ -104,6 +107,10 @@ export class Tickets {
     if (this.ctx.authz.isOrgAdmin(orgId, userId)) return true;
     const perms = this.ctx.authz.permissions(orgId, userId);
     return TICKET_STAFF_POWERS.some((p) => perms.has(p));
+  }
+
+  canAssign(orgId: string, userId: string): boolean {
+    return this.isStaff(orgId, userId) && botsAmong(this.ctx, [userId]).length === 0;
   }
 
   /** The people (not bots) who are staff now. */
@@ -262,7 +269,7 @@ export class Tickets {
 
   /** Tickets as apps show them, to [viewerId]. */
   views(rows: readonly TicketRow[], viewerId: string): z.infer<typeof Ticket>[] {
-    const people = new Map(namesOf(this.ctx.identity, [...new Set(rows.flatMap((r) => [r.opener_id, ...(r.closed_by ? [r.closed_by] : [])]))]).map((n) => [n.id, n]));
+    const people = new Map(namesOf(this.ctx.identity, [...new Set(rows.flatMap((r) => [r.opener_id, r.closed_by, r.claimed_by].filter((id): id is string => id != null)))]).map((n) => [n.id, n]));
     const panels = new Map(rows.length ? this.panels(rows[0]!.org_id).map((p) => [p.id, p.name]) : []);
     return rows.map((r) => ({
       channelId: r.channel_id,
@@ -275,6 +282,8 @@ export class Tickets {
       openedAt: r.opened_at,
       closedAt: r.closed_at,
       closedBy: (r.closed_by && people.get(r.closed_by)) || null,
+      claimedBy: r.claimed_by && this.canAssign(r.org_id, r.claimed_by) ? people.get(r.claimed_by) ?? null : null,
+      revision: r.revision ?? 0,
       joined: this.ctx.authz.isMember(r.channel_id, viewerId),
     }));
   }
@@ -285,12 +294,12 @@ export class Tickets {
     return t;
   }
 
-  /** Open tickets: every one for staff, the viewer's own otherwise. */
-  list(orgId: string, userId: string) {
+  /** Tickets: every one for staff, the viewer's own otherwise. */
+  list(orgId: string, userId: string, state: "open" | "closed" = "open") {
     this.requireEnabled();
     this.ctx.authz.requireOrgMember(orgId, userId);
-    const where = this.isStaff(orgId, userId) ? { org_id: orgId, closed_at: null } : { org_id: orgId, opener_id: userId, closed_at: null };
-    return { tickets: this.views(this.ctx.ws.all<TicketRow>("tickets", { where, orderBy: [["opened_at", "asc"]] }), userId) };
+    const where = { org_id: orgId, ...(!this.isStaff(orgId, userId) && { opener_id: userId }), closed_at: state === "open" ? null : { ne: null } };
+    return { tickets: this.views(this.ctx.ws.all<TicketRow>("tickets", { where, orderBy: state === "open" ? [["opened_at", "asc"], ["channel_id", "asc"]] : [["closed_at", "desc"], ["channel_id", "asc"]] }), userId) };
   }
 
   /** Throws unless [userId] may close [t]: its opener, or staff. */

@@ -1591,7 +1591,7 @@ export function serverFeatures(
   // COMMUNITY_TICKETS=off switch each off.
   if (config.postingTools.webhooks) f.push("channel-webhooks");
   if (config.postingTools.reactionRoles) f.push("reaction-roles");
-  if (config.postingTools.tickets) f.push("community-tickets");
+  if (config.postingTools.tickets) f.push("community-tickets", "ticket-lifecycle");
   // Community parity batch D (docs/COMMUNITY_PARITY_API.md › Official bots): COMMUNITY_BOTS=off switches it off.
   if (config.communityBots) f.push("community-bots");
   // Community parity batch E (docs/COMMUNITY_PARITY_API.md › Discovery): DISCOVERY, COMMUNITY_TEMPLATE_LINKS,

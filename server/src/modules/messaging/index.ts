@@ -26,6 +26,8 @@ export {
   channelsInCategory,
   channelsInCommunity,
   insertChannel,
+  restorePrivateChannel,
+  retainPrivateChannelMembers,
   type NewChannel,
 } from "./channelRows.js";
 

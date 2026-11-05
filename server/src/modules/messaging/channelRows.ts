@@ -58,3 +58,16 @@ export function channelsInCommunity(w: RowWriter, orgId: string): number {
 export function archiveChannel(w: RowWriter, channelId: string, at: number, uncategorise: boolean): boolean {
   return w.update("conversations", { id: channelId, archived_at: null }, { archived_at: at, updated_at: at, ...(uncategorise ? { category_id: null } : {}) }) > 0;
 }
+
+/** Restores only the same archived private text channel, at the end of the destination category. */
+export function restorePrivateChannel(w: RowWriter, orgId: string, channelId: string, archivedAt: number, categoryId: string, at: number): boolean {
+  const last = w.get<{ position: number }>("conversations", { org_id: orgId, type: "CHANNEL", category_id: categoryId }, [["position", "desc"]]);
+  return w.update("conversations", { id: channelId, org_id: orgId, type: "CHANNEL", kind: "PRIVATE", voice: 0, format: "text", archived_at: archivedAt }, {
+    archived_at: null, category_id: categoryId, position: (last?.position ?? -1) + 1, updated_at: at, auto_join: 0,
+  }) > 0;
+}
+
+/** A restored private channel retains the join history of only the still-authorized people. */
+export function retainPrivateChannelMembers(w: RowWriter, channelId: string, keep: ReadonlySet<string>): void {
+  w.delete("conversation_members", { conversation_id: channelId, user_id: { notIn: [...keep] } });
+}

@@ -31,6 +31,7 @@ describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
 
   beforeAll(async () => {
     h = await startServer({ ...env });
+    expect(h.ctx.ws.backend).toBe(_backend);
     [owner, mod, member, bystander, outsider] = await Promise.all(["tkowner", "tkmod", "tkmember", "tkbystander", "tkoutsider"].map((x) => h.client(x)));
     for (const c of [owner, mod, member, bystander]) c.serverMessages = true;
     orgId = (await owner.req("POST", "/v1/orgs", { name: "Help Desk" })).org.id;
@@ -144,6 +145,50 @@ describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
     expect((await bystander.req("POST", `/v1/orgs/${orgId}/tickets/${second}/join`)).ticket.joined).toBe(true);
     await bystander.send(second, { type: "text", text: "Joining in" });
     await bystander.req("POST", `/v1/orgs/${orgId}/tickets/${second}/close`);
+  });
+
+  it("assigns a ticket to one current moderator, rejects unauthorized actions, and permits explicit release", async () => {
+    const [active] = (await member.req("GET", `/v1/orgs/${orgId}/tickets`)).tickets;
+    const claim = `/v1/orgs/${orgId}/tickets/${active.channelId}/claim`;
+    expect(code(await expectStatus(member.req("POST", claim), 403))).toBe("forbidden");
+    expect(code(await expectStatus(outsider.req("POST", claim), 404))).toBe("not_found");
+    const races = await Promise.allSettled([mod.req("POST", claim), bystander.req("POST", claim)]);
+    expect(races.filter(({ status }) => status === "fulfilled")).toHaveLength(1);
+    const winner = races[0]!.status === "fulfilled" ? mod : bystander;
+    const loser = winner === mod ? bystander : mod;
+    expect(code(await expectStatus(loser.req("POST", claim), 409))).toBe("conflict");
+    const claimed = (await winner.req("POST", claim)).ticket;
+    expect(claimed.claimedBy.id).toBe(winner.userId);
+    expect(h.ctx.ws.count("audit_log", { action: "ticket.claim", target: active.channelId })).toBe(1);
+    expect(code(await expectStatus(loser.req("DELETE", claim, { expectedRevision: claimed.revision }), 403))).toBe("forbidden");
+    expect((await winner.req("DELETE", claim, { expectedRevision: claimed.revision })).ticket.claimedBy).toBeNull();
+    const next = (await mod.req("POST", claim)).ticket;
+    expect(next.claimedBy.id).toBe(mod.userId);
+    expect(code(await expectStatus(owner.req("DELETE", claim, { expectedRevision: claimed.revision }), 409))).toBe("conflict");
+    expect((await owner.req("DELETE", claim, { expectedRevision: next.revision })).ticket.claimedBy).toBeNull();
+  });
+
+  it("reopens the same private ticket with its history, current staff, current limits, and a revision-bound review", async () => {
+    const collection = `/v1/orgs/${orgId}/tickets`;
+    const closed = (await owner.req("GET", `${collection}?state=closed`)).tickets;
+    const review = closed.find((ticket: { channelId: string }) => ticket.channelId === second);
+    expect(review).toMatchObject({ closedAt: expect.any(Number), revision: expect.any(Number) });
+    const reopen = `${collection}/${second}/reopen`;
+    const body = { expectedRevision: review.revision };
+    expect(code(await expectStatus(member.req("POST", reopen, body), 403))).toBe("forbidden");
+    await owner.req("DELETE", `/v1/roles/${modRole}/members/${bystander.userId}`);
+    const reopened = (await mod.req("POST", reopen, body)).ticket;
+    expect(reopened).toMatchObject({ channelId: second, closedAt: null, claimedBy: null, revision: review.revision + 1 });
+    const channel = (await member.req("GET", `/v1/conversations/${second}`)).conversation;
+    expect(channel).toMatchObject({ kind: "PRIVATE", categoryId: panels[0]!.categoryId, archived: false });
+    expect(JSON.stringify(await history(member, second))).toContain("Joining in");
+    await expectStatus(bystander.req("GET", `/v2/conversations/${second}/messages`), 404);
+    const other = closed.find((ticket: { channelId: string }) => ticket.channelId === first);
+    expect(code(await expectStatus(owner.req("POST", `${collection}/${first}/reopen`, { expectedRevision: other.revision }), 409))).toBe("ticket_limit");
+    const closedAgain = (await mod.req("POST", `${collection}/${second}/close`)).ticket;
+    expect(closedAgain.revision).toBe(reopened.revision + 1);
+    expect(code(await expectStatus(owner.req("POST", reopen, body), 409))).toBe("conflict");
+    expect((await owner.req("GET", `${collection}?state=closed`)).tickets.some((ticket: { channelId: string }) => ticket.channelId === second)).toBe(true);
   });
 
   it("stops new tickets when the community turns them off; open ones still close", async () => {

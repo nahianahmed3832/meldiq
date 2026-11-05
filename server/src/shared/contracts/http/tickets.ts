@@ -78,6 +78,9 @@ export const Ticket = z.strictObject({
   openedAt: zTime,
   closedAt: zTime.nullable(),
   closedBy: person.nullable(),
+  /** Absent in responses from servers without ticket-lifecycle. */
+  claimedBy: person.nullable().optional(),
+  revision: zCount.optional(),
   /** Whether the viewer is in the ticket's channel (a moderator who wasn't one yet when it opened can join). */
   joined: z.boolean(),
 });
@@ -85,6 +88,8 @@ export const Ticket = z.strictObject({
 export const TicketParams = z.object({ orgId: z.string().min(1).max(64), channelId: z.string().min(1).max(64) });
 export const TicketPanelParams = z.object({ orgId: z.string().min(1).max(64), panelId: z.string().min(1).max(64) });
 const OrgOnly = z.object({ orgId: z.string().min(1).max(64) });
+export const TicketListQuery = z.object({ state: z.enum(["open", "closed"]).default("open") });
+export const TicketRevisionBody = z.strictObject({ expectedRevision: zCount });
 
 const tag = "tickets";
 const off = ["not_found", "feature_disabled"] as const;
@@ -124,7 +129,7 @@ export const ticketRoutes = [
     status: 201,
     errors: [...off, "tickets_off", "ticket_confirm_required", "ticket_limit", "conflict"],
   }),
-  route({ method: "GET", url: "/v1/orgs/:orgId/tickets", tag, summary: "Open tickets: all of them for moderators, your own otherwise.", auth: true, params: OrgOnly, response: z.strictObject({ tickets: z.array(Ticket) }), errors: [...off] }),
+  route({ method: "GET", url: "/v1/orgs/:orgId/tickets", tag, summary: "Open or closed tickets: all for moderators, your own otherwise.", auth: true, params: OrgOnly, query: TicketListQuery, response: z.strictObject({ tickets: z.array(Ticket) }), errors: [...off] }),
   route({ method: "POST", url: "/v1/orgs/:orgId/tickets/:channelId/join", tag, summary: "A moderator joins an open ticket's channel.", auth: true, params: TicketParams, response: z.strictObject({ ticket: Ticket }), errors: [...off, "forbidden", "ticket_closed"] }),
   route({
     method: "POST",
@@ -136,4 +141,7 @@ export const ticketRoutes = [
     response: z.strictObject({ ticket: Ticket }),
     errors: [...off, "forbidden", "ticket_closed"],
   }),
+  route({ method: "POST", url: "/v1/orgs/:orgId/tickets/:channelId/claim", tag, summary: "Assign an open ticket to the acting moderator.", auth: true, params: TicketParams, response: z.strictObject({ ticket: Ticket }), errors: [...off, "forbidden", "ticket_closed", "conflict"] }),
+  route({ method: "DELETE", url: "/v1/orgs/:orgId/tickets/:channelId/claim", tag, summary: "Release the reviewed ticket assignment as its assignee or a community administrator.", auth: true, params: TicketParams, body: TicketRevisionBody, response: z.strictObject({ ticket: Ticket }), errors: [...off, "forbidden", "ticket_closed", "conflict"] }),
+  route({ method: "POST", url: "/v1/orgs/:orgId/tickets/:channelId/reopen", tag, summary: "Reopen a reviewed private ticket as a moderator, preserving its channel and history.", auth: true, params: TicketParams, body: TicketRevisionBody, response: z.strictObject({ ticket: Ticket }), errors: [...off, "forbidden", "tickets_off", "ticket_limit", "conflict"] }),
 ];
