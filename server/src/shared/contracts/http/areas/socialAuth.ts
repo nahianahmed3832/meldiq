@@ -74,6 +74,7 @@ export const socialAuthRoutes = [
     auth: false,
     body: SocialComplete,
     response: SocialCompleted,
+    errors: ["conflict"],
   }),
   route({
     method: "GET",

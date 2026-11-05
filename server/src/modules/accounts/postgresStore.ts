@@ -1,6 +1,6 @@
 import type { PostgresRows } from "../../infrastructure/database/rows/postgresRows.js";
 import { ConstraintError, type RowWriter } from "../../infrastructure/database/rows/types.js";
-import type { AccountPatch, AccountRow, AccountStore, ActiveSession, Admission, CodePurpose, CodeRow, SessionRotation, SessionRow, TicketRow } from "./store.js";
+import type { AccountPatch, AccountRow, AccountStore, ActiveSession, Admission, CodePurpose, CodeRow, PendingSignup, SessionRotation, SessionRow, TicketRow } from "./store.js";
 
 const patchable = new Set(["name", "password_hash", "password_changed_at", "email_verified_at", "user_id", "legacy_linked_at", "selected_workspace_id", "admitted_via", "disabled_at"]);
 class AccountConflict extends Error {}
@@ -35,6 +35,9 @@ export class PostgresAccountStore implements AccountStore {
   async updateAccount(id: string, patch: AccountPatch, at: number): Promise<void> {
     const values = Object.fromEntries(Object.entries(patch).filter(([key]) => patchable.has(key)).map(([key, value]) => [key, value ?? null]));
     if (Object.keys(values).length) await this.rows.write(writer => writer.update("accounts", {id}, {...values, updated_at: at}));
+  }
+  async replacePendingSignup(id: string, row: PendingSignup, at: number): Promise<boolean> {
+    return this.rows.write(w => w.update("accounts", { id, email_verified_at: null, legacy_linked_at: null }, { ...row, updated_at: at }) === 1);
   }
   async updateEmail(id: string, email: string, at: number): Promise<void> {
     await this.rows.write(writer => writer.update("accounts", {id, email_verified_at: null}, {email, updated_at: at}));

@@ -319,6 +319,7 @@ export const SCHEMA: readonly TableShape[] = [
       {"name":"created_at","type":"INTEGER","notNull":true},
       {"name":"updated_at","type":"INTEGER","notNull":true},
       {"name":"disabled_at","type":"INTEGER","notNull":false},
+      {"name":"signup_policy_acceptance","type":"TEXT","notNull":false},
     ],
     primaryKey: ["id"],
     indexes: [

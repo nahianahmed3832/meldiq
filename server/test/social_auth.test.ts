@@ -24,10 +24,11 @@ for (const backend of process.env.MELDIQ_TEST_PG_URL ? ["postgres"] : ["sqlite",
           SOCIAL_AUTH_PUBLIC_ORIGIN: "https://web.example",
           SOCIAL_AUTH_WEB_ORIGIN: "https://web.example",
           SOCIAL_AUTH_PROVIDERS: "google,apple,discord",
-          MONGODB_DOMAINS: backend === "mongodb" ? "accounts" : "",
+          ...(backend === "mongodb" ? { MONGODB_DOMAINS: "accounts" } : {}),
         },
         { mailer },
       );
+      expect(h.ctx.accounts.store.backend).toBe(backend);
       vi.spyOn(h.ctx.accounts.social.provider!, "authorize").mockResolvedValue(
         "https://accounts.google.com/o/oauth2/v2/auth?state=upstream-state",
       );

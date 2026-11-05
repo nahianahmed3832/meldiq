@@ -1,5 +1,6 @@
 import { z } from "zod/v4";
 import { zCount, zKey, zSig, zTime } from "./primitives.js";
+import { RegistrationAttestation } from "./registrationPolicy.js";
 
 /**
  * The v2 account API (docs/ORBIT_2_ARCHITECTURE §6): email-and-password accounts, their sessions, recovery codes, key
@@ -58,7 +59,7 @@ export type KeyBackupBody = z.infer<typeof KeyBackupBody>;
 
 // ───────────── Request bodies ─────────────
 
-export const RegisterBody = z.object({ name: zName, email: zEmail, password: zPassword, inviteCode: z.string().trim().min(8).max(40).optional() });
+export const RegisterBody = z.object({ name: zName, email: zEmail, password: zPassword, inviteCode: z.string().trim().min(8).max(40).optional(), policyAcceptance: RegistrationAttestation.optional() });
 export type RegisterBody = z.infer<typeof RegisterBody>;
 export const EmailBody = z.object({ email: zEmail });
 /** The password chosen at sign-up goes with the code: whoever verifies an address is whoever set its password. */

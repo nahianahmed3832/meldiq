@@ -15,6 +15,7 @@ export interface AccountRow {
   created_at: number;
   updated_at: number;
   disabled_at: number | null;
+  signup_policy_acceptance?: string | null;
 }
 
 export interface SessionRow {
@@ -73,6 +74,7 @@ export type AccountPatch = Partial<
     "name" | "password_hash" | "password_changed_at" | "email_verified_at" | "user_id" | "legacy_linked_at" | "selected_workspace_id" | "admitted_via" | "disabled_at"
   >
 >;
+export type PendingSignup = Pick<AccountRow, "name" | "password_hash" | "password_changed_at" | "signup_policy_acceptance">;
 
 export type SessionRotation = Pick<
   SessionRow,
@@ -117,6 +119,7 @@ export interface AccountStore {
   insertAccount(row: AccountRow): Promise<boolean>;
   /** Inserts [row] after taking [admission]'s invite use, both or neither; null when the email is taken (use given back). */
   createAccount(row: AccountRow, admission: Admission | null): Promise<AccountRow | null>;
+  replacePendingSignup(id: string, row: PendingSignup, at: number): Promise<boolean>;
   updateAccount(id: string, patch: AccountPatch, at: number): Promise<void>;
   /** Changes the address of an account whose address isn't verified yet (a legacy link redone). */
   updateEmail(id: string, email: string, at: number): Promise<void>;
@@ -243,6 +246,11 @@ export class SqliteAccountStore implements AccountStore {
     if (keys.length === 0) return;
     const sets = keys.map((k) => `${k} = ?`).join(", ");
     this.db.prepare(`UPDATE accounts SET ${sets}, updated_at = ? WHERE id = ?`).run(...keys.map((k) => patch[k] ?? null), at, id);
+  }
+
+  async replacePendingSignup(id: string, row: PendingSignup, at: number): Promise<boolean> {
+    return this.db.prepare(`UPDATE accounts SET name=?,password_hash=?,password_changed_at=?,updated_at=?,signup_policy_acceptance=coalesce(?,signup_policy_acceptance)
+      WHERE id=? AND email_verified_at IS NULL AND legacy_linked_at IS NULL`).run(row.name, row.password_hash, row.password_changed_at, at, row.signup_policy_acceptance ?? null, id).changes === 1;
   }
 
   async updateEmail(id: string, email: string, at: number): Promise<void> {
@@ -441,10 +449,10 @@ export class SqliteAccountStore implements AccountStore {
   private insertSync(r: AccountRow): boolean {
     const res = this.db
       .prepare(
-        `INSERT INTO accounts (id, email, name, password_hash, password_changed_at, email_verified_at, user_id, legacy_linked_at, selected_workspace_id, admitted_via, created_at, updated_at, disabled_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`,
+        `INSERT INTO accounts (id, email, name, password_hash, password_changed_at, email_verified_at, user_id, legacy_linked_at, selected_workspace_id, admitted_via, created_at, updated_at, disabled_at, signup_policy_acceptance)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`,
       )
-      .run(r.id, r.email, r.name, r.password_hash, r.password_changed_at, r.email_verified_at, r.user_id, r.legacy_linked_at, r.selected_workspace_id, r.admitted_via, r.created_at, r.updated_at, r.disabled_at);
+      .run(r.id, r.email, r.name, r.password_hash, r.password_changed_at, r.email_verified_at, r.user_id, r.legacy_linked_at, r.selected_workspace_id, r.admitted_via, r.created_at, r.updated_at, r.disabled_at, r.signup_policy_acceptance ?? null);
     return res.changes === 1;
   }
 }

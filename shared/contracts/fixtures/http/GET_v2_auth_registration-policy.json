@@ -1,0 +1,13 @@
+{
+  "policy": {
+    "minimumAge": 13,
+    "terms": {
+      "revision": "test-terms.1",
+      "url": "https://meldiq.app/legal/terms/test-terms.1"
+    },
+    "privacy": {
+      "revision": "test-privacy.2",
+      "url": "https://meldiq.app/legal/privacy/test-privacy.2"
+    }
+  }
+}

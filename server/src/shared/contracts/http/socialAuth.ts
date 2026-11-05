@@ -1,5 +1,6 @@
 import { z } from "zod/v4";
 import { LoginBody, SessionGrant } from "./accounts.js";
+import { RegistrationAttestation } from "./registrationPolicy.js";
 export const SocialProvider = z.enum(["google", "apple", "discord"]);
 export const SocialToken = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
 export const SocialFresh = z
@@ -24,6 +25,7 @@ export const SocialComplete = z
     deviceName: z.string().max(100).optional(),
     totpCode: z.string().max(32).optional(),
     device: LoginBody.shape.device,
+    policyAcceptance: RegistrationAttestation.optional(),
   })
   .strict();
 export const SocialNative = z

@@ -213,6 +213,7 @@ export default async function authRoutes(app: FastifyInstance, ctx: AppContext) 
     // An operator's load-test invite takes the load-test path in either mode: its own quotas instead of the public
     // per-network limits, and a synthetic account (docs/LOADTEST_PROVISIONING.md).
     const loadtest = body.inviteCode ? findLoadtestInvite(ctx.identity, body.inviteCode) : undefined;
+    if (ctx.config.signupPolicy && !loadtest) throw new ApiError(426, "update_required", "Update Meldiq to review the current Terms and Privacy notice before creating an account.");
     const lt = ctx.config.loadtestRegistration;
     if (loadtest) {
       try {

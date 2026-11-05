@@ -1,8 +1,10 @@
 import crypto from "node:crypto";
 import type { AppContext } from "../../../app/context.js";
 import { ApiError, unauthorized } from "../../../shared/errors.js";
+import type { RegistrationAttestation } from "../../../shared/contracts/http/registrationPolicy.js";
 import { newId } from "../../../shared/utilities/util.js";
 import { sessionProblem } from "../sessions.js";
+import { requireSignupAttestation } from "../registrationPolicy.js";
 import type { AccountRow, ActiveSession } from "../store.js";
 import type { SocialConfig, SocialProvider } from "./config.js";
 import {
@@ -37,6 +39,7 @@ export interface CompleteSocial {
   deviceName?: string;
   totpCode?: string;
   device?: { deviceId: string; nonce: string; signature: string };
+  policyAcceptance?: RegistrationAttestation;
 }
 export class SocialAuth {
   readonly store: SocialStore;
@@ -209,6 +212,10 @@ export class SocialAuth {
       (!s || s.account_id !== f.accountId || s.id !== f.sessionId)
     )
       throw unauthorized();
+    // For a new provider account, a missing or stale review must not spend the verified receipt.
+    if (this.ctx.config.signupPolicy && !f.accountId && !(await this.store.find(f.identity))) {
+      requireSignupAttestation(this.ctx.config.signupPolicy, body.policyAcceptance);
+    }
     return this.ctx.accounts.store.transaction(async () => {
       if (
         !(await this.store.replace(
@@ -270,6 +277,8 @@ export class SocialAuth {
               displayName(f.identity!.displayName) ??
               "Meldiq member",
             inviteCode: body.inviteCode,
+            provider: f.provider,
+            policyAcceptance: body.policyAcceptance,
           },
           ip,
           reply,

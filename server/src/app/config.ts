@@ -8,6 +8,8 @@ import path from "node:path";
 import { networkKey } from "./middleware/abuse.js";
 import { MONGO_DOMAINS, type MongoConfig, mongoConfig } from "../infrastructure/database/mongo/config.js";
 import { type AccountsConfig, accountsConfig } from "../modules/accounts/config.js";
+import { signupPolicyConfig } from "../modules/accounts/registrationPolicy.js";
+import type { RegistrationPolicy } from "../shared/contracts/http/registrationPolicy.js";
 import { type EntitlementConfig, entitlementConfig } from "../modules/administration/entitlements.js";
 import { type ExperimentsConfig, experimentsConfig } from "../modules/administration/experiments/assign.js";
 import type { S3Config } from "../infrastructure/storage/s3.js";
@@ -215,6 +217,7 @@ export interface Config {
   analyticsEnabled: boolean;
   /** "invite" (default): registering needs a registration or org invite code. "open": anyone may register. */
   registrationMode: "invite" | "open";
+  signupPolicy: RegistrationPolicy | null;
   /**
    * Synthetic load-test accounts registered with an operator's load-test invite (docs/LOADTEST_PROVISIONING.md):
    * rolling-hour and rolling-24-hour quotas (both > 0 to enable; 0, the default: the path is closed) and the networks
@@ -665,6 +668,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       maxTotalBytes: Math.max(int("HISTORY_TOTAL_BYTES", 10 * 1024 * MiB), 0),
     },
     registrationMode: registrationMode(env.REGISTRATION_MODE),
+    signupPolicy: signupPolicyConfig(env.MELDIQ_SIGNUP_POLICY),
     loadtestRegistration: {
       hourly: Math.max(int("LOADTEST_REGISTRATION_HOURLY_LIMIT", 0), 0),
       daily: Math.max(int("LOADTEST_REGISTRATION_DAILY_LIMIT", 0), 0),

@@ -129,6 +129,11 @@ export class MongoAccountStore implements AccountStore {
     await this.accounts.updateOne({ _id: id }, { $set: set }, this.o);
   }
 
+  async replacePendingSignup(id: string, row: import("./store.js").PendingSignup, at: number): Promise<boolean> {
+    const result = await this.accounts.updateOne({ _id: id, email_verified_at: null, legacy_linked_at: null }, { $set: { ...row, updated_at: at } }, this.o);
+    return result.matchedCount === 1;
+  }
+
   async updateEmail(id: string, email: string, at: number): Promise<void> {
     await this.accounts.updateOne({ _id: id, email_verified_at: null }, { $set: { email, updated_at: at } }, this.o);
   }

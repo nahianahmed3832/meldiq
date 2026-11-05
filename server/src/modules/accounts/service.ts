@@ -13,6 +13,8 @@ import { mailTexts } from "../../infrastructure/mail/mailer.js";
 import { operatorAccount, staticCodeMatches } from "./operatorAccounts.js";
 import { burnPasswordCheck, hashPassword, needsRehash, PASSWORD_PROBLEMS, passwordProblem, verifyPassword } from "./passwords.js";
 import type { LoginBody, RegisterBody } from "../../shared/contracts/http/accounts.js";
+import type { RegistrationAttestation } from "../../shared/contracts/http/registrationPolicy.js";
+import { requireSignupAttestation, signupAcceptance } from "./registrationPolicy.js";
 import { type IssuedSession, sessionEnded, SessionService } from "./sessions.js";
 import type { AccountRow, AccountStore, ActiveSession, Admission as StoreAdmission, CodePurpose } from "./store.js";
 
@@ -215,6 +217,8 @@ export class AccountService {
   async register(body: RegisterBody, ip: string, reply: { header: (k: string, v: string) => unknown }): Promise<void> {
     // The console's sign-up controls (docs/PLATFORM_CONTROLS.md) come first: a closed or blocked sign-up costs nothing.
     requireSignupAllowed(this.ctx.platform, this.ctx.config.registrationMode, body.email);
+    const policy = this.ctx.config.signupPolicy;
+    requireSignupAttestation(policy, body.policyAcceptance);
     if (!this.mailer.available) throw emailUnavailable();
     const weak = weakPassword(body.password, body.email);
     if (weak) throw weak;
@@ -222,6 +226,7 @@ export class AccountService {
     const network = this.requireRegistrationAllowance(ip, reply);
     const hash = await hashPassword(body.password, this.cfg.scryptLogN);
     const t = now();
+    const acceptance = signupAcceptance(policy, body.policyAcceptance, "email", t);
     // Every sign-up passing the checks counts for its network, new address or not, so the limit doesn't tell them apart.
     if (this.signupMode() === "open") {
       this.registeredFrom.hour.record(network, t);
@@ -245,8 +250,9 @@ export class AccountService {
       // details change only together with a new code, and the code checks the password (verifyEmail), so whoever set the
       // password is whoever can verify. A legacy link keeps its details until it is verified or redone.
       if (!this.canSendCode(existing, "verify_email", network)) return;
-      if (!existing.legacy_linked_at) await this.store.updateAccount(existing.id, { name: body.name, password_hash: hash, password_changed_at: t }, t);
-      await this.sendCode((await this.store.accountById(existing.id))!, "verify_email", network);
+      if (!existing.legacy_linked_at && !(await this.store.replacePendingSignup(existing.id, { name: body.name, password_hash: hash, password_changed_at: t, ...(acceptance && { signup_policy_acceptance: acceptance }) }, t))) return;
+      const pending = await this.store.accountById(existing.id);
+      if (pending && pending.email_verified_at === null) await this.sendCode(pending, "verify_email", network);
       return;
     }
     const account: AccountRow = {
@@ -263,6 +269,7 @@ export class AccountService {
       created_at: t,
       updated_at: t,
       disabled_at: null,
+      ...(acceptance && { signup_policy_acceptance: acceptance }),
     };
     const code = body.inviteCode;
     let taken: string | null = null;
@@ -330,11 +337,12 @@ export class AccountService {
   }
 
   /** External sign-up preserves the production admission, platform and abuse policies. */
-  async registerExternal(body: {email: string; name: string; inviteCode?: string}, ip: string, reply: {header:(k:string,v:string)=>unknown}): Promise<AccountRow> {
+  async registerExternal(body: {email: string; name: string; inviteCode?: string; provider: "google" | "apple" | "discord"; policyAcceptance?: RegistrationAttestation}, ip: string, reply: {header:(k:string,v:string)=>unknown}): Promise<AccountRow> {
     requireSignupAllowed(this.ctx.platform, this.ctx.config.registrationMode, body.email);
+    const t = now();
+    const acceptance = signupAcceptance(this.ctx.config.signupPolicy, body.policyAcceptance, body.provider, t);
     const admission = this.requireAdmission(body.inviteCode);
     const network = this.requireRegistrationAllowance(ip, reply);
-    const t = now();
     if (this.signupMode() === "open") {
       this.registeredFrom.hour.record(network,t);
       this.registeredFrom.day.record(network,t);
@@ -353,6 +361,7 @@ export class AccountService {
       created_at: t,
       updated_at: t,
       disabled_at: null,
+      ...(acceptance && { signup_policy_acceptance: acceptance }),
     };
     const code = body.inviteCode;
     let taken: string | null = null;

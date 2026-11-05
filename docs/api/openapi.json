@@ -24868,6 +24868,97 @@
         ]
       }
     },
+    "/v2/auth/registration-policy": {
+      "get": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "The current immutable policy revisions to show before creating an account, when enabled.",
+        "operationId": "getV2AuthRegistrationPolicy",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "policy": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "minimumAge": {
+                              "type": "number",
+                              "const": 13
+                            },
+                            "terms": {
+                              "type": "object",
+                              "properties": {
+                                "revision": {
+                                  "type": "string",
+                                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+                                },
+                                "url": {
+                                  "type": "string",
+                                  "maxLength": 2048,
+                                  "format": "uri"
+                                }
+                              },
+                              "required": [
+                                "revision",
+                                "url"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "privacy": {
+                              "type": "object",
+                              "properties": {
+                                "revision": {
+                                  "type": "string",
+                                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+                                },
+                                "url": {
+                                  "type": "string",
+                                  "maxLength": 2048,
+                                  "format": "uri"
+                                }
+                              },
+                              "required": [
+                                "revision",
+                                "url"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "minimumAge",
+                            "terms",
+                            "privacy"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "policy"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
     "/v2/auth/register": {
       "post": {
         "tags": [
@@ -24902,7 +24993,7 @@
             }
           },
           "default": {
-            "description": "Error. Codes: weak_password, invite_required, invalid_invite, registration_limited, registration_paused, email_unavailable, email_failed",
+            "description": "Error. Codes: weak_password, invite_required, invalid_invite, registration_limited, registration_paused, conflict, email_unavailable, email_failed",
             "content": {
               "application/json": {
                 "schema": {
@@ -24938,6 +25029,39 @@
                     "type": "string",
                     "minLength": 8,
                     "maxLength": 40
+                  },
+                  "policyAcceptance": {
+                    "type": "object",
+                    "properties": {
+                      "termsRevision": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+                      },
+                      "privacyRevision": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+                      },
+                      "ageAtLeast13": {
+                        "type": "boolean",
+                        "const": true
+                      },
+                      "termsAccepted": {
+                        "type": "boolean",
+                        "const": true
+                      },
+                      "privacyAcknowledged": {
+                        "type": "boolean",
+                        "const": true
+                      }
+                    },
+                    "required": [
+                      "termsRevision",
+                      "privacyRevision",
+                      "ageAtLeast13",
+                      "termsAccepted",
+                      "privacyAcknowledged"
+                    ],
+                    "additionalProperties": false
                   }
                 },
                 "required": [
@@ -29270,7 +29394,14 @@
             }
           },
           "default": {
-            "$ref": "#/components/responses/Error"
+            "description": "Error. Codes: conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -29334,6 +29465,39 @@
                       "nonce",
                       "signature"
                     ]
+                  },
+                  "policyAcceptance": {
+                    "type": "object",
+                    "properties": {
+                      "termsRevision": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+                      },
+                      "privacyRevision": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+                      },
+                      "ageAtLeast13": {
+                        "type": "boolean",
+                        "const": true
+                      },
+                      "termsAccepted": {
+                        "type": "boolean",
+                        "const": true
+                      },
+                      "privacyAcknowledged": {
+                        "type": "boolean",
+                        "const": true
+                      }
+                    },
+                    "required": [
+                      "termsRevision",
+                      "privacyRevision",
+                      "ageAtLeast13",
+                      "termsAccepted",
+                      "privacyAcknowledged"
+                    ],
+                    "additionalProperties": false
                   }
                 },
                 "required": [
@@ -29663,7 +29827,7 @@
             }
           },
           "default": {
-            "description": "Error. Codes: legacy_registration_closed, invite_required, invalid_invite, registration_limited, registration_paused, invalid_certificate, conflict, banned, invites_paused",
+            "description": "Error. Codes: legacy_registration_closed, update_required, invite_required, invalid_invite, registration_limited, registration_paused, invalid_certificate, conflict, banned, invites_paused",
             "content": {
               "application/json": {
                 "schema": {

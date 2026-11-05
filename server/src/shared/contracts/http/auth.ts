@@ -122,6 +122,7 @@ export const authRoutes = [
     response: Session.extend({ orgId: z.string().nullable() }),
     errors: [
       "legacy_registration_closed",
+      "update_required",
       "invite_required",
       "invalid_invite",
       "registration_limited",

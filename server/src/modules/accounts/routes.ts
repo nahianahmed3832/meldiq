@@ -69,6 +69,10 @@ export default async function accountRoutes(app: FastifyInstance, ctx: AppContex
   const accountOf = async (req: FastifyRequest) => (await store.accountById(session(req).account_id))!;
 
   // ───────────── Sign-up, email codes, sign-in ─────────────
+  app.get("/v2/auth/registration-policy", async (_req, reply) => {
+    reply.header("cache-control", "no-store");
+    return { policy: ctx.config.signupPolicy };
+  });
   app.post("/v2/auth/register", strict, async (req, reply) => {
     const body = parse(RegisterBody, req.body);
     await service.register(body, req.ip, reply);

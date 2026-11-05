@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { RegistrationPolicyResponse } from "../registrationPolicy.js";
 import {
   AccountDeleted,
   AccountOnly,
@@ -72,6 +73,7 @@ const DEVICE_SETUP = ["invalid_certificate", "invalid_proof", "device_key_retire
 /** Route contracts of the accounts area (docs/architecture/ARCHITECTURE_1_0_PLAN.md §11, step C2). */
 export const accountsRoutes: readonly RouteContract[] = [
   // ───────────── Sign-up, email codes, sign-in ─────────────
+  route({ method: "GET", url: "/v2/auth/registration-policy", tag, summary: "The current immutable policy revisions to show before creating an account, when enabled.", auth: false, response: RegistrationPolicyResponse }),
   route({
     method: "POST",
     url: "/v2/auth/register",
@@ -81,7 +83,7 @@ export const accountsRoutes: readonly RouteContract[] = [
     body: RegisterBody,
     response: VerificationSent,
     status: 202,
-    errors: ["weak_password", "invite_required", "invalid_invite", "registration_limited", "registration_paused", ...EMAIL_SENDING],
+    errors: ["weak_password", "invite_required", "invalid_invite", "registration_limited", "registration_paused", "conflict", ...EMAIL_SENDING],
   }),
   route({
     method: "POST",
