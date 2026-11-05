@@ -80,8 +80,8 @@ export interface Sender {
   deviceId: string | null;
   /** Internal Bot API approval; native membership, channel and content rules still apply. Never read from a body. */
   botContent?: true;
-  /** Internal synchronous recheck run inside the native PostgreSQL writer's acceptance unit. */
-  beforeCommit?: () => void;
+  /** Internal synchronous recheck inside the PostgreSQL acceptance unit, with the prepared delivery audience. */
+  beforeCommit?: (audience: readonly string[]) => void;
   /**
    * Posting tools (community parity batch C): a webhook or a community's "Tickets" account, which is a member nowhere.
    * The caller has checked that it may post in this one channel (a webhook's token, a manager's request), so
@@ -385,10 +385,12 @@ export async function sendServerMessage(
       server_ts: t,
       expires_at: expiresAt,
     };
+    const check = sender.beforeCommit;
+    const beforeCommit = check ? () => check(people.map(({ id }) => id)) : undefined;
     if (atomicRelay) {
-      queued = await atomicRelay.acceptEvent(event, submission, items, sender.beforeCommit);
+      queued = await atomicRelay.acceptEvent(event, submission, items, beforeCommit);
     } else {
-      sender.beforeCommit?.();
+      beforeCommit?.();
       if (!(await ctx.messages.add(event))) {
         const dup = await retry();
         if (dup) return dup;

@@ -1,4 +1,5 @@
 import { botsAmong } from "../accounts/index.js";
+import { memberIds } from "../messaging/index.js";
 import { publicTextChannel } from "../organizations/index.js";
 import type { ReactionChanged } from "./events.js";
 import { unping } from "./logger.js";
@@ -13,7 +14,33 @@ interface Original {
   id: string;
   channelId: string;
   author: string;
+  serverTs: number;
   payload: Record<string, unknown>;
+}
+
+class StarboardScopeChanged extends Error {}
+
+/** A public label can coexist with individual/category restrictions or a recent-join history boundary. */
+function mayMirror(rt: OfficialBots, bot: ActiveBot<"starboard">, o: Original, destination: string, prepared: readonly string[] = []): boolean {
+  const current = rt.active(bot.orgId).starboard;
+  if (!current || current.userId !== bot.userId || current.settings.channelId !== destination || current.settings.excludeChannelIds.includes(o.channelId)) return false;
+  if (current.settings.threshold !== bot.settings.threshold || current.settings.emoji !== bot.settings.emoji || current.settings.selfStar !== bot.settings.selfStar) return false;
+  const source = rt.ctx.authz.conversation(o.channelId);
+  if (!publicTextChannel(rt.ctx, source, bot.orgId) || !rt.textChannel(bot.orgId, destination)) return false;
+  const readers = [...new Set([...memberIds(rt.ctx, destination), ...prepared])];
+  return readers.length > 0 && readers.every((id) => {
+    if (!rt.ctx.authz.isMember(source.id, id)) return false;
+    // A permission write can precede the membership reconciliation for ordinary channel members.
+    if (rt.ctx.authz.orgRole(bot.orgId, id) !== "GUEST" && !rt.ctx.authz.scopeEligible(source, id)) return false;
+    const since = rt.ctx.authz.historySince(source, id);
+    return since === null || o.serverTs >= since;
+  });
+}
+
+function mirrorGuard(rt: OfficialBots, bot: ActiveBot<"starboard">, o: Original, destination: string): (audience: readonly string[]) => void {
+  return (audience) => {
+    if (!mayMirror(rt, bot, o, destination, audience)) throw new StarboardScopeChanged();
+  };
 }
 
 /**
@@ -60,6 +87,7 @@ async function copy(rt: OfficialBots, bot: ActiveBot<"starboard">, o: Original, 
   const starChannel = bot.settings.channelId!;
   // Claimed first, so a message never goes up twice, however the stars arrive.
   const claimed = await rt.ctx.ws.write((w) => {
+    if (!mayMirror(rt, bot, o, starChannel)) return false;
     if (w.get("bot_starboard", { message_id: o.id })) return false;
     w.insert("bot_starboard", {
       message_id: o.id,
@@ -85,8 +113,12 @@ async function copy(rt: OfficialBots, bot: ActiveBot<"starboard">, o: Original, 
           buttons: [{ kind: "link", label: "Jump to message", emoji: null, url: link }],
         }
       : {}),
+  }, mirrorGuard(rt, bot, o, starChannel)).catch((error: unknown) => {
+    if (error instanceof StarboardScopeChanged) return null; // The acceptance guard ran before publication.
+    throw error; // Preserve the claim when publication outcome is unknown.
   });
   if (sent) await rt.ctx.ws.write((w) => w.update("bot_starboard", { message_id: o.id }, { star_message_id: sent.messageId }));
+  else await rt.ctx.ws.write((w) => w.delete("bot_starboard", { message_id: o.id, star_message_id: null }));
 }
 
 /**
@@ -105,6 +137,7 @@ export async function countStars(rt: OfficialBots, bot: ActiveBot<"starboard">, 
     id: m.id,
     channelId: m.conversation_id,
     author: m.sender_user_id,
+    serverTs: m.server_ts,
     payload: JSON.parse(m.payload) as Record<string, unknown>,
   };
   const stars = await starrers(rt, bot, o, emoji, ev);
@@ -114,6 +147,12 @@ export async function countStars(rt: OfficialBots, bot: ActiveBot<"starboard">, 
     return;
   }
   if (known.stars === stars || !known.star_message_id) return;
+  if (!mayMirror(rt, bot, o, known.star_channel_id)) return;
+  try {
+    await rt.editPost(bot, known.star_channel_id, known.star_message_id, postText(rt, o, emoji[0]!, stars), {}, mirrorGuard(rt, bot, o, known.star_channel_id));
+  } catch (error) {
+    if (error instanceof StarboardScopeChanged) return;
+    throw error;
+  }
   await rt.ctx.ws.write((w) => w.update("bot_starboard", { message_id: o.id }, { stars }));
-  await rt.editPost(bot, known.star_channel_id, known.star_message_id, postText(rt, o, emoji[0]!, stars));
 }

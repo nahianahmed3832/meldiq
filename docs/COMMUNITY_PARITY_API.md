@@ -360,8 +360,11 @@ What each does:
   an excluded channel) has `threshold` people (not its author unless `selfStar`, not bots) with a star reaction on,
   it's copied once (`bot_starboard` keeps it from going twice): text `⭐ N · Author in #channel` then the message, its
   first image attachment (or a box's image), `starboard: { channelId, messageId }` in the payload, and a "Jump to
-  message" link button (`<first WEB_ORIGINS>/m/:channelId/:messageId`) when the server knows its web app. Later stars
-  edit the count line; the post is never removed.
+  message" link button (`<first WEB_ORIGINS>/m/:channelId/:messageId`) when the server knows its web app. New copies
+  and count edits require every current destination member to have source membership and access to the original
+  timestamp. The acceptance guard also checks recipients captured while preparing delivery, current effective
+  source permissions and the active bot configuration. This guard does not remove existing copies after a later
+  source deletion or visibility change; those read and retention protections remain open.
 
 - **Giveaways**: `!giveaway <duration> [Nw] <prize>` (duration: one or more of `Ns`, `Nm`, `Nh`, `Nd`, `Nw`, e.g. `1d12h`;
   10 seconds at least; then optionally `3w` winners; the prize ≤200), `!gend` (the channel's running one, now) and

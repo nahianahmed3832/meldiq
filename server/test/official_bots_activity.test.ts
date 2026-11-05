@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { levelOf, xpForLevel } from "../src/modules/officialBots/levels.js";
+import { PostgresRelayStore } from "../src/modules/messaging/relay/postgresStore.js";
 import type { GriipClient } from "./support/griipClient.js";
 import { expectStatus, type Harness, startServer } from "./support/harness.js";
 
@@ -332,6 +333,86 @@ describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
       const posts = (await events(stars, botId)).filter((e) => e.cls === "message");
       expect(posts.at(-1)!.payload.text).toBe("🔥 2 · obaben in #memes\nhot take");
       await plus(false);
+    });
+
+    it("does not widen a nominally public Starboard source beyond its current audience", async () => {
+      const source = (await owner.req("POST", `/v1/orgs/${orgId}/channels`, { name: "limited-source", kind: "PUBLIC" })).channel.id;
+      await owner.req("PUT", `/v1/conversations/${source}/overwrites`, { subject: `user:${dee.userId}`, allow: [], deny: ["channels.view"] });
+      await expectStatus(dee.req("GET", `/v2/conversations/${source}/messages?limit=10`), 404);
+      const message = await say(ana, source, "content behind a source permission");
+      await react(ben, source, message, "⭐");
+      await react(cai, source, message, "⭐");
+      await settle();
+      const board = await dee.req("GET", `/v2/conversations/${stars}/messages?limit=100`);
+      expect((board.messages as Stored[]).some((event) => event.payload.text?.includes("content behind a source permission"))).toBe(false);
+    });
+
+    it("rechecks Starboard source visibility when access changes during a reaction read", async () => {
+      const source = (await owner.req("POST", `/v1/orgs/${orgId}/channels`, { name: "changing-source", kind: "PUBLIC" })).channel.id;
+      const message = await say(ana, source, "content before a source restriction");
+      await react(ben, source, message, "⭐");
+      await settle();
+      let entered!: () => void, release!: () => void;
+      const reading = new Promise<void>((resolve) => { entered = resolve; });
+      const continueReading = new Promise<void>((resolve) => { release = resolve; });
+      const changesTo = h.ctx.messages.changesTo.bind(h.ctx.messages);
+      const spy = vi.spyOn(h.ctx.messages, "changesTo").mockImplementation(async (cid, target, type) => {
+        const result = await changesTo(cid, target, type);
+        if (cid === source && target === message && type === "reaction") { entered(); await continueReading; }
+        return result;
+      });
+      const pending = react(cai, source, message, "⭐");
+      try {
+        await reading;
+        await owner.req("PUT", `/v1/conversations/${source}/overwrites`, { subject: `user:${dee.userId}`, allow: [], deny: ["channels.view"] });
+        release();
+        await pending;
+        await settle();
+        const board = await dee.req("GET", `/v2/conversations/${stars}/messages?limit=100`);
+        expect((board.messages as Stored[]).some((event) => event.payload.text?.includes("content before a source restriction"))).toBe(false);
+      } finally {
+        release();
+        await pending;
+        await settle();
+        spy.mockRestore();
+      }
+    });
+
+    it.skipIf(!process.env.MELDIQ_TEST_PG_URL)("checks already prepared Starboard recipients inside PostgreSQL acceptance", async () => {
+      const relay = h.ctx.relay;
+      if (!(relay instanceof PostgresRelayStore)) throw new Error("PostgreSQL relay was not selected");
+      const source = (await owner.req("POST", `/v1/orgs/${orgId}/channels`, { name: "prepared-source", kind: "PUBLIC" })).channel.id;
+      const message = await say(ana, source, "content with prepared recipients");
+      await react(ben, source, message, "⭐");
+      await settle();
+      let entered!: (id: string) => void, release!: () => void;
+      const preparing = new Promise<string>((resolve) => { entered = resolve; });
+      const continueAcceptance = new Promise<void>((resolve) => { release = resolve; });
+      const accept = relay.acceptEvent.bind(relay);
+      const spy = vi.spyOn(relay, "acceptEvent").mockImplementation(async (event, submission, items, admit) => {
+        if (event.conversation_id === stars && event.cls === "message" && JSON.parse(event.payload).starboard?.messageId === message) {
+          entered(event.id);
+          await continueAcceptance;
+        }
+        return accept(event, submission, items, admit);
+      });
+      const pending = react(cai, source, message, "⭐");
+      try {
+        const mirror = await preparing;
+        for (const cid of [source, stars])
+          await owner.req("PUT", `/v1/conversations/${cid}/overwrites`, { subject: `user:${dee.userId}`, allow: [], deny: ["channels.view"] });
+        release();
+        await pending;
+        await settle();
+        expect(await h.ctx.messages.get(mirror)).toBeNull();
+        expect(h.ctx.ws.count("delivery_queue", { message_id: mirror })).toBe(0);
+      } finally {
+        release();
+        await pending;
+        await settle();
+        spy.mockRestore();
+        await owner.req("PUT", `/v1/conversations/${stars}/overwrites`, { subject: `user:${dee.userId}`, allow: [], deny: [] });
+      }
     });
   });
 });

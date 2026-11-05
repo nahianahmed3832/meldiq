@@ -309,7 +309,7 @@ export class OfficialBots {
   }
 
   /** Posts [payload] as [bot] in the channel a manager picked for it (checked here to still be a text channel). */
-  async post(bot: ActiveBot, channelId: string | null, payload: Payload, beforeCommit?: () => void): Promise<{ messageId: string; channelId: string } | null> {
+  async post(bot: ActiveBot, channelId: string | null, payload: Payload, beforeCommit?: (audience: readonly string[]) => void): Promise<{ messageId: string; channelId: string } | null> {
     const id = this.textChannel(bot.orgId, channelId);
     if (!id) return null;
     const sent = await sendServerMessage(
@@ -328,7 +328,7 @@ export class OfficialBots {
   }
 
   /** Changes the text (and with [extra], the boxes) of [bot]'s own post in a channel it was given. */
-  async editPost(bot: ActiveBot, channelId: string, messageId: string, text: string, extra: Record<string, unknown> = {}): Promise<void> {
+  async editPost(bot: ActiveBot, channelId: string, messageId: string, text: string, extra: Record<string, unknown> = {}, beforeCommit?: (audience: readonly string[]) => void): Promise<void> {
     if (!this.textChannel(bot.orgId, channelId)) return;
     const payload: Payload = {
       ...extra,
@@ -338,7 +338,7 @@ export class OfficialBots {
     };
     await sendServerMessage(
       this.ctx,
-      { userId: bot.userId, deviceId: null, channelGrant: channelId },
+      { userId: bot.userId, deviceId: null, channelGrant: channelId, beforeCommit },
       {
         conversationId: channelId,
         messageId: newId("m"),
