@@ -16,6 +16,6 @@ export async function createSenderAccount(ctx: AppContext, displayName: string):
 }
 
 /** Posts [payload] as a message of [senderId] in [channelId], which the caller has checked it may post in. */
-export function postAs(ctx: AppContext, senderId: string, channelId: string, payload: Record<string, unknown> & { type: string }, log: FastifyBaseLogger) {
-  return sendServerMessage(ctx, { userId: senderId, deviceId: null, channelGrant: channelId }, { conversationId: channelId, messageId: newId("m"), cls: "message", sentAt: Date.now(), payload }, log);
+export function postAs(ctx: AppContext, senderId: string, channelId: string, payload: Record<string, unknown> & { type: string }, log: FastifyBaseLogger, beforeCommit?: (audience: readonly string[]) => void) {
+  return sendServerMessage(ctx, { userId: senderId, deviceId: null, channelGrant: channelId, beforeCommit }, { conversationId: channelId, messageId: newId("m"), cls: "message", sentAt: Date.now(), payload }, log);
 }

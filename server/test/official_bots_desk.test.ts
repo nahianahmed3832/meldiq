@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { fillAlert } from "../src/modules/officialBots/alerts.js";
 import { type ChannelRef, parseChannelRef, type Upload, type VideoSource } from "../src/modules/officialBots/youtube.js";
 import { AlertWatches } from "../src/shared/contracts/http/officialBotTools.js";
@@ -67,6 +67,7 @@ describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
 
   beforeAll(async () => {
     h = await startServer({ ...env, YOUTUBE_API_KEY: "test-key-never-used" });
+    expect(h.ctx.ws.backend).toBe(_backend);
     [owner, member, helper] = await Promise.all(["obdowner", "obdmember", "obdhelper"].map((x) => h.client(x)));
     orgId = (await owner.req("POST", "/v1/orgs", { name: "Help Desk" })).org.id;
     const invite = (await owner.req("POST", `/v1/orgs/${orgId}/invites`, { role: "MEMBER", maxUses: 20 })).invite.code;
@@ -132,6 +133,50 @@ describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
       expect(transcript).toContain(`obdmember: Screenshots attached soon`);
       expect(transcript).toContain(`obdhelper: Looking into it`);
       expect(transcript).toContain(about);
+    });
+
+    it("logs a close notice without copying private transcript text to a public destination", async () => {
+      const endpoint = `/v1/orgs/${orgId}/tickets`;
+      const cfg = await owner.req("GET", `${endpoint}/config`);
+      const editable = cfg.panels.map(({ postedMessageId: _ignored, ...p }: Record<string, unknown>) => p);
+      const marker = "synthetic confidential public-log probe";
+      try {
+        await owner.req("PUT", `${endpoint}/config`, { enabled: true, maxOpenPerPerson: cfg.maxOpenPerPerson, panels: editable.map((p: Record<string, unknown>, i: number) => i === 0 ? { ...p, logChannelId: support } : p) });
+        const { ticket } = await member.req("POST", endpoint, { about: marker, notABugReport: true, panelId: editable[0].id });
+        await owner.req("POST", `${endpoint}/${ticket.channelId}/close`);
+        const result = await helper.req("GET", `/v2/conversations/${support}/messages?limit=100`);
+        expect(JSON.stringify(result)).toContain(`Ticket #${ticket.number} · Support closed by`);
+        expect(JSON.stringify(result)).not.toContain(marker);
+      } finally {
+        await owner.req("PUT", `${endpoint}/config`, { enabled: true, maxOpenPerPerson: cfg.maxOpenPerPerson, panels: editable });
+      }
+    });
+
+    it("rechecks a private transcript's readers after the ticket history read has started", async () => {
+      const endpoint = `/v1/orgs/${orgId}/tickets`;
+      const newcomer = await h.client("obdlogreader");
+      const { invite } = await owner.req("POST", `/v1/orgs/${orgId}/invites`, { role: "MEMBER", maxUses: 1 });
+      await newcomer.req("POST", "/v1/invites/accept", { code: invite.code });
+      const marker = "synthetic confidential transcript race probe";
+      const { ticket } = await member.req("POST", endpoint, { about: marker, notABugReport: true });
+      const read = h.ctx.messages.page.bind(h.ctx.messages);
+      let added = false;
+      const hook = vi.spyOn(h.ctx.messages, "page").mockImplementation(async (...args) => {
+        if (!added && args[0] === ticket.channelId) {
+          added = true;
+          await owner.req("PUT", `/v1/conversations/${logs}/members/${newcomer.userId}`);
+        }
+        return read(...args);
+      });
+      try {
+        await owner.req("POST", `${endpoint}/${ticket.channelId}/close`);
+        expect(added).toBe(true);
+        await expectStatus(newcomer.req("GET", `/v2/conversations/${ticket.channelId}/messages`), 404);
+        expect(JSON.stringify(await history(logs))).not.toContain(marker);
+      } finally {
+        hook.mockRestore();
+        if (added) await owner.req("DELETE", `/v1/conversations/${logs}/members/${newcomer.userId}`);
+      }
     });
 
     it("falls back to the free limits while Bots+ is gone, keeping what was set", async () => {

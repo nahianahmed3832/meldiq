@@ -5,7 +5,7 @@ import { ApiError, conflict, forbidden, notFound } from "../../../shared/errors.
 import { newId, now } from "../../../shared/utilities/util.js";
 import type { RowWriter } from "../../../infrastructure/database/rows/index.js";
 import { botsAmong, namesOf } from "../../accounts/index.js";
-import { addChannelMember, archiveChannel, channelsInCategory, channelsInCommunity, insertChannel, restorePrivateChannel, retainPrivateChannelMembers } from "../../messaging/index.js";
+import { addChannelMember, archiveChannel, channelsInCategory, channelsInCommunity, insertChannel, memberIds, restorePrivateChannel, retainPrivateChannelMembers } from "../../messaging/index.js";
 import { CHANNEL_LIMITS, notifyConversation, notifyOrg } from "../orgsRoutes.js";
 import { EVERYONE, USER_PREFIX } from "../permissions/channel.js";
 import { postAs } from "./senders.js";
@@ -41,10 +41,10 @@ export class TicketDesk {
   }
 
   /** Posts as the Tickets account, never failing what already happened (the ticket exists either way). */
-  private async say(orgId: string, channelId: string | null, payload: Record<string, unknown> & { type: string }, log: FastifyBaseLogger): Promise<void> {
+  private async say(orgId: string, channelId: string | null, payload: Record<string, unknown> & { type: string }, log: FastifyBaseLogger, beforeCommit?: (audience: readonly string[]) => void): Promise<void> {
     if (!channelId) return;
     try {
-      await postAs(this.ctx, await this.t.poster(orgId), channelId, payload, log);
+      await postAs(this.ctx, await this.t.poster(orgId), channelId, payload, log, beforeCommit);
     } catch (err) {
       log.warn({ err, orgId, channelId }, "tickets: message not posted");
     }
@@ -147,6 +147,31 @@ export class TicketDesk {
     if (!this.t.canAssign(orgId, userId)) throw forbidden("Only a moderator can manage ticket assignments or reopen a ticket");
   }
 
+  /** A transcript may not widen the original ticket's reader set, even to another private channel. */
+  private mayLogTranscript(closed: TicketRow, panelId: string, destinationId: string, prepared: readonly string[] = []): boolean {
+    const { authz, officialBots, ws } = this.ctx;
+    const { channel_id: sourceId, org_id: orgId } = closed;
+    const current = ws.get<TicketRow>("tickets", { channel_id: sourceId, org_id: orgId });
+    const source = authz.conversation(sourceId);
+    const destination = authz.conversation(destinationId);
+    const panel = ws.get<PanelRow>("ticket_panels", { id: panelId, org_id: orgId });
+    const extras = officialBots.tickets.extras(orgId, panelId);
+    if (!current || current.closed_at !== closed.closed_at || current.revision !== closed.revision || !closed.closed_at
+      || !source || source.org_id !== orgId || source.kind !== "PRIVATE" || source.archived_at !== closed.closed_at
+      || !destination || destination.kind !== "PRIVATE" || !officialBots.textChannel(orgId, destinationId)
+      || !this.t.takesTickets(orgId) || panel?.log_channel_id !== destinationId || !extras?.transcripts) return false;
+    const readers = [...new Set([...memberIds(this.ctx, destinationId), ...prepared])];
+    if (!readers.length || botsAmong(this.ctx, readers).length) return false;
+    return readers.every((id) => {
+      if (!authz.isMember(destinationId, id) || !authz.isMember(sourceId, id)) return false;
+      const role = authz.orgRole(orgId, id);
+      if (!role || (role !== "GUEST" && (!authz.scopeEligible(source, id) || !authz.scopeEligible(destination, id)))) return false;
+      if (id !== closed.opener_id && !this.t.isStaff(orgId, id) && !(extras.supportRoleId && authz.channelActor(orgId, id)?.roleIds.includes(extras.supportRoleId))) return false;
+      const since = authz.historySince(source, id);
+      return since === null || since <= closed.opened_at;
+    });
+  }
+
   async assign(orgId: string, channelId: string, userId: string, releaseRevision?: number) {
     this.t.requireEnabled();
     this.requireModerator(orgId, userId);
@@ -222,11 +247,12 @@ export class TicketDesk {
     const at = now();
     const closed = await this.ctx.ws.write((w) => {
       const row = w.get<TicketRow>("tickets", { channel_id: channelId, org_id: orgId, closed_at: null });
-      if (!row) return false;
+      if (!row) return null;
       this.t.requireCloser(row, userId);
-      if (w.update("tickets", { channel_id: channelId, closed_at: null }, { closed_at: at, closed_by: userId, claimed_by: null, revision: (row.revision ?? 0) + 1 }) === 0) return false;
+      const close = { closed_at: at, closed_by: userId, claimed_by: null, revision: (row.revision ?? 0) + 1 };
+      if (w.update("tickets", { channel_id: channelId, closed_at: null }, close) === 0) return null;
       archiveChannel(w, channelId, at, true);
-      return true;
+      return { ...row, ...close };
     });
     if (!closed) throw new ApiError(409, "ticket_closed", "This ticket is closed already");
     this.ctx.audit({ actorId: userId, orgId, action: "ticket.close", target: channelId, detail: `#${ticket.number}` });
@@ -236,12 +262,18 @@ export class TicketDesk {
     await this.say(orgId, panel?.log_channel_id ?? null, { type: "text", text: `🔒 ${heading} closed by ${who}` }, log);
     // Community parity batch D part 2: with Bots+ and transcripts on, the ticket's messages go to the log too.
     const tickets = this.ctx.officialBots?.tickets;
-    if (panel?.log_channel_id && tickets?.extras(orgId, panel.id)?.transcripts) {
+    const destination = panel?.log_channel_id;
+    if (destination && this.mayLogTranscript(closed, panel.id, destination)) {
       const posts = await tickets.transcript(channelId).catch((err: unknown) => {
         log.warn({ err, orgId, channelId }, "tickets: transcript not made");
         return [] as string[];
       });
-      for (const [i, text] of posts.entries()) await this.say(orgId, panel.log_channel_id, { type: "text", text: i === 0 ? `📄 Transcript of ${heading}\n${text}` : text }, log);
+      for (const [i, text] of posts.entries()) {
+        if (!this.mayLogTranscript(closed, panel.id, destination)) break;
+        await this.say(orgId, destination, { type: "text", text: i === 0 ? `📄 Transcript of ${heading}\n${text}` : text }, log, (audience) => {
+          if (!this.mayLogTranscript(closed, panel.id, destination, audience)) throw conflict("The ticket log's authorized audience changed");
+        });
+      }
     }
     notifyConversation(this.ctx, channelId);
     notifyOrg(this.ctx, orgId);
