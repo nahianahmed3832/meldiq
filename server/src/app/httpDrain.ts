@@ -14,7 +14,14 @@ export function installHttpDrain(app: FastifyInstance): void {
     if (draining && !reply.raw.headersSent) reply.header('Connection', 'close');
     return payload;
   });
-  app.addHook('onResponse', async () => {
+  app.addHook('onResponse', async (request, reply) => {
+    // An authority/auth hook can reject an Upgrade before the websocket plugin's
+    // onRequest hook marks it as WS. Node no longer owns that socket as ordinary
+    // keep-alive, so closeIdleConnections cannot reap it. Flush the completed
+    // rejection before closing; never touch a successfully upgraded connection.
+    if (request.raw.headers.upgrade?.toLowerCase() === 'websocket' && reply.statusCode !== 101) {
+      request.raw.socket.destroySoon();
+    }
     // Also covers a streaming response whose headers were sent before shutdown began.
     // Defer until Node has marked the completed response idle; active sockets are never closed.
     if (draining) setImmediate(() => app.server.closeIdleConnections());
