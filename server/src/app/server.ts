@@ -1480,6 +1480,7 @@ export function serverFeatures(
     "bulk-role-members",
     "managed-polls",
     "thread-lifecycle",
+    "thread-follow-import",
     "community-reports",
     "voice-channel-chat",
     "partner-applications",

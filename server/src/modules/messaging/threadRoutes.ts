@@ -303,10 +303,10 @@ export default async function threadRoutes(
   app.put("/v1/threads/:id/follow", auth, async (req) => {
     const id = parse(idParams, req.params).id,
       userId = me(req).userId,
-      { following } = parse(ThreadFollow, req.body);
-    const conv = await withThreadLock(ctx, id, async () => {
+      { following, ifUnset } = parse(ThreadFollow, req.body);
+    const result = await withThreadLock(ctx, id, async () => {
       const { root, conv } = await loadThread(ctx, id, userId);
-      await ctx.ws.write((w) => {
+      const choice = await ctx.ws.write((w) => {
         threadScope(ctx, root, userId);
         const row = w.get<ThreadRow>("message_threads", { root_id: id });
         if (
@@ -314,6 +314,12 @@ export default async function threadRoutes(
           (row?.deleted_at !== null && row?.deleted_at !== undefined)
         )
           throw conflict("This thread is being deleted");
+        const existing = w.get<ThreadPreference>("thread_preferences", {
+          root_id: id,
+          user_id: userId,
+        });
+        if (ifUnset && existing)
+          return { following: !!existing.following, changed: false };
         if (!row) saveThread(w, initialThread(root));
         w.upsert(
           "thread_preferences",
@@ -326,16 +332,18 @@ export default async function threadRoutes(
           },
           "replace",
         );
+        return { following, changed: true };
       });
-      return conv;
+      return { conv, ...choice };
     });
-    ctx.hub.sendToUser(userId, {
-      t: "thread.preference",
-      conversationId: conv.id,
-      rootId: id,
-      following,
-    });
-    return { rootId: id, following };
+    if (result.changed)
+      ctx.hub.sendToUser(userId, {
+        t: "thread.preference",
+        conversationId: result.conv.id,
+        rootId: id,
+        following: result.following,
+      });
+    return { rootId: id, following: result.following };
   });
   app.get("/v1/me/thread-preferences", auth, async (req) => {
     const userId = me(req).userId,

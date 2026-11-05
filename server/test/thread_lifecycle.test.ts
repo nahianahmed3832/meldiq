@@ -8,12 +8,14 @@ for (const backend of process.env.MELDIQ_TEST_PG_URL
   describe(`thread lifecycle (${backend})`, () => {
     let h: Harness;
     beforeAll(async () => {
-      h = await startServer({
+      // Explicit MONGODB_DOMAINS also selects the legacy harness, even when it is empty.
+      h = await startServer(backend === "postgres" ? {} : {
         MONGODB_DOMAINS:
           backend === "mongodb"
             ? "workspace,conversations,history,files,calls"
             : "",
       });
+      expect(Boolean(h.ctx.postgres)).toBe(backend === "postgres");
     });
     afterAll(async () => h?.close());
     async function fixture(format = "text") {
@@ -213,6 +215,46 @@ for (const backend of process.env.MELDIQ_TEST_PG_URL
         (await author.req("GET", "/v1/me/thread-preferences")).preferences,
       ).toEqual([]);
     });
+    it("imports an old local follow only when this account has no existing choice", async () => {
+      const { author, peer, root, cid, path } = await fixture();
+      expect(await author.req("PUT", `${path}/follow`, { following: true, ifUnset: true })).toEqual({ rootId: root, following: true });
+      await author.req("PUT", `${path}/follow`, { following: false });
+      const beforeImport = h.ctx.ws.get<{ updated_at: number }>("thread_preferences", { root_id: root, user_id: author.userId })!.updated_at;
+      const events = vi.spyOn(h.ctx.hub, "sendToUser");
+      expect(await author.req("PUT", `${path}/follow`, { following: true, ifUnset: true })).toEqual({ rootId: root, following: false });
+      expect(h.ctx.ws.get<{ updated_at: number }>("thread_preferences", { root_id: root, user_id: author.userId })!.updated_at).toBe(beforeImport);
+      expect(events.mock.calls.filter(([, event]) => event.t === "thread.preference")).toHaveLength(0);
+      events.mockRestore();
+      expect((await author.req("GET", "/v1/me/thread-preferences")).preferences).toContainEqual({ rootId: root, conversationId: cid, following: false });
+      expect((await peer.req("GET", "/v1/me/thread-preferences")).preferences).not.toContainEqual(expect.objectContaining({ rootId: root }));
+      expect((await author.req("GET", "/v1/server-info")).features).toContain("thread-follow-import");
+      await author.req("PUT", `${path}/follow`, { following: true, ifUnset: false });
+      expect((await author.req("GET", path)).following).toBe(true);
+    });
+
+    it("keeps a concurrent explicit opt-out when a device imports old local follows", async () => {
+      const { author, cid, root } = await fixture();
+      for (let n = 0; n < 3; n++) {
+        const id = n ? `${root}_${n}` : root;
+        if (n) await author.send(cid, { type: "text", text: "Another root" }, "message", id);
+        await Promise.all([
+          author.req("PUT", `/v1/threads/${id}/follow`, { following: true, ifUnset: true }),
+          author.req("PUT", `/v1/threads/${id}/follow`, { following: false }),
+        ]);
+        expect((await author.req("GET", `/v1/threads/${id}`)).following).toBe(false);
+      }
+    });
+
+    it("keeps conditional imports behind current thread history and membership checks", async () => {
+      const { owner, author, outside, root, cid, path } = await fixture();
+      await author.req("PUT", `${path}/follow`, { following: false });
+      await expectStatus(outside.req("PUT", `${path}/follow`, { following: true, ifUnset: true }), 404);
+      await expectStatus(author.req("PUT", `${path}/follow`, { following: true, ifUnset: "yes" }), 400);
+      await owner.req("PUT", `/v1/conversations/${cid}/overwrites`, { subject: `user:${author.userId}`, allow: [], deny: ["channels.view"] });
+      await expectStatus(author.req("PUT", `${path}/follow`, { following: true, ifUnset: true }), 404);
+      expect(h.ctx.ws.get<{ following: number }>("thread_preferences", { root_id: root, user_id: author.userId })?.following).toBe(0);
+    });
+
     it("deletes all replies in bounded resumable batches, retains a text parent and forbids format-race widening", async () => {
       const { owner, author, peer, cid, root, path } = await fixture();
       for (let i = 0; i < 29; i++)

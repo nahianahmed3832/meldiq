@@ -33,7 +33,10 @@ export const ThreadDelete = z.strictObject({
   baseRev: z.number().int().nonnegative(),
   deleteParent: z.boolean(),
 });
-export const ThreadFollow = z.strictObject({ following: z.boolean() });
+export const ThreadFollow = z.strictObject({
+  following: z.boolean(),
+  ifUnset: z.boolean().optional().describe("Import an older local preference only if this account has no existing choice. The response returns the preserved or newly stored value."),
+});
 export const ThreadFollowResult = z.strictObject({
   rootId: z.string(),
   following: z.boolean(),

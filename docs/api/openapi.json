@@ -5552,6 +5552,10 @@
                 "properties": {
                   "following": {
                     "type": "boolean"
+                  },
+                  "ifUnset": {
+                    "description": "Import an older local preference only if this account has no existing choice. The response returns the preserved or newly stored value.",
+                    "type": "boolean"
                   }
                 },
                 "required": [
