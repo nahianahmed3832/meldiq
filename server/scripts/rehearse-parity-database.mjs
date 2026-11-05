@@ -154,7 +154,7 @@ try {
       schemaAndAclSha256:sha(sourceSchema),schemaIndexesTriggersPoliciesGrantsMatch:true,sequenceStatesMatch:true,mediaEvictionLedgerEmpty:true,
       quarantine:{bots:bots.rowCount,botIdentitiesDisabled:disabled.rowCount,activeCredentialRevisionsWithdrawn:revisions.rowCount,derivedWebhooksRotated:webhooks.rowCount,derivedInvitationsRevoked:invites.rowCount,priorBotHashLookupsDenied:true,humanIdentitiesUnchanged:true},
       archive:{file:"database.dump.age",sha256:sha(await fs.readFile(archive)),bytes:(await fs.stat(archive)).size},
-      notProven:["production backup/provider recovery","application private keys and object-store restoration","old API/runtime and installed native journeys","reverse-proxy bot route hold installation","complete rollback after production writes"],
+      notProven:["production backup/provider recovery","application private keys and object-store restoration","role-global recovery on a fresh PostgreSQL cluster","old API/runtime and installed native journeys","reverse-proxy bot route hold installation","complete rollback after production writes"],
       requirement:"Before an older API runs, hold bot/developer/interaction/installation routes at the proxy, drain/stop all writers and media, preserve new schema/consent data, quarantine derived credentials, then verify ordinary journeys. Credential quarantine alone does not enforce missing predecessor policy." };
     await fs.writeFile(path.join(output,"source-manifest.json"),JSON.stringify(before,null,2)+"\n",{mode:0o600});
     await fs.writeFile(path.join(output,"receipt.json"),JSON.stringify(report,null,2)+"\n",{mode:0o600});

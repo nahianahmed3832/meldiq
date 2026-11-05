@@ -4,6 +4,8 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { createServer, request as upstreamRequest } from "node:http";
+import { pathToFileURL } from "node:url";
 import { startServer, type Harness } from "../test/support/harness.js";
 import { MeldiqPostgres } from "../src/infrastructure/database/postgres/client.js";
 import { BotEventCursor } from "../src/modules/bots/eventCursor.js";
@@ -11,7 +13,7 @@ import { MeldiqBot } from "../sdk/javascript/index.mjs";
 import { encryptAttachmentBytes, decryptAttachmentBytes } from "../sdk/javascript/attachments.mjs";
 
 const execute = promisify(execFile);
-const [sourceText, targetText, output] = process.argv.slice(2);
+const [sourceText, targetText, output, predecessorDirectory] = process.argv.slice(2);
 const source = new URL(sourceText), target = new URL(targetText);
 if (![source, target].every(url => url.protocol === "postgresql:" && url.hostname === "127.0.0.1" && !url.search && !url.hash) ||
     !/^\/meldiq_parity_stage_recovery_source[a-z0-9_]*$/.test(source.pathname) ||
@@ -36,6 +38,44 @@ async function files(directory: string, prefix = ""): Promise<{ file: string; by
     else if (stat.isFile()) result.push({ file: relative, bytes: stat.size, sha256: sha(await fs.readFile(absolute)), mode: stat.mode & 0o777 });
   }
   return result;
+}
+// An owned test proxy models the required route fence. It does not install or qualify production nginx rules.
+async function fencedProxy(origin: string) {
+  const destination = new URL(origin);
+  assert.equal(destination.hostname, "127.0.0.1");
+  let forwarded = 0;
+  const blocked = (url: string) => {
+    let pathname = new URL(url, origin).pathname;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const decoded = decodeURIComponent(pathname);
+      if (decoded === pathname) break;
+      pathname = decoded;
+    }
+    return /^\/v2\/(?:bot(?:\/|$)|developer\/bots(?:\/|$)|interactions(?:\/|$))/.test(pathname) || /^\/v1\/orgs\/[^/]+\/bots(?:\/|$)/.test(pathname);
+  };
+  const proxy = createServer((incoming, outgoing) => {
+    try {
+      if (!incoming.url?.startsWith("/")) { outgoing.writeHead(400).end(); return; }
+      if (blocked(incoming.url)) { outgoing.writeHead(503, { "retry-after": "300" }).end(); return; }
+      forwarded++;
+      const request = upstreamRequest({ hostname: destination.hostname, port: destination.port, path: incoming.url, method: incoming.method,
+        headers: { ...incoming.headers, host: destination.host } }, response => {
+        outgoing.writeHead(response.statusCode ?? 502, response.headers); response.pipe(outgoing);
+      });
+      request.on("error", () => { outgoing.writeHead(502).end(); }); incoming.pipe(request);
+    } catch { outgoing.writeHead(400).end(); }
+  });
+  proxy.on("upgrade", (incoming, socket) => {
+    try {
+      if (blocked(incoming.url ?? "/")) socket.end("HTTP/1.1 503 Service Unavailable\r\nRetry-After: 300\r\nConnection: close\r\n\r\n");
+      else socket.destroy();
+    } catch { socket.destroy(); }
+  });
+  await new Promise<void>(resolve => proxy.listen(0, "127.0.0.1", resolve));
+  const address = proxy.address(); assert.ok(address && typeof address === "object");
+  return { origin: `http://127.0.0.1:${address.port}`, forwarded: () => forwarded, close: async () => {
+    proxy.closeAllConnections(); await new Promise<void>((resolve, reject) => proxy.close(error => error ? reject(error) : resolve()));
+  } };
 }
 try {
   assert.equal((await db.query("SELECT count(*)::int AS count FROM meldiq.users")).rows[0].count, 0, "Source must be an empty, newly migrated fixture stage");
@@ -135,12 +175,51 @@ try {
   assert.equal(privateReview.enabled, false);
   await owner.disconnect(); await person.disconnect();
   await harness.close(); harness = undefined; await closeDatabase();
+  let predecessorSource: Record<string, unknown> | null = null;
+  if (predecessorDirectory) {
+    assert.ok(path.isAbsolute(predecessorDirectory));
+    const identity = JSON.parse(await fs.readFile(path.join(predecessorDirectory, "SOURCE.json"), "utf8"));
+    assert.match(identity.commit, /^[a-f0-9]{40}$/); assert.match(identity.archiveSha256, /^[a-f0-9]{64}$/);
+    const predecessor = await import(pathToFileURL(path.join(predecessorDirectory, "server/test/support/harness.ts")).href);
+    db = database(target); databaseOpen = true;
+    harness = await predecessor.startServer(env(restoredRuntime, target), { postgres: db });
+    assert.ok(harness); owner.baseUrl = person.baseUrl = harness.baseUrl;
+    // The old source has no bot approval boundary. Quarantine must hold even without the proxy.
+    await owner.login(); await person.login();
+    await owner.req("GET", `/v1/orgs/${orgId}`);
+    assert.equal((await fetch(`${harness.baseUrl}/v2/bot/me`, { headers: { authorization: `Bot ${token}` } })).status, 401);
+    assert.equal((await postHook(harness.baseUrl, boundHook)).status, 404);
+    assert.equal((await postHook(harness.baseUrl, humanHook)).status, 200);
+    await person.req("POST", "/v1/invites/preview", { code: humanInvite.invite.code });
+    await owner.connect(); await person.connect();
+    await owner.send(dm, { type: "text", text: "Synthetic live message through predecessor source" }, "message", "predecessor-human-live");
+    await person.waitFor(() => person.received.find(message => message.messageId === "predecessor-human-live"), 10_000);
+    const media = await fetch(`${harness.baseUrl}/v1/attachments/${uploaded.id}`, { headers: { authorization: `Bearer ${owner.token}` } });
+    assert.equal(media.status, 200); assert.deepEqual(decryptAttachmentBytes(new Uint8Array(await media.arrayBuffer()), reference), plain);
+    const proxy = await fencedProxy(harness.baseUrl);
+    try {
+      const routes = ["/v2/bot/me", "/v2/developer/bots", "/v2/interactions", `/v1/orgs/${orgId}/bots/${botId}/permissions`, "/v2/%62ot/me", "/v2/%2562ot/me"];
+      for (const route of routes) {
+        const response = await fetch(proxy.origin + route, { method: "POST", headers: { authorization: `Bearer ${owner.token}`, "content-type": "application/json" }, body: "{}" });
+        assert.equal(response.status, 503); assert.equal(response.headers.get("retry-after"), "300");
+      }
+      assert.equal(proxy.forwarded(), 0, "Held requests must not reach the old API");
+      assert.equal((await fetch(`${proxy.origin}/v1/orgs/${orgId}`, { headers: { authorization: `Bearer ${owner.token}` } })).status, 200);
+      predecessorSource = { commit: identity.commit, archiveSha256: identity.archiveSha256, sourceBootsOnAdditiveSchema: true,
+        humanLoginCommunityLiveMessageAndPlaintextDownload: true, botAndDerivedWebhookDeniedWithoutProxy: true, humanIntegrationsPreserved: true,
+        heldRouteFamilies: 4, heldHttpCases: routes.length, heldRequestsReachedApi: 0, ordinaryHumanRouteThroughProxy: true,
+        dependencies: "current installed local dependencies; not the production container/overlay", proxy: "owned test proxy; production nginx precedence/normalization remain pending" };
+    } finally { await proxy.close(); }
+    await owner.disconnect(); await person.disconnect();
+    await harness.close(); harness = undefined; await closeDatabase();
+  }
   const receipt = { recordedAt: new Date().toISOString(), scope: "Owned loopback PostgreSQL and local file-store recovery; current source API, synthetic fixture clients", databaseReceipt: "database-backup/receipt.json", originalRuntimeFiles: runtimeBefore.length,
     runtimeBytesAndModesRestored: true, encryptedDatabaseAndRuntimeArchives: true, syntheticOriginalFileBytes: plain.length, originalFileSha256: sha(plain), originalPlaintextDownloadMatchesAfterRestore: true,
     returningHumanCredentialsAndCommunityAccess: true, liveHumanMessageDeliveredAfterRestore: true, botTokenQuarantined: true, revokedDerivedWebhookDenied: true, humanWebhookPreserved: true, humanInvitePreserved: true, withdrawnPersonalConsentPreserved: true,
     encryptedReportEvidenceReadableAfterRestore: true, opaqueCursorKeyAndContextRestored: true,
+    predecessorSource,
     sourceAndRestoredDatabasesRetained: true, privateArchiveKeyNotCommitted: true, productionActions: false,
-    remaining: ["exact predecessor API startup and HTTP negative checks", "production/provider object-store restore and keys", "proxy route holds and full production rollback after writes", "hosted auth/realtime and installed native journeys"] };
+    remaining: ["exact production predecessor container/overlay with pinned dependencies", "production/provider object-store restore and keys", "role-global recovery on a fresh PostgreSQL cluster", "production proxy route holds and full rollback after writes", "hosted auth/realtime and installed native journeys"] };
   await fs.writeFile(path.join(output, "application-receipt.json"), JSON.stringify(receipt, null, 2) + "\n", { mode: 0o600 });
   console.log(JSON.stringify(receipt));
 } finally {
