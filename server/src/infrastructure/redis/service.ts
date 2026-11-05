@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { Redis } from "ioredis";
 import type { RedisConfig } from "./config.js";
+import { ApiError } from "../../shared/errors.js";
 
 const digest = (value: string) =>
   createHash("sha256").update(value).digest("hex");
@@ -51,6 +52,30 @@ export class RedisInfrastructure {
         Math.floor(Math.random() * 100),
     });
     this.client.on("error", () => this.failure());
+  }
+
+  /** Preserve the plugin's Redis store and quotas, but classify admission failures
+   * at their source even when the socket remains ready after a command timeout. */
+  requestLimitClient(): Redis {
+    return new Proxy(this.client, {
+      get: (target, property) => {
+        const value = Reflect.get(target, property, target);
+        if (typeof value !== "function") return value;
+        if (property !== "rateLimit" && property !== "rateLimitRead")
+          return value.bind(target);
+        return (...args: unknown[]) => {
+          const callback = args.at(-1);
+          if (typeof callback !== "function") return value.apply(target, args);
+          args[args.length - 1] = (error: unknown, result: unknown) => {
+            if (error) {
+              this.failure();
+              callback(new ApiError(503, "unavailable", "Shared request limits are temporarily unavailable."), null);
+            } else callback(null, result);
+          };
+          return value.apply(target, args);
+        };
+      },
+    });
   }
 
   private failure(): void {

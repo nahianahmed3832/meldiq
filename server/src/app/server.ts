@@ -1088,7 +1088,7 @@ export async function buildApp(
       global: true,
       ...(ctx.redis
         ? {
-            redis: ctx.redis.client,
+            redis: ctx.redis.requestLimitClient(),
             nameSpace: `${config.redis!.prefix}:http:`,
             skipOnError: false,
           }

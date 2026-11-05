@@ -304,4 +304,29 @@ describe("Redis infrastructure", () => {
       await s.close();
     }
   });
+  it("fails closed with a retryable response when a ready Redis socket times out, then recovers", async () => {
+    const s = await startServer({ REDIS_URL: url, REDIS_KEY_PREFIX: `test:${randomUUID()}` });
+    try {
+      expect((await s.app.inject({ url: "/v1/server-info" })).statusCode).toBe(200);
+      // Pause the real isolated Redis server longer than the unchanged default
+      // one-second command deadline. Its TCP client still reports ready.
+      const redis = s.ctx.redis!.client as RedisInfrastructure["client"] & {
+        rateLimit: (...args: unknown[]) => unknown;
+      };
+      const rateLimit = redis.rateLimit;
+      // Inject the pause at the plugin command boundary, after the separate
+      // network-limit hook has completed. Exercise the real Redis deadline.
+      redis.rateLimit = (...args: unknown[]) => {
+        redis.rateLimit = rateLimit;
+        void redis.call("CLIENT", "PAUSE", 1300, "ALL").then(() => {
+          expect(redis.status).toBe("ready");
+          rateLimit.apply(redis, args);
+        });
+      };
+      const unavailable = await s.app.inject({ method: "HEAD", url: "/v1/server-info" });
+      expect(unavailable.statusCode).toBe(503);
+      await s.ctx.redis!.client.ping();
+      expect((await s.app.inject({ url: "/v1/server-info" })).statusCode).toBe(200);
+    } finally { await s.close(); }
+  });
 });
