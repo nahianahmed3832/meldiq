@@ -188,7 +188,8 @@ export abstract class MemoryRows implements Rows {
     const staged = overlay?.get(table);
     const eq = equalities(where);
     let keys: Iterable<string>;
-    if (s.spec.primaryKey.length && s.spec.primaryKey.every((c) => eq.some(([col]) => col === c))) {
+    const exactPrimaryKey = s.spec.primaryKey.length > 0 && s.spec.primaryKey.every((c) => eq.some(([col]) => col === c));
+    if (exactPrimaryKey) {
       keys = [rowKey(s.spec, Object.fromEntries(eq))];
     } else if (eq.length) {
       const [col, v] = eq[0];
@@ -203,7 +204,10 @@ export abstract class MemoryRows implements Rows {
       if (r && matches(s.spec, r, where)) out.push([k, r]);
     };
     for (const k of keys) consider(k);
-    if (staged) for (const k of staged.keys()) consider(k);
+    // A complete primary key already addresses both the committed row and its
+    // staged replacement/deletion. Scanning the rest of a growing write unit
+    // here makes batches of keyed updates quadratic and blocks the event loop.
+    if (staged && !exactPrimaryKey) for (const k of staged.keys()) consider(k);
     return out;
   }
 
