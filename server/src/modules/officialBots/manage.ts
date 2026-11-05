@@ -15,6 +15,7 @@ import { personCards, readJpegBody, renameBotIdentity, setBotPhoto } from "../ac
 import { addBotMember, botRoleGivableBy, removeBotMember } from "../organizations/index.js";
 import { catalogEntry } from "./catalog.js";
 import { RESERVED_COMMANDS } from "./commands.js";
+import { privateLoggerChannel } from "./logger.js";
 import type { OfficialBots } from "./runtime.js";
 import { isLiveBot, plusFeatures, storedSettings } from "./settings.js";
 import type { BotRow } from "./store.js";
@@ -113,6 +114,8 @@ export class BotManager {
         if (!conv || !this.ctx.authz.canViewChannel(conv, userId)) {
           throw new ApiError(400, "official_bot_channel_invalid", "Pick a text channel of this community that you can see.", { field, channelId: id });
         }
+        if (key === "logger" && (field === "channelId" || field === "memberChannelId") && !privateLoggerChannel(this.rt, orgId, id))
+          throw new ApiError(400, "official_bot_channel_invalid", "Choose a private text channel for Logger.", { field, channelId: id });
       }
     }
     if (key === "giveaways" && "requiredRoleId" in sent) {

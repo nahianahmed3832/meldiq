@@ -351,7 +351,11 @@ What each does:
 - **Logger** writes one line per event, never pinging (mentions written as names, no `mentions`): edits (text before →
   after, from the message store), deletions (the last text, and who deleted it), joins (accounts younger than 7 days
   flagged), leaves, kicks, bans, unbans, timeouts (until when, reason) and role changes, with who did it. Member and
-  role events go to `memberChannelId` with Bots+. Its own channels and excluded ones are never logged.
+  role events go to `memberChannelId` with Bots+. Both destinations must be private text channels in the same
+  community that the configuring editor can view. Restored public destinations stay saved for correction; Logger
+  publishes nothing to them and diagnostics show the required private destination. Its own channels and excluded
+  sources are skipped. Publication checks the current enabled bot, effective settings and private destination in
+  the message acceptance path, including after asynchronous source reads. Existing log entries are unchanged.
 - **Starboard**: when a message in a public text channel (not private, not hidden from @everyone, not the starboard or
   an excluded channel) has `threshold` people (not its author unless `selfStar`, not bots) with a star reaction on,
   it's copied once (`bot_starboard` keeps it from going twice): text `⭐ N · Author in #channel` then the message, its

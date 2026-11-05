@@ -1,6 +1,7 @@
 import { createdBefore } from "../accounts/index.js";
 import type { MemberChanged, MessageDeleted, MessageEdited, RoleChanged } from "./events.js";
 import type { ActiveBot, OfficialBots } from "./runtime.js";
+import { ApiError } from "../../shared/errors.js";
 
 /** Accounts younger than this are flagged when they join. */
 export const NEW_ACCOUNT_MS = 7 * 24 * 60 * 60 * 1000;
@@ -32,9 +33,26 @@ function ignored(bot: ActiveBot<"logger">, channelId: string): boolean {
   return channelId === s.channelId || channelId === s.memberChannelId || s.excludeChannelIds.includes(channelId);
 }
 
+/** Logger copies retained content and moderation details only into an explicitly private destination. */
+export function privateLoggerChannel(rt: OfficialBots, orgId: string, channelId: string | null): boolean {
+  const id = rt.textChannel(orgId, channelId);
+  return !!id && rt.ctx.authz.conversation(id)?.kind === "PRIVATE";
+}
+
+function publicationGuard(rt: OfficialBots, bot: ActiveBot<"logger">, channelId: string, source?: string): () => void {
+  return () => {
+    const current = rt.active(bot.orgId).logger;
+    const destination = source ? current?.settings.channelId : current?.settings.memberChannelId ?? current?.settings.channelId;
+    if (!current || current.userId !== bot.userId || destination !== channelId || (source && ignored(current, source)) || !privateLoggerChannel(rt, bot.orgId, channelId))
+      throw new ApiError(409, "official_bot_channel_invalid", "Choose a private text channel for Logger. This event was not published.");
+  };
+}
+
 /** An edited message (its text before and after) or a deleted one (its last text), from the server's message store. */
 export async function logMessageChange(rt: OfficialBots, bot: ActiveBot<"logger">, ev: MessageEdited | MessageDeleted): Promise<void> {
   if (!bot.settings.channelId || ignored(bot, ev.conversationId)) return;
+  const beforeCommit = publicationGuard(rt, bot, bot.settings.channelId, ev.conversationId);
+  beforeCommit();
   const original = await rt.ctx.messages.get(ev.target);
   if (!original || original.conversation_id !== ev.conversationId || original.cls !== "message") return;
   const edits = await rt.ctx.messages.changesTo(ev.conversationId, ev.target, "edit");
@@ -52,7 +70,7 @@ export async function logMessageChange(rt: OfficialBots, bot: ActiveBot<"logger"
     const by = ev.userId === original.sender_user_id ? `${author} deleted their message` : `${rt.nameOf(ev.userId)} deleted a message by ${author}`;
     line = `🗑️ ${by} in ${channel}: ${quote(before)}`;
   }
-  await rt.post(bot, bot.settings.channelId, { type: "text", text: line });
+  await rt.post(bot, bot.settings.channelId, { type: "text", text: line }, beforeCommit);
 }
 
 /** "2026-11-02 18:00 UTC" from an ISO time, as timeouts' audit entries carry it. */
@@ -93,13 +111,17 @@ function memberLine(rt: OfficialBots, ev: MemberChanged): string {
 export async function logMember(rt: OfficialBots, bot: ActiveBot<"logger">, ev: MemberChanged): Promise<void> {
   const channelId = bot.settings.memberChannelId ?? bot.settings.channelId;
   if (!channelId) return;
-  await rt.post(bot, channelId, { type: "text", text: memberLine(rt, ev) });
+  const beforeCommit = publicationGuard(rt, bot, channelId);
+  beforeCommit();
+  await rt.post(bot, channelId, { type: "text", text: memberLine(rt, ev) }, beforeCommit);
 }
 
 /** A role given or taken, and by whom. */
 export async function logRole(rt: OfficialBots, bot: ActiveBot<"logger">, ev: RoleChanged): Promise<void> {
   const channelId = bot.settings.memberChannelId ?? bot.settings.channelId;
   if (!channelId) return;
+  const beforeCommit = publicationGuard(rt, bot, channelId);
+  beforeCommit();
   const name = rt.nameOf(ev.userId);
   const self = ev.actorId === ev.userId;
   const by = rt.nameOf(ev.actorId);
@@ -110,5 +132,5 @@ export async function logRole(rt: OfficialBots, bot: ActiveBot<"logger">, ev: Ro
     : self
       ? `🏷️ ${name} gave up the ${ev.roleName} role.`
       : `🏷️ ${by} took the ${ev.roleName} role from ${name}.`;
-  await rt.post(bot, channelId, { type: "text", text });
+  await rt.post(bot, channelId, { type: "text", text }, beforeCommit);
 }

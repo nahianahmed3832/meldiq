@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { levelOf, xpForLevel } from "../src/modules/officialBots/levels.js";
 import type { GriipClient } from "./support/griipClient.js";
 import { expectStatus, type Harness, startServer } from "./support/harness.js";
@@ -167,6 +167,82 @@ describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
       const m = await say(owner, logs, "note to self");
       await send(owner, logs, { type: "edit", target: m, text: "note to myself" }, "control");
       expect(await lines(logs, botId)).toHaveLength(before);
+    });
+
+    it("requires private destinations for Logger content and member logs", async () => {
+      const original = h.ctx.officialBots.rows.bot(orgId, "logger")!;
+      try {
+        expect(code(await expectStatus(put("logger", { settings: { channelId: memes } }), 400))).toBe("official_bot_channel_invalid");
+        await plus(true);
+        expect(code(await expectStatus(put("logger", { settings: { memberChannelId: general } }), 400))).toBe("official_bot_channel_invalid");
+      } finally {
+        await h.ctx.officialBots.rows.save(original);
+        await plus(false);
+      }
+    });
+
+    it("suppresses restored public Logger destinations and reports the configuration problem", async () => {
+      const original = h.ctx.officialBots.rows.bot(orgId, "logger")!;
+      const before = (await lines(memes, botId)).length;
+      try {
+        // Emulate older persisted settings without going through the new configuration validation.
+        await h.ctx.officialBots.rows.save({ ...original, settings: JSON.stringify({ ...JSON.parse(original.settings), channelId: memes }) });
+        const diagnostics = await owner.req("GET", `${base()}/logger/diagnostics`);
+        const message = await say(ana, secret, "private source before edit");
+        await send(ana, secret, { type: "edit", target: message, text: "private source after edit" }, "control");
+        await send(ana, secret, { type: "delete", target: message }, "control");
+        expect(await lines(memes, botId)).toHaveLength(before);
+        expect(diagnostics.checks.find((check: { label: string }) => check.label === "channelId")).toMatchObject({ ok: false });
+      } finally {
+        await settle();
+        await h.ctx.officialBots.rows.save(original);
+      }
+    });
+
+    it("does not publish a prepared Logger event after its manager disables it", async () => {
+      await put("logger", { settings: { channelId: logs } });
+      const message = await say(ana, general, "retained before disable");
+      const before = (await lines(logs, botId)).length;
+      let entered!: () => void, release!: () => void;
+      const reading = new Promise<void>((resolve) => { entered = resolve; });
+      const continueReading = new Promise<void>((resolve) => { release = resolve; });
+      const changesTo = h.ctx.messages.changesTo.bind(h.ctx.messages);
+      const spy = vi.spyOn(h.ctx.messages, "changesTo").mockImplementation(async (cid, target, type) => {
+        const result = await changesTo(cid, target, type);
+        if (cid === general && target === message && type === "edit") { entered(); await continueReading; }
+        return result;
+      });
+      const pending = send(ana, general, { type: "edit", target: message, text: "retained after disable" }, "control");
+      try {
+        await reading;
+        await put("logger", { enabled: false });
+        release();
+        await pending;
+        expect(await lines(logs, botId)).toHaveLength(before);
+      } finally {
+        release();
+        await pending;
+        await settle();
+        spy.mockRestore();
+        await put("logger", { enabled: true });
+      }
+    });
+
+    it("suppresses a restored public member-log destination without exposing a timeout reason", async () => {
+      const original = h.ctx.officialBots.rows.bot(orgId, "logger")!;
+      const before = (await lines(memes, botId)).length;
+      try {
+        await plus(true);
+        await h.ctx.officialBots.rows.save({ ...original, settings: JSON.stringify({ ...JSON.parse(original.settings), channelId: logs, memberChannelId: memes }) });
+        await owner.req("PUT", `/v1/orgs/${orgId}/members/${ben.userId}/timeout`, { until: Date.now() + 60_000, reason: "private moderation detail" });
+        expect(await lines(memes, botId)).toHaveLength(before);
+      } finally {
+        await settle();
+        await h.ctx.officialBots.rows.save(original);
+        await plus(false);
+        await owner.req("PUT", `/v1/orgs/${orgId}/members/${ben.userId}/timeout`, { until: null });
+        await settle();
+      }
     });
 
     it("logs joins (new accounts flagged), leaves, kicks, bans, unbans, timeouts and roles with who did it", async () => {

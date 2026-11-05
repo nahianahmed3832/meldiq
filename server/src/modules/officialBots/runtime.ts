@@ -309,12 +309,12 @@ export class OfficialBots {
   }
 
   /** Posts [payload] as [bot] in the channel a manager picked for it (checked here to still be a text channel). */
-  async post(bot: ActiveBot, channelId: string | null, payload: Payload): Promise<{ messageId: string; channelId: string } | null> {
+  async post(bot: ActiveBot, channelId: string | null, payload: Payload, beforeCommit?: () => void): Promise<{ messageId: string; channelId: string } | null> {
     const id = this.textChannel(bot.orgId, channelId);
     if (!id) return null;
     const sent = await sendServerMessage(
       this.ctx,
-      { userId: bot.userId, deviceId: null, channelGrant: id },
+      { userId: bot.userId, deviceId: null, channelGrant: id, beforeCommit },
       {
         conversationId: id,
         messageId: newId("m"),

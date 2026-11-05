@@ -7,6 +7,7 @@ import { parse } from "../../shared/validation/index.js";
 import { me, requireAuth } from "../auth/index.js";
 import { AlertWatchManager } from "./alerts.js";
 import { catalog } from "./catalog.js";
+import { privateLoggerChannel } from "./logger.js";
 import { BotManager } from "./manage.js";
 import { gameView, guessPrivately } from "./wordy.js";
 
@@ -65,11 +66,12 @@ export default async function officialBotRoutes(app: FastifyInstance, ctx: AppCo
     for (const [key, value] of Object.entries(bot.settings ?? {})) {
       if (!/^(channelId|memberChannelId|announceChannelId)$/.test(key)) continue;
       const conv = typeof value === "string" ? ctx.authz.conversation(value) : null;
-      const ok = !!conv && conv.org_id === p.orgId && !conv.archived_at;
+      const privateLog = p.key === "logger";
+      const ok = !!conv && conv.org_id === p.orgId && !conv.archived_at && (!privateLog || privateLoggerChannel(ctx.officialBots, p.orgId, conv.id));
       checks.push({
         label: key,
         ok,
-        detail: ok ? "Configured channel exists in this community" : "Choose an available channel in settings",
+        detail: ok ? "Configured channel exists in this community" : privateLog ? "Choose a private text channel for Logger" : "Choose an available channel in settings",
       });
     }
     const events = ctx.ws
