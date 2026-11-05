@@ -119,6 +119,7 @@ try {
   assert.deepEqual(decryptAttachmentBytes(new Uint8Array(await fileResponse.arrayBuffer()), reference), plain);
   await owner.req("PUT", `/v1/orgs/${orgId}/bots/${botId}/permissions`, { permissions: permissions.filter(value => !["webhooks.manage", "members.invite"].includes(value)), manifestRev: 1, rev: 1 });
   assert.equal((await postHook(harness.baseUrl, boundHook)).status, 404);
+  await assert.rejects(person.req("POST", "/v1/invites/preview", { code: boundInvite.invite.code }), (error: unknown) => (error as { status: number }).status === 404);
   const dm = (await owner.req("POST", "/v1/conversations/dm", { userId: person.userId })).conversation.id;
   await owner.send(dm, { type: "text", text: "Synthetic human message before recovery" });
   const reportText = "Synthetic report evidence retained only in the owned recovery fixture";
@@ -166,6 +167,7 @@ try {
   assert.deepEqual(decryptAttachmentBytes(new Uint8Array(await restoredFile.arrayBuffer()), reference), plain);
   assert.equal((await fetch(`${harness.baseUrl}/v2/bot/me`, { headers: { authorization: `Bot ${token}` } })).status, 401);
   assert.equal((await postHook(harness.baseUrl, boundHook)).status, 404);
+  await assert.rejects(person.req("POST", "/v1/invites/preview", { code: boundInvite.invite.code }), (error: unknown) => (error as { status: number }).status === 404);
   assert.equal((await postHook(harness.baseUrl, humanHook)).status, 200);
   await person.req("POST", "/v1/invites/preview", { code: humanInvite.invite.code });
   assert.equal(new BotEventCursor(restoredRuntime).open(botId, cursor, Date.now()), cursorPosition);
@@ -189,6 +191,7 @@ try {
     await owner.req("GET", `/v1/orgs/${orgId}`);
     assert.equal((await fetch(`${harness.baseUrl}/v2/bot/me`, { headers: { authorization: `Bot ${token}` } })).status, 401);
     assert.equal((await postHook(harness.baseUrl, boundHook)).status, 404);
+    await assert.rejects(person.req("POST", "/v1/invites/preview", { code: boundInvite.invite.code }), (error: unknown) => (error as { status: number }).status === 404);
     assert.equal((await postHook(harness.baseUrl, humanHook)).status, 200);
     await person.req("POST", "/v1/invites/preview", { code: humanInvite.invite.code });
     await owner.connect(); await person.connect();
@@ -206,7 +209,7 @@ try {
       assert.equal(proxy.forwarded(), 0, "Held requests must not reach the old API");
       assert.equal((await fetch(`${proxy.origin}/v1/orgs/${orgId}`, { headers: { authorization: `Bearer ${owner.token}` } })).status, 200);
       predecessorSource = { commit: identity.commit, archiveSha256: identity.archiveSha256, sourceBootsOnAdditiveSchema: true,
-        humanLoginCommunityLiveMessageAndPlaintextDownload: true, botAndDerivedWebhookDeniedWithoutProxy: true, humanIntegrationsPreserved: true,
+        humanLoginCommunityLiveMessageAndPlaintextDownload: true, botAndDerivedWebhookDeniedWithoutProxy: true, derivedInviteDenied: true, humanIntegrationsPreserved: true,
         heldRouteFamilies: 4, heldHttpCases: routes.length, heldRequestsReachedApi: 0, ordinaryHumanRouteThroughProxy: true,
         dependencies: "current installed local dependencies; not the production container/overlay", proxy: "owned test proxy; production nginx precedence/normalization remain pending" };
     } finally { await proxy.close(); }
@@ -216,7 +219,7 @@ try {
   const receipt = { recordedAt: new Date().toISOString(), scope: "Owned loopback PostgreSQL and local file-store recovery; current source API, synthetic fixture clients", databaseReceipt: "database-backup/receipt.json", originalRuntimeFiles: runtimeBefore.length,
     runtimeBytesAndModesRestored: true, encryptedDatabaseAndRuntimeArchives: true, syntheticOriginalFileBytes: plain.length, originalFileSha256: sha(plain), originalPlaintextDownloadMatchesAfterRestore: true,
     returningHumanCredentialsAndCommunityAccess: true, liveHumanMessageDeliveredAfterRestore: true, botTokenQuarantined: true, revokedDerivedWebhookDenied: true, humanWebhookPreserved: true, humanInvitePreserved: true, withdrawnPersonalConsentPreserved: true,
-    encryptedReportEvidenceReadableAfterRestore: true, opaqueCursorKeyAndContextRestored: true,
+    encryptedReportEvidenceReadableAfterRestore: true, opaqueCursorKeyAndContextRestored: true, revokedDerivedInviteDeniedBeforeAndAfterRestore: true,
     predecessorSource,
     sourceAndRestoredDatabasesRetained: true, privateArchiveKeyNotCommitted: true, productionActions: false,
     remaining: ["exact production predecessor container/overlay with pinned dependencies", "production/provider object-store restore and keys", "role-global recovery on a fresh PostgreSQL cluster", "production proxy route holds and full rollback after writes", "hosted auth/realtime and installed native journeys"] };
