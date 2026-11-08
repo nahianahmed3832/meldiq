@@ -58,10 +58,8 @@ export interface InviteJoin {
 }
 
 /**
- * Where points live (docs/SETTINGS_PARITY_API.md): MongoDB whenever the server has one (points_accounts, points_ledger,
- * points_days and points_invites: new data goes to MongoDB), otherwise this process's memory (development and tests
- * without MONGODB_URI). Every check-and-change is one single-document operation, so concurrent requests can't earn
- * twice or spend more than the balance.
+ * Where points live (docs/SETTINGS_PARITY_API.md): PostgreSQL, MongoDB, or this process's memory in development.
+ * Ledger ids prevent duplicate earnings. Conditional debits prevent concurrent requests from overspending.
  */
 export interface PointsStore {
   readonly backend: "memory" | "mongodb" | "postgres";
@@ -70,6 +68,8 @@ export interface PointsStore {
   leaderboard(metric: "level" | "embers" | "invites"): Promise<{ userId: string; count: number }[]>;
   /** Everyone above level 1 (loaded at start: profiles show levels synchronously). */
   levels(): Promise<Map<string, number>>;
+  /** Accounts with enough saved Embers to advance when automatic levels are enabled. */
+  readyToLevel(cost: number): Promise<string[]>;
   achievementAwards(userId?: string): Promise<AchievementAward[]>;
   /** Records [entry] unless its id was recorded before (then false); a new one adds to the balance, total and day. */
   earn(entry: PointsEntry): Promise<boolean>;
@@ -139,6 +139,10 @@ export class MemoryPointsStore implements PointsStore {
         .filter((a) => a.level > 1)
         .map((a) => [a.userId, a.level]),
     );
+  }
+
+  async readyToLevel(cost: number): Promise<string[]> {
+    return [...this.accounts.values()].filter((a) => a.balance >= cost).map((a) => a.userId);
   }
 
   async achievementAwards(userId?: string): Promise<AchievementAward[]> {

@@ -21,7 +21,7 @@ import {
   scaled,
   utcDay,
 } from "./rules.js";
-import type { InviteJoin, PointsKind, PointsStore } from "./store.js";
+import type { InviteJoin, PointsAccount, PointsKind, PointsStore } from "./store.js";
 import {
   ACHIEVEMENTS,
   type AchievementAward,
@@ -55,8 +55,13 @@ export class PointsService {
   ) {}
 
   async load(): Promise<void> {
+    // Apply the same rule to Embers earned before automatic levels were introduced.
+    const t = this.clock();
+    for (const userId of await this.store.readyToLevel(POINTS.levelCost)) {
+      if (this.earning(userId, t)) await this.advanceLevels(userId, t, false);
+    }
     for (const [userId, level] of await this.store.levels())
-      this.levels.set(userId, level);
+      this.levels.set(userId, Math.max(level, this.levelOf(userId)));
     this.keepAwards(await this.store.achievementAwards());
   }
 
@@ -110,7 +115,7 @@ export class PointsService {
     if (changed) announceProfileChange(this.ctx, userId);
   }
 
-  /** [userId]'s account level (1 until they buy one). */
+  /** [userId]'s account level (1 until they earn the first level). */
   levelOf(userId: string): number {
     return this.levels.get(userId) ?? 1;
   }
@@ -225,23 +230,17 @@ export class PointsService {
     });
   }
 
-  /** Spends the next level's cost on it. */
+  /** Legacy endpoint: settle any eligible levels and return the current result. */
   async levelUp(
     userId: string,
   ): Promise<{ level: number; balance: number; nextLevelCost: number }> {
     const t = this.clock();
     const cost = POINTS.levelCost;
-    const a = await this.store.levelUp(userId, cost, (level) => ({
-      id: entryId.level(userId, level),
-      userId,
-      kind: "level",
-      amount: -cost,
-      detail: String(level),
-      day: utcDay(t),
-      at: t,
-    }));
-    if (!a) {
-      const balance = (await this.store.account(userId))?.balance ?? 0;
+    const a = this.earning(userId, t)
+      ? await this.advanceLevels(userId, t)
+      : await this.store.account(userId);
+    if (!a || a.level === 1) {
+      const balance = a?.balance ?? 0;
       throw new ApiError(
         409,
         "not_enough_points",
@@ -249,9 +248,34 @@ export class PointsService {
         { cost, balance },
       );
     }
-    this.levels.set(userId, a.level);
-    announceProfileChange(this.ctx, userId);
     return { level: a.level, balance: a.balance, nextLevelCost: cost };
+  }
+
+  private async advanceLevels(userId: string, t: number, announce = true): Promise<PointsAccount | null> {
+    const cost = POINTS.levelCost;
+    let account = await this.store.account(userId);
+    while (account && account.balance >= cost) {
+      const next = await this.store.levelUp(userId, cost, (level) => ({
+        id: entryId.level(userId, level),
+        userId,
+        kind: "level",
+        amount: -cost,
+        detail: String(level),
+        day: utcDay(t),
+        at: t,
+      }));
+      if (!next) {
+        // Another award or device can finish the same advancement first.
+        account = await this.store.account(userId);
+        break;
+      }
+      account = next;
+    }
+    if (account && account.level > this.levelOf(userId)) {
+      this.levels.set(userId, account.level);
+      if (announce) announceProfileChange(this.ctx, userId);
+    }
+    return account;
   }
 
   /** Everything the points page shows; finished one-time quests and invites that are due are credited first. */
@@ -263,6 +287,7 @@ export class PointsService {
     if (earning) {
       await this.claimOnce(userId, once, t);
       await this.settleInvites(userId, t);
+      await this.advanceLevels(userId, t);
     }
     const [
       account,
@@ -394,7 +419,7 @@ export class PointsService {
     return this.ctx.mojo?.planOf(userId) === "plus" ? POINTS.plusMultiplier : 1;
   }
 
-  private award(
+  private async award(
     userId: string,
     id: string,
     kind: PointsKind,
@@ -402,7 +427,7 @@ export class PointsService {
     detail: string | null,
     t: number,
   ): Promise<boolean> {
-    return this.store.earn({
+    const earned = await this.store.earn({
       id,
       userId,
       kind,
@@ -411,6 +436,8 @@ export class PointsService {
       day: utcDay(t),
       at: t,
     });
+    if (earned) await this.advanceLevels(userId, t);
+    return earned;
   }
 
   /** Whether [messageId] is a stored message in [m]'s conversation that someone other than [m]'s sender sent. */

@@ -201,6 +201,23 @@ export class MongoMessageStore implements MessageStore {
     return { perConversation: Object.fromEntries(per.map((r) => [r._id, r.n])), topSenders: senders.map((r) => ({ userId: r._id, count: r.n })) };
   }
 
+  async rankedSenders(visibleSince: ReadonlyMap<string, number>, since: number): Promise<MessageActivity["topSenders"]> {
+    if (!visibleSince.size) return [];
+    const windows = new Map<number, string[]>();
+    for (const [id, cutoff] of visibleSince) {
+      const start = Math.max(since, cutoff);
+      if (!windows.has(start)) windows.set(start, []);
+      windows.get(start)!.push(id);
+    }
+    const rows = await this.col.aggregate<{ _id: string; count: number }>([
+      { $match: { cls: "message", audience: "all", imported_by: null, $or: [...windows].map(([start, ids]) => ({
+        conversation_id: { $in: ids }, server_ts: { $gte: start },
+      })) } },
+      { $group: { _id: "$sender_user_id", count: { $sum: 1 } } },
+    ], { session: this.mongo.session() }).toArray();
+    return rows.map(({ _id, count }) => ({ userId: _id, count }));
+  }
+
   async lastMessageAt(conversationIds: readonly string[]): Promise<Record<string, number>> {
     const session = this.mongo.session();
     const found = await Promise.all(

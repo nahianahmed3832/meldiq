@@ -5,6 +5,7 @@ import {
   POINTS,
   PointsService,
 } from "../src/modules/points/index.js";
+import { utcDay } from "../src/modules/points/rules.js";
 import {
   CheckinResult,
   PointsView,
@@ -35,12 +36,12 @@ const send = (
   });
 
 /** Makes [c]'s account [days] days old, so it earns. */
-const age = (h: Harness, c: GriipClient, days = 2, clock = Date.now()) =>
+const age = (h: Harness, c: GriipClient, days = 2) =>
   h.ctx.identity.write((w) =>
     w.update(
       "users",
       { id: c.userId },
-      { created_at: clock - days * DAY },
+      { created_at: Date.now() - days * DAY },
     ),
   );
 const quest = (view: PointsView, id: string) =>
@@ -92,7 +93,7 @@ describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
 
   it("adds 30 for each 7 days in a row, and starts the streak again after a missed day", async () => {
     const c = await h.client("ptstreak");
-    await age(h, c, 30, T0);
+    await age(h, c, 30);
     const clock = { t: T0 };
     const points = at(clock);
     for (let d = 0; d < 7; d++) {
@@ -119,7 +120,7 @@ describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
 
   it("counts a chat minute once however many messages it has, 5 points per 5 minutes, at most 25 a day", async () => {
     const c = await h.client("ptchat");
-    await age(h, c, 2, T0);
+    await age(h, c, 30);
     const clock = { t: T0 };
     const points = at(clock);
     const msg = (t: number) =>
@@ -310,7 +311,7 @@ describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
 
   it("keeps achievement awards through reloads and missed streaks without inflating the wallet or quest totals", async () => {
     const c = await h.client("ptachieve");
-    await age(h, c, 30, T0);
+    await age(h, c, 30);
     const clock = { t: T0 };
     const points = at(clock);
     await points.load();
@@ -355,7 +356,7 @@ describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
     });
   });
 
-  it("levels up for 100 points, refuses without them, and shows the level on profiles", async () => {
+  it("advances automatically when DM, group and community activity earns the next reward", async () => {
     const [c, viewer] = await Promise.all([
       h.client("ptlevel"),
       h.client("ptviewer"),
@@ -364,31 +365,49 @@ describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
       (await expectStatus(c.req("POST", "/v2/points/level-up"), 409)).error
         .code,
     ).toBe("not_enough_points");
-    for (let i = 0; i < 21; i++) {
-      await h.ctx.points.store.earn({
-        id: `test:${c.userId}:${i}`,
-        userId: c.userId,
-        kind: "visit",
-        amount: 5,
-        detail: null,
-        day: "2026-11-01",
-        at: Date.now(),
-      });
-    }
-    expect(await c.req("POST", "/v2/points/level-up")).toEqual({
-      level: 2,
-      balance: 5,
-      nextLevelCost: 100,
+    await age(h, c);
+    const dm = (await c.req("POST", "/v1/conversations/dm", { userId: viewer.userId })).conversation.id;
+    const group = (await c.req("POST", "/v1/conversations/group", { name: "Points group", memberIds: [viewer.userId] })).conversation.id;
+    const org = (await c.req("POST", "/v1/orgs", { name: "Points community" })).org.id;
+    const channel = (await c.req("POST", `/v1/orgs/${org}/channels`, { name: "points" })).channel.id;
+    const now = Date.now();
+    await h.ctx.points.store.earn({
+      id: `test:${c.userId}`, userId: c.userId, kind: "quest",
+      amount: 90, detail: null, day: utcDay(now), at: now,
     });
-    await expectStatus(c.req("POST", "/v2/points/level-up"), 409);
+    await send(c, dm, { type: "text", text: "direct" });
+    await send(c, group, { type: "text", text: "group" });
+    expect((await h.ctx.points.store.account(c.userId))?.level).toBe(1);
+    // The third conversation pays a quest reward, even if two devices post at once.
+    await Promise.all([
+      send(c, channel, { type: "text", text: "community" }),
+      send(c, channel, { type: "text", text: "also community" }),
+    ]);
     expect((await viewer.req("GET", `/v1/users/${c.userId}`)).user.level).toBe(
       2,
     );
-    const v: PointsView = await c.req("GET", "/v2/points");
-    expect(v).toMatchObject({ level: 2, balance: 5, earnedTotal: 105 });
-    expect(v.history.filter((e) => e.kind === "level")).toEqual([
+    expect(await h.ctx.points.store.account(c.userId)).toMatchObject({ level: 2, balance: 0, earnedTotal: 100 });
+    expect((await c.req("GET", "/v2/leaderboards?metric=level")).me).toMatchObject({ value: 2 });
+    expect(await c.req("POST", "/v2/points/level-up")).toEqual({ level: 2, balance: 0, nextLevelCost: 100 });
+    expect((await h.ctx.points.store.history(c.userId, 10)).filter((e) => e.kind === "level")).toEqual([
       expect.objectContaining({ amount: -100, detail: "2" }),
     ]);
+  });
+
+  it("settles previously earned balances on startup, carries the remainder and preserves lifetime earnings", async () => {
+    const c = await h.client("ptcarry");
+    await age(h, c);
+    const now = Date.now();
+    await h.ctx.points.store.earn({
+      id: `carry:${c.userId}`, userId: c.userId, kind: "quest",
+      amount: 235, detail: null, day: utcDay(now), at: now,
+    });
+    const a = at({ t: now }), b = at({ t: now });
+    await Promise.all([a.load(), b.load()]);
+    expect(a.levelOf(c.userId)).toBe(3);
+    expect(b.levelOf(c.userId)).toBe(3);
+    expect(await h.ctx.points.store.account(c.userId)).toMatchObject({ level: 3, balance: 35, earnedTotal: 235 });
+    expect((await h.ctx.points.store.history(c.userId, 10)).filter((e) => e.kind === "level").map((e) => e.detail).sort()).toEqual(["2", "3"]);
   });
 
   it("pays an inviter 100 once the person they brought has stayed 7 days, at most 10 a month", async () => {

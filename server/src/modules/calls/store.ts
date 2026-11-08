@@ -104,7 +104,7 @@ export interface CallStore {
   /** Minutes devices spent in calls of these conversations within [from, to) (usage meter); [now] closes open spans. */
   participantMinutes(conversationIds: readonly string[], from: number, to: number, now: number): Promise<number>;
   /** Recorded room participation; callers supply only channels the viewer may see. */
-  leaderboardSpans(conversationIds: readonly string[], since: number): Promise<CallParticipantRow[]>;
+  leaderboardSpans(visibleSince: ReadonlyMap<string, number>, since: number): Promise<CallParticipantRow[]>;
 }
 
 const placeholders = (n: number) => Array.from({ length: n }, () => "?").join(", ");
@@ -288,11 +288,15 @@ export class SqliteCallStore implements CallStore {
       .all(from) as CallDay[];
   }
 
-  async leaderboardSpans(conversationIds: readonly string[], since: number): Promise<CallParticipantRow[]> {
-    if (!conversationIds.length) return [];
-    return this.db.prepare(`SELECT p.* FROM call_participants p JOIN calls c ON c.id = p.call_id
-      WHERE c.conversation_id IN (${placeholders(conversationIds.length)}) AND (p.left_at IS NULL OR p.left_at > ?)`
-    ).all(...conversationIds, since) as CallParticipantRow[];
+  async leaderboardSpans(visibleSince: ReadonlyMap<string, number>, since: number): Promise<CallParticipantRow[]> {
+    if (!visibleSince.size) return [];
+    return this.db.prepare(`SELECT p.call_id,p.user_id,p.device_id,
+        max(p.joined_at,c.answered_at) AS joined_at,
+        min(coalesce(p.left_at,c.ended_at),coalesce(c.ended_at,p.left_at)) AS left_at
+      FROM json_each(@scope) scope JOIN calls c ON c.conversation_id=scope.key JOIN call_participants p ON p.call_id=c.id
+      WHERE c.created_at>=scope.value AND c.answered_at IS NOT NULL
+        AND (p.left_at IS NULL OR p.left_at > @since) AND (c.ended_at IS NULL OR c.ended_at > @since)`
+    ).all({ scope: JSON.stringify(Object.fromEntries(visibleSince)), since }) as CallParticipantRow[];
   }
 
   async participantMinutes(conversationIds: readonly string[], from: number, to: number, now: number): Promise<number> {

@@ -4,7 +4,7 @@ import { route } from "./route.js";
 
 /**
  * Points, quests and account levels (API 0.65.0, docs/SETTINGS_PARITY_API.md). Points are earned for being around
- * (a daily visit, chatting, a 7-day streak, invites that stay) and for quests, and spent on levels. The server decides
+ * (a daily visit, chatting, a 7-day streak, invites that stay) and for quests, and applied automatically to levels. The server decides
  * every amount; points can't be bought, sold or sent. "Points" is the code's name; the apps choose what to call them.
  */
 
@@ -118,7 +118,7 @@ export const pointsRoutes = [
   points({
     method: "POST",
     url: "/v2/points/level-up",
-    summary: "Spend points on the next account level (100 points a level).",
+    summary: "Legacy compatibility: settle automatic account levels and return the current level.",
     response: LevelUpResult,
     errors: ["not_enough_points"],
   }),

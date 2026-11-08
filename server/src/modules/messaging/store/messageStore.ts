@@ -93,6 +93,8 @@ export interface MessageStore {
    * count), per conversation and for the [top] busiest senders. No content is read.
    */
   activitySince(conversationIds: readonly string[], since: number, top: number): Promise<MessageActivity>;
+  /** Live messages from conversations the viewer may read, at or after each conversation's visibility cutoff. */
+  rankedSenders(visibleSince: ReadonlyMap<string, number>, since: number): Promise<MessageActivity["topSenders"]>;
   /** The newest message's time in each of [conversationIds] that has one ("Active 5m ago"). */
   lastMessageAt(conversationIds: readonly string[]): Promise<Record<string, number>>;
 }
@@ -266,6 +268,14 @@ export class SqliteMessageStore implements MessageStore {
       .prepare(`SELECT sender_user_id id, COUNT(*) n FROM message_events WHERE ${where} GROUP BY sender_user_id ORDER BY n DESC, id ASC LIMIT ?`)
       .all(...conversationIds, since, top) as { id: string; n: number }[];
     return { perConversation: Object.fromEntries(per.map((r) => [r.id, r.n])), topSenders: senders.map((r) => ({ userId: r.id, count: r.n })) };
+  }
+
+  async rankedSenders(visibleSince: ReadonlyMap<string, number>, since: number): Promise<MessageActivity["topSenders"]> {
+    if (!visibleSince.size) return [];
+    return this.db.prepare(`SELECT e.sender_user_id AS userId, count(*) AS count
+      FROM json_each(?) scope JOIN message_events e ON e.conversation_id=scope.key
+      WHERE e.cls='message' AND e.audience='all' AND e.imported_by IS NULL AND e.server_ts >= max(?,scope.value)
+      GROUP BY e.sender_user_id`).all(JSON.stringify(Object.fromEntries(visibleSince)), since) as MessageActivity["topSenders"];
   }
 
   async lastMessageAt(conversationIds: readonly string[]): Promise<Record<string, number>> {

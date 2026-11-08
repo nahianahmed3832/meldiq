@@ -94,9 +94,15 @@ export class PostgresCallStore implements CallStore {
       count(*) FILTER(WHERE answered_at IS NOT NULL) AS answered,count(*) FILTER(WHERE end_reason IN ('declined','busy')) AS declined,
       count(*) FILTER(WHERE end_reason='lost') AS lost FROM meldiq.calls WHERE created_at>=$1 GROUP BY day ORDER BY day`, [from])).rows;
   }
-  async leaderboardSpans(ids: readonly string[], since: number): Promise<CallParticipantRow[]> {
-    return (await this.db.query<CallParticipantRow>(`SELECT p.* FROM meldiq.call_participants p JOIN meldiq.calls c ON c.id=p.call_id
-      WHERE c.conversation_id=ANY($1::text[]) AND (p.left_at IS NULL OR p.left_at>$2)`, [[...ids], since])).rows;
+  async leaderboardSpans(visibleSince: ReadonlyMap<string, number>, since: number): Promise<CallParticipantRow[]> {
+    if (!visibleSince.size) return [];
+    return (await this.db.query<CallParticipantRow>(`SELECT p.call_id,p.user_id,p.device_id,
+        greatest(p.joined_at,c.answered_at) AS joined_at, least(p.left_at,c.ended_at) AS left_at
+      FROM unnest($1::text[],$2::bigint[]) AS scope(id,since)
+      JOIN meldiq.calls c ON c.conversation_id=scope.id JOIN meldiq.call_participants p ON p.call_id=c.id
+      WHERE c.created_at>=scope.since AND c.answered_at IS NOT NULL
+        AND (p.left_at IS NULL OR p.left_at>$3) AND (c.ended_at IS NULL OR c.ended_at>$3)`,
+    [[...visibleSince.keys()], [...visibleSince.values()], since])).rows;
   }
   async participantMinutes(ids: readonly string[], from: number, to: number, now: number): Promise<number> {
     return (await this.db.query<{minutes: number}>(`SELECT coalesce(sum((least(coalesce(p.left_at,$4),$3)-greatest(p.joined_at,$2))/60000.0),0)::double precision AS minutes

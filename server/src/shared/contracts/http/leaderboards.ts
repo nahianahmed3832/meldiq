@@ -43,7 +43,7 @@ export const leaderboardContracts: readonly RouteContract[] = [
     tag: "Accounts",
     auth: true,
     summary:
-      "Ranked public account progress and activity in community channels the viewer may see",
+      "Ranked account progress and activity in DMs, groups and community channels the viewer may access",
     query: LeaderboardQuery,
     response: LeaderboardView,
   },

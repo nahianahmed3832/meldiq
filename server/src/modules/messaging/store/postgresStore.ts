@@ -127,6 +127,13 @@ export class PostgresMessageStore implements MessageStore {
     const senders = await this.db.query<{userId:string;count:number}>(`SELECT sender_user_id AS "userId",count(*) AS count ${base} GROUP BY sender_user_id ORDER BY count DESC,sender_user_id LIMIT $3`,[ids,since,top]);
     return {perConversation:Object.fromEntries(per.rows.map(r=>[r.id,r.n])),topSenders:senders.rows};
   }
+  async rankedSenders(visibleSince: ReadonlyMap<string, number>, since: number): Promise<MessageActivity["topSenders"]> {
+    if (!visibleSince.size) return [];
+    return (await this.db.query<MessageActivity["topSenders"][number]>(`SELECT e.sender_user_id AS "userId",count(*) AS count
+      FROM unnest($1::text[],$2::bigint[]) AS scope(id,since) JOIN meldiq.message_events e ON e.conversation_id=scope.id
+      WHERE e.cls='message' AND e.audience='all' AND e.imported_by IS NULL AND e.server_ts >= greatest($3,scope.since)
+      GROUP BY e.sender_user_id`, [[...visibleSince.keys()], [...visibleSince.values()], since])).rows;
+  }
   async lastMessageAt(ids: readonly string[]): Promise<Record<string,number>> {
     const result = await this.db.query<{id:string;at:number}>("SELECT conversation_id AS id,max(server_ts) AS at FROM meldiq.message_events WHERE conversation_id=ANY($1::text[]) AND cls='message' GROUP BY conversation_id",[ids]);
     return Object.fromEntries(result.rows.map(r=>[r.id,r.at]));

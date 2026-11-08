@@ -245,11 +245,24 @@ export class MongoCallStore implements CallStore {
     return [...byDay.values()].sort((a, b) => a.day.localeCompare(b.day));
   }
 
-  async leaderboardSpans(conversationIds: readonly string[], since: number): Promise<CallParticipantRow[]> {
-    if (!conversationIds.length) return [];
-    const ids = await this.calls.distinct("_id", { conversation_id: { $in: [...conversationIds] } }, this.s);
-    if (!ids.length) return [];
-    return (await this.people.find({ call_id: { $in: ids }, $or: [{ left_at: null }, { left_at: { $gt: since } }] }, this.s).toArray()).map(participant);
+  async leaderboardSpans(visibleSince: ReadonlyMap<string, number>, since: number): Promise<CallParticipantRow[]> {
+    if (!visibleSince.size) return [];
+    const windows = [...visibleSince].map(([id, start]) => ({ conversation_id: id, created_at: { $gte: start } }));
+    const calls = await this.calls.find({ answered_at: { $ne: null }, $and: [
+      { $or: windows },
+      { $or: [{ ended_at: null }, { ended_at: { $gt: since } }] },
+    ] }, { ...this.s, projection: { _id: 1, answered_at: 1, ended_at: 1 } }).toArray();
+    const answered = new Map(calls.map((c) => [c._id, c]));
+    if (!answered.size) return [];
+    const people = await this.people.find({ call_id: { $in: [...answered.keys()] }, $or: [{ left_at: null }, { left_at: { $gt: since } }] }, this.s).toArray();
+    return people.map((p) => {
+      const call = answered.get(p.call_id)!;
+      return {
+        ...participant(p),
+        joined_at: Math.max(p.joined_at, call.answered_at!),
+        left_at: p.left_at === null ? call.ended_at : Math.min(p.left_at, call.ended_at ?? p.left_at),
+      };
+    });
   }
 
   async participantMinutes(conversationIds: readonly string[], from: number, to: number, now: number): Promise<number> {

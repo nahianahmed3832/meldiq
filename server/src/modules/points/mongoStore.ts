@@ -109,7 +109,7 @@ export class MongoPointsStore implements PointsStore {
   private readonly days: Collection<DayDoc>;
   private readonly invites: Collection<InviteDoc>;
 
-  constructor(mongo: MeldiqMongo) {
+  constructor(private readonly mongo: MeldiqMongo) {
     this.accounts = mongo.db.collection<AccountDoc>("points_accounts");
     this.ledger = mongo.db.collection<EntryDoc>("points_ledger");
     this.days = mongo.db.collection<DayDoc>("points_days");
@@ -153,6 +153,11 @@ export class MongoPointsStore implements PointsStore {
       .find({ level: { $gt: 1 } }, { projection: { level: 1 } })
       .toArray();
     return new Map(docs.map((d) => [d._id, d.level]));
+  }
+
+  async readyToLevel(cost: number): Promise<string[]> {
+    const rows = await this.accounts.find({ balance: { $gte: cost } }, { projection: { _id: 1 } }).toArray();
+    return rows.map((row) => row._id);
   }
 
   async achievementAwards(userId?: string): Promise<AchievementAward[]> {
@@ -203,14 +208,17 @@ export class MongoPointsStore implements PointsStore {
     cost: number,
     entry: (level: number) => PointsEntry,
   ): Promise<PointsAccount | null> {
-    const d = await this.accounts.findOneAndUpdate(
-      { _id: userId, balance: { $gte: cost } },
-      { $inc: { balance: -cost, level: 1 }, $set: { updated_at: Date.now() } },
-      { returnDocument: "after" },
-    );
-    if (!d) return null;
-    await this.ledger.insertOne(toEntry(entry(d.level)));
-    return fromAccount(d);
+    return this.mongo.transaction(async () => {
+      const session = this.mongo.session();
+      const d = await this.accounts.findOneAndUpdate(
+        { _id: userId, balance: { $gte: cost } },
+        { $inc: { balance: -cost, level: 1 }, $set: { updated_at: Date.now() } },
+        { returnDocument: "after", session },
+      );
+      if (!d) return null;
+      await this.ledger.insertOne(toEntry(entry(d.level)), { session });
+      return fromAccount(d);
+    });
   }
 
   async setStreak(userId: string, day: string, streak: number): Promise<void> {

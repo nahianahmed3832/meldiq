@@ -25,7 +25,7 @@ tests). No SQLite table or MongoDB validator changes, so production's readWrite-
   only pick a badge you hold now; otherwise 400. Badges come from what earns them: a Mojo plan with a badge, a
   confirmed or fixed bug report, an approved decoration. A badge you lose reads as null in every view.
 - Both come back in `profileStyle` wherever it is returned: your own profile, other people's, member lists.
-- Profiles (`GET /v1/users/me`, `GET /v1/users/:id`) also carry `level` (1 until you buy a level).
+- Profiles (`GET /v1/users/me`, `GET /v1/users/:id`) also carry `level` (1 until you earn your first level).
 
 The colour presets (Sunset, Ocean…) live in the apps. They are just pairs of colours.
 
@@ -88,9 +88,13 @@ The server decides every amount, and each earning has a ledger id, so counting i
   are settled the next time `GET /v2/points` or a check-in runs.
 - An invite settles 7 days after the join. If the person has left by then, it lapses. If you already have 10 invite
   credits that month, it is capped and not paid later.
-- Levels: `POST /v2/points/level-up` spends 100 points for one level. Without enough points it answers
-  `409 not_enough_points` with `details: { cost, balance }`. Your profile shows the new level at once. The apps
-  choose a ring colour for every 10 levels.
+- Levels: every 100 available Embers automatically advance the account by one level. The server records each
+  debit in history and keeps any remainder; lifetime earnings stay the same. Existing eligible balances are
+  applied when the service starts. The legacy `POST /v2/points/level-up` endpoint settles any outstanding
+  levels and returns the current result, or `409 not_enough_points` if the account is still at level 1.
+- The account Messages and Voice boards use the last seven days of eligible activity in DMs, groups and
+  community channels the viewer can access. DMs with pending or declined requests are excluded. Private chat
+  activity from before the viewer joined does not count. The community lobby retains its own local board.
 
 `GET /v2/points` returns `balance`, `earnedToday`, `earnedTotal`, `level`, `nextLevelCost`, `multiplier`, `streak`
 (0 once a day is missed), `chatMinutesToday`, `chatPointsToday`, `chatDailyCap`, `earning`, `day`, `resetsAt`, and

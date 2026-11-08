@@ -21,6 +21,22 @@ type Metric = z.infer<typeof LeaderboardMetric>;
 type View = z.infer<typeof LeaderboardView>;
 const WEEK = 7 * 86400_000;
 
+/** Private conversations are only ranked for current members, from their latest join onward. */
+async function activityScope(ctx: AppContext, viewer: string, voice: boolean): Promise<Map<string, number>> {
+  const channels = leaderboardChannels(ctx, viewer).filter((c) => (c.voice === 1) === voice);
+  const scope = new Map(channels.map((c) => [c.id, ctx.authz.historySince(c, viewer) ?? 0]));
+  const chats = ctx.ws.all<{ conversation_id: string; joined_at: number }>("conversation_members", { where: { user_id: viewer } })
+    .flatMap((m) => {
+      const c = ctx.authz.conversation(m.conversation_id);
+      return c && !c.archived_at && (c.type === "DM" || c.type === "GROUP") ? [{ c, joined: m.joined_at }] : [];
+    });
+  const requests = new Set((await ctx.relationships.requestsIn(chats.filter(({ c }) => c.type === "DM").map(({ c }) => c.id)))
+    .filter((r) => r.state === "pending" || r.state === "declined")
+    .map((r) => r.conversation_id));
+  for (const { c, joined } of chats) if (!requests.has(c.id)) scope.set(c.id, joined);
+  return scope;
+}
+
 /** Union overlapping device/call spans per person before counting complete minutes. */
 export function voiceTotals(
   spans: readonly CallParticipantRow[],
@@ -62,21 +78,12 @@ export async function leaderboard(
   let totals: { userId: string; count: number }[];
   const weekly = metric === "messages" || metric === "voice";
   if (weekly) {
-    const channels = leaderboardChannels(ctx, viewer);
+    const scope = await activityScope(ctx, viewer, metric === "voice");
     if (metric === "messages")
-      totals = (
-        await ctx.messages.activitySince(
-          channels.filter((c) => c.voice !== 1).map((c) => c.id),
-          now - WEEK,
-          2147483647,
-        )
-      ).topSenders;
+      totals = await ctx.messages.rankedSenders(scope, now - WEEK);
     else
       totals = voiceTotals(
-        await ctx.calls.leaderboardSpans(
-          channels.filter((c) => c.voice === 1).map((c) => c.id),
-          now - WEEK,
-        ),
+        await ctx.calls.leaderboardSpans(scope, now - WEEK),
         now - WEEK,
         now,
       );
@@ -135,7 +142,7 @@ export async function leaderboard(
   return {
     metric,
     period: weekly ? "week" : "all",
-    scope: weekly ? "visible_communities" : "meldiq",
+    scope: "meldiq",
     generatedAt: now,
     total: entries.length,
     entries: entries.slice(0, 100),

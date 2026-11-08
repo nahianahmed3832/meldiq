@@ -8,7 +8,7 @@ import {
 import type { CallParticipantRow } from "../src/modules/calls/store.js";
 
 const DAY = 86400_000;
-const backends = process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}] as const] : [
+describe.each(process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}]] as const : [
   ["sqlite", {}],
   [
     "mongodb",
@@ -17,14 +17,14 @@ const backends = process.env.MELDIQ_TEST_PG_URL ? [["postgres", {}] as const] : 
         "accounts,preferences,reports,relationships,history,files,relay,billing,workspace,conversations,calls",
     },
   ],
-] as const;
-describe.each(backends)("leaderboards on %s", (_backend, env) => {
-  let h: Harness, alice: GriipClient, bob: GriipClient, carol: GriipClient;
+] as const)("leaderboards on %s", (_backend, env) => {
+  let h: Harness, alice: GriipClient, bob: GriipClient, carol: GriipClient, dee: GriipClient;
   let general: string, secret: string, voice: string, hiddenVoice: string;
+  let dm: string, group: string, privateGroup: string;
   beforeAll(async () => {
     h = await startServer({ ...env, MESSAGES_ACCEPT_ENCRYPTED: "false" });
-    [alice, bob, carol] = await Promise.all(
-      ["rankalice", "rankbob", "rankcarol"].map((n) => h.client(n)),
+    [alice, bob, carol, dee] = await Promise.all(
+      ["rankalice", "rankbob", "rankcarol", "rankdee"].map((n) => h.client(n)),
     );
     const org = (await alice.req("POST", "/v1/orgs", { name: "Ranking Club" }))
       .org.id;
@@ -54,6 +54,13 @@ describe.each(backends)("leaderboards on %s", (_backend, env) => {
         kind: "PRIVATE",
       })
     ).channel.id;
+    dm = (await alice.req("POST", "/v1/conversations/dm", { userId: bob.userId })).conversation.id;
+    group = (await alice.req("POST", "/v1/conversations/group", { name: "Together", memberIds: [bob.userId] })).conversation.id;
+    privateGroup = (await alice.req("POST", "/v1/conversations/group", { name: "Private group", memberIds: [dee.userId] })).conversation.id;
+    await h.ctx.ws.write((w) => {
+      for (const [id, member] of [[dm, bob], [group, bob], [privateGroup, dee]] as const)
+        w.update("conversation_members", { conversation_id: id, user_id: member.userId }, { joined_at: Date.now() - DAY });
+    });
   }, 120000);
   afterAll(async () => h?.close(), 120000);
   it("requires a session and validates the category", async () => {
@@ -164,16 +171,16 @@ describe.each(backends)("leaderboards on %s", (_backend, env) => {
       }),
     );
   });
-  it("counts live messages only in visible community channels, excluding DMs, imports and old events", async () => {
+  it("counts DMs, groups and community messages, scoped to what each viewer can access", async () => {
     const now = Date.now();
-    const dm = (
-      await alice.req("POST", "/v1/conversations/dm", { userId: bob.userId })
-    ).conversation.id;
     for (const [id, conv, sender, age, imported] of [
       ["public-a", general, alice, 0, null],
       ["public-b", general, bob, 0, null],
       ["secret", secret, alice, 0, null],
       ["direct", dm, alice, 0, null],
+      ["group", group, alice, 0, null],
+      ["private-group", privateGroup, alice, 0, null],
+      ["before-join", group, alice, 2 * DAY, null],
       ["old", general, alice, 8 * DAY, null],
       ["import", general, alice, 0, alice.userId],
     ] as const)
@@ -193,19 +200,26 @@ describe.each(backends)("leaderboards on %s", (_backend, env) => {
         imported_by: imported,
       });
     const view = await bob.req("GET", "/v2/leaderboards?metric=messages");
-    expect(view.scope).toBe("visible_communities");
-    expect(view.entries.map((e: any) => e.value)).toEqual([1, 1]);
+    expect(view.scope).toBe("meldiq");
+    expect(view.entries.map((e: any) => e.value)).toEqual([3, 1]);
+    expect(view.me).toMatchObject({ value: 1, user: { id: bob.userId } });
     expect(
       (await carol.req("GET", "/v2/leaderboards?metric=messages")).entries,
     ).toEqual([]);
   });
-  it("counts only visible voice rooms and never multiplies overlapping devices", async () => {
+  it("counts answered DM and group calls plus visible voice rooms, merging overlaps across all three", async () => {
     const now = Date.now();
-    for (const [id, conv] of [
-      ["v", voice],
-      ["h", hiddenVoice],
-      ["t", general],
-    ]) {
+    for (const [id, conv, start, end, room, answered] of [
+      ["v", voice, 180000, 0, 1, true],
+      ["h", hiddenVoice, 600000, 0, 1, true],
+      ["t", general, 600000, 0, 1, true],
+      ["direct", dm, 300000, 120000, 0, true],
+      ["group", group, 420000, 240000, 0, true],
+      ["ended-with-open-participant", dm, 480000, 450000, 0, true],
+      ["private-group", privateGroup, 600000, 0, 0, true],
+      ["before-join", group, 2 * DAY, 2 * DAY - 180000, 0, true],
+      ["unanswered", dm, 600000, 0, 0, false],
+    ] as const) {
       await h.ctx.calls.insert({
         id,
         conversation_id: conv,
@@ -213,22 +227,22 @@ describe.each(backends)("leaderboards on %s", (_backend, env) => {
         created_by: alice.userId,
         video: 0,
         state: "ENDED",
-        created_at: now - 180000,
-        answered_at: now - 180000,
-        ended_at: now,
+        created_at: now - start,
+        answered_at: answered ? now - start : null,
+        ended_at: now - end,
         end_reason: "ended",
         alerted_at: null,
         host_server_id: null,
-        room: 1,
+        room,
       });
       await h.ctx.calls.join(
         id,
         alice.userId,
         alice.deviceId,
-        now - 180000,
+        now - start,
         false,
       );
-      await h.ctx.calls.leave(id, alice.deviceId, now);
+      if (id !== "ended-with-open-participant") await h.ctx.calls.leave(id, alice.deviceId, now - end);
     }
     await h.ctx.calls.join(
       "v",
@@ -239,14 +253,16 @@ describe.each(backends)("leaderboards on %s", (_backend, env) => {
     );
     await h.ctx.calls.leave("v", "second-device", now);
     const b = await bob.req("GET", "/v2/leaderboards?metric=voice");
-    expect(b.entries).toMatchObject([{ user: { id: alice.userId }, value: 3 }]);
+    expect(b.entries).toMatchObject([{ user: { id: alice.userId }, value: 7 }]);
+    expect((await carol.req("GET", "/v2/leaderboards?metric=voice")).entries).toEqual([]);
   });
   it("counts credited invites only", async () => {
     for (const state of ["credited", "pending", "lapsed", "capped"] as const) {
-      // The ledger allows one credited invite per joiner/community. Use real distinct fixture communities.
-      const orgId = (await alice.req("POST", "/v1/orgs", { name: `Invite ${state}` })).org.id;
+      const orgId = (
+        await alice.req("POST", "/v1/orgs", { name: `Invite ranking ${state}` })
+      ).org.id;
       await h.ctx.points.store.addInvite({
-        id: `inv-${state}`,
+        id: `${orgId}|${bob.userId}`,
         inviterId: alice.userId,
         joinerId: bob.userId,
         orgId,
@@ -255,7 +271,6 @@ describe.each(backends)("leaderboards on %s", (_backend, env) => {
         settledAt: Date.now(),
       });
     }
-    expect(await h.ctx.points.store.leaderboard("invites")).toEqual([{ userId: alice.userId, count: 1 }]);
     const b = await alice.req("GET", "/v2/leaderboards?metric=invites");
     expect(b.entries).toMatchObject([{ user: { id: alice.userId }, value: 1 }]);
   });

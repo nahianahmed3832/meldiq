@@ -6,7 +6,7 @@ const accountColumns = 'id AS "userId",balance,earned_total AS "earnedTotal",lev
 const entryColumns = 'id,user_id AS "userId",kind,amount,detail,day,at';
 const inviteColumns = 'id,inviter_id AS "inviterId",joiner_id AS "joinerId",org_id AS "orgId",joined_at AS "joinedAt",state,settled_at AS "settledAt"';
 
-/** Server-earned points only. Ledger idempotency, account/day totals and level purchases commit together. */
+/** Server-earned points only. Each credit or level debit commits together with its ledger entry. */
 export class PostgresPointsStore implements PointsStore {
   readonly backend = "postgres" as const;
   constructor(private readonly db: MeldiqPostgres) {}
@@ -20,6 +20,9 @@ export class PostgresPointsStore implements PointsStore {
   async levels(): Promise<Map<string, number>> {
     const rows = (await this.db.query<{id: string; level: number}>("SELECT id,level FROM meldiq.points_accounts WHERE level>1")).rows;
     return new Map(rows.map(row => [row.id, row.level]));
+  }
+  async readyToLevel(cost: number): Promise<string[]> {
+    return (await this.db.query<{id: string}>("SELECT id FROM meldiq.points_accounts WHERE balance >= $1", [cost])).rows.map((row) => row.id);
   }
   async achievementAwards(userId?: string): Promise<AchievementAward[]> {
     const rows = (await this.db.query<{userId: string; detail: string; at: number}>(`SELECT user_id AS "userId",detail,at FROM meldiq.points_ledger
