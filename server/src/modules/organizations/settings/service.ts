@@ -118,8 +118,18 @@ export class CommunitySettings {
     return { ...base, voiceClips: this.clipsAllowed(orgId), onboardingRequired: s.onboardingRequired, onboardingDone: s.onboardingDone, startChannelId: s.startChannelId, mustFinishOnboarding: s.mustFinishOnboarding };
   }
 
+  clipsPolicyKey(orgId: string): string {
+    return `community.voice_clips.block:${orgId}`;
+  }
+
+  clipsPolicy(orgId: string) {
+    const requested = this.row(orgId)?.voice_clips === 1;
+    const blocked = !!this.ctx.platform.get("platform_settings", { key: this.clipsPolicyKey(orgId) });
+    return { requested, blocked, available: this.enabled, effective: this.enabled && requested && !blocked };
+  }
+
   clipsAllowed(orgId: string): boolean {
-    return this.enabled && this.row(orgId)?.voice_clips === 1;
+    return this.clipsPolicy(orgId).effective;
   }
 
   view(orgId: string): z.infer<typeof CommunitySettingsView> {

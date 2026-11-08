@@ -150,6 +150,12 @@ for (const backend of process.env.MELDIQ_TEST_PG_URL
       });
       expect(JSON.stringify(queue)).not.toContain(owner.userId);
       const reviewPath = `/admin/v1/partner-applications/${org}`;
+      await support.browser.expect(403, "GET", reviewPath);
+      expect(await reviewer.browser.expect(200, "GET", reviewPath)).toMatchObject({
+        name: "Partner fixture",
+        eligibility: { eligible: true },
+        application: { orgId: org, rev: 1, status: "submitted" },
+      });
       await support.browser.expect(403, "PUT", reviewPath, {
         baseRev: 1,
         status: "approved",
@@ -206,5 +212,20 @@ for (const backend of process.env.MELDIQ_TEST_PG_URL
           target_id: org,
         }),
       ).toBe(2);
+      if (status === "declined") {
+        await owner.req("PUT", path, { ...body, baseRev: 4 });
+        await reviewer.browser.expect(200, "PUT", reviewPath, {
+          baseRev: 5, status: "approved", reason: "Approved the new application",
+        });
+      }
+      const approved = (await owner.req("GET", path)).application;
+      const revoke = { baseRev: approved.rev, reason: "Community no longer meets programme requirements" };
+      await support.browser.expect(403, "POST", reviewPath + "/revoke", revoke);
+      await reviewer.browser.expect(409, "POST", reviewPath + "/revoke", { ...revoke, baseRev: approved.rev - 1 });
+      const decision = await reviewer.browser.expect(200, "POST", reviewPath + "/revoke", revoke);
+      expect(decision.application).toMatchObject({ status: "declined", rev: approved.rev + 1 });
+      expect((await owner.req("GET", "/v1/users/me")).user.badges ?? []).not.toContain("partner");
+      expect(h.ctx.platform.count("platform_audit", { action: "partner.revoke", target_id: org })).toBe(1);
+
     });
   });

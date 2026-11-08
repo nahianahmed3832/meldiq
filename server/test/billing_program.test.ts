@@ -206,13 +206,23 @@ describe("the trial program in the console", () => {
       return c;
     };
     const save = (body: Record<string, unknown>) => as("billing_admin").req("PUT", "/admin/v1/billing/mojo", { enforce: null, plans: {}, levels: {}, reason: "Testing Meldiq Plus's limits in the console", ...body });
-
     it("start from the built-in numbers, not enforced while nothing is on sale", async () => {
       const c = await controls();
       expect(c).toMatchObject({ enforced: false, enforce: { console: null, environment: "auto", effective: "auto" }, overrides: { plans: {}, levels: {} }, updatedBy: null });
       expect(c.plans.map((p: any) => [p.key, p.messageChars, p.listPriceMinor])).toEqual([["free", 2000, 0], ["go", 4000, 199], ["plus", 8000, 499]]);
       expect(c.prices).toMatchObject({ providerSync: false, bounds: { min: 50, max: 9999 } });
       expect(h.ctx.mojo.limitsOf("u_nobody")).toBeNull();
+    });
+
+    it("changes the shared sticker allowance and preserves it when an older console saves limits", async () => {
+      const controls = h.ctx.billing.mojoControls;
+      expect((await save({ levels: { "1": { stickerSlots: 37 } } })).status).toBe(200);
+      expect(controls.levels()[1]?.stickerSlots).toBe(37);
+      expect((await save({})).status).toBe(200);
+      expect(controls.levels()[1]?.stickerSlots).toBe(37);
+      expect((await save({ levels: { "1": { stickerSlots: -1 } } })).status).toBe(400);
+      expect((await save({ levels: { "1": { stickerSlots: null } } })).status).toBe(200);
+      expect(controls.levels()[1]?.stickerSlots).toBe(45);
     });
 
     it("turn enforcement on and change a plan's numbers, at once, for the server and the apps' catalog", async () => {

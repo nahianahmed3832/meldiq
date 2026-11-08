@@ -13,7 +13,7 @@ import { CATALOG_VERSION, GB, PLAN_KEYS, PLAN_PERKS, type PlanKey, type PlanPerk
  */
 export const PLAN_LIMIT_KEYS = ["messageChars", "uploadBytes", "sparks", "customItems", "bots"] as const;
 export type PlanLimitKey = (typeof PLAN_LIMIT_KEYS)[number];
-export const LEVEL_LIMIT_KEYS = ["sparks", "emojiSlots", "uploadBytes", "voiceKbps"] as const;
+export const LEVEL_LIMIT_KEYS = ["sparks", "emojiSlots", "stickerSlots", "uploadBytes", "voiceKbps"] as const;
 export type LevelLimitKey = (typeof LEVEL_LIMIT_KEYS)[number];
 
 export type PlanOverride = Partial<Record<PlanLimitKey | "listPriceMinor", number>> & { screen?: ScreenPresetId };
@@ -28,6 +28,7 @@ export const LIMIT_BOUNDS: Readonly<Record<PlanLimitKey | LevelLimitKey, { min: 
   customItems: { min: 0, max: 5_000 },
   bots: { min: 0, max: 100 },
   emojiSlots: { min: 0, max: 5_000 },
+  stickerSlots: { min: 0, max: 5_000 },
   voiceKbps: { min: 16, max: 510 },
 };
 

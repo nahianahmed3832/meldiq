@@ -1,11 +1,16 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod/v4";
 import {
   listPartnerApplications,
   notifyOrg,
+  partnerEligibility,
+  partnerView,
+  type PartnerRow,
   reviewPartnerApplication,
 } from "../organizations/index.js";
 import { OrgParamsNonEmpty } from "../../shared/contracts/http/community.js";
+import { AdminPartnerRevoke } from "../../shared/contracts/http/adminCommunity.js";
+import { notFound } from "../../shared/errors.js";
 import { PartnerReview } from "../../shared/contracts/http/partners.js";
 import { parse } from "../../shared/validation/index.js";
 import { metaOf, principal, requirePermission } from "./guards.js";
@@ -27,18 +32,34 @@ export default async function partnerAdminRoutes(
     );
     return listPartnerApplications(d.ctx, q);
   });
-  app.put("/admin/v1/partner-applications/:orgId", auth, async (req) => {
-    const { orgId } = parse(OrgParamsNonEmpty, req.params),
-      body = parse(PartnerReview, req.body),
-      p = principal(req);
+  app.get("/admin/v1/partner-applications/:orgId", auth, async (req) => {
+    const { orgId } = parse(OrgParamsNonEmpty, req.params);
+    const org = d.ctx.ws.get<{ name: string }>("orgs", { id: orgId, kind: "community" });
+    if (!org) throw notFound("Community not found");
+    const owner = d.ctx.ws.get<{ user_id: string }>("org_members", { org_id: orgId, role: "OWNER" });
+    const application = d.ctx.ws.get<PartnerRow>("org_partner_applications", { org_id: orgId });
+    return {
+      name: org.name,
+      eligibility: owner && d.ctx.identity.get("users", { id: owner.user_id }) ? partnerEligibility(d.ctx, orgId, owner.user_id) : null,
+      application: application ? partnerView(application) : null,
+    };
+  });
+  const decide = async (
+    req: FastifyRequest,
+    body: { baseRev: number; status: "approved" | "declined"; reason: string },
+    revoke = false,
+  ) => {
+    const { orgId } = parse(OrgParamsNonEmpty, req.params);
+    const p = principal(req);
     const application = await reviewPartnerApplication(
       d.ctx,
       orgId,
       { accountId: p.account.id, userId: p.account.user_id },
       body,
+      revoke ? "approved" : "submitted",
     );
     await d.audit.record({
-      action: "partner.review",
+      action: revoke ? "partner.revoke" : "partner.review",
       outcome: "success",
       actorAccountId: p.account.id,
       actorRole: p.grant.role,
@@ -50,5 +71,9 @@ export default async function partnerAdminRoutes(
     });
     notifyOrg(d.ctx, orgId);
     return { application };
-  });
+  };
+  app.put("/admin/v1/partner-applications/:orgId", auth, async (req) => decide(req, parse(PartnerReview, req.body)));
+  app.post("/admin/v1/partner-applications/:orgId/revoke", auth, async (req) =>
+    decide(req, { ...parse(AdminPartnerRevoke, req.body), status: "declined" }, true),
+  );
 }

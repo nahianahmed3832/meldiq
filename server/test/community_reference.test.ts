@@ -3,12 +3,15 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import sharp from "sharp";
 import { expectStatus, startServer, type Harness } from "./support/harness.js";
 import type { GriipClient } from "./support/griipClient.js";
+import { consoleAdmin } from "./support/adminConsole.js";
+import { MemoryMailer } from "./support/accounts.js";
 
 let h: Harness;
+const mailer = new MemoryMailer();
 let owner: GriipClient, member: GriipClient, other: GriipClient;
 let orgId: string, channelId: string;
 beforeAll(async () => {
-  h = await startServer();
+  h = await startServer({ ADMIN_CONSOLE_ORIGIN: "https://admin.example.test" }, { mailer });
   [owner, member, other] = await Promise.all(
     ["clipowner", "clipmember", "clipother"].map((name) => h.client(name)),
   );
@@ -99,6 +102,36 @@ describe("community reference", () => {
     expect((await member.req("GET", `/v1/orgs/${orgId}`)).org.voiceClips).toBe(
       false,
     );
+  });
+
+  it("enforces platform permissions and applies voice blocks and ping changes through shared client routes", async () => {
+    const support = await consoleAdmin(h, mailer, "support_admin", "communitysupport");
+    const admin = await consoleAdmin(h, mailer, "super_admin", "communityoperator");
+    const path = `/admin/v1/orgs/${orgId}/community-features`;
+    const settings = `/v1/orgs/${orgId}/settings`;
+    const roles = `/v1/orgs/${orgId}/ping-roles`;
+    const reason = "Verify the shared moderation policy";
+    const block = { kind: "voice_clips", blocked: true, reason };
+    await owner.req("PUT", settings, { voiceClips: true });
+    await support.browser.expect(200, "GET", path);
+    await support.browser.expect(403, "PUT", path, block);
+    expect(await admin.browser.expect(200, "PUT", path, block)).toMatchObject({
+      voiceClips: { blocked: true, requested: true, effective: false },
+    });
+    await owner.req("PUT", settings, { voiceClips: true });
+    expect((await member.req("GET", `/v1/orgs/${orgId}`)).org.voiceClips).toBe(false);
+    await admin.browser.expect(200, "PUT", path, { ...block, blocked: false });
+    expect((await member.req("GET", `/v1/orgs/${orgId}`)).org.voiceClips).toBe(true);
+    await owner.req("PUT", settings, { voiceClips: false });
+
+    const before = await owner.req("GET", roles);
+    const ping = { kind: "ping_roles", rev: before.rev, roles: [{ name: "Platform updates" }], reason };
+    await support.browser.expect(403, "PUT", path, ping);
+    await admin.browser.expect(200, "PUT", path, ping);
+    await admin.browser.expect(409, "PUT", path, ping);
+    const after = await member.req("GET", roles);
+    expect(after).toMatchObject({ roles: [{ name: "Platform updates" }], subscribed: [], canManage: false });
+    expect(h.ctx.platform.count("platform_audit", { action: "community.ping_roles", target_id: orgId })).toBe(1);
   });
 
   it("enforces sticker size and dimensions and advertises the correct quota", async () => {

@@ -11,6 +11,7 @@ import collectibleAdminRoutes from "./collectibles.js";
 import adminDecorationRoutes from "./decorations.js";
 import adminCreatorRoutes from "./creators.js";
 import adminBotsPlusRoutes from "./botsPlus.js";
+import adminCommunityRoutes from "./community.js";
 import adminDiscoveryRoutes from "./discovery.js";
 import moderationRoutes from "./moderation.js";
 import partnerAdminRoutes from "./partners.js";
@@ -63,6 +64,7 @@ export async function registerPlatformAdmin(
     // Community parity batch D: Bots+ for a community, while billing for it is off.
     await adminBotsPlusRoutes(scope, deps);
     await adminDiscoveryRoutes(scope, deps);
+    await adminCommunityRoutes(scope, deps);
   });
 }
 

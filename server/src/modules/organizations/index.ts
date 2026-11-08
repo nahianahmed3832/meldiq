@@ -61,8 +61,8 @@ export { REPORT_RETENTION_MS } from "./reports/routes.js";
 export { notifyOrg, notifyConversation } from "./orgsRoutes.js";
 export { applyOwnershipApproval } from "./ownershipApprovals.js";
 export { partnerOwner } from "./partnerBadges.js";
-export { pingRecipients, pingRoleOpen } from "./pingRoles.js";
-export { partnerView, type PartnerRow } from "./partnerApplications.js";
+export { pingRecipients, pingRoleOpen, readPingRoles, updatePingRoles } from "./pingRoles.js";
+export { partnerEligibility, partnerView, type PartnerRow } from "./partnerApplications.js";
 
 export { readCommunityImage } from "./communityImages.js";
 export { auditChanges } from "./adminChanges.js";

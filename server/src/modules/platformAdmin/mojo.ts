@@ -1,3 +1,5 @@
+import type { z } from "zod/v4";
+import type { AdminMojoControlsBody } from "../../shared/contracts/http/platformAdminBilling.js";
 import { PLUS_PRICE_MINOR } from "../billing/index.js";
 import type { AppContext } from "../../app/context.js";
 import { searchUsers } from "../accounts/index.js";
@@ -303,7 +305,7 @@ export class AdminMojo {
    * Saves enforcement and the limits (checked against their bounds; Spark thresholds must rise). Applies at once: every
    * limit is read through Mojo on each request, and clients read the catalog again when its version changes.
    */
-  async setControls(p: AdminPrincipal, b: { enforce: "on" | "off" | "auto" | null; plans: PlanOverrides; levels: LevelOverrides; reason: string }, meta: RequestMeta) {
+  async setControls(p: AdminPrincipal, b: z.infer<typeof AdminMojoControlsBody>, meta: RequestMeta) {
     const strip = <T extends Record<string, Record<string, number | string | undefined> | undefined>>(o: T) =>
       Object.fromEntries(
         Object.entries(o)
@@ -320,7 +322,13 @@ export class AdminMojo {
       const price = before.plans[key]?.listPriceMinor;
       if (price !== undefined) plans[key] = { ...plans[key], listPriceMinor: price };
     }
-    await this.ctx.billing.mojoControls.save({ enforce: b.enforce, plans, levels: strip(b.levels) as LevelOverrides }, p.account.id, now());
+    const levels: LevelOverrides = {};
+    for (const level of ["1", "2", "3"] as const) {
+      const { stickerSlots = before.levels[level]?.stickerSlots, ...limits } = b.levels[level] ?? {};
+      const next = { ...limits, ...(stickerSlots == null ? {} : { stickerSlots }) };
+      if (Object.keys(next).length) levels[level] = next;
+    }
+    await this.ctx.billing.mojoControls.save({ enforce: b.enforce, plans, levels }, p.account.id, now());
     const after = this.ctx.billing.mojoControls.state();
     await this.record(p, "mojo.controls_update", "mojo_controls", "mojo", b.reason, meta, {
       enforceBefore: before.enforce ?? "environment",

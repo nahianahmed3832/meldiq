@@ -346,6 +346,8 @@ const zPlanLimits = z.strictObject({
 const zLevelLimits = z.strictObject({
   sparks: z.number().int().optional(),
   emojiSlots: z.number().int().optional(),
+  /** Omitted by older consoles; null restores the built-in sticker limit. */
+  stickerSlots: z.number().int().nullable().optional(),
   uploadBytes: z.number().int().optional(),
   voiceKbps: z.number().int().optional(),
 });

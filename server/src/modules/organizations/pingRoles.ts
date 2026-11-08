@@ -16,7 +16,7 @@ import type { ConversationRow } from "./authz.js";
 import { notifyOrg } from "./orgsRoutes.js";
 
 const RoleList = z.array(PingRole);
-function readRoles(rows: RowReader, orgId: string) {
+export function readPingRoles(rows: RowReader, orgId: string) {
   const row = rows.get<{ rev: number; roles: string }>("community_ping_roles", {
     org_id: orgId,
   });
@@ -34,7 +34,7 @@ export function pingRoleOpen(
 ): boolean {
   return (
     id.startsWith("png_") &&
-    readRoles(ctx.ws, orgId).roles.some((role) => role.id === id)
+    readPingRoles(ctx.ws, orgId).roles.some((role) => role.id === id)
   );
 }
 
@@ -59,7 +59,7 @@ export function pingRecipients(
   );
   if (!ids.size) return [];
   const text = payload.text;
-  const roles = readRoles(ctx.ws, orgId).roles.filter(
+  const roles = readPingRoles(ctx.ws, orgId).roles.filter(
     (role) =>
       ids.has(role.id) &&
       new RegExp(
@@ -82,13 +82,56 @@ export function pingRecipients(
   );
 }
 
+/** Apply a revision-checked update and remove subscriptions to deleted roles in the same write. */
+export async function updatePingRoles(ctx: AppContext, orgId: string, body: z.infer<typeof PingRoleUpdate>) {
+  const names = body.roles.map(({ name }) =>
+    name.normalize("NFKC").toLowerCase(),
+  );
+  if (
+    names.some((name) => name === "everyone" || name === "here") ||
+    new Set(names).size !== names.length
+  )
+    throw badRequest("Use distinct names and reserve @everyone and @here.");
+  await ctx.ws.write((rows) => {
+    const current = readPingRoles(rows, orgId);
+    if (current.rev !== body.rev)
+      throw new ApiError(
+        409,
+        "stale_revision",
+        "Ping roles changed. Reload and try again.",
+      );
+    const prior = new Set(current.roles.map(({ id }) => id));
+    const existing = body.roles.flatMap(({ id }) => id ?? []);
+    if (
+      new Set(existing).size !== existing.length ||
+      existing.some((id) => !prior.has(id))
+    )
+      throw badRequest("Unknown or duplicate ping role");
+    const roles = body.roles.map(({ id, name }) => ({
+      id: id ?? newId("png"),
+      name,
+    }));
+    rows.upsert(
+      "community_ping_roles",
+      { org_id: orgId, rev: current.rev + 1, roles: JSON.stringify(roles) },
+      "replace",
+    );
+    const removed = [...prior].filter((id) => !existing.includes(id));
+    if (removed.length)
+      rows.delete("community_ping_subscriptions", {
+        org_id: orgId,
+        role_id: { in: removed },
+      });
+  });
+}
+
 export default async function pingRoleRoutes(
   app: FastifyInstance,
   ctx: AppContext,
 ) {
   const guard = { preHandler: requireAuth(ctx) };
   const view = (orgId: string, userId: string) => ({
-    ...readRoles(ctx.ws, orgId),
+    ...readPingRoles(ctx.ws, orgId),
     subscribed: ctx.ws
       .all<{ role_id: string }>("community_ping_subscriptions", {
         where: { org_id: orgId, user_id: userId },
@@ -107,45 +150,7 @@ export default async function pingRoleRoutes(
     ctx.authz.requireOrgMember(orgId, userId);
     if (!ctx.authz.can(orgId, userId, "workspace.edit")) throw forbidden();
     const body = parse(PingRoleUpdate, req.body);
-    const names = body.roles.map(({ name }) =>
-      name.normalize("NFKC").toLowerCase(),
-    );
-    if (
-      names.some((name) => name === "everyone" || name === "here") ||
-      new Set(names).size !== names.length
-    )
-      throw badRequest("Use distinct names and reserve @everyone and @here.");
-    await ctx.ws.write((rows) => {
-      const current = readRoles(rows, orgId);
-      if (current.rev !== body.rev)
-        throw new ApiError(
-          409,
-          "stale_revision",
-          "Ping roles changed. Reload and try again.",
-        );
-      const prior = new Set(current.roles.map(({ id }) => id));
-      const existing = body.roles.flatMap(({ id }) => id ?? []);
-      if (
-        new Set(existing).size !== existing.length ||
-        existing.some((id) => !prior.has(id))
-      )
-        throw badRequest("Unknown or duplicate ping role");
-      const roles = body.roles.map(({ id, name }) => ({
-        id: id ?? newId("png"),
-        name,
-      }));
-      rows.upsert(
-        "community_ping_roles",
-        { org_id: orgId, rev: current.rev + 1, roles: JSON.stringify(roles) },
-        "replace",
-      );
-      const removed = [...prior].filter((id) => !existing.includes(id));
-      if (removed.length)
-        rows.delete("community_ping_subscriptions", {
-          org_id: orgId,
-          role_id: { in: removed },
-        });
-    });
+    await updatePingRoles(ctx, orgId, body);
     ctx.audit({
       actorId: userId,
       orgId,
@@ -163,7 +168,7 @@ export default async function pingRoleRoutes(
     await ctx.ws.write((rows) => {
       if (!rows.get("org_members", { org_id: orgId, user_id: userId }))
         throw forbidden();
-      const current = readRoles(rows, orgId);
+      const current = readPingRoles(rows, orgId);
       if (
         [...selection].some(
           (id) => !current.roles.some((role) => role.id === id),

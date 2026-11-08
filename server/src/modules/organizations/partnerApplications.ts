@@ -158,6 +158,7 @@ export async function reviewPartnerApplication(
   orgId: string,
   actor: { accountId: string; userId: string | null },
   body: { baseRev: number; status: "approved" | "declined"; reason: string },
+  expectedStatus: "submitted" | "approved" = "submitted",
 ) {
   return ctx.ws.write((w) => {
     const prior = w.get<PartnerRow>("org_partner_applications", {
@@ -175,8 +176,8 @@ export async function reviewPartnerApplication(
         "stale_revision",
         "This application changed. Reload before reviewing.",
       );
-    if (prior.status !== "submitted")
-      throw conflict("This application was already reviewed");
+    if (prior.status !== expectedStatus)
+      throw conflict("This application is no longer in the expected review state.");
     if (body.status === "approved" && (!w.get("org_members", { org_id: orgId, user_id: prior.submitted_by, role: "OWNER" }) ||
       !partnerEligibility(ctx, orgId, prior.submitted_by, w).eligible))
       throw conflict("This community no longer meets the Partner requirements.");
