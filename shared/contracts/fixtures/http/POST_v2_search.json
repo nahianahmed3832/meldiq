@@ -1,0 +1,9 @@
+{
+  "query": "collectbob",
+  "results": {
+    "people": {
+      "items": [],
+      "next": null
+    }
+  }
+}

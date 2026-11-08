@@ -1,3 +1,4 @@
+import { webExperienceRoutes } from "./webExperience.js";
 import { commerceRoutes } from "./commerce.js";
 import { cardSubscriptionRoutes } from "./cardSubscriptions.js";
 import { giftRoutes } from "./gifts.js";
@@ -68,6 +69,7 @@ const NATIVE_ROUTE_CONTRACTS: readonly RouteContract[] = [
   ...operationalControlRoutes,
   ...adminOperationsRoutes,
   ...systemRoutes,
+  ...webExperienceRoutes,
   ...messagingRoutes,
   ...serverMessagesRoutes,
   ...messageCollectionRoutes,

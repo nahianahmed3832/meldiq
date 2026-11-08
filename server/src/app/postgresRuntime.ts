@@ -1,6 +1,5 @@
 import type { DB } from "../infrastructure/database/db.js";
 import type { MeldiqPostgres } from "../infrastructure/database/postgres/client.js";
-import { tableSpecs } from "../infrastructure/database/mongo/catalog.js";
 import { PostgresRows } from "../infrastructure/database/rows/postgresRows.js";
 import { PostgresAccountStore } from "../modules/accounts/postgresStore.js";
 import { PostgresRecoveryStore } from "../modules/accounts/postgresRecoveryStore.js";
@@ -23,7 +22,7 @@ import { PostgresPointsStore } from "../modules/points/postgresStore.js";
 import { PostgresOAuthStore } from "../modules/oauth/postgresStore.js";
 import { PostgresBotStore } from "../modules/bots/postgresStore.js";
 import { PostgresRulesStore } from "../modules/organizations/rules/postgresStore.js";
-import { NATIVE_TABLES } from "../infrastructure/database/postgres/nativeCatalog.js";
+import { NATIVE_TABLES, postgresTableSpecs } from "../infrastructure/database/postgres/nativeCatalog.js";
 
 const asyncDomains = new Set(["files", "preferences", "history", "reports", "relationships", "calls"]);
 const asyncAccountTables = new Set(["account_recovery_codes", "account_recovery_tickets", "account_key_backups", "account_key_unlocks"]);
@@ -50,8 +49,10 @@ export async function openPostgresRuntime(database: MeldiqPostgres) {
       if (!run.rowCount) throw new Error("Production database does not contain the accepted source snapshot");
     }
   }
-  const rows = await PostgresRows.open(database, [...tableSpecs().filter(table => !asyncDomains.has(table.domain) && !asyncAccountTables.has(table.name)),
-    ...NATIVE_TABLES.filter(table => table.name === "auth_device_sessions")]);
+  const asyncNativeTables = new Set(NATIVE_TABLES.filter((table) => table.name !== "auth_device_sessions").map((table) => table.name));
+  const specs = postgresTableSpecs().filter((table) =>
+    !asyncDomains.has(table.domain) && !asyncAccountTables.has(table.name) && !asyncNativeTables.has(table.name));
+  const rows = await PostgresRows.open(database, specs);
   const files = new PostgresFileStore(database), relay = new PostgresRelayStore(rows);
   const removeGuard = database.installRuntimeGuard(() => rows.assertAvailable());
   return {

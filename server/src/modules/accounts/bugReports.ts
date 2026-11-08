@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../../app/context.js";
 import type { RowReader, Rows } from "../../infrastructure/database/rows/index.js";
-import { BugReportBody } from "../../shared/contracts/http/users.js";
+import { BugReportBody, FeedbackCategory } from "../../shared/contracts/http/users.js";
 import { ApiError } from "../../shared/errors.js";
 import { parse } from "../../shared/validation/index.js";
 import { newId, now } from "../../shared/utilities/util.js";
@@ -19,6 +19,7 @@ const PER_DAY = 10;
 export interface BugReportRow {
   id: string;
   user_id: string;
+  category?: (typeof FeedbackCategory.options)[number];
   summary: string;
   details: string;
   page: string | null;
@@ -29,11 +30,11 @@ export interface BugReportRow {
   updated_at: number;
 }
 
-const view = (r: BugReportRow) => ({ id: r.id, summary: r.summary, details: r.details, page: r.page, status: r.status, staffNote: r.staff_note, createdAt: r.created_at, updatedAt: r.updated_at });
+const view = (r: BugReportRow) => ({ id: r.id, summary: r.summary, category: r.category, details: r.details, page: r.page, status: r.status, staffNote: r.staff_note, createdAt: r.created_at, updatedAt: r.updated_at });
 
 /** Whether [userId] has a report staff confirmed or fixed (the Bug Hunter badge). */
-export function isBugHunter(safety: RowReader, userId: string): boolean {
-  return !!safety.get("bug_reports", { user_id: userId, status: { in: ["confirmed", "fixed"] } });
+export function isBugHunter(safety: Rows, userId: string): boolean {
+  return !!safety.get("bug_reports", { user_id: userId, ...(safety.backend === "postgres" ? { category: "bug" } : {}), status: { in: ["confirmed", "fixed"] } });
 }
 
 export function setBugStatus(safety: Rows, id: string, status: BugStatus, note: string | null): Promise<boolean> {
@@ -43,7 +44,7 @@ export function setBugStatus(safety: Rows, id: string, status: BugStatus, note: 
 /** Reports newest first, with their reporters' usernames (reports of people no longer here are left out). */
 export function listBugReports(safety: RowReader, identity: RowReader, status: BugStatus | null, limit = 50): (BugReportRow & { username: string })[] {
   const out: (BugReportRow & { username: string })[] = [];
-  for (const b of safety.all<BugReportRow>("bug_reports", { where: status ? { status } : {}, orderBy: [["created_at", "desc"]] })) {
+  for (const b of safety.all<BugReportRow>("bug_reports", { where: status ? { status } : {}, orderBy: [["created_at", "desc"]], limit })) {
     if (out.length >= limit) break;
     const u = identity.get<{ username: string }>("users", { id: b.user_id });
     if (u) out.push({ ...b, username: u.username });
@@ -58,29 +59,35 @@ export default async function bugReportRoutes(app: FastifyInstance, ctx: AppCont
     const { userId } = me(req);
     const body = parse(BugReportBody, req.body);
     const t = now();
-    const today = ctx.safety.count("bug_reports", { user_id: userId, created_at: { gt: t - 86_400_000 } });
-    if (today >= PER_DAY) throw new ApiError(429, "rate_limited", `You can send up to ${PER_DAY} bug reports a day. Thanks for all of them!`);
-    const row: BugReportRow = {
-      id: newId("bug"),
-      user_id: userId,
-      summary: body.summary,
-      details: body.details,
-      page: body.page ?? null,
-      client: body.client ?? null,
-      status: "open",
-      staff_note: null,
-      created_at: t,
-      updated_at: t,
-    };
-    await ctx.safety.write((w) => w.insert("bug_reports", { ...row }));
-    ctx.audit({ actorId: userId, action: "bug.report", target: row.id });
+    const categorized = ctx.safety.backend === "postgres";
+    const category = categorized ? (body.category ?? "bug") : "bug";
+    const { row, created } = await ctx.safety.write((w) => {
+      const recent = w.all<BugReportRow>("bug_reports", {
+        where: { user_id: userId, created_at: { gt: t - 86_400_000 } },
+        orderBy: [["created_at", "desc"]],
+        limit: PER_DAY,
+      });
+      const same = (a: string, b: string) => a.normalize("NFC").replace(/\s+/g, " ").trim().toLowerCase() === b.normalize("NFC").replace(/\s+/g, " ").trim().toLowerCase();
+      const previous = recent.find((r) => (r.category ?? "bug") === category && same(r.summary, body.summary) && same(r.details, body.details));
+      if (previous) return { row: previous, created: false };
+      if (recent.length >= PER_DAY) throw new ApiError(429, "rate_limited", "You can send up to 10 feedback submissions per day.");
+      const row: BugReportRow = {
+        id: newId("bug"), user_id: userId, ...(categorized ? { category } : {}), summary: body.summary, details: body.details,
+        page: body.page ?? null, client: body.client ?? null, status: "open", staff_note: null, created_at: t, updated_at: t,
+      };
+      w.insert("bug_reports", { ...row });
+      return { row, created: true };
+    });
+    if (created) ctx.audit({ actorId: userId, action: "bug.report", target: row.id });
+    reply.header("cache-control", "no-store");
     reply.code(201);
     return { report: view(row) };
   });
 
-  app.get("/v1/bug-reports", { preHandler: requireAuth(ctx) }, async (req) => {
+  app.get("/v1/bug-reports", { preHandler: requireAuth(ctx) }, async (req, reply) => {
+    reply.header("cache-control", "no-store");
     const { userId } = me(req);
     const rows = ctx.safety.all<BugReportRow>("bug_reports", { where: { user_id: userId }, orderBy: [["created_at", "desc"]], limit: 100 });
-    return { reports: rows.map(view), bugHunter: rows.some((r) => r.status === "confirmed" || r.status === "fixed") };
+    return { reports: rows.map(view), bugHunter: isBugHunter(ctx.safety, userId) };
   });
 }

@@ -1,3 +1,4 @@
+import { SavedCollection } from "../../../shared/contracts/http/webExperience.js";
 import { z } from "zod";
 import { QUICK_REACTION_CHOICES } from "../../../shared/contracts/http/preferences.js";
 
@@ -127,6 +128,7 @@ export const zNavPrefs = z
      * Saved messages. Optional on the wire: a client that doesn't know the field (an older app, the web app) leaves it
      * out, and the stored list is kept (routes.ts) instead of being emptied.
      */
+    savedCollections: z.array(SavedCollection).max(20).optional(),
     saved: z.array(zSavedItem).max(LIMITS.saved).optional(),
     /** Community documents only. Optional on the wire like [saved]: left out, the stored settings are kept. */
     community: zCommunityNotify.optional(),

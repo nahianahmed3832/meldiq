@@ -36,7 +36,14 @@ export const SearchResult = z.strictObject({
   }),
 });
 
+export const privateSearch = route({
+  method: "POST", url: "/v2/search", tag: "search",
+  summary: "Search people, channels, workspaces and groups without putting search terms in the request URL.",
+  auth: true, body: SearchQuery, response: SearchResult, errors: ["not_found"],
+});
+
 export const searchRoutes = [
+  privateSearch,
   route({
     method: "GET",
     url: "/v1/search",

@@ -23,7 +23,7 @@ export const fixtureName = (method: string, url: string): string =>
  */
 function coverage(): string {
   const seen = (rel: string) => fs.existsSync(path.join(FIXTURES, rel));
-  const routes = ROUTE_CONTRACTS.map((c) => ({ c, ok: c.binary === "response" || seen(`http/${fixtureName(c.method, c.url)}.json`) }));
+  const routes = ROUTE_CONTRACTS.map((c) => ({ c, ok: c.binary === "response" || c.ndjson || seen(`http/${fixtureName(c.method, c.url)}.json`) }));
   const frames = ServerEvent.options.flatMap((o) => {
     // The nested call union has no shape of its own: its frames are named by event.
     const t = "shape" in o ? (o.shape as { t?: { value?: string } }).t?.value : undefined;

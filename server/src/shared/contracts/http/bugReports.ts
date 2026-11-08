@@ -1,7 +1,7 @@
 import { z } from "zod/v4";
 import { zTime } from "./primitives.js";
 import { route } from "./route.js";
-import { BugReportBody } from "./users.js";
+import { BugReportBody, FeedbackCategory } from "./users.js";
 
 /** Bug reports from Settings (API 0.46.0, docs/ACCOUNT_SAFETY.md); staff review them with the operator CLI. */
 const bug = (c: Omit<Parameters<typeof route>[0], "tag" | "auth">) => route({ tag: "bug-reports", auth: true, ...c });
@@ -9,6 +9,7 @@ const bug = (c: Omit<Parameters<typeof route>[0], "tag" | "auth">) => route({ ta
 const BugReportView = z.strictObject({
   id: z.string(),
   summary: z.string(),
+  category: FeedbackCategory.optional(),
   details: z.string(),
   page: z.string().nullable(),
   status: z.enum(["open", "confirmed", "fixed", "not_a_bug", "duplicate"]),
@@ -21,7 +22,7 @@ export const bugReportRoutes = [
   bug({
     method: "POST",
     url: "/v1/bug-reports",
-    summary: "Report a bug: what went wrong and where (up to 10 a day). Nothing from your messages is attached.",
+    summary: "Submit a bug, feature request, or general feedback (up to 10 new submissions a day). Nothing from your messages is attached.",
     body: BugReportBody,
     response: z.strictObject({ report: BugReportView }),
     status: 201,

@@ -153,6 +153,7 @@ export async function eraseAccount(
   if (userId) {
     await ctx.safety.write((w) => {
       w.delete("bug_reports", { user_id: userId });
+      if (ctx.safety.has("spark_threads")) w.delete("spark_threads", { user_id: userId });
       w.delete("account_warnings", { user_id: userId });
     });
   }

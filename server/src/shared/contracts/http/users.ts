@@ -71,7 +71,9 @@ export const ProfileLink = z.object({
 export const PROFILE_LINKS_MAX = 5;
 
 /** API 0.46.0: a bug report from Settings › My Account. */
+export const FeedbackCategory = z.enum(["bug", "feature", "general"]);
 export const BugReportBody = z.object({
+  category: FeedbackCategory.optional(),
   summary: z.string().trim().min(4).max(120),
   details: z.string().trim().min(10).max(4000),
   /** Where it happened in the app (a route, never a message), and the app and version. */

@@ -41,7 +41,25 @@ export const NATIVE_TABLES:TableSpec[]=[
   table("linked_account_starts","identity",fields("user_id provider verifier","expires_at"),{user_id:"users"}),
 ];
 for(const [name,parent] of Object.entries({points_accounts:"users",bots:"users",user_activities:"users",privacy_settings:"users",community_rules:"orgs"})) NATIVE_TABLES.find(t=>t.name===name)!.foreignKeys.push({columns:["id"],table:parent,references:["id"],onDelete:"CASCADE"});
-export const postgresTableSpecs=()=>[...tableSpecs(),...NATIVE_TABLES];
+export const POSTGRES_ONLY_TABLES: TableSpec[] = [
+  {
+    ...table("spark_threads", "safety", [
+      column("user_id", "TEXT"),
+      column("sealed", "TEXT"),
+      column("updated_at", "INTEGER"),
+      column("request_id", "TEXT", false),
+      { ...column("busy_until", "INTEGER"), default: 0 },
+    ], { user_id: "users" }),
+    indexes: [{ name: "spark_threads_idx_owner", columns: ["user_id", "updated_at", "id"], unique: false, nocase: false, partialNotNull: null }],
+  },
+];
+export const postgresTableSpecs = () => [
+  ...tableSpecs().map((spec) => spec.name === "bug_reports"
+    ? { ...spec, columns: [...spec.columns, { ...column("category", "TEXT"), default: "bug" }] }
+    : spec),
+  ...NATIVE_TABLES,
+  ...POSTGRES_ONLY_TABLES,
+];
 
 export function normalizeNativeDocument(name:string,doc:Record<string,unknown>):Record<string,unknown>{
   const spec=NATIVE_TABLES.find(t=>t.name===name);

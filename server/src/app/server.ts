@@ -1,3 +1,5 @@
+import sparkRoutes from "../modules/accounts/spark/routes.js";
+import savedCollectionRoutes from "../modules/accounts/preferences/savedCollections.js";
 import { presenceModeOf, privacyOf, type ProfileRow } from "../modules/accounts/profile.js";
 import { installHttpDrain } from "./httpDrain.js";
 import { BillingNotifications } from "../modules/billing/notifications.js";
@@ -240,6 +242,7 @@ export const SERVER_INFO_VERSION = 1;
 export function logUrl(url: string): string {
   if (url.startsWith("/v2/bot/gateway")) return url.split("?")[0];
   if (url.startsWith("/v2/auth/social/")) return url.split("?")[0];
+  if (url.split("?")[0] === "/v1/search") return "/v1/search";
   if (url.startsWith("/admin/")) return url.split("?")[0];
   // A webhook's address holds its secret token (community parity batch C): never logged.
   return url.replace(
@@ -1282,7 +1285,7 @@ export async function buildApp(
         "griip-envelope-v1 (HPKE X25519/HKDF-SHA256/AES-256-GCM + Ed25519)",
       // What this server supports beyond API 1, so apps can say "this server needs an update" instead of failing
       // (servers before 2026-10-17 have no list). Additive: names are never reused.
-      features: serverFeatures(config, ctx.blobs.direct !== null),
+      features: serverFeatures(config, ctx.blobs.direct !== null, ctx.safety.backend === "postgres"),
       // Encrypted message history and kept files (docs/MESSAGE_HISTORY.md). Says nothing about where files are stored.
       history: config.history.enabled
         ? { maxItemBytes: config.history.maxItemBytes }
@@ -1349,12 +1352,14 @@ export async function buildApp(
       ticketRoutes,
       officialBotRoutes,
       discoveryRoutes,
+      savedCollectionRoutes,
       communityTemplateRoutes,
       botDirectoryRoutes,
       wsRoutes,
     ]) {
       await app.register(async (scope) => r(scope, ctx));
     }
+    if (ctx.safety.has("spark_threads")) await app.register(async (scope) => sparkRoutes(scope, ctx));
     // Community parity A3: the community settings routes.
     await app.register(async (scope) => communitySettingsRoutes(scope, ctx));
     await app.register(async (scope) => opsRoutes(scope, ctx, VERSION));
@@ -1426,6 +1431,7 @@ export async function buildApp(
 export function serverFeatures(
   config: Config,
   directUploads = false,
+  postgresSafety = false,
 ): string[] {
   const f = [
     "profiles",
@@ -1457,11 +1463,14 @@ export function serverFeatures(
     "nav-preferences",
     // Saved messages (Later) in the personal preferences document (2026-10-19).
     "saved-items",
+    "saved-collections",
+    ...(postgresSafety ? ["spark-assistant", "categorized-feedback"] : []),
     "org-photos",
     // 2026-10-19: custom workspace roles (docs/WORKSPACE_ROLES.md).
     "custom-roles",
     // Round 7: universal search over server-readable content (docs/SEARCH.md).
     "search",
+    "search-body",
     // Round 7: scheduled meetings in voice rooms, shown as community events (docs/WORKSPACE_C5.md).
     "meetings",
     // 2026-10-21 community rebuild (docs/COMMUNITY_REBUILD_2026-10-21.md): categories, channel order, forum channels and

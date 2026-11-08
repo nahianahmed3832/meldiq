@@ -35,7 +35,9 @@ function operation(c: RouteContract): Json {
   const success =
     c.binary === "response"
       ? { description: "The bytes (or 302 to a storage URL)", content: { "application/octet-stream": { schema: { type: "string", format: "binary" } } } }
-      : { description: "OK", content: { "application/json": { schema: schemaOf(c.response, "output") } } };
+      : c.ndjson
+        ? { description: "One JSON frame per line", content: { "application/x-ndjson": { schema: schemaOf(c.response, "output") } } }
+        : { description: "OK", content: { "application/json": { schema: schemaOf(c.response, "output") } } };
   const errors =
     c.errorFormat === "oauth"
       ? { default: { description: "Error (RFC 6749 §5.2)", content: { "application/json": { schema: { $ref: "#/components/schemas/OAuthError" } } } } }

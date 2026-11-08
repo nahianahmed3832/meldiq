@@ -402,6 +402,7 @@ export async function runOperatorCommand(cmd: string, rest: string[], runtime?: 
             id: b.id,
             from: b.username,
             status: b.status,
+            category: b.category,
             summary: b.summary,
             page: b.page,
             at: new Date(b.created_at).toISOString(),

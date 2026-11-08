@@ -1,0 +1,15 @@
+{
+  "thread": {
+    "id": "0e94df63-c1e5-442c-86b3-98122bd78184",
+    "title": "New name",
+    "turns": [
+      {
+        "requestId": "e21524f6-b318-4428-bc71-791efa1d9e52",
+        "user": "How do channels work?",
+        "assistant": "**হ্যালো** World",
+        "at": 1794149339644
+      }
+    ],
+    "updatedAt": 1794149339649
+  }
+}

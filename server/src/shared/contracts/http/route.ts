@@ -30,6 +30,8 @@ export interface RouteContract {
   response: z.ZodType;
   /** The request or the answer is raw bytes (application/octet-stream), not JSON. */
   binary?: "request" | "response";
+  /** The success schema describes a single newline-delimited JSON frame. */
+  ndjson?: true;
   /** The success status (200 unless stated). */
   status?: number;
   /** Error codes this route is documented to answer with (besides the common ones: bad_request, unauthorized, rate_limited). */
