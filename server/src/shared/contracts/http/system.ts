@@ -62,6 +62,14 @@ export const systemRoutes = [
   route({ method: "GET", url: "/v1/server-info", tag: "system", summary: "What this server is and supports.", auth: false, response: ServerInfo }),
   route({
     method: "GET",
+    url: "/v2/site/presence",
+    tag: "system",
+    summary: "Aggregate of online human accounts with broadly visible presence.",
+    auth: false,
+    response: z.strictObject({ online: zCount }),
+  }),
+  route({
+    method: "GET",
     url: "/v2/site/details",
     tag: "system",
     summary: "Who runs Meldiq and its policies, as set in the console (null: not decided yet). API 0.60.0.",

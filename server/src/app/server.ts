@@ -1,3 +1,4 @@
+import { presenceModeOf, privacyOf, type ProfileRow } from "../modules/accounts/profile.js";
 import { installHttpDrain } from "./httpDrain.js";
 import { BillingNotifications } from "../modules/billing/notifications.js";
 import { CardSubscriptions } from "../modules/billing/cardSubscriptions.js";
@@ -1210,6 +1211,21 @@ export async function buildApp(
         };
       },
     );
+
+    // Only the aggregate is public. Cache the snapshot so polling does not repeatedly read connected profiles.
+    let publicPresence = { online: 0, expiresAt: 0 };
+    app.get("/v2/site/presence", async (_req, reply) => {
+      const at = now();
+      if (publicPresence.expiresAt <= at) {
+        const online = ctx.hub.countPresentUsers((id) => {
+          const user = ctx.identity.get<ProfileRow>("users", { id });
+          return !!user && user.kind !== "agent" && privacyOf(user).lastSeen === "everyone" && presenceModeOf(user, at) !== "invisible";
+        });
+        publicPresence = { online, expiresAt: at + 15_000 };
+      }
+      reply.header("cache-control", "public, max-age=15");
+      return { online: publicPresence.online };
+    });
 
     // Public: who runs Meldiq and its policies, as set in the console (docs/SITE_DETAILS.md). Cached briefly.
     app.get("/v2/site/details", async (_req, reply) => {

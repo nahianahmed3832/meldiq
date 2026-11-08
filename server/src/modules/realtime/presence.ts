@@ -34,6 +34,12 @@ export class PresenceTracker {
     return this.present.has(userId);
   }
 
+  countWhere(include: (userId: string) => boolean): number {
+    let count = 0;
+    for (const id of this.present) if (include(id)) count++;
+    return count;
+  }
+
   /** [userId]'s first connection opened. */
   connectedNow(userId: string): void {
     const pendingOffline = this.leaving.get(userId);

@@ -183,6 +183,10 @@ export class Hub {
     return this.lastSeen.get(userId) ?? null;
   }
 
+  countPresentUsers(include: (userId: string) => boolean): number {
+    return this.presence.countWhere(include);
+  }
+
   onlineDeviceCount(): number {
     return this.byDevice.size;
   }
