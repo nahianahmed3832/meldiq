@@ -106,11 +106,11 @@ export interface SparkLevel {
 }
 
 export const SPARK_LEVELS: readonly SparkLevel[] = [
-  // Level 0 is what servers have today: 50 emoji, 20 stickers, the apps' 48 kbps voice (LiveKit's music preset).
-  { level: 0, sparks: 0, emojiSlots: 50, stickerSlots: 20, uploadBytes: null, voiceKbps: 48, screen: [] },
-  { level: 1, sparks: 2, emojiSlots: 100, stickerSlots: 20, uploadBytes: 50 * MB, voiceKbps: 128, screen: ["720p30"] },
-  { level: 2, sparks: 5, emojiSlots: 200, stickerSlots: 20, uploadBytes: 200 * MB, voiceKbps: 256, screen: ["1080p60"] },
-  { level: 3, sparks: 8, emojiSlots: 500, stickerSlots: 20, uploadBytes: 1024 * MB, voiceKbps: 384, screen: ["1080p60", "1440p30"] },
+  // Level 0 is what servers have today: 50 emoji, 30 stickers, the apps' 48 kbps voice (LiveKit's music preset).
+  { level: 0, sparks: 0, emojiSlots: 50, stickerSlots: 30, uploadBytes: null, voiceKbps: 48, screen: [] },
+  { level: 1, sparks: 2, emojiSlots: 100, stickerSlots: 45, uploadBytes: 50 * MB, voiceKbps: 128, screen: ["720p30"] },
+  { level: 2, sparks: 5, emojiSlots: 200, stickerSlots: 45, uploadBytes: 200 * MB, voiceKbps: 256, screen: ["1080p60"] },
+  { level: 3, sparks: 8, emojiSlots: 500, stickerSlots: 45, uploadBytes: 1024 * MB, voiceKbps: 384, screen: ["1080p60", "1440p30"] },
 ];
 export const MAX_SPARK_LEVEL = 3;
 

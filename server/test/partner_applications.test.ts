@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { expectStatus, startServer, type Harness } from "./support/harness.js";
 import { MemoryMailer } from "./support/accounts.js";
 import { consoleAdmin } from "./support/adminConsole.js";
@@ -12,23 +12,93 @@ for (const backend of process.env.MELDIQ_TEST_PG_URL
       h = await startServer(
         {
           ADMIN_CONSOLE_ORIGIN: "https://admin.example.test",
-          MONGODB_DOMAINS:
-            backend === "mongodb" ? "workspace,conversations,files,calls" : "",
+          ...(backend === "postgres"
+            ? {}
+            : {
+                MONGODB_DOMAINS:
+                  backend === "mongodb"
+                    ? "workspace,conversations,files,calls"
+                    : "",
+              }),
         },
         { mailer },
       );
     });
     afterAll(async () => h?.close());
-    it("keeps owner applications private, validates the checklist and records only explicit authorized reviews without a badge or role", async () => {
+    it("keeps owner applications private, validates the checklist and records only explicit authorized reviews with a Partner badge and without assigning a permission role", async () => {
       const owner = await h.client("paowner"),
-        member = await h.client("pamember");
+        member = await h.client("pamember"),
+        helper = await h.client("pahelper");
       const org = (
         await owner.req("POST", "/v1/orgs", { name: "Partner fixture" })
       ).org.id;
       const code = (
-        await owner.req("POST", `/v1/orgs/${org}/invites`, { role: "MEMBER" })
+        await owner.req("POST", `/v1/orgs/${org}/invites`, {
+          role: "MEMBER",
+          maxUses: 2,
+        })
       ).invite.code;
       await member.req("POST", "/v1/invites/accept", { code });
+      await helper.req("POST", "/v1/invites/accept", { code });
+      const older = Date.now() - 12 * 86_400_000;
+      const source = h.ctx.identity.get<Record<string, unknown>>("users", {
+        id: owner.userId,
+      })!;
+      await h.ctx.identity.write((rows) => {
+        rows.update("users", { id: owner.userId }, { created_at: older });
+        for (let i = 0; i < 997; i++)
+          rows.insert("users", {
+            ...source,
+            id: `usr_partner_fixture_${i}`,
+            username: `partner_fixture_${i}`,
+            identity_key: `partner-fixture-key-${i}`,
+          });
+      });
+      await h.ctx.ws.write((rows) => {
+        rows.update("orgs", { id: org }, { created_at: older });
+        for (let i = 0; i < 997; i++)
+          rows.insert("org_members", {
+            org_id: org,
+            user_id: `usr_partner_fixture_${i}`,
+            role: "MEMBER",
+            joined_at: older,
+          });
+        for (const moderator of [member, helper])
+          rows.insert("audit_log", {
+            org_id: org,
+            at: Date.now(),
+            actor_id: moderator.userId,
+            action: "member.timeout",
+          });
+      });
+      await owner.req("PUT", `/v1/orgs/${org}/safety`, {
+        verificationLevel: "medium",
+      });
+      const channel = (
+        await owner.req("POST", `/v1/orgs/${org}/channels`, {
+          name: "rules",
+          kind: "ANNOUNCEMENT",
+        })
+      ).channel.id;
+      await owner.req("PUT", `/v1/orgs/${org}/rules`, {
+        channelId: channel,
+        required: false,
+        rules: [],
+      });
+      const level = h.ctx.mojo.levelOf(org);
+      vi.spyOn(h.ctx.mojo, "levelOf").mockImplementation((id) => ({
+        ...level,
+        active: id === org ? 7 : 0,
+      }));
+      expect(
+        await owner.req("GET", `/v1/orgs/${org}/partner-eligibility`),
+      ).toMatchObject({
+        eligible: true,
+        members: 1000,
+        activeMods: 2,
+        ageDays: 12,
+      });
+
       const path = `/v1/orgs/${org}/partner-application`;
       const body = {
         baseRev: 0,
@@ -120,6 +190,12 @@ for (const backend of process.env.MELDIQ_TEST_PG_URL
       );
       expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
       expect(results.filter((r) => r.status === "rejected")).toHaveLength(1);
+      const status = (await owner.req("GET", path)).application.status;
+      const me = await owner.req("GET", "/v1/users/me");
+      expect((me.user.badges ?? []).includes("partner")).toBe(
+        status === "approved",
+      );
+
       expect(h.ctx.ws.get("orgs", { id: org })).toEqual(before);
       expect(
         h.ctx.ws.all("org_role_members", { where: { org_id: org } }),

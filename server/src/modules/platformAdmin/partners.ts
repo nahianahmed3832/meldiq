@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod/v4";
 import {
   listPartnerApplications,
+  notifyOrg,
   reviewPartnerApplication,
 } from "../organizations/index.js";
 import { OrgParamsNonEmpty } from "../../shared/contracts/http/community.js";
@@ -47,6 +48,7 @@ export default async function partnerAdminRoutes(
       requestId: metaOf(req).requestId,
       detail: { status: application.status, rev: application.rev },
     });
+    notifyOrg(d.ctx, orgId);
     return { application };
   });
 }

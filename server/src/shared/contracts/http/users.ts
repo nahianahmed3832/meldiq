@@ -270,7 +270,7 @@ const profileFields = {
   /** API 0.46.0: About me and links (under the bio's setting), and badges earned (bug-hunter). */
   aboutMe: z.string().optional(),
   links: z.array(z.strictObject({ label: z.string(), url: z.string() })).optional(),
-  badges: z.array(z.enum(["bug-hunter"])).optional(),
+  badges: z.array(z.enum(["bug-hunter", "partner"])).optional(),
   /** API 0.65.0: the account level bought with points (1 for everyone who hasn't levelled up). */
   level: z.number().int().min(1).optional(),
   /** API 0.65.0 batch B: Steam, AniList, Last.fm and Trakt accounts the person shows; absent when none (or they blocked you). */

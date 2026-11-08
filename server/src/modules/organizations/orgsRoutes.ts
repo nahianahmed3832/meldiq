@@ -1,3 +1,4 @@
+import { partnerCommunity } from "./partnerBadges.js";
 import { requireFeature } from "../../app/platformControls.js";
 import { requireStanding } from "../accounts/index.js";
 import type { FastifyInstance, FastifyReply } from "fastify";
@@ -164,6 +165,7 @@ export function orgSummary(ctx: AppContext, org: any, userId: string) {
     ...(role ? ctx.communityRules.summary(org.id, userId) : {}),
     // Community parity A3: background tint, links, custom invite link, and the member's onboarding.
     ...ctx.communitySettings.summary(org.id, userId, !!role),
+    ...(partnerCommunity(ctx.ws, org.id) ? { partner: true } : {}),
     // Community parity A2: the lock for members, the safety settings for people who edit the community or ban.
     ...ctx.communitySafety.summary(org.id, userId),
     // Community parity B: whether the lobby is on and the member has seen it (members only; absent while switched off).

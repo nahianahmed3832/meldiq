@@ -2551,6 +2551,37 @@ export const SCHEMA: readonly TableShape[] = [
     autoincrement: false,
   },
   {
+    name: "community_ping_roles",
+    columns: [
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"rev","type":"INTEGER","notNull":true},
+      {"name":"roles","type":"TEXT","notNull":true},
+    ],
+    primaryKey: ["org_id"],
+    indexes: [],
+    foreignKeys: [
+      {"columns":["org_id"],"table":"orgs","references":["id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
+    name: "community_ping_subscriptions",
+    columns: [
+      {"name":"org_id","type":"TEXT","notNull":true},
+      {"name":"user_id","type":"TEXT","notNull":true},
+      {"name":"role_id","type":"TEXT","notNull":true},
+    ],
+    primaryKey: ["org_id","user_id","role_id"],
+    indexes: [
+      {"name":"idx_ping_subscriptions_role","columns":["org_id","role_id"],"unique":false,"nocase":false,"partialNotNull":null},
+    ],
+    foreignKeys: [
+      {"columns":["user_id"],"table":"users","references":["id"],"onDelete":"CASCADE"},
+      {"columns":["org_id"],"table":"community_ping_roles","references":["org_id"],"onDelete":"CASCADE"},
+    ],
+    autoincrement: false,
+  },
+  {
     name: "community_profiles",
     columns: [
       {"name":"org_id","type":"TEXT","notNull":true},
@@ -2595,6 +2626,7 @@ export const SCHEMA: readonly TableShape[] = [
       {"name":"start_channel_id","type":"TEXT","notNull":false},
       {"name":"updated_at","type":"INTEGER","notNull":true},
       {"name":"updated_by","type":"TEXT","notNull":true},
+      {"name":"voice_clips","type":"INTEGER","notNull":true,"default":0},
     ],
     primaryKey: ["org_id"],
     indexes: [],

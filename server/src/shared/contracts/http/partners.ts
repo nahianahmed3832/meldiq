@@ -30,11 +30,26 @@ export const PartnerApplication = z.strictObject({
 export const PartnerResult = z.strictObject({
   application: PartnerApplication.nullable(),
 });
+export const PartnerEligibility = z.strictObject({
+  eligible: z.boolean(),
+  activeSparks: z.number().int().nonnegative(),
+  members: z.number().int().nonnegative(),
+  hasRules: z.boolean(),
+  activeMods: z.number().int().nonnegative(),
+  verification: z.string(),
+  ageDays: z.number().int().nonnegative(),
+  cleanStanding: z.boolean(),
+});
 export const PartnerQueue = z.strictObject({
   applications: z.array(PartnerApplication),
   nextAfter: z.string().nullable(),
 });
 export const partnerContracts = [
+  route({
+    method: "GET", url: "/v1/orgs/:orgId/partner-eligibility", tag: "community",
+    summary: "The requirements and current eligibility for a community partner application.",
+    auth: true, params: OrgParamsNonEmpty, response: PartnerEligibility, errors: ["not_found"],
+  }),
   route({
     method: "GET",
     url: "/v1/orgs/:orgId/partner-application",
@@ -50,7 +65,7 @@ export const partnerContracts = [
     url: "/v1/orgs/:orgId/partner-application",
     tag: "community",
     summary:
-      "Submit or revise an unreviewed application, or resubmit after a decline; no automatic badge.",
+      "Submit an eligible community for partner review, or revise an unreviewed application.",
     auth: true,
     params: OrgParamsNonEmpty,
     body: PartnerSubmission,
@@ -77,7 +92,7 @@ export const partnerContracts = [
     requires: "admin_console",
     tag: "platform-admin",
     summary:
-      "Record an explicit partner review; never assign a badge, entitlement or role.",
+      "Review an eligible application and award the Partner badge on approval.",
     auth: true,
     scheme: "console",
     params: OrgParamsNonEmpty,

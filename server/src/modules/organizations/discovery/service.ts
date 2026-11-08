@@ -3,7 +3,7 @@ import type { AppContext } from "../../../app/context.js";
 import type { Config } from "../../../app/config.js";
 import { DISCOVERY_LIMITS, DISCOVERY_MIN_MEMBERS, type DiscoverListing, type DiscoverListQuery, type DiscoverySettings, type DiscoverySettingsBody } from "../../../shared/contracts/http/discovery.js";
 import { ApiError, forbidden, notFound } from "../../../shared/errors.js";
-import { biggestTier, card, compareEntries, type Entry, matches, type OrgRow, type UnlistedReason, unlistedReason } from "./listing.js";
+import { biggestTier, card, compareEntries, discoveryOrder, type Entry, matches, matchesSize, type OrgRow, type UnlistedReason, unlistedReason } from "./listing.js";
 import { Promote } from "./promote.js";
 import { DiscoveryStore, parseTags } from "./store.js";
 
@@ -75,10 +75,12 @@ export class Discovery {
     const all = this.listed(t).filter((e) => !banned.has(e.org.id));
     const term = q.q ?? "";
     const tag = normalizeTags([q.tag ?? ""])[0] ?? "";
-    const found = all.filter((e) => matches(e, term, tag));
+    const sized = all.filter((entry) => matchesSize(entry.memberCount, q.size ?? "any"));
+    const found = sized.filter((entry) => matches(entry, term, tag));
+    if (q.sort && q.sort !== "recommended") found.sort(discoveryOrder[q.sort]);
     const page = found.slice(q.cursor, q.cursor + DISCOVERY_LIMITS.page);
     const home = !term && !tag && q.cursor === 0;
-    const spots = home ? this.promote.promotedRow(t, all) : [];
+    const spots = home ? this.promote.promotedRow(t, sized) : [];
     await this.store.noteVisit(viewerId, t);
     await this.store.countOn(spots.map((s) => s.booking.id), "views");
     return {

@@ -81,6 +81,7 @@ import { openWorkspaceRows } from "./workspaceRows.js";
 import { SqliteReportStore } from "../modules/organizations/reports/store.js";
 import reportRoutes from "../modules/organizations/reports/routes.js";
 import applicationRoutes from "../modules/organizations/applicationsRoutes.js";
+import pingRoleRoutes from "../modules/organizations/pingRoles.js";
 import partnerRoutes from "../modules/organizations/partnerApplications.js";
 import { safeAuditChanges } from "../modules/organizations/adminChanges.js";
 import connectionRoutes from "../modules/accounts/relationships/routes.js";
@@ -1325,6 +1326,7 @@ export async function buildApp(
       reportRoutes,
       applicationRoutes,
       partnerRoutes,
+      pingRoleRoutes,
       connectionRoutes,
       onboardingRoutes,
       guideRoutes,
@@ -1508,6 +1510,8 @@ export function serverFeatures(
     "community-reports",
     "voice-channel-chat",
     "partner-applications",
+    "partner-eligibility",
+    "community-ping-roles",
     "administrative-audit-changes",
     "forum-collections",
     "forum-tag-policy",
@@ -1516,6 +1520,7 @@ export function serverFeatures(
     "community-guide",
     // Batch B9: a community's own emoji and stickers.
     "community-expressions",
+    "stickers-512",
     // Batch B12: pronouns on profiles, roles listed separately in the member list.
     "pronouns",
     "role-hoist",
@@ -1605,7 +1610,7 @@ export function serverFeatures(
     f.push("community-permissions", "community-profiles");
   // Community parity A3 (docs/COMMUNITY_SETTINGS_API.md): never-expiring and custom invite links, community links, the
   // background tint and onboarding's "must finish" (COMMUNITY_SETTINGS=off switches it off).
-  if (config.communitySettings) f.push("community-settings");
+  if (config.communitySettings) f.push("community-settings", "community-voice-clips");
   // Community parity A2 (docs/COMMUNITY_SAFETY_API.md): locking, raid protection, verification levels, the account-age
   // gate, voice bans and server mutes (COMMUNITY_SAFETY=off switches it off).
   if (config.communitySafety) f.push("community-safety");
@@ -1622,7 +1627,7 @@ export function serverFeatures(
   if (config.communityBots) f.push("community-bots");
   // Community parity batch E (docs/COMMUNITY_PARITY_API.md › Discovery): DISCOVERY, COMMUNITY_TEMPLATE_LINKS,
   // BOT_DIRECTORY and DISCOVERY_PROMOTE=off switch each off (Promote also goes with Discovery).
-  if (config.discovery.enabled) f.push("discovery-listing");
+  if (config.discovery.enabled) f.push("discovery-listing", "discovery-sort");
   if (config.discovery.templates) f.push("template-links");
   if (config.discovery.botDirectory) f.push("bot-directory");
   if (config.discovery.enabled && config.discovery.promote)

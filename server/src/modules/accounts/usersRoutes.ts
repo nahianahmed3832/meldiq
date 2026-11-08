@@ -1,3 +1,4 @@
+import { partnerOwner } from "../organizations/index.js";
 import { createHash } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { deleteBlobNow } from "../files/routes.js";
@@ -172,7 +173,7 @@ export default async function userRoutes(
   const tagOf = (u: { id: string; profile_style?: string | null }) => {
     const tag = wornTag(ctx, u);
     // API 0.46.0: badges people earned (a confirmed or fixed bug report: Bug Hunter).
-    const badges = isBugHunter(ctx.safety, u.id) ? ["bug-hunter"] : [];
+    const badges = [...(isBugHunter(ctx.safety, u.id) ? ["bug-hunter"] : []), ...(partnerOwner(ctx, u.id) ? ["partner"] : [])];
     return { ...(tag ? { tag } : {}), ...(badges.length ? { badges } : {}) };
   };
   const meView = (u: any) => ({

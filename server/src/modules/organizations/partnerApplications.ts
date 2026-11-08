@@ -1,3 +1,6 @@
+import type { RowReader } from "../../infrastructure/database/rows/index.js";
+import { nameBlocked } from "./discovery/listing.js";
+import { onboardingOn } from "./onboardingRoutes.js";
 import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../../app/context.js";
 import { me, requireAuth } from "../auth/index.js";
@@ -26,6 +29,35 @@ export interface PartnerRow {
   reviewed_by: string | null;
   review_note: string | null;
 }
+const DAY = 86_400_000;
+const MOD_ACTIONS = ["member.ban", "member.kick", "member.remove", "org.member.remove", "member.timeout", "member.voice_ban", "member.voice_mute", "member.voice_disconnect", "voice_room.mute", "voice_room.disconnect"];
+
+export function partnerEligibility(ctx: AppContext, orgId: string, ownerId: string, rows: RowReader = ctx.ws, at = now()) {
+  const org = rows.get<{ created_at: number; name: string }>("orgs", { id: orgId });
+  const owner = ctx.identity.get<{ created_at: number; disabled_at: number | null }>("users", { id: ownerId });
+  if (!org || !owner) throw notFound("Community not found");
+  const ageDays = Math.max(0, Math.floor((at - Math.max(org.created_at, owner.created_at)) / DAY));
+  const members = rows.count("org_members", { org_id: orgId });
+  const hasRules = Boolean(ctx.communityRules.view(orgId, ownerId).channelId) || onboardingOn(ctx, orgId);
+  const activeMods = new Set(rows.all<{ actor_id: string | null }>("audit_log", {
+    where: { org_id: orgId, at: { gte: at - 30 * DAY }, action: { in: MOD_ACTIONS } },
+  }).flatMap(({ actor_id }) => actor_id && actor_id !== ownerId && rows.get("org_members", { org_id: orgId, user_id: actor_id }) ? [actor_id] : [])).size;
+  const verification = ctx.communitySafety.verificationLevel(orgId);
+  const activeSparks = ctx.mojo.levelOf(orgId, at).active;
+  const staffAction = ctx.platform.all<{ action: string; detail: string | null }>("platform_audit", { where: {
+    target_type: "org", target_id: orgId, at: { gte: at - 90 * DAY }, outcome: "success", action: { in: ["org.suspend", "discovery.update", "org.warn"] },
+  } }).some((row) => {
+    if (row.action !== "discovery.update") return true;
+    try { return JSON.parse(row.detail ?? "{}").removed === true; } catch { return true; }
+  });
+  const cleanStanding = !owner.disabled_at && !ctx.authz.platformSuspended(orgId) &&
+    !nameBlocked(org.name, ctx.config.discovery.blockedWords) && !staffAction &&
+    !ctx.safety.get("account_warnings", { user_id: ownerId, created_at: { gte: at - 90 * DAY }, revoked_at: null });
+  const eligible = activeSparks >= 7 && members >= 1000 && hasRules && activeMods >= 2 &&
+    ["medium", "high", "highest"].includes(verification) && ageDays >= 10 && cleanStanding;
+  return { eligible, activeSparks, members, hasRules, activeMods, verification, ageDays, cleanStanding };
+}
+
 export function partnerView(r: PartnerRow) {
   return {
     orgId: r.org_id,
@@ -47,6 +79,12 @@ export default async function partnerRoutes(
     if (ctx.authz.orgRole(orgId, userId) !== "OWNER")
       throw notFound("Application not found");
   };
+  app.get("/v1/orgs/:orgId/partner-eligibility", auth, async (req) => {
+    const { orgId } = parse(OrgParamsNonEmpty, req.params);
+    const { userId } = me(req);
+    owner(orgId, userId);
+    return partnerEligibility(ctx, orgId, userId);
+  });
   app.get("/v1/orgs/:orgId/partner-application", auth, async (req) => {
     const { orgId } = parse(OrgParamsNonEmpty, req.params);
     owner(orgId, me(req).userId);
@@ -74,6 +112,9 @@ export default async function partnerRoutes(
         throw conflict(
           "This application was already approved. Contact the operator for any changes.",
         );
+      if (!w.get("org_members", { org_id: orgId, user_id: userId, role: "OWNER" })) throw notFound("Application not found");
+      if (!partnerEligibility(ctx, orgId, userId, w).eligible)
+        throw conflict("This community has not met all Partner requirements.");
       const next: PartnerRow = {
         org_id: orgId,
         submitted_by: userId,
@@ -136,6 +177,9 @@ export async function reviewPartnerApplication(
       );
     if (prior.status !== "submitted")
       throw conflict("This application was already reviewed");
+    if (body.status === "approved" && (!w.get("org_members", { org_id: orgId, user_id: prior.submitted_by, role: "OWNER" }) ||
+      !partnerEligibility(ctx, orgId, prior.submitted_by, w).eligible))
+      throw conflict("This community no longer meets the Partner requirements.");
     const next = {
       ...prior,
       status: body.status,

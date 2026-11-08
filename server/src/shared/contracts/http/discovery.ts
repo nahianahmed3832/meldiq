@@ -29,11 +29,15 @@ const OrgOnly = z.object({ orgId: z.string().min(1).max(64) });
 
 // ───────────── Discover ─────────────
 
+export const DiscoverSort = z.enum(["recommended", "members", "newest", "name"]);
+export const DiscoverSize = z.enum(["any", "small", "medium", "large"]);
 export const DiscoverListQuery = z.object({
   /** Matches the name, the card description, the community description and the tags. */
   q: z.string().trim().max(DISCOVERY_LIMITS.query).optional(),
   /** Only communities with this tag (any case). */
   tag: z.string().trim().max(DISCOVERY_LIMITS.tag).optional(),
+  sort: DiscoverSort.optional(),
+  size: DiscoverSize.optional(),
   /** The next offset in the list (nextCursor). */
   cursor: z.coerce.number().int().min(0).max(10_000).default(0),
 });
@@ -54,6 +58,7 @@ export const DiscoverCard = z.strictObject({
   joined: z.boolean(),
   /** Run by Meldiq itself. */
   official: z.boolean(),
+  partner: z.boolean().optional(),
   joinPolicy: z.enum(["open", "invite"]),
   /** The community takes join applications. */
   applications: z.boolean(),
@@ -124,6 +129,7 @@ export const PromoteView = z.strictObject({
     z.strictObject({
       tier: BoostTier,
       weeklyCents: zCount,
+      estimatedRank: zCount.nullable().optional(),
       /** Mega: a place in the top N whatever else is boosted (100, 50 or 20 by member count); null otherwise. */
       guaranteedTop: zCount.nullable(),
     }),

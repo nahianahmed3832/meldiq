@@ -1,3 +1,4 @@
+import { pingRecipients } from "../organizations/index.js";
 import {
   prepareManagedPoll,
   reserveManagedPoll,
@@ -112,7 +113,7 @@ export async function sendServerMessage(
   if (Buffer.byteLength(inputPayload) > MAX_PAYLOAD_BYTES)
     throw new ApiError(413, "message_too_long", "That message is too large");
   const managedPoll = prepareManagedPoll(m);
-  const payload = JSON.stringify(m.payload);
+
   const granted = sender.channelGrant !== undefined;
   if (!granted) refusePostingTools(m.payload, sender.botContent === true);
   const deletion = sender.threadGrant
@@ -284,6 +285,15 @@ export async function sendServerMessage(
     // Community parity A1: what a message may carry in this channel (links, polls, threads, new reactions, pins...). A
     // webhook's post was checked by the webhook's own limits instead.
     if (!granted && !deletion) await admitChannelContent(ctx, conv, userId, m);
+
+    const pingUsers = !granted && !deletion && m.cls === "message" ? pingRecipients(ctx, conv, userId, m.payload) : [];
+    if (pingUsers.length) {
+      const existing = Array.isArray(m.payload.mentions) ? m.payload.mentions : [];
+      const mentions = [...new Set([...existing, ...pingUsers])];
+      m.payload.mentions = mentions;
+    }
+    const payload = JSON.stringify(m.payload);
+    if (Buffer.byteLength(payload) > MAX_PAYLOAD_BYTES) throw new ApiError(413, "message_too_long", "That message is too large");
 
     const { request, quietFor, dropFor, mentionAll } = deletion
       ? {

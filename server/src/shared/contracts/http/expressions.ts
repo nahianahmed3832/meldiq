@@ -9,6 +9,8 @@ import { route } from "./route.js";
  * inside the encryption, so a phone can fetch the image and check it.
  */
 
+export const STICKER_MAX_BYTES = 512 * 1024;
+export const STICKER_MAX_DIMENSION = 320;
 export const ExpressionKind = z.enum(["emoji", "sticker"]);
 
 export const ExpressionView = z.strictObject({
@@ -53,7 +55,7 @@ export const expressionRoutes = [
     method: "POST",
     url: "/v1/orgs/:orgId/expressions",
     tag,
-    summary: "Upload an emoji or sticker: the PNG, GIF or WebP image (up to 256 KiB) as the body.",
+    summary: "Upload an emoji or sticker: the PNG, GIF or WebP image (emoji up to 256 KiB, stickers up to 512 KiB and 320 px) as the body.",
     auth: true,
     params: OrgParamsNonEmpty,
     query: ExpressionUploadQuery,

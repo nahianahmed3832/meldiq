@@ -7,6 +7,7 @@ import { expectStatus, type Harness, startServer } from "./support/harness.js";
 const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(100, 1)]);
 const apng = Buffer.concat([png, Buffer.from("acTL"), Buffer.alloc(10)]);
 const gif = Buffer.concat([Buffer.from("GIF89a"), Buffer.alloc(7), Buffer.from([0x2c]), Buffer.alloc(5), Buffer.from([0x2c]), Buffer.alloc(5)]);
+const validGif = Buffer.from("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", "base64");
 const webp = Buffer.concat([Buffer.from("RIFF"), Buffer.alloc(4), Buffer.from("WEBP"), Buffer.alloc(20)]);
 
 let h: Harness;
@@ -48,8 +49,8 @@ describe("community emoji and stickers", () => {
     expect(e).toMatchObject({ kind: "emoji", name: "party", animated: false, sha256: expect.stringMatching(/^[0-9a-f]{64}$/) });
     id = e.id;
     await expectStatus(manager.req("POST", `/v1/orgs/${orgId}/expressions?name=party`, undefined, gif), 409);
-    const s = (await manager.req("POST", `/v1/orgs/${orgId}/expressions?kind=sticker&name=party`, undefined, gif)).expression;
-    expect(s).toMatchObject({ kind: "sticker", animated: true });
+    const s = (await manager.req("POST", `/v1/orgs/${orgId}/expressions?kind=sticker&name=party`, undefined, validGif)).expression;
+    expect(s).toMatchObject({ kind: "sticker", animated: false });
   });
 
   it("are listed and served to members only, and the image matches its hash", async () => {

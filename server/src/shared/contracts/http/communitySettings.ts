@@ -43,6 +43,7 @@ export const CommunitySettingsBody = z.strictObject({
   inviteSlug: z.string().trim().max(64).nullable().optional(),
   /** New members must finish onboarding before they post or react. */
   onboardingRequired: z.boolean().optional(),
+  voiceClips: z.boolean().optional(),
   /** A text channel everyone can see, or null: people land where they usually would. */
   startChannelId: z.string().min(1).max(64).nullable().optional(),
 });
@@ -56,6 +57,7 @@ export const CommunitySettingsView = z.strictObject({
   /** How many members a community needs before it can claim a custom invite link. */
   inviteSlugMinMembers: zCount,
   memberCount: zCount,
+  voiceClips: z.boolean().optional(),
   onboardingRequired: z.boolean(),
   /** When "must finish" was last turned on: only people who joined since are held back. */
   onboardingRequiredSince: zTime.nullable(),

@@ -1,0 +1,13 @@
+{
+  "rev": 1,
+  "roles": [
+    {
+      "id": "png_ZPOgCZyidpyFRjvcGdlqbw",
+      "name": "Events"
+    }
+  ],
+  "subscribed": [
+    "png_ZPOgCZyidpyFRjvcGdlqbw"
+  ],
+  "canManage": false
+}

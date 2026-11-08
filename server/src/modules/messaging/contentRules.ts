@@ -1,3 +1,4 @@
+import { pingRoleOpen } from "../organizations/index.js";
 import type { AppContext } from "../../app/context.js";
 import { botRichText } from "../../shared/contracts/http/botComponents.js";
 import type { SendMessage } from "../../shared/contracts/http/serverMessages.js";
@@ -247,7 +248,7 @@ function admitRoleMentions(
   if (!roleIds.length || s.moderates || s.perms.has("messages.mention_all"))
     return;
   const closed = roleIds.find(
-    (r) => !ctx.communityPermissions.roleMentionable(conv.org_id!, r),
+    (r) => !pingRoleOpen(ctx, conv.org_id!, r) && !ctx.communityPermissions.roleMentionable(conv.org_id!, r),
   );
   if (closed)
     refuse(no("role_mention_not_allowed", "That role isn't open to mentions"));

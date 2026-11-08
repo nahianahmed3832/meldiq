@@ -110,6 +110,8 @@ const communitySettingsFields = {
   inviteSlug: z.string().nullable().optional(),
   /** New members must finish onboarding before they post or react (when onboarding is on). */
   onboardingRequired: z.boolean().optional(),
+  voiceClips: z.boolean().optional(),
+  partner: z.boolean().optional(),
   /** Whether the viewer has finished onboarding (members who joined before it was required may never have). */
   onboardingDone: z.boolean().optional(),
   /** Where people land when they finish onboarding; null: wherever they'd usually go. */

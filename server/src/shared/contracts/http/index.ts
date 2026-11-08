@@ -28,6 +28,7 @@ import { messagingRoutes } from "./messaging.js";
 import { serverMessagesRoutes } from "./serverMessages.js";
 import { threadLifecycleContracts } from "./threadLifecycle.js";
 import { managedPollContracts } from "./managedPolls.js";
+import { pingRoleContracts } from "./pingRoles.js";
 import { partnerContracts } from "./partners.js";
 import { systemRoutes } from "./system.js";
 import { creatorRoutes } from "./creators.js";
@@ -55,6 +56,7 @@ const NATIVE_ROUTE_CONTRACTS: readonly RouteContract[] = [
   ...botMessageContracts,
   ...botVoiceRoutes,
   ...partnerContracts,
+  ...pingRoleContracts,
   ...managedPollContracts,
   ...threadLifecycleContracts,
   ...supabaseAuthRoutes,

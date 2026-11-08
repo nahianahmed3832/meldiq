@@ -192,6 +192,8 @@ export const TABLE_DOMAINS: Readonly<Record<string, TableDomain>> = {
   message_events: "history",
   reports: "reports",
   org_partner_applications: "workspace",
+  community_ping_roles: "workspace",
+  community_ping_subscriptions: "workspace",
   bot_requested_permissions: "workspace",
   bot_installation_permissions: "workspace",
   bot_derived_credentials: "workspace",

@@ -1,6 +1,6 @@
 import type { z } from "zod/v4";
 import type { AppContext } from "../../../app/context.js";
-import type { RowWriter } from "../../../infrastructure/database/rows/index.js";
+import type { RowReader, RowWriter } from "../../../infrastructure/database/rows/index.js";
 import { COMMUNITY_SETTINGS_LIMITS, type CommunitySettingsBody, type CommunitySettingsView, type OnboardingStatus } from "../../../shared/contracts/http/communitySettings.js";
 import type { CommunityLink } from "../../../shared/contracts/http/orgs.js";
 import { ApiError } from "../../../shared/errors.js";
@@ -21,6 +21,7 @@ interface SettingsRow {
   background: string | null;
   links: string;
   onboarding_required: number;
+  voice_clips: number;
   onboarding_required_since: number | null;
   start_channel_id: string | null;
   updated_at: number;
@@ -61,8 +62,8 @@ export class CommunitySettings {
     if (!this.enabled) throw new ApiError(503, "feature_disabled", "These community settings are switched off for now. Try again later.");
   }
 
-  private row(orgId: string): SettingsRow | undefined {
-    return this.ctx.ws.get<SettingsRow>("community_settings", { org_id: orgId });
+  private row(orgId: string, rows: RowReader = this.ctx.ws): SettingsRow | undefined {
+    return rows.get<SettingsRow>("community_settings", { org_id: orgId });
   }
 
   /** The starting channel if it can still be one (archived or made private: none). */
@@ -114,7 +115,11 @@ export class CommunitySettings {
     const base = { ...this.profile(orgId), inviteSlug: inviteSlugOf(this.ctx.ws, orgId) };
     if (!member) return base;
     const s = this.status(orgId, userId);
-    return { ...base, onboardingRequired: s.onboardingRequired, onboardingDone: s.onboardingDone, startChannelId: s.startChannelId, mustFinishOnboarding: s.mustFinishOnboarding };
+    return { ...base, voiceClips: this.clipsAllowed(orgId), onboardingRequired: s.onboardingRequired, onboardingDone: s.onboardingDone, startChannelId: s.startChannelId, mustFinishOnboarding: s.mustFinishOnboarding };
+  }
+
+  clipsAllowed(orgId: string): boolean {
+    return this.enabled && this.row(orgId)?.voice_clips === 1;
   }
 
   view(orgId: string): z.infer<typeof CommunitySettingsView> {
@@ -122,6 +127,7 @@ export class CommunitySettings {
     const r = this.row(orgId);
     return {
       name: org.name,
+      voiceClips: this.clipsAllowed(orgId),
       accent: org.accent ?? null,
       background: r?.background ?? null,
       links: r ? parseLinks(r.links) : [],
@@ -158,13 +164,14 @@ export class CommunitySettings {
   }
 
   /** The settings row [body] leads to ("must finish" remembers when it was last turned on). */
-  private nextRow(orgId: string, actorId: string, body: Body, t: number): SettingsRow {
-    const r = this.row(orgId);
+  private nextRow(orgId: string, actorId: string, body: Body, t: number, rows: RowReader): SettingsRow {
+    const r = this.row(orgId, rows);
     const required = body.onboardingRequired ?? !!r?.onboarding_required;
     const turnedOn = required && !r?.onboarding_required;
     return {
       org_id: orgId,
       background: body.background === undefined ? (r?.background ?? null) : (body.background?.toLowerCase() ?? null),
+      voice_clips: body.voiceClips === undefined ? (r?.voice_clips ?? 0) : Number(body.voiceClips),
       links: body.links === undefined ? (r?.links ?? "[]") : JSON.stringify(body.links.map((l) => ({ label: l.label, url: l.url }))),
       onboarding_required: required ? 1 : 0,
       onboarding_required_since: turnedOn ? t : (r?.onboarding_required_since ?? null),
@@ -175,13 +182,14 @@ export class CommunitySettings {
   }
 
   /** The names of the fields [body] changes, for the audit log. */
-  private changed(orgId: string, body: Body, next: SettingsRow, slug: string | null | undefined): string[] {
-    const org = this.ctx.ws.get<{ name: string; accent: string | null }>("orgs", { id: orgId })!;
-    const r = this.row(orgId);
+  private changed(orgId: string, body: Body, next: SettingsRow, slug: string | null | undefined, rows: RowReader): string[] {
+    const org = rows.get<{ name: string; accent: string | null }>("orgs", { id: orgId })!;
+    const r = this.row(orgId, rows);
     const out: string[] = [];
     if (body.name !== undefined && body.name !== org.name) out.push("name");
     if (body.accent !== undefined && (body.accent?.toLowerCase() ?? null) !== (org.accent ?? null)) out.push("accent");
     if (next.background !== (r?.background ?? null)) out.push("background");
+    if (next.voice_clips !== (r?.voice_clips ?? 0)) out.push("voiceClips");
     if (next.links !== (r?.links ?? "[]")) out.push("links");
     if (slug !== undefined) out.push("inviteSlug");
     if (next.onboarding_required !== (r?.onboarding_required ?? 0)) out.push("onboardingRequired");
@@ -193,16 +201,16 @@ export class CommunitySettings {
   async update(orgId: string, actorId: string, body: Body): Promise<{ changed: string[]; slug: string | null | undefined }> {
     const { slug } = this.validate(orgId, body);
     const t = this.clock();
-    const next = this.nextRow(orgId, actorId, body, t);
-    const changed = this.changed(orgId, body, next, slug);
-    if (changed.length === 0) return { changed, slug };
-    await this.ctx.ws.write((w) => {
+    return this.ctx.ws.write((w) => {
+      const next = this.nextRow(orgId, actorId, body, t, w);
+      const changed = this.changed(orgId, body, next, slug, w);
+      if (changed.length === 0) return { changed, slug };
       this.writeOrg(w, orgId, body, t);
       w.upsert("community_settings", { ...next }, "replace");
       if (slug === null) releaseInviteSlug(w, orgId, t);
       else if (slug !== undefined) claimInviteSlug(w, orgId, actorId, slug, t);
+      return { changed, slug };
     });
-    return { changed, slug };
   }
 
   /** The name and accent live on the community itself. */

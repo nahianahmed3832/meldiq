@@ -3,7 +3,7 @@ import { BOOST_TIERS, type BoostTier, DISCOVERY_LIMITS, type PromoteView } from 
 import { ApiError, badRequest, notFound } from "../../../shared/errors.js";
 import { newId } from "../../../shared/utilities/util.js";
 import { NO_CHECKOUT, type PromoteCheckout } from "./checkout.js";
-import { biggestTier, type Entry } from "./listing.js";
+import { biggestTier, compareEntries, type Entry } from "./listing.js";
 import type { Discovery } from "./service.js";
 import type { BookingRow, BoostRow } from "./store.js";
 
@@ -91,14 +91,20 @@ export class Promote {
     const t = this.d.clock();
     const e = this.entry(orgId, t);
     const reason = this.d.reasonFor(e);
-    const rank = reason === null ? this.d.listed(t).findIndex((x) => x.org.id === orgId) + 1 : 0;
+    const listed = this.d.listed(t);
+    const rank = reason === null ? listed.findIndex((x) => x.org.id === orgId) + 1 : 0;
+    const estimate = (tier: BoostTier) => {
+      if (reason !== null && reason !== "too_few_members") return null;
+      const projected = { ...e, tier: biggestTier(e.tier ? [{ tier: e.tier }, { tier }] : [{ tier }]), paid: true };
+      return 1 + listed.filter((entry) => entry.org.id !== orgId && compareEntries(entry, projected) < 0).length;
+    };
     const running = this.d.store.runningBoosts(t, [orgId]);
     const tier = biggestTier(running);
     const next = this.nextSpot(orgId, weekStartOf(t) + WEEK_MS);
     return {
       billing: { available: this.checkout.available, reason: this.checkout.reason },
       currency: this.prices.currency,
-      tiers: BOOST_TIERS.map((k) => ({ tier: k, weeklyCents: this.prices[k], guaranteedTop: k === "mega" ? megaGuarantee(e.memberCount) : null })),
+      tiers: BOOST_TIERS.map((k) => ({ tier: k, weeklyCents: this.prices[k], estimatedRank: estimate(k), guaranteedTop: k === "mega" ? megaGuarantee(e.memberCount) : null })),
       boost: tier ? boostView(running.find((b) => b.tier === tier)!) : null,
       boosts: this.d.store.boostsOf(orgId, t).map(boostView),
       rank: rank > 0 ? rank : null,

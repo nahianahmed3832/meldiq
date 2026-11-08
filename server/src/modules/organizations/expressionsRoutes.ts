@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import sharp from "sharp";
 import type { Readable } from "node:stream";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import {
@@ -8,6 +9,8 @@ import {
 import {
   ExpressionRenameBody,
   ExpressionUploadQuery,
+  STICKER_MAX_BYTES,
+  STICKER_MAX_DIMENSION,
 } from "../../shared/contracts/http/expressions.js";
 import { type AppContext } from "../../app/context.js";
 import { me, requireAuth } from "../auth/index.js";
@@ -32,7 +35,7 @@ import type { RowReader } from "../../infrastructure/database/rows/index.js";
  */
 export const EXPRESSION_LIMITS = {
   emoji: 50,
-  sticker: 20,
+  sticker: 30,
   bytes: 256 * 1024,
 } as const;
 export const EXPRESSION_NAME = /^[a-z0-9_]{2,32}$/;
@@ -84,22 +87,23 @@ export function imageKind(
   return null;
 }
 
-async function readImage(req: FastifyRequest): Promise<Buffer> {
+async function readImage(req: FastifyRequest, kind: Kind): Promise<Buffer> {
   const body = req.body as Readable | undefined;
   if (!body || typeof body.pipe !== "function")
     throw badRequest("Expected application/octet-stream body");
+  const limit = kind === "sticker" ? STICKER_MAX_BYTES : EXPRESSION_LIMITS.bytes;
   const tooLarge = () =>
-    new ApiError(413, "too_large", "Emoji and stickers can be up to 256 KB");
+    new ApiError(413, "too_large", kind === "sticker" ? "Stickers can be up to 512 KB" : "Emoji can be up to 256 KB");
   if (
     Number(req.headers["content-length"] ?? Number.NaN) >
-    EXPRESSION_LIMITS.bytes
+    limit
   )
     throw tooLarge();
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const c of body) {
     size += (c as Buffer).length;
-    if (size > EXPRESSION_LIMITS.bytes) {
+    if (size > limit) {
       body.destroy();
       throw tooLarge();
     }
@@ -253,9 +257,14 @@ export default async function expressionRoutes(
           throw conflict("That name is taken in this community");
       };
       roomFor();
-      const buf = await readImage(req);
+      const buf = await readImage(req, q.kind);
       const kind = imageKind(buf);
       if (!kind) throw badRequest("Use a PNG, GIF or WebP image");
+      if (q.kind === "sticker") {
+        const metadata = await sharp(buf, { failOn: "error", limitInputPixels: STICKER_MAX_DIMENSION ** 2 }).metadata().catch(() => null);
+        if (!metadata?.width || !metadata.height || Math.max(metadata.width, metadata.pageHeight ?? metadata.height) > STICKER_MAX_DIMENSION)
+          throw badRequest("Use a readable sticker no larger than 320 × 320 pixels");
+      }
       const id = newId(q.kind === "emoji" ? "emj" : "stk");
       const sha256 = crypto.createHash("sha256").update(buf).digest("hex");
       await storePhoto(ctx, id, buf);

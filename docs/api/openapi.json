@@ -4052,6 +4052,99 @@
         }
       }
     },
+    "/v1/orgs/{orgId}/partner-eligibility": {
+      "get": {
+        "tags": [
+          "community"
+        ],
+        "summary": "The requirements and current eligibility for a community partner application.",
+        "operationId": "getV1OrgsOrgIdPartnerEligibility",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "eligible": {
+                      "type": "boolean"
+                    },
+                    "activeSparks": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "members": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "hasRules": {
+                      "type": "boolean"
+                    },
+                    "activeMods": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "verification": {
+                      "type": "string"
+                    },
+                    "ageDays": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "cleanStanding": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "eligible",
+                    "activeSparks",
+                    "members",
+                    "hasRules",
+                    "activeMods",
+                    "verification",
+                    "ageDays",
+                    "cleanStanding"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
     "/v1/orgs/{orgId}/partner-application": {
       "get": {
         "tags": [
@@ -4194,7 +4287,7 @@
         "tags": [
           "community"
         ],
-        "summary": "Submit or revise an unreviewed application, or resubmit after a decline; no automatic badge.",
+        "summary": "Submit an eligible community for partner review, or revise an unreviewed application.",
         "operationId": "putV1OrgsOrgIdPartnerApplication",
         "parameters": [
           {
@@ -4548,7 +4641,7 @@
         "tags": [
           "platform-admin"
         ],
-        "summary": "Record an explicit partner review; never assign a badge, entitlement or role.",
+        "summary": "Review an eligible application and award the Partner badge on approval.",
         "operationId": "putAdminV1PartnerApplicationsOrgId",
         "parameters": [
           {
@@ -4724,6 +4817,351 @@
                   "baseRev",
                   "status",
                   "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/orgs/{orgId}/ping-roles": {
+      "get": {
+        "tags": [
+          "community"
+        ],
+        "summary": "List opt-in notification groups in a community.",
+        "operationId": "getV1OrgsOrgIdPingRoles",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rev": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "roles": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^png_[A-Za-z0-9_-]{1,40}$"
+                          },
+                          "name": {
+                            "type": "string",
+                            "minLength": 2,
+                            "maxLength": 32,
+                            "pattern": "^[\\p{L}\\p{N}][\\p{L}\\p{M}\\p{N} _-]*$"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "subscribed": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "pattern": "^png_[A-Za-z0-9_-]{1,40}$"
+                      }
+                    },
+                    "canManage": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "rev",
+                    "roles",
+                    "subscribed",
+                    "canManage"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "community"
+        ],
+        "summary": "Save notification groups without granting community permissions.",
+        "operationId": "putV1OrgsOrgIdPingRoles",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rev": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "roles": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^png_[A-Za-z0-9_-]{1,40}$"
+                          },
+                          "name": {
+                            "type": "string",
+                            "minLength": 2,
+                            "maxLength": 32,
+                            "pattern": "^[\\p{L}\\p{N}][\\p{L}\\p{M}\\p{N} _-]*$"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "subscribed": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "pattern": "^png_[A-Za-z0-9_-]{1,40}$"
+                      }
+                    },
+                    "canManage": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "rev",
+                    "roles",
+                    "subscribed",
+                    "canManage"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: stale_revision, bad_request, forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "rev": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "roles": {
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^png_[A-Za-z0-9_-]{1,40}$"
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 2,
+                          "maxLength": 32,
+                          "pattern": "^[\\p{L}\\p{N}][\\p{L}\\p{M}\\p{N} _-]*$"
+                        }
+                      },
+                      "required": [
+                        "name"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "rev",
+                  "roles"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/orgs/{orgId}/ping-roles/me": {
+      "put": {
+        "tags": [
+          "community"
+        ],
+        "summary": "Choose which notification groups to join.",
+        "operationId": "putV1OrgsOrgIdPingRolesMe",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rev": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "roles": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^png_[A-Za-z0-9_-]{1,40}$"
+                          },
+                          "name": {
+                            "type": "string",
+                            "minLength": 2,
+                            "maxLength": 32,
+                            "pattern": "^[\\p{L}\\p{N}][\\p{L}\\p{M}\\p{N} _-]*$"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "subscribed": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "pattern": "^png_[A-Za-z0-9_-]{1,40}$"
+                      }
+                    },
+                    "canManage": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "rev",
+                    "roles",
+                    "subscribed",
+                    "canManage"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error. Codes: bad_request, forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "roles": {
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^png_[A-Za-z0-9_-]{1,40}$"
+                    }
+                  }
+                },
+                "required": [
+                  "roles"
                 ],
                 "additionalProperties": false
               }
@@ -17544,6 +17982,42 @@
                     "attachmentKeepDays",
                     "push",
                     "passkeys"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v2/site/presence": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Aggregate of online human accounts, excluding invisible accounts and users who hide last seen from everyone.",
+        "operationId": "getV2SitePresence",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "online": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "online"
                   ],
                   "additionalProperties": false
                 }
@@ -31706,7 +32180,8 @@
                           "items": {
                             "type": "string",
                             "enum": [
-                              "bug-hunter"
+                              "bug-hunter",
+                              "partner"
                             ]
                           }
                         },
@@ -32419,7 +32894,8 @@
                           "items": {
                             "type": "string",
                             "enum": [
-                              "bug-hunter"
+                              "bug-hunter",
+                              "partner"
                             ]
                           }
                         },
@@ -34836,7 +35312,8 @@
                           "items": {
                             "type": "string",
                             "enum": [
-                              "bug-hunter"
+                              "bug-hunter",
+                              "partner"
                             ]
                           }
                         },
@@ -41749,6 +42226,12 @@
                         "onboardingRequired": {
                           "type": "boolean"
                         },
+                        "voiceClips": {
+                          "type": "boolean"
+                        },
+                        "partner": {
+                          "type": "boolean"
+                        },
                         "onboardingDone": {
                           "type": "boolean"
                         },
@@ -42382,6 +42865,12 @@
                             ]
                           },
                           "onboardingRequired": {
+                            "type": "boolean"
+                          },
+                          "voiceClips": {
+                            "type": "boolean"
+                          },
+                          "partner": {
                             "type": "boolean"
                           },
                           "onboardingDone": {
@@ -43049,6 +43538,12 @@
                           ]
                         },
                         "onboardingRequired": {
+                          "type": "boolean"
+                        },
+                        "voiceClips": {
+                          "type": "boolean"
+                        },
+                        "partner": {
                           "type": "boolean"
                         },
                         "onboardingDone": {
@@ -43873,6 +44368,12 @@
                           ]
                         },
                         "onboardingRequired": {
+                          "type": "boolean"
+                        },
+                        "voiceClips": {
+                          "type": "boolean"
+                        },
+                        "partner": {
                           "type": "boolean"
                         },
                         "onboardingDone": {
@@ -46922,6 +47423,12 @@
                           ]
                         },
                         "onboardingRequired": {
+                          "type": "boolean"
+                        },
+                        "voiceClips": {
+                          "type": "boolean"
+                        },
+                        "partner": {
                           "type": "boolean"
                         },
                         "onboardingDone": {
@@ -57195,6 +57702,12 @@
                         "onboardingRequired": {
                           "type": "boolean"
                         },
+                        "voiceClips": {
+                          "type": "boolean"
+                        },
+                        "partner": {
+                          "type": "boolean"
+                        },
                         "onboardingDone": {
                           "type": "boolean"
                         },
@@ -57858,6 +58371,12 @@
                           ]
                         },
                         "onboardingRequired": {
+                          "type": "boolean"
+                        },
+                        "voiceClips": {
+                          "type": "boolean"
+                        },
+                        "partner": {
                           "type": "boolean"
                         },
                         "onboardingDone": {
@@ -59714,7 +60233,7 @@
         "tags": [
           "expressions"
         ],
-        "summary": "Upload an emoji or sticker: the PNG, GIF or WebP image (up to 256 KiB) as the body.",
+        "summary": "Upload an emoji or sticker: the PNG, GIF or WebP image (emoji up to 256 KiB, stickers up to 512 KiB and 320 px) as the body.",
         "operationId": "postV1OrgsOrgIdExpressions",
         "parameters": [
           {
@@ -61292,6 +61811,9 @@
                       "minimum": 0,
                       "maximum": 9007199254740991
                     },
+                    "voiceClips": {
+                      "type": "boolean"
+                    },
                     "onboardingRequired": {
                       "type": "boolean"
                     },
@@ -61437,6 +61959,9 @@
                       "minimum": 0,
                       "maximum": 9007199254740991
                     },
+                    "voiceClips": {
+                      "type": "boolean"
+                    },
                     "onboardingRequired": {
                       "type": "boolean"
                     },
@@ -61575,6 +62100,9 @@
                     ]
                   },
                   "onboardingRequired": {
+                    "type": "boolean"
+                  },
+                  "voiceClips": {
                     "type": "boolean"
                   },
                   "startChannelId": {
@@ -72952,6 +73480,34 @@
             }
           },
           {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "recommended",
+                "members",
+                "newest",
+                "name"
+              ]
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "any",
+                "small",
+                "medium",
+                "large"
+              ]
+            }
+          },
+          {
             "name": "cursor",
             "in": "query",
             "required": false,
@@ -73054,6 +73610,9 @@
                             "type": "boolean"
                           },
                           "official": {
+                            "type": "boolean"
+                          },
+                          "partner": {
                             "type": "boolean"
                           },
                           "joinPolicy": {
@@ -73169,6 +73728,9 @@
                             "type": "boolean"
                           },
                           "official": {
+                            "type": "boolean"
+                          },
+                          "partner": {
                             "type": "boolean"
                           },
                           "joinPolicy": {
@@ -73660,6 +74222,18 @@
                             "type": "integer",
                             "minimum": 0,
                             "maximum": 9007199254740991
+                          },
+                          "estimatedRank": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           },
                           "guaranteedTop": {
                             "anyOf": [
@@ -101039,7 +101613,8 @@
                           "items": {
                             "type": "string",
                             "enum": [
-                              "bug-hunter"
+                              "bug-hunter",
+                              "partner"
                             ]
                           }
                         },
@@ -104113,6 +104688,12 @@
                           ]
                         },
                         "onboardingRequired": {
+                          "type": "boolean"
+                        },
+                        "voiceClips": {
+                          "type": "boolean"
+                        },
+                        "partner": {
                           "type": "boolean"
                         },
                         "onboardingDone": {
@@ -113362,7 +113943,7 @@
         "tags": [
           "Bots"
         ],
-        "summary": "Bot adapter: Upload an emoji or sticker: the PNG, GIF or WebP image (up to 256 KiB) as the body. Requires approved expressions.manage scope and current native authority.",
+        "summary": "Bot adapter: Upload an emoji or sticker: the PNG, GIF or WebP image (emoji up to 256 KiB, stickers up to 512 KiB and 320 px) as the body. Requires approved expressions.manage scope and current native authority.",
         "operationId": "postV2BotOrgsOrgIdExpressions",
         "parameters": [
           {

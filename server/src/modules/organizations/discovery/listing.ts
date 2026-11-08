@@ -1,3 +1,4 @@
+import { partnerCommunity } from "../partnerBadges.js";
 import type { z } from "zod/v4";
 import type { AppContext } from "../../../app/context.js";
 import { type BoostTier, DISCOVERY_MIN_MEMBERS, type DiscoverCard, type UNLISTED_REASONS } from "../../../shared/contracts/http/discovery.js";
@@ -21,6 +22,7 @@ export interface OrgRow {
   visibility: string;
   join_policy: string;
   join_questions: string | null;
+  created_at: number;
   photo_rev: number | null;
   banner_rev: number | null;
   accent: string | null;
@@ -64,7 +66,23 @@ export function unlistedReason(e: Entry, locked: boolean, blockedWords: readonly
 /** Discovery's order: tier, then members, then name and id (stable). */
 export function compareEntries(a: Entry, b: Entry): number {
   const tier = (e: Entry) => (e.tier ? TIER_RANK[e.tier] : 0);
-  return tier(b) - tier(a) || b.memberCount - a.memberCount || compareText(foldAscii(a.org.name), foldAscii(b.org.name)) || compareText(a.org.id, b.org.id);
+  return tier(b) - tier(a) || b.memberCount - a.memberCount || byName(a, b);
+}
+
+export const byName = (a: Entry, b: Entry): number => compareText(foldAscii(a.org.name), foldAscii(b.org.name)) || compareText(a.org.id, b.org.id);
+
+export const discoveryOrder = {
+  recommended: compareEntries,
+  members: (a: Entry, b: Entry) => b.memberCount - a.memberCount || byName(a, b),
+  newest: (a: Entry, b: Entry) => b.org.created_at - a.org.created_at || byName(a, b),
+  name: byName,
+};
+
+export function matchesSize(count: number, size: "any" | "small" | "medium" | "large"): boolean {
+  if (size === "small") return count < 100;
+  if (size === "medium") return count >= 100 && count < 1000;
+  if (size === "large") return count >= 1000;
+  return true;
 }
 
 export const tagsOf = (e: Entry): string[] => (e.settings ? parseTags(e.settings.tags) : []);
@@ -94,6 +112,7 @@ export function card(ctx: AppContext, e: Entry, viewerId: string, label: z.infer
     label,
     joined: ctx.authz.orgRole(e.org.id, viewerId) !== null,
     official: e.settings?.official === 1,
+    ...(partnerCommunity(ctx.ws, e.org.id) ? { partner: true } : {}),
     joinPolicy: e.org.join_policy === "open" ? "open" : "invite",
     applications: !!e.org.join_questions,
   };
