@@ -64,7 +64,7 @@ export const systemRoutes = [
     method: "GET",
     url: "/v2/site/presence",
     tag: "system",
-    summary: "Aggregate of online human accounts with broadly visible presence.",
+    summary: "Aggregate of online human accounts, excluding invisible accounts and users who hide last seen from everyone.",
     auth: false,
     response: z.strictObject({ online: zCount }),
   }),

@@ -1212,14 +1212,14 @@ export async function buildApp(
       },
     );
 
-    // Only the aggregate is public. Cache the snapshot so polling does not repeatedly read connected profiles.
+    // Last-seen audiences control individual profiles. Honor explicit opt-outs in the anonymous aggregate too.
     let publicPresence = { online: 0, expiresAt: 0 };
     app.get("/v2/site/presence", async (_req, reply) => {
       const at = now();
       if (publicPresence.expiresAt <= at) {
         const online = ctx.hub.countPresentUsers((id) => {
           const user = ctx.identity.get<ProfileRow>("users", { id });
-          return !!user && user.kind !== "agent" && privacyOf(user).lastSeen === "everyone" && presenceModeOf(user, at) !== "invisible";
+          return !!user && user.kind !== "agent" && privacyOf(user).lastSeen !== "nobody" && presenceModeOf(user, at) !== "invisible";
         });
         publicPresence = { online, expiresAt: at + 15_000 };
       }
