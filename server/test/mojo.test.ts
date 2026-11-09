@@ -151,7 +151,7 @@ describe("Meldiq Plus", () => {
       expect(MojoCatalog.safeParse(c).success).toBe(true);
       expect(c.plans.map((p: any) => [p.key, p.messageChars, p.uploadBytes, p.sparks, p.customItems, p.bots, p.badge, p.check])).toEqual([
         ["free", 2000, 50 * MB, 0, 20, 2, null, false],
-        ["plus", 8000, 1000 * MB, 2, 250, 10, "plus", true],
+        ["plus", 8000, 1000 * MB, 1, 250, 10, "plus", true],
       ]);
       expect(c.spark.levels.map((l: any) => [l.level, l.sparks, l.emojiSlots, l.uploadBytes, l.voiceKbps, l.screen])).toEqual([
         [0, 0, 50, null, 48, []],
@@ -160,7 +160,7 @@ describe("Meldiq Plus", () => {
         [2, 5, 200, 200 * MB, 256, ["1080p60"]],
         [3, 8, 500, 1000 * MB, 384, ["1080p60", "1440p30"]],
       ]);
-      expect(c.onSale).toEqual({ mode: "test", go: null, plus: { currency: "USD", amountMinor: 499 }, spark: { currency: "USD", amountMinor: 99 }, gifts: true, botsPlus: null });
+      expect(c.onSale).toEqual({ mode: "test", go: null, plus: { currency: "USD", amountMinor: 499 }, spark: { currency: "USD", amountMinor: 299 }, gifts: true, botsPlus: null });
     });
 
     it("never offers a larger file than the server takes (FILE_MAX_BYTES)", () => {
@@ -193,7 +193,7 @@ describe("Meldiq Plus", () => {
       expect((await me(free)).plan).toBe("free");
       expect((await me(go)).plan).toBe("go");
       const p = await me(plus);
-      expect(p).toMatchObject({ plan: "plus", perks: { messageChars: 8000 }, badge: { kind: "plus", check: true, hidden: false } });
+      expect(p).toMatchObject({ plan: "plus", perks: { messageChars: 8000, sparks: 1 }, sparks: { included: 1, purchased: 0, total: 1 }, badge: { kind: "plus", check: true, hidden: false } });
     });
 
     it("answers a device session too (linked before email sign-in), and asks it to sign in with email to buy", async () => {
@@ -219,10 +219,18 @@ describe("Meldiq Plus", () => {
       await expectStatus(free.req("POST", "/v2/mojo/sparks", { orgId }), 409);
     });
 
-    it("adds up members' Sparks toward the next level", async () => {
-      await plus.req("POST", "/v2/mojo/sparks", { orgId });
-      await plus.req("POST", "/v2/mojo/sparks", { orgId });
-      expect(await sparksOf(free)).toMatchObject({ level: 1, active: 3, next: { level: 2, needs: 2 }, perks: { emojiSlots: 100, voiceKbps: 128 } });
+    it("counts one included Plus Spark and pauses an assignment above the new allowance", async () => {
+      const first = await plus.req("POST", "/v2/mojo/sparks", { orgId });
+      await expectStatus(plus.req("POST", "/v2/mojo/sparks", { orgId }), 409);
+      const secondId = `spk_${crypto.randomUUID()}`;
+      await h.ctx.billing.rows.write((w) => w.insert("spark_assignments", {
+        id: secondId, user_id: plus.userId, org_id: orgId, assigned_at: first.assignedAt + 1, removed_at: null, removed_reason: null,
+      }));
+      expect((await me(plus)).sparks.assignments).toEqual([
+        expect.objectContaining({ id: first.id, paused: false }),
+        expect.objectContaining({ id: secondId, paused: true }),
+      ]);
+      expect(await sparksOf(free)).toMatchObject({ level: 1, active: 2, next: { level: 2, needs: 3 }, perks: { emojiSlots: 100, voiceKbps: 128 } });
     });
 
     it("can't give the same Spark twice, even at once", async () => {
@@ -236,16 +244,16 @@ describe("Meldiq Plus", () => {
       const before = stripe.sessions.length;
       const purchase = await buyer.req("POST", "/v2/mojo/sparks/checkout", { quantity: 2 });
       const session = stripe.sessions[before]!;
-      expect(session.params).toMatchObject({ mode: "payment", line_items: [{ quantity: 1, price_data: { currency: "usd", unit_amount: 198 } }] });
+      expect(session.params).toMatchObject({ mode: "payment", line_items: [{ quantity: 1, price_data: { currency: "usd", unit_amount: 598 } }] });
       expect((await me(buyer)).sparks.purchased).toBe(0);
-      const completed = event("checkout.session.completed", { id: session.id, object: "checkout.session", mode: "payment", client_reference_id: purchase.checkoutId, payment_status: "paid", payment_intent: "pi_spark_once", customer: "cus_spark_once", subscription: null, currency: "usd", amount_total: 198, metadata: {} });
+      const completed = event("checkout.session.completed", { id: session.id, object: "checkout.session", mode: "payment", client_reference_id: purchase.checkoutId, payment_status: "paid", payment_intent: "pi_spark_once", customer: "cus_spark_once", subscription: null, currency: "usd", amount_total: 598, metadata: {} });
       await deliver(completed); await deliver(completed);
       expect(await me(buyer)).toMatchObject({ plan: "free", sparks: { purchased: 2, total: 2, subscription: null } });
     });
 
     it("preserves legacy recurring Spark slots after the one-time purchase launch", async () => {
-      await subscribe(free, "spark", "price_spark", 3);
-      expect((await me(free)).sparks).toMatchObject({ included: 0, purchased: 3, total: 3, free: 3, subscription: { quantity: 3 } });
+      await subscribe(free, "spark", "price_spark", 4);
+      expect((await me(free)).sparks).toMatchObject({ included: 0, purchased: 4, total: 4, free: 4, subscription: { quantity: 4 } });
       // Buying Sparks doesn't make anyone a Mojo subscriber.
       expect((await me(free)).plan).toBe("free");
     });
@@ -256,7 +264,7 @@ describe("Meldiq Plus", () => {
       const m = await me(go);
       expect(m.plan).toBe("free");
       expect(m.sparks.assignments).toEqual([expect.objectContaining({ orgId, paused: true })]);
-      expect((await sparksOf(free)).level).toBe(1);
+      expect(await sparksOf(free)).toMatchObject({ level: 0, active: 1 });
     });
 
     it("moves a Spark and takes it back, keeping the history", async () => {
@@ -293,8 +301,8 @@ describe("Meldiq Plus", () => {
       });
       expect(tooBig.statusCode).toBe(413);
       expect(tooBig.json().error).toMatchObject({ code: "upload_limit", details: { maxBytes: 50 * MB } });
-      // Three more Sparks (the ones bought above) take the community to five: level 2, 200 MB for everyone.
-      for (let i = 0; i < 3; i++) await free.req("POST", "/v2/mojo/sparks", { orgId });
+      // Four more Sparks take the community to five: level 2, 200 MB for everyone.
+      for (let i = 0; i < 4; i++) await free.req("POST", "/v2/mojo/sparks", { orgId });
       expect((await sparksOf(free)).level).toBe(2);
       expect(h.ctx.mojo.uploadBytes(free.userId, orgId)).toBe(200 * MB);
       expect(h.ctx.mojo.uploadBytes(plus.userId, null)).toBe(1000 * MB);

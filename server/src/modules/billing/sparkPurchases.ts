@@ -53,17 +53,18 @@ export class SparkPurchases implements PaymentEvents {
     if (!starter.userId) throw forbidden("Set up your account before buying Sparks.");
     if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > SPARK_MAX_PURCHASE) throw new ApiError(400, "bad_request", `Buy between 1 and ${SPARK_MAX_PURCHASE} Sparks.`);
     const t = this.clock();
+    const amountMinor = SPARK_LIST_PRICE_MINOR * quantity;
     let id = newId("spkpay");
     await this.rows.write((w) => {
       const previous = requestKey
         ? w.get<SparkPurchaseRow>("spark_purchases", { provider: provider.id, buyer_account_id: starter.accountId, request_key: requestKey })
-        : w.get<SparkPurchaseRow>("spark_purchases", { provider: provider.id, buyer_account_id: starter.accountId, quantity, status: "pending", expires_at: { gt: t } }, [["created_at", "desc"]]);
+        : w.get<SparkPurchaseRow>("spark_purchases", { provider: provider.id, buyer_account_id: starter.accountId, quantity, amount_minor: amountMinor, status: "pending", expires_at: { gt: t } }, [["created_at", "desc"]]);
       if (previous) {
         if (previous.quantity !== quantity) throw conflict("This purchase request was already used for a different quantity.");
         id = previous.id;
         return;
       }
-      w.insert("spark_purchases", { id, buyer_account_id: starter.accountId, buyer_user_id: starter.userId, quantity, currency: "USD", amount_minor: SPARK_LIST_PRICE_MINOR * quantity,
+      w.insert("spark_purchases", { id, buyer_account_id: starter.accountId, buyer_user_id: starter.userId, quantity, currency: "USD", amount_minor: amountMinor,
         status: "pending", provider: provider.id, provider_session_ref: null, provider_payment_ref: null, request_key: requestKey ?? null,
         created_at: t, expires_at: t + 24 * 3_600_000, paid_at: null, updated_at: t });
     });

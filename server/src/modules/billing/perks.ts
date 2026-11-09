@@ -8,7 +8,7 @@
  * Plan numbers: the owner's Free/Go/Plus spec of 2026-10-30 (docs/PLANS.md), replacing those of 2026-10-28.
  */
 import { PRICING, PRICING_VERSION } from "./pricing.js";
-export const CATALOG_VERSION = PRICING_VERSION;
+export const CATALOG_VERSION = `${PRICING_VERSION}.spark-v1`;
 
 export const PLAN_KEYS = ["free", "go", "plus"] as const;
 export type PlanKey = (typeof PLAN_KEYS)[number];
@@ -81,13 +81,13 @@ export const PLAN_PERKS: Readonly<Record<PlanKey, PlanPerks>> = {
     customItems: 50, bots: 4, botReview: "regular",
   },
   plus: {
-    key: "plus", name: PRICING.plus.name, listPriceMinor: PRICING.plus.amountMinor, messageChars: 8000, uploadBytes: 1024 * MB, screen: ["1440p60"], sparks: 2, badge: "plus", check: true,
+    key: "plus", name: PRICING.plus.name, listPriceMinor: PRICING.plus.amountMinor, messageChars: 8000, uploadBytes: 1024 * MB, screen: ["1440p60"], sparks: 1, badge: "plus", check: true,
     customItems: 250, bots: 10, botReview: "priority",
   },
 };
 
-/** One additional Spark: $0.99 a month each, on any plan (a recurring add-on, like a server boost). */
-export const SPARK_LIST_PRICE_MINOR = 99;
+/** One-time price in USD cents for a permanent server boost. */
+export const SPARK_LIST_PRICE_MINOR = 299;
 export const SPARK_MAX_PURCHASE = 20;
 
 /** A server's shared benefits from its members' Sparks. Level 0 is the server as it is without any. */

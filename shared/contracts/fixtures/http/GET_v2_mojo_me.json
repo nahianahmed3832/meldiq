@@ -9,7 +9,7 @@
     "screen": [
       "1440p60"
     ],
-    "sparks": 2,
+    "sparks": 1,
     "badge": "plus",
     "check": true,
     "customItems": 250,
@@ -17,10 +17,10 @@
     "botReview": "priority"
   },
   "sparks": {
-    "included": 2,
+    "included": 1,
     "purchased": 0,
-    "total": 2,
-    "free": 2,
+    "total": 1,
+    "free": 1,
     "assignments": [],
     "subscription": null
   },

@@ -5,7 +5,8 @@ import type { CheckoutSnapshot, NormalizedEvent } from "../src/modules/billing/p
 import { AccountClient, MemoryMailer } from "./support/accounts.js";
 import { type Harness, startServer } from "./support/harness.js";
 
-for (const backend of ["sqlite", "mongodb"] as const) {
+const backends = process.env.MELDIQ_TEST_PG_URL ? ["sqlite", "mongodb", "postgres"] : ["sqlite", "mongodb"];
+for (const backend of backends) {
   describe(`one-time Sparks (${backend})`, () => {
     let h: Harness;
     const mailer = new MemoryMailer();
@@ -13,7 +14,7 @@ for (const backend of ["sqlite", "mongodb"] as const) {
       const provider = new SandboxProvider("spark-checkout-test-secret-at-least-32-characters");
       // Deterministic payment API; signed provider/REST verification is covered by the PayPal integration suite.
       Object.assign(provider, { createPaymentCheckout: async (input: { reference: string }) => ({ sessionRef: `test_order_${input.reference}`, url: null }) });
-      h = await startServer({ MONGODB_DOMAINS: backend === "mongodb" ? "billing" : "" }, { mailer, billingProvider: provider });
+      h = await startServer(backend === "postgres" ? {} : { MONGODB_DOMAINS: backend === "mongodb" ? "billing" : "" }, { mailer, billingProvider: provider });
     });
     afterAll(async () => h.close());
     async function purchase(quantity = 1) {
@@ -24,13 +25,13 @@ for (const backend of ["sqlite", "mongodb"] as const) {
     function event(row: Awaited<ReturnType<typeof purchase>>["row"], extra: Partial<CheckoutSnapshot> = {}): NormalizedEvent {
       return { ref: `evt_${crypto.randomUUID()}`, type: "checkout.payment", createdAt: Date.now(), kind: "checkout", checkout: {
         sessionRef: row.provider_session_ref!, reference: row.id, mode: "payment", customerRef: null, subscriptionRef: null,
-        paymentRef: `payment_${row.id}`, outcome: "completed", paid: true, currency: "USD", amountMinor: row.quantity * 99, ...extra,
+        paymentRef: `payment_${row.id}`, outcome: "completed", paid: true, currency: "USD", amountMinor: row.amount_minor, ...extra,
       } };
     }
-    it("advertises USD 0.99 per one-time Spark independently of Plus", async () => {
+    it("advertises USD 2.99 per one-time Spark independently of Plus", async () => {
       const response = await fetch(`${h.baseUrl}/v2/mojo/catalog`);
       expect(response.ok).toBe(true);
-      expect(await response.json()).toMatchObject({ spark: { listPriceMinor: 99, interval: "one_time" }, onSale: { plus: null, spark: { amountMinor: 99, currency: "USD" } } });
+      expect(await response.json()).toMatchObject({ spark: { listPriceMinor: 299, interval: "one_time" }, onSale: { plus: null, spark: { amountMinor: 299, currency: "USD" } } });
     });
     it("grants permanent slots only after verified payment, without a Plus subscription", async () => {
       const { account, row } = await purchase(3);
@@ -61,13 +62,26 @@ for (const backend of ["sqlite", "mongodb"] as const) {
       expect(again.purchaseId).toBe(row.id);
       await expect(h.ctx.billing.sparkPurchases.start(starter, 3, null, row.request_key!)).rejects.toThrow(/another|different/);
     });
+    it("keeps an existing quote at its original price and quotes the new price for a new purchase", async () => {
+      const { account, row } = await purchase(2);
+      const starter = { accountId: account.accountId, userId: account.userId, email: account.email, name: account.name };
+      await h.ctx.billing.rows.write((w) => w.update("spark_purchases", { id: row.id }, { amount_minor: 198 }));
+      const resumed = await h.ctx.billing.sparkPurchases.start(starter, 2, null, row.request_key!);
+      expect(resumed.purchaseId).toBe(row.id);
+      expect(h.ctx.billing.sparkPurchases.get(resumed.purchaseId)?.amount_minor).toBe(198);
+      const fresh = await h.ctx.billing.sparkPurchases.start(starter, 2, null);
+      expect(fresh.purchaseId).not.toBe(row.id);
+      expect(h.ctx.billing.sparkPurchases.get(fresh.purchaseId)?.amount_minor).toBe(598);
+      await h.ctx.billing.webhooks.ingest("sandbox", event({ ...row, amount_minor: 198 }));
+      expect(h.ctx.mojo.sparkSlots(account.userId).purchased).toBe(2);
+    });
     it("refunds revoke slots and dominate a late capture event", async () => {
       const { account, row } = await purchase(2);
       await h.ctx.billing.webhooks.ingest("sandbox", event(row));
       expect(h.ctx.mojo.sparkSlots(account.userId).purchased).toBe(2);
       await h.ctx.billing.webhooks.ingest("sandbox", { ref: `refund_${row.id}`, type: "payment.refund", createdAt: Date.now(), kind: "payment", payment: {
         kind: "refund", state: "refunded", paymentRef: `payment_${row.id}`, purchaseRef: row.id, orderRef: row.provider_session_ref,
-        currency: "USD", amountMinor: 198,
+        currency: "USD", amountMinor: 598,
       } });
       expect(h.ctx.mojo.sparkSlots(account.userId).purchased).toBe(0);
       await h.ctx.billing.webhooks.ingest("sandbox", event(row));

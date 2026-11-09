@@ -10,7 +10,7 @@ import { me, requireAuth } from "../auth/index.js";
 import { orgNames } from "../organizations/index.js";
 import type { GiftRow } from "./gifts.js";
 import type { PlayVerifyStatus } from "./play.js";
-import { catalogView, MAX_SPARK_LEVEL, SPARK_PLAN_KEY } from "./perks.js";
+import { catalogView, MAX_SPARK_LEVEL, SPARK_LIST_PRICE_MINOR, SPARK_PLAN_KEY } from "./perks.js";
 import type { CheckoutStarter } from "./service.js";
 
 interface MojoSession {
@@ -61,7 +61,7 @@ export function mojoRoutes(app: FastifyInstance, ctx: AppContext, h: MojoRouteHe
         mode: ctx.billing.provider?.mode ?? null,
         go: null,
         plus: price("plus"),
-        spark: ctx.billing.sparkPurchases.available() ? { currency: "USD", amountMinor: 99 } : null,
+        spark: ctx.billing.sparkPurchases.available() ? { currency: "USD", amountMinor: SPARK_LIST_PRICE_MINOR } : null,
         botsPlus: (() => { const offer = ctx.billing.offers("organization").find((offer) => offer.key === "bots_plus"); return offer ? { currency: offer.currency, amountMinor: offer.amountMinor } : null; })(),
         gifts: ctx.billing.provider?.supportsOneTimePurchases !== false && !!ctx.billing.provider?.createPaymentCheckout && price("plus") !== null,
       },

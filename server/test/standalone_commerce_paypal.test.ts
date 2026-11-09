@@ -47,14 +47,15 @@ class PaymentApi implements PayPalApi {
   }
 }
 
-for (const storage of ["sqlite", "mongodb"] as const) {
+const backends = process.env.MELDIQ_TEST_PG_URL ? ["sqlite", "mongodb", "postgres"] : ["sqlite", "mongodb"];
+for (const storage of backends) {
   describe(`separate PayPal products (${storage})`, () => {
     let h: Harness;
     const mailer = new MemoryMailer();
     const api = new PaymentApi();
     const provider = new PayPalProvider({ environment: "sandbox", clientId: "public-test", clientSecret: "secret-test", webhookId: "hook-test", merchantId: "merchant-test", plusPlanId: "P-PLUS", botsPlanId: "P-BOTS", subscriptionsApproved: true, giftsEnabled: false, sparksEnabled: true, api });
     beforeAll(async () => {
-      h = await startServer({ MONGODB_DOMAINS: storage === "mongodb" ? "billing" : "" }, { mailer, billingProvider: provider });
+      h = await startServer(storage === "postgres" ? {} : { MONGODB_DOMAINS: storage === "mongodb" ? "billing" : "" }, { mailer, billingProvider: provider });
       const plan = await h.ctx.billing.catalog.create("bots_plus", { name: "Meldiq Bots+", description: "Premium community bots", segment: "community-bots", public: true, audience: "organization" },
         { interval: "month", currency: "USD", amountMinor: 399, providerPriceRef: "P-BOTS", trialDays: 0, graceDays: 3, limits: {}, notes: "Separate from personal Meldiq Plus" }, "test", Date.now());
       await h.ctx.billing.catalog.publish(plan.id, "paypal", "test", Date.now());
@@ -65,9 +66,10 @@ for (const storage of ["sqlite", "mongodb"] as const) {
     it("offers one-time Sparks with no Plus offer or gift checkout enabled", async () => {
       const c = await account();
       const catalog = await c.req("GET", "/v2/mojo/catalog");
-      expect(catalog.onSale).toMatchObject({ plus: null, gifts: false, spark: { amountMinor: 99, currency: "USD" }, botsPlus: { amountMinor: 399, currency: "USD" } });
+      expect(catalog.onSale).toMatchObject({ plus: null, gifts: false, spark: { amountMinor: 299, currency: "USD" }, botsPlus: { amountMinor: 399, currency: "USD" } });
       const order = await c.req("POST", "/v2/billing/paypal/checkouts", { product: "spark", quantity: 2, requestKey: crypto.randomUUID() });
-      expect(order).toMatchObject({ product: "spark", amountMinor: 198, interval: "one_time", quantity: 2, confirmed: false });
+      expect(order).toMatchObject({ product: "spark", amountMinor: 598, interval: "one_time", quantity: 2, confirmed: false });
+      expect(api.orders.get(order.providerRef)?.purchase_units[0].amount).toEqual({ currency_code: "USD", value: "5.98" });
       const before = api.successfulCaptures;
       expect((await c.req("POST", `/v2/billing/paypal/checkouts/${order.id}/confirm`, {})).confirmed).toBe(false);
       expect(api.successfulCaptures).toBe(before);
@@ -78,7 +80,7 @@ for (const storage of ["sqlite", "mongodb"] as const) {
       expect((await c.req("POST", `/v2/billing/paypal/checkouts/${order.id}/confirm`, {})).confirmed).toBe(true);
       expect(h.ctx.mojo.sparkSlots(c.userId).purchased).toBe(2);
       expect(h.ctx.mojo.planOf(c.userId)).toBe("free");
-      expect((await c.req("GET", "/v2/billing/paypal/history")).transactions).toEqual(expect.arrayContaining([expect.objectContaining({ id: order.id, product: "2 Meldiq Sparks · one-time", amountMinor: 198, status: "paid" })]));
+      expect((await c.req("GET", "/v2/billing/paypal/history")).transactions).toEqual(expect.arrayContaining([expect.objectContaining({ id: order.id, product: "2 Meldiq Sparks · one-time", amountMinor: 598, status: "paid" })]));
     });
     it("protects one-time purchases from another account and rejects client-supplied prices", async () => {
       const [buyer, other] = await Promise.all([account(), account()]);

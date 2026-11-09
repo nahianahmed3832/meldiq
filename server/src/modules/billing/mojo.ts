@@ -148,7 +148,7 @@ export class Mojo {
     await this.rows.write((w) => {
       // Checked in the write unit, which runs alone: two taps at once can't give the same Spark twice.
       const held = w.count("spark_assignments", { user_id: userId, removed_at: null });
-      if (total === 0) throw new ApiError(409, "no_sparks", "You don't have any Sparks. Legacy Go includes one, Meldiq Plus two, and you can buy more.");
+      if (total === 0) throw new ApiError(409, "no_sparks", "You don't have any Sparks. Check your plan's included Sparks or buy one.");
       if (held >= total) throw new ApiError(409, "no_free_sparks", "All your Sparks are given. Move one, or get another.");
       w.insert("spark_assignments", { id, user_id: userId, org_id: orgId, assigned_at: t, removed_at: null, removed_reason: null });
     });

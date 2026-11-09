@@ -1,5 +1,5 @@
 {
-  "version": "2026-11-02.plus-499",
+  "version": "2026-11-02.plus-terms-v3.spark-v1",
   "units": {
     "mb": 1000000,
     "gb": 1000000000
@@ -30,7 +30,7 @@
       "screen": [
         "1440p60"
       ],
-      "sparks": 2,
+      "sparks": 1,
       "badge": "plus",
       "check": true,
       "customItems": 250,
@@ -83,7 +83,7 @@
     }
   ],
   "spark": {
-    "listPriceMinor": 99,
+    "listPriceMinor": 299,
     "interval": "one_time",
     "maxPurchase": 20,
     "levels": [
@@ -150,7 +150,7 @@
     },
     "spark": {
       "currency": "USD",
-      "amountMinor": 99
+      "amountMinor": 299
     },
     "botsPlus": null,
     "gifts": true
