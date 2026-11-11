@@ -280,3 +280,7 @@ export {
 export { fulfillCollectiblePayment } from "./collectibles/payments.js";
 
 export { messageFilterIdentities } from "./searchIdentities.js";
+export { bugReport, bugReportsPage, applyBugReview, type BugReportRow } from "./bugReports.js";
+
+export { identityStandingMetadata } from "./platformQueries.js";
+export { hasRecentUnrevokedWarning } from "./standing.js";

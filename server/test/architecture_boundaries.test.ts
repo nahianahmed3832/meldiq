@@ -81,6 +81,9 @@ function currentViolations(): string[] {
  * modules belong to administration, which keeps them for `admin retired-data`.
  */
 const TABLE_OWNERS: Readonly<Record<string, string>> = {
+  ...owned("organizations", "community_ping_roles community_ping_subscriptions"),
+  ...owned("billing", "billing_admin_refunds"),
+  ...owned("platformAdmin", "platform_incident_requests platform_feedback_reviews platform_recovery_runs platform_export_jobs"),
   ...owned("bots", "bot_requested_permissions bot_installation_permissions bot_derived_credentials bot_credential_revisions bot_invite_credentials bot_dm_consents"),
   ...owned(
     "billing",

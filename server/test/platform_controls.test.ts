@@ -1,3 +1,4 @@
+import { versionedAdminPut } from "./support/adminConsole.js";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { AdminControls } from "../src/shared/contracts/http/platformAdminInsights.js";
 import { AccountClient, email, MemoryMailer, PASSWORD } from "./support/accounts.js";
@@ -30,7 +31,7 @@ const DEFAULTS = {
   features: { calls: true, uploads: true, orgCreation: true },
 };
 afterEach(async () => {
-  for (const [key, value] of Object.entries(DEFAULTS)) await as("super_admin").expect(200, "PUT", `/admin/v1/controls/${key}`, { value, ...REASON });
+  for (const [key, value] of Object.entries(DEFAULTS)) await versionedAdminPut(as("super_admin"), `/admin/v1/controls/${key}`, { value, ...REASON });
 });
 
 const lastAudit = (action: string) => h.ctx.platform.get<any>("platform_audit", { action }, [["id", "desc"]]);
@@ -57,7 +58,7 @@ describe("the controls view", () => {
   });
 
   it("lets super and operations admins change controls, with a reason and an audit entry; nobody else", async () => {
-    await as("operations_admin").expect(200, "PUT", "/admin/v1/controls/features", { value: { calls: false, uploads: true, orgCreation: true }, ...REASON });
+    await versionedAdminPut(as("operations_admin"), "/admin/v1/controls/features", { value: { calls: false, uploads: true, orgCreation: true }, ...REASON });
     expect(lastAudit("controls.update")).toMatchObject({ target_id: "features", reason: REASON.reason });
     const v = await as("auditor").expect(200, "GET", "/admin/v1/controls");
     expect(v.controls.features.value.calls).toBe(false);
@@ -67,7 +68,7 @@ describe("the controls view", () => {
   });
 
   it("refuses unknown controls, malformed values and a missing reason", async () => {
-    await as("super_admin").expect(404, "PUT", "/admin/v1/controls/everything", { value: true, ...REASON });
+    await as("super_admin").expect(404, "PUT", "/admin/v1/controls/everything", { value: true, expectedUpdatedAt: null, ...REASON });
     await as("super_admin").expect(400, "PUT", "/admin/v1/controls/signups", { value: { mode: "sometimes" }, ...REASON });
     await as("super_admin").expect(400, "PUT", "/admin/v1/controls/email_domains", { value: { blocked: ["not a domain"] }, ...REASON });
     await as("super_admin").expect(400, "PUT", "/admin/v1/controls/maintenance", { value: { enabled: true, message: "" } });
@@ -76,7 +77,7 @@ describe("the controls view", () => {
 
 describe("maintenance mode", () => {
   it("answers app requests with 503 and the operator's message, while health, server info and the console keep working", async () => {
-    await as("super_admin").expect(200, "PUT", "/admin/v1/controls/maintenance", { value: { enabled: true, message: "Upgrading the database, back by 14:00 UTC." }, ...REASON });
+    await versionedAdminPut(as("super_admin"), "/admin/v1/controls/maintenance", { value: { enabled: true, message: "Upgrading the database, back by 14:00 UTC." }, ...REASON });
     const blocked = await app("GET", "/v1/conversations");
     expect(blocked.status).toBe(503);
     expect(blocked.body.error).toMatchObject({ code: "maintenance", message: "Upgrading the database, back by 14:00 UTC." });
@@ -88,12 +89,12 @@ describe("maintenance mode", () => {
     expect(info.body.maintenance).toEqual({ enabled: true, message: "Upgrading the database, back by 14:00 UTC." });
     await as("auditor").expect(200, "GET", "/admin/v1/controls");
 
-    await as("super_admin").expect(200, "PUT", "/admin/v1/controls/maintenance", { value: { enabled: false, message: "" }, ...REASON });
+    await versionedAdminPut(as("super_admin"), "/admin/v1/controls/maintenance", { value: { enabled: false, message: "" }, ...REASON });
     expect((await app("GET", "/v1/conversations")).status).toBe(200);
   });
 
   it("uses a plain message when the operator leaves it empty", async () => {
-    await as("super_admin").expect(200, "PUT", "/admin/v1/controls/maintenance", { value: { enabled: true, message: "" }, ...REASON });
+    await versionedAdminPut(as("super_admin"), "/admin/v1/controls/maintenance", { value: { enabled: true, message: "" }, ...REASON });
     const blocked = await app("GET", "/v1/conversations");
     expect(blocked.body.error.message).toMatch(/maintenance/i);
   });
@@ -101,7 +102,7 @@ describe("maintenance mode", () => {
 
 describe("sign-ups", () => {
   it("closed: refuses every new sign-up, and server info says so", async () => {
-    await as("super_admin").expect(200, "PUT", "/admin/v1/controls/signups", { value: { mode: "closed" }, ...REASON });
+    await versionedAdminPut(as("super_admin"), "/admin/v1/controls/signups", { value: { mode: "closed" }, ...REASON });
     const r = await register(email("closed"));
     expect(r.status).toBe(403);
     expect(r.body.error.code).toBe("registration_closed");
@@ -113,7 +114,7 @@ describe("sign-ups", () => {
   });
 
   it("invite: needs an invitation code even though the environment says open", async () => {
-    await as("super_admin").expect(200, "PUT", "/admin/v1/controls/signups", { value: { mode: "invite" }, ...REASON });
+    await versionedAdminPut(as("super_admin"), "/admin/v1/controls/signups", { value: { mode: "invite" }, ...REASON });
     const r = await register(email("invite"));
     expect(r.status).toBe(403);
     expect(r.body.error.code).toBe("invite_required");
@@ -124,7 +125,7 @@ describe("sign-ups", () => {
   });
 
   it("refuses addresses at blocked domains (and their subdomains), whatever the case", async () => {
-    await as("super_admin").expect(200, "PUT", "/admin/v1/controls/email_domains", { value: { blocked: ["Mailinator.com", "tempmail.dev"] }, ...REASON });
+    await versionedAdminPut(as("super_admin"), "/admin/v1/controls/email_domains", { value: { blocked: ["Mailinator.com", "tempmail.dev"] }, ...REASON });
     const v = await as("auditor").expect(200, "GET", "/admin/v1/controls");
     expect(v.controls.email_domains.value.blocked).toEqual(["mailinator.com", "tempmail.dev"]);
     for (const address of ["someone@mailinator.com", "x@EU.Mailinator.com"]) {
@@ -138,7 +139,7 @@ describe("sign-ups", () => {
 
 describe("kill switches", () => {
   it("switch off starting and joining calls", async () => {
-    await as("super_admin").expect(200, "PUT", "/admin/v1/controls/features", { value: { calls: false, uploads: true, orgCreation: true }, ...REASON });
+    await versionedAdminPut(as("super_admin"), "/admin/v1/controls/features", { value: { calls: false, uploads: true, orgCreation: true }, ...REASON });
     const start = await app("POST", "/v1/calls", { kind: "audio" });
     expect(start.status).toBe(503);
     expect(start.body.error.code).toBe("feature_disabled");
@@ -146,17 +147,17 @@ describe("kill switches", () => {
   });
 
   it("switch off new uploads", async () => {
-    await as("super_admin").expect(200, "PUT", "/admin/v1/controls/features", { value: { calls: true, uploads: false, orgCreation: true }, ...REASON });
+    await versionedAdminPut(as("super_admin"), "/admin/v1/controls/features", { value: { calls: true, uploads: false, orgCreation: true }, ...REASON });
     const r = await app("POST", "/v1/attachments/uploads", { size: 10 });
     expect(r.status).toBe(503);
     expect(r.body.error.code).toBe("feature_disabled");
   });
 
   it("switch off creating organizations, and turning it back on works at once", async () => {
-    await as("super_admin").expect(200, "PUT", "/admin/v1/controls/features", { value: { calls: true, uploads: true, orgCreation: false }, ...REASON });
+    await versionedAdminPut(as("super_admin"), "/admin/v1/controls/features", { value: { calls: true, uploads: true, orgCreation: false }, ...REASON });
     const r = await app("POST", "/v1/orgs", { name: "Blocked Org", visibility: "public", joinPolicy: "open" });
     expect(r.status).toBe(503);
-    await as("super_admin").expect(200, "PUT", "/admin/v1/controls/features", { value: DEFAULTS.features, ...REASON });
+    await versionedAdminPut(as("super_admin"), "/admin/v1/controls/features", { value: DEFAULTS.features, ...REASON });
     expect((await app("POST", "/v1/orgs", { name: "Allowed Org", visibility: "public", joinPolicy: "open" })).status).toBe(200);
   });
 });

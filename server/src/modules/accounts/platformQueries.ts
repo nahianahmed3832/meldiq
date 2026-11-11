@@ -267,3 +267,8 @@ export function namesOf(identity: RowReader, userIds: readonly string[]): { id: 
     .all<{ id: string; username: string; display_name: string }>("users", { where: { id: { in: [...userIds] } } })
     .map((r) => ({ id: r.id, username: r.username, displayName: r.display_name }));
 }
+
+/** Minimal standing metadata for domain policy; no private identity material. */
+export function identityStandingMetadata(identity: RowReader, userId: string) {
+  return identity.get<{ created_at: number; disabled_at: number | null }>("users", { id: userId });
+}

@@ -35,23 +35,36 @@ export const AdminAnalyticsOverview = z.strictObject({
   people: z.strictObject({ registered: zCount, usable: zCount, suspended: zCount, newAccountLimited: zCount, withSession: zCount }),
   activity: z.strictObject({ dau: zCompare, wau: zCompare, mau: zCompare, activeInRange: zCompare, newSignups: zCompare, dauOverMau: zMaybe, wauOverMau: zMaybe }),
   live: z.strictObject({ users: zCount, activeUsers: zCount, devices: zCount, sockets: zCount, calls: zCount, callParticipants: zCount, peakUsers: zMaybe, peakAt: zTime.nullable() }),
-  organizations: z.strictObject({ total: zCount, active: zMaybe, newInRange: zCompare }),
+  organizations: z.strictObject({ total: zCount, active: zMaybe, sampled: zCount, truncated: z.boolean(), newInRange: zCompare }),
   messaging: z.strictObject({ messagesAccepted: zMaybe, why: z.string() }),
   files: z.strictObject({ uploadedBytes: zMaybe, downloadedBytes: zMaybe, storedWorkspaceBytes: zMaybe }),
   requests: z
     .strictObject({ requests: zMaybe, serverErrors: zMaybe, errorRate: zMaybe, p50Ms: zMaybe, p95Ms: zMaybe, p99Ms: zMaybe, wsAuthFailures: zMaybe, wsAbnormal: zMaybe, wsConnects: zMaybe })
     .nullable(),
   push: z.strictObject({ providers: z.array(z.strictObject({ name: z.string(), ok: zCount, failed: zCount, lastFailureAt: zTime.nullable() })) }).nullable(),
-  incidents: z.strictObject({ open: zCount, critical: zCount, breachingRules: zCount }),
+  incidents: z.strictObject({ open: zCount, critical: zCount, breachingRules: zCount }).nullable(),
   billing: z.strictObject({ available: z.boolean(), reason: z.string().nullable() }),
 });
 
 export const AdminActiveUsers = z.strictObject({
+  generatedAt: zTime,
+  timezone: z.literal("UTC"),
   from: z.string(),
   to: z.string(),
   collectingSince: z.string().nullable(),
   definition: z.string(),
-  days: z.array(z.strictObject({ day: z.string(), dau: zCount, wau: zCount, mau: zCount, newActive: zCount, returningActive: zCount, collected: z.boolean() })),
+  days: z.array(
+    z.strictObject({
+      day: z.string(),
+      dau: zCount.nullable(),
+      wau: zCount.nullable(),
+      mau: zCount.nullable(),
+      newActive: zCount.nullable(),
+      returningActive: zCount.nullable(),
+      collected: z.boolean(),
+      partial: z.boolean(),
+    }),
+  ),
 });
 
 export const AdminRetention = z.strictObject({
@@ -64,6 +77,9 @@ export const AdminRetention = z.strictObject({
 });
 
 export const AdminClients = z.strictObject({
+  generatedAt: zTime,
+  collectingSince: zTime.nullable(),
+  distinctUsers: zCount.nullable(),
   from: z.string(),
   to: z.string(),
   platforms: z.array(z.strictObject({ platform: z.string(), users: zCount, requests: zCount })),
@@ -73,13 +89,19 @@ export const AdminClients = z.strictObject({
 });
 
 export const AdminOrgActivity = z.strictObject({
+  generatedAt: zTime,
+  collectingSince: zTime.nullable(),
+  sampled: zCount,
+  total: zCount,
   from: z.string(),
   to: z.string(),
-  organizations: z.array(z.strictObject({ id: z.string(), name: z.string(), kind: z.string(), members: zCount, activeMembers: zCount, lastActiveAt: zTime.nullable() })),
+  organizations: z.array(z.strictObject({ id: z.string(), name: z.string(), kind: z.string(), members: zCount, activeMembers: zCount.nullable(), lastActiveAt: zTime.nullable() })),
 });
 
 const zTrafficMetric = z.enum(["api.in", "api.out", "ws.in", "ws.out", "files.upload", "files.download"]);
 export const AdminTraffic = z.strictObject({
+  generatedAt: zTime,
+  collectingSince: zTime.nullable(),
   from: z.string(),
   to: z.string(),
   totals: z.record(z.string(), zBytes),
@@ -200,12 +222,12 @@ export const AdminDeviceTarget = z.strictObject({ userId: zRef, deviceId: zRef }
 // ───────────── People and organizations: insights and actions ─────────────
 
 export const AdminUserInsights = z.strictObject({
-  activity: z.array(z.strictObject({ day: z.string(), platform: z.string(), version: z.string(), requests: zCount, actions: zCount, firstAt: zTime, lastAt: zTime })),
-  traffic30d: z.record(z.string(), zBytes),
-  quotas: z.array(z.lazy(() => zEffectiveQuota)),
+  activity: z.array(z.strictObject({ day: z.string(), platform: z.string(), version: z.string(), requests: zCount, actions: zCount, firstAt: zTime, lastAt: zTime })).nullable(),
+  traffic30d: z.record(z.string(), zBytes).nullable(),
+  quotas: z.array(z.lazy(() => zEffectiveQuota)).nullable(),
   restriction: z.strictObject({ until: zTime.nullable(), reason: z.string(), setAt: zTime }).nullable(),
-  incidents: z.array(z.strictObject({ id: z.string(), title: z.string(), status: z.string(), kind: z.string(), createdAt: zTime })),
-  deletion: z.strictObject({ possible: z.boolean(), blockers: z.array(z.string()) }),
+  incidents: z.array(z.strictObject({ id: z.string(), title: z.string(), status: z.string(), kind: z.string(), createdAt: zTime })).nullable(),
+  deletion: z.strictObject({ possible: z.boolean(), blockers: z.array(z.string()) }).nullable(),
   verification: z.strictObject({ emailVerified: z.boolean().nullable(), mailAvailable: z.boolean() }),
 });
 export const AdminDeleteUserBody = z.strictObject({ reason: zReason, confirm: z.string().trim().min(1).max(254) });
@@ -213,13 +235,13 @@ export const AdminDeletedUser = z.strictObject({ deleted: z.literal(true), summa
 export const AdminSent = z.strictObject({ sent: z.boolean(), detail: z.string() });
 
 export const AdminOrgInsights = z.strictObject({
-  activeMembers30d: zCount,
-  activeMembers7d: zCount,
+  activeMembers30d: zCount.nullable(),
+  activeMembers7d: zCount.nullable(),
   lastActiveAt: zTime.nullable(),
   storageBytes: zMaybe,
-  usage30d: z.record(z.string(), z.number()),
-  quotas: z.array(z.lazy(() => zEffectiveQuota)),
-  incidents: z.array(z.strictObject({ id: z.string(), title: z.string(), status: z.string(), kind: z.string(), createdAt: zTime })),
+  usage30d: z.record(z.string(), z.number()).nullable(),
+  quotas: z.array(z.lazy(() => zEffectiveQuota)).nullable(),
+  incidents: z.array(z.strictObject({ id: z.string(), title: z.string(), status: z.string(), kind: z.string(), createdAt: zTime })).nullable(),
   health: z.array(z.string()),
 });
 export const AdminOrgMemberTarget = z.strictObject({ orgId: zRef, userId: zRef });
@@ -321,11 +343,24 @@ export const zEffectiveQuota = z.strictObject({
 });
 
 export const AdminQuotas = z.strictObject({
-  keys: z.array(z.strictObject({ key: z.string(), label: z.string(), unit: z.string(), kind: z.string(), period: z.string(), scopes: z.array(z.string()), enforceable: z.array(z.string()), enforcedAt: z.string() })),
+  keys: z.array(
+    z.strictObject({
+      key: z.string(),
+      label: z.string(),
+      unit: z.string(),
+      kind: z.string(),
+      period: z.string(),
+      scopes: z.array(z.string()),
+      enforceable: z.array(z.string()),
+      enforcedAt: z.string(),
+    }),
+  ),
   policies: z.array(zPolicy),
   plans: z.array(z.strictObject({ id: z.string(), name: z.string(), description: z.string(), members: zCount, createdAt: zTime })),
   serverLimits: z.array(z.strictObject({ name: z.string(), value: z.string(), appliesTo: z.string() })),
-  usage: z.array(z.strictObject({ key: z.string(), scopeType: z.string(), scopeId: z.string(), scopeName: z.string().nullable(), period: z.string(), used: zCount, reserved: zCount, limit: zMaybe, pct: zMaybe })),
+  usage: z.array(
+    z.strictObject({ key: z.string(), scopeType: z.string(), scopeId: z.string(), scopeName: z.string().nullable(), period: z.string(), used: zCount, reserved: zCount, limit: zMaybe, pct: zMaybe }),
+  ),
   events: z.strictObject({ last24h: z.record(z.string(), zCount) }),
   resolution: z.string(),
 });
@@ -334,7 +369,10 @@ export const AdminQuotaEffective = z.strictObject({ quotas: z.array(zEffectiveQu
 
 export const AdminPolicyBody = z.strictObject({
   scopeType: zScopeType,
-  scopeId: z.string().max(64).regex(/^[A-Za-z0-9_:-]*$/),
+  scopeId: z
+    .string()
+    .max(64)
+    .regex(/^[A-Za-z0-9_:-]*$/),
   key: z.string().max(60),
   limit: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).nullable(),
   mode: zQuotaMode,
@@ -350,11 +388,38 @@ export const AdminPolicySaved = z.strictObject({ policy: zPolicy, impact: z.stri
 export const AdminPlanBody = z.strictObject({ name: z.string().trim().min(2).max(60), description: z.string().trim().max(300).default(""), reason: zReason });
 export const AdminPlanParams = z.strictObject({ planId: zRef });
 export const AdminPlanMemberBody = z.strictObject({ scopeType: z.enum(["org", "user"]), scopeId: zRef, reason: zReason });
-export const AdminAdjustBody = z.strictObject({ key: z.string().max(60), scopeType: z.enum(["global", "pool", "org", "user"]), scopeId: z.string().max(64).regex(/^[A-Za-z0-9_:-]*$/), delta: z.number().int(), reason: zReason });
-export const AdminQuotaEventsQuery = z.strictObject({ key: z.string().max(60).optional(), scopeType: z.string().max(10).optional(), scopeId: zRef.optional(), cursor: z.coerce.number().int().positive().optional(), limit: zLimit });
+export const AdminAdjustBody = z.strictObject({
+  key: z.string().max(60),
+  scopeType: z.enum(["global", "pool", "org", "user"]),
+  scopeId: z
+    .string()
+    .max(64)
+    .regex(/^[A-Za-z0-9_:-]*$/),
+  delta: z.number().int(),
+  reason: zReason,
+});
+export const AdminQuotaEventsQuery = z.strictObject({
+  key: z.string().max(60).optional(),
+  scopeType: z.string().max(10).optional(),
+  scopeId: zRef.optional(),
+  cursor: z.coerce.number().int().positive().optional(),
+  limit: zLimit,
+});
 export const AdminQuotaEvents = z.strictObject({
   events: z.array(
-    z.strictObject({ id: zCount, at: zTime, key: z.string(), scopeType: z.string(), scopeId: z.string(), outcome: z.string(), amount: z.number(), used: z.number(), limit: zMaybe, actor: zPerson.nullable(), detail: z.string().nullable() }),
+    z.strictObject({
+      id: zCount,
+      at: zTime,
+      key: z.string(),
+      scopeType: z.string(),
+      scopeId: z.string(),
+      outcome: z.string(),
+      amount: z.number(),
+      used: z.number(),
+      limit: zMaybe,
+      actor: zPerson.nullable(),
+      detail: z.string().nullable(),
+    }),
   ),
   nextCursor: z.number().nullable(),
 });
@@ -362,12 +427,19 @@ export const AdminQuotaEvents = z.strictObject({
 // ───────────── Settings and alerts ─────────────
 
 export const AdminSettings = z.strictObject({
-  settings: z.array(z.strictObject({ key: z.string(), label: z.string(), description: z.string(), value: z.unknown(), default: z.unknown(), updatedBy: zPerson.nullable(), updatedAt: zTime.nullable() })),
+  settings: z.array(
+    z.strictObject({ key: z.string(), label: z.string(), description: z.string(), value: z.unknown(), default: z.unknown(), updatedBy: zPerson.nullable(), updatedAt: zTime.nullable() }),
+  ),
   experiments: z.array(z.strictObject({ id: z.string(), description: z.string(), status: z.string(), effectiveStatus: z.string() })),
   environment: z.array(z.strictObject({ name: z.string(), value: z.string() })),
 });
-export const AdminSettingParams = z.strictObject({ key: z.string().max(60).regex(/^[a-z_.]+$/) });
-export const AdminSettingBody = z.strictObject({ value: z.unknown(), reason: zReason });
+export const AdminSettingParams = z.strictObject({
+  key: z
+    .string()
+    .max(60)
+    .regex(/^[a-z_.]+$/),
+});
+export const AdminSettingBody = z.strictObject({ value: z.unknown(), reason: zReason, expectedUpdatedAt: zTime.nullable() });
 
 const zSeverity = z.enum(["sev1", "sev2", "sev3", "sev4"]);
 export const AdminAlerts = z.strictObject({
@@ -383,13 +455,26 @@ export const AdminAlerts = z.strictObject({
       windowMinutes: zCount,
       severity: zSeverity,
       isDefault: z.boolean(),
+      updatedAt: zTime.nullable(),
       state: z.strictObject({ breaching: z.boolean(), since: zTime.nullable(), lastValue: zMaybe, lastEvalAt: zTime.nullable(), incidentId: z.string().nullable() }),
     }),
   ),
   deliveries: z.array(z.strictObject({ at: zTime, incidentId: z.string(), channel: z.string(), outcome: z.string(), detail: z.string().nullable() })),
 });
-export const AdminRuleParams = z.strictObject({ key: z.string().max(60).regex(/^[a-z_.]+$/) });
-export const AdminRuleBody = z.strictObject({ enabled: z.boolean(), threshold: z.number().min(0).max(1e12), windowMinutes: z.number().int().min(1).max(1440), severity: zSeverity, reason: zReason });
+export const AdminRuleParams = z.strictObject({
+  key: z
+    .string()
+    .max(60)
+    .regex(/^[a-z_.]+$/),
+});
+export const AdminRuleBody = z.strictObject({
+  enabled: z.boolean(),
+  threshold: z.number().min(0).max(1e12),
+  windowMinutes: z.number().int().min(1).max(1440),
+  severity: zSeverity,
+  reason: zReason,
+  expectedUpdatedAt: zTime.nullable(),
+});
 
 // ───────────── Search and exports ─────────────
 
@@ -401,11 +486,28 @@ export const AdminSearch = z.strictObject({
   devices: z.array(z.strictObject({ id: z.string(), userId: z.string(), name: z.string() })).nullable(),
   audit: z.array(z.strictObject({ id: zCount, at: zTime, action: z.string() })).nullable(),
   sections: z.array(z.string()),
+  partialSections: z.array(z.strictObject({ section: z.literal("incidents"), reason: z.string() })),
 });
 
 export const EXPORT_KINDS = ["users", "organizations", "devices", "audit", "incidents", "quota-events", "active-users"] as const;
 export const AdminExportParams = z.strictObject({ kind: z.enum(EXPORT_KINDS) });
-export const AdminExportQuery = z.strictObject({ from: zDay.optional(), to: zDay.optional(), reason: zReason });
+export const AdminExportQuery = z
+  .strictObject({ from: zDay.optional(), to: zDay.optional(), reason: zReason, filters: z.string().max(4000).optional() })
+  .refine((v) => !v.from || !v.to || v.from <= v.to, "The range starts after it ends.");
+export const AdminExportJobBody = z.strictObject({ kind: z.enum(EXPORT_KINDS), requestKey: z.string().uuid(), query: AdminExportQuery });
+export const AdminExportJob = z.strictObject({
+  id: z.string(),
+  kind: z.enum(EXPORT_KINDS),
+  state: z.enum(["queued", "running", "ready", "failed", "expired"]),
+  rows: zCount,
+  createdAt: zTime,
+  startedAt: zTime.nullable(),
+  completedAt: zTime.nullable(),
+  expiresAt: zTime,
+  error: z.string().nullable(),
+  filename: z.string().nullable(),
+});
+export const AdminExportJobs = z.strictObject({ jobs: z.array(AdminExportJob) });
 
 // ───────────── Platform controls (docs/PLATFORM_CONTROLS.md) ─────────────
 
@@ -444,8 +546,13 @@ export const AdminControls = z.strictObject({
   /** The sign-up mode the server's environment sets, and the one in force once the control is applied. */
   signups: z.strictObject({ environment: z.enum(["open", "invite"]), effective: z.enum(["open", "invite", "closed"]) }),
 });
-export const AdminControlParams = z.strictObject({ key: z.string().max(40).regex(/^[a-z_]+$/) });
-export const AdminControlBody = z.strictObject({ value: z.unknown(), reason: zReason });
+export const AdminControlParams = z.strictObject({
+  key: z
+    .string()
+    .max(40)
+    .regex(/^[a-z_]+$/),
+});
+export const AdminControlBody = z.strictObject({ value: z.unknown(), reason: zReason, expectedUpdatedAt: zTime.nullable() });
 
 // ───────────── Site and legal details (API 0.60.0, docs/SITE_DETAILS.md) ─────────────
 
@@ -497,7 +604,7 @@ export const SiteDetails = z.strictObject({
   legalUpdatedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "A date like 2026-10-29"),
 });
 
-export const AdminSiteDetailsBody = z.strictObject({ details: SiteDetails, reason: zReason });
+export const AdminSiteDetailsBody = z.strictObject({ details: SiteDetails, reason: zReason, expectedUpdatedAt: zTime.nullable() });
 export const AdminSiteDetails = z.strictObject({
   details: SiteDetails,
   /** Fields still to be decided (null), by their path, e.g. "operator.address". */
@@ -541,6 +648,44 @@ export const AdminAccountCreateBody = zVerification
   })
   .refine(fixedCodeOnly, FIXED_CODE_MESSAGE);
 export const AdminAccountVerificationBody = zVerification.extend({ reason: zReason }).refine(fixedCodeOnly, FIXED_CODE_MESSAGE);
+export const AdminAccountLookupBody = z.union([z.strictObject({ accountId: zRef }), z.strictObject({ email: zEmail })]);
+export const AdminAccountSessionParams = z.strictObject({ accountId: zRef, sessionId: zRef });
+export const AdminAccountSessionRevoked = z.strictObject({ ok: z.literal(true), changed: z.boolean() });
+export const AdminAccountStatusChanged = z.strictObject({ ok: z.literal(true), changed: z.boolean() });
+export const AdminAccountLookup = z.strictObject({
+  generatedAt: zTime,
+  account: z.strictObject({
+    id: zRef,
+    name: z.string(),
+    email: z.string().nullable(),
+    verifiedAt: zTime.nullable(),
+    createdAt: zTime,
+    updatedAt: zTime,
+    disabledAt: zTime.nullable(),
+    userId: zRef.nullable(),
+    identityStatus: z.enum(["active", "suspended", "deleted"]).nullable(),
+    canSignIn: z.boolean(),
+  }),
+  sessions: z
+    .array(
+      z.strictObject({
+        id: zRef,
+        masked: z.string(),
+        label: z.string(),
+        deviceId: zRef.nullable(),
+        createdAt: zTime,
+        lastUsedAt: zTime,
+        expiresAt: zTime,
+        idleExpiresAt: zTime,
+        revokedAt: zTime.nullable(),
+        state: z.enum(["active", "expired", "revoked"]),
+      }),
+    )
+    .nullable(),
+  sessionsTruncated: z.boolean(),
+  history: z.array(z.strictObject({ at: zTime, action: z.string(), outcome: z.string(), reason: z.string().nullable() })).nullable(),
+});
+
 export const AdminCreatedAccountParams = z.strictObject({ accountId: zRef });
 export const AdminCreatedAccountsQuery = z.strictObject({ cursor: zCursor.optional(), limit: zLimit });
 
@@ -574,7 +719,12 @@ export const AdminAccountCreated = z.strictObject({
 
 /** Existing community operations, exposed by the platform console without acquiring community ownership. */
 export const AdminBotsPlusView = z.strictObject({ botsPlus: BotsPlusGrant });
-export const AdminDiscoveryView = z.strictObject({ discovery: z.strictObject({
-  removedAt: zTime.nullable(), removedReason: z.string().nullable(), official: z.boolean(),
-  boosts: z.array(BoostRecord), bookings: z.array(PromotedBooking),
-}) });
+export const AdminDiscoveryView = z.strictObject({
+  discovery: z.strictObject({
+    removedAt: zTime.nullable(),
+    removedReason: z.string().nullable(),
+    official: z.boolean(),
+    boosts: z.array(BoostRecord),
+    bookings: z.array(PromotedBooking),
+  }),
+});

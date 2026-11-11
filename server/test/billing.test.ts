@@ -115,7 +115,7 @@ describe("with the sandbox provider", () => {
       terms: { interval: "month", currency: "usd", amountMinor: 1200, providerPriceRef: `price_${key}`, trialDays: 14, graceDays: 3, limits: { members: 2 }, notes: "" },
       reason: REASON,
     });
-    await as("billing_admin").expect(200, "POST", `/admin/v1/billing/plans/${r.id}/publish`, { reason: REASON });
+    await as("billing_admin").expect(200, "POST", `/admin/v1/billing/plans/${r.id}/publish`, { reason: REASON, expectedUpdatedAt: h.ctx.billing.catalog.plan(r.id)!.updated_at });
     return r.id as string;
   };
   const membersCap = async () => ((await owner.req("GET", `/v1/orgs/${orgId}/plan`)).capabilities as { key: string; limit: number | null; source: string }[]).find((c) => c.key === "members")!;
@@ -145,20 +145,20 @@ describe("with the sandbox provider", () => {
       expect(draft).toMatchObject({ status: "draft", versions: [{ version: 1, state: "draft", terms: { currency: "USD", amountMinor: 900 } }] });
       expect(lastAudit("billing.plan_create")).toMatchObject({ target_id: draft.id, reason: REASON, actor_role: "billing_admin" });
       // No provider price yet: can't publish.
-      await as("billing_admin").expect(409, "POST", `/admin/v1/billing/plans/${draft.id}/publish`, { reason: REASON });
+      await as("billing_admin").expect(409, "POST", `/admin/v1/billing/plans/${draft.id}/publish`, { reason: REASON, expectedUpdatedAt: h.ctx.billing.catalog.plan(draft.id)!.updated_at });
       const terms = { interval: "month", currency: "USD", amountMinor: 900, providerPriceRef: "price_team_v1", trialDays: 0, graceDays: 0, limits: { members: 25 }, notes: "" };
-      await as("billing_admin").expect(200, "PUT", `/admin/v1/billing/plans/${draft.id}/draft`, { terms, reason: REASON });
-      const live = await as("billing_admin").expect(200, "POST", `/admin/v1/billing/plans/${draft.id}/publish`, { reason: REASON });
+      await as("billing_admin").expect(200, "PUT", `/admin/v1/billing/plans/${draft.id}/draft`, { terms, reason: REASON, expectedUpdatedAt: h.ctx.billing.catalog.plan(draft.id)!.updated_at });
+      const live = await as("billing_admin").expect(200, "POST", `/admin/v1/billing/plans/${draft.id}/publish`, { reason: REASON, expectedUpdatedAt: h.ctx.billing.catalog.plan(draft.id)!.updated_at });
       expect(live).toMatchObject({ status: "active", versions: [{ version: 1, state: "current", provider: "sandbox" }] });
       // SQLite also refuses it with a trigger; on any backend the catalog never edits a published version.
       if (h.ctx.billing.rows.backend === "sqlite") expect(() => h.ctx.db.prepare("UPDATE billing_plan_versions SET amount_minor = 1 WHERE plan_id = ?").run(draft.id)).toThrow(/immutable/);
       // New terms are a new version; the old one is retired, never edited.
-      const v2 = await as("billing_admin").expect(200, "PUT", `/admin/v1/billing/plans/${draft.id}/draft`, { terms: { ...terms, amountMinor: 1100, providerPriceRef: "price_team_v2" }, reason: REASON });
+      const v2 = await as("billing_admin").expect(200, "PUT", `/admin/v1/billing/plans/${draft.id}/draft`, { terms: { ...terms, amountMinor: 1100, providerPriceRef: "price_team_v2" }, reason: REASON, expectedUpdatedAt: h.ctx.billing.catalog.plan(draft.id)!.updated_at });
       expect(v2.versions.map((v: any) => [v.version, v.state])).toEqual([
         [2, "draft"],
         [1, "current"],
       ]);
-      await as("billing_admin").expect(200, "POST", `/admin/v1/billing/plans/${draft.id}/publish`, { reason: REASON });
+      await as("billing_admin").expect(200, "POST", `/admin/v1/billing/plans/${draft.id}/publish`, { reason: REASON, expectedUpdatedAt: h.ctx.billing.catalog.plan(draft.id)!.updated_at });
       const all = await as("auditor").expect(200, "GET", "/admin/v1/billing/plans");
       expect(AdminPlans.safeParse(all).success).toBe(true);
       expect(all.setup).toMatchObject({ provider: { id: "sandbox", mode: "test" }, webhookPath: "/v1/billing/webhooks/sandbox" });
@@ -166,6 +166,16 @@ describe("with the sandbox provider", () => {
         [2, "current", 1100],
         [1, "retired", 900],
       ]);
+    });
+
+    it("rejects stale plan metadata, draft and publication writes without editing published terms", async () => {
+      const plan = await as("billing_admin").expect(200, "POST", "/admin/v1/billing/plans", { key: "concurrent-plan", name: "Concurrent", description: "", segment: "personal", public: false, audience: "personal", terms: { interval: "month", currency: "USD", amountMinor: 499, providerPriceRef: "price_concurrent", trialDays: 0, graceDays: 3, limits: {}, notes: "" }, reason: REASON });
+      const version = plan.updatedAt;
+      const body = { name: "First editor", description: "", segment: "personal", public: false, reason: REASON, expectedUpdatedAt: version };
+      const results = await Promise.all([as("billing_admin").req("PATCH", `/admin/v1/billing/plans/${plan.id}`, body), as("billing_admin").req("PATCH", `/admin/v1/billing/plans/${plan.id}`, { ...body, name: "Second editor" })]);
+      expect(results.map(r => r.status).sort()).toEqual([200, 409]);
+      await as("billing_admin").expect(409, "POST", `/admin/v1/billing/plans/${plan.id}/publish`, { expectedUpdatedAt: version, reason: REASON });
+      await as("billing_admin").expect(400, "POST", `/admin/v1/billing/plans/${plan.id}/publish`, { reason: REASON });
     });
 
     it("refuses bad terms, duplicate keys and reused provider prices", async () => {
@@ -186,7 +196,7 @@ describe("with the sandbox provider", () => {
       await as("billing_admin").expect(400, "POST", "/admin/v1/billing/plans", { ...body({}), status: "active" });
       await as("billing_admin").expect(409, "POST", "/admin/v1/billing/plans", { ...body({}), key: "team" });
       const dup = await as("billing_admin").expect(200, "POST", "/admin/v1/billing/plans", body({ providerPriceRef: "price_team_v2" }));
-      await as("billing_admin").expect(409, "POST", `/admin/v1/billing/plans/${dup.id}/publish`, { reason: REASON });
+      await as("billing_admin").expect(409, "POST", `/admin/v1/billing/plans/${dup.id}/publish`, { reason: REASON, expectedUpdatedAt: h.ctx.billing.catalog.plan(dup.id)!.updated_at });
     });
 
     it("is managed only by roles with billing.manage, and seen by billing.view", async () => {
@@ -340,14 +350,14 @@ describe("with the sandbox provider", () => {
     });
 
     it("lets billing admins replay a failed event, with a reason", async () => {
-      const events = await as("billing_admin").expect(200, "GET", "/admin/v1/billing/events?status=failed");
+      const events = await as("billing_admin").expect(200, "GET", "/admin/v1/billing/events?mode=test&status=failed");
       expect(AdminBillingEventsPage.safeParse(events).success).toBe(true);
       const failed = events.events.find((e: any) => e.lastError === "invalid_transition");
       await as("support_admin").expect(403, "POST", `/admin/v1/billing/events/${failed.id}/replay`, { reason: REASON });
       await as("billing_admin").expect(400, "POST", `/admin/v1/billing/events/${failed.id}/replay`, {});
       expect(await as("billing_admin").expect(200, "POST", `/admin/v1/billing/events/${failed.id}/replay`, { reason: REASON })).toEqual({ status: "failed" });
       expect(lastAudit("billing.event_replay")).toMatchObject({ target_id: failed.id, reason: REASON });
-      const processed = (await as("billing_admin").expect(200, "GET", "/admin/v1/billing/events?status=processed")).events[0];
+      const processed = (await as("billing_admin").expect(200, "GET", "/admin/v1/billing/events?mode=test&status=processed")).events[0];
       await as("billing_admin").expect(409, "POST", `/admin/v1/billing/events/${processed.id}/replay`, { reason: REASON });
     });
 
@@ -355,9 +365,7 @@ describe("with the sandbox provider", () => {
       const s = h.ctx.billing.rows.all<{ id: string; provider_subscription_ref: string; status: string; current_period_end: number | null }>("billing_subscriptions")[0]!;
       const provider = h.ctx.billing.provider as { fetchSubscription?: unknown };
       // Without the provider's answer, the console says so instead of guessing.
-      const unknown = await as("support_admin").expect(200, "GET", `/admin/v1/billing/subscriptions/${s.id}/compare`);
-      expect(AdminSubscriptionCompare.safeParse(unknown).success).toBe(true);
-      expect(unknown).toMatchObject({ atProvider: null, differences: ["missing_at_provider"] });
+      await as("support_admin").expect(409, "GET", `/admin/v1/billing/subscriptions/${s.id}/compare`);
       // A lost webhook: the provider has the subscription cancelling at the period's end, Meldiq doesn't.
       const version = h.ctx.billing.catalog.version(h.ctx.billing.subscriptions.get(s.id)!.plan_version_id)!;
       provider.fetchSubscription = async (ref: string) => ({
@@ -395,13 +403,15 @@ describe("with the sandbox provider", () => {
       const other = (await owner.req("POST", "/v1/orgs", { name: "Second Lab" })).org.id;
       const chk = (await owner.req("POST", `/v1/orgs/${other}/billing/checkout`, { planKey: "starter" })).checkoutId;
       await deliver(subEvent({ id: "sub_sbx_2", customer: "cus_2", price: "price_starter", checkoutReference: chk, status: "active", currentPeriodEnd: Date.now() + 30 * DAY_MS }));
-      const m = await as("billing_admin").expect(200, "GET", "/admin/v1/billing/metrics?days=30");
+      const m = await as("billing_admin").expect(200, "GET", "/admin/v1/billing/metrics?mode=test&days=30");
       expect(AdminBillingMetrics.safeParse(m).success).toBe(true);
       expect(m.subscriptions.byStatus).toMatchObject({ active: 1, canceled: 1 });
       expect(m.subscriptions).toMatchObject({ granting: 1, started: 2, canceled: 1, trialsStarted: 1, trialConversions: 1 });
       expect(m.money.mrrEstimate).toEqual([{ currency: "USD", amountMinor: 1200 }]);
       expect(m.money.collected).toEqual([{ currency: "USD", amountMinor: 1200 }]);
-      expect(m.webhooks.rejected).toEqual(expect.arrayContaining([{ reason: "bad_signature", count: 1 }]));
+      expect(m.webhooks.rejected).toEqual([]); // Legacy refusal counters have no trustworthy mode attribution.
+      const unknown = await as("billing_admin").expect(200, "GET", "/admin/v1/billing/metrics?mode=unclassified&days=30");
+      expect(unknown.webhooks.rejected).toEqual(expect.arrayContaining([{ reason: "bad_signature", count: 1 }]));
       expect(m.definitions.map((d: any) => d.key)).toContain("mrrEstimate");
       await as("billing_admin").expect(400, "GET", "/admin/v1/billing/metrics?days=12");
       await as("operations_admin").expect(403, "GET", "/admin/v1/billing/metrics");
@@ -410,13 +420,13 @@ describe("with the sandbox provider", () => {
 
     it("keeps an existing subscriber's terms when the plan changes", async () => {
       const terms = { interval: "month", currency: "USD", amountMinor: 1500, providerPriceRef: "price_starter_v2", trialDays: 0, graceDays: 0, limits: { members: 9 }, notes: "" };
-      await as("billing_admin").expect(200, "PUT", `/admin/v1/billing/plans/${planId}/draft`, { terms, reason: REASON });
-      await as("billing_admin").expect(200, "POST", `/admin/v1/billing/plans/${planId}/publish`, { reason: REASON });
+      await as("billing_admin").expect(200, "PUT", `/admin/v1/billing/plans/${planId}/draft`, { terms, reason: REASON, expectedUpdatedAt: h.ctx.billing.catalog.plan(planId)!.updated_at });
+      await as("billing_admin").expect(200, "POST", `/admin/v1/billing/plans/${planId}/publish`, { reason: REASON, expectedUpdatedAt: h.ctx.billing.catalog.plan(planId)!.updated_at });
       const sub2 = h.ctx.billing.rows.get<{ org_id: string }>("billing_subscriptions", { provider_subscription_ref: "sub_sbx_2" })!;
       expect(h.ctx.entitlements.limitFor("members", sub2.org_id)).toEqual({ limit: 2, source: "plan" });
-      const m = await as("billing_admin").expect(200, "GET", "/admin/v1/billing/metrics?days=7");
+      const m = await as("billing_admin").expect(200, "GET", "/admin/v1/billing/metrics?mode=test&days=7");
       expect(m.money.mrrEstimate).toEqual([{ currency: "USD", amountMinor: 1200 }]);
-      await as("billing_admin").expect(200, "POST", `/admin/v1/billing/plans/${planId}/archive`, { reason: REASON });
+      await as("billing_admin").expect(200, "POST", `/admin/v1/billing/plans/${planId}/archive`, { reason: REASON, expectedUpdatedAt: h.ctx.billing.catalog.plan(planId)!.updated_at });
       expect(h.ctx.entitlements.limitFor("members", sub2.org_id)).toEqual({ limit: 2, source: "plan" });
       expect((await owner.req("GET", `/v1/orgs/${orgId}/billing`)).offers.map((o: any) => o.key)).not.toContain("starter");
     });
@@ -473,7 +483,7 @@ describe("without a provider", () => {
       terms: { interval: "month", currency: "USD", amountMinor: 500, providerPriceRef: "price_later", trialDays: 0, graceDays: 0, limits: {}, notes: "" },
       reason: REASON,
     });
-    await admin.browser.expect(409, "POST", `/admin/v1/billing/plans/${plan.id}/publish`, { reason: REASON });
+    await admin.browser.expect(409, "POST", `/admin/v1/billing/plans/${plan.id}/publish`, { reason: REASON, expectedUpdatedAt: h.ctx.billing.catalog.plan(plan.id)!.updated_at });
     const m = await admin.browser.expect(200, "GET", "/admin/v1/billing/metrics");
     expect(m.setup).toMatchObject({ provider: null, webhookPath: null });
     expect((await admin.browser.expect(200, "GET", "/admin/v1/overview")).billing).toMatchObject({ available: false });

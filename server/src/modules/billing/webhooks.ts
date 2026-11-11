@@ -2,7 +2,7 @@ import type { FastifyBaseLogger } from "fastify";
 import type { Rows, RowWriter } from "../../infrastructure/database/rows/index.js";
 import { ApiError, conflict, notFound } from "../../shared/errors.js";
 import { newId } from "../../shared/utilities/util.js";
-import type { BillingProvider, CheckoutSnapshot, NormalizedEvent, PaymentSnapshot } from "./providers/types.js";
+import type { ProviderSource, BillingProvider, CheckoutSnapshot, NormalizedEvent, PaymentSnapshot } from "./providers/types.js";
 import { WebhookRejected } from "./providers/types.js";
 import { type ApplyOutcome, BillingEventError, type Subscriptions } from "./subscriptions.js";
 
@@ -17,6 +17,8 @@ export type EventStatus = "received" | "processed" | "ignored" | "failed" | "dea
 export interface EventRow {
   id: string;
   provider: string;
+  provider_mode?: string | null;
+  provider_scope?: string | null;
   event_ref: string;
   type: string;
   provider_created_at: number;
@@ -50,6 +52,9 @@ export interface PaymentEvents {
 }
 
 export class BillingWebhooks {
+  private processing: Promise<void> = Promise.resolve();
+  readonly refreshers = new Map<string, (event: NormalizedEvent, now: number, source?: ProviderSource) => Promise<NormalizedEvent>>();
+  readonly externalScopes = new Map<string, string>();
   afterApply: AfterApply | null = null;
   payments: PaymentEvents | null = null;
 
@@ -93,14 +98,14 @@ export class BillingWebhooks {
    * Stores and applies one event already known to be the provider's (a verified webhook, or what an app store's API
    * answered when the server asked it): once per provider event ref, a repeat is acknowledged and skipped.
    */
-  async ingest(providerId: string, event: NormalizedEvent): Promise<{ received: true; duplicate: boolean; status: EventStatus; outcome: ApplyOutcome | null }> {
+  async ingest(providerId: string, event: NormalizedEvent, verifiedSource?: ProviderSource): Promise<{ received: true; duplicate: boolean; status: EventStatus; outcome: ApplyOutcome | null }> {
     const t = this.clock();
     const id = newId("bev");
     const inserted = await this.rows.write(
       (w) =>
         w.insert(
           "billing_provider_events",
-          { id, provider: providerId, event_ref: event.ref, type: event.type, provider_created_at: event.createdAt, received_at: t, status: "received", summary: JSON.stringify(event) },
+          { id, provider: providerId, provider_mode: verifiedSource?.mode ?? (providerId === this.provider?.id ? this.provider.mode : null), provider_scope: verifiedSource?.scope ?? (providerId === this.provider?.id ? this.provider.eventScope ?? null : null), event_ref: event.ref, type: event.type, provider_created_at: event.createdAt, received_at: t, status: "received", summary: JSON.stringify(event) },
           { orIgnore: true },
         ).inserted,
     );
@@ -114,6 +119,7 @@ export class BillingWebhooks {
   }
 
   private applyEvent(w: RowWriter, row: EventRow, event: NormalizedEvent, t: number): ApplyOutcome | null {
+    const source: ProviderSource | undefined = row.provider_mode === "test" || row.provider_mode === "live" ? { mode: row.provider_mode, scope: row.provider_scope ?? null } : undefined;
     if (event.kind === "batch") {
       let outcome: ApplyOutcome | null = null;
       for (const item of event.events) {
@@ -124,8 +130,8 @@ export class BillingWebhooks {
       }
       return outcome;
     }
-    if (event.kind === "subscription") return this.subscriptions.applySnapshot(w, row.provider, event.subscription, event.createdAt, `provider_event:${row.id}`, t);
-    if (event.kind === "invoice") return this.subscriptions.applyInvoice(w, row.provider, event.invoice, event.createdAt, t);
+    if (event.kind === "subscription") return this.subscriptions.applySnapshot(w, row.provider, event.subscription, event.createdAt, `provider_event:${row.id}`, t, source);
+    if (event.kind === "invoice") return this.subscriptions.applyInvoice(w, row.provider, event.invoice, event.createdAt, t, source);
     if (event.kind === "checkout") return this.payments?.applyCheckout(w, row.provider, event.checkout, t) ?? this.subscriptions.applyCheckout(w, row.provider, event.checkout, t);
     if (event.kind === "payment") {
       return this.payments?.applyPayment(w, row.provider, event.payment, t) ?? this.subscriptions.applyPayment(w, row.provider, event.payment, `provider_event:${row.id}`, t);
@@ -133,18 +139,39 @@ export class BillingWebhooks {
     return null;
   }
 
+  private observations(event: NormalizedEvent, provider: string): Array<{ table: string; where: Record<string, string>; value: string }> {
+    if (event.kind === "batch") return event.events.flatMap(item => this.observations(item, provider));
+    const target: { table: string; where: Record<string, string> } | null = event.kind === "subscription" ? { table: "billing_subscriptions", where: { provider, provider_subscription_ref: event.subscription.ref } }
+      : event.kind === "invoice" ? { table: "billing_invoices", where: { provider, provider_invoice_ref: event.invoice.ref } } : null;
+    return target ? [{ ...target, value: JSON.stringify(this.rows.get(target.table, target.where) ?? null) }] : [];
+  }
+
   /** Applies a stored event. Never throws: the outcome is written on the event's row. */
   async process(id: string, applied?: { value: ApplyOutcome | null }): Promise<EventStatus> {
+    const result = this.processing.then(() => this.processOne(id, applied));
+    this.processing = result.then(() => undefined, () => undefined);
+    return result;
+  }
+
+  private async processOne(id: string, applied?: { value: ApplyOutcome | null }): Promise<EventStatus> {
     const row = this.rows.get<EventRow>("billing_provider_events", { id });
     if (!row || row.status === "processed" || row.status === "ignored") return row?.status ?? "dead";
-    const event = JSON.parse(row.summary) as NormalizedEvent;
+    let event = JSON.parse(row.summary) as NormalizedEvent;
     const t = this.clock();
     try {
+      if (row.provider !== this.provider?.id && !this.refreshers.has(row.provider)) throw new Error("The event owning provider is not configured for reconciliation");
+      if (row.provider_mode && row.provider === this.provider?.id && row.provider_mode !== this.provider.mode) throw new Error("Stored event belongs to a different provider environment");
+      if (row.provider_scope && row.provider_scope !== (row.provider === this.provider?.id ? this.provider.eventScope : this.externalScopes.get(row.provider))) throw new Error("Stored event belongs to a different provider source");
+      const observations = this.observations(event, row.provider);
+      // Refresh after durable acceptance and on every retry. Provider failure leaves a recoverable failed event.
+      if (row.provider === this.provider?.id && this.provider.refreshEvent) event = await this.provider.refreshEvent(event, t);
+      else if (this.refreshers.has(row.provider)) event = await this.refreshers.get(row.provider)!(event, t, row.provider_mode === "test" || row.provider_mode === "live" ? { mode: row.provider_mode, scope: row.provider_scope ?? null } : undefined);
       // The event's changes and its "processed" mark are one unit: applied together or not at all.
       const outcome = await this.rows.write((w) => {
         // Units run one at a time: a retry and a delivery of the same event can't both apply it.
         const current = w.get<EventRow>("billing_provider_events", { id: row.id });
         if (!current || current.status === "processed" || current.status === "ignored") return null;
+        for (const observed of observations) if (JSON.stringify(w.get(observed.table, observed.where) ?? null) !== observed.value) throw new Error("Billing state changed during provider read; retry against its current state");
         const applied = this.applyEvent(w, row, event, t);
         const status: EventStatus = applied && applied.result === "applied" ? "processed" : "ignored";
         w.update("billing_provider_events", { id: row.id }, {

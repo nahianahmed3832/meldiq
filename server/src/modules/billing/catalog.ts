@@ -182,21 +182,24 @@ export class PlanCatalog {
     });
   }
 
-  async updateMeta(planId: string, meta: PlanMeta, t: number): Promise<PlanRow> {
-    const changed = await this.rows.write((w) =>
-      w.update("billing_plans", { id: planId }, { name: meta.name, description: meta.description, segment: meta.segment, public: meta.public ? 1 : 0, updated_at: t }),
-    );
-    if (changed === 0) throw notFound("No such plan");
+  async updateMeta(planId: string, meta: PlanMeta, t: number, expectedUpdatedAt?: number): Promise<PlanRow> {
+    await this.rows.write(w => {
+      const plan = w.get<PlanRow>("billing_plans", { id: planId });
+      if (!plan) throw notFound("No such plan");
+      if (expectedUpdatedAt !== undefined && plan.updated_at !== expectedUpdatedAt) throw conflict("This plan changed. Reload its current terms before saving.");
+      w.update("billing_plans", { id: planId }, { name: meta.name, description: meta.description, segment: meta.segment, public: meta.public ? 1 : 0, updated_at: Math.max(t, plan.updated_at + 1) });
+    });
     return this.plan(planId)!;
   }
 
   /** Saves the plan's draft terms, starting a new draft version when every version is published. */
-  async saveDraft(planId: string, terms: PlanTerms, actor: string, t: number): Promise<VersionRow> {
+  async saveDraft(planId: string, terms: PlanTerms, actor: string, t: number, expectedUpdatedAt?: number): Promise<VersionRow> {
     validateTerms(terms, this.quotaPlanExists);
     if (!Number.isSafeInteger(terms.billingFrequency ?? 1) || (terms.billingFrequency ?? 1) < 1 || (terms.billingFrequency ?? 1) > 12) throw conflict("Invalid billing frequency");
     await this.rows.write((w) => {
       const plan = w.get<PlanRow>("billing_plans", { id: planId });
       if (!plan) throw notFound("No such plan");
+      if (expectedUpdatedAt !== undefined && plan.updated_at !== expectedUpdatedAt) throw conflict("This plan changed. Reload its current terms before saving.");
       if (plan.status === "archived") throw conflict("This plan is archived");
       const latest = w.get<VersionRow>("billing_plan_versions", { plan_id: planId }, [["version", "desc"]]);
       // A published version is never changed (SQLite also refuses it with a trigger): only the draft is edited.
@@ -208,6 +211,7 @@ export class PlanCatalog {
       } else {
         this.insertDraft(w, planId, (latest?.version ?? 0) + 1, terms, actor, t);
       }
+      w.update("billing_plans", { id: planId }, { updated_at: Math.max(t, plan.updated_at + 1) });
     });
     return this.versions(planId)[0]!;
   }
@@ -216,12 +220,13 @@ export class PlanCatalog {
    * Publishes the draft for [provider]: it becomes what new subscribers get, and the version before it stops being
    * offered (its subscribers keep it). Needs the provider's price id, unused by any other published version.
    */
-  async publish(planId: string, provider: string, actor: string, t: number): Promise<{ published: VersionRow; retired: VersionRow | null }> {
+  async publish(planId: string, provider: string, actor: string, t: number, expectedUpdatedAt?: number): Promise<{ published: VersionRow; retired: VersionRow | null }> {
     const latest = this.versions(planId)[0];
     const previous = this.current(planId, latest ? termOf(latest) ?? undefined : undefined);
     const draftId = await this.rows.write((w) => {
       const plan = w.get<PlanRow>("billing_plans", { id: planId });
       if (!plan) throw notFound("No such plan");
+      if (expectedUpdatedAt !== undefined && plan.updated_at !== expectedUpdatedAt) throw conflict("This plan changed. Reload its current terms before publishing.");
       if (plan.status === "archived") throw conflict("This plan is archived");
       const draft = w.get<VersionRow>("billing_plan_versions", { plan_id: planId }, [["version", "desc"]]);
       if (!draft || draft.published_at !== null) throw conflict("There's no draft to publish: save new terms first");
@@ -232,20 +237,21 @@ export class PlanCatalog {
       }
       w.update("billing_plan_versions", { id: draft.id }, { provider, published_at: t, published_by: actor, updated_at: t });
       w.update("billing_plan_versions", { plan_id: planId, published_at: { ne: null }, retired_at: null, id: { ne: draft.id }, ...(plan.key === "plus" ? { interval: draft.interval, billing_frequency: draft.billing_frequency } : {}) }, { retired_at: t });
-      w.update("billing_plans", { id: planId }, { status: "active", updated_at: t });
+      w.update("billing_plans", { id: planId }, { status: "active", updated_at: Math.max(t, plan.updated_at + 1) });
       return draft.id;
     });
     return { published: this.version(draftId)!, retired: previous ? this.version(previous.id) : null };
   }
 
   /** Stops offering the plan. Its subscribers keep their terms until their subscriptions end at the provider. */
-  async archive(planId: string, t: number): Promise<PlanRow> {
+  async archive(planId: string, t: number, expectedUpdatedAt?: number): Promise<PlanRow> {
     await this.rows.write((w) => {
       const plan = w.get<PlanRow>("billing_plans", { id: planId });
       if (!plan) throw notFound("No such plan");
+      if (expectedUpdatedAt !== undefined && plan.updated_at !== expectedUpdatedAt) throw conflict("This plan changed. Reload its current terms before archiving.");
       if (plan.status === "archived") throw conflict("This plan is archived already");
       w.update("billing_plan_versions", { plan_id: planId, published_at: { ne: null }, retired_at: null }, { retired_at: t });
-      w.update("billing_plans", { id: planId }, { status: "archived", updated_at: t });
+      w.update("billing_plans", { id: planId }, { status: "archived", updated_at: Math.max(t, plan.updated_at + 1) });
     });
     return this.plan(planId)!;
   }

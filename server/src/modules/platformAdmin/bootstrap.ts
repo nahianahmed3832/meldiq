@@ -2,7 +2,10 @@ import { humanCode, normalizeCode, now, sha256Hex } from "../../shared/utilities
 import type { AccountRow } from "../accounts/index.js";
 import type { PlatformAudit } from "./audit.js";
 import { isPlatformRole, type PlatformRole } from "./permissions.js";
+import type { RowReader } from "../../infrastructure/database/rows/index.js";
+import { ApiError, forbidden } from "../../shared/errors.js";
 import type { AdminGrantRow, PlatformAdminStore } from "./store.js";
+import { accountAuthorityAvailable, guardAdminActor, requireAnotherUsableSuper, snapshotAdminAuthority, type AuthoritySnapshot } from "./authority.js";
 
 /**
  * Granting, revoking and enrolling console admins (§3.7). The operator CLI (`admin.js platform-admin-*`) is the only
@@ -38,20 +41,34 @@ export function grantProblem(account: AccountRow | undefined): string | null {
 const via = (actor: Actor) => (actor.accountId ? "console" : "cli");
 const actorFields = (actor: Actor) => ({ actorAccountId: actor.accountId, actorRole: actor.role, requestId: actor.requestId, network: actor.network });
 
+/** Recheck authority and the last-admin invariant inside the same serialized write as the change. */
+export function guardGrantWrite(w: RowReader, accountId: string, role: PlatformRole | null, actor: Actor, snapshot?: AuthoritySnapshot) {
+  if (actor.accountId) {
+    guardAdminActor(w, actor.accountId, "admins.manage", snapshot);
+    if (actor.accountId === accountId) throw forbidden("You cannot change your own console access.");
+  }
+  const before = w.get<AdminGrantRow>("platform_admins", { account_id: accountId, revoked_at: null });
+  if (before?.role === "super_admin" && role !== "super_admin") requireAnotherUsableSuper(w, accountId, snapshot);
+}
+
 /**
  * Grants [role] to [account] (or changes its role) and, when it has no console passkey yet, issues an enrolment code.
  * Returns the code to hand over, or null when the admin already has a passkey. The grant and its audit entry are one
  * unit; a role change then ends the admin's console sessions.
  */
-export async function grantAdmin(store: PlatformAdminStore, audit: PlatformAudit, account: AccountRow | undefined, role: string, actor: Actor, note: string | null): Promise<string | null> {
+export async function grantAdmin(store: PlatformAdminStore, audit: PlatformAudit, account: AccountRow | undefined, role: string, actor: Actor, note: string | null, expectedUpdatedAt?: number): Promise<string | null> {
   if (!isPlatformRole(role)) throw new Error(`Unknown role. Use one of: super_admin, operations_admin, platform_moderator, support_admin, billing_admin, auditor`);
   const problem = grantProblem(account);
   if (problem || !account) throw new Error(problem ?? "No account has that email address.");
   const t = now();
   const enrol = store.passkeys(account.id).length === 0;
+  const authority = await snapshotAdminAuthority(store, [actor.accountId, account.id]);
   const before = await store.platform.write((w) => {
+    guardGrantWrite(w, account.id, role, actor, authority);
+    if (!accountAuthorityAvailable(w, account.id, authority)) throw forbidden("That account is suspended or its status is changing.");
     const prior = w.get<AdminGrantRow>("platform_admins", { account_id: account.id, revoked_at: null });
-    store.putGrant(w, account.id, role, actor.accountId, note, t);
+    if (expectedUpdatedAt !== undefined && prior?.updated_at !== expectedUpdatedAt) throw new ApiError(409, "conflict", "This admin changed. Reload before changing their role.");
+    store.putGrant(w, account.id, role, actor.accountId, note, Math.max(t, (prior?.updated_at ?? 0) + 1));
     audit.append(
       w,
       {
@@ -75,7 +92,9 @@ export async function grantAdmin(store: PlatformAdminStore, audit: PlatformAudit
 /** Revokes [accountId]'s grant and ends its console sessions. False when it had no active grant. */
 export async function revokeAdmin(store: PlatformAdminStore, audit: PlatformAudit, accountId: string, actor: Actor, reason: string | null): Promise<boolean> {
   const t = now();
+  const authority = await snapshotAdminAuthority(store, [actor.accountId, accountId]);
   const revoked = await store.platform.write((w) => {
+    guardGrantWrite(w, accountId, null, actor, authority);
     const before = w.get<AdminGrantRow>("platform_admins", { account_id: accountId, revoked_at: null });
     if (!before || !store.revokeGrant(w, accountId, actor.accountId, t)) return false;
     audit.append(w, { action: "admin.revoke", outcome: "success", ...actorFields(actor), targetType: "admin", targetId: accountId, reason, detail: { role: before.role, via: via(actor) } }, t);
@@ -91,7 +110,10 @@ export async function revokeAdmin(store: PlatformAdminStore, audit: PlatformAudi
 /** A lost device: removes every console passkey, ends sessions, and issues a new enrolment code. */
 export async function resetAdminPasskeys(store: PlatformAdminStore, audit: PlatformAudit, accountId: string, actor: Actor, reason: string | null): Promise<string> {
   const t = now();
+  const authority = await snapshotAdminAuthority(store, [actor.accountId, accountId]);
   await store.platform.write((w) => {
+    const current = w.get<AdminGrantRow>("platform_admins", { account_id: accountId, revoked_at: null });
+    guardGrantWrite(w, accountId, current?.role ?? null, actor, authority);
     if (!w.get("platform_admins", { account_id: accountId, revoked_at: null })) throw new Error("That account has no active console role.");
     const removed = store.deletePasskeys(w, accountId);
     audit.append(w, { action: "admin.passkeys_reset", outcome: "success", ...actorFields(actor), targetType: "admin", targetId: accountId, reason, detail: { removed, via: via(actor) } }, t);

@@ -4,7 +4,7 @@ import { newId } from "../../shared/utilities/util.js";
 import { type PlanCatalog, type PlanLimits, parseLimits, type VersionRow } from "./catalog.js";
 import { canMove, grantsPlan, standing, type Standing, type SubscriptionStatus, TERMINAL } from "./lifecycle.js";
 import { type BillingOwner, ownerOfRow, ownerParam } from "./owners.js";
-import type { CheckoutSnapshot, InvoiceSnapshot, PaymentSnapshot, SubscriptionSnapshot } from "./providers/types.js";
+import type { ProviderSource, CheckoutSnapshot, InvoiceSnapshot, PaymentSnapshot, SubscriptionSnapshot } from "./providers/types.js";
 import { SPARK_PLAN_KEY } from "./perks.js";
 
 /**
@@ -23,6 +23,8 @@ export interface SubscriptionRow {
   plan_version_id: string;
   status: SubscriptionStatus;
   provider: string;
+  provider_mode?: "test" | "live" | null;
+  provider_scope?: string | null;
   provider_customer_ref: string | null;
   provider_subscription_ref: string;
   checkout_id: string | null;
@@ -216,21 +218,26 @@ export class Subscriptions {
   }
 
   /**
-   * Applies a provider's subscription snapshot; [source] says where it came from (`provider_event:<id>`, `reconcile:<time>`). A snapshot older than the newest one applied is
-   * skipped ("stale"), so duplicated and out-of-order deliveries settle on the provider's latest state.
+   * Applies a provider's subscription snapshot; [source] says where it came from (`provider_event:<id>`, `reconcile:<time>`). Older snapshots are
+   * skipped as an additional guard. Production adapters re-read current state during durable processing; timestamps alone are not an ordering proof.
    */
-  applySnapshot(w: RowWriter, provider: string, snap: SubscriptionSnapshot, providerAt: number, source: string, t: number): ApplyOutcome {
+  applySnapshot(w: RowWriter, provider: string, snap: SubscriptionSnapshot, providerAt: number, source: string, t: number, origin?: ProviderSource): ApplyOutcome {
     const existing = w.get<SubscriptionRow>("billing_subscriptions", { provider, provider_subscription_ref: snap.ref });
+    this.checkOrigin(existing, origin);
     const existingPlan = existing && this.catalog.version(existing.plan_version_id);
     const existingKey = existingPlan && this.catalog.plan(existingPlan.plan_id)?.key;
     const samePlayProduct = provider === "google_play" && existingPlan && (snap.priceRef === `mojo_${existingKey}` || existingKey === "plus" && ((snap.priceRef === "mojo_plus_quarterly" && existingPlan.interval === "month" && existingPlan.billing_frequency === 3) || (snap.priceRef === "mojo_plus_yearly" && existingPlan.interval === "year")) || existingKey === "spark" && snap.priceRef.startsWith("spark_"));
     const version = samePlayProduct ? existingPlan : (provider === "paypal_card" ? this.catalog.version(snap.priceRef) : this.catalog.byPrice(provider, snap.priceRef)) ?? this.storeVersion?.(provider, snap.priceRef) ?? null;
     if (!version) throw new BillingEventError("unknown_price", `No published plan version uses the price ${snap.priceRef}`);
     if (existing) return this.update(w, existing, version.id, snap, providerAt, source, t);
-    return this.insert(w, provider, version.id, snap, providerAt, source, t);
+    return this.insert(w, provider, version.id, snap, providerAt, source, t, origin);
   }
 
-  private insert(w: RowWriter, provider: string, versionId: string, snap: SubscriptionSnapshot, providerAt: number, source: string, t: number): ApplyOutcome {
+  private checkOrigin(existing: { provider_mode?: string | null; provider_scope?: string | null } | undefined, origin?: ProviderSource) {
+    if (existing?.provider_mode && origin && (existing.provider_mode !== origin.mode || existing.provider_scope && origin.scope && existing.provider_scope !== origin.scope)) throw new BillingEventError("checkout_mismatch", "Provider source differs from the original financial record");
+  }
+
+  private insert(w: RowWriter, provider: string, versionId: string, snap: SubscriptionSnapshot, providerAt: number, source: string, t: number, origin?: ProviderSource): ApplyOutcome {
     // A new subscription belongs to the owner who started the checkout it names, never to an id the provider sends on
     // its own (a customer id, metadata naming an owner, an email).
     if (!snap.checkoutRef) throw new BillingEventError("unknown_checkout", "The provider's subscription names no checkout of ours");
@@ -249,7 +256,7 @@ export class Subscriptions {
     const id = newId("sub");
     w.insert("billing_subscriptions", {
       id, owner_kind: checkout.owner_kind, org_id: checkout.org_id, account_id: checkout.account_id, owner_user_id: checkout.owner_kind === "account" ? checkout.user_id : null,
-      billing_user_id: checkout.user_id, billing_account_id: checkout.started_by_account_id, plan_version_id: versionId, status: snap.status, provider,
+      billing_user_id: checkout.user_id, billing_account_id: checkout.started_by_account_id, plan_version_id: versionId, status: snap.status, provider, provider_mode: origin?.mode ?? null, provider_scope: origin?.scope ?? null,
       provider_customer_ref: snap.customerRef, provider_subscription_ref: snap.ref, checkout_id: checkout.id, current_period_start: snap.currentPeriodStart,
       current_period_end: snap.currentPeriodEnd, trial_end: snap.trialEnd, cancel_at_period_end: snap.cancelAtPeriodEnd ? 1 : 0, canceled_at: snap.canceledAt,
       past_due_since: snap.status === "past_due" || snap.status === "unpaid" ? providerAt : null, provider_updated_at: providerAt, created_at: t, updated_at: t,
@@ -265,6 +272,7 @@ export class Subscriptions {
 
   private update(w: RowWriter, s: SubscriptionRow, versionId: string, snap: SubscriptionSnapshot, providerAt: number, source: string, t: number): ApplyOutcome {
     const owner = ownerOfRow(s);
+    if (snap.checkoutRef && snap.checkoutRef !== s.checkout_id || s.provider_customer_ref && snap.customerRef && snap.customerRef !== s.provider_customer_ref) throw new BillingEventError("checkout_mismatch", "The provider subscription no longer matches its original checkout and customer");
     if (s.provider === "paypal" && snap.cancelAtPeriodEnd && s.current_period_end !== null) {
       // PayPal can omit next_billing_time once canceled. Preserve the previously verified paid cutoff.
       snap = { ...snap, currentPeriodEnd: s.current_period_end, status: s.current_period_end > t ? "active" : "canceled" };
@@ -305,11 +313,13 @@ export class Subscriptions {
   }
 
   /** Records a provider's invoice; its subscription must be known (an invoice that arrives first is retried later). */
-  applyInvoice(w: RowWriter, provider: string, inv: InvoiceSnapshot, providerAt: number, t: number): ApplyOutcome {
+  applyInvoice(w: RowWriter, provider: string, inv: InvoiceSnapshot, providerAt: number, t: number, origin?: ProviderSource): ApplyOutcome {
     const sub = inv.subscriptionRef ? w.get<SubscriptionRow>("billing_subscriptions", { provider, provider_subscription_ref: inv.subscriptionRef }) : undefined;
     if (!sub) throw new BillingEventError("unknown_subscription", "The invoice's subscription isn't known yet");
+    this.checkOrigin(sub, origin);
     const owner = ownerOfRow(sub);
-    const existing = w.get<{ id: string; provider_updated_at: number; amount_refunded_minor: number }>("billing_invoices", { provider, provider_invoice_ref: inv.ref });
+    const existing = w.get<{ id: string; provider_updated_at: number; amount_refunded_minor: number; provider_mode?: string | null; provider_scope?: string | null }>("billing_invoices", { provider, provider_invoice_ref: inv.ref });
+    this.checkOrigin(existing, origin);
     if (existing && providerAt < existing.provider_updated_at) return { result: "stale", subscriptionId: sub.id, owner };
     let refundedFromHistory = 0;
     if (provider === "paypal") {
@@ -329,7 +339,7 @@ export class Subscriptions {
     if (existing) w.update("billing_invoices", { id: existing.id }, fields);
     else {
       w.insert("billing_invoices", {
-        id: newId("inv"), provider, provider_invoice_ref: inv.ref, subscription_id: sub.id, owner_kind: sub.owner_kind, org_id: sub.org_id, account_id: sub.account_id,
+        id: newId("inv"), provider, provider_mode: origin?.mode ?? null, provider_scope: origin?.scope ?? null, provider_invoice_ref: inv.ref, subscription_id: sub.id, owner_kind: sub.owner_kind, org_id: sub.org_id, account_id: sub.account_id,
         issued_at: inv.issuedAt, ...fields,
       });
     }

@@ -6,6 +6,7 @@ import type { CommunityLink } from "../../../shared/contracts/http/orgs.js";
 import { ApiError } from "../../../shared/errors.js";
 import { now } from "../../../shared/utilities/util.js";
 import type { ConversationRow } from "../authz.js";
+import { communityClipsBlocked } from "../../platformAdmin/index.js";
 import { visibleToEveryone } from "../communityRoutes.js";
 import { onboardingOn, unansweredRequiredPrompt } from "../onboardingRoutes.js";
 import { claimInviteSlug, inviteSlugOf, normalizeInviteSlug, releaseInviteSlug, requireSlugFree } from "./vanity.js";
@@ -124,7 +125,7 @@ export class CommunitySettings {
 
   clipsPolicy(orgId: string) {
     const requested = this.row(orgId)?.voice_clips === 1;
-    const blocked = !!this.ctx.platform.get("platform_settings", { key: this.clipsPolicyKey(orgId) });
+    const blocked = communityClipsBlocked(this.ctx.platform, orgId);
     return { requested, blocked, available: this.enabled, effective: this.enabled && requested && !blocked };
   }
 

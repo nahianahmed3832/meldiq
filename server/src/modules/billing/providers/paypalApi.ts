@@ -16,6 +16,13 @@ export class PayPalResourceNotFound extends ApiError {
   constructor() { super(503, "unavailable", "PayPal could not find this checkout. Refresh billing before trying again."); }
 }
 
+/** A documented business refusal before any refund; unrecognized errors remain uncertain. */
+export class PayPalRefundRejected extends ApiError {
+  constructor(readonly issue: "REFUND_AMOUNT_EXCEEDED" | "TRANSACTION_DISPUTED") {
+    super(409, "refund_rejected", issue === "REFUND_AMOUNT_EXCEEDED" ? "PayPal rejected the refund because the remaining captured balance is insufficient." : "PayPal rejected a partial refund because the transaction is disputed. Review it in the Resolution Center.");
+  }
+}
+
 /** Fixed, separate PayPal hosts. A caller can never supply an arbitrary API origin. */
 export class HttpPayPalApi implements PayPalApi {
   private token: { value: string; until: number } | null = null;
@@ -90,6 +97,11 @@ export class HttpPayPalApi implements PayPalApi {
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
       if (!res.ok) {
+        if (res.status === 422 && method === "POST" && /^\/v2\/payments\/captures\/[^/]+\/refund$/.test(path)) {
+          const data = await res.json().catch(() => null) as { details?: { issue?: string }[] } | null;
+          const issue = data?.details?.find(d => d.issue === "REFUND_AMOUNT_EXCEEDED" || d.issue === "TRANSACTION_DISPUTED")?.issue;
+          if (issue === "REFUND_AMOUNT_EXCEEDED" || issue === "TRANSACTION_DISPUTED") throw new PayPalRefundRejected(issue);
+        }
         await res.body?.cancel();
         if (res.status === 401) this.token = null;
         if (res.status === 404 && method === "GET") throw new PayPalResourceNotFound();
@@ -97,7 +109,7 @@ export class HttpPayPalApi implements PayPalApi {
       }
       return res.status === 204 ? {} : await res.json();
     } catch (error) {
-      if (error instanceof PayPalResourceNotFound) throw error;
+      if (error instanceof PayPalResourceNotFound || error instanceof PayPalRefundRejected) throw error;
       throw unavailable();
     }
   }

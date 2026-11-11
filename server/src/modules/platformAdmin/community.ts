@@ -5,8 +5,8 @@ import { AdminOrgParams } from "../../shared/contracts/http/platformAdmin.js";
 import { notFound } from "../../shared/errors.js";
 import { now } from "../../shared/utilities/util.js";
 import { parse } from "../../shared/validation/index.js";
-import { COMMUNITY_OFFERS } from "../billing/providers/communityPayPal.js";
-import { notifyOrg, readPingRoles, updatePingRoles } from "../organizations/index.js";
+import { COMMUNITY_OFFERS } from "../billing/index.js";
+import { communityExpressionUsage, orgRecord, notifyOrg, readPingRoles, updatePingRoles } from "../organizations/index.js";
 import type { AdminDeps } from "./dataRoutes.js";
 import { metaOf, principal, requirePermission } from "./guards.js";
 import type { Permission } from "./permissions.js";
@@ -15,7 +15,7 @@ export default async function adminCommunityRoutes(app: FastifyInstance, d: Admi
   const { ctx } = d;
   const needs = (permission: Permission) => ({ preHandler: requirePermission(d.auth, d.audit, permission) });
   const requireCommunity = (id: string) => {
-    if (!ctx.ws.get("orgs", { id, kind: "community" })) throw notFound("Community not found");
+    if (orgRecord(ctx.ws, id)?.kind !== "community") throw notFound("Community not found");
   };
   const view = (id: string) => {
     const { emojiSlots, stickerSlots } = ctx.mojo.levelOf(id);
@@ -24,9 +24,9 @@ export default async function adminCommunityRoutes(app: FastifyInstance, d: Admi
       voiceClips: ctx.communitySettings.clipsPolicy(id),
       pingRoles: readPingRoles(ctx.ws, id),
       expressions: {
-        emojiUsed: ctx.ws.count("community_expressions", { org_id: id, kind: "emoji" }),
+        emojiUsed: communityExpressionUsage(ctx.ws, id, "emoji"),
         emojiSlots,
-        stickerUsed: ctx.ws.count("community_expressions", { org_id: id, kind: "sticker" }),
+        stickerUsed: communityExpressionUsage(ctx.ws, id, "sticker"),
         stickerSlots,
         stickerMaxBytes: STICKER_MAX_BYTES,
         stickerMaxDimension: STICKER_MAX_DIMENSION,

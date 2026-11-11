@@ -5,6 +5,7 @@ import { sha256Hex } from "../../shared/utilities/util.js";
 import { type AccountRow, burnPasswordCheck, verifyPassword } from "../accounts/index.js";
 import type { PlatformAudit } from "./audit.js";
 import { type AdminGrantRow, PlatformAdminStore } from "./store.js";
+import { accountAuthorityAvailable } from "./authority.js";
 
 /** What every request to the console carries for its audit rows. */
 export interface RequestMeta {
@@ -90,6 +91,8 @@ export class AdminCredentials {
 
   /** Why [account] can't use the console now, or null. */
   standing(account: AccountRow): string | null {
+    // A cross-store suspension/restore keeps admin authority fenced until the canonical transition finishes.
+    if (!accountAuthorityAvailable(this.ctx.platform, account.id, new Map([[account.id, { enabled: true, userId: account.user_id }]]))) return "account_status_changing";
     if (account.disabled_at) return "account_disabled";
     if (!account.email_verified_at) return "email_unverified";
     if (account.user_id && this.ctx.accounts.identityBlocked(account.user_id)) return "user_disabled";

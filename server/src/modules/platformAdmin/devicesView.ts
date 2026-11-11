@@ -180,6 +180,8 @@ export class AdminDevices {
   /** Closes sockets without ending sessions: the app reconnects if its session is still valid (a stuck connection). */
   async disconnect(p: AdminPrincipal, userId: string, deviceId: string | undefined, reason: string, meta: RequestMeta) {
     await this.guard(p, userId, "user.disconnect", reason, meta);
+    if (!userSummary(this.ctx.identity, userId)) throw notFound("No such person.");
+    if (deviceId && !deviceOf(this.ctx.identity, userId, deviceId)) throw notFound("No such device for this person.");
     const before = this.ctx.hub.connections().filter((c) => c.userId === userId && (!deviceId || c.deviceId === deviceId)).length;
     if (deviceId) this.ctx.hub.disconnectDevice(deviceId, "closed by an operator");
     else this.ctx.hub.disconnectUser(userId, "closed by an operator");

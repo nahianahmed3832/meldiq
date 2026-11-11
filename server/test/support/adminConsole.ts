@@ -90,3 +90,12 @@ export async function signIn(h: Harness, admin: ConsoleAdmin): Promise<AdminBrow
   await browser.expect(200, "POST", "/admin/v1/auth/passkey", { response: admin.passkey.get(options) });
   return browser;
 }
+
+/** Explicitly reviewed current-version write for settings fixtures; raw req remains available for stale/missing-version tests. */
+export async function versionedAdminPut(browser: AdminBrowser, url: string, body: Record<string, unknown>): Promise<any> {
+  const root = url.startsWith("/admin/v1/controls/") ? "/admin/v1/controls" : url.startsWith("/admin/v1/settings/") ? "/admin/v1/settings" : "/admin/v1/site";
+  const current = await browser.expect(200, "GET", root);
+  const key = url.split("/").at(-1);
+  const expectedUpdatedAt = root.endsWith("/controls") ? current.controls[key!].updatedAt : root.endsWith("/settings") ? current.settings.find((s: any) => s.key === key).updatedAt : current.updatedAt;
+  return browser.expect(200, "PUT", url, { ...body, expectedUpdatedAt });
+}

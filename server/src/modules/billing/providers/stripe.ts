@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import Stripe from "stripe";
 import { type MojoAmounts, type StripeSetupApi, stripeSetMojoPrices, stripeSetupApi } from "../stripeSetup.js";
 import { isSubscriptionStatus, type SubscriptionStatus } from "../lifecycle.js";
@@ -37,6 +38,7 @@ export interface StripeApi {
   expireCheckoutSession(id: string): Promise<void>;
   createPortalSession(params: Stripe.BillingPortal.SessionCreateParams): Promise<{ url: string }>;
   retrieveSubscription(id: string): Promise<Stripe.Subscription | null>;
+  retrieveInvoice?(id: string): Promise<Stripe.Invoice>;
 }
 
 export function stripeApi(client: Stripe): StripeApi {
@@ -61,6 +63,7 @@ export function stripeApi(client: Stripe): StripeApi {
         throw e;
       }
     },
+    retrieveInvoice: id => client.invoices.retrieve(id),
   };
 }
 
@@ -222,6 +225,7 @@ export function normalizeStripeEvent(e: Stripe.Event): NormalizedEvent {
 export class StripeProvider implements BillingProvider {
   readonly id = "stripe";
   readonly mode: "test" | "live";
+  get eventScope(): string { return createHash("sha256").update(`stripe:${this.mode}:${this.opts.webhookSecret}`).digest("hex"); }
   private readonly api: StripeApi;
   private readonly setupApi: StripeSetupApi;
   private readonly webhooks = Stripe.webhooks;
@@ -253,7 +257,26 @@ export class StripeProvider implements BillingProvider {
       }
       throw new WebhookRejected("unreadable_body");
     }
+    // This adapter is one merchant account, not Stripe Connect. A valid signature alone is not purchase scope.
+    if (event.livemode !== (this.mode === "live") || event.account) throw new WebhookRejected("bad_signature");
     return normalizeStripeEvent(event);
+  }
+
+  async refreshEvent(event: NormalizedEvent, now: number): Promise<NormalizedEvent> {
+    if (event.kind === "subscription") {
+      const current = await this.api.retrieveSubscription(event.subscription.ref);
+      if (!current || current.id !== event.subscription.ref) throw new Error("Stripe subscription state is unavailable");
+      return { ...event, createdAt: now, subscription: subscriptionSnapshot(current) };
+    }
+    if (event.kind === "invoice") {
+      if (!this.api.retrieveInvoice) throw new Error("Stripe invoice reconciliation is unavailable");
+      const current = await this.api.retrieveInvoice(event.invoice.ref);
+      if (current.id !== event.invoice.ref) throw new Error("Unexpected Stripe invoice");
+      const invoice = invoiceSnapshot(current, event.type);
+      if (!invoice) throw new Error("Stripe invoice is not finalized");
+      return { ...event, createdAt: now, invoice };
+    }
+    return event;
   }
 
   async createCustomer(input: { owner: OwnerRef; email: string | null; name: string | null }): Promise<string> {

@@ -1,4 +1,5 @@
 export { Billing } from "./service.js";
+export type { AdminRefundRow } from "./adminRefunds.js";
 export { type BillingConfig, billingConfig } from "./config.js";
 export { BILLING_DEFINITIONS, billingMetrics } from "./metrics.js";
 export { SANDBOX_SIGNATURE_HEADER, signSandbox } from "./providers/sandbox.js";
@@ -22,6 +23,7 @@ export type { SparkAssignmentRow } from "./mojo.js";
 export { isAddonPlanKey } from "./perks.js";
 
 export { PayPalCheckout } from "./paypalCheckout.js";
+export { PayPalProvider } from "./providers/paypal.js";
 
 export { GiftDelivery, type GiftTarget } from "./giftDelivery.js";
 
@@ -31,3 +33,10 @@ export { promotionPage, savePromotion, redeemPromotion, adminGiftPage } from "./
 
 export { PLUS_PRICE_MINOR } from "./pricing.js";
 export { pricingMigrationReport } from "./pricingMigration.js";
+
+export type { CardMandate, CardCharge } from "./cardSubscriptions.js";
+export { adminPaymentAssociation } from "./adminAssociations.js";
+
+export { AdminBillingRecords } from "./adminOperations.js";
+
+export { COMMUNITY_OFFERS } from "./providers/communityPayPal.js";

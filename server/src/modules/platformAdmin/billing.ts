@@ -1,6 +1,6 @@
-import { adminGiftPage } from "../billing/index.js";
+import { adminGiftPage, AdminBillingRecords } from "../billing/index.js";
 import type { AppContext } from "../../app/context.js";
-import { PayPalCheckout } from "../billing/index.js";
+import { PayPalCheckout, PayPalProvider } from "../billing/index.js";
 import { networkKey } from "../../app/middleware/abuse.js";
 import { ApiError, forbidden, notFound } from "../../shared/errors.js";
 import { now } from "../../shared/utilities/util.js";
@@ -20,7 +20,8 @@ import {
 } from "../billing/index.js";
 import { orgNames, orgRecord } from "../organizations/index.js";
 import type { PlatformAudit } from "./audit.js";
-import type { AdminPrincipal } from "./auth.js";
+import type { AdminAuthService, AdminPrincipal } from "./auth.js";
+import { currentFinancialPrincipal } from "./financialAuthority.js";
 import type { RequestMeta } from "./credentials.js";
 import { decodeCursor, page } from "./pagination.js";
 
@@ -40,7 +41,10 @@ export class AdminBilling {
   constructor(
     private readonly ctx: AppContext,
     private readonly audit: PlatformAudit,
+    private readonly auth?: AdminAuthService,
   ) {}
+
+  private get records() { return new AdminBillingRecords(this.ctx.billing); }
 
   private async record(
     p: AdminPrincipal,
@@ -80,10 +84,69 @@ export class AdminBilling {
 
   async refundPayPal(p: AdminPrincipal, id: string, reason: string, meta: RequestMeta) {
     const checkout = new PayPalCheckout(this.ctx.billing, this.ctx.gifts);
-    const result = await checkout.refund(id, p.account.id, reason, () =>
-      this.record(p, "billing.paypal.refund_requested", "mojo_gift", id, reason, meta, { provider: "paypal", mode: checkout.provider.mode }),
-    );
+    const result = await checkout.refund(id, p.account.id, reason, async () => {
+      const fresh = await currentFinancialPrincipal(this.ctx, this.auth, p);
+      await this.record(fresh, "billing.paypal.refund_requested", "mojo_gift", id, reason, meta, { provider: "paypal", mode: checkout.provider.mode });
+    });
     await this.record(p, "billing.paypal.refund_result", "mojo_gift", id, reason, meta, { status: result.status, reference: result.reference });
+    return result;
+  }
+
+  refundInspection(id: string) { return this.ctx.billing.adminRefunds.inspect(id); }
+
+  refundOperations(q: { status?: string; account?: string; cursor?: string; limit: number }) {
+    const rows = this.records.refundRows({ ...q, after: decodeCursor(q.cursor) });
+    const { rows: shown, nextCursor } = page(rows, q.limit);
+    return { operations: shown.map(r => this.ctx.billing.adminRefunds.view(r)), nextCursor };
+  }
+
+  async requestRefund(p: AdminPrincipal, id: string, input: { requestKey: string; amountMinor: number; currency: string; accountId: string; reason: string }, meta: RequestMeta) {
+    const result = await this.ctx.billing.adminRefunds.request(id, input, p.account.id, async r => { const fresh = await currentFinancialPrincipal(this.ctx, this.auth, p); await this.record(fresh, "billing.refund.requested", "billing_refund", r.id, input.reason, meta, { purchaseId: id, amountMinor: input.amountMinor, currency: input.currency, mode: r.provider_mode, accountId: r.account_id }); });
+    await this.record(p, "billing.refund.result", "billing_refund", result.id, input.reason, meta, { status: result.status, providerRef: result.providerRef });
+    return result;
+  }
+
+  async reconcileRefund(p: AdminPrincipal, id: string, reason: string, providerRef: string | undefined, meta: RequestMeta) {
+    const result = await this.ctx.billing.adminRefunds.reconcile(id, providerRef);
+    await this.record(p, "billing.refund.reconciled", "billing_refund", id, reason, meta, { status: result.status, providerRef: result.providerRef });
+    return result;
+  }
+
+  /** Bounded server-side merged keyset page; no browser page is used as a platform total. */
+  paypalPayments(q: { account?: string; status?: string; kind?: string; cursor?: string; limit: number }) {
+    const provider = this.ctx.billing.provider;
+    const { rows, nextCursor } = page(this.records.paymentRows({ ...q, after: decodeCursor(q.cursor) }), q.limit);
+    return { payments: rows.map(({ created_at: _created, ...r }) => r), nextCursor, configuredMode: provider?.id === "paypal" ? provider.mode : null, historicalMode: "unrecorded" as const };
+  }
+
+  cardMandates(q: { account?: string; status?: string; cursor?: string; limit: number }) {
+    const { rows, nextCursor } = page(this.records.cardRows({ ...q, after: decodeCursor(q.cursor) }), q.limit);
+    return { mandates: rows.map(m => this.records.cardView(m)), nextCursor };
+  }
+
+  cardMandate(id: string, q: { cursor?: string; limit: number }) {
+    const mandate = this.records.cardMandate(id);
+    const { rows, nextCursor } = page(this.records.chargeRows(id, { ...q, after: decodeCursor(q.cursor) }), q.limit);
+    return { mandate: this.records.cardView(mandate), charges: rows.map(r => ({ id: r.id, status: r.status, amountMinor: r.amount_minor, currency: r.currency, orderRef: r.provider_order_ref, captureRef: r.provider_capture_ref, generation: r.generation, attempts: r.attempts, processingUntil: r.lease_until, periodStart: r.period_start, periodEnd: r.period_end, createdAt: r.created_at, updatedAt: r.updated_at })), nextCursor };
+  }
+
+  async cancelCardMandate(p: AdminPrincipal, id: string, reason: string, meta: RequestMeta) {
+    const mandate = this.records.cardMandate(id), service = this.ctx.billing.cardSubscriptions;
+    if (!mandate) throw notFound("Card mandate not found");
+    if (!service) throw new ApiError(409, "billing_unavailable", "Card recurring billing is not configured on this server. Restore the original merchant configuration before operating this mandate.");
+    await this.record(p, "billing.card.cancel_requested", "billing_card_mandate", id, reason, meta, { accountId: mandate.account_id, paidThrough: mandate.paid_through });
+    await currentFinancialPrincipal(this.ctx, this.auth, p);
+    await service.cancel(mandate.account_id, id);
+    await this.record(p, "billing.card.cancel_completed", "billing_card_mandate", id, reason, meta, { paidThrough: mandate.paid_through });
+    return this.records.cardView(this.records.cardMandate(id));
+  }
+
+  async recoverCardCharge(p: AdminPrincipal, id: string, reason: string, orderRef: string | undefined, meta: RequestMeta) {
+    const service = this.ctx.billing.cardSubscriptions;
+    if (!service) throw new ApiError(409, "billing_unavailable", "Card billing is not configured; restore the original merchant configuration to reconcile its charges.");
+    await this.record(p, "billing.card.reconcile_requested", "billing_card_charge", id, reason, meta, { suppliedOrderRef: orderRef ?? null });
+    const result = await service.reconcileCharge(id, orderRef);
+    await this.record(p, "billing.card.reconciled", "billing_card_charge", id, reason, meta, { status: result.status, orderRef: result.orderRef, captureRef: result.captureRef });
     return result;
   }
 
@@ -199,14 +262,14 @@ export class AdminBilling {
     return this.one(created.id);
   }
 
-  async updatePlan(p: AdminPrincipal, planId: string, b: PlanMeta & { reason: string }, meta: RequestMeta) {
-    await this.ctx.billing.catalog.updateMeta(planId, b, now());
+  async updatePlan(p: AdminPrincipal, planId: string, b: PlanMeta & { reason: string; expectedUpdatedAt: number }, meta: RequestMeta) {
+    await this.ctx.billing.catalog.updateMeta(planId, b, now(), b.expectedUpdatedAt);
     await this.record(p, "billing.plan_update", "billing_plan", planId, b.reason, meta, { name: b.name, public: b.public });
     return this.one(planId);
   }
 
-  async saveDraft(p: AdminPrincipal, planId: string, terms: PlanTerms, reason: string, meta: RequestMeta) {
-    const v = await this.ctx.billing.catalog.saveDraft(planId, terms, p.account.id, now());
+  async saveDraft(p: AdminPrincipal, planId: string, terms: PlanTerms, reason: string, meta: RequestMeta, expectedUpdatedAt: number) {
+    const v = await this.ctx.billing.catalog.saveDraft(planId, terms, p.account.id, now(), expectedUpdatedAt);
     await this.record(p, "billing.plan_draft", "billing_plan", planId, reason, meta, {
       version: v.version,
       price: `${terms.amountMinor} ${terms.currency}/${terms.interval}`,
@@ -217,17 +280,17 @@ export class AdminBilling {
   }
 
   /** Publishes the draft for new subscribers. Existing subscribers keep the version they're on. */
-  async publish(p: AdminPrincipal, planId: string, reason: string, meta: RequestMeta) {
+  async publish(p: AdminPrincipal, planId: string, reason: string, meta: RequestMeta, expectedUpdatedAt: number) {
     if (this.ctx.billing.catalog.plan(planId)?.key === "go") throw new ApiError(400, "bad_request", "Go is retired and cannot be published.");
     const provider = this.ctx.billing.provider;
     if (!provider) throw new ApiError(409, "billing_unavailable", this.ctx.billing.unavailableReason ?? "Billing isn't available");
-    const { published, retired } = await this.ctx.billing.catalog.publish(planId, provider.id, p.account.id, now());
+    const { published, retired } = await this.ctx.billing.catalog.publish(planId, provider.id, p.account.id, now(), expectedUpdatedAt);
     await this.record(p, "billing.plan_publish", "billing_plan", planId, reason, meta, { version: published.version, provider: provider.id, retiredVersion: retired?.version ?? null });
     return this.one(planId);
   }
 
-  async archive(p: AdminPrincipal, planId: string, reason: string, meta: RequestMeta) {
-    await this.ctx.billing.catalog.archive(planId, now());
+  async archive(p: AdminPrincipal, planId: string, reason: string, meta: RequestMeta, expectedUpdatedAt: number) {
+    await this.ctx.billing.catalog.archive(planId, now(), expectedUpdatedAt);
     await this.record(p, "billing.plan_archive", "billing_plan", planId, reason, meta, {});
     return this.one(planId);
   }
@@ -245,6 +308,7 @@ export class AdminBilling {
       status: s.status,
       standing: this.ctx.billing.subscriptions.standingOf(s, t),
       provider: s.provider,
+      providerMode: s.provider_mode ?? null,
       providerSubscriptionRef: s.provider_subscription_ref,
       currentPeriodEnd: s.current_period_end,
       cancelAtPeriodEnd: !!s.cancel_at_period_end,
@@ -253,7 +317,7 @@ export class AdminBilling {
     };
   }
 
-  subscriptions(q: { status?: string; plan?: string; org?: string; cursor?: string; limit: number }) {
+  subscriptions(q: { status?: string; plan?: string; org?: string; account?: string; mode?: "test" | "live" | "unclassified"; provider?: string; currency?: string; cursor?: string; limit: number }) {
     const rows = subscriptionRows(this.ctx.billing.rows, { ...q, after: decodeCursor(q.cursor) });
     const { rows: shown, nextCursor } = page(rows, q.limit);
     const names = orgNames(this.ctx.ws, [...new Set(shown.flatMap((s) => (s.org_id ? [s.org_id] : [])))]);
@@ -290,6 +354,7 @@ export class AdminBilling {
       })),
       invoices: invoices.map((i) => ({
         id: i.id,
+        providerMode: i.provider_mode ?? null,
         providerInvoiceRef: i.provider_invoice_ref,
         status: i.status,
         currency: i.currency,
@@ -333,6 +398,7 @@ export class AdminBilling {
     if (!s) throw notFound("No such subscription");
     const provider = this.ctx.billing.provider;
     const meldiq = this.stateOf(s);
+    if (provider?.id !== s.provider || !provider.fetchSubscription) throw new ApiError(409, "billing_unavailable", `The ${s.provider} channel cannot be queried through the configured provider. Review this subscription in its owning provider console.`);
     let atProvider: typeof meldiq | null = null;
     if (provider?.id === s.provider && provider.fetchSubscription) {
       let snap;
@@ -355,11 +421,52 @@ export class AdminBilling {
     if (!s) throw notFound("No such subscription");
     if (this.ctx.billing.provider?.id !== s.provider) throw new ApiError(409, "billing_unavailable", "This subscription's payment provider isn't configured on this server");
     const before = this.stateOf(s);
-    await this.ctx.billing.reconcileRefs([s.provider_subscription_ref]);
+    const snapshots = await this.ctx.billing.reconcileRefs([s.provider_subscription_ref]);
+    if (snapshots.length === 0) throw new ApiError(503, "unavailable", "The provider state could not be read and applied. Nothing is confirmed recovered; retry reconciliation after the provider is available.");
     const after = this.stateOf(this.ctx.billing.subscriptions.get(id)!);
     const changed = AdminBilling.differences(before, after);
     await this.record(p, "billing.subscription_resync", "billing_subscription", id, reason, meta, { changed: changed.join(",") || "nothing", statusBefore: before.status, statusAfter: after.status });
     return { before, after, changed };
+  }
+
+  cancellationOperation(id: string) { return this.records.cancellationOperation(id); }
+
+  /** Stop future PayPal collections using its existing cancellation policy; paid-through access remains provider-derived. */
+  async cancelSubscription(p: AdminPrincipal, id: string, reason: string, meta: RequestMeta) {
+    const s = this.ctx.billing.subscriptions.get(id), provider = this.ctx.billing.provider;
+    if (!s) throw notFound("Subscription not found");
+    if (s.provider !== "paypal" || !(provider instanceof PayPalProvider)) throw conflictForProvider();
+    if (s.provider_subscription_ref.startsWith("card_")) throw conflictForProvider();
+    const snapshots = await this.ctx.billing.reconcileRefs([s.provider_subscription_ref]);
+    if (!snapshots.length) throw new ApiError(503, "unavailable", "PayPal state could not be verified. No cancellation was requested.");
+    const current = this.ctx.billing.subscriptions.get(id)!;
+    const complete = () => { const row = this.ctx.billing.subscriptions.get(id)!; return !!row.cancel_at_period_end || row.status === "canceled"; };
+    if (current.status === "incomplete" || current.status === "incomplete_expired") throw new ApiError(409, "conflict", "This subscription is still awaiting approval or has expired; it has no confirmed recurring mandate to cancel.");
+    const key = `admin-cancel:${id}`;
+    if (complete()) return { confirmed: true, status: current.status, accessUntil: current.current_period_end, operationId: key };
+    const reserved = await this.records.reserveCancellation(key, s.provider_subscription_ref, p.account.id, reason, now());
+    const waiting = this.records.cancellationStatus(key);
+    if (reserved || waiting === "reserved") {
+      const claimed = await this.records.claimCancellation(key, now());
+      if (claimed) {
+        let dispatched = false;
+        try {
+          await provider.cancelSubscription(s.provider_subscription_ref, "administrator", async () => {
+            const fresh = await currentFinancialPrincipal(this.ctx, this.auth, p);
+            await this.record(fresh, "billing.subscription.cancel_requested", "billing_subscription", id, reason, meta, { operationId: key, provider: "paypal", mode: provider.mode, accountId: s.account_id, orgId: s.org_id });
+            dispatched = true;
+          });
+        } catch (error) {
+          if (!dispatched) { await this.records.failCancellationBeforeDispatch(key, now()); throw error; }
+          // After dispatch, read the provider before claiming cancellation succeeded.
+        }
+      }
+    }
+    const verified = await this.ctx.billing.reconcileRefs([s.provider_subscription_ref]);
+    const confirmed = verified.length > 0 && complete(), updated = this.ctx.billing.subscriptions.get(id)!;
+    await this.records.finishCancellation(key, confirmed, s.provider_subscription_ref, now());
+    await this.record(p, "billing.subscription.cancel_result", "billing_subscription", id, reason, meta, { operationId: key, confirmed, status: updated.status });
+    return { confirmed, status: updated.status, accessUntil: updated.current_period_end, operationId: key };
   }
 
   /** The organization's subscription for its console page, if one isn't over. */
@@ -372,14 +479,15 @@ export class AdminBilling {
 
   // ───────────── Provider events and figures ─────────────
 
-  events(q: { status?: string; cursor?: string; limit: number }) {
-    const rows = eventRows(this.ctx.billing.rows, { status: q.status, after: decodeCursor(q.cursor), limit: q.limit });
+  events(q: { status?: string; provider?: string; mode?: "test" | "live" | "unclassified"; from?: number; to?: number; cursor?: string; limit: number }) {
+    const rows = eventRows(this.ctx.billing.rows, { ...q, after: decodeCursor(q.cursor) });
     const { rows: shown, nextCursor } = page(rows, q.limit);
     return {
       events: shown.map((e) => ({
         id: e.id,
         provider: e.provider,
         eventRef: e.event_ref,
+        environment: e.provider_mode === "test" || e.provider_mode === "live" ? e.provider_mode : "unclassified",
         type: e.type,
         status: e.status,
         attempts: e.attempts,
@@ -400,7 +508,9 @@ export class AdminBilling {
     return { status };
   }
 
-  metrics(days: number) {
-    return { setup: this.setup(), ...billingMetrics(this.ctx.billing.rows, days, now()), definitions: BILLING_DEFINITIONS };
+  metrics(days: number, filter: { provider?: string; currency?: string; mode?: "test" | "live" | "unclassified" } = {}) {
+    return { setup: this.setup(), ...billingMetrics(this.ctx.billing.rows, days, now(), filter), definitions: BILLING_DEFINITIONS };
   }
 }
+
+const conflictForProvider = () => new ApiError(409, "billing_unavailable", "This purchase channel owns cancellation. Use its provider console; a local status edit cannot cancel future charges.");

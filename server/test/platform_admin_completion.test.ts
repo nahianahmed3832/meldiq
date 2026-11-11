@@ -89,14 +89,14 @@ describe("central moderation", () => {
 describe("explicit administrative permissions", () => {
   it("prevents privilege escalation and self/owner restriction", async () => {
     const target = support.account.accountId;
-    await support.browser.expect(403, "PUT", `/admin/v1/admins/${target}/permissions`, { permissions: ["admins.manage"], reason });
-    await owner.browser.expect(400, "PUT", `/admin/v1/admins/${target}/permissions`, { permissions: ["admins.manage"], reason });
-    await owner.browser.expect(403, "PUT", `/admin/v1/admins/${owner.account.accountId}/permissions`, { permissions: [], reason });
-    await owner.browser.expect(400, "PUT", `/admin/v1/admins/${target}/permissions`, { permissions: ["unknown"], reason });
+    await support.browser.expect(403, "PUT", `/admin/v1/admins/${target}/permissions`, { permissions: ["admins.manage"], reason, expectedUpdatedAt: h.ctx.platform.get<{ updated_at: number }>("platform_admins", { account_id: target })!.updated_at });
+    await owner.browser.expect(400, "PUT", `/admin/v1/admins/${target}/permissions`, { permissions: ["admins.manage"], reason, expectedUpdatedAt: h.ctx.platform.get<{ updated_at: number }>("platform_admins", { account_id: target })!.updated_at });
+    await owner.browser.expect(403, "PUT", `/admin/v1/admins/${owner.account.accountId}/permissions`, { permissions: [], reason, expectedUpdatedAt: h.ctx.platform.get<{ updated_at: number }>("platform_admins", { account_id: owner.account.accountId })!.updated_at });
+    await owner.browser.expect(400, "PUT", `/admin/v1/admins/${target}/permissions`, { permissions: ["unknown"], reason, expectedUpdatedAt: h.ctx.platform.get<{ updated_at: number }>("platform_admins", { account_id: target })!.updated_at });
   });
   it("ends sessions and enforces reduced grants in routes, nested data, search and exports", async () => {
     const target = support.account.accountId;
-    const changed = await owner.browser.expect(200, "PUT", `/admin/v1/admins/${target}/permissions`, { permissions: ["overview.view", "users.view"], reason });
+    const changed = await owner.browser.expect(200, "PUT", `/admin/v1/admins/${target}/permissions`, { permissions: ["overview.view", "users.view"], reason, expectedUpdatedAt: h.ctx.platform.get<{ updated_at: number }>("platform_admins", { account_id: target })!.updated_at });
     expect(AdminPermissionView.safeParse(changed).success).toBe(true);
     await support.browser.expect(401, "GET", "/admin/v1/me");
     const restricted = await signIn(h, support);
@@ -107,7 +107,7 @@ describe("explicit administrative permissions", () => {
     const ov = await restricted.expect(200, "GET", "/admin/v1/overview");
     expect(ov.health).toBeNull();
     expect((await restricted.expect(200, "GET", "/admin/v1/search?q=community")).organizations).toBeNull();
-    await owner.browser.expect(200, "PUT", `/admin/v1/admins/${target}/permissions`, { permissions: null, reason });
+    await owner.browser.expect(200, "PUT", `/admin/v1/admins/${target}/permissions`, { permissions: null, reason, expectedUpdatedAt: h.ctx.platform.get<{ updated_at: number }>("platform_admins", { account_id: target })!.updated_at });
   });
 });
 

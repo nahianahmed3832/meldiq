@@ -18,6 +18,8 @@ import partnerAdminRoutes from "./partners.js";
 import operationsAdminRoutes from "./operations.js";
 import { gate } from "./guards.js";
 import { PlatformAdminStore } from "./store.js";
+import { exportJobRoutes } from "./exportJobs.js";
+import { readAdminAccountAuthority } from "./authority.js";
 
 export { PlatformAudit } from "./audit.js";
 export { PlatformAdminStore } from "./store.js";
@@ -30,7 +32,7 @@ export {
   revokeAdmin,
 } from "./bootstrap.js";
 export { PLATFORM_ROLES, type PlatformRole } from "./permissions.js";
-export { platformSetting, SETTINGS, type SettingKey } from "./settings.js";
+export { platformSetting, communityClipsBlocked, SETTINGS, type SettingKey } from "./settings.js";
 
 /**
  * The Platform Admin Console's API (meldiq_central_admin/docs/ARCHITECTURE_PROPOSAL.md): /admin/v1, registered only
@@ -44,7 +46,7 @@ export async function registerPlatformAdmin(
 ): Promise<void> {
   const cfg = ctx.config.adminConsole;
   if (!cfg) return;
-  const store = new PlatformAdminStore(ctx.platform, ctx.ephemeral);
+  const store = new PlatformAdminStore(ctx.platform, ctx.ephemeral, id => readAdminAccountAuthority(ctx, id));
   const audit = new PlatformAudit(ctx.platform);
   const auth = new AdminAuthService(ctx, cfg, store, audit);
   await app.register(async (scope) => {
@@ -58,6 +60,7 @@ export async function registerPlatformAdmin(
     await collectibleCommerceAdminRoutes(scope, deps);
     await adminOpsRoutes(scope, deps);
     await adminInsightsRoutes(scope, deps);
+    await exportJobRoutes(scope, deps);
     await adminDecorationRoutes(scope, deps);
     await collectibleAdminRoutes(scope, deps);
     await adminCreatorRoutes(scope, deps);
@@ -82,3 +85,7 @@ export {
 export { runtimePolicy, inRollout } from "./runtimePolicy.js";
 
 export { hasPlatformAdminAccount } from "./audience.js";
+
+export { hasRecentOrgSafetyAction } from "./auditView.js";
+
+export { currentFinancialPrincipal } from "./financialAuthority.js";

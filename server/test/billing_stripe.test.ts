@@ -28,6 +28,8 @@ class FakeStripe implements StripeApi {
   expired: string[] = [];
   portals: Stripe.BillingPortal.SessionCreateParams[] = [];
   subscriptions = new Map<string, Stripe.Subscription>();
+  invoices = new Map<string, Stripe.Invoice>();
+  failReads = false;
   private n = 0;
 
   async createCustomer(params: Stripe.CustomerCreateParams) {
@@ -47,8 +49,10 @@ class FakeStripe implements StripeApi {
     return { url: `https://billing.stripe.test/p/session/${this.portals.length}` };
   }
   async retrieveSubscription(id: string) {
+    if (this.failReads) throw new Error("Temporary read failure");
     return this.subscriptions.get(id) ?? null;
   }
+  async retrieveInvoice(id: string) { const invoice = this.invoices.get(id); if (!invoice) throw new Error("Invoice unavailable"); return invoice; }
 }
 
 let seq = 0;
@@ -135,6 +139,12 @@ describe("Stripe webhook verification and mapping", () => {
     expect(reason(() => p.verifyWebhook({ [STRIPE_SIGNATURE_HEADER]: sign(body, secs(Date.now()) - 600) }, body, Date.now()))).toBe("stale_timestamp");
     expect(reason(() => p.verifyWebhook({ [STRIPE_SIGNATURE_HEADER]: "t=1,v1=abc" }, body, Date.now()))).toBe("bad_signature");
   });
+  it("rejects a correctly signed event from live mode or a Connect account", () => {
+    for (const extra of [{ livemode: true }, { account: "acct_another" }]) {
+      const payload = JSON.stringify({ ...JSON.parse(body), ...extra });
+      expect(reason(() => p.verifyWebhook({ [STRIPE_SIGNATURE_HEADER]: sign(payload) }, payload, Date.now()))).toBe("bad_signature");
+    }
+  });
 
   it("maps invoices (subscription through the invoice's parent), checkouts, refunds and unknown types", () => {
     const inv = normalizeStripeEvent(
@@ -173,7 +183,10 @@ describe("with Stripe in test mode", () => {
   let orgId: string;
   let quotaPlanId: string;
 
-  const deliver = async (event: object) => {
+  const deliver = async (event: object, updateProvider = true) => {
+    const snapshot = event as { type: string; data?: { object?: any } };
+    if (updateProvider && snapshot.type.startsWith("customer.subscription.") && snapshot.data?.object) stripe.subscriptions.set(snapshot.data.object.id, snapshot.data.object);
+    if (updateProvider && snapshot.type.startsWith("invoice.") && snapshot.data?.object) stripe.invoices.set(snapshot.data.object.id, snapshot.data.object);
     const payload = JSON.stringify(event);
     const res = await h.app.inject({
       method: "POST",
@@ -194,7 +207,7 @@ describe("with Stripe in test mode", () => {
       terms: { interval: "month", currency: "USD", amountMinor: 500, providerPriceRef: price, trialDays: 0, graceDays: 3, limits: {}, notes: "", ...extra },
       reason: REASON,
     });
-    await admin.browser.expect(200, "POST", `/admin/v1/billing/plans/${r.id}/publish`, { reason: REASON });
+    await admin.browser.expect(200, "POST", `/admin/v1/billing/plans/${r.id}/publish`, { reason: REASON, expectedUpdatedAt: h.ctx.billing.catalog.plan(r.id)!.updated_at });
     return r.id as string;
   };
   const entitlements = async (c: AccountClient) => {
@@ -324,7 +337,8 @@ describe("with Stripe in test mode", () => {
       const created = stripeEvent("customer.subscription.created", sub("incomplete"), t);
       const active = stripeEvent("customer.subscription.updated", sub("active"), t + 2);
       expect((await deliver(active)).body).toEqual({ received: true, duplicate: false, status: "processed" });
-      expect((await deliver(created)).body.status).toBe("ignored");
+      // A delayed payload is only a trigger; Stripe's GET still answers the active subscription.
+      expect((await deliver(created, false)).body.status).toBe("processed");
       expect((await deliver(active)).body).toEqual({ received: true, duplicate: true, status: "processed" });
       const e = await entitlements(alice);
       expect(e.personal).toMatchObject({ plan: { key: "premium" }, standing: "entitled", renews: true, quotaPlanId, subscription: { status: "active", provider: "stripe", interval: "month" } });
@@ -370,8 +384,47 @@ describe("with Stripe in test mode", () => {
         }),
       );
       expect(r.body.status).toBe("processed");
+      expect(h.ctx.billing.rows.get("billing_subscriptions", { provider_subscription_ref: "sub_alice" })).toMatchObject({ provider_mode: "test" });
+      expect(h.ctx.billing.rows.get("billing_invoices", { provider_invoice_ref: "in_alice_2" })).toMatchObject({ provider_mode: "test" });
       expect((await entitlements(alice)).personal.accessUntil).toBe(secs(periodEnd) * 1000);
       expect((await alice.req("GET", "/v2/billing/account")).invoices).toMatchObject([{ status: "paid", amountPaidMinor: 500, currency: "USD" }]);
+    });
+
+    it("keeps legacy attribution unknown and rejects new-record environment changes", async () => {
+      const prior = h.ctx.billing.rows.get<{ id: string }>("billing_subscriptions", { provider_subscription_ref: "sub_alice" })!;
+      const current = stripe.subscriptions.get("sub_alice")!;
+      await h.ctx.billing.rows.write(w => w.update("billing_subscriptions", { id: prior.id }, { provider_mode: "live" }));
+      expect((await deliver(stripeEvent("customer.subscription.updated", current))).body.status).toBe("failed");
+      await h.ctx.billing.rows.write(w => w.update("billing_subscriptions", { id: prior.id }, { provider_mode: null, provider_scope: null }));
+      expect((await deliver(stripeEvent("customer.subscription.updated", current))).body.status).toBe("processed");
+      expect(h.ctx.billing.subscriptions.get(prior.id)?.provider_mode).toBeNull();
+      // Restore the fixture's known origin for the remaining independent lifecycle cases.
+      await h.ctx.billing.rows.write(w => w.update("billing_subscriptions", { id: prior.id }, { provider_mode: "test", provider_scope: h.ctx.billing.provider!.eventScope }));
+    });
+
+    it("rejects an existing provider subscription whose current checkout or customer binding changes", async () => {
+      const original = stripe.subscriptions.get("sub_alice")!;
+      const event = stripeEvent("customer.subscription.updated", { ...original, metadata: { meldiq_checkout: "chk_another_owner" }, customer: "cus_other_owner" });
+      expect((await deliver(event)).body.status).toBe("failed");
+      expect(h.ctx.billing.rows.get<{ provider_customer_ref: string }>("billing_subscriptions", { provider_subscription_ref: "sub_alice" })?.provider_customer_ref).toBe("cus_fake_1");
+      stripe.subscriptions.set("sub_alice", original);
+    });
+
+    it("uses the current invoice for a reordered same-second failure payload and retries failed reads durably", async () => {
+      const paid = stripe.invoices.get("in_alice_2")!;
+      const event = stripeEvent("invoice.payment_failed", { ...paid, status: "open", amount_paid: 0 }, secs(Date.now()));
+      expect((await deliver(event, false)).body.status).toBe("processed");
+      expect(h.ctx.billing.rows.get<{ status: string; amount_paid_minor: number }>("billing_invoices", { provider_invoice_ref: paid.id })).toMatchObject({ status: "paid", amount_paid_minor: 500 });
+      const subscription = stripe.subscriptions.get("sub_alice")!;
+      const retry = stripeEvent("customer.subscription.updated", { ...subscription, status: "unpaid" }, secs(Date.now()));
+      stripe.failReads = true;
+      expect((await deliver(retry, false)).body.status).toBe("failed");
+      const stored = h.ctx.billing.rows.get<{ id: string; status: string }>("billing_provider_events", { event_ref: retry.id })!;
+      expect(h.ctx.billing.rows.get<{ status: string }>("billing_subscriptions", { provider_subscription_ref: "sub_alice" })?.status).toBe("active");
+      stripe.failReads = false;
+      expect(await admin.browser.expect(200, "POST", `/admin/v1/billing/events/${stored.id}/replay`, { reason: "Recover current state after provider outage" })).toEqual({ status: "processed" });
+      expect(h.ctx.billing.rows.get<{ status: string }>("billing_subscriptions", { provider_subscription_ref: "sub_alice" })?.status).toBe("active");
+      expect((await deliver(retry, false)).body.duplicate).toBe(true);
     });
 
     it("keeps the plan through the grace days after a failed payment, then not once retries are exhausted", async () => {
@@ -556,7 +609,7 @@ describe("another provider normalized into the same entitlements (isolated test 
       terms: { interval: "month", currency: "USD", amountMinor: 500, providerPriceRef: "store.premium.monthly", trialDays: 0, graceDays: 3, limits: {}, notes: "" },
       reason: REASON,
     });
-    await admin.browser.expect(200, "POST", `/admin/v1/billing/plans/${r.id}/publish`, { reason: REASON });
+    await admin.browser.expect(200, "POST", `/admin/v1/billing/plans/${r.id}/publish`, { reason: REASON, expectedUpdatedAt: h.ctx.billing.catalog.plan(r.id)!.updated_at });
     dana = new AccountClient(h.baseUrl, email("dana"), PASSWORD, "dana");
     await dana.signUp(mailer);
     await dana.signIn();

@@ -71,6 +71,7 @@ function oidc(claims: Record<string, unknown> = {}, kid = "test-key"): string {
 }
 
 class QuietStripe implements StripeApi {
+  subscriptions = new Map<string, Stripe.Subscription>();
   private n = 0;
   async createCustomer() {
     return { id: `cus_play_${++this.n}` };
@@ -83,14 +84,15 @@ class QuietStripe implements StripeApi {
   async createPortalSession() {
     return { url: "https://billing.stripe.test/p" };
   }
-  async retrieveSubscription() {
-    return null;
+  async retrieveSubscription(id: string) {
+    return this.subscriptions.get(id) ?? null;
   }
 }
 
 describe("Meldiq Plus on Google Play", () => {
   let h: Harness;
   const mailer = new MemoryMailer();
+  const stripe = new QuietStripe();
   const google = new FakePlay();
   let n = 0;
   let buyer: AccountClient, other: AccountClient, friend: AccountClient, webBuyer: AccountClient, gifter: AccountClient;
@@ -105,6 +107,7 @@ describe("Meldiq Plus on Google Play", () => {
     expect(intent.accountToken).toBe(accountToken(SECRET, c.accountId));
     const token = `play-token-${++n}-${"x".repeat(40)}`;
     google.subs.set(token, {
+      testPurchase: {},
       subscriptionState: opts.state ?? "SUBSCRIPTION_STATE_ACTIVE",
       startTime: iso(Date.now()),
       acknowledgementState: "ACKNOWLEDGEMENT_STATE_PENDING",
@@ -137,7 +140,7 @@ describe("Meldiq Plus on Google Play", () => {
     });
 
   beforeAll(async () => {
-    const provider = new StripeProvider({ secretKey: SK, webhookSecret: WHSEC, allowPromotionCodes: false, api: new QuietStripe() });
+    const provider = new StripeProvider({ secretKey: SK, webhookSecret: WHSEC, allowPromotionCodes: false, api: stripe });
     h = await startServer(
       { BILLING_PROVIDER: "stripe", STRIPE_SECRET_KEY: SK, STRIPE_WEBHOOK_SECRET: WHSEC, BILLING_RETURN_URL: "https://meldiq.test/account/billing", WORKFLOW_TICK_MS: "0" },
       { mailer, billingProvider: provider, play },
@@ -171,7 +174,25 @@ describe("Meldiq Plus on Google Play", () => {
       // The raw token is never a reference: subscriptions and events carry its hash.
       const row = h.ctx.billing.rows.get<{ provider_subscription_ref: string }>("billing_subscriptions", { provider: "google_play" })!;
       expect(row.provider_subscription_ref).toBe(tokenHash(plusToken));
+      expect(h.ctx.billing.rows.get("billing_subscriptions", { provider_subscription_ref: tokenHash(plusToken) })).toMatchObject({ provider_mode: "test", provider_scope: `google_play:${PACKAGE}` });
       expect(JSON.stringify(h.ctx.billing.rows.all("billing_provider_events", { where: { provider: "google_play" } }))).not.toContain(plusToken);
+    });
+
+    it("replays a failed old notification using current Google state and fails closed when its provider is disabled", async () => {
+      const stored = h.ctx.billing.rows.all<{ summary: string }>("billing_provider_events", { where: { provider: "google_play" }, limit: 1 })[0]!;
+      const old = JSON.parse(stored.summary);
+      old.ref = "play-delayed-state-recovery"; old.subscription.status = "paused";
+      google.down = true;
+      expect((await h.ctx.billing.webhooks.ingest("google_play", old)).status).toBe("failed");
+      google.down = false;
+      const failed = h.ctx.billing.rows.get<{ id: string }>("billing_provider_events", { provider: "google_play", event_ref: old.ref })!;
+      expect(await h.ctx.billing.webhooks.replay(failed.id)).toBe("processed");
+      expect((await planOf(buyer)).subscription.status).toBe("active");
+      const refresh = h.ctx.billing.webhooks.refreshers.get("google_play")!;
+      h.ctx.billing.webhooks.refreshers.delete("google_play");
+      try { expect((await h.ctx.billing.webhooks.ingest("google_play", { ...old, ref: "play-disabled-replay" })).status).toBe("failed"); }
+      finally { h.ctx.billing.webhooks.refreshers.set("google_play", refresh); }
+      expect((await planOf(buyer)).subscription.status).toBe("active");
     });
 
     it("answers the same again when the app sends the token twice (restore, reconcile)", async () => {
@@ -265,6 +286,7 @@ describe("Meldiq Plus on Google Play", () => {
           metadata: { meldiq_checkout: intent.checkoutId },
           items: { object: "list", data: [{ id: "si_web", object: "subscription_item", price: { id: "price_plus" }, quantity: 1, current_period_start: Math.floor(Date.now() / 1000), current_period_end: Math.floor((Date.now() + 30 * DAY_MS) / 1000) }] } } },
       });
+      stripe.subscriptions.set("sub_web_1", JSON.parse(payload).data.object);
       const res = await h.app.inject({
         method: "POST", url: "/v1/billing/webhooks/stripe", payload,
         headers: { "content-type": "application/json", [STRIPE_SIGNATURE_HEADER]: Stripe.webhooks.generateTestHeaderString({ payload, secret: WHSEC }) },

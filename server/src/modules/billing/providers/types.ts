@@ -1,3 +1,5 @@
+export interface ProviderSource { mode: "test" | "live"; scope: string | null; }
+
 import type { SubscriptionStatus } from "../lifecycle.js";
 
 /**
@@ -13,6 +15,8 @@ export interface BillingProvider {
   readonly id: string;
   /** "test": sandbox or test keys, never real money. "live": real charges. */
   readonly mode: "test" | "live";
+  /** Opaque source binding for durable replay; never a provider credential. */
+  readonly eventScope?: string;
   readonly supportsOneTimePurchases?: boolean;
   readonly supportsSparkPurchases?: boolean;
   /**
@@ -20,6 +24,8 @@ export interface BillingProvider {
    * Throws [WebhookRejected] when the signature or the body can't be trusted.
    */
   verifyWebhook(headers: Readonly<Record<string, string | string[] | undefined>>, rawBody: string, now: number): NormalizedEvent | Promise<NormalizedEvent>;
+  /** Durable event processing/replay may require a current provider read instead of trusting payload ordering. */
+  refreshEvent?(event: NormalizedEvent, now: number): Promise<NormalizedEvent>;
   /** Starts a hosted checkout for [priceRef]; [reference] must come back in the subscription events it produces. */
   createCheckout(input: CheckoutInput): Promise<{ sessionRef: string; url: string | null }>;
   /**

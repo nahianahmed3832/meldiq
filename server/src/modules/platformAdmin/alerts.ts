@@ -1,4 +1,5 @@
 import type { AppContext } from "../../app/context.js";
+import type { RowWriter } from "../../infrastructure/database/rows/index.js";
 import { ApiError } from "../../shared/errors.js";
 import { newId, now } from "../../shared/utilities/util.js";
 import { signupsSince } from "../accounts/index.js";
@@ -246,6 +247,7 @@ export interface RuleView {
   windowMinutes: number;
   severity: Severity;
   isDefault: boolean;
+  updatedAt: number | null;
   state: { breaching: boolean; since: number | null; lastValue: number | null; lastEvalAt: number | null; incidentId: string | null };
 }
 
@@ -290,19 +292,32 @@ export class AlertEngine {
         description: def.description,
         ...c,
         isDefault: !o.has(def.key),
+        updatedAt: o.get(def.key)?.updated_at ?? null,
         state: { breaching: !!s?.breaching, since: s?.since ?? null, lastValue: s?.last_value ?? null, lastEvalAt: s?.last_eval_at ?? null, incidentId: s?.incident_id ?? null },
       };
     });
   }
 
-  /** Changes a rule's settings (the caller audits it). */
-  async setRule(key: string, patch: { enabled: boolean; threshold: number; windowMinutes: number; severity: Severity }, actor: string): Promise<RuleView> {
+  /** Applies the reviewed revision and its audit in the same durable unit. */
+  async setRule(
+    key: string,
+    patch: { enabled: boolean; threshold: number; windowMinutes: number; severity: Severity; expectedUpdatedAt: number | null },
+    actor: string,
+    record: (w: RowWriter, before: Pick<RuleView, "enabled" | "threshold" | "windowMinutes" | "severity" | "updatedAt">, after: Pick<RuleView, "enabled" | "threshold" | "windowMinutes" | "severity" | "updatedAt">) => void,
+  ): Promise<RuleView> {
     const def = ruleByKey(key);
     if (!def) throw new ApiError(404, "not_found", "No such alert rule.");
     if (!Number.isFinite(patch.threshold) || patch.threshold < 0) throw new ApiError(400, "invalid_policy", "The threshold is a number, 0 or more.");
     if (!Number.isInteger(patch.windowMinutes) || patch.windowMinutes < 1 || patch.windowMinutes > 1440) throw new ApiError(400, "invalid_policy", "The window is 1–1440 minutes.");
-    const rule = { enabled: patch.enabled ? 1 : 0, threshold: patch.threshold, window_minutes: patch.windowMinutes, severity: patch.severity, updated_by: actor, updated_at: now() };
-    await this.ctx.platform.write((w) => w.upsert("alert_rules", { key, ...rule }, rule));
+    await this.ctx.platform.write((w) => {
+      const current = w.get<RuleRow>("alert_rules", { key });
+      const updatedAt = current?.updated_at ?? null;
+      if (updatedAt !== patch.expectedUpdatedAt) throw new ApiError(409, "conflict", "This alert rule changed. Review the latest saved rule before saving your changes.");
+      const revision = Math.max(now(), (updatedAt ?? 0) + 1);
+      const rule = { enabled: patch.enabled ? 1 : 0, threshold: patch.threshold, window_minutes: patch.windowMinutes, severity: patch.severity, updated_by: actor, updated_at: revision };
+      w.upsert("alert_rules", { key, ...rule }, rule);
+      record(w, { ...this.config(def, current), updatedAt }, { enabled: patch.enabled, threshold: patch.threshold, windowMinutes: patch.windowMinutes, severity: patch.severity, updatedAt: revision });
+    });
     return this.rules().find((r) => r.key === key)!;
   }
 

@@ -25,14 +25,16 @@ function pageAfter<R extends { id: string }>(rows: R[], time: (r: R) => number, 
   return rest.sort((a, b) => time(b) - time(a) || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0)).slice(0, limit + 1);
 }
 
-export function subscriptionRows(rows: RowReader, q: { status?: string; plan?: string; org?: string; account?: string; after?: After; limit: number }): SubscriptionRow[] {
+export function subscriptionRows(rows: RowReader, q: { status?: string; plan?: string; org?: string; account?: string; mode?: "test" | "live" | "unclassified"; provider?: string; currency?: string; after?: After; limit: number }): SubscriptionRow[] {
   const where: Where = { ...afterWhere("created_at", q.after) };
+  if (q.mode) where.provider_mode = q.mode === "unclassified" ? null : q.mode;
+  if (q.provider) where.provider = q.provider;
   if (q.status) where.status = q.status;
   if (q.org) where.org_id = q.org;
   if (q.account) where.account_id = q.account;
-  if (q.plan) {
-    const plan = rows.get<{ id: string }>("billing_plans", { key: q.plan });
-    where.plan_version_id = { in: plan ? rows.all<{ id: string }>("billing_plan_versions", { where: { plan_id: plan.id } }).map((v) => v.id) : [] };
+  if (q.plan || q.currency) {
+    const plan = q.plan ? rows.get<{ id: string }>("billing_plans", { key: q.plan }) : null;
+    where.plan_version_id = { in: q.plan && !plan ? [] : rows.all<{ id: string }>("billing_plan_versions", { where: { ...(plan ? { plan_id: plan.id } : {}), ...(q.currency ? { currency: q.currency } : {}) } }).map(v => v.id) };
   }
   return pageAfter(rows.all<SubscriptionRow>("billing_subscriptions", { where }), (r) => r.created_at, q.after, q.limit);
 }
@@ -48,6 +50,7 @@ export interface HistoryRow {
 
 export interface InvoiceRow {
   id: string;
+  provider_mode?: "test" | "live" | null;
   provider_invoice_ref: string;
   status: string;
   currency: string;
@@ -77,6 +80,7 @@ export function subscriptionRecords(rows: RowReader, id: string, limit: number) 
 }
 
 export interface EventListRow {
+  provider_mode: string | null;
   id: string;
   provider: string;
   event_ref: string;
@@ -92,11 +96,21 @@ export interface EventListRow {
   subscription_id: string | null;
 }
 
-export function eventRows(rows: RowReader, q: { status?: string; after?: After; limit: number }): EventListRow[] {
-  const where: Where = { ...afterWhere("received_at", q.after) };
-  if (q.status) where.status = q.status;
-  const all = rows.all<Omit<EventListRow, "created_at"> & { received_at: number }>("billing_provider_events", { where });
-  return pageAfter(all, (r) => r.received_at, q.after, q.limit).map(({ received_at, ...e }) => ({ ...e, created_at: received_at }));
+export function eventRows(rows: RowReader, q: { status?: string; provider?: string; mode?: "test" | "live" | "unclassified"; from?: number; to?: number; after?: After; limit: number }): EventListRow[] {
+  const upper = Math.min(q.to ?? Number.MAX_SAFE_INTEGER, q.after?.createdAt ?? Number.MAX_SAFE_INTEGER);
+  const where: Where = {
+    provider_mode: q.mode && q.mode !== "unclassified" ? q.mode : null,
+    ...(q.status ? { status: q.status } : {}),
+    ...(q.provider ? { provider: q.provider } : {}),
+    ...(q.from === undefined ? {} : { received_at: { gte: q.from } }),
+    $or: [
+      { received_at: { lt: upper } },
+      ...(q.after && q.after.createdAt < (q.to ?? Number.MAX_SAFE_INTEGER) ? [{ received_at: q.after.createdAt, id: { lt: q.after.id } }] : []),
+    ],
+  };
+  return rows.all<Omit<EventListRow, "created_at"> & { received_at: number }>("billing_provider_events", {
+    where, orderBy: [["received_at", "desc"], ["id", "desc"]], limit: q.limit + 1,
+  }).map(({ received_at, ...e }) => ({ ...e, created_at: received_at }));
 }
 
 // ───────────── Meldiq Mojo in the console (API 0.58.0) ─────────────

@@ -3,6 +3,7 @@
  * 2026-10-23 for the Platform Admin Console's read model; older cross-module imports are in the boundary allowlist.
  */
 export {
+  communityExpressionUsage,
   auditActionCount,
   authHistory,
   type MembershipRow,
@@ -10,6 +11,7 @@ export {
   orgMemberIds,
   orgsCreatedBetween,
   orgsWithMembers,
+  orgActivityPopulationCount,
   orgComposition,
   orgCounts,
   type OrgKind,
@@ -71,5 +73,6 @@ export { richPostFields } from "./posting/webhookPayload.js";
 export { writeChannelOptions } from "./communityPermissions/channelSettings.js";
 export {
   listPartnerApplications,
+  partnerApplicationDetail,
   reviewPartnerApplication,
 } from "./partnerApplications.js";

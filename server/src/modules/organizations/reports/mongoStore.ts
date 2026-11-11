@@ -57,6 +57,36 @@ export class MongoReportStore implements ReportStore {
     return docs.map((d) => this.row(d)!);
   }
 
+  async adminCounts(
+    q: Omit<AdminReportQuery, "after" | "limit">,
+  ): Promise<Record<ReportStatus, number>> {
+    const filter: import("mongodb").Filter<ReportDoc> = {};
+    if (q.status) filter.status = q.status;
+    if (q.orgId) filter.org_id = q.orgId;
+    if (q.targetUserId) filter.target_user_id = q.targetUserId;
+    if (q.q)
+      filter.$or = [
+        { id: q.q },
+        { target_user_id: q.q },
+        { reason: q.q as ReportRow["reason"] },
+      ];
+    const rows = await this.col
+      .aggregate<{ _id: ReportStatus; count: number }>(
+        [
+          { $match: filter },
+          { $group: { _id: "$status", count: { $sum: 1 } } },
+        ],
+        { session: this.mongo.session() },
+      )
+      .toArray();
+    return {
+      open: 0,
+      actioned: 0,
+      dismissed: 0,
+      ...Object.fromEntries(rows.map((r) => [r._id, r.count])),
+    };
+  }
+
   async create(r: ReportRow): Promise<void> {
     await this.col.insertOne(
       { _id: r.id, ...r },

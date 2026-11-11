@@ -39,6 +39,11 @@ export interface MembershipRow {
 
 const DAY_MS = 86_400_000;
 
+/** Aggregate slots used, without exposing submitted media or private channel data. */
+export function communityExpressionUsage(rows: RowReader, orgId: string, kind: "emoji" | "sticker"): number {
+  return rows.count("community_expressions", { org_id: orgId, kind });
+}
+
 type OrgRow = Omit<OrgRecordRow, "members"> & { synthetic: number };
 
 const withMembers = <O extends { id: string }>(rows: RowReader, o: O): O & { members: number } => ({ ...o, members: rows.count("org_members", { org_id: o.id }) });
@@ -167,6 +172,11 @@ export function authHistory(rows: RowReader, userId: string, limit: number): { a
 /** Organizations created in [from, to) (ms); synthetic (load-test) ones left out. */
 export function orgsCreatedBetween(rows: RowReader, from: number, to: number): number {
   return rows.all<{ created_at: number }>("orgs", { where: { created_at: { gte: from }, synthetic: 0 } }).filter((o) => o.created_at < to).length;
+}
+
+/** Population underlying organization activity reports, excluding synthetic fixtures. */
+export function orgActivityPopulationCount(rows: RowReader): number {
+  return rows.count("orgs", { synthetic: 0 });
 }
 
 /** The biggest organizations (synthetic ones left out), with their member ids for activity figures. Bounded. */

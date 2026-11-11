@@ -1,3 +1,4 @@
+import { currentFinancialPrincipal } from "../platformAdmin/index.js";
 import { fulfillCollectiblePayment } from "../accounts/index.js";
 import { z } from "zod/v4";
 import type { FastifyInstance } from "fastify";
@@ -404,14 +405,21 @@ export class CollectibleCommerce {
       throw conflict(
         "Refund through the payment provider; verified webhook events revoke ownership",
       );
+    if (p instanceof PayPalProvider) {
+      if (!r.account_id) throw conflict("This payment has no billing owner");
+      const operation = await this.ctx.billing.adminRefunds.request(id, { requestKey: `legacy-full-${id}`, accountId: r.account_id, currency: r.currency, amountMinor: r.amount_minor, reason }, actor, beforeSend);
+      await this.sync();
+      return { status: operation.status, reference: operation.providerRef };
+    }
     const old = this.ctx.billing.rows.get<{
       status: string;
       provider_ref: string | null;
     }>("billing_payment_actions", { provider: r.provider, purchase_id: id });
     if (old?.status === "completed")
       return { status: "completed", reference: old.provider_ref };
+    if (old) return { status: old.status === "pending" ? "uncertain" : old.status, reference: old.provider_ref };
     if (r.status !== "paid") throw conflict("Only paid orders can be refunded");
-    await this.ctx.billing.rows.write((w) =>
+    const reserved = await this.ctx.billing.rows.write((w) =>
       w.insert(
         "billing_payment_actions",
         {
@@ -428,7 +436,11 @@ export class CollectibleCommerce {
         { orIgnore: true },
       ),
     );
-    await beforeSend();
+    if (!reserved.inserted) {
+      const existing = this.ctx.billing.rows.get<{ status: string; provider_ref: string | null }>("billing_payment_actions", { provider: r.provider, purchase_id: id })!;
+      return { status: existing.status === "pending" ? "uncertain" : existing.status, reference: existing.provider_ref };
+    }
+    try { await beforeSend(); } catch (error) { await this.ctx.billing.rows.write(w => w.update("billing_payment_actions", { id: `refund-${id}`, status: "pending" }, { status: "failed", updated_at: now() })); throw error; }
     const result =
       p instanceof PayPalProvider
         ? await p.refundCapture(r.payment_ref, id)
@@ -562,17 +574,18 @@ export async function collectibleCommerceAdminRoutes(
       const { id } = parse(z.object({ id: OpsId }), req.params),
         { reason } = parse(z.strictObject({ reason: zReason }), req.body),
         p = principal(req);
-      return d.ctx.collectibleCommerce.refund(id, p.account.id, reason, () =>
-        d.audit.record({
+      return d.ctx.collectibleCommerce.refund(id, p.account.id, reason, async () => {
+        const fresh = await currentFinancialPrincipal(d.ctx, d.auth, p);
+        await d.audit.record({
           action: "collectible.refund_requested",
           outcome: "success",
-          actorAccountId: p.account.id,
-          actorRole: p.grant.role,
+          actorAccountId: fresh.account.id,
+          actorRole: fresh.grant.role,
           targetType: "collectible_order",
           targetId: id,
           reason,
-        }),
-      );
+        });
+      });
     },
   );
   app.post(

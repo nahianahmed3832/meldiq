@@ -46,3 +46,6 @@ tools/emulator/accounts.local.json
 *.agekey
 *.snapshot.age
 *.ejson.gz.age
+
+# Dependency symlinks in isolated backend candidate worktrees.
+node_modules

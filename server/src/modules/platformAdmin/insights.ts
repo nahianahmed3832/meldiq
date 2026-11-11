@@ -11,6 +11,7 @@ import type { RequestMeta } from "./credentials.js";
 import type { Exclusions } from "./exclusions.js";
 import type { AdminQuotas } from "./quotasAdmin.js";
 import type { PlatformAdminStore } from "./store.js";
+import { allowed } from "./permissions.js";
 
 const DAY_MS = 86_400_000;
 const INCIDENTS_SHOWN = 20;
@@ -50,43 +51,47 @@ export class AdminInsights {
     return blockers;
   }
 
-  async user(userId: string) {
+  async user(p: AdminPrincipal, userId: string) {
     const u = userSummary(this.ctx.identity, userId);
     if (!u) throw notFound("No such person");
     const t = now();
     const account = await this.ctx.accounts.store.accountByUserId(userId);
-    const restriction = this.ctx.platform.get<{ until: number | null; reason: string; set_at: number }>("platform_restrictions", { user_id: userId });
+    const restriction = allowed(p.grant, "users.suspend") || allowed(p.grant, "users.restore") || allowed(p.grant, "audit.view")
+      ? this.ctx.platform.get<{ until: number | null; reason: string; set_at: number }>("platform_restrictions", { user_id: userId }) : undefined;
     const isAdmin = !!(account && this.store.activeGrant(account.id));
-    const blockers = u.deleted_at !== null ? ["Already deleted."] : this.deletionBlockers(userId, u.disabled_at !== null, isAdmin);
+    const blockers = allowed(p.grant, "users.delete") ? (u.deleted_at !== null ? ["Already deleted."] : this.deletionBlockers(userId, u.disabled_at !== null, isAdmin)) : null;
     return {
-      activity: analytics.userActivity(this.ctx, userId, utcDay(t - 90 * DAY_MS)),
-      traffic30d: analytics.userTraffic(this.ctx, userId, utcDay(t - 29 * DAY_MS), utcDay(t)),
-      quotas: this.quotas.effective({ type: "user", id: userId }),
+      activity: allowed(p.grant, "analytics.view") ? analytics.userActivity(this.ctx, userId, utcDay(t - 89 * DAY_MS)) : null,
+      traffic30d: allowed(p.grant, "resources.view") ? analytics.userTraffic(this.ctx, userId, utcDay(t - 29 * DAY_MS), utcDay(t)) : null,
+      quotas: allowed(p.grant, "quotas.view") ? this.quotas.effective({ type: "user", id: userId }) : null,
       restriction: restriction && u.disabled_at !== null ? { until: restriction.until, reason: restriction.reason, setAt: restriction.set_at } : null,
-      incidents: this.incidents("user_ref", userId),
-      deletion: { possible: blockers.length === 0 && !!account, blockers: account ? blockers : ["No email account: a device-key identity (delete it from the app or the server CLI)."] },
+      incidents: allowed(p.grant, "incidents.view") ? this.incidents("user_ref", userId) : null,
+      deletion: blockers ? { possible: blockers.length === 0 && !!account, blockers: account ? blockers : ["No email account: a device-key identity (delete it from the app or the server CLI)."] } : null,
       verification: { emailVerified: account ? account.email_verified_at !== null : null, mailAvailable: this.ctx.accounts.mailer.available },
     };
   }
 
-  async org(orgId: string) {
+  async org(p: AdminPrincipal, orgId: string) {
     if (!orgRecord(this.ctx.ws, orgId)) throw notFound("No such organization");
     const t = now();
-    const ex = await this.exclusions.get(t);
-    const members = orgMemberIds(this.ctx.ws, orgId);
-    const a30 = analytics.activeAmong(this.ctx, members, utcDay(t - 29 * DAY_MS), utcDay(t), ex.ids);
-    const a7 = analytics.activeAmong(this.ctx, members, utcDay(t - 6 * DAY_MS), utcDay(t), ex.ids);
-    await this.ctx.usage.snapshot();
-    const usage = Object.fromEntries(this.ctx.usage.series(orgId, 30).map((s) => [s.metric, s.total]));
-    const storage = usage["storage.bytes"] ?? null;
-    const quotas = this.quotas.effective({ type: "org", id: orgId });
+    const showActivity = allowed(p.grant, "analytics.view");
+    const members = showActivity ? orgMemberIds(this.ctx.ws, orgId) : [];
+    const ex = showActivity ? await this.exclusions.get(t) : null;
+    const a30 = ex ? analytics.activeAmong(this.ctx, members, utcDay(t - 29 * DAY_MS), utcDay(t), ex.ids) : null;
+    const a7 = ex ? analytics.activeAmong(this.ctx, members, utcDay(t - 6 * DAY_MS), utcDay(t), ex.ids) : null;
+    const showUsage = allowed(p.grant, "resources.view");
+    if (showUsage) await this.ctx.usage.snapshot();
+    const usage = showUsage ? Object.fromEntries(this.ctx.usage.series(orgId, 30).map((s) => [s.metric, s.total])) : null;
+    const storage = usage?.["storage.bytes"] ?? null;
+    const quotas = allowed(p.grant, "quotas.view") ? this.quotas.effective({ type: "org", id: orgId }) : null;
+    const incidents = allowed(p.grant, "incidents.view") ? this.incidents("org_ref", orgId) : null;
     const health: string[] = [];
     const memberCount = members.length;
-    if (memberCount > 0 && a30.users === 0 && this.ctx.telemetry.since("activity") !== null && t - this.ctx.telemetry.since("activity")! > 30 * DAY_MS) health.push("No member was active in the last 30 days.");
-    for (const q of quotas) if (q.limit !== null && q.used !== null && q.used + (q.reserved ?? 0) >= q.limit * 0.9) health.push(`${q.label}: ${Math.round(((q.used + (q.reserved ?? 0)) / q.limit) * 100)} % of its allowance.`);
-    const open = this.incidents("org_ref", orgId).filter((i) => !["resolved", "closed"].includes(i.status));
-    if (open.length) health.push(`${open.length} open incident(s) or support case(s).`);
-    return { activeMembers30d: a30.users, activeMembers7d: a7.users, lastActiveAt: a30.lastAt, storageBytes: storage, usage30d: usage, quotas, incidents: this.incidents("org_ref", orgId), health };
+    if (memberCount > 0 && a30?.users === 0 && this.ctx.telemetry.since("activity") !== null && t - this.ctx.telemetry.since("activity")! > 30 * DAY_MS) health.push("No member was active in the last 30 days.");
+    for (const q of quotas ?? []) if (q.limit !== null && q.limit > 0 && q.used !== null && q.used + (q.reserved ?? 0) >= q.limit * 0.9) health.push(`${q.label}: ${Math.round(((q.used + (q.reserved ?? 0)) / q.limit) * 100)} % of its allowance.`);
+    const open = incidents?.filter((i) => !["resolved", "closed"].includes(i.status));
+    if (open?.length) health.push(`${open.length} open incident(s) or support case(s) in the latest ${INCIDENTS_SHOWN} linked records.`);
+    return { activeMembers30d: a30?.users ?? null, activeMembers7d: a7?.users ?? null, lastActiveAt: a30?.lastAt ?? null, storageBytes: storage, usage30d: usage, quotas, incidents, health };
   }
 
   /** Same guard as the people actions: not on yourself, and only a super admin on another platform admin. */
@@ -157,12 +162,15 @@ export class AdminInsights {
 
 /** Lifts temporary suspensions whose time has come (the console's minute job); audited as the system. */
 export async function liftExpiredSuspensions(ctx: AppContext, audit: PlatformAudit, t = now()): Promise<number> {
-  const due = ctx.platform.all<{ user_id: string }>("platform_restrictions", { where: { until: { lte: t } } });
-  for (const { user_id } of due) {
+  const due = ctx.platform.all<{ user_id: string; set_at: number }>("platform_restrictions", { where: { until: { lte: t } } }).filter(r => !r.user_id.startsWith("account:"));
+  for (const { user_id, set_at } of due) {
     const account = await ctx.accounts.store.accountByUserId(user_id);
     await setIdentitySuspended(ctx.identity, user_id, null);
     if (account?.disabled_at) await ctx.accounts.store.updateAccount(account.id, { disabled_at: null }, t);
-    await ctx.platform.write((w) => w.delete("platform_restrictions", { user_id }));
+    await ctx.platform.write((w) => {
+      w.delete("platform_restrictions", { user_id, set_at });
+      if (account) w.delete("platform_restrictions", { user_id: `account:${account.id}`, set_at });
+    });
     await audit.record({ action: "user.restore", outcome: "success", actorAccountId: "system:restrictions", actorRole: null, targetType: "user", targetId: user_id, reason: "Temporary suspension ended", detail: { automatic: true } });
   }
   return due.length;

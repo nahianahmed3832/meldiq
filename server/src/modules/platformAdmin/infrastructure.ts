@@ -11,12 +11,13 @@ const SLOW_MS = 1000;
 
 type Status = "ok" | "failing" | "not_measured" | "off";
 
-function checks(h: HealthReport, atlasOnly = false): { id: string; label: string; status: Status; detail: string | null }[] {
+function checks(h: HealthReport, databaseMode: "sqlite" | "atlas" | "supabase" = "sqlite"): { id: string; label: string; status: Status; detail: string | null }[] {
   const { database, mongodb, livekit, storage } = h.checks;
+  const databaseLabel = databaseMode === "supabase" ? "Database (PostgreSQL)" : databaseMode === "atlas" ? "Local schema (memory)" : "Database (SQLite)";
   return [
     database.available
-      ? { id: "database", label: atlasOnly ? "Local schema (memory)" : "Database (SQLite)", status: database.ok ? "ok" : "failing", detail: `${Math.round(database.sizeBytes / 1_048_576)} MB on disk` }
-      : { id: "database", label: atlasOnly ? "Local schema (memory)" : "Database (SQLite)", status: "not_measured", detail: database.reason },
+      ? { id: "database", label: databaseLabel, status: database.ok ? "ok" : "failing", detail: `${Math.round(database.sizeBytes / 1_048_576)} MB on disk` }
+      : { id: "database", label: databaseLabel, status: "not_measured", detail: database.reason },
     mongodb.available
       ? { id: "mongodb", label: "MongoDB", status: mongodb.ok ? "ok" : "failing", detail: null }
       : { id: "mongodb", label: "MongoDB", status: "off", detail: mongodb.reason },
@@ -45,7 +46,7 @@ export class AdminInfrastructure {
     const m = h.metrics;
     const routes = [...m.routes].sort((a, b) => b.serverErrors - a.serverErrors || (b.p95Ms ?? 0) - (a.p95Ms ?? 0) || b.count - a.count);
     const notable = [...routes.filter((r) => r.serverErrors > 0 || (r.p95Ms ?? 0) >= SLOW_MS), ...routes].filter((r, i, all) => all.indexOf(r) === i).slice(0, ROUTES_SHOWN);
-    const infrastructure = checks(h, this.ctx.config.databaseMode === "atlas");
+    const infrastructure = checks(h, this.ctx.postgres ? "supabase" : this.ctx.config.databaseMode === "atlas" ? "atlas" : "sqlite");
     if(this.ctx.livekit && typeof this.ctx.livekit.health === "function") { const v=await this.ctx.livekit.health(); const i=infrastructure.findIndex(c=>c.id==="livekit"); infrastructure[i]={id:"livekit",label:"Calls (LiveKit)",status:v.reachable?"ok":"failing",detail:v.reachable?`${v.rooms} active rooms; ${v.participants} connected participants; checked ${new Date(v.checkedAt).toISOString()}`:`Media control API unreachable; checked ${new Date(v.checkedAt).toISOString()}`}; }
     if (this.ctx.redis) {
       const redis = await this.ctx.redis.diagnostics();

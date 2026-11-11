@@ -1,6 +1,7 @@
 import type { AppContext } from "../../app/context.js";
 import { networkKey } from "../../app/middleware/abuse.js";
 import { missingDetails, readSiteDetails, SITE_DETAILS_KEY, type SiteDetailsValue } from "../../app/siteDetails.js";
+import { ApiError } from "../../shared/errors.js";
 import { now } from "../../shared/utilities/util.js";
 import type { PlatformAudit } from "./audit.js";
 import type { AdminPrincipal } from "./auth.js";
@@ -29,10 +30,13 @@ export class AdminSite {
     };
   }
 
-  async set(p: AdminPrincipal, details: SiteDetailsValue, reason: string, meta: RequestMeta) {
+  async set(p: AdminPrincipal, details: SiteDetailsValue, reason: string, meta: RequestMeta, expectedUpdatedAt?: number | null) {
+    const expected = expectedUpdatedAt === undefined ? this.ctx.platform.get<{ updated_at: number }>("platform_settings", { key: SITE_DETAILS_KEY })?.updated_at ?? null : expectedUpdatedAt;
     await this.ctx.platform.write((w) => {
+      const current = w.get<{ updated_at: number }>("platform_settings", { key: SITE_DETAILS_KEY })?.updated_at ?? null;
+      if (current !== expected) throw new ApiError(409, "conflict", "Site details changed. Reload and review before saving.");
       const before = readSiteDetails(w);
-      const stored = { value: JSON.stringify(details), updated_by: p.account.id, updated_at: now() };
+      const stored = { value: JSON.stringify(details), updated_by: p.account.id, updated_at: Math.max(now(), (current ?? 0) + 1) };
       w.upsert("platform_settings", { key: SITE_DETAILS_KEY, ...stored }, stored);
       // Only what changed, field by field, so the audit trail reads as a list of edits.
       const changed: Record<string, unknown> = {};

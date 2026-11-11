@@ -314,60 +314,11 @@ export class PayPalCheckout {
     };
   }
 
-  /** Full captured-gift refunds only. The durable intent is reserved before the external financial action. */
+  /** Compatibility route: the first request creates one durable full-refund operation; repeats only read it. */
   async refund(giftId: string, actorAccountId: string, reason: string, beforeSend: () => Promise<void>) {
     const g = this.gifts.get(giftId);
-    if (!g || g.provider !== "paypal" || !g.provider_payment_ref) throw notFound("PayPal captured gift not found");
-    let action = this.billing.rows.get<ActionRow>("billing_payment_actions", {
-      provider: "paypal",
-      purchase_id: g.id,
-    });
-    if (action?.status === "completed") return { status: "completed", reference: action.provider_ref };
-    if (g.status !== "paid" && g.status !== "redeemed") throw conflict("Only paid gifts can be refunded");
-    const now = Date.now();
-    await this.billing.rows.write((w) =>
-      w.insert(
-        "billing_payment_actions",
-        {
-          id: `refund-${g.id}`,
-          provider: "paypal",
-          purchase_id: g.id,
-          payment_ref: g.provider_payment_ref,
-          actor_account_id: actorAccountId,
-          reason,
-          status: "pending",
-          created_at: now,
-          updated_at: now,
-        },
-        { orIgnore: true },
-      ),
-    );
-    // If audit persistence fails, do not perform the financial action.
-    await beforeSend();
-    const result = await this.provider.refundCapture(g.provider_payment_ref, g.id);
-    const status = result.status === "COMPLETED" ? "completed" : "pending";
-    await this.billing.rows.write((w) => w.update("billing_payment_actions", { provider: "paypal", purchase_id: g.id }, { status, provider_ref: result.id, updated_at: Date.now() }));
-    if (status === "completed")
-      await this.billing.webhooks.ingest("paypal", {
-        ref: `refund:${result.id}`,
-        type: "MELDIQ.PAYPAL.REFUND.VERIFIED",
-        createdAt: Date.now(),
-        kind: "payment",
-        payment: {
-          kind: "refund",
-          ref: result.id,
-          paymentRef: g.provider_payment_ref,
-          customerRef: null,
-          currency: g.currency,
-          amountMinor: g.amount_minor,
-          affectedMinor: g.amount_minor,
-          state: "refunded",
-        },
-      });
-    action = this.billing.rows.get<ActionRow>("billing_payment_actions", {
-      provider: "paypal",
-      purchase_id: g.id,
-    });
-    return { status, reference: action?.provider_ref ?? null };
+    if (!g || g.provider !== "paypal") throw notFound("PayPal gift not found");
+    const result = await this.billing.adminRefunds.request(giftId, { requestKey: `legacy-full-${giftId}`, accountId: g.buyer_account_id, amountMinor: g.amount_minor, currency: g.currency, reason }, actorAccountId, beforeSend);
+    return { status: result.status, reference: result.providerRef };
   }
 }

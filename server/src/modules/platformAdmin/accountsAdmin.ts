@@ -11,15 +11,19 @@ import {
   operatorAccount,
   staticCodeHash,
   updateOperatorVerification,
+  userSummary,
 } from "../accounts/index.js";
 import type { AdminAccountCreateBody, AdminAccountVerificationBody, AdminCreatedAccountsQuery } from "../../shared/contracts/http/platformAdminInsights.js";
-import { ApiError, badRequest } from "../../shared/errors.js";
+import { ApiError, badRequest, forbidden, notFound } from "../../shared/errors.js";
 import { newId, now } from "../../shared/utilities/util.js";
 import type { PlatformAudit } from "./audit.js";
 import type { AdminPrincipal } from "./auth.js";
 import type { RequestMeta } from "./credentials.js";
 import { decodeCursor, encodeCursor } from "./pagination.js";
 import { allowed } from "./permissions.js";
+import { maskId } from "./devicesView.js";
+import { PlatformAdminStore } from "./store.js";
+import { guardAccountStatusWrite, readAdminAccountAuthority, snapshotAdminAuthority } from "./authority.js";
 
 type CreateBody = z.infer<typeof AdminAccountCreateBody>;
 type VerificationBody = z.infer<typeof AdminAccountVerificationBody>;
@@ -85,6 +89,104 @@ export class AdminAccounts {
     const last = shown[shown.length - 1];
     const nextCursor = rows.length > q.limit && last ? encodeCursor({ createdAt: last.created_at, id: last.account_id }) : null;
     return { accounts: await this.views(p, shown), nextCursor };
+  }
+
+  /** One canonical account by an exact identifier, including accounts with no encryption identity yet.
+   * Email goes in a POST body so it is not persisted in the URL/history/access log. */
+  async lookup(p: AdminPrincipal, query: { accountId?: string; email?: string }) {
+    if (!allowed(p.grant, "users.view")) throw forbidden("Your role cannot view accounts.");
+    if (query.email && !allowed(p.grant, "users.view_email")) throw forbidden("Your role cannot search by email.");
+    const account = query.accountId ? await this.ctx.accounts.store.accountById(query.accountId) : query.email ? await this.ctx.accounts.store.accountByEmail(query.email) : undefined;
+    if (!account) throw notFound("No matching account.");
+    const t = now();
+    const identity = account.user_id ? userSummary(this.ctx.identity, account.user_id) : undefined;
+    const identityStatus = identity ? identity.deleted_at !== null ? "deleted" as const : identity.disabled_at !== null ? "suspended" as const : "active" as const : null;
+    const sessions = allowed(p.grant, "devices.view") ? await this.ctx.accounts.store.recentSessions(account.id, t - 30 * 86_400_000, 51) : null;
+    const history = allowed(p.grant, "audit.view") ? this.ctx.platform.all<{ at: number; action: string; outcome: string; reason: string | null }>("platform_audit", {
+      where: { target_type: "account", target_id: account.id }, orderBy: [["id", "desc"]], limit: 30,
+    }).map(event => ({ at: event.at, action: event.action, outcome: event.outcome, reason: event.reason })) : null;
+    return {
+      generatedAt: t,
+      account: {
+        id: account.id, name: account.name, email: allowed(p.grant, "users.view_email") ? account.email : null,
+        verifiedAt: account.email_verified_at, createdAt: account.created_at, updatedAt: account.updated_at,
+        disabledAt: account.disabled_at, userId: account.user_id, identityStatus,
+        canSignIn: account.email_verified_at !== null && account.disabled_at === null && identityStatus !== "suspended" && identityStatus !== "deleted",
+      },
+      sessions: sessions?.slice(0, 50).map(session => ({
+        id: session.id, masked: maskId(session.id), label: session.label, deviceId: session.device_id,
+        createdAt: session.created_at, lastUsedAt: session.last_used_at, expiresAt: session.expires_at,
+        idleExpiresAt: session.refresh_expires_at, revokedAt: session.revoked_at,
+        state: session.revoked_at !== null ? "revoked" as const : session.expires_at <= t || session.refresh_expires_at <= t ? "expired" as const : "active" as const,
+      })) ?? null,
+      sessionsTruncated: sessions !== null && sessions.length > 50,
+      history,
+    };
+  }
+
+  /** Session revocation remains monotonic and account-bound, including setup-only web/native sessions. */
+  async revokeAccountSession(p: AdminPrincipal, accountId: string, sessionId: string, reason: string, meta: RequestMeta) {
+    if (!allowed(p.grant, "users.view") || !allowed(p.grant, "users.sessions.revoke")) throw forbidden("Your role cannot revoke account sessions.");
+    const grants = new PlatformAdminStore(this.ctx.platform, this.ctx.ephemeral);
+    const denied = accountId === p.account.id ? "self" : grants.activeGrant(accountId) && p.grant.role !== "super_admin" ? "platform_admin" : null;
+    if (denied) {
+      await this.audit.record({ action: "account.session_revoke", outcome: "denied", actorAccountId: p.account.id, actorRole: p.grant.role, targetType: "account", targetId: accountId, reason, requestId: meta.requestId, detail: { why: denied } });
+      throw forbidden(denied === "self" ? "You cannot revoke your own sessions here." : "Only a super admin can act on another platform administrator.");
+    }
+    const account = await this.ctx.accounts.store.accountById(accountId);
+    const session = account ? await this.ctx.accounts.store.sessionById(sessionId) : undefined;
+    if (!account || !session || session.account_id !== account.id) throw notFound("No such session for this account.");
+    const changed = await this.ctx.accounts.store.revokeSession(session.id, "admin_revoked", now());
+    if (changed && session.device_id) this.ctx.hub.disconnectDevice(session.device_id, "session revoked");
+    await this.audit.record({ action: "account.session_revoke", outcome: "success", actorAccountId: p.account.id, actorRole: p.grant.role, targetType: "account", targetId: accountId, reason, requestId: meta.requestId, network: networkKey(meta.ip), detail: { session: maskId(session.id), changed } });
+    return { ok: true as const, changed };
+  }
+
+  /** The account domain's native sign-in block, for accounts that have no messaging identity yet. */
+  async setSuspended(p: AdminPrincipal, accountId: string, suspend: boolean, reason: string, meta: RequestMeta) {
+    if (!allowed(p.grant, "users.view") || !allowed(p.grant, suspend ? "users.suspend" : "users.restore")) throw forbidden("Your role cannot change account status.");
+    const grants = new PlatformAdminStore(this.ctx.platform, this.ctx.ephemeral, id => readAdminAccountAuthority(this.ctx, id));
+    const action = suspend ? "account.suspend" : "account.restore";
+    const audit = { action, actorAccountId: p.account.id, actorRole: p.grant.role, targetType: "account", targetId: accountId, reason, requestId: meta.requestId, network: networkKey(meta.ip) };
+    const targetGrant = grants.activeGrant(accountId);
+    const denied = accountId === p.account.id ? "self" : targetGrant && p.grant.role !== "super_admin" ? "platform_admin" : null;
+    if (denied) {
+      await this.audit.record({ ...audit, outcome: "denied", detail: { why: denied } });
+      throw forbidden(denied === "self" ? "You cannot change your own account status." : "Only a super admin can act on another platform administrator.");
+    }
+    const account = await this.ctx.accounts.store.accountById(accountId);
+    if (!account) throw notFound("No such account.");
+    if (account.user_id) throw new ApiError(409, "conflict", "This account has a messaging identity. Use the person's suspend or restore action so both identities remain consistent.");
+    const t = now();
+    const authority = await snapshotAdminAuthority(grants, [p.account.id, accountId]);
+    const reservationId = `account:${accountId}`;
+    let reservation = t;
+    try {
+      await this.ctx.platform.write(w => {
+        guardAccountStatusWrite(w, p.account.id, accountId, suspend, authority);
+        const previous = w.get<{ set_at: number }>("platform_restrictions", { user_id: reservationId });
+        reservation = Math.max(t, (previous?.set_at ?? 0) + 1);
+        const restriction = { until: null, reason, set_by: p.account.id, set_at: reservation };
+        w.upsert("platform_restrictions", { user_id: reservationId, kind: "suspension", ...restriction }, restriction);
+        this.audit.append(w, { ...audit, action: `${action}.requested`, outcome: "success", detail: { beforeDisabledAt: account.disabled_at } });
+      });
+    } catch (error) {
+      await this.audit.record({ ...audit, outcome: "denied", detail: { why: "platform_safety_check" } });
+      throw error;
+    }
+    const changed = suspend ? account.disabled_at === null : account.disabled_at !== null;
+    try {
+      if (changed) await this.ctx.accounts.store.updateAccount(accountId, { disabled_at: suspend ? t : null }, t);
+      if (suspend) {
+        await this.ctx.accounts.service.revokeSessions(accountId, "suspended");
+        await grants.revokeAccountSessions(accountId, "suspended", t);
+      } else await this.ctx.platform.write(w => { w.delete("platform_restrictions", { user_id: reservationId, set_at: reservation }); });
+      await this.audit.record({ ...audit, outcome: "success", detail: { changed } });
+    } catch (error) {
+      await this.audit.record({ ...audit, outcome: "failed", detail: { why: "account_or_session_persistence", retry: true } });
+      throw error;
+    }
+    return { ok: true as const, changed };
   }
 
   /** Changes how an operator-made account proves its email; "verified" also marks the address proven now. */

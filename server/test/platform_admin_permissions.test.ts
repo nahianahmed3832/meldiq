@@ -231,7 +231,7 @@ describe("the console's code", () => {
         // Explicit metadata-only report-store exceptions. Recovery may only read canonical status.
         // Keep every other forbidden-store guard in force for both files.
         const methods =
-          file === "reportRecovery.ts" ? "get" : "get|adminList|setStatus";
+          file === "reportRecovery.ts" ? "get" : "get|adminList|adminCounts|setStatus";
         expect(
           forbidden.test(
             text.replace(

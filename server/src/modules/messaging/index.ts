@@ -33,3 +33,5 @@ export {
 
 export { erasePrivateMessagingState } from "./privateState.js";
 export { createBotDirectConversation, closeBotDirectConversation } from "./botDirectConversations.js";
+
+export { conversationMembershipHistory } from "./platformQueries.js";

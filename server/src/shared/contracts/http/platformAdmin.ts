@@ -9,22 +9,11 @@ import { zCount, zTime } from "./primitives.js";
  * unknown keys are refused, so nothing can be mass-assigned.
  */
 
-export const PLATFORM_ROLE_VALUES = [
-  "super_admin",
-  "operations_admin",
-  "platform_moderator",
-  "support_admin",
-  "billing_admin",
-  "auditor",
-] as const;
+export const PLATFORM_ROLE_VALUES = ["super_admin", "operations_admin", "platform_moderator", "support_admin", "billing_admin", "auditor"] as const;
 export const zPlatformRole = z.enum(PLATFORM_ROLE_VALUES);
 
 /** Why a sensitive action is taken: shown in the audit trail. */
-export const zReason = z
-  .string()
-  .trim()
-  .min(8, "Say why, in a few words (at least 8 characters)")
-  .max(500);
+export const zReason = z.string().trim().min(8, "Say why, in a few words (at least 8 characters)").max(500);
 
 /** A WebAuthn ceremony's answer as the browser gives it (base64url fields); verified by the server. */
 const zWebAuthnResponse = z
@@ -150,15 +139,13 @@ export const AdminOverview = z.strictObject({
       }),
     )
     .nullable(),
-  openIncidents: zCount,
+  openIncidents: zCount.nullable(),
 });
 
 // ───────────── People ─────────────
 
 export const USER_STATUSES = ["active", "suspended", "deleted"] as const;
-export const zDay = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "A day like 2026-10-24");
+export const zDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "A day like 2026-10-24");
 export const AdminUsersQuery = z.strictObject({
   q: zSearch,
   plan: z.enum(["free", "plus", "go"]).optional(),
@@ -220,40 +207,46 @@ export const AdminUserDetail = z.strictObject({
       emailVerified: z.boolean(),
       createdAt: zTime,
       disabledAt: zTime.nullable(),
-      activeSessions: zCount,
-      passkeys: zCount,
+      activeSessions: zCount.nullable(),
+      passkeys: zCount.nullable(),
     })
     .nullable(),
-  devices: z.array(
-    z.strictObject({
-      id: z.string(),
-      name: z.string(),
-      createdAt: zTime,
-      lastSeenAt: zTime.nullable(),
-      revokedAt: zTime.nullable(),
-    }),
-  ),
-  memberships: z.array(
-    z.strictObject({
-      orgId: z.string(),
-      name: z.string(),
-      kind: z.string(),
-      role: z.string(),
-      joinedAt: zTime,
-      customRoles: z.array(z.string()),
-    }),
-  ),
+  devices: z
+    .array(
+      z.strictObject({
+        id: z.string(),
+        name: z.string(),
+        createdAt: zTime,
+        lastSeenAt: zTime.nullable(),
+        revokedAt: zTime.nullable(),
+      }),
+    )
+    .nullable(),
+  memberships: z
+    .array(
+      z.strictObject({
+        orgId: z.string(),
+        name: z.string(),
+        kind: z.string(),
+        role: z.string(),
+        joinedAt: zTime,
+        customRoles: z.array(z.string()),
+      }),
+    )
+    .nullable(),
   platformRole: zPlatformRole.nullable(),
-  securityEvents: z.array(z.strictObject({ at: zTime, action: z.string() })),
-  interventions: z.array(
-    z.strictObject({
-      at: zTime,
-      action: z.string(),
-      outcome: z.string(),
-      actorRole: z.string().nullable(),
-      reason: z.string().nullable(),
-    }),
-  ),
+  securityEvents: z.array(z.strictObject({ at: zTime, action: z.string() })).nullable(),
+  interventions: z
+    .array(
+      z.strictObject({
+        at: zTime,
+        action: z.string(),
+        outcome: z.string(),
+        actorRole: z.string().nullable(),
+        reason: z.string().nullable(),
+      }),
+    )
+    .nullable(),
 });
 
 export const AdminUserChanged = z.strictObject({
@@ -307,9 +300,7 @@ export const AdminOrgDetail = z.strictObject({
     activityAlerts: z.boolean(),
     raidAlertAt: zTime.nullable(),
   }),
-  owners: z.array(
-    z.strictObject({ id: z.string(), username: z.string().nullable() }),
-  ),
+  owners: z.array(z.strictObject({ id: z.string(), username: z.string().nullable() })),
   composition: z.strictObject({
     byRole: z.record(z.string(), zCount),
     customRoles: zCount,
@@ -349,11 +340,7 @@ export const AdminOrgDetail = z.strictObject({
 
 // ───────────── Entitlements and billing status (phase 4) ─────────────
 
-export const ENTITLEMENT_KEY_VALUES = [
-  "roles.custom",
-  "members",
-  "storage.bytes",
-] as const;
+export const ENTITLEMENT_KEY_VALUES = ["roles.custom", "members", "storage.bytes"] as const;
 const zLimitValue = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 
 export const AdminEntitlements = z.strictObject({
@@ -379,9 +366,7 @@ export const AdminEntitlements = z.strictObject({
 
 export const AdminLimitsBody = z.strictObject({
   /** null clears an organization's own limit (the server-wide one, if any, applies again). */
-  limits: z
-    .partialRecord(z.enum(ENTITLEMENT_KEY_VALUES), zLimitValue.nullable())
-    .refine((l) => Object.keys(l).length > 0, "Change at least one limit"),
+  limits: z.partialRecord(z.enum(ENTITLEMENT_KEY_VALUES), zLimitValue.nullable()).refine((l) => Object.keys(l).length > 0, "Change at least one limit"),
   /** When the limits set here stop applying. Required to set a limit; null (no end) is for super admins only. */
   expiresAt: zTime.nullable().optional(),
   reason: zReason,
@@ -399,12 +384,7 @@ export const AdminLimits = z.strictObject({
 // ───────────── Infrastructure (phase 4) ─────────────
 
 const zCheckStatus = z.enum(["ok", "failing", "not_measured", "off"]);
-export const CONNECTOR_IDS = [
-  "email",
-  "storage",
-  "push-fcm",
-  "mongodb",
-] as const;
+export const CONNECTOR_IDS = ["email", "storage", "push-fcm", "mongodb"] as const;
 
 export const AdminInfrastructure = z.strictObject({
   version: z.string(),
@@ -498,14 +478,7 @@ export const AdminConnectorCheck = z.strictObject({
 
 export const INCIDENT_SEVERITIES = ["sev1", "sev2", "sev3", "sev4"] as const;
 /** The lifecycle: open → acknowledged → investigating → monitoring → resolved → closed. */
-export const INCIDENT_STATUSES = [
-  "open",
-  "acknowledged",
-  "investigating",
-  "monitoring",
-  "resolved",
-  "closed",
-] as const;
+export const INCIDENT_STATUSES = ["open", "acknowledged", "investigating", "monitoring", "resolved", "closed"] as const;
 export const INCIDENT_KINDS = ["incident", "maintenance", "support"] as const;
 export const zRef = z
   .string()
@@ -518,10 +491,17 @@ export const zPerson = z.strictObject({
 });
 const zService = z.string().trim().min(1).max(60);
 
+export const INCIDENT_PAYMENT_KINDS = ["invoice", "gift", "spark", "collectible"] as const;
 export const AdminIncidentsQuery = z.strictObject({
+  q: z.string().trim().max(160).optional(),
+  assigneeAccountId: zRef.optional(),
+  accountRef: zRef.optional(),
+  subscriptionRef: zRef.optional(),
+  paymentRef: zRef.optional(),
+  paymentKind: z.enum(INCIDENT_PAYMENT_KINDS).optional(),
   status: z.enum([...INCIDENT_STATUSES, "active"]).optional(),
   severity: z.enum(["sev1", "sev2", "sev3", "sev4"]).optional(),
-  source: z.enum(["manual", "rule"]).optional(),
+  source: z.enum(["manual", "rule", "feedback"]).optional(),
   kind: z.enum(INCIDENT_KINDS).optional(),
   userRef: zRef.optional(),
   orgRef: zRef.optional(),
@@ -530,6 +510,11 @@ export const AdminIncidentsQuery = z.strictObject({
 });
 export const AdminIncidentParams = z.strictObject({ incidentId: zRef });
 export const AdminIncidentCreate = z.strictObject({
+  requestKey: zRef,
+  accountRef: zRef.optional(),
+  subscriptionRef: zRef.optional(),
+  paymentRef: zRef.optional(),
+  paymentKind: z.enum(INCIDENT_PAYMENT_KINDS).optional(),
   title: z.string().trim().min(3).max(160),
   severity: z.enum(INCIDENT_SEVERITIES),
   kind: z.enum(INCIDENT_KINDS),
@@ -541,6 +526,8 @@ export const AdminIncidentCreate = z.strictObject({
 });
 export const AdminIncidentPatch = z
   .strictObject({
+    requestKey: zRef,
+    version: z.number().int().nonnegative(),
     status: z.enum(INCIDENT_STATUSES).optional(),
     severity: z.enum(INCIDENT_SEVERITIES).optional(),
     assigneeAccountId: zRef.nullable().optional(),
@@ -549,12 +536,19 @@ export const AdminIncidentPatch = z
     resolution: z.string().trim().max(4000).nullable().optional(),
     service: zService.nullable().optional(),
   })
-  .refine((p) => Object.keys(p).length > 0, "Change at least one thing");
+  .refine((p) => Object.keys(p).some((key) => key !== "requestKey" && key !== "version"), "Change at least one thing");
 export const AdminIncidentNote = z.strictObject({
+  requestKey: zRef,
   body: z.string().trim().min(1).max(4000),
 });
 
 export const AdminIncident = z.strictObject({
+  feedbackRef: z.string().nullable(),
+  version: z.number().int().nonnegative(),
+  accountRef: z.string().nullable(),
+  subscriptionRef: z.string().nullable(),
+  paymentRef: z.string().nullable(),
+  paymentKind: z.enum(INCIDENT_PAYMENT_KINDS).nullable(),
   id: z.string(),
   title: z.string(),
   severity: z.enum(INCIDENT_SEVERITIES),
@@ -562,7 +556,7 @@ export const AdminIncident = z.strictObject({
   kind: z.enum(INCIDENT_KINDS),
   service: z.string().nullable(),
   /** Opened by a person, or by an alert rule (ruleKey). */
-  source: z.enum(["manual", "rule"]),
+  source: z.enum(["manual", "rule", "feedback"]),
   ruleKey: z.string().nullable(),
   firstSeenAt: zTime.nullable(),
   lastSeenAt: zTime.nullable(),
@@ -582,8 +576,18 @@ export const AdminIncidentsPage = z.strictObject({
   incidents: z.array(AdminIncident),
   nextCursor: z.string().nullable(),
 });
+export const AdminIncidentEventsQuery = z.strictObject({
+  before: z.coerce.number().int().positive().optional(),
+});
+export const AdminIncidentSummary = z.strictObject({
+  generatedAt: zTime,
+  total: zCount,
+  bySeverity: z.record(z.string(), zCount),
+  byStatus: z.record(z.string(), zCount),
+});
 export const AdminIncidentDetail = z.strictObject({
   incident: AdminIncident,
+  nextEventsBefore: z.number().int().positive().nullable(),
   events: z.array(
     z.strictObject({
       at: zTime,
@@ -598,8 +602,14 @@ export const AdminIncidentDetail = z.strictObject({
 
 export const AUDIT_OUTCOMES = ["success", "denied", "failed"] as const;
 const zAuditCursor = z.coerce.number().int().positive();
+/** Audit references include setting keys, numeric singleton IDs and system actors, not only entity IDs. */
+const zAuditReference = z
+  .string()
+  .min(1)
+  .max(200)
+  .regex(/^[A-Za-z0-9_.:/-]+$/);
 export const AdminAuditQuery = z.strictObject({
-  actor: zRef.optional(),
+  actor: zAuditReference.optional(),
   /** The start of an action name, e.g. "user." or "admin.login". */
   action: z
     .string()
@@ -612,7 +622,7 @@ export const AdminAuditQuery = z.strictObject({
     .max(40)
     .regex(/^[a-z_]+$/)
     .optional(),
-  targetId: zRef.optional(),
+  targetId: zAuditReference.optional(),
   outcome: z.enum(AUDIT_OUTCOMES).optional(),
   from: z.coerce.number().int().nonnegative().optional(),
   to: z.coerce.number().int().nonnegative().optional(),
@@ -631,12 +641,7 @@ export const AdminAuditRow = z.strictObject({
   outcome: z.enum(AUDIT_OUTCOMES),
   reason: z.string().nullable(),
   network: z.string().nullable(),
-  detail: z
-    .record(
-      z.string(),
-      z.union([z.string(), z.number(), z.boolean(), z.null()]),
-    )
-    .nullable(),
+  detail: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).nullable(),
 });
 export const AdminAuditPage = z.strictObject({
   events: z.array(AdminAuditRow),
@@ -661,6 +666,7 @@ export const AdminGrantBody = z.strictObject({
 export const AdminRoleBody = z.strictObject({
   role: zPlatformRole,
   reason: zReason,
+  expectedUpdatedAt: zTime,
 });
 
 export const AdminEntry = z.strictObject({
@@ -670,6 +676,7 @@ export const AdminEntry = z.strictObject({
   role: zPlatformRole,
   status: z.enum(["active", "revoked"]),
   grantedAt: zTime,
+  updatedAt: zTime,
   grantedBy: zPerson.nullable(),
   revokedAt: zTime.nullable(),
   passkeys: zCount,
@@ -703,9 +710,7 @@ export const AdminAssignees = z.strictObject({ assignees: z.array(zPerson) });
 
 /** Profile decorations waiting for review, and decided ones (API 0.61.0, docs/PROFILE_DECORATIONS.md). */
 export const AdminDecorationsQuery = z.strictObject({
-  status: z
-    .enum(["pending", "approved", "rejected", "removed"])
-    .default("pending"),
+  status: z.enum(["pending", "approved", "rejected", "removed"]).default("pending"),
   /** The `next` of the previous page. */
   before: z.coerce.number().int().nonnegative().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(30),
@@ -771,10 +776,7 @@ export const AdminReportUpdate = z
     note: z.string().trim().max(2000).optional(),
     reason: zReason,
   })
-  .refine(
-    (v) => Object.keys(v).some((k) => k !== "version" && k !== "reason"),
-    "Choose a change",
-  );
+  .refine((v) => Object.keys(v).some((k) => k !== "version" && k !== "reason"), "Choose a change");
 export const AdminReportView = z.strictObject({
   id: z.string(),
   orgId: z.string().nullable(),
@@ -794,6 +796,29 @@ export const AdminReportView = z.strictObject({
   intendedStatus: z.string().nullable(),
   version: z.number().int().nonnegative(),
 });
+export const AdminReportRecoveryBody = z.strictObject({
+  requestKey: zRef,
+  reason: zReason,
+});
+export const AdminReportRecoveryRun = z.strictObject({
+  id: z.string(),
+  actorAccountId: z.string(),
+  status: z.enum(["running", "uncertain", "completed", "failed"]),
+  startedAt: zTime,
+  completedAt: zTime.nullable(),
+  affected: z.number().int().nonnegative().nullable(),
+  errorKind: z.string().nullable(),
+});
+export const AdminReportRecoveryHistory = z.strictObject({
+  runs: z.array(AdminReportRecoveryRun),
+});
+export const AdminReportSummary = z.strictObject({
+  generatedAt: zTime,
+  open: z.number().int().nonnegative(),
+  actioned: z.number().int().nonnegative(),
+  dismissed: z.number().int().nonnegative(),
+  total: z.number().int().nonnegative(),
+});
 export const AdminReportsPage = z.strictObject({
   reports: z.array(AdminReportView),
   nextCursor: z.string().nullable(),
@@ -812,6 +837,7 @@ export const AdminReportDetail = z.strictObject({
 export const AdminPermissionUpdate = z.strictObject({
   permissions: z.array(z.string()).max(100).nullable(),
   reason: zReason,
+  expectedUpdatedAt: zTime,
 });
 export const AdminPermissionView = z.strictObject({
   role: zPlatformRole,
@@ -819,6 +845,7 @@ export const AdminPermissionView = z.strictObject({
   defaults: z.array(z.string()),
   effective: z.array(z.string()),
   custom: z.boolean(),
+  updatedAt: zTime,
 });
 export const AdminOrgRestriction = z.strictObject({
   suspended: z.boolean(),
@@ -837,4 +864,56 @@ export const AdminOrgDeleted = z.strictObject({
   members: zCount,
   channels: zCount,
   files: zCount,
+});
+
+// Intentionally submitted account feedback, separate from private encrypted messages.
+export const FEEDBACK_STATUSES = ["open", "confirmed", "fixed", "not_a_bug", "duplicate"] as const;
+export const AdminFeedbackQuery = z.strictObject({
+  status: z.enum(FEEDBACK_STATUSES).optional(),
+  userId: zRef.optional(),
+  cursor: zCursor.optional(),
+  limit: zLimit,
+});
+export const AdminFeedbackParams = z.strictObject({ feedbackId: zRef });
+export const AdminFeedbackReview = z.strictObject({
+  requestKey: zRef,
+  expectedUpdatedAt: zTime,
+  status: z.enum(FEEDBACK_STATUSES),
+  staffNote: z.string().trim().max(2000).nullable(),
+  reason: zReason,
+});
+export const AdminFeedbackCaseBody = z.strictObject({
+  requestKey: zRef,
+  reason: zReason,
+});
+export const AdminFeedback = z.strictObject({
+  id: z.string(),
+  userId: z.string().nullable(),
+  summary: z.string(),
+  details: z.string(),
+  category: z.string(),
+  status: z.enum(FEEDBACK_STATUSES),
+  page: z.string().nullable(),
+  client: z.string().nullable(),
+  staffNote: z.string().nullable(),
+  createdAt: zTime,
+  updatedAt: zTime,
+  caseId: z.string().nullable(),
+});
+export const AdminFeedbackPage = z.strictObject({
+  feedback: z.array(AdminFeedback),
+  nextCursor: z.string().nullable(),
+});
+export const AdminFeedbackDetail = z.strictObject({
+  feedback: AdminFeedback,
+  reviews: z.array(
+    z.strictObject({
+      id: z.string(),
+      actorAccountId: z.string(),
+      status: z.enum(["requested", "applied", "failed"]),
+      desiredStatus: z.enum(FEEDBACK_STATUSES),
+      createdAt: zTime,
+      completedAt: zTime.nullable(),
+    }),
+  ),
 });

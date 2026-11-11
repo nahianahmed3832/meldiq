@@ -1,3 +1,4 @@
+import { versionedAdminPut } from "./support/adminConsole.js";
 import crypto from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
@@ -90,11 +91,11 @@ describe("analytics", () => {
 
   it("leave out the people the operator lists, changing past figures too", async () => {
     const before = (await as("super_admin").expect(200, "GET", "/admin/v1/analytics/active-users")).days.at(-1).dau;
-    await as("super_admin").expect(200, "PUT", "/admin/v1/settings/analytics.excluded_users", { value: [alice.userId], ...REASON });
+    await versionedAdminPut(as("super_admin"), "/admin/v1/settings/analytics.excluded_users", { value: [alice.userId], ...REASON });
     const after = (await as("super_admin").expect(200, "GET", "/admin/v1/analytics/active-users")).days.at(-1).dau;
     expect(after).toBe(before - 1);
     expect(lastAudit("settings.update")).toMatchObject({ target_id: "analytics.excluded_users", reason: REASON.reason });
-    await as("super_admin").expect(200, "PUT", "/admin/v1/settings/analytics.excluded_users", { value: [], ...REASON });
+    await versionedAdminPut(as("super_admin"), "/admin/v1/settings/analytics.excluded_users", { value: [], ...REASON });
     await as("operations_admin").expect(403, "PUT", "/admin/v1/settings/analytics.exclude_admins", { value: true, ...REASON });
     await as("super_admin").expect(400, "PUT", "/admin/v1/settings/analytics.exclude_admins", { value: "yes", ...REASON });
   });
@@ -221,7 +222,8 @@ describe("quotas", () => {
 
 describe("alerts, resources, search and exports", () => {
   it("open one incident per breached rule, deduplicated, and record that no notification was configured", async () => {
-    await as("operations_admin").expect(200, "PUT", "/admin/v1/alerts/signups.spike", { enabled: true, threshold: 0, windowMinutes: 60, severity: "sev3", ...REASON });
+    const before = await as("operations_admin").expect(200, "GET", "/admin/v1/alerts");
+    await as("operations_admin").expect(200, "PUT", "/admin/v1/alerts/signups.spike", { enabled: true, threshold: 0, windowMinutes: 60, severity: "sev3", expectedUpdatedAt: before.rules.find((r: any) => r.key === "signups.spike").updatedAt, ...REASON });
     const first = await as("operations_admin").expect(200, "POST", "/admin/v1/alerts/evaluate");
     ok(AdminAlerts, first);
     const rule = first.rules.find((r: any) => r.key === "signups.spike");
@@ -230,7 +232,7 @@ describe("alerts, resources, search and exports", () => {
     const incidents = h.ctx.platform.all<{ id: string; source: string }>("platform_incidents", { where: { dedupe_key: "rule:signups.spike" } }).map((i) => ({ id: i.id, source: i.source }));
     expect(incidents).toEqual([{ id: rule.state.incidentId, source: "rule" }]);
     expect(first.deliveries[0]).toMatchObject({ incidentId: rule.state.incidentId, outcome: "not_configured" });
-    await as("auditor").expect(403, "PUT", "/admin/v1/alerts/signups.spike", { enabled: false, threshold: 1, windowMinutes: 60, severity: "sev3", ...REASON });
+    await as("auditor").expect(403, "PUT", "/admin/v1/alerts/signups.spike", { enabled: false, threshold: 1, windowMinutes: 60, severity: "sev3", expectedUpdatedAt: rule.updatedAt, ...REASON });
   });
 
   it("report resources honestly, with what isn't measured listed", async () => {

@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { randomUUID } from "node:crypto";
 import {
   AdminAdminsList,
   AdminAuditPage,
@@ -38,6 +39,10 @@ afterAll(async () => h.close());
 
 const as = (role: string) => admins[role].browser;
 const lastAudit = (action: string) => h.ctx.platform.get<any>("platform_audit", { action }, [["id", "desc"]]);
+const updateIncident = async (browser: AdminBrowser, expected: number, id: string, patch: object) => {
+  const current = await browser.expect(200, "GET", `/admin/v1/incidents/${id}`);
+  return browser.expect(expected, "PATCH", `/admin/v1/incidents/${id}`, { requestKey: randomUUID(), version: current.incident.version, ...patch });
+};
 
 describe("billing status and limits", () => {
   it("say there is no billing, and list server-wide limits", async () => {
@@ -90,7 +95,7 @@ describe("infrastructure", () => {
 describe("incidents", () => {
   it("go through the lifecycle (acknowledged, investigating, monitoring, resolved with a summary, closed), each change kept as an event", async () => {
     const ops = admins.operations_admin;
-    const created = await ops.browser.expect(200, "POST", "/admin/v1/incidents", {
+    const created = await ops.browser.expect(200, "POST", "/admin/v1/incidents", { requestKey: randomUUID(),
       title: "Uploads failing in ap-southeast-1",
       severity: "sev2",
       kind: "incident",
@@ -101,47 +106,47 @@ describe("incidents", () => {
     expect(AdminIncidentDetail.safeParse(created).success).toBe(true);
     const id = created.incident.id;
     expect(created.incident).toMatchObject({ status: "open", source: "manual", service: "File storage", createdBy: { accountId: ops.account.accountId } });
-    const acked = await ops.browser.expect(200, "PATCH", `/admin/v1/incidents/${id}`, { status: "acknowledged" });
+    const acked = await updateIncident(ops.browser, 200, id, { status: "acknowledged" });
     expect(acked.incident.acknowledgedAt).toBeGreaterThan(0);
-    await ops.browser.expect(200, "PATCH", `/admin/v1/incidents/${id}`, { status: "investigating", assigneeAccountId: admins.support_admin.account.accountId });
-    await as("support_admin").expect(200, "POST", `/admin/v1/incidents/${id}/notes`, { body: "Bucket policy rolled back." });
-    await ops.browser.expect(200, "PATCH", `/admin/v1/incidents/${id}`, { status: "monitoring" });
+    await updateIncident(ops.browser, 200, id, { status: "investigating", assigneeAccountId: admins.support_admin.account.accountId });
+    await as("support_admin").expect(200, "POST", `/admin/v1/incidents/${id}/notes`, { requestKey: randomUUID(), body: "Bucket policy rolled back." });
+    await updateIncident(ops.browser, 200, id, { status: "monitoring" });
     // Resolving needs a summary of what happened and what fixed it.
-    await ops.browser.expect(400, "PATCH", `/admin/v1/incidents/${id}`, { status: "resolved" });
-    const done = await ops.browser.expect(200, "PATCH", `/admin/v1/incidents/${id}`, {
+    await updateIncident(ops.browser, 400, id, { status: "resolved" });
+    const done = await updateIncident(ops.browser, 200, id, {
       status: "resolved",
       resolution: "A bucket policy change blocked writes; rolled back.",
       notice: "File uploads were delayed for 20 minutes.",
     });
     expect(done.incident).toMatchObject({ status: "resolved", resolution: "A bucket policy change blocked writes; rolled back.", assignee: { accountId: admins.support_admin.account.accountId } });
     expect(done.incident.resolvedAt).toBeGreaterThan(0);
-    const closed = await ops.browser.expect(200, "PATCH", `/admin/v1/incidents/${id}`, { status: "closed" });
+    const closed = await updateIncident(ops.browser, 200, id, { status: "closed" });
     expect(closed.incident.closedAt).toBeGreaterThan(0);
     expect(closed.events.map((e: any) => e.kind)).toEqual(["created", "status", "status", "assign", "note", "status", "status", "note", "note", "status"]);
     expect((await ops.browser.expect(200, "GET", "/admin/v1/incidents?status=closed")).incidents.map((i: any) => i.id)).toContain(id);
     // Reopening clears the resolution and closing times, and keeps when it was first acknowledged.
-    const reopened = await ops.browser.expect(200, "PATCH", `/admin/v1/incidents/${id}`, { status: "investigating" });
+    const reopened = await updateIncident(ops.browser, 200, id, { status: "investigating" });
     expect(reopened.incident).toMatchObject({ status: "investigating", resolvedAt: null, closedAt: null, acknowledgedAt: acked.incident.acknowledgedAt });
     expect(lastAudit("incident.update")).toMatchObject({ target_id: id });
   });
 
   it("are listed and filtered; assignees must be admins; references must exist; auditors only read", async () => {
     const ops = as("operations_admin");
-    await ops.expect(200, "POST", "/admin/v1/incidents", { title: "Planned database maintenance", severity: "sev4", kind: "maintenance", description: "Saturday 02:00 UTC." });
+    await ops.expect(200, "POST", "/admin/v1/incidents", { requestKey: randomUUID(), title: "Planned database maintenance", severity: "sev4", kind: "maintenance", description: "Saturday 02:00 UTC." });
     const active = await as("auditor").expect(200, "GET", "/admin/v1/incidents?status=active");
     expect(AdminIncidentsPage.safeParse(active).success).toBe(true);
     expect(active.incidents.every((i: any) => i.status !== "resolved")).toBe(true);
     const id = active.incidents[0].id;
     const plain = await plainAccount(h, mailer, "notadmin");
-    await ops.expect(400, "PATCH", `/admin/v1/incidents/${id}`, { assigneeAccountId: plain.accountId });
-    await ops.expect(400, "POST", "/admin/v1/incidents", { title: "Bad ref", severity: "sev3", kind: "support", userRef: "u_nobody_at_all", description: "x" });
-    await ops.expect(400, "PATCH", `/admin/v1/incidents/${id}`, {});
-    await as("auditor").expect(403, "POST", `/admin/v1/incidents/${id}/notes`, { body: "Can't write" });
+    await updateIncident(ops, 400, id, { assigneeAccountId: plain.accountId });
+    await ops.expect(400, "POST", "/admin/v1/incidents", { requestKey: randomUUID(), title: "Bad ref", severity: "sev3", kind: "support", userRef: "u_nobody_at_all", description: "x" });
+    await updateIncident(ops, 400, id, {});
+    await as("auditor").expect(403, "POST", `/admin/v1/incidents/${id}/notes`, { requestKey: randomUUID(), body: "Can't write" });
     // Assignees: admins whose role manages incidents (an auditor or billing admin isn't one).
     const { assignees } = await as("support_admin").expect(200, "GET", "/admin/v1/incidents/assignees");
     expect(assignees.map((a: any) => a.accountId)).toContain(admins.operations_admin.account.accountId);
     expect(assignees.map((a: any) => a.accountId)).not.toContain(admins.auditor.account.accountId);
-    await ops.expect(400, "PATCH", `/admin/v1/incidents/${id}`, { assigneeAccountId: admins.auditor.account.accountId });
+    await updateIncident(ops, 400, id, { assigneeAccountId: admins.auditor.account.accountId });
     await as("billing_admin").expect(403, "GET", "/admin/v1/incidents");
   });
 });
@@ -195,7 +200,7 @@ describe("admin management", () => {
   it("changes roles, resets passkeys, ends sessions and revokes, and the target feels each at once", async () => {
     const target = await consoleAdmin(h, mailer, "auditor", "target");
     const id = target.account.accountId;
-    const changed = await as("super_admin").expect(200, "PATCH", `/admin/v1/admins/${id}`, { role: "support_admin", reason: REASON });
+    const changed = await as("super_admin").expect(200, "PATCH", `/admin/v1/admins/${id}`, { role: "support_admin", reason: REASON, expectedUpdatedAt: h.ctx.platform.get<{ updated_at: number }>("platform_admins", { account_id: id })!.updated_at });
     expect(changed.admin.role).toBe("support_admin");
     await target.browser.expect(401, "GET", "/admin/v1/me");
 
@@ -216,12 +221,12 @@ describe("admin management", () => {
   it("refuses changing oneself, demoting or revoking the last super admin, and needs a recent passkey check", async () => {
     const sup = admins.super_admin;
     const self = sup.account.accountId;
-    expect((await sup.browser.req("PATCH", `/admin/v1/admins/${self}`, { role: "auditor", reason: REASON })).status).toBe(403);
+    expect((await sup.browser.req("PATCH", `/admin/v1/admins/${self}`, { role: "auditor", reason: REASON, expectedUpdatedAt: h.ctx.platform.get<{ updated_at: number }>("platform_admins", { account_id: self })!.updated_at })).status).toBe(403);
     expect(lastAudit("admin.role_change")).toMatchObject({ outcome: "denied", target_id: self });
     expect((await sup.browser.req("POST", `/admin/v1/admins/${self}/revoke`, { reason: REASON })).status).toBe(403);
     // With two super admins, one may demote the other; the one left is then the last, and can't remove itself.
     const second = await consoleAdmin(h, mailer, "super_admin", "secondsuper");
-    expect((await second.browser.req("PATCH", `/admin/v1/admins/${self}`, { role: "auditor", reason: REASON })).status).toBe(200);
+    expect((await second.browser.req("PATCH", `/admin/v1/admins/${self}`, { role: "auditor", reason: REASON, expectedUpdatedAt: h.ctx.platform.get<{ updated_at: number }>("platform_admins", { account_id: self })!.updated_at })).status).toBe(200);
     expect((await as("auditor").req("GET", "/admin/v1/admins")).body).toMatchObject({ activeSuperAdmins: 1 });
     expect((await second.browser.req("POST", `/admin/v1/admins/${second.account.accountId}/revoke`, { reason: REASON })).status).toBe(403);
     // Nobody else can manage admins at all, so the last super admin can't be removed through the API. (The

@@ -99,6 +99,40 @@ export class PostgresReportStore implements ReportStore {
       )
     ).rows;
   }
+  async adminCounts(
+    q: Omit<AdminReportQuery, "after" | "limit">,
+  ): Promise<Record<ReportStatus, number>> {
+    const where: string[] = [],
+      params: string[] = [];
+    for (const [column, value] of [
+      ["status", q.status],
+      ["org_id", q.orgId],
+      ["target_user_id", q.targetUserId],
+    ] as const) {
+      if (value) {
+        params.push(value);
+        where.push(`${column}=$${params.length}`);
+      }
+    }
+    if (q.q) {
+      params.push(q.q);
+      where.push(
+        `(id=$${params.length} OR target_user_id=$${params.length} OR reason=$${params.length})`,
+      );
+    }
+    const result = await this.db.query<{ status: ReportStatus; count: number }>(
+      `SELECT status, count(*) AS count FROM meldiq.reports${where.length ? ` WHERE ${where.join(" AND ")}` : ""} GROUP BY status`,
+      params,
+    );
+    return {
+      open: 0,
+      actioned: 0,
+      dismissed: 0,
+      ...Object.fromEntries(
+        result.rows.map((r) => [r.status, Number(r.count)]),
+      ),
+    };
+  }
   async countOpen(orgId: string | null): Promise<number> {
     return (
       await this.db.query<{ count: number }>(

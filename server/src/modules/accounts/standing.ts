@@ -83,3 +83,7 @@ export function revokeWarning(safety: Rows, id: string): Promise<boolean> {
 export const warningRecord=(safety:RowReader,id:string)=>safety.get<{id:string;user_id:string;created_by:string|null;reason:string;created_at:number;expires_at:number;revoked_at:number|null}>("account_warnings",{id});
 export const standingWarnings=(safety:RowReader,userId:string)=>safety.all("account_warnings",{where:{user_id:userId},orderBy:[["created_at","desc"]],limit:100});
 export async function issueStandingWarning(safety:Rows,x:{id:string;userId:string;message:string;days:number;actor:string}){await safety.write(w=>{const old=warningRecord(w,x.id);if(old){if(old.user_id!==x.userId||old.reason!==x.message)throw new ApiError(409,"conflict","This request key belongs to a different warning");return;}w.insert("account_warnings",{id:x.id,user_id:x.userId,reason:x.message,created_by:x.actor,created_at:now(),expires_at:now()+x.days*86400000,revoked_at:null});});}
+
+export function hasRecentUnrevokedWarning(safety: RowReader, userId: string, since: number): boolean {
+  return !!safety.get("account_warnings", { user_id: userId, created_at: { gte: since }, revoked_at: null });
+}

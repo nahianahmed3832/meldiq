@@ -2,6 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { AdminOrgParams, AdminReasonBody, AdminUserParams } from "../../shared/contracts/http/platformAdmin.js";
 import {
   AdminAccountCreateBody,
+  AdminAccountLookupBody,
+  AdminAccountSessionParams,
   AdminAccountVerificationBody,
   AdminCreatedAccountParams,
   AdminCreatedAccountsQuery,
@@ -108,7 +110,7 @@ export default async function adminInsightsRoutes(app: FastifyInstance, d: Admin
   });
 
   // ── People and organizations ──
-  app.get("/admin/v1/users/:userId/insights", needs("users.view"), async (req) => insights.user(parse(AdminUserParams, req.params).userId));
+  app.get("/admin/v1/users/:userId/insights", needs("users.view"), async (req) => insights.user(principal(req), parse(AdminUserParams, req.params).userId));
   app.post("/admin/v1/users/:userId/verification-email", needs("users.recovery"), async (req) =>
     insights.sendEmail(principal(req), parse(AdminUserParams, req.params).userId, "verification", parse(AdminReasonBody, req.body).reason, metaOf(req)),
   );
@@ -119,7 +121,7 @@ export default async function adminInsightsRoutes(app: FastifyInstance, d: Admin
     const { reason, confirm } = parse(AdminDeleteUserBody, req.body);
     return insights.deleteUser(principal(req), parse(AdminUserParams, req.params).userId, reason, confirm, metaOf(req));
   });
-  app.get("/admin/v1/orgs/:orgId/insights", needs("orgs.view"), async (req) => insights.org(parse(AdminOrgParams, req.params).orgId));
+  app.get("/admin/v1/orgs/:orgId/insights", needs("orgs.view"), async (req) => insights.org(principal(req), parse(AdminOrgParams, req.params).orgId));
   app.post("/admin/v1/orgs/:orgId/members/:userId/remove", needs("orgs.members.manage"), async (req) => {
     const { orgId, userId } = parse(AdminOrgMemberTarget, req.params);
     return insights.removeMember(principal(req), orgId, userId, parse(AdminReasonBody, req.body).reason, metaOf(req));
@@ -153,25 +155,32 @@ export default async function adminInsightsRoutes(app: FastifyInstance, d: Admin
   // ── Settings and alerts ──
   app.get("/admin/v1/settings", needs("settings.view"), async () => settings.list());
   app.put("/admin/v1/settings/:key", needs("settings.edit"), async (req) => {
-    const { value, reason } = parse(AdminSettingBody, req.body);
-    return settings.set(principal(req), parse(AdminSettingParams, req.params).key, value, reason, metaOf(req));
+    const { value, reason, expectedUpdatedAt } = parse(AdminSettingBody, req.body);
+    return settings.set(principal(req), parse(AdminSettingParams, req.params).key, value, reason, metaOf(req), expectedUpdatedAt);
   });
 
   // ── Site and legal details (docs/SITE_DETAILS.md) ──
   app.get("/admin/v1/site", needs("settings.view"), async () => site.view());
   app.put("/admin/v1/site", needs("settings.edit"), async (req) => {
-    const { details, reason } = parse(AdminSiteDetailsBody, req.body);
-    return site.set(principal(req), details, reason, metaOf(req));
+    const { details, reason, expectedUpdatedAt } = parse(AdminSiteDetailsBody, req.body);
+    return site.set(principal(req), details, reason, metaOf(req), expectedUpdatedAt);
   });
 
   // ── Platform controls (docs/PLATFORM_CONTROLS.md) ──
   app.get("/admin/v1/controls", needs("settings.view"), async () => controls.list());
   app.put("/admin/v1/controls/:key", needs("controls.edit"), async (req) => {
-    const { value, reason } = parse(AdminControlBody, req.body);
-    return controls.set(principal(req), parse(AdminControlParams, req.params).key, value, reason, metaOf(req));
+    const { value, reason, expectedUpdatedAt } = parse(AdminControlBody, req.body);
+    return controls.set(principal(req), parse(AdminControlParams, req.params).key, value, reason, metaOf(req), expectedUpdatedAt);
   });
 
   // ── Accounts made in the console (docs/ADMIN_ACCOUNTS.md) ──
+  app.post("/admin/v1/accounts/lookup", { ...needs("users.view"), config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async req => createdAccounts.lookup(principal(req), parse(AdminAccountLookupBody, req.body)));
+  app.post("/admin/v1/accounts/:accountId/sessions/:sessionId/revoke", needs("users.sessions.revoke"), async req => {
+    const { accountId, sessionId } = parse(AdminAccountSessionParams, req.params);
+    return createdAccounts.revokeAccountSession(principal(req), accountId, sessionId, parse(AdminReasonBody, req.body).reason, metaOf(req));
+  });
+  app.post("/admin/v1/accounts/:accountId/suspend", needs("users.suspend"), async req => createdAccounts.setSuspended(principal(req), parse(AdminCreatedAccountParams, req.params).accountId, true, parse(AdminReasonBody, req.body).reason, metaOf(req)));
+  app.post("/admin/v1/accounts/:accountId/restore", needs("users.restore"), async req => createdAccounts.setSuspended(principal(req), parse(AdminCreatedAccountParams, req.params).accountId, false, parse(AdminReasonBody, req.body).reason, metaOf(req)));
   app.get("/admin/v1/accounts", needs("users.view"), async (req) => createdAccounts.list(principal(req), parse(AdminCreatedAccountsQuery, req.query)));
   app.post("/admin/v1/accounts", needs("accounts.create"), async (req) => createdAccounts.create(principal(req), parse(AdminAccountCreateBody, req.body), metaOf(req)));
   app.put("/admin/v1/accounts/:accountId/verification", needs("accounts.create"), async (req) =>

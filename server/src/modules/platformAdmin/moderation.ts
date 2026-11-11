@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { networkKey } from "../../app/middleware/abuse.js";
 import {
   AdminReportDetail,
+  AdminReportRecoveryBody,
   AdminReportParams,
   AdminReportQuery,
   AdminReportUpdate,
@@ -14,6 +15,7 @@ import type { AdminDeps } from "./dataRoutes.js";
 import { metaOf, principal, requirePermission } from "./guards.js";
 import { allowed } from "./permissions.js";
 import { decodeCursor, page } from "./pagination.js";
+import { ReportRecoveryOperations } from "./reportRecoveryOperations.js";
 
 interface CaseRow {
   report_id: string;
@@ -89,6 +91,14 @@ export default async function moderationRoutes(
       })),
     });
   };
+  const recovery = new ReportRecoveryOperations(d);
+  app.get("/admin/v1/reports/recovery", needs("reports.view"), async () => recovery.history());
+  app.post("/admin/v1/reports/recovery", { ...needs("reports.manage"), config: { rateLimit: { max: 5, timeWindow: "1 minute" } } }, async (req) => recovery.run(principal(req), parse(AdminReportRecoveryBody, req.body), metaOf(req)));
+  app.get("/admin/v1/reports/summary", needs("reports.view"), async (req) => {
+    const q = parse(AdminReportQuery, req.query);
+    const counts = await d.ctx.reports.adminCounts(q);
+    return { generatedAt: now(), ...counts, total: counts.open + counts.actioned + counts.dismissed };
+  });
   app.get("/admin/v1/reports", needs("reports.view"), async (req) => {
     const q = parse(AdminReportQuery, req.query);
     const rows = await d.ctx.reports.adminList({

@@ -1,4 +1,5 @@
 import { isOfficialPlus, PLUS_TERMS, type PlusTerm, plusTermViews, termOf, PRICING, PRICING_VERSION, PRICING_EFFECTIVE_AT } from "./pricing.js";
+import { AdminRefunds } from "./adminRefunds.js";
 import { PayPalProvider } from "./providers/paypal.js";
 import type { BillingNotifications } from "./notifications.js";
 import { Promotions } from "./upgradePromotions.js";
@@ -40,6 +41,7 @@ const audienceOf = (owner: BillingOwner): PlanAudience => (owner.kind === "accou
 
 /** The billing module's one entry point (ctx.billing): catalog, subscriptions, webhooks, checkout and the portal. */
 export class Billing {
+  readonly adminRefunds: AdminRefunds;
   notifications: BillingNotifications | null = null;
   readonly commerce: Commerce;
   readonly promotions: Promotions;
@@ -68,6 +70,7 @@ export class Billing {
     private readonly clock: () => number = Date.now,
     quotaPlanExists?: QuotaPlanCheck,
   ) {
+    this.adminRefunds = new AdminRefunds(this);
     this.commerce = new Commerce(this, clock);
     this.promotions = new Promotions(rows, clock);
     this.provider = config.provider;
@@ -363,6 +366,7 @@ export class Billing {
     if (!provider?.fetchSubscription) return [];
     const snapshots: SubscriptionSnapshot[] = [];
     for (const ref of refs) {
+      const observed = JSON.stringify(this.rows.get("billing_subscriptions", { provider: provider.id, provider_subscription_ref: ref }) ?? null);
       let snap: SubscriptionSnapshot | null;
       try {
         snap = await provider.fetchSubscription(ref);
@@ -381,7 +385,10 @@ export class Billing {
       const t = this.clock();
       const at = Math.max(existing?.provider_updated_at ?? 0, t - RECONCILE_SKEW_MS);
       try {
-        const outcome = await this.rows.write((w) => this.subscriptions.applySnapshot(w, provider.id, snap, at, `reconcile:${t}`, t));
+        const outcome = await this.rows.write((w) => {
+          if (JSON.stringify(w.get("billing_subscriptions", { provider: provider.id, provider_subscription_ref: ref }) ?? null) !== observed) throw new Error("Subscription changed while reading the provider; retry reconciliation");
+          return this.subscriptions.applySnapshot(w, provider.id, snap, at, `reconcile:${t}`, t, { mode: provider.mode, scope: provider.eventScope ?? null });
+        });
         snapshots.push(snap);
         if (outcome.owner && outcome.result === "applied") this.changed(outcome.owner);
       } catch (e) {

@@ -14,6 +14,9 @@ export interface AdminGrantRow {
   note: string | null;
 }
 
+/** Account/identity state resolved outside the platform transaction. Platform reservations fence later changes. */
+export interface AdminAccountAuthority { enabled: boolean; userId: string | null }
+
 export interface AdminPasskeyRow {
   id: string;
   account_id: string;
@@ -70,6 +73,7 @@ export class PlatformAdminStore {
   constructor(
     readonly platform: Rows,
     readonly ephemeral: Rows,
+    readonly accountAuthority?: (accountId: string) => Promise<AdminAccountAuthority>,
   ) {}
 
   // ───────────── Grants ─────────────
@@ -217,14 +221,15 @@ export class PlatformAdminStore {
     return this.ephemeral.write((w) => w.update("platform_admin_sessions", { account_id: accountId, revoked_at: null }, { revoked_at: t, revoke_reason: reason }));
   }
 
-  /** Retention: ended sessions a day after they ended, expired ceremonies and enrolment codes. */
-  purgeExpired(t: number): Promise<number> {
+  /** Retention: ended sessions, expired ceremonies/enrolment codes and derived export artifacts; audit is retained. */
+  async purgeExpired(t: number): Promise<number> {
     const dayAgo = t - 86_400_000;
-    return this.ephemeral.write(
+    const removed = await this.ephemeral.write(
       (w) =>
         w.delete("platform_admin_sessions", { $or: [{ revoked_at: { lte: dayAgo } }, { expires_at: { lte: dayAgo } }, { idle_expires_at: { lte: dayAgo } }] }) +
         w.delete("platform_admin_challenges", { expires_at: { lte: t } }) +
         w.delete("platform_admin_enrolments", { expires_at: { lte: t } }),
     );
+    return removed + await this.platform.write(w => w.delete("platform_export_jobs", { expires_at: { lte: t } }));
   }
 }

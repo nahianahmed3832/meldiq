@@ -47,6 +47,9 @@ export interface AdminReportQuery {
 
 export interface ReportStore {
   adminList(q: AdminReportQuery): Promise<ReportRow[]>;
+  adminCounts(
+    q: Omit<AdminReportQuery, "after" | "limit">,
+  ): Promise<Record<ReportStatus, number>>;
   readonly backend: "sqlite" | "mongodb" | "postgres";
   create(r: ReportRow): Promise<void>;
   get(id: string): Promise<ReportRow | null>;
@@ -119,6 +122,38 @@ export class SqliteReportStore implements ReportStore {
         `SELECT * FROM reports WHERE ${where.join(" AND ")} ORDER BY created_at DESC, id DESC LIMIT ?`,
       )
       .all(...args, q.limit) as ReportRow[];
+  }
+
+  async adminCounts(
+    q: Omit<AdminReportQuery, "after" | "limit">,
+  ): Promise<Record<ReportStatus, number>> {
+    const where: string[] = ["1 = 1"],
+      args: string[] = [];
+    for (const [column, value] of [
+      ["status", q.status],
+      ["org_id", q.orgId],
+      ["target_user_id", q.targetUserId],
+    ] as const) {
+      if (value) {
+        where.push(`${column} = ?`);
+        args.push(value);
+      }
+    }
+    if (q.q) {
+      where.push("(id = ? OR target_user_id = ? OR reason = ?)");
+      args.push(q.q, q.q, q.q);
+    }
+    const rows = this.db
+      .prepare(
+        `SELECT status, COUNT(*) AS count FROM reports WHERE ${where.join(" AND ")} GROUP BY status`,
+      )
+      .all(...args) as { status: ReportStatus; count: number }[];
+    return {
+      open: 0,
+      actioned: 0,
+      dismissed: 0,
+      ...Object.fromEntries(rows.map((r) => [r.status, r.count])),
+    };
   }
 
   async create(r: ReportRow): Promise<void> {

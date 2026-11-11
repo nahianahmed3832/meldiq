@@ -1,3 +1,5 @@
+import { identityStandingMetadata, hasRecentUnrevokedWarning } from "../accounts/index.js";
+import { hasRecentOrgSafetyAction } from "../platformAdmin/index.js";
 import type { RowReader } from "../../infrastructure/database/rows/index.js";
 import { nameBlocked } from "./discovery/listing.js";
 import { onboardingOn } from "./onboardingRoutes.js";
@@ -32,9 +34,18 @@ export interface PartnerRow {
 const DAY = 86_400_000;
 const MOD_ACTIONS = ["member.ban", "member.kick", "member.remove", "org.member.remove", "member.timeout", "member.voice_ban", "member.voice_mute", "member.voice_disconnect", "voice_room.mute", "voice_room.disconnect"];
 
+/** Platform review read model, kept with the organization-owned records. */
+export function partnerApplicationDetail(ctx: AppContext, orgId: string) {
+  const org = ctx.ws.get<{ name: string }>("orgs", { id: orgId, kind: "community" });
+  if (!org) throw notFound("Community not found");
+  const owner = ctx.ws.get<{ user_id: string }>("org_members", { org_id: orgId, role: "OWNER" });
+  const application = ctx.ws.get<PartnerRow>("org_partner_applications", { org_id: orgId });
+  return { name: org.name, eligibility: owner && identityStandingMetadata(ctx.identity, owner.user_id) ? partnerEligibility(ctx, orgId, owner.user_id) : null, application: application ? partnerView(application) : null };
+}
+
 export function partnerEligibility(ctx: AppContext, orgId: string, ownerId: string, rows: RowReader = ctx.ws, at = now()) {
   const org = rows.get<{ created_at: number; name: string }>("orgs", { id: orgId });
-  const owner = ctx.identity.get<{ created_at: number; disabled_at: number | null }>("users", { id: ownerId });
+  const owner = identityStandingMetadata(ctx.identity, ownerId);
   if (!org || !owner) throw notFound("Community not found");
   const ageDays = Math.max(0, Math.floor((at - Math.max(org.created_at, owner.created_at)) / DAY));
   const members = rows.count("org_members", { org_id: orgId });
@@ -44,15 +55,10 @@ export function partnerEligibility(ctx: AppContext, orgId: string, ownerId: stri
   }).flatMap(({ actor_id }) => actor_id && actor_id !== ownerId && rows.get("org_members", { org_id: orgId, user_id: actor_id }) ? [actor_id] : [])).size;
   const verification = ctx.communitySafety.verificationLevel(orgId);
   const activeSparks = ctx.mojo.levelOf(orgId, at).active;
-  const staffAction = ctx.platform.all<{ action: string; detail: string | null }>("platform_audit", { where: {
-    target_type: "org", target_id: orgId, at: { gte: at - 90 * DAY }, outcome: "success", action: { in: ["org.suspend", "discovery.update", "org.warn"] },
-  } }).some((row) => {
-    if (row.action !== "discovery.update") return true;
-    try { return JSON.parse(row.detail ?? "{}").removed === true; } catch { return true; }
-  });
+  const staffAction = hasRecentOrgSafetyAction(ctx, orgId, at - 90 * DAY);
   const cleanStanding = !owner.disabled_at && !ctx.authz.platformSuspended(orgId) &&
     !nameBlocked(org.name, ctx.config.discovery.blockedWords) && !staffAction &&
-    !ctx.safety.get("account_warnings", { user_id: ownerId, created_at: { gte: at - 90 * DAY }, revoked_at: null });
+    !hasRecentUnrevokedWarning(ctx.safety, ownerId, at - 90 * DAY);
   const eligible = activeSparks >= 7 && members >= 1000 && hasRules && activeMods >= 2 &&
     ["medium", "high", "highest"].includes(verification) && ageDays >= 10 && cleanStanding;
   return { eligible, activeSparks, members, hasRules, activeMods, verification, ageDays, cleanStanding };

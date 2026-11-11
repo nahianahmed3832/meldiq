@@ -39,14 +39,17 @@ export class AdminControls {
     };
   }
 
-  async set(p: AdminPrincipal, key: string, value: unknown, reason: string, meta: RequestMeta) {
+  async set(p: AdminPrincipal, key: string, value: unknown, reason: string, meta: RequestMeta, expectedUpdatedAt?: number | null) {
     if (!isControlKey(key)) throw new ApiError(404, "not_found", "No such control.");
     const parsed = CONTROL_SCHEMAS[key].safeParse(value);
     if (!parsed.success) throw new ApiError(400, "invalid_policy", `${key}: ${parsed.error.issues[0]?.message ?? "not a valid value"}`);
     const after = key === "email_domains" ? { blocked: [...new Set((parsed.data as { blocked: string[] }).blocked)] } : parsed.data;
+    const expected = expectedUpdatedAt === undefined ? this.ctx.platform.get<{ updated_at: number }>("platform_settings", { key: controlRowKey(key) })?.updated_at ?? null : expectedUpdatedAt;
     await this.ctx.platform.write((w) => {
+      const current = w.get<{ updated_at: number }>("platform_settings", { key: controlRowKey(key) })?.updated_at ?? null;
+      if (current !== expected) throw new ApiError(409, "conflict", "This control changed. Close this form, reload and review the new value before saving.");
       const before = readControl(w, key);
-      const stored = { value: JSON.stringify(after), updated_by: p.account.id, updated_at: now() };
+      const stored = { value: JSON.stringify(after), updated_by: p.account.id, updated_at: Math.max(now(), (current ?? 0) + 1) };
       w.upsert("platform_settings", { key: controlRowKey(key), ...stored }, stored);
       this.audit.append(w, {
         action: "controls.update",

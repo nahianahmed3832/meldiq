@@ -68,10 +68,13 @@ export class AdminSettings {
     };
   }
 
-  async set(p: AdminPrincipal, key: string, value: unknown, reason: string, meta: RequestMeta) {
+  async set(p: AdminPrincipal, key: string, value: unknown, reason: string, meta: RequestMeta, expectedUpdatedAt?: number | null) {
     if (!isSettingKey(key)) throw new ApiError(404, "not_found", "No such setting.");
+    const expected = expectedUpdatedAt === undefined ? settingMeta(this.ctx.platform, key).updatedAt : expectedUpdatedAt;
     await this.ctx.platform.write((w) => {
-      const { before, after } = writeSetting(w, key, value, p.account.id, now());
+      const current = settingMeta(w, key).updatedAt;
+      if (current !== expected) throw new ApiError(409, "conflict", "This setting changed. Close this form, reload and review the new value before saving.");
+      const { before, after } = writeSetting(w, key, value, p.account.id, Math.max(now(), (current ?? 0) + 1));
       this.audit.append(w, { action: "settings.update", outcome: "success", actorAccountId: p.account.id, actorRole: p.grant.role, targetType: "setting", targetId: key, reason, requestId: meta.requestId, network: networkKey(meta.ip), detail: flatDetail({ before, after }) });
     });
     if (key.startsWith("analytics.")) this.exclusions.invalidate();
@@ -86,10 +89,8 @@ export class AdminSettings {
     return { rules: this.alerts.rules(), deliveries: deliveries.map((d) => ({ at: d.at, incidentId: d.incident_id, channel: d.channel, outcome: d.outcome, detail: d.detail })) };
   }
 
-  async setRule(p: AdminPrincipal, key: string, b: { enabled: boolean; threshold: number; windowMinutes: number; severity: "sev1" | "sev2" | "sev3" | "sev4"; reason: string }, meta: RequestMeta) {
-    const before = this.alerts.rules().find((r) => r.key === key);
-    await this.alerts.setRule(key, b, p.account.id);
-    await this.audit.record({
+  async setRule(p: AdminPrincipal, key: string, b: { enabled: boolean; threshold: number; windowMinutes: number; severity: "sev1" | "sev2" | "sev3" | "sev4"; reason: string; expectedUpdatedAt: number | null }, meta: RequestMeta) {
+    await this.alerts.setRule(key, b, p.account.id, (w, before, after) => this.audit.append(w, {
       action: "alerts.rule_update",
       outcome: "success",
       actorAccountId: p.account.id,
@@ -99,8 +100,8 @@ export class AdminSettings {
       reason: b.reason,
       requestId: meta.requestId,
       network: networkKey(meta.ip),
-      detail: flatDetail({ before: before ? { enabled: before.enabled, threshold: before.threshold, windowMinutes: before.windowMinutes, severity: before.severity } : null, after: { enabled: b.enabled, threshold: b.threshold, windowMinutes: b.windowMinutes, severity: b.severity } }),
-    });
+      detail: flatDetail({ before, after }),
+    }));
     return this.alertsView();
   }
 

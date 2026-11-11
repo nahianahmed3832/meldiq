@@ -20,7 +20,7 @@ import {
   tokenHash,
   verifyPushToken,
 } from "./providers/googlePlay.js";
-import { type SubscriptionSnapshot, WebhookRejected } from "./providers/types.js";
+import { type ProviderSource, type NormalizedEvent, type SubscriptionSnapshot, WebhookRejected } from "./providers/types.js";
 import type { Billing } from "./service.js";
 import type { SubscriptionRow } from "./subscriptions.js";
 
@@ -78,7 +78,21 @@ export class PlayBilling {
     private readonly log: FastifyBaseLogger,
     private readonly clock: () => number = Date.now,
   ) {
+    billing.webhooks.externalScopes.set(PLAY_PROVIDER, `google_play:${config.packageName}`);
+    billing.webhooks.refreshers.set(PLAY_PROVIDER, (event, t, source) => this.refreshEvent(event, t, source));
     billing.subscriptions.storeVersion = (provider, priceRef) => (provider === PLAY_PROVIDER ? this.versionFor(priceRef) : null);
+  }
+
+  /** Durable replay repeats the Developer API ownership check; an old notification is not a state command. */
+  private async refreshEvent(event: NormalizedEvent, t: number, source?: ProviderSource): Promise<NormalizedEvent> {
+    if (event.kind !== "subscription" || event.type === "play.replaced") return event;
+    const known = this.rows.get<PlayPurchaseRow>("billing_play_purchases", { token_hash: event.subscription.ref });
+    if (!known) throw new Error("Play purchase binding is unavailable");
+    const current = await this.config.api.getSubscription(known.purchase_token);
+    const snap = current ? playSnapshot(known.purchase_token, current, t) : null;
+    if (!current || !snap || snap.ref !== known.token_hash || current.externalAccountIdentifiers?.obfuscatedExternalAccountId !== this.accountToken(known.account_id) || current.externalAccountIdentifiers?.obfuscatedExternalProfileId !== known.reference) throw new Error("Play purchase no longer matches its recorded owner and checkout");
+    if (source && (source.scope !== `google_play:${this.config.packageName}` || source.mode !== (current.testPurchase ? "test" : "live"))) throw new Error("Play purchase environment differs from its original event");
+    return { ...event, createdAt: t, subscription: snap };
   }
 
   private get rows() {
@@ -179,8 +193,8 @@ export class PlayBilling {
     // One event per change Google reports: reading the same state again (the app and a notification, reconciliation) is
     // a duplicate and isn't stored twice; coming back to an earlier state (on hold, then paid) is a new change.
     const before = this.rows.get<SubscriptionRow>("billing_subscriptions", { provider: PLAY_PROVIDER, provider_subscription_ref: hash });
-    const stateRef = `play:${hash}:${before?.status ?? "new"}>${snap.status}:${snap.currentPeriodEnd ?? 0}:${snap.cancelAtPeriodEnd ? 1 : 0}:${snap.priceRef}`;
-    const applied = await this.billing.webhooks.ingest(PLAY_PROVIDER, { ref: stateRef, type: `play.${sub.subscriptionState ?? "unknown"}`, createdAt: t, kind: "subscription", subscription: snap });
+    const stateRef = `play:${hash}:${before?.provider_updated_at ?? 0}:${before?.status ?? "new"}>${snap.status}:${snap.currentPeriodEnd ?? 0}:${snap.cancelAtPeriodEnd ? 1 : 0}:${snap.priceRef}`;
+    const applied = await this.billing.webhooks.ingest(PLAY_PROVIDER, { ref: stateRef, type: `play.${sub.subscriptionState ?? "unknown"}`, createdAt: t, kind: "subscription", subscription: snap }, { mode: sub.testPurchase ? "test" : "live", scope: `google_play:${this.config.packageName}` });
     if (applied.status === "failed" || applied.status === "dead") this.log.warn({ purchase: hash.slice(0, 12), status: applied.status }, "google play subscription couldn't be applied");
     const row = this.rows.get<SubscriptionRow>("billing_subscriptions", { provider: PLAY_PROVIDER, provider_subscription_ref: hash });
     const granting = !!row && this.billing.subscriptions.grants(row, t);

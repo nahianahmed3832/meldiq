@@ -479,12 +479,23 @@ export function seriesTotal(r: TelemetryRows, series: string, from: number, to: 
   return rows.length ? sum(rows.map((h) => h.avg * h.samples * 60)) : null;
 }
 
-/** Sum of a per-minute count series over [from, to] (requests, errors), or null with no samples. */
+/** Sum retained count buckets without counting rolled-up minutes twice. Boundary hours use precise
+ * retained minutes where available; older boundaries round to whole stored UTC hours. */
 export function seriesSum(r: TelemetryRows, series: string, from: number, to: number): number | null {
-  const values = minuteValues(r, series, from, to);
-  if (values.length) return sum(values);
-  const rows = hourRows(r, series, from, to);
-  return rows.length ? sum(rows.map((h) => h.avg * h.samples)) : null;
+  const firstMinute = Math.floor(from / MINUTE_MS), lastMinute = Math.floor(to / MINUTE_MS);
+  const samples = minutes<ResourceSample>(r.ephemeral, "resource_samples", firstMinute, lastMinute, { series });
+  const minutesByHour = new Map(byHour(samples));
+  const rolled = hourRows(r, series, from, to);
+  if (!samples.length && !rolled.length) return null;
+  let total = 0;
+  for (const hour of rolled) {
+    const retained = minutesByHour.get(hour.hour);
+    const fullHour = firstMinute <= hour.hour * 60 && lastMinute >= hour.hour * 60 + 59;
+    total += !fullHour && retained?.length ? sum(retained.map(x => x.value)) : Math.round(hour.avg * hour.samples);
+    minutesByHour.delete(hour.hour);
+  }
+  for (const retained of minutesByHour.values()) total += sum(retained.map(x => x.value));
+  return total;
 }
 
 /** Average of a series over [from, to] (minute samples, or hourly averages beyond 2 days), or null. */

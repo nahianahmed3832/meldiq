@@ -1,20 +1,18 @@
 import type { AppContext } from "../../app/context.js";
-import { badRequest } from "../../shared/errors.js";
 import { now } from "../../shared/utilities/util.js";
 import { accountStateCounts, signupsBetween, signupsPerDay, userCounts, usernames } from "../accounts/index.js";
-import { orgCounts, orgsCreatedBetween, orgsWithMembers } from "../organizations/index.js";
+import { orgActivityPopulationCount, orgCounts, orgsCreatedBetween, orgsWithMembers } from "../organizations/index.js";
 import { analytics, utcDay } from "../telemetry/index.js";
 import type { AdminPrincipal } from "./auth.js";
 import type { Exclusions } from "./exclusions.js";
 import { allowed } from "./permissions.js";
 import { platformSetting } from "./settings.js";
+import { activityReport, dayCoverage, reportDays } from "./reporting.js";
 
 export const RANGE_MS = { "1h": 3_600_000, "24h": 86_400_000, "7d": 7 * 86_400_000, "30d": 30 * 86_400_000, "90d": 90 * 86_400_000 } as const;
 export type Range = keyof typeof RANGE_MS;
 
 const DAY_MS = 86_400_000;
-/** Days a day-range request may cover. */
-const MAX_DAYS = 120;
 /** Organizations whose activity is computed (largest first). */
 const ORGS_SHOWN = 100;
 const ACTIVATION_DAYS = 7;
@@ -25,12 +23,7 @@ const compare = (current: number | null, previous: number | null) => ({ current,
 
 /** A [from, to] day range: defaults to the last 30 days, at most MAX_DAYS, never in the future. */
 export function dayRange(q: { from?: string; to?: string }, t = now()): { from: string; to: string } {
-  const today = utcDay(t);
-  const to = q.to && q.to < today ? q.to : today;
-  const from = q.from ?? analytics.addDays(to, -29);
-  if (from > to) throw badRequest("The range starts after it ends.");
-  if (analytics.daysBetween(from, to, MAX_DAYS + 1).length > MAX_DAYS) throw badRequest(`A range is at most ${MAX_DAYS} days.`);
-  return { from, to };
+  return reportDays(q, t);
 }
 
 /**
@@ -52,9 +45,9 @@ export class AdminAnalytics {
     const since = this.collectingSince();
     const yesterday = utcDay(t - DAY_MS);
     const before = utcDay(t - 2 * DAY_MS);
-    const covered = (day: string, span: number) => since !== null && analytics.addDays(day, -(span - 1)) >= utcDay(since);
+    const covered = (day: string, span: number) => dayCoverage(day, since, t, span) === "observed";
     const metric = (day: string, span: number) =>
-      covered(day, span) || (since !== null && day >= utcDay(since) && span === 1) ? analytics.distinctActive(this.ctx, analytics.addDays(day, -(span - 1)), day, excluded) : null;
+      covered(day, span) ? analytics.distinctActive(this.ctx, analytics.addDays(day, -(span - 1)), day, excluded) : null;
     const pick = (span: number) => compare(metric(yesterday, span), metric(span === 1 ? before : analytics.addDays(yesterday, -span), span));
     return { dau: pick(1), wau: pick(7), mau: pick(30) };
   }
@@ -69,9 +62,9 @@ export class AdminAnalytics {
     const states = accountStateCounts(this.ctx.identity, t);
     const trio = this.activeTrio(ex.ids, t);
     const since = this.collectingSince();
-    const sinceOk = (from: number) => since !== null && from >= since;
     const activeNow = analytics.activeBetween(this.ctx, t - ms, t, ex.ids);
-    const activePrev = sinceOk(t - 2 * ms) ? analytics.activeBetween(this.ctx, t - 2 * ms, t - ms, ex.ids) : null;
+    // First/last daily observations cannot reconstruct a precise historical rolling window.
+    const activePrev = null;
     const live = await this.ctx.telemetry.live(t);
     const presence = analytics.presenceSeries(this.ctx, t - ms, t);
     const orgs = orgCounts(ws, t, 1);
@@ -96,11 +89,10 @@ export class AdminAnalytics {
           wsConnects: presence.points.length ? presence.points.reduce((a, x) => a + x.connects, 0) : null,
         }
       : null;
-    if (requests && requests.requests) requests.errorRate = Math.round(((requests.serverErrors ?? 0) / requests.requests) * 10000) / 100;
+    if (requests && requests.requests && requests.serverErrors !== null) requests.errorRate = Math.round((requests.serverErrors / requests.requests) * 10000) / 100;
     const providers = health ? this.ctx.metrics.snapshot().providers.map((x) => ({ name: x.name, ok: x.ok, failed: x.failed, lastFailureAt: x.lastFailureAt })) : null;
     const open = { status: { ne: "resolved" } };
-    const incidents = { n: this.ctx.platform.count("platform_incidents", open), c: this.ctx.platform.count("platform_incidents", { ...open, severity: "sev1" }) };
-    const breaching = this.ctx.platform.count("alert_state", { breaching: 1 });
+    const incidents = allowed(p.grant, "incidents.view") ? { open: this.ctx.platform.count("platform_incidents", open), critical: this.ctx.platform.count("platform_incidents", { ...open, severity: "sev1" }), breachingRules: this.ctx.platform.count("alert_state", { breaching: 1 }) } : null;
     return {
       generatedAt: t,
       range,
@@ -130,7 +122,7 @@ export class AdminAnalytics {
         peakUsers: presence.peakUsers,
         peakAt: presence.peakAt,
       },
-      organizations: { total: orgs.total, active: activeOrgs, newInRange: compare(orgsCreatedBetween(ws, t - ms, t), orgsCreatedBetween(ws, t - 2 * ms, t - ms)) },
+      organizations: { total: orgs.total, active: activeOrgs, sampled: Math.min(orgs.total, ORGS_SHOWN), truncated: orgs.total > ORGS_SHOWN, newInRange: compare(orgsCreatedBetween(ws, t - ms, t), orgsCreatedBetween(ws, t - 2 * ms, t - ms)) },
       messaging: {
         messagesAccepted: sum("messages"),
         why: "Message envelopes the server accepted (UTC days covering the range), counted per sender; never their content. End-to-end encrypted: the server can't tell what they contain.",
@@ -138,25 +130,15 @@ export class AdminAnalytics {
       files: { uploadedBytes: sum("files.upload"), downloadedBytes: sum("files.download"), storedWorkspaceBytes: workspaceBytes },
       requests,
       push: providers ? { providers } : null,
-      incidents: { open: incidents.n, critical: incidents.c, breachingRules: breaching },
+      incidents,
       billing: { available: !!this.ctx.billing.provider, reason: this.ctx.billing.unavailableReason },
     };
   }
 
   async activeUsers(q: { from?: string; to?: string }) {
-    const { from, to } = dayRange(q);
-    const ex = await this.exclusions.get();
-    const since = this.collectingSince();
-    const sinceDay = since === null ? null : utcDay(since);
-    const days = analytics.activeUsers(this.ctx, from, to, ex.ids).map((d) => ({ ...d, collected: sinceDay !== null && d.day >= sinceDay }));
-    return {
-      from,
-      to,
-      collectingSince: sinceDay,
-      definition:
-        "DAU: distinct people with qualifying activity (an authenticated app request that isn't background traffic) on the UTC day. WAU / MAU: over the 7 / 30 UTC days ending that day. New: the account was created that UTC day. Days before collection began aren't counted.",
-      days,
-    };
+    const t = now();
+    const ex = await this.exclusions.get(t);
+    return activityReport(this.ctx, ex.ids, q, t);
   }
 
   async retention(q: { from?: string; to?: string }) {
@@ -202,7 +184,10 @@ export class AdminAnalytics {
       platforms: c.platforms,
       versions: c.versions,
       accountAge: analytics.activeByAccountAge(this.ctx, from, to, ex.ids),
-      note: "Platform comes from each request's client (User-Agent). App versions appear only for clients that send one: today iOS builds do; the Android app and browsers don't. Location isn't collected.",
+      generatedAt: now(),
+      collectingSince: this.collectingSince(),
+      distinctUsers: this.collectingSince() === null || Date.parse(`${to}T00:00:00Z`) + DAY_MS <= this.collectingSince()! ? null : analytics.distinctActive(this.ctx, from, to, ex.ids),
+      note: "Each person counts once per platform and once per version they used: categories overlap and must not be added as people or displayed as a composition. Platform and version come from declared client metadata, not verified device identity; versions are the 50 most active. Location is not collected.",
     };
   }
 
@@ -211,9 +196,9 @@ export class AdminAnalytics {
     const ex = await this.exclusions.get();
     const rows = orgsWithMembers(this.ctx.ws, ORGS_SHOWN).map((o) => {
       const a = analytics.activeAmong(this.ctx, o.members, from, to, ex.ids);
-      return { id: o.id, name: o.name, kind: o.kind, members: o.members.length, activeMembers: a.users, lastActiveAt: a.lastAt };
+      return { id: o.id, name: o.name, kind: o.kind, members: o.members.length, activeMembers: this.collectingSince() === null || Date.parse(`${to}T00:00:00Z`) + DAY_MS <= this.collectingSince()! ? null : a.users, lastActiveAt: a.lastAt };
     });
-    return { from, to, organizations: rows.sort((a, b) => b.activeMembers - a.activeMembers || b.members - a.members) };
+    return { from, to, generatedAt: now(), collectingSince: this.collectingSince(), sampled: rows.length, total: orgActivityPopulationCount(this.ctx.ws), organizations: rows.sort((a, b) => (b.activeMembers ?? 0) - (a.activeMembers ?? 0) || b.members - a.members) };
   }
 
   async traffic(q: { from?: string; to?: string }) {
@@ -231,7 +216,10 @@ export class AdminAnalytics {
     }[];
     const totals: Record<string, number> = {};
     for (const d of days) totals[d.metric] = (totals[d.metric] ?? 0) + d.value;
-    const top = analytics.topTraffic(this.ctx, from, to, ex.ids, 20).map((u) => ({ ...u, byMetric: Object.fromEntries(Object.entries(u.byMetric).filter(([k]) => k !== "messages")) }));
+    const top = analytics.topTraffic(this.ctx, from, to, ex.ids, 20).map((u) => {
+      const byMetric = Object.fromEntries(Object.entries(u.byMetric).filter(([k]) => k !== "messages"));
+      return { ...u, total: Object.values(byMetric).reduce((sum, bytes) => sum + bytes, 0), byMetric };
+    }).sort((a, b) => b.total - a.total);
     const names = usernames(
       this.ctx.identity,
       top.map((u) => u.userId),
@@ -257,6 +245,8 @@ export class AdminAnalytics {
     return {
       from,
       to,
+      generatedAt: t,
+      collectingSince: this.ctx.telemetry.since("traffic"),
       totals,
       days,
       topUsers: top.map((u) => ({ userId: u.userId, username: names.get(u.userId) ?? null, total: u.total, byMetric: u.byMetric })),
@@ -273,7 +263,7 @@ export class AdminAnalytics {
         transferAllowanceBytes: allowance.bytes,
         projectedMonthHostTxBytes: mtdTx === null ? null : Math.round((mtdTx / Math.max(1, t - monthStart)) * (monthEnd - monthStart)),
         storageEstimateMicro: storagePrice.amountMicro === null || stored === null ? null : Math.round((stored / GB) * storagePrice.amountMicro),
-        egressEstimateMicro: egressPrice.amountMicro === null ? null : Math.round((mtdDownloads / GB) * egressPrice.amountMicro),
+        egressEstimateMicro: egressPrice.amountMicro === null || this.ctx.telemetry.since("traffic") === null ? null : Math.round((mtdDownloads / GB) * egressPrice.amountMicro),
         serverMonthlyMicro: server.amountMicro,
         sources: { transfer: allowance.source, storage: storagePrice.source, egress: egressPrice.source, server: server.source },
         note: "Estimates from prices an operator entered (Settings), never invoices. File downloads are served by the storage provider directly (presigned links), so their transfer is billed by it, not by the server's host.",

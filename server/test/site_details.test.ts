@@ -1,3 +1,4 @@
+import { versionedAdminPut } from "./support/adminConsole.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { SITE_DETAILS_DEFAULTS, readSiteDetails, siteDetailsFromDb } from "../src/app/siteDetails.js";
 import { PlanCatalog } from "../src/modules/billing/catalog.js";
@@ -64,7 +65,7 @@ describe("site and legal details", () => {
     expect((await as("super_admin").req("PUT", "/admin/v1/site", { details: { ...filled, policies: { ...filled.policies, minimumAge: 9 } }, reason: REASON })).status).toBe(400);
     expect((await as("super_admin").req("PUT", "/admin/v1/site", { details: { ...filled, extra: 1 }, reason: REASON })).status).toBe(400);
 
-    const saved = await as("super_admin").expect(200, "PUT", "/admin/v1/site", { details: filled, reason: REASON });
+    const saved = await versionedAdminPut(as("super_admin"), "/admin/v1/site", { details: filled, reason: REASON });
     expect(saved.details.contacts.supportEmail).toBe("support@meldiq.app");
     expect(saved.missing).toEqual(["contacts.dpo", "policies.legalBases", "policies.transferSafeguards"]);
     expect(saved.updatedBy.accountId).toBe(admins.super_admin!.account.accountId);
@@ -84,9 +85,9 @@ describe("site and legal details", () => {
   });
 
   it("are still served while the platform is in maintenance", async () => {
-    await as("super_admin").expect(200, "PUT", "/admin/v1/controls/maintenance", { value: { enabled: true, message: "Back soon" }, reason: "Testing maintenance with site details" });
+    await versionedAdminPut(as("super_admin"), "/admin/v1/controls/maintenance", { value: { enabled: true, message: "Back soon" }, reason: "Testing maintenance with site details" });
     expect((await h.app.inject({ method: "GET", url: "/v2/billing/plans" })).statusCode).toBe(503);
     expect((await publicDetails()).body.operator.jurisdiction).toBe("Delaware, USA");
-    await as("super_admin").expect(200, "PUT", "/admin/v1/controls/maintenance", { value: { enabled: false, message: "" }, reason: "Testing maintenance with site details" });
+    await versionedAdminPut(as("super_admin"), "/admin/v1/controls/maintenance", { value: { enabled: false, message: "" }, reason: "Testing maintenance with site details" });
   });
 });

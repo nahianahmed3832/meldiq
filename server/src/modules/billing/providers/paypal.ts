@@ -1,4 +1,5 @@
 import { PLUS_TERMS, type PlusTerm } from "../pricing.js";
+import { decimalMinor, parseMinor } from "../money.js";
 import type { PayPalCardCapabilities } from "./paypalCapabilities.js";
 import { z } from "zod/v4";
 import { ApiError } from "../../../shared/errors.js";
@@ -32,9 +33,6 @@ const capture = z.object({
   status: z.string(),
   amount: money,
   create_time: z.string().optional(),
-  seller_receivable_breakdown: z
-    .object({ total_refunded_amount: money.optional() })
-    .optional(),
 });
 /** A client success callback cannot override an explicit issuer authentication failure. */
 export function assertCardAuthentication(card: unknown): void {
@@ -116,12 +114,7 @@ export interface PayPalOptions {
 }
 
 export const cents = (value: string): number => {
-  if (!/^\d+(?:\.\d{1,2})?$/.test(value))
-    throw new Error("Invalid PayPal amount");
-  const [whole, fraction] = value.split(".");
-  const result = Number(whole) * 100 + Number((fraction ?? "").padEnd(2, "0"));
-  if (!Number.isSafeInteger(result)) throw new Error("Invalid PayPal amount");
-  return result;
+  return parseMinor(value, 2);
 };
 const at = (value: string | undefined): number | null => {
   const t = value ? Date.parse(value) : NaN;
@@ -372,7 +365,7 @@ export class PayPalProvider implements BillingProvider {
     const paid =
       o.status === "COMPLETED" &&
       captures.length === 1 &&
-      captures[0].status === "COMPLETED";
+      ["COMPLETED", "PARTIALLY_REFUNDED"].includes(captures[0].status);
     if (
       captures.some(
         (c) =>
@@ -479,13 +472,14 @@ export class PayPalProvider implements BillingProvider {
     };
   }
 
-  async cancelSubscription(id: string): Promise<void> {
+  async cancelSubscription(id: string, initiatedBy: "customer" | "administrator" = "customer", beforeDispatch?: () => Promise<void>): Promise<void> {
     const current = await this.fetchSubscription(id);
     if (current.cancelAtPeriodEnd || current.status === "canceled") return;
+    await beforeDispatch?.();
     await this.api.request(
       "POST",
       `/v1/billing/subscriptions/${id}/cancel`,
-      { reason: "Cancelled by the Meldiq customer" },
+      { reason: initiatedBy === "administrator" ? "Cancelled by an authorized Meldiq administrator" : "Cancelled by the Meldiq customer" },
       `cancel-${id}`,
     );
   }
@@ -505,6 +499,72 @@ export class PayPalProvider implements BillingProvider {
           `refund-${reference}`,
         ),
       );
+  }
+
+  get merchantId(): string { return this.options.merchantId; }
+  get eventScope(): string { return `paypal:${this.mode}:${this.options.merchantId}`; }
+
+  /** Bind a refund to the immutable purchase, authenticated merchant, order and capture before reserving money. */
+  async inspectCapture(orderId: string, paymentRef: string, expected: { reference: string; amountMinor: number; currency: string }) {
+    if (expected.currency !== "USD") throw new ApiError(409, "conflict", "This PayPal integration supports USD purchases only.");
+    ref.parse(orderId); ref.parse(paymentRef);
+    const raw = await this.api.request("GET", `/v2/checkout/orders/${orderId}`);
+    const o = order.parse(raw);
+    if (o.id !== orderId) throw new Error("Unexpected PayPal order");
+    const unit = this.checkOrder(o, expected.reference, expected.amountMinor);
+    if ((unit.payments?.captures?.length ?? 0) !== 1 || unit.payments?.captures?.[0]?.id !== paymentRef) throw new ApiError(409, "conflict", "PayPal capture does not match this purchase.");
+    const c = capture.parse(await this.api.request("GET", `/v2/payments/captures/${paymentRef}`));
+    if (c.id !== paymentRef || cents(c.amount.value) !== expected.amountMinor || !["COMPLETED", "PARTIALLY_REFUNDED", "REFUNDED"].includes(c.status)) throw new ApiError(409, "conflict", "PayPal has not confirmed an eligible captured payment.");
+    const refunds = z.object({ purchase_units: z.array(z.object({ payments: z.object({ refunds: z.array(z.object({ id: ref, status: z.enum(["CANCELLED", "FAILED", "PENDING", "COMPLETED"]), amount: money })).max(100).optional() }).optional() })) }).parse(raw).purchase_units[0]?.payments?.refunds ?? [];
+    const completed = refunds.filter(r => r.status === "COMPLETED").reduce((n, r) => n + cents(r.amount.value), 0);
+    if (c.status === "PARTIALLY_REFUNDED" && !completed) throw new ApiError(409, "conflict", "PayPal has not returned complete refund history. Review the provider before issuing another refund.");
+    const refundedMinor = c.status === "REFUNDED" ? expected.amountMinor : completed;
+    if (refundedMinor > expected.amountMinor) throw new Error("Invalid PayPal refund total");
+    return { refundedMinor, pendingMinor: refunds.filter(r => r.status === "PENDING").reduce((n, r) => n + cents(r.amount.value), 0), refundRefs: refunds.map(r => r.id) };
+  }
+
+  /** Each operation uses an exact amount and an opaque UUID, never a private case reason in payer-facing fields. */
+  async createAdminRefund(paymentRef: string, operationId: string, amountMinor: number) {
+    ref.parse(paymentRef);
+    const response = z.object({ id: ref, status: z.string() }).parse(await this.api.request("POST", `/v2/payments/captures/${paymentRef}/refund`, { amount: { currency_code: "USD", value: decimalMinor(amountMinor, 2) }, custom_id: operationId }, operationId));
+    return response;
+  }
+
+  async readAdminRefund(refundId: string, expected: { operationId: string; paymentRef: string; amountMinor: number }) {
+    ref.parse(refundId);
+    const r = z.object({ id: ref, status: z.enum(["CANCELLED", "FAILED", "PENDING", "COMPLETED"]), custom_id: z.string(), amount: money, links }).parse(await this.api.request("GET", `/v2/payments/refunds/${refundId}`));
+    const capturePath = `/v2/payments/captures/${expected.paymentRef}`;
+    const bound = r.links.some(link => {
+      try { const u = new URL(link.href); return link.rel === "up" && (this.mode === "live" ? ["api-m.paypal.com", "api.paypal.com"] : ["api-m.sandbox.paypal.com", "api.sandbox.paypal.com"]).includes(u.hostname) && u.pathname === capturePath; } catch { return false; }
+    });
+    if (r.id !== refundId || r.custom_id !== expected.operationId || cents(r.amount.value) !== expected.amountMinor || !bound) throw new ApiError(409, "conflict", "PayPal refund does not match this operation. No local outcome was changed.");
+    return { id: r.id, status: r.status };
+  }
+
+  /** Re-read authoritative resource state on durable processing and every replay, including same-second deliveries. */
+  async refreshEvent(event: NormalizedEvent, observedAt: number): Promise<NormalizedEvent> {
+    if (event.kind === "batch") {
+      const events: NormalizedEvent[] = [];
+      for (const item of event.events) events.push(await this.refreshEvent(item, observedAt));
+      return { ...event, createdAt: observedAt, events };
+    }
+    if (event.kind === "subscription") return { ...event, createdAt: observedAt, subscription: await this.fetchSubscription(event.subscription.ref) };
+    if (event.kind === "checkout") return { ...event, createdAt: observedAt, checkout: await this.readOrder(event.checkout.sessionRef, event.checkout.reference && event.checkout.amountMinor !== undefined ? { reference: event.checkout.reference, amountMinor: event.checkout.amountMinor } : undefined) };
+    if (event.kind === "payment" && event.payment.kind === "refund" && event.payment.orderRef && event.payment.purchaseRef && event.payment.paymentRef) {
+      const p = event.payment;
+      const current = capture.parse(await this.api.request("GET", `/v2/payments/captures/${p.paymentRef}`));
+      if (current.id !== p.paymentRef || cents(current.amount.value) !== p.amountMinor) throw new Error("Unexpected PayPal capture");
+      if (current.status === "REVERSED") return { ...event, createdAt: observedAt, payment: { ...p, state: "reversed", affectedMinor: p.amountMinor } };
+      const history = await this.inspectCapture(p.orderRef!, p.paymentRef!, { reference: p.purchaseRef!, amountMinor: p.amountMinor, currency: p.currency });
+      return { ...event, createdAt: observedAt, payment: { ...p, affectedMinor: history.refundedMinor, state: history.refundedMinor === p.amountMinor ? "refunded" : "partially_refunded" } };
+    }
+    if (event.kind === "payment" && event.payment.kind === "dispute") {
+      const p = event.payment;
+      const current = z.object({ dispute_id: ref, status: z.string(), disputed_transactions: z.array(z.object({ seller_transaction_id: ref })).length(1) }).parse(await this.api.request("GET", `/v1/customer/disputes/${p.ref}`));
+      if (current.dispute_id !== p.ref || current.disputed_transactions[0].seller_transaction_id !== p.paymentRef) throw new Error("Unexpected PayPal dispute");
+      return { ...event, createdAt: observedAt, payment: { ...p, state: current.status } };
+    }
+    return event;
   }
 
   async verifyWebhook(
@@ -821,7 +881,8 @@ export class PayPalProvider implements BillingProvider {
           ? related.data.supplementary_data.related_ids.order_id
           : null) ?? linkId(raw, "/v2/checkout/orders");
       const purchase = orderId ? await this.readOrder(orderId) : null;
-      const affected = c.seller_receivable_breakdown?.total_refunded_amount;
+      const history = !dispute && c.status !== "REVERSED" && !reversed && orderId && purchase?.reference
+        ? await this.inspectCapture(orderId, paymentRef, { reference: purchase.reference, amountMinor: cents(c.amount.value), currency: "USD" }) : null;
       const full =
         c.status === "REFUNDED" || c.status === "REVERSED" || reversed;
       return {
@@ -836,8 +897,8 @@ export class PayPalProvider implements BillingProvider {
           customerRef: null,
           currency: "USD",
           amountMinor: cents(c.amount.value),
-          affectedMinor: affected
-            ? cents(affected.value)
+          affectedMinor: history
+            ? history.refundedMinor
             : full
               ? cents(c.amount.value)
               : 0,

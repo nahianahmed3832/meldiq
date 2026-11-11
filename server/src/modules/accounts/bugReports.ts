@@ -1,8 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../../app/context.js";
-import type { RowReader, Rows } from "../../infrastructure/database/rows/index.js";
+import type { RowReader, Rows, Where } from "../../infrastructure/database/rows/index.js";
 import { BugReportBody, FeedbackCategory } from "../../shared/contracts/http/users.js";
-import { ApiError } from "../../shared/errors.js";
+import { ApiError, conflict, notFound } from "../../shared/errors.js";
 import { parse } from "../../shared/validation/index.js";
 import { newId, now } from "../../shared/utilities/util.js";
 import { me, requireAuth } from "../auth/index.js";
@@ -38,7 +38,32 @@ export function isBugHunter(safety: Rows, userId: string): boolean {
 }
 
 export function setBugStatus(safety: Rows, id: string, status: BugStatus, note: string | null): Promise<boolean> {
-  return safety.write((w) => w.update("bug_reports", { id }, { status, ...(note !== null ? { staff_note: note } : {}), updated_at: now() }) === 1);
+  return safety.write((w) => {
+    const current = w.get<BugReportRow>("bug_reports", { id });
+    return !!current && w.update("bug_reports", { id }, { status, ...(note !== null ? { staff_note: note } : {}), updated_at: Math.max(now(), current.updated_at + 1) }) === 1;
+  });
+}
+
+/** Canonical, deliberately submitted feedback; callers enforce their administrative view/field grants. */
+export function bugReport(safety: RowReader, id: string): BugReportRow | undefined {
+  return safety.get<BugReportRow>("bug_reports", { id });
+}
+
+export function bugReportsPage(safety: RowReader, q: { status?: BugStatus; userId?: string; after?: { createdAt: number; id: string }; limit: number }): BugReportRow[] {
+  const where: Where = { ...(q.status ? { status: q.status } : {}), ...(q.userId ? { user_id: q.userId } : {}) };
+  if (q.after) where.$or = [{ created_at: { lt: q.after.createdAt } }, { created_at: q.after.createdAt, id: { lt: q.after.id } }];
+  return safety.all<BugReportRow>("bug_reports", { where, orderBy: [["created_at", "desc"], ["id", "desc"]], limit: Math.min(101, Math.max(1, q.limit)) });
+}
+
+/** Compare-and-set with an exact accepted-write replay for the platform review journal. */
+export async function applyBugReview(safety: Rows, id: string, review: { expectedAt: number; applyAt: number; status: BugStatus; note: string | null }): Promise<void> {
+  await safety.write(w => {
+    const current = bugReport(w, id);
+    if (!current) throw notFound("Submitted feedback not found.");
+    if (current.updated_at === review.applyAt && current.status === review.status && current.staff_note === review.note) return;
+    if (current.updated_at !== review.expectedAt) throw conflict("This feedback changed. Reload it and review the latest status before saving.");
+    w.update("bug_reports", { id, updated_at: review.expectedAt }, { status: review.status, staff_note: review.note, updated_at: review.applyAt });
+  });
 }
 
 /** Reports newest first, with their reporters' usernames (reports of people no longer here are left out). */

@@ -4,7 +4,7 @@ import { ApiError, badRequest, forbidden, notFound } from "../../shared/errors.j
 import { now } from "../../shared/utilities/util.js";
 import type { PlatformAudit } from "./audit.js";
 import type { AdminPrincipal } from "./auth.js";
-import { type Actor, grantAdmin, grantProblem, resetAdminPasskeys, revokeAdmin } from "./bootstrap.js";
+import { type Actor, grantAdmin, grantProblem, resetAdminPasskeys, revokeAdmin, guardGrantWrite } from "./bootstrap.js";
 import type { RequestMeta } from "./credentials.js";
 import { effectivePermissions, PERMISSIONS, permissionsOf, type PlatformRole } from "./permissions.js";
 import type { AdminGrantRow, PlatformAdminStore } from "./store.js";
@@ -37,6 +37,7 @@ export class AdminAdmins {
       role: g.role,
       status: g.revoked_at === null ? ("active" as const) : ("revoked" as const),
       grantedAt: g.granted_at,
+      updatedAt: g.updated_at,
       grantedBy: g.granted_by ? { accountId: g.granted_by, name: granter?.name ?? null } : null,
       revokedAt: g.revoked_at,
       passkeys: this.store.passkeys(g.account_id).length,
@@ -49,20 +50,21 @@ export class AdminAdmins {
   permissionView(accountId: string) {
     const grant = this.store.activeGrant(accountId);
     if (!grant) throw notFound("No active console admin has that account.");
-    return { role: grant.role, catalog: [...PERMISSIONS], defaults: permissionsOf(grant.role), effective: effectivePermissions(grant), custom: grant.permissions != null };
+    return { role: grant.role, catalog: [...PERMISSIONS], defaults: permissionsOf(grant.role), effective: effectivePermissions(grant), custom: grant.permissions != null, updatedAt: grant.updated_at };
   }
 
-  async setPermissions(p: AdminPrincipal, accountId: string, permissions: string[] | null, reason: string, meta: RequestMeta) {
+  async setPermissions(p: AdminPrincipal, accountId: string, permissions: string[] | null, reason: string, meta: RequestMeta, expectedUpdatedAt?: number) {
     const grant = await this.guard(p, "admin.permissions_change", accountId, reason, meta, this.store.activeGrant(accountId)?.role ?? null);
     if (!grant) throw notFound("No active console admin has that account.");
     if (grant.role === "super_admin") throw badRequest("Super admin access is fixed. Change their role first.");
     const defaults = permissionsOf(grant.role);
     if (permissions?.some((v) => !new Set<string>(defaults).has(v))) throw badRequest("Permissions must be a subset of this role's allowed permissions.");
     await this.ctx.platform.write((w) => {
+      guardGrantWrite(w, accountId, grant.role, actorOf(p, meta));
       const before = w.get<AdminGrantRow>("platform_admins", { account_id: accountId });
-      if (!before || before.role !== grant.role || before.revoked_at !== null) throw new ApiError(409, "conflict", "This grant changed. Refresh it.");
+      if (!before || before.role !== grant.role || before.revoked_at !== null || before.updated_at !== (expectedUpdatedAt ?? grant.updated_at)) throw new ApiError(409, "conflict", "This grant changed. Refresh it.");
       const value = permissions === null ? null : JSON.stringify([...new Set(permissions)].sort());
-      w.update("platform_admins", { account_id: accountId }, { permissions: value, updated_at: now() });
+      w.update("platform_admins", { account_id: accountId }, { permissions: value, updated_at: Math.max(now(), before.updated_at + 1) });
       const oldPermissions = effectivePermissions(before);
       const newPermissions = effectivePermissions({ ...before, permissions: value });
       for (const permission of defaults) {
@@ -140,17 +142,18 @@ export class AdminAdmins {
     const problem = grantProblem(account);
     if (problem || !account) throw badRequest(problem ?? "No account has that email address.");
     const current = await this.guard(p, grantActionFor(account.id, this.store), account.id, reason, meta, role);
-    if (current?.role === role) throw new ApiError(409, "conflict", "That account already has this role.");
+    if (current) throw new ApiError(409, "conflict", "That account already has console access. Open its current grant to review and change the role.");
     const code = await grantAdmin(this.store, this.audit, account, role, actorOf(p, meta), reason);
     return { admin: await this.entryOf(account.id), enrolmentCode: code };
   }
 
-  async changeRole(p: AdminPrincipal, accountId: string, role: PlatformRole, reason: string, meta: RequestMeta) {
+  async changeRole(p: AdminPrincipal, accountId: string, role: PlatformRole, reason: string, meta: RequestMeta, expectedUpdatedAt?: number) {
     const current = await this.guard(p, "admin.role_change", accountId, reason, meta, role);
     if (!current) throw notFound("No active console admin has that account.");
+    if (expectedUpdatedAt !== undefined && expectedUpdatedAt !== current.updated_at) throw new ApiError(409, "conflict", "This admin changed. Reload before changing their role.");
     if (current.role === role) return { admin: await this.entryOf(accountId), enrolmentCode: null };
     const account = await this.ctx.accounts.store.accountById(accountId);
-    await grantAdmin(this.store, this.audit, account, role, actorOf(p, meta), reason);
+    await grantAdmin(this.store, this.audit, account, role, actorOf(p, meta), reason, current.updated_at);
     return { admin: await this.entryOf(accountId), enrolmentCode: null };
   }
 

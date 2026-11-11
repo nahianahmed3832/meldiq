@@ -9,8 +9,15 @@ import { ENTITLEMENT_KEY_VALUES, zCursor, zLimit, zReason } from "./platformAdmi
  */
 
 const zMoney = z.array(z.strictObject({ currency: z.string(), amountMinor: zCount }));
-const zPlanKey = z.string().trim().regex(/^[a-z][a-z0-9_-]{1,39}$/, "2 to 40 lower-case letters, digits, - or _, starting with a letter");
-const zCurrency = z.string().trim().regex(/^[A-Za-z]{3}$/, "A three-letter ISO 4217 code like USD").transform((c) => c.toUpperCase());
+const zPlanKey = z
+  .string()
+  .trim()
+  .regex(/^[a-z][a-z0-9_-]{1,39}$/, "2 to 40 lower-case letters, digits, - or _, starting with a letter");
+const zCurrency = z
+  .string()
+  .trim()
+  .regex(/^[A-Za-z]{3}$/, "A three-letter ISO 4217 code like USD")
+  .transform((c) => c.toUpperCase());
 
 export const BILLING_STATUS_VALUES = ["incomplete", "trialing", "active", "past_due", "unpaid", "paused", "canceled", "incomplete_expired"] as const;
 export const BILLING_EVENT_STATUS_VALUES = ["received", "processed", "ignored", "failed", "dead"] as const;
@@ -42,18 +49,56 @@ const zPlanMeta = {
 
 /** [audience] is fixed at creation (API 0.52.0; default organization): a plan never changes who it is for. */
 export const AdminPlanCreate = z.strictObject({ key: zPlanKey, ...zPlanMeta, audience: z.enum(["personal", "organization"]).optional(), terms: zPlanTerms, reason: zReason });
-export const AdminPlanMeta = z.strictObject({ ...zPlanMeta, reason: zReason });
-export const AdminPlanTerms = z.strictObject({ terms: zPlanTerms, reason: zReason });
-export const AdminBillingPlanParams = z.strictObject({ planId: z.string().min(3).max(64).regex(/^[A-Za-z0-9_-]+$/) });
-export const AdminSubscriptionParams = z.strictObject({ subscriptionId: z.string().min(3).max(64).regex(/^[A-Za-z0-9_-]+$/) });
-export const AdminBillingEventParams = z.strictObject({ eventId: z.string().min(3).max(64).regex(/^[A-Za-z0-9_-]+$/) });
+export const AdminPlanMeta = z.strictObject({ ...zPlanMeta, reason: zReason, expectedUpdatedAt: zTime });
+export const AdminPlanTerms = z.strictObject({ terms: zPlanTerms, reason: zReason, expectedUpdatedAt: zTime });
+export const AdminPlanLifecycle = z.strictObject({ reason: zReason, expectedUpdatedAt: zTime });
+export const AdminBillingPlanParams = z.strictObject({
+  planId: z
+    .string()
+    .min(3)
+    .max(64)
+    .regex(/^[A-Za-z0-9_-]+$/),
+});
+export const AdminSubscriptionParams = z.strictObject({
+  subscriptionId: z
+    .string()
+    .min(3)
+    .max(64)
+    .regex(/^[A-Za-z0-9_-]+$/),
+});
+export const AdminBillingEventParams = z.strictObject({
+  eventId: z
+    .string()
+    .min(3)
+    .max(64)
+    .regex(/^[A-Za-z0-9_-]+$/),
+});
 
 export const AdminSubscriptionsQuery = z.strictObject({
+  mode: z.enum(["test", "live", "unclassified"]).optional(),
+  provider: z
+    .string()
+    .regex(/^[a-z][a-z0-9_-]{0,30}$/)
+    .optional(),
+  currency: z
+    .string()
+    .regex(/^[A-Z]{3}$/)
+    .optional(),
   status: z.enum(BILLING_STATUS_VALUES).optional(),
   plan: zPlanKey.optional(),
-  org: z.string().min(3).max(64).regex(/^[A-Za-z0-9_-]+$/).optional(),
+  org: z
+    .string()
+    .min(3)
+    .max(64)
+    .regex(/^[A-Za-z0-9_-]+$/)
+    .optional(),
   /** A person's own subscriptions (their account id, API 0.66.0). */
-  account: z.string().min(3).max(64).regex(/^[A-Za-z0-9_-]+$/).optional(),
+  account: z
+    .string()
+    .min(3)
+    .max(64)
+    .regex(/^[A-Za-z0-9_-]+$/)
+    .optional(),
   cursor: zCursor.optional(),
   limit: zLimit,
 });
@@ -80,8 +125,36 @@ export const AdminSubscriptionCompare = z.strictObject({
 });
 export const AdminSubscriptionResync = z.strictObject({ before: zSubscriptionState, after: zSubscriptionState, changed: z.array(z.string()) });
 
-export const AdminBillingEventsQuery = z.strictObject({ status: z.enum(BILLING_EVENT_STATUS_VALUES).optional(), cursor: zCursor.optional(), limit: zLimit });
-export const AdminBillingMetricsQuery = z.strictObject({ days: z.coerce.number().int().refine((d) => [7, 30, 90].includes(d), "7, 30 or 90 days").default(30) });
+export const AdminBillingEventsQuery = z
+  .strictObject({
+    status: z.enum(BILLING_EVENT_STATUS_VALUES).optional(),
+    mode: z.enum(["test", "live", "unclassified"]).default("unclassified"),
+    provider: z
+      .string()
+      .regex(/^[a-z][a-z0-9_-]{0,30}$/)
+      .optional(),
+    from: z.coerce.number().int().nonnegative().optional(),
+    to: z.coerce.number().int().positive().optional(),
+    cursor: zCursor.optional(),
+    limit: zLimit,
+  })
+  .refine((q) => q.from === undefined || q.to === undefined || q.from < q.to, "From must precede to");
+export const AdminBillingMetricsQuery = z.strictObject({
+  mode: z.enum(["test", "live", "unclassified"]).default("unclassified"),
+  days: z.coerce
+    .number()
+    .int()
+    .refine((d) => [7, 30, 90].includes(d), "7, 30 or 90 days")
+    .default(30),
+  provider: z
+    .string()
+    .regex(/^[a-z][a-z0-9_-]{0,30}$/)
+    .optional(),
+  currency: z
+    .string()
+    .regex(/^[A-Z]{3}$/)
+    .optional(),
+});
 
 // ───────────── Answers ─────────────
 
@@ -145,6 +218,7 @@ export const AdminSubscriptionSummary = z.strictObject({
   status: z.enum(BILLING_STATUS_VALUES),
   standing: z.enum(["entitled", "grace", "grace_ended", "not_entitled"]),
   provider: z.string(),
+  providerMode: z.enum(["test", "live"]).nullable().default(null),
   providerSubscriptionRef: z.string(),
   currentPeriodEnd: zTime.nullable(),
   cancelAtPeriodEnd: z.boolean(),
@@ -167,6 +241,7 @@ export const AdminSubscriptionDetail = z.strictObject({
   invoices: z.array(
     z.strictObject({
       id: z.string(),
+      providerMode: z.enum(["test", "live"]).nullable().default(null),
       providerInvoiceRef: z.string(),
       status: z.string(),
       currency: z.string(),
@@ -187,6 +262,7 @@ export const AdminSubscriptionDetail = z.strictObject({
 export const AdminBillingEvent = z.strictObject({
   id: z.string(),
   provider: z.string(),
+  environment: z.enum(["test", "live", "unclassified"]),
   eventRef: z.string(),
   type: z.string(),
   status: z.enum(BILLING_EVENT_STATUS_VALUES),
@@ -202,6 +278,19 @@ export const AdminBillingEventsPage = z.strictObject({ events: z.array(AdminBill
 export const AdminBillingEventReplay = z.strictObject({ status: z.enum(BILLING_EVENT_STATUS_VALUES) });
 
 export const AdminBillingMetrics = z.strictObject({
+  scope: z.strictObject({
+    provider: z.string().nullable(),
+    currency: z.string().nullable(),
+    environment: z.enum(["test", "live", "unclassified"]),
+    from: zTime,
+    to: zTime,
+    timezone: z.literal("UTC"),
+    note: z.string(),
+  }),
+  environmentTotals: z.array(
+    z.strictObject({ environment: z.enum(["test", "live", "unclassified"]), subscriptions: zCount, invoices: zCount, collected: zMoney, failedEvents: zCount, deadEvents: zCount, backlog: zCount }),
+  ),
+  collectionDays: z.array(z.strictObject({ day: z.string(), partial: z.boolean(), collected: zMoney })),
   setup: AdminBillingSetup,
   generatedAt: zTime,
   days: zCount,
@@ -232,7 +321,11 @@ export const AdminBillingMetrics = z.strictObject({
 // ───────────── Meldiq Mojo: trials, invite links and free periods (API 0.58.0) ─────────────
 
 export const GRANT_SOURCE_VALUES = ["signup_trial", "referral_invitee", "referral_inviter", "gift", "operator"] as const;
-const zId = z.string().min(3).max(64).regex(/^[A-Za-z0-9_-]+$/);
+const zId = z
+  .string()
+  .min(3)
+  .max(64)
+  .regex(/^[A-Za-z0-9_-]+$/);
 const zDays = (max: number) => z.number().int().min(0).max(max);
 
 /** The trial and invite program: whether it's on, from when, which plan it gives and for how long. */

@@ -36,6 +36,7 @@ class FakePayPal implements PayPalApi {
   calls: { method: string; path: string; body: any; key?: string }[] = [];
   orders = new Map<string, any>();
   disputes = new Map<string, any>();
+  refunds = new Map<string, any>();
   subs = new Map<string, any>();
   keys = new Map<string, any>();
   denyCapture = false;
@@ -107,6 +108,8 @@ class FakePayPal implements PayPalApi {
         links: [],
       };
       this.subs.set(id, result);
+    } else if (/\/v2\/payments\/refunds\/[^/]+$/.test(path)) {
+      result = this.refunds.get(path.split("/").at(-1)!);
     } else if (/\/v2\/payments\/captures\/[^/]+$/.test(path)) {
       const id = path.split("/").at(-1);
       const o = [...this.orders.values()].find(
@@ -152,8 +155,15 @@ class FakePayPal implements PayPalApi {
       if (this.blockedSubscriptions.has(id)) throw new Error("Provider temporarily unavailable");
       result = this.subs.get(id);
     }
-    else if (/\/v2\/payments\/captures\/[^/]+\/refund$/.test(path))
-      result = { id: `REFUND${path.split("/").at(-2)}`, status: "COMPLETED" };
+    else if (/\/v2\/payments\/captures\/[^/]+\/refund$/.test(path)) {
+      const captureId = path.split("/").at(-2)!;
+      const o = [...this.orders.values()].find(o => o.purchase_units[0].payments?.captures?.[0]?.id === captureId);
+      const amount = body?.amount ?? o.purchase_units[0].amount;
+      result = { id: `REFUND${captureId}`, status: "COMPLETED", amount, custom_id: body?.custom_id, links: [{ rel: "up", href: `https://api-m.sandbox.paypal.com/v2/payments/captures/${captureId}` }] };
+      o.purchase_units[0].payments.refunds = [result];
+      o.purchase_units[0].payments.captures[0].status = "REFUNDED";
+      this.refunds.set(result.id, result);
+    }
     else throw new Error(`Unexpected fake REST request: ${method} ${path}`);
     if (!result) throw new Error("resource not found");
     if (key) this.keys.set(key, structuredClone(result));
@@ -878,6 +888,20 @@ describe("PayPal through authenticated billing APIs", () => {
     await deliver(event("BILLING.SUBSCRIPTION.EXPIRED", { id: remote.id }));
     expect(h.ctx.mojo.planOf(user.userId, Date.now())).toBe("free");
   });
+  it("preserves paid status when a partial refund precedes delayed completion", async () => {
+    const buyer = await AccountClient.ready(h.baseUrl, mailer, "paypalpartialearly");
+    const g = await gift(buyer), o = api.orders.get(g.providerRef);
+    o.status = "APPROVED";
+    await provider.captureOrder(g.providerRef, { reference: g.id, amountMinor: g.amountMinor });
+    o.purchase_units[0].payments.captures[0].status = "PARTIALLY_REFUNDED";
+    o.purchase_units[0].payments.refunds = [{ id: "RF-PARTIAL-EARLY", status: "COMPLETED", amount: { currency_code: "USD", value: "1.00" } }];
+    const completed = await deliver(event("CHECKOUT.ORDER.COMPLETED", { id: g.providerRef }));
+    expect(completed.json().status).toBe("processed");
+    expect(h.ctx.gifts.get(g.id)?.status).toBe("paid");
+    const inspected = await h.ctx.billing.adminRefunds.inspect(g.id);
+    expect(inspected.completedMinor).toBe(100); expect(inspected.remainingMinor).toBe(g.amountMinor - 100);
+  });
+
   it("applies an early refund before completion and never resurrects the refunded gift", async () => {
     const g = await gift();
     const o = api.orders.get(g.providerRef);
@@ -990,6 +1014,27 @@ describe("PayPal through authenticated billing APIs", () => {
         id: "bev_crash",
       })?.status,
     ).toBe("ignored");
+  });
+  it("admin cancellation confirms the owning provider state, preserves paid access and does not repeat cancellation", async () => {
+    const user = await AccountClient.ready(h.baseUrl, mailer, "paypaladmincancel");
+    const start = await user.req("POST", "/v2/billing/paypal/checkouts", { product: "plus", requestKey: randomUUID() });
+    api.activate(start.providerRef);
+    await checkout().confirm(user.accountId, start.id, false);
+    const sub = h.ctx.billing.subscriptions.liveForOwner({ kind: "account", accountId: user.accountId })!;
+    const before = await user.req("GET", "/v2/billing/entitlements");
+    const path = `/admin/v1/billing/subscriptions/${sub.id}/cancel`;
+    expect((await auditor.browser.req("POST", path, { reason: "Disposable cancellation check" })).status).toBe(403);
+    const a = await admin.browser.expect(200, "POST", path, { reason: "Disposable cancellation check" });
+    const b = await admin.browser.expect(200, "POST", path, { reason: "Disposable cancellation check" });
+    expect(a.confirmed).toBe(true); expect(b.confirmed).toBe(true);
+    expect(await admin.browser.expect(200, "GET", path)).toMatchObject({ confirmed: true, status: "completed" });
+    expect(api.calls.filter(c => c.method === "POST" && c.path === `/v1/billing/subscriptions/${start.providerRef}/cancel`)).toHaveLength(1);
+    const after = await user.req("GET", "/v2/billing/entitlements");
+    expect(after.personal.accessUntil).toBe(before.personal.accessUntil); expect(after.personal.renews).toBe(false);
+    expect(h.ctx.platform.get("platform_audit", { action: "billing.subscription.cancel_result", target_id: sub.id })).toBeTruthy();
+    api.blockedSubscriptions.add(start.providerRef);
+    expect((await admin.browser.req("POST", `/admin/v1/billing/subscriptions/${sub.id}/resync`, { reason: "Disposable reconciliation failure" })).status).toBe(503);
+    api.blockedSubscriptions.delete(start.providerRef);
   });
   it("never grants on ACTIVE without a verified payment and prevents binding another account's subscription", async () => {
     const user = await AccountClient.ready(h.baseUrl, mailer, "paypalunpaid");

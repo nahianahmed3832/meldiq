@@ -1,3 +1,4 @@
+import { conversationMembershipHistory } from "../messaging/index.js";
 import type { AppContext } from "../../app/context.js";
 import type { CallParticipantRow } from "../calls/index.js";
 import { giftLeaderboard } from "../billing/index.js";
@@ -25,7 +26,7 @@ const WEEK = 7 * 86400_000;
 async function activityScope(ctx: AppContext, viewer: string, voice: boolean): Promise<Map<string, number>> {
   const channels = leaderboardChannels(ctx, viewer).filter((c) => (c.voice === 1) === voice);
   const scope = new Map(channels.map((c) => [c.id, ctx.authz.historySince(c, viewer) ?? 0]));
-  const chats = ctx.ws.all<{ conversation_id: string; joined_at: number }>("conversation_members", { where: { user_id: viewer } })
+  const chats = conversationMembershipHistory(ctx.ws, viewer)
     .flatMap((m) => {
       const c = ctx.authz.conversation(m.conversation_id);
       return c && !c.archived_at && (c.type === "DM" || c.type === "GROUP") ? [{ c, joined: m.joined_at }] : [];

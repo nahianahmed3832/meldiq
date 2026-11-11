@@ -64,6 +64,11 @@ export type SettingValue<K extends SettingKey> = z.infer<(typeof SETTINGS)[K]["s
 
 export const isSettingKey = (k: string): k is SettingKey => Object.hasOwn(SETTINGS, k);
 
+/** Presence-only community block, without exposing arbitrary platform setting values. */
+export function communityClipsBlocked(platform: RowReader, orgId: string): boolean {
+  return !!platform.get("platform_settings", { key: `community.voice_clips.block:${orgId}` });
+}
+
 /** The current value of [key] (its default when never set, or when a stored value no longer fits its schema). */
 export function platformSetting<K extends SettingKey>(platform: RowReader, key: K): SettingValue<K> {
   const row = platform.get<{ value: string }>("platform_settings", { key });

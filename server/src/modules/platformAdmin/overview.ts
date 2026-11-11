@@ -27,7 +27,7 @@ export async function overview(ctx: AppContext, p: AdminPrincipal, version: stri
         .all<{ at: number; action: string; outcome: string; actor_role: string | null; target_type: string | null }>("platform_audit", { orderBy: [["id", "desc"]], limit: RECENT_ACTIONS })
         .map((r) => ({ at: r.at, action: r.action, outcome: r.outcome, actor_role: r.actor_role, target_type: r.target_type }))
     : null;
-  const openIncidents = ctx.platform.count("platform_incidents", { status: { ne: "resolved" } });
+  const openIncidents = allowed(p.grant, "incidents.view") ? ctx.platform.count("platform_incidents", { status: { ne: "resolved" } }) : null;
   return {
     generatedAt: t,
     people: userCounts(ctx.identity, t, TREND_DAYS),

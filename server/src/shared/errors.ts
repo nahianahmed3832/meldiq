@@ -53,6 +53,15 @@ const FEDERATION_ERROR_CODES = {
 } as const satisfies Record<string, ErrorSpec>;
 
 export const ERROR_CODES = {
+  case_search_too_broad: { status: [422], meaning: "Narrow the case search filters or use an exact case ID." },
+  export_too_large: { status: [422], meaning: "The filtered export exceeds its bounded size; narrow its scope." },
+  export_cursor: { status: [500], meaning: "Export pagination could not advance safely." },
+  export_busy: { status: [429], meaning: "This admin already has two pending exports." },
+  export_limit: { status: [429], meaning: "This admin reached the temporary artifact limit." },
+  export_expired: { status: [410], meaning: "The temporary export expired." },
+  export_not_ready: { status: [409], meaning: "The export has not finished successfully." },
+  export_state: { status: [409], meaning: "This export cannot be retried from its current state." },
+
   bot_cursor_expired: { status: [410], meaning: "The bot replay cursor expired. Start a fresh event feed." },
   bot_event_webhooks_unavailable: { status: [503], meaning: "Outbound bot event webhooks are not enabled." },
   bot_events_unavailable: { status: [503], meaning: "Durable bot events are unavailable on this database adapter." },
@@ -90,6 +99,7 @@ export const ERROR_CODES = {
   account_limited: { status: [403], meaning: "Your account is limited by warnings from Meldiq's staff (Settings › My Account › Account standing)." },
   bad_request: { status: [400], meaning: "Give the role a name" },
   billing_unavailable: { status: [409, 503], meaning: "No billing provider is configured on this server, so nothing can be bought." },
+  refund_rejected: { status: [409], meaning: "The payment provider definitively refused the refund without moving money." },
   // Meldiq Mojo (API 0.54.0, docs/MOJO.md).
   // Google Play (API 0.55.0, docs/MOJO_ANDROID.md).
   billed_elsewhere: { status: [409], meaning: "This plan is billed on meldiq.app: change or cancel it there, not in Google Play." },

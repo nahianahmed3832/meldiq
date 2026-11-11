@@ -13,6 +13,7 @@ import type { RequestMeta } from "./credentials.js";
 import { decodeCursor, page } from "./pagination.js";
 import { allowed } from "./permissions.js";
 import type { PlatformAdminStore } from "./store.js";
+import { guardAccountStatusWrite, snapshotAdminAuthority } from "./authority.js";
 
 const EVENTS_SHOWN = 20;
 const CUSTOM_ROLE_SEPARATOR = "\u001f";
@@ -131,12 +132,14 @@ export class AdminUsers {
     const u = this.target(userId);
     const account = await this.ctx.accounts.store.accountByUserId(userId);
     const showEmail = allowed(p.grant, "users.view_email");
+    const showDevices = allowed(p.grant, "devices.view");
+    const showInterventions = allowed(p.grant, "audit.view") || allowed(p.grant, "users.suspend") || allowed(p.grant, "users.restore");
     const t = now();
-    const interventions = this.ctx.platform.all<{ at: number; action: string; outcome: string; actor_role: string | null; reason: string | null }>("platform_audit", {
+    const interventions = showInterventions ? this.ctx.platform.all<{ at: number; action: string; outcome: string; actor_role: string | null; reason: string | null }>("platform_audit", {
       where: { target_type: "user", target_id: userId, action: { ne: "user.view" } },
       orderBy: [["id", "desc"]],
       limit: EVENTS_SHOWN,
-    });
+    }) : null;
     await this.audit.record({
       action: "user.view",
       outcome: "success",
@@ -157,22 +160,22 @@ export class AdminUsers {
             emailVerified: account.email_verified_at !== null,
             createdAt: account.created_at,
             disabledAt: account.disabled_at,
-            activeSessions: (await this.ctx.accounts.store.activeSessions(account.id, t)).length,
-            passkeys: this.ctx.accounts.passkeys.list(account.id).passkeys.length,
+            activeSessions: showDevices ? (await this.ctx.accounts.store.activeSessions(account.id, t)).length : null,
+            passkeys: showDevices ? this.ctx.accounts.passkeys.list(account.id).passkeys.length : null,
           }
         : null,
-      devices: userDevices(this.ctx.identity, userId).map((d) => ({ id: d.id, name: d.name, createdAt: d.created_at, lastSeenAt: d.last_seen_at, revokedAt: d.revoked_at })),
-      memberships: membershipsOf(this.ctx.ws, userId).map((m) => ({
+      devices: showDevices ? userDevices(this.ctx.identity, userId).map((d) => ({ id: d.id, name: d.name, createdAt: d.created_at, lastSeenAt: d.last_seen_at, revokedAt: d.revoked_at })) : null,
+      memberships: allowed(p.grant, "orgs.view") ? membershipsOf(this.ctx.ws, userId).map((m) => ({
         orgId: m.org_id,
         name: m.name,
         kind: m.kind,
         role: m.role,
         joinedAt: m.joined_at,
         customRoles: m.custom_roles ? m.custom_roles.split(CUSTOM_ROLE_SEPARATOR) : [],
-      })),
-      platformRole: account ? (this.store.activeGrant(account.id)?.role ?? null) : null,
-      securityEvents: securityEvents(this.ctx.ws, account ? [userId, account.id] : [userId], EVENTS_SHOWN),
-      interventions: interventions.map((i) => ({ at: i.at, action: i.action, outcome: i.outcome, actorRole: i.actor_role, reason: i.reason })),
+      })) : null,
+      platformRole: account && allowed(p.grant, "admins.view") ? (this.store.activeGrant(account.id)?.role ?? null) : null,
+      securityEvents: showDevices || allowed(p.grant, "audit.view") ? securityEvents(this.ctx.ws, account ? [userId, account.id] : [userId], EVENTS_SHOWN) : null,
+      interventions: interventions?.map((i) => ({ at: i.at, action: i.action, outcome: i.outcome, actorRole: i.actor_role, reason: i.reason })) ?? null,
     };
   }
 
@@ -218,15 +221,28 @@ export class AdminUsers {
     const t = now();
     if (until !== undefined && until <= t + 60_000) throw badRequest("A temporary suspension ends at least a minute from now.");
     // A suspension's end (temporary) or none (until lifted); lifting removes it. Kept beside users.disabled_at.
-    const restriction = { until: until ?? null, reason, set_by: p.account.id, set_at: t };
-    await this.ctx.platform.write((w) => {
-      if (suspend) w.upsert("platform_restrictions", { user_id: userId, kind: "suspension", ...restriction }, restriction);
-      else w.delete("platform_restrictions", { user_id: userId });
+    const authority = await snapshotAdminAuthority(this.store, [p.account.id, account?.id]);
+    // Account reservations fence grant, passkey and status changes in the same platform authority.
+    // Restoring does not release this reservation until both canonical stores have accepted the restore.
+    const reservation = await this.ctx.platform.write((w) => {
+      guardAccountStatusWrite(w, p.account.id, account?.id, suspend, authority);
+      const previous = w.get<{ set_at: number }>("platform_restrictions", { user_id: userId });
+      const accountPrevious = account ? w.get<{ set_at: number }>("platform_restrictions", { user_id: `account:${account.id}` }) : undefined;
+      const revision = Math.max(t, (previous?.set_at ?? 0) + 1, (accountPrevious?.set_at ?? 0) + 1);
+      const restriction = { until: suspend ? until ?? null : null, reason, set_by: p.account.id, set_at: revision };
+      w.upsert("platform_restrictions", { user_id: userId, kind: "suspension", ...restriction }, restriction);
+      if (account) w.upsert("platform_restrictions", { user_id: `account:${account.id}`, kind: "suspension", ...restriction, until: null }, { ...restriction, until: null });
+      this.audit.append(w, { action: `${action}.requested`, outcome: "success", actorAccountId: p.account.id, actorRole: p.grant.role, targetType: "user", targetId: userId, reason, requestId: meta.requestId, detail: { until: until ?? null } });
+      return revision;
     });
     const changedIdentity = await setIdentitySuspended(this.ctx.identity, userId, suspend ? t : null);
     const changedAccount = !!account && (suspend ? account.disabled_at === null : account.disabled_at !== null);
     if (account && changedAccount) await this.ctx.accounts.store.updateAccount(account.id, { disabled_at: suspend ? t : null }, t);
     const ended = suspend ? await this.endSessions(userId, account, "suspended", t) : null;
+    if (!suspend) await this.ctx.platform.write(w => {
+      w.delete("platform_restrictions", { user_id: userId, set_at: reservation });
+      if (account) w.delete("platform_restrictions", { user_id: `account:${account.id}`, set_at: reservation });
+    });
     const changed = changedIdentity || changedAccount;
     await this.audit.record({
       action,

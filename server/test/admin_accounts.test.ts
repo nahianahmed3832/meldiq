@@ -1,3 +1,4 @@
+import { versionedAdminPut } from "./support/adminConsole.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { staticCodeMatches, staticCodeHash } from "../src/modules/accounts/operatorAccounts.js";
 import { AdminAccountCreated, AdminCreatedAccountChanged, AdminCreatedAccountsPage } from "../src/shared/contracts/http/platformAdminInsights.js";
@@ -75,10 +76,10 @@ describe("creating accounts", () => {
   });
 
   it("works while public sign-ups are closed, and refuses duplicates, weak passwords and mismatched codes", async () => {
-    await as("super_admin").expect(200, "PUT", "/admin/v1/controls/signups", { value: { mode: "closed" }, ...REASON });
+    await versionedAdminPut(as("super_admin"), "/admin/v1/controls/signups", { value: { mode: "closed" }, ...REASON });
     const address = email("closed");
     await create({ email: address, verification: "verified" });
-    await as("super_admin").expect(200, "PUT", "/admin/v1/controls/signups", { value: { mode: "environment" }, ...REASON });
+    await versionedAdminPut(as("super_admin"), "/admin/v1/controls/signups", { value: { mode: "environment" }, ...REASON });
     await create({ email: address, verification: "verified" }, "super_admin", 409);
     await create({ email: email("weak"), password: "password", verification: "verified" }, "super_admin", 400);
     await create({ email: email("nocode"), verification: "static_code" }, "super_admin", 400);

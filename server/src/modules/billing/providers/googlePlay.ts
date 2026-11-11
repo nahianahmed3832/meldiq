@@ -40,6 +40,8 @@ export const playProduct = (id: string): PlayProduct | null => (Object.hasOwn(PL
 
 /** The subset of `purchases.subscriptionsv2` Meldiq reads. */
 export interface PlaySubscription {
+  /** Present only on a verified Google test purchase (subscriptionsv2). */
+  testPurchase?: Record<string, never>;
   subscriptionState?: string;
   startTime?: string;
   linkedPurchaseToken?: string;

@@ -1,4 +1,5 @@
 import { pricingMigrationReport } from "../billing/index.js";
+import { AdminRefundParams, AdminPaymentQuery, AdminRefundQuery, AdminRefundCreate, AdminRefundReconcile, AdminCardQuery, AdminCardChargesQuery, AdminCardRecover } from "../../shared/contracts/http/adminRefunds.js";
 import { PromotionAdminBody } from "../../shared/contracts/http/promotions.js";
 import type { FastifyInstance } from "fastify";
 import {
@@ -8,6 +9,7 @@ import {
   AdminConnectorParams,
   AdminGrantBody,
   AdminIncidentCreate,
+  AdminIncidentEventsQuery,
   AdminIncidentNote,
   AdminIncidentParams,
   AdminIncidentPatch,
@@ -32,6 +34,7 @@ import {
   AdminPlanCreate,
   AdminProgramBody,
   AdminPlanMeta,
+  AdminPlanLifecycle,
   AdminBillingPlanParams,
   AdminPlanTerms,
   AdminSubscriptionParams,
@@ -45,6 +48,7 @@ import { AdminBilling } from "./billing.js";
 import type { AdminDeps } from "./dataRoutes.js";
 import { metaOf, principal, requirePermission } from "./guards.js";
 import { AdminIncidents } from "./incidents.js";
+import supportFeedbackRoutes from "./supportFeedback.js";
 import { AdminInfrastructure } from "./infrastructure.js";
 import { AdminMojo } from "./mojo.js";
 import type { Permission } from "./permissions.js";
@@ -52,7 +56,7 @@ import type { Permission } from "./permissions.js";
 /** Billing status and limits, infrastructure, incidents, the audit viewer and admin management (phase 4). */
 export default async function adminOpsRoutes(app: FastifyInstance, d: AdminDeps) {
   const needs = (permission: Permission) => ({ preHandler: requirePermission(d.auth, d.audit, permission) });
-  const billing = new AdminBilling(d.ctx, d.audit);
+  const billing = new AdminBilling(d.ctx, d.audit, d.auth);
   const mojo = new AdminMojo(d.ctx, d.audit);
   const infra = new AdminInfrastructure(d.ctx, d.audit, d.version);
   const incidents = new AdminIncidents(d.ctx, d.store, d.audit);
@@ -62,8 +66,8 @@ export default async function adminOpsRoutes(app: FastifyInstance, d: AdminDeps)
   app.get("/admin/v1/admins/:accountId/permissions", needs("admins.view"), async (req) => admins.permissionView(parse(AdminAccountParams, req.params).accountId));
   app.put("/admin/v1/admins/:accountId/permissions", needs("admins.manage"), async (req) => {
     const { accountId } = parse(AdminAccountParams, req.params);
-    const { permissions, reason } = parse(AdminPermissionUpdate, req.body);
-    return admins.setPermissions(principal(req), accountId, permissions, reason, metaOf(req));
+    const { permissions, reason, expectedUpdatedAt } = parse(AdminPermissionUpdate, req.body);
+    return admins.setPermissions(principal(req), accountId, permissions, reason, metaOf(req), expectedUpdatedAt);
   });
 
   // ── Entitlements and billing status ──
@@ -85,7 +89,10 @@ export default async function adminOpsRoutes(app: FastifyInstance, d: AdminDeps)
     return { ...result, metrics: d.ctx.billing.promotions.metrics() };
   });
 
-  app.get("/admin/v1/billing/metrics", needs("billing.view"), async (req) => billing.metrics(parse(AdminBillingMetricsQuery, req.query).days));
+  app.get("/admin/v1/billing/metrics", needs("billing.view"), async (req) => {
+    const { days, ...filter } = parse(AdminBillingMetricsQuery, req.query);
+    return billing.metrics(days, filter);
+  });
   app.get("/admin/v1/billing/plans", needs("billing.view"), async () => billing.plans());
   app.post("/admin/v1/billing/plans", needs("billing.manage"), async (req) => billing.createPlan(principal(req), parse(AdminPlanCreate, req.body), metaOf(req)));
   app.patch("/admin/v1/billing/plans/:planId", needs("billing.manage"), async (req) => {
@@ -94,16 +101,18 @@ export default async function adminOpsRoutes(app: FastifyInstance, d: AdminDeps)
   });
   app.put("/admin/v1/billing/plans/:planId/draft", needs("billing.manage"), async (req) => {
     const { planId } = parse(AdminBillingPlanParams, req.params);
-    const { terms, reason } = parse(AdminPlanTerms, req.body);
-    return billing.saveDraft(principal(req), planId, terms, reason, metaOf(req));
+    const { terms, reason, expectedUpdatedAt } = parse(AdminPlanTerms, req.body);
+    return billing.saveDraft(principal(req), planId, terms, reason, metaOf(req), expectedUpdatedAt);
   });
   app.post("/admin/v1/billing/plans/:planId/publish", needs("billing.manage"), async (req) => {
     const { planId } = parse(AdminBillingPlanParams, req.params);
-    return billing.publish(principal(req), planId, parse(AdminReasonBody, req.body).reason, metaOf(req));
+    const b = parse(AdminPlanLifecycle, req.body);
+    return billing.publish(principal(req), planId, b.reason, metaOf(req), b.expectedUpdatedAt);
   });
   app.post("/admin/v1/billing/plans/:planId/archive", needs("billing.manage"), async (req) => {
     const { planId } = parse(AdminBillingPlanParams, req.params);
-    return billing.archive(principal(req), planId, parse(AdminReasonBody, req.body).reason, metaOf(req));
+    const b = parse(AdminPlanLifecycle, req.body);
+    return billing.archive(principal(req), planId, b.reason, metaOf(req), b.expectedUpdatedAt);
   });
   app.get("/admin/v1/billing/subscriptions", needs("billing.view"), async (req) => billing.subscriptions(parse(AdminSubscriptionsQuery, req.query)));
   app.get("/admin/v1/billing/subscriptions/:subscriptionId", needs("billing.view"), async (req) => billing.subscription(parse(AdminSubscriptionParams, req.params).subscriptionId));
@@ -111,11 +120,28 @@ export default async function adminOpsRoutes(app: FastifyInstance, d: AdminDeps)
   app.post("/admin/v1/billing/subscriptions/:subscriptionId/resync", needs("billing.manage"), async (req) =>
     billing.resync(principal(req), parse(AdminSubscriptionParams, req.params).subscriptionId, parse(AdminReasonBody, req.body).reason, metaOf(req)),
   );
+  app.get("/admin/v1/billing/subscriptions/:subscriptionId/cancel", needs("billing.view"), async req => billing.cancellationOperation(parse(AdminSubscriptionParams, req.params).subscriptionId));
+  app.post("/admin/v1/billing/subscriptions/:subscriptionId/cancel", { ...needs("billing.manage"), config: { rateLimit: { max: 5, timeWindow: "1 minute" } } }, async req => billing.cancelSubscription(principal(req), parse(AdminSubscriptionParams, req.params).subscriptionId, parse(AdminReasonBody, req.body).reason, metaOf(req)));
   app.get("/admin/v1/billing/orders", needs("billing.view"), async () => { await d.ctx.billing.commerce.refresh(); return { orders: d.ctx.billing.commerce.admin() }; });
   app.get("/admin/v1/billing/gift-deliveries", needs("billing.view"), async () => billing.gifts());
   app.post("/admin/v1/billing/gifts/:id/resend", needs("billing.manage"), async req => billing.giftAction(principal(req), parse(PayPalCheckoutParams, req.params).id, "resend", parse(AdminReasonBody, req.body).reason, metaOf(req)));
   app.post("/admin/v1/billing/gifts/:id/revoke", needs("billing.manage"), async req => billing.giftAction(principal(req), parse(PayPalCheckoutParams, req.params).id, "revoke", parse(AdminReasonBody, req.body).reason, metaOf(req)));
   app.get("/admin/v1/billing/paypal/transactions", needs("billing.view"), async () => billing.paypalTransactions());
+  app.get("/admin/v1/billing/card-mandates", needs("billing.view"), async req => billing.cardMandates(parse(AdminCardQuery, req.query)));
+  app.get("/admin/v1/billing/card-mandates/:id", needs("billing.view"), async req => billing.cardMandate(parse(AdminRefundParams, req.params).id, parse(AdminCardChargesQuery, req.query)));
+  app.post("/admin/v1/billing/card-mandates/:id/cancel", needs("billing.manage"), async req => billing.cancelCardMandate(principal(req), parse(AdminRefundParams, req.params).id, parse(AdminReasonBody, req.body).reason, metaOf(req)));
+  app.post("/admin/v1/billing/card-charges/:id/reconcile", { ...needs("billing.manage"), config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async req => {
+    const body = parse(AdminCardRecover, req.body);
+    return billing.recoverCardCharge(principal(req), parse(AdminRefundParams, req.params).id, body.reason, body.orderRef, metaOf(req));
+  });
+  app.get("/admin/v1/billing/paypal/payments", needs("billing.view"), async req => billing.paypalPayments(parse(AdminPaymentQuery, req.query)));
+  app.get("/admin/v1/billing/paypal/payments/:id/refunds", needs("billing.view"), async req => billing.refundInspection(parse(AdminRefundParams, req.params).id));
+  app.post("/admin/v1/billing/paypal/payments/:id/refunds", { ...needs("billing.manage"), config: { rateLimit: { max: 5, timeWindow: "1 minute" } } }, async req => billing.requestRefund(principal(req), parse(AdminRefundParams, req.params).id, parse(AdminRefundCreate, req.body), metaOf(req)));
+  app.get("/admin/v1/billing/refunds", needs("billing.view"), async req => billing.refundOperations(parse(AdminRefundQuery, req.query)));
+  app.post("/admin/v1/billing/refunds/:id/reconcile", { ...needs("billing.manage"), config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async req => {
+    const b = parse(AdminRefundReconcile, req.body);
+    return billing.reconcileRefund(principal(req), parse(AdminRefundParams, req.params).id, b.reason, b.providerRef, metaOf(req));
+  });
   app.post("/admin/v1/billing/paypal/transactions/:id/refund", { ...needs("billing.manage"), config: { rateLimit: { max: 5, timeWindow: "1 minute" } } }, async (req) => {
     const body = parse(PayPalRefundBody, req.body);
     return billing.refundPayPal(principal(req), parse(PayPalCheckoutParams, req.params).id, body.reason, metaOf(req));
@@ -149,18 +175,21 @@ export default async function adminOpsRoutes(app: FastifyInstance, d: AdminDeps)
     return infra.check(principal(req), id, metaOf(req));
   });
 
+  await supportFeedbackRoutes(app, d);
+
   // ── Incidents ──
-  app.get("/admin/v1/incidents", needs("incidents.view"), async (req) => incidents.list(parse(AdminIncidentsQuery, req.query)));
+  app.get("/admin/v1/incidents", needs("incidents.view"), async (req) => incidents.list(principal(req), parse(AdminIncidentsQuery, req.query)));
+  app.get("/admin/v1/incidents/summary", needs("incidents.view"), async (req) => incidents.summary(principal(req), parse(AdminIncidentsQuery, req.query)));
   app.post("/admin/v1/incidents", needs("incidents.manage"), async (req) => incidents.create(principal(req), parse(AdminIncidentCreate, req.body), metaOf(req)));
   app.get("/admin/v1/incidents/assignees", needs("incidents.manage"), async () => incidents.assignees());
-  app.get("/admin/v1/incidents/:incidentId", needs("incidents.view"), async (req) => incidents.detail(parse(AdminIncidentParams, req.params).incidentId));
+  app.get("/admin/v1/incidents/:incidentId", needs("incidents.view"), async (req) => incidents.detail(principal(req), parse(AdminIncidentParams, req.params).incidentId, parse(AdminIncidentEventsQuery, req.query).before));
   app.patch("/admin/v1/incidents/:incidentId", needs("incidents.manage"), async (req) => {
     const { incidentId } = parse(AdminIncidentParams, req.params);
     return incidents.update(principal(req), incidentId, parse(AdminIncidentPatch, req.body), metaOf(req));
   });
   app.post("/admin/v1/incidents/:incidentId/notes", needs("incidents.manage"), async (req) => {
     const { incidentId } = parse(AdminIncidentParams, req.params);
-    return incidents.note(principal(req), incidentId, parse(AdminIncidentNote, req.body).body, metaOf(req));
+    return incidents.note(principal(req), incidentId, parse(AdminIncidentNote, req.body), metaOf(req));
   });
 
   // ── Audit ──
@@ -175,8 +204,8 @@ export default async function adminOpsRoutes(app: FastifyInstance, d: AdminDeps)
   });
   app.patch("/admin/v1/admins/:accountId", needs("admins.manage"), async (req) => {
     const { accountId } = parse(AdminAccountParams, req.params);
-    const { role, reason } = parse(AdminRoleBody, req.body);
-    return admins.changeRole(principal(req), accountId, role, reason, metaOf(req));
+    const { role, reason, expectedUpdatedAt } = parse(AdminRoleBody, req.body);
+    return admins.changeRole(principal(req), accountId, role, reason, metaOf(req), expectedUpdatedAt);
   });
   app.post("/admin/v1/admins/:accountId/revoke", needs("admins.manage"), async (req) => {
     const { accountId } = parse(AdminAccountParams, req.params);
